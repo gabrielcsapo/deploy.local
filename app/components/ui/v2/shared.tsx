@@ -72,6 +72,8 @@ const paths = {
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   minus: 'M5 12h14',
   back: 'M15 6l-6 6 6 6',
+  keyboard:
+    'M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10',
 };
 export type IconName = keyof typeof paths;
 export function Icon({

@@ -134,18 +134,31 @@ function Row({
   );
 }
 
+function AgentMark() {
+  return (
+    <span className="dz-agent-mark" aria-label="An agent is working here">
+      <Icon name="spark" size={9} />
+    </span>
+  );
+}
+
 function BoardLayers({
   file,
   url,
   selection,
   select,
   changed,
+  inReview,
+  agentAt,
 }: {
   file: string;
   url: string;
   selection: Selection;
   select: (selection: Selection) => void;
   changed: boolean;
+  inReview: boolean;
+  /** Layers an agent is working on in this board; null means the board itself. */
+  agentAt: Set<string | null>;
 }) {
   const here = selection?.board === file;
   const [open, setOpen] = useState(here);
@@ -182,6 +195,7 @@ function BoardLayers({
                 })
             : undefined
         }
+        meta={agentAt.has(node.id) ? <AgentMark /> : undefined}
         onClick={() => select({ board: file, layer: node.id })}
       >
         {render(node.children, depth + 1)}
@@ -192,7 +206,13 @@ function BoardLayers({
       depth={0}
       icon="frame"
       label={boardName(file)}
-      meta={changed ? <span className="dz-dot" aria-label="Changed on this branch" /> : undefined}
+      meta={
+        <>
+          {inReview && <span className="dz-review">In review</span>}
+          {agentAt.size > 0 && <AgentMark />}
+          {changed && <span className="dz-dot" aria-label="Changed on this branch" />}
+        </>
+      }
       on={here && !selection?.layer}
       inside={here}
       open={open}
@@ -202,6 +222,15 @@ function BoardLayers({
       {nodes ? render(nodes, 1) : <div className="dz-row muted">Loading layers…</div>}
     </Row>
   );
+}
+
+/** How long ago, the way the sidebar says it: now, 4m, 2h, 3d. */
+function since(at: string) {
+  const minutes = Math.max(0, Math.round((Date.now() - Date.parse(at)) / 60000));
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60 * 24) return `${Math.round(minutes / 60)}h`;
+  return `${Math.round(minutes / 60 / 24)}d`;
 }
 
 export function DesignMenu({
@@ -235,6 +264,8 @@ export function DesignMenu({
       window.removeEventListener('keydown', escape);
     };
   }, [open, onClose]);
+  const [switching, setSwitching] = useState(false);
+  const [keys, setKeys] = useState(false);
   if (!open) return null;
   return (
     <div ref={menu} className="dl-menu dz-menu" role="menu">
@@ -252,6 +283,7 @@ export function DesignMenu({
         >
           <span className="dz-attn" />
           <span className="dz-t">{item.title}</span>
+          <span className="dz-menu-end">{since(item.createdAt)}</span>
         </a>
       ))}
       {!waiting.length && <div className="dz-menu-empty">Nothing needs you.</div>}
@@ -270,20 +302,62 @@ export function DesignMenu({
         <Icon name="layers" size={14} />
         View main
       </button>
-      {branches.map((branch) => (
-        <button
-          key={branch.name}
-          type="button"
-          className={`dl-menu-item${current === branch.name ? ' on' : ''}`}
-          role="menuitemradio"
-          aria-checked={current === branch.name}
-          onClick={() => onRef(branch.name)}
-        >
-          <Icon name="branch" size={14} />
-          <span className="dz-t">{branch.name}</span>
-        </button>
-      ))}
+      <button
+        type="button"
+        className="dl-menu-item"
+        role="menuitem"
+        aria-expanded={switching}
+        onClick={() => setSwitching(!switching)}
+      >
+        <Icon name="branch" size={14} />
+        Switch branch…
+        <span className="dz-menu-end">{branches.length} open</span>
+      </button>
+      {switching &&
+        branches.map((branch) => (
+          <button
+            key={branch.name}
+            type="button"
+            className={`dl-menu-item${current === branch.name ? ' on' : ''}`}
+            role="menuitemradio"
+            aria-checked={current === branch.name}
+            onClick={() => onRef(branch.name)}
+          >
+            <span className="dz-menu-indent" />
+            <span className="dz-t">{branch.name}</span>
+          </button>
+        ))}
       <hr />
+      <button
+        type="button"
+        className="dl-menu-item"
+        role="menuitem"
+        aria-expanded={keys}
+        onClick={() => setKeys(!keys)}
+      >
+        <Icon name="keyboard" size={14} />
+        Keyboard shortcuts
+        <span className="dz-menu-end">?</span>
+      </button>
+      {keys && (
+        <dl className="dz-keys">
+          {[
+            ['V', 'Move'],
+            ['H or Space', 'Hand'],
+            ['C', 'Comment'],
+            ['⌘K', 'Ask an agent'],
+            ['⌘ scroll or pinch', 'Zoom'],
+            ['Shift 1', 'Zoom to the page'],
+            ['⌘\\', 'Hide panels'],
+            ['Esc', 'Clear the selection'],
+          ].map(([key, what]) => (
+            <div key={key}>
+              <dt>{what}</dt>
+              <dd>{key}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <a className="dl-menu-item" role="menuitem" href="/dashboard/settings">
         <Icon name="settings" size={14} />
         Preferences
@@ -305,11 +379,14 @@ export function LeftPanel({
   select,
   base,
   changed,
+  inReview,
+  agentAt,
   waiting,
   menu,
   setMenu,
   onRef,
   onNewBranch,
+  onHide,
 }: {
   projects: Project[];
   project: Project | undefined;
@@ -323,14 +400,27 @@ export function LeftPanel({
   select: (selection: Selection) => void;
   base: string | null;
   changed: Set<string>;
+  /** Boards a waiting design review would change. */
+  inReview: Set<string>;
+  /** Where agents are working: board → layers (null for the board itself). */
+  agentAt: Map<string, Set<string | null>>;
   waiting: InboxItem[];
   menu: boolean;
   setMenu: (open: boolean) => void;
   onRef: (ref: string) => void;
   onNewBranch: () => void;
+  onHide: () => void;
 }) {
   const [allPages, setAllPages] = useState(false);
-  const shown = allPages ? sections : sections.slice(0, 6);
+  const [finding, setFinding] = useState(false);
+  const [query, setQuery] = useState('');
+  const match = (text: string) =>
+    !query.trim() || text.toLowerCase().includes(query.trim().toLowerCase());
+  const pages = sections.filter(
+    (item) => match(item.title) || item.boards.some((file) => match(boardName(file))),
+  );
+  const shown = allPages || query ? pages : pages.slice(0, 6);
+  const boards = (section?.boards ?? []).filter((file) => match(boardName(file)));
   return (
     <aside className="dz-left" aria-label="Design navigation">
       <div className="dz-left-top">
@@ -345,6 +435,16 @@ export function LeftPanel({
             <span className="dl-mark">d</span>
             <Icon name="down" size={12} />
             {waiting.length > 0 && <span className="dz-badge">{waiting.length}</span>}
+          </button>
+          <span className="dl-grow" />
+          <button
+            type="button"
+            className="dl-icon-btn dz-hide"
+            aria-label="Hide panels  ⌘\\"
+            title="Hide panels  ⌘\\"
+            onClick={onHide}
+          >
+            <Icon name="panel" size={15} />
           </button>
         </div>
         <DesignMenu
@@ -389,10 +489,44 @@ export function LeftPanel({
         >
           Assets
         </button>
+        <span className="dl-grow" />
+        <button
+          type="button"
+          className={`dl-icon-btn dz-find${finding ? ' on' : ''}`}
+          aria-label="Find a page or board"
+          aria-pressed={finding}
+          onClick={() => {
+            setFinding(!finding);
+            setQuery('');
+          }}
+        >
+          <Icon name="search" size={14} />
+        </button>
       </div>
+      {finding && (
+        <input
+          className="dz-find-input"
+          autoFocus
+          value={query}
+          placeholder="Find a page or board"
+          aria-label="Find a page or board"
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => event.key === 'Escape' && (setFinding(false), setQuery(''))}
+        />
+      )}
       <div className="dz-group-h">
         <Icon name="down" size={10} />
         Pages
+        <span className="dl-grow" />
+        <button
+          type="button"
+          className="dl-icon-btn dz-add"
+          aria-label="Add a page (comes with direct editing)"
+          title="Adding pages comes with direct editing"
+          disabled
+        >
+          <Icon name="plus" size={14} />
+        </button>
       </div>
       <div className="dz-pages" role="listbox" aria-label="Pages">
         {shown.map((item) => (
@@ -406,9 +540,9 @@ export function LeftPanel({
             onClick={() => onSection(item.id)}
           />
         ))}
-        {sections.length > 6 && (
+        {!query && pages.length > 6 && (
           <button type="button" className="dz-more" onClick={() => setAllPages(!allPages)}>
-            {allPages ? 'Fewer' : `${sections.length - 6} more`}
+            {allPages ? 'Fewer' : `${pages.length - 6} more`}
           </button>
         )}
       </div>
@@ -418,7 +552,7 @@ export function LeftPanel({
       </div>
       <div className="dz-layers" role="tree" aria-label="Layers">
         {base &&
-          section?.boards.map((file) => (
+          boards.map((file) => (
             <BoardLayers
               key={`${base}/${file}`}
               file={file}
@@ -426,6 +560,8 @@ export function LeftPanel({
               selection={selection}
               select={select}
               changed={changed.has(file)}
+              inReview={inReview.has(file)}
+              agentAt={agentAt.get(file) ?? new Set()}
             />
           ))}
       </div>
@@ -655,6 +791,9 @@ export function RightPanel({
   agent,
   onAsk,
   propose,
+  agents,
+  onComment,
+  htmlHref,
 }: {
   project: Project | undefined;
   design: Design | undefined;
@@ -678,8 +817,14 @@ export function RightPanel({
   onAsk: () => void;
   /** Propose the current design branch for review; null when there is nothing to propose. */
   propose: { state: 'ready' | 'busy' | 'in-review'; run: () => void; note: string } | null;
+  /** Agents working on this design now, shown beside you like Figma's other viewers. */
+  agents: { taskId: string; title: string }[];
+  onComment: () => void;
+  /** The selected board's HTML, for View HTML. */
+  htmlHref: string | null;
 }) {
   const [zoomMenu, setZoomMenu] = useState(false);
+  const [moreMenu, setMoreMenu] = useState(false);
   void revision;
   const element = selection?.layer ? layerElement(frames, selection.board, selection.layer) : null;
   const board = selection ? canvas?.boards[selection.board] : undefined;
@@ -698,12 +843,31 @@ export function RightPanel({
     <aside className="dz-right" aria-label="Edit">
       <span className="dz-grab" aria-hidden="true" />
       <div className="dz-right-top">
-        <span className="dl-avatar" title={owner}>
-          {owner.slice(0, 1).toUpperCase()}
+        <span className="dz-avatars">
+          <span className="dl-avatar" title={owner}>
+            {owner.slice(0, 1).toUpperCase()}
+          </span>
+          {agents.slice(0, 3).map((present) => (
+            <span
+              key={present.taskId}
+              className="dl-avatar dz-agent-avatar"
+              title={`${present.title} is working here`}
+            >
+              <Icon name="spark" size={11} />
+            </span>
+          ))}
         </span>
         <span className="dl-grow" />
         <button type="button" className="dl-icon-btn" aria-label="Play (coming soon)" disabled>
           <Icon name="play" size={14} />
+        </button>
+        <button
+          type="button"
+          className="dz-tool-more"
+          aria-label="Play options (coming soon)"
+          disabled
+        >
+          <Icon name="down" size={10} />
         </button>
         <Action
           variant="primary"
@@ -776,7 +940,7 @@ export function RightPanel({
           <>
             <div className="dz-sel">
               <b className="dz-sel-kind">
-                {kindName[kind!]}
+                <span className="dz-sel-name">{kindName[kind!]}</span>
                 <button
                   type="button"
                   className="dl-icon-btn"
@@ -786,6 +950,54 @@ export function RightPanel({
                 >
                   <Icon name="spark" size={14} />
                 </button>
+                <button
+                  type="button"
+                  className="dl-icon-btn"
+                  aria-label="Comment  C"
+                  title="Comment  C"
+                  onClick={onComment}
+                >
+                  <Icon name="comment" size={14} />
+                </button>
+                <span className="dz-more-wrap">
+                  <button
+                    type="button"
+                    className="dl-icon-btn"
+                    aria-label="More"
+                    aria-haspopup="menu"
+                    aria-expanded={moreMenu}
+                    onClick={() => setMoreMenu(!moreMenu)}
+                  >
+                    <Icon name="more" size={14} />
+                  </button>
+                  {moreMenu && (
+                    <div
+                      className="dl-menu dz-zoom-menu"
+                      role="menu"
+                      onClick={() => setMoreMenu(false)}
+                    >
+                      <button
+                        type="button"
+                        className="dl-menu-item"
+                        role="menuitem"
+                        onClick={() => void navigator.clipboard?.writeText(window.location.href)}
+                      >
+                        Copy link to layer
+                      </button>
+                      {htmlHref && (
+                        <a
+                          className="dl-menu-item"
+                          role="menuitem"
+                          href={htmlHref}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View the board’s HTML
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </span>
               </b>
               <span className="dz-crumb">{crumb.join(' › ')}</span>
             </div>
@@ -829,6 +1041,13 @@ export function RightPanel({
           </>
         ) : (
           <>
+            <Prop title="Page">
+              <Field wide>
+                <Swatch color="var(--ds-canvas)" />
+                canvas
+                <span className="dz-meta">100%</span>
+              </Field>
+            </Prop>
             <Prop
               title="Changes on this branch"
               actions={<span className="dz-meta">{changes.length}</span>}

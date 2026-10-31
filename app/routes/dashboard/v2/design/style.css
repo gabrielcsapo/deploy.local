@@ -1177,6 +1177,137 @@
   box-shadow: 0 0 0 1px var(--ds-line);
 }
 
+/* The deploy.local menu's extras. */
+.dz-menu-end {
+  margin-left: auto;
+  padding-left: var(--ds-space-2);
+  color: color-mix(in srgb, var(--ds-surface) 60%, transparent);
+  font-size: var(--ds-type-caption);
+  white-space: nowrap;
+}
+.dz-menu-indent {
+  width: 14px;
+  flex: none;
+}
+.dz-keys {
+  margin: 0;
+  padding: var(--ds-space-1) 10px var(--ds-space-2);
+}
+.dz-keys div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  padding: 2px 0;
+  font-size: var(--ds-type-caption);
+}
+.dz-keys dt {
+  color: color-mix(in srgb, var(--ds-surface) 85%, transparent);
+}
+.dz-keys dd {
+  margin: 0;
+  color: color-mix(in srgb, var(--ds-surface) 60%, transparent);
+}
+/* People and agents on this design, and the selection's actions. */
+.dz-avatars {
+  display: flex;
+}
+.dz-avatars .dl-avatar + .dl-avatar {
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--ds-surface);
+}
+.dz-agent-avatar {
+  background: var(--dz-agent) !important;
+  color: var(--ds-onAction) !important;
+}
+.dz-sel-name {
+  margin-right: auto;
+}
+.dz-more-wrap {
+  position: relative;
+}
+/* In review, agent marks, find, and hiding the panels. */
+.dz-review {
+  padding: 0 6px;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-ink);
+  color: var(--ds-surface);
+  font-size: var(--ds-type-caption);
+  line-height: 16px;
+}
+.dz-board-name .dz-tag.review {
+  background: var(--ds-ink);
+  color: var(--ds-surface);
+}
+.dz-agent-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: var(--ds-radius-full);
+  background: var(--dz-agent);
+  color: var(--ds-onAction);
+}
+.dz-row .dz-agent-mark svg {
+  color: var(--ds-onAction);
+}
+.dz-find,
+.dz-add,
+.dz-hide {
+  width: 24px;
+  height: 24px;
+}
+.dz-find.on {
+  background: var(--ds-hover);
+}
+.dz-find-input {
+  margin: var(--ds-space-2) var(--ds-space-3) 0;
+  height: 28px;
+  padding: 0 var(--ds-space-2);
+  border: 1px solid var(--ds-line);
+  border-radius: 6px;
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font: inherit;
+}
+.dz-find-input:focus {
+  outline: none;
+  border-color: var(--ds-accent);
+}
+.dz.minimized {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dz.minimized .dz-left,
+.dz.minimized .dz-right {
+  display: none;
+}
+.dz-restore {
+  position: fixed;
+  z-index: 20;
+  top: var(--ds-space-3);
+  left: var(--ds-space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 var(--ds-space-2);
+  border: 0;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-surface);
+  box-shadow:
+    0 0 0 1px var(--ds-line),
+    var(--ds-shadow-lg);
+  color: var(--ds-secondary);
+  cursor: pointer;
+}
+.dz-restore .dl-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: var(--ds-type-caption);
+}
+
 .dz-narrow-bar,
 .dz-sheet-scrim {
   display: none;

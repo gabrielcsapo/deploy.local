@@ -308,7 +308,10 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
     item.actions.map((action: any) => action.id),
     ['approve', 'changes'],
   );
-  assert.equal((await (await call('/proposals')).json()).proposals[0].id, item.id);
+  const listed = (await (await call('/proposals')).json()).proposals[0];
+  assert.equal(listed.id, item.id);
+  assert.equal(listed.branch, 'design/welcome-title');
+  assert.deepEqual(listed.boards.sort(), ['New.html', 'Welcome.html']);
   // Proposing the same commit again returns the same request.
   const again = await (
     await call('/propose', {
@@ -320,9 +323,9 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
 
   const before = await git(['rev-parse', 'main']);
   answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
-  const after = await git(['rev-parse', 'main']);
-  assert.notEqual(after, before);
-  assert.equal(await git(['rev-parse', `${after}^`]), before);
+  const approved = await git(['rev-parse', 'main']);
+  assert.notEqual(approved, before);
+  assert.equal(await git(['rev-parse', `${approved}^`]), before);
   assert.equal(
     await git(['show', 'main:design/boards/Welcome.html']),
     '<h1 data-layer="title">Big</h1>',
@@ -344,7 +347,7 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   answerInbox('alice', forTask.item.id, { actionId: 'changes', on: 'web', note: 'Too big now' });
   const notes = await (await call('/comments?board=Welcome.html')).json();
   assert.ok(notes.comments.some((comment: any) => comment.text === 'Too big now'));
-  assert.equal(await git(['rev-parse', 'main']), after);
+  assert.equal(await git(['rev-parse', 'main']), approved);
 });
 
 test('agents show where they work, comment and resolve through deploy_design', async () => {

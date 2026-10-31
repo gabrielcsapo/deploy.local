@@ -145,7 +145,7 @@ export default function DesignPage() {
       window.clearInterval(timer);
     };
   }, [projectApi]);
-  const proposals = useData<{ proposals: { id: string; state: string }[] }>(
+  const proposals = useData<{ proposals: { id: string; state: string; boards: string[] }[] }>(
     project ? `${projectApi}/proposals?v=${poll}` : undefined,
   );
   const [proposing, setProposing] = useState(false);
@@ -179,6 +179,8 @@ export default function DesignPage() {
   const [tool, setTool] = useState<Tool>('move');
   const [menu, setMenu] = useState(false);
   const [narrowMenu, setNarrowMenu] = useState(false);
+  // Figma's Minimize UI: hide both panels for more canvas.
+  const [minimized, setMinimized] = useState(false);
   const [revision, setRevision] = useState(0);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const stage = useRef<HTMLDivElement>(null);
@@ -188,9 +190,9 @@ export default function DesignPage() {
       const host = stage.current?.querySelector('.dz-canvas');
       if (!canvas || !host) return;
       const box = bounds(canvas, files);
-      const view = fit(box, host.clientWidth, host.clientHeight);
+      const framed = fit(box, host.clientWidth, host.clientHeight);
       // A whole section can be too big to read; open at a readable zoom on its first boards.
-      setView(view.z >= 0.2 ? view : { z: 0.25, x: 48 - box.x * 0.25, y: 72 - box.y * 0.25 });
+      setView(framed.z >= 0.2 ? framed : { z: 0.25, x: 48 - box.x * 0.25, y: 72 - box.y * 0.25 });
     },
     [canvas],
   );
@@ -299,6 +301,10 @@ export default function DesignPage() {
         setAsking(true);
       }
       if (event.key === 'Escape') select(null);
+      if (event.key === '\\' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setMinimized((value) => !value);
+      }
       if (event.shiftKey && event.key === '!' && section) fitTo(section.boards);
     };
     window.addEventListener('keydown', keys);
@@ -355,9 +361,23 @@ export default function DesignPage() {
     const top = Math.min((box.y + box.h) * view.z + view.y + 12, (host?.clientHeight ?? 600) - 300);
     return { left, top: Math.max(12, top) };
   };
+  const inReviewBoards = new Set(
+    (proposals.data?.proposals ?? [])
+      .filter((item) => item.state === 'waiting')
+      .flatMap((item) => item.boards ?? []),
+  );
+  const agentAt = new Map<string, Set<string | null>>();
+  for (const agent of agents) {
+    const here = agentAt.get(agent.board) ?? new Set<string | null>();
+    here.add(agent.layer);
+    agentAt.set(agent.board, here);
+  }
   const empty = projects.data && !projects.data.projects.length;
   return (
-    <div className={`dz${selection ? ' has-selection' : ''}${asking ? ' asking' : ''}`} ref={stage}>
+    <div
+      className={`dz${selection ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}`}
+      ref={stage}
+    >
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
@@ -422,6 +442,18 @@ export default function DesignPage() {
           </Action>
         )}
       </div>
+      {minimized && (
+        <button
+          type="button"
+          className="dz-restore"
+          aria-label="Show panels  ⌘\\"
+          title="Show panels  ⌘\\"
+          onClick={() => setMinimized(false)}
+        >
+          <span className="dl-mark">d</span>
+          <Icon name="panel" size={14} />
+        </button>
+      )}
       <LeftPanel
         projects={projects.data?.projects ?? []}
         project={project}
@@ -445,6 +477,9 @@ export default function DesignPage() {
         setMenu={setMenu}
         onRef={chooseRef}
         onNewBranch={newBranch}
+        inReview={inReviewBoards}
+        agentAt={agentAt}
+        onHide={() => setMinimized(true)}
       />
       <div className="dz-stage">
         {empty ? (
@@ -472,6 +507,7 @@ export default function DesignPage() {
             onFrameLoad={() => setRevision((n) => n + 1)}
             agentBoards={agentBoards}
             agentLayers={agentLayers}
+            inReview={inReviewBoards}
             agents={agents}
           />
         ) : (
@@ -600,6 +636,14 @@ export default function DesignPage() {
         commentCount={comments.filter((comment) => !comment.resolved).length}
         onAsk={() => setAsking(true)}
         propose={propose}
+        agents={agents}
+        onComment={() => {
+          setTab('comments');
+          setCommentFocus((n) => n + 1);
+        }}
+        htmlHref={
+          selection && base ? `${base}/boards/${encodeURIComponent(selection.board)}` : null
+        }
         comments={
           project ? (
             <CommentsPanel

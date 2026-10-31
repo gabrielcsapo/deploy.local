@@ -215,3 +215,27 @@
     padding: var(--ds-space-3);
   }
 }
+
+.dzr-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+.dzr-head .dl-seg {
+  margin-left: var(--ds-space-2);
+}
+.dzr-pair {
+  display: flex;
+  gap: var(--ds-space-4);
+  justify-content: center;
+}
+.dzr-pair figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+  margin: 0;
+}
+.dzr-pair figcaption {
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-meta);
+}

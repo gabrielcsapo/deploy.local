@@ -52,6 +52,7 @@ export function DesignCanvas({
   agentBoards,
   agentLayers,
   agents = [],
+  inReview,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -69,6 +70,8 @@ export function DesignCanvas({
   agents?: AgentPresence[];
   /** Per board, the layers the open agent branch changed, each outlined with what changed. */
   agentLayers?: Map<string, LayerChange[]>;
+  /** Boards a waiting design review would change. */
+  inReview?: Set<string>;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -250,6 +253,7 @@ export function DesignCanvas({
                   </span>
                 )}
                 {agent && <span className="dz-tag agent">Agent’s version</span>}
+                {!agent && inReview?.has(file) && <span className="dz-tag review">In review</span>}
               </button>
               {visible(file) ? (
                 <iframe

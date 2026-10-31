@@ -812,9 +812,22 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   // Open design reviews of this project, newest first.
   if (sub === '/proposals' && req.method === 'GET') {
     const prefix = `design:${project.id}:`;
+    // Each request also names the boards it would change, so the canvas can mark them In review.
+    const contexts = new Map(
+      list('v2-inbox-native', owner)
+        .filter((row: any) => row.id.startsWith(prefix))
+        .map((row: any) => [row.id, row.context]),
+    );
     const items = syncInbox(owner)
       .filter((item) => item.id.startsWith(prefix))
-      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .map((item) => ({
+        ...item,
+        branch: contexts.get(item.id)?.branch ?? null,
+        boards: ((contexts.get(item.id)?.paths ?? []) as string[])
+          .filter((path) => path.startsWith('design/boards/'))
+          .map((path) => path.slice('design/boards/'.length)),
+      }));
     return sendJson(res, { proposals: items });
   }
 

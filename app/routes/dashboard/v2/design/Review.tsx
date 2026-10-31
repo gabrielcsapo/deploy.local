@@ -81,6 +81,7 @@ function useChangeLines(design: { api: string; changes?: Changes }, board: strin
 
 /** A board as it is at a commit, scaled to fit a width. */
 function BoardFrame({ src, width, w, h }: { src: string; width: number; w: number; h: number }) {
+  // `w` is the width the board lays out at (1440, 700 or 390); `width` is how wide it shows.
   const scale = width / w;
   return (
     <div className="dzr-frame" style={{ width, height: h * scale }}>
@@ -93,6 +94,40 @@ function BoardFrame({ src, width, w, h }: { src: string; width: number; w: numbe
         loading="lazy"
         style={{ transform: `scale(${scale})` }}
       />
+    </div>
+  );
+}
+
+/** The widths a board is reviewed at: web boards at 1440, 700 and 390, phone boards at their own. */
+const widthsOf = (board: { w: number }) => (board.w <= 500 ? [board.w] : [1440, 700, 390]);
+
+function WidthSwitch({
+  widths,
+  value,
+  onChange,
+}: {
+  widths: number[];
+  value: number;
+  onChange: (width: number) => void;
+}) {
+  if (widths.length < 2) return null;
+  return (
+    <div className="dl-seg" role="radiogroup" aria-label="Width">
+      {widths.map((width) => (
+        <a
+          key={width}
+          href="#"
+          role="radio"
+          aria-checked={value === width}
+          className={value === width ? 'on' : ''}
+          onClick={(event) => {
+            event.preventDefault();
+            onChange(width);
+          }}
+        >
+          {width}
+        </a>
+      ))}
     </div>
   );
 }
@@ -228,6 +263,9 @@ export function DesignReview({
   }, [stage]);
   const board = design.boards.includes(selected) ? selected : design.boards[0];
   const placed = board ? design.canvas?.boards[board] : undefined;
+  const [chosenWidth, setLayoutWidth] = useState(0);
+  const layoutWidth =
+    placed && widthsOf(placed).includes(chosenWidth) ? chosenWidth : (placed?.w ?? 1440);
   const changes = design.changes;
   const lines = useChangeLines(design, board);
   if (!changes) return <div className="dzr-empty">Loading the design…</div>;
@@ -257,6 +295,13 @@ export function DesignReview({
           ))}
       </aside>
       <div className="dzr-main">
+        {placed && board && (
+          <div className="dzr-head">
+            <b>{boardName(board)}</b>
+            <span className="dl-meta">design/boards/{board}</span>
+            <WidthSwitch widths={widthsOf(placed)} value={layoutWidth} onChange={setLayoutWidth} />
+          </div>
+        )}
         <div className="dzr-compare" ref={setStage}>
           {placed && board ? (
             (['Before', 'After'] as const).map((label) => (
@@ -266,8 +311,8 @@ export function DesignReview({
                 </figcaption>
                 <BoardFrame
                   src={`${design.api}/files/${label === 'Before' ? changes.base : changes.commit}/boards/${encodeURIComponent(board)}`}
-                  width={isPhone(placed) ? Math.min(column, placed.w) : column}
-                  w={placed.w}
+                  width={Math.min(column, layoutWidth)}
+                  w={layoutWidth}
                   h={placed.h}
                 />
               </figure>
@@ -304,44 +349,40 @@ export function DesignCard({
   taskId: string;
   design: TaskDesign;
 }) {
-  const [after, setAfter] = useState(true);
   const board = design.boards[0];
   const placed = board ? design.canvas?.boards[board] : undefined;
   const lines = useChangeLines(design, board);
+  const [layoutWidth, setLayoutWidth] = useState(0);
   if (!design.changes || !board || !placed) return null;
-  const commit = after ? design.changes.commit : design.changes.base;
+  const widths = widthsOf(placed).slice(0, 2);
+  const shown = widths.includes(layoutWidth) ? layoutWidth : widths[0];
   return (
     <section className="dzr-card" aria-label="Design change">
       <header>
         <Icon name="layers" size={14} />
         <b>{boardName(board)}</b>
         <span className="dl-meta">
-          {design.boards.length > 1 ? `1 of ${design.boards.length} boards` : 'design waiting'}
+          design/boards/{board}
+          {design.boards.length > 1 ? ` · 1 of ${design.boards.length} boards` : ''}
         </span>
         <span className="dl-grow" />
-        <div className="dl-seg" role="group" aria-label="Show">
-          <a
-            href="#"
-            className={after ? '' : 'on'}
-            onClick={(event) => (event.preventDefault(), setAfter(false))}
-          >
-            Before
-          </a>
-          <a
-            href="#"
-            className={after ? 'on' : ''}
-            onClick={(event) => (event.preventDefault(), setAfter(true))}
-          >
-            After
-          </a>
-        </div>
+        <WidthSwitch widths={widths} value={shown} onChange={setLayoutWidth} />
       </header>
-      <BoardFrame
-        src={`${design.api}/files/${commit}/boards/${encodeURIComponent(board)}`}
-        width={isPhone(placed) ? Math.min(240, placed.w) : 420}
-        w={placed.w}
-        h={placed.h}
-      />
+      <div className="dzr-pair">
+        {(['Before', 'After'] as const).map((label) => (
+          <figure key={label}>
+            <BoardFrame
+              src={`${design.api}/files/${label === 'Before' ? design.changes!.base : design.changes!.commit}/boards/${encodeURIComponent(board)}`}
+              width={isPhone(placed) ? 150 : 200}
+              w={shown}
+              h={placed.h}
+            />
+            <figcaption>
+              {label} · {label === 'Before' ? 'main' : 'this task'}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
       {(lines.length > 0 || design.boards.length > 1) && (
         <ul>
           {lines.slice(0, 4).map((line) => (
