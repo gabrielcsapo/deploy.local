@@ -5,6 +5,10 @@ import { resolve, sep } from 'node:path';
 import type { ApplicationExecutionPlan, ComponentExecutionPlan } from './application-execution.ts';
 import type { ApplicationSpec } from './application-spec.ts';
 
+// The same pinned helper the local Docker adapter uses for archives.
+const PROBE_HELPER_IMAGE =
+  'busybox:1.37@sha256:9db7b59979c38555a39def84a31fb98b5296952f9e3afd4f6f11f05b07adfab0';
+
 /** Authenticated coordinator-to-agent contract for one admitted node-local graph revision. */
 export interface AgentApplicationGraphPayload {
   version: 1;
@@ -56,6 +60,11 @@ export interface AgentGraphExecutionInput {
   onProgress?: (stage: string, message: string) => void | Promise<void>;
   /** Deterministic health transport used by tests; production probes the target-local port. */
   probePort?: (port: number, protocol: string, path: string) => Promise<boolean>;
+  /**
+   * Run the graph on an internal network with no route out, as Verify does for its copy.
+   * Docker publishes no ports there, so health is probed from inside each container's network.
+   */
+  internalNetwork?: boolean;
 }
 
 export interface AgentGraphInstanceResult {
@@ -146,6 +155,7 @@ export async function executeAgentApplicationGraph(
       `deploy-sh.app-id=${graph.applicationId}`,
       '--label',
       'deploy-sh.private-network=true',
+      ...(input.internalNetwork ? ['--internal'] : []),
       network,
     ]);
   }
@@ -209,7 +219,8 @@ export async function executeAgentApplicationGraph(
     }
 
     const completedJobs = await runGraphJobs(input, docker, created, prepared, network, providers);
-    const routes = graphRoutes(graph, created);
+    // Nothing outside reaches a graph on an internal network, so it has no routes to publish.
+    const routes = input.internalNetwork ? [] : graphRoutes(graph, created);
     const primaryRoute = routes[0] ?? null;
     const primaryEndpoint = primaryRoute?.endpoints[0];
     const primaryInstance = primaryEndpoint
@@ -420,6 +431,7 @@ async function createGraphInstance(input: {
     graph.profileValues[input.component.name] ?? {},
     input.input.healthTimeoutMs ?? 30_000,
     input.input.probePort,
+    input.input.internalNetwork,
   );
   await provisionProfile(input.docker, containerName, input.component, graph.profileValues);
   return {
@@ -670,9 +682,32 @@ async function waitForGraphHealth(
   profileValues: Readonly<Record<string, string>>,
   timeoutMs: number,
   probePort?: (port: number, protocol: string, path: string) => Promise<boolean>,
+  internalNetwork = false,
 ): Promise<Record<number, number>> {
   const deadline = Date.now() + timeoutMs;
   let ports: Record<number, number> = {};
+  const probe = async (
+    endpoint: ComponentExecutionPlan['interfaces'][string],
+    path: string,
+    http: boolean,
+  ) => {
+    if (internalNetwork) {
+      if (probePort) return probePort(endpoint.port, endpoint.protocol, path);
+      // The helper speaks plain HTTP only, so an HTTPS endpoint just has to accept a connection.
+      return probeInside(
+        docker,
+        containerName,
+        endpoint.port,
+        http && endpoint.protocol === 'http' ? path : undefined,
+      );
+    }
+    const port = component.runtime.networkMode === 'host' ? endpoint.port : ports[endpoint.port];
+    if (!port) return false;
+    if (probePort) return probePort(port, endpoint.protocol, path);
+    return http && (endpoint.protocol === 'http' || endpoint.protocol === 'https')
+      ? probeHttp(port, path, endpoint.protocol === 'https')
+      : probeTcp(port);
+  };
   do {
     const running = await docker.run(['inspect', '--format', '{{.State.Running}}', containerName]);
     if (running.exitCode !== 0) break;
@@ -686,29 +721,11 @@ async function waitForGraphHealth(
         if ((await docker.run(['exec', containerName, ...command])).exitCode === 0) return ports;
       } else if (component.health) {
         const endpoint = component.interfaces[component.health.interface];
-        const port =
-          component.runtime.networkMode === 'host' ? endpoint.port : ports[endpoint.port];
-        if (
-          port &&
-          (probePort
-            ? await probePort(port, endpoint.protocol, component.health.path ?? '/')
-            : endpoint.protocol === 'http' || endpoint.protocol === 'https'
-              ? await probeHttp(port, component.health.path ?? '/', endpoint.protocol === 'https')
-              : await probeTcp(port))
-        ) {
-          return ports;
-        }
+        if (await probe(endpoint, component.health.path ?? '/', true)) return ports;
       } else {
         const endpoint = Object.values(component.interfaces)[0];
         if (!endpoint) return ports;
-        const port =
-          component.runtime.networkMode === 'host' ? endpoint.port : ports[endpoint.port];
-        if (
-          port &&
-          (probePort ? await probePort(port, endpoint.protocol, '/') : await probeTcp(port))
-        ) {
-          return ports;
-        }
+        if (await probe(endpoint, '/', false)) return ports;
       }
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
@@ -978,6 +995,38 @@ async function probeHttp(port: number, path: string, tls: boolean): Promise<bool
   } catch {
     return false;
   }
+}
+
+/**
+ * Probe a port from inside a container's own network, with a throwaway helper that shares it.
+ * Without a path it only connects; with one, any HTTP answer below 500 counts, as probeHttp does.
+ */
+async function probeInside(
+  docker: AgentGraphDocker,
+  containerName: string,
+  port: number,
+  path?: string,
+): Promise<boolean> {
+  const helper = ['run', '--rm', '--network', `container:${containerName}`, PROBE_HELPER_IMAGE];
+  if (path === undefined) {
+    return (
+      (await docker.run([...helper, 'nc', '-z', '-w', '1', '127.0.0.1', String(port)])).exitCode ===
+      0
+    );
+  }
+  // busybox wget fails on any error status, so read the status line it prints instead.
+  const result = await docker.run([
+    ...helper,
+    'wget',
+    '-S',
+    '-O',
+    '/dev/null',
+    '-T',
+    '1',
+    `http://127.0.0.1:${port}${path}`,
+  ]);
+  const status = Number(`${result.stdout}\n${result.stderr}`.match(/HTTP\/[\d.]+ (\d{3})/)?.[1]);
+  return status > 0 && status < 500;
 }
 
 function probeTcp(port: number): Promise<boolean> {

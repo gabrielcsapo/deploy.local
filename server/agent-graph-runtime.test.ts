@@ -198,6 +198,79 @@ describe('connected-agent application graph executor', () => {
     assert.equal(docker.containers.size, 3);
   });
 
+  it('probes health from inside each container on an internal network', async () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'deploy-agent-graph-'));
+    temporary.push(root);
+    mkdirSync(resolve(root, 'source'), { recursive: true });
+    // Docker publishes no ports on an internal network, so `docker port` finds none.
+    const docker = new (class extends FakeDocker {
+      async run(args: readonly string[]) {
+        return args[0] === 'port' ? failure() : super.run(args);
+      }
+    })();
+    const graph = JSON.parse(JSON.stringify(graphPayload())) as AgentApplicationGraphPayload;
+    graph.runtimeVolumeMounts = [];
+    await executeAgentApplicationGraph(
+      {
+        deploymentName: 'verify-notes',
+        jobId: 'job-00000001',
+        sourceDirectory: resolve(root, 'source'),
+        volumeDirectory: resolve(root, 'volumes'),
+        statePath: resolve(root, 'graph-state.json'),
+        artifactSpecDigest: compiled.digest,
+        artifactSpec: compiled.spec,
+        graph,
+        internalNetwork: true,
+      },
+      docker,
+    );
+    assert.ok(
+      docker.commands.some(
+        (command) =>
+          command[0] === 'network' && command[1] === 'create' && command.includes('--internal'),
+      ),
+    );
+    const probes = docker.commands.filter(
+      (command) => command[0] === 'run' && command[3]?.startsWith('container:'),
+    );
+    assert.equal(probes.length, 3);
+    assert.deepEqual(probes[0].slice(-6), ['nc', '-z', '-w', '1', '127.0.0.1', '4000']);
+    assert.ok(probes[0][4].startsWith('busybox:1.37@sha256:'));
+  });
+
+  it('fails the health gate when nothing answers inside an internal network', async () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'deploy-agent-graph-'));
+    temporary.push(root);
+    mkdirSync(resolve(root, 'source'), { recursive: true });
+    const docker = new (class extends FakeDocker {
+      async run(args: readonly string[]) {
+        if (args[0] === 'port' || (args[0] === 'run' && args[3]?.startsWith('container:')))
+          return failure();
+        return super.run(args);
+      }
+    })();
+    const graph = JSON.parse(JSON.stringify(graphPayload())) as AgentApplicationGraphPayload;
+    graph.runtimeVolumeMounts = [];
+    await assert.rejects(
+      executeAgentApplicationGraph(
+        {
+          deploymentName: 'verify-notes',
+          jobId: 'job-00000001',
+          sourceDirectory: resolve(root, 'source'),
+          volumeDirectory: resolve(root, 'volumes'),
+          statePath: resolve(root, 'graph-state.json'),
+          artifactSpecDigest: compiled.digest,
+          artifactSpec: compiled.spec,
+          graph,
+          healthTimeoutMs: 300,
+          internalNetwork: true,
+        },
+        docker,
+      ),
+      /failed its health gate/,
+    );
+  });
+
   it('rejects a graph contract that does not match the authenticated source artifact', () => {
     assert.throws(
       () => validateAgentGraphPayload(graphPayload(), `sha256:${'f'.repeat(64)}`),

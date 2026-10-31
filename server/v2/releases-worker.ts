@@ -180,7 +180,8 @@ export async function executeReleaseNodeJob(input: {
     const graph = structuredClone(record.graph);
     graph.applicationId = temporaryName;
     if (payload.skipMigrations && !payload.backupId) graph.spec.jobs = {};
-    // The copy uses a private network, and its lifecycle jobs run only against copied data.
+    // The copy runs on an internal network with no route out, and its lifecycle jobs run only
+    // against copied data.
     const result = await executeAgentApplicationGraph(
       {
         deploymentName: temporaryName,
@@ -192,14 +193,9 @@ export async function executeReleaseNodeJob(input: {
         artifactSpec: graph.spec,
         graph,
         probePort: input.probePort,
+        internalNetwork: true,
       },
-      {
-        run: async (args, options) => {
-          if (args[0] === 'network' && args[1] === 'create')
-            args = [...args.slice(0, -1), '--internal', args.at(-1)!];
-          return docker.run(args, options);
-        },
-      },
+      docker,
     );
     for (const instance of result.instances) {
       const component = graph.execution.components[instance.component];
