@@ -39,10 +39,14 @@ export function AskPopover({
   position,
   onClose,
   onAsked,
+  component,
 }: {
   projectId: string;
   designRef: string;
-  selection: NonNullable<Selection>;
+  /** The board or layer asked about; absent when asking about a component. */
+  selection: Selection;
+  /** A design-system component from Assets, asked about instead of a layer. */
+  component?: { id: string; name: string };
   /** The selection's name in Layers. */
   target: string;
   comments: number;
@@ -64,7 +68,11 @@ export function AskPopover({
         `${api(projectId)}/ask?ref=${encodeURIComponent(designRef)}`,
         {
           method: 'POST',
-          body: JSON.stringify({ board: selection.board, layer: selection.layer, text }),
+          body: JSON.stringify(
+            component
+              ? { component: component.id, text }
+              : { board: selection!.board, layer: selection!.layer, text },
+          ),
         },
       );
       onAsked(task.id);
@@ -97,11 +105,18 @@ export function AskPopover({
         }}
       />
       <div className="dz-ask-ctx">
-        <span>
-          <Icon name="text" size={11} />
-          {boardName(selection.board)}
-          {selection.layer ? ` › ${target}` : ''}
-        </span>
+        {component ? (
+          <span>
+            <Icon name="component" size={11} />
+            {component.name} and every instance
+          </span>
+        ) : (
+          <span>
+            <Icon name="text" size={11} />
+            {boardName(selection!.board)}
+            {selection!.layer ? ` › ${target}` : ''}
+          </span>
+        )}
         <span>
           <Icon name="tokens" size={11} />
           Design system rules

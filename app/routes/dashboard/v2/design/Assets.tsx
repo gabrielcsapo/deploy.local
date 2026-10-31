@@ -320,6 +320,7 @@ export function ComponentPanel({
   target,
   usage,
   sections,
+  onAsk,
 }: {
   component: Component;
   library: Library;
@@ -328,7 +329,10 @@ export function ComponentPanel({
   target: DropTarget | null;
   usage: string[];
   sections: Section[];
+  onAsk: () => void;
 }) {
+  const [more, setMore] = useState(false);
+  const [copied, setCopied] = useState(false);
   // Used in, by page: "Computers  2 boards".
   const pages = sections
     .map((section) => ({
@@ -341,9 +345,50 @@ export function ComponentPanel({
       <div className="dz-sel">
         <b className="dz-sel-kind dz-component-name">
           <Icon name="component" size={13} />
-          <span className="dz-sel-name">{component.name}</span>
-          <Icon name="down" size={11} />
+          <span className="dz-sel-name">
+            {component.name}
+            <Icon name="down" size={11} />
+          </span>
+          <button
+            type="button"
+            className="dl-icon-btn"
+            aria-label="Ask an agent to change this component  ⌘K"
+            title="Ask an agent to change this component  ⌘K"
+            onClick={onAsk}
+          >
+            <Icon name="spark" size={14} />
+          </button>
+          <span className="dz-more-wrap">
+            <button
+              type="button"
+              className="dl-icon-btn"
+              aria-label="More"
+              aria-haspopup="menu"
+              aria-expanded={more}
+              onClick={() => setMore(!more)}
+            >
+              <Icon name="dots" size={14} />
+            </button>
+            {more && (
+              <div className="dl-menu dz-zoom-menu" role="menu">
+                <button
+                  type="button"
+                  className="dl-menu-item"
+                  role="menuitem"
+                  onClick={() => {
+                    void navigator.clipboard
+                      ?.writeText(filled(component, props))
+                      .then(() => setCopied(true));
+                    setMore(false);
+                  }}
+                >
+                  Copy its markup
+                </button>
+              </div>
+            )}
+          </span>
         </b>
+        {copied && <span className="dz-crumb">Copied its markup</span>}
         <span className="dz-crumb">
           {library.name ?? 'Design system'} · {component.group}
         </span>

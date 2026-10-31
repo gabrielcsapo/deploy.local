@@ -11,7 +11,7 @@ const store = await import('../store.ts');
 const { db, save } = await import('../workspace/store.ts');
 const { gitText } = await import('../workspace/repository-git.ts');
 const { v2Api } = await import('./api.ts');
-const { askPrompt } = await import('./design.ts');
+const { askPrompt, componentPrompt } = await import('./design.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'alice') }));
 });
@@ -171,6 +171,28 @@ test('asking an agent checks the layer and gives it the element and the rules', 
   assert.match(prompt, /- Bigger\?/);
   assert.match(prompt, /Keep every existing data-layer ID/);
   assert.match(prompt, /design\/tools\/render\.mjs/);
+  // Asking about a component: it must exist, and the agent gets its entry and where it is used.
+  const unknown = await call('/ask', {
+    method: 'POST',
+    body: JSON.stringify({ component: 'nope', text: 'Rounder' }),
+  });
+  assert.equal(unknown.status, 404);
+  const about = componentPrompt({
+    component: { id: 'notice', name: 'Notice', props: [], html: '<div class="dl-banner"></div>' },
+    used: ['Welcome.html'],
+    text: 'Rounder corners',
+    ref: 'HEAD',
+    commit: main,
+  });
+  assert.match(
+    about,
+    /the Notice component \(`notice` in `design\/ds\/deploy-local\/components\/library.json`\)/,
+  );
+  assert.match(
+    about,
+    /design\/boards\/Welcome.html\. Approving this change on main renders every instance again/,
+  );
+  assert.match(about, /Keep its id/);
 });
 
 test('boards render to PNG at a commit when Chromium is installed', async (t) => {

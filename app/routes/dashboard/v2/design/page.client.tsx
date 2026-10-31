@@ -459,6 +459,7 @@ export default function DesignPage() {
         target={placing ? dropping : null}
         usage={assets.usage[inAssets.component.id] ?? []}
         sections={sections}
+        onAsk={() => setAsking(true)}
       />
     ) : undefined;
   const [shape, setShape] = useState<'rectangle' | 'ellipse' | 'line'>('rectangle');
@@ -808,23 +809,32 @@ export default function DesignPage() {
             onDiscard={closeTask}
           />
         )}
-        {asking && selection && project && design.data && (
+        {asking && (selection || inAssets) && project && design.data && (
           <AskPopover
             projectId={project.id}
             designRef={ref}
             selection={selection}
+            component={
+              !selection && inAssets
+                ? { id: inAssets.component.id, name: inAssets.component.name }
+                : undefined
+            }
             target={
-              selection.layer
-                ? nameFor(selection.board, selection.layer)
-                : boardName(selection.board)
+              !selection
+                ? `the ${inAssets!.component.name} component`
+                : selection.layer
+                  ? nameFor(selection.board, selection.layer)
+                  : boardName(selection.board)
             }
             comments={
-              comments.filter(
-                (comment) =>
-                  !comment.resolved &&
-                  comment.board === selection.board &&
-                  (!selection.layer || comment.layer === selection.layer),
-              ).length
+              selection
+                ? comments.filter(
+                    (comment) =>
+                      !comment.resolved &&
+                      comment.board === selection.board &&
+                      (!selection.layer || comment.layer === selection.layer),
+                  ).length
+                : 0
             }
             position={askPosition()}
             onClose={() => setAsking(false)}

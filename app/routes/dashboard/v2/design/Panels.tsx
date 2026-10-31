@@ -622,7 +622,7 @@ function Prop({
     <section className={`dz-prop${children ? '' : ' empty'}`}>
       <div className="dz-prop-h">
         <span>{title}</span>
-        {actions}
+        {actions && <span className="dz-prop-actions">{actions}</span>}
       </div>
       {children}
     </section>
@@ -912,14 +912,17 @@ function LayerProps({
       <div className="dz-was">
         <span className="dz-dot" />
         {line}
+        {section !== 'typography' && reset(section, true)}
       </div>
     );
   };
-  const reset = (section: SectionName) =>
+  // Typography's reset sits beside its align row, as the board draws it; the others end the note,
+  // since their side column holds the section's own control.
+  const reset = (section: SectionName, inNote = false) =>
     onEdit && changed.has(section) ? (
       <button
         type="button"
-        className="dl-icon-btn dz-reset"
+        className={`dl-icon-btn ${inNote ? 'dz-reset-inline' : 'dz-reset'}`}
         aria-label={`Reset ${section} to main`}
         title="Reset to main"
         onClick={() =>
@@ -935,6 +938,28 @@ function LayerProps({
         <Icon name="undo" size={13} />
       </button>
     ) : null;
+  // The control in a row's side column: an icon button, shown read-only without editing.
+  const side = (icon: IconName, label: string, run: () => void, pressed?: boolean) => (
+    <button
+      type="button"
+      className={`dl-icon-btn dz-side${pressed ? ' on' : ''}`}
+      aria-label={label}
+      title={label}
+      aria-pressed={pressed}
+      disabled={!onEdit}
+      onClick={run}
+    >
+      <Icon name={icon} size={13} />
+    </button>
+  );
+  const openPicker = (label: string) =>
+    (
+      document.querySelector(`select[aria-label="${label}"]`) as
+        | (HTMLSelectElement & { showPicker?: () => void })
+        | null
+    )?.showPicker?.();
+  const hiddenFill = element.style.getPropertyValue('--hidden-fill');
+  const hidden = style.visibility === 'hidden';
   const sizeField = (along: 'width' | 'height', label: 'W' | 'H') => (
     <Field label={label}>
       {onEdit ? (
@@ -989,10 +1014,31 @@ function LayerProps({
             ? `Layout · ${style.flexDirection.startsWith('column') ? 'vertical' : 'horizontal'} stack`
             : 'Layout'
         }
+        actions={side(
+          'autolayout',
+          flex ? 'Remove the stack' : 'Stack its layers vertically',
+          () =>
+            onEdit?.(
+              flex
+                ? [{ op: 'style', prop: 'display', value: 'block' }]
+                : [
+                    { op: 'style', prop: 'display', value: 'flex' },
+                    { op: 'style', prop: 'flex-direction', value: 'column' },
+                    { op: 'style', prop: 'gap', value: '8px' },
+                  ],
+            ),
+          flex,
+        )}
       >
         <div className="dz-grid dz-resettable">
           {sizeField('width', 'W')}
           {sizeField('height', 'H')}
+          {side('fit', 'Resize to fit its content', () =>
+            onEdit?.([
+              { op: 'style', prop: 'width', value: null },
+              { op: 'style', prop: 'height', value: null },
+            ]),
+          )}
           {flex && pxField('Gap', 'Gap', 'gap', px(style.rowGap) || px(style.columnGap))}
           {flex && (
             <Field label="Pad">
@@ -1017,13 +1063,12 @@ function LayerProps({
               )}
             </Field>
           )}
-          {reset('layout')}
         </div>
         {note('layout')}
       </Prop>
       <Prop title="Appearance">
         <div className="dz-grid dz-resettable">
-          <Field label="Opacity">
+          <Field label={<Icon name="opacity" size={12} />}>
             {onEdit ? (
               <Input
                 label="Opacity"
@@ -1038,63 +1083,85 @@ function LayerProps({
               `${Math.round(Number(style.opacity) * 100)}%`
             )}
           </Field>
-          {pxField('Radius', 'Radius', 'border-radius', px(style.borderTopLeftRadius))}
-          {reset('appearance')}
+          {pxField(
+            <Icon name="radius" size={12} />,
+            'Radius',
+            'border-radius',
+            px(style.borderTopLeftRadius),
+          )}
+          {side(
+            hidden ? 'eyeOff' : 'eye',
+            hidden ? 'Show the layer' : 'Hide the layer',
+            () => set('visibility', hidden ? null : 'hidden'),
+            hidden,
+          )}
         </div>
         {note('appearance')}
       </Prop>
       {text && (
-        <Prop title="Typography">
-          <Field wide>
-            {onEdit ? (
-              <Pick
-                label="Text style"
-                value={typeStyle ?? ''}
-                options={[
-                  ...(typeStyle ? [] : [{ value: '', label: 'Custom' }]),
-                  ...tokens.textStyles.map((token) => ({
-                    value: token.name,
-                    label: `${token.name} · ${token.size}/${token.lineHeight} · ${token.weight}`,
-                  })),
-                ]}
-                onChange={(name) => {
-                  const token = tokens.textStyles.find((item) => item.name === name);
-                  if (token)
-                    onEdit([
-                      { op: 'style', prop: 'font-size', value: `${token.size}px` },
-                      { op: 'style', prop: 'line-height', value: `${token.lineHeight}px` },
-                      { op: 'style', prop: 'font-weight', value: String(token.weight) },
-                    ]);
-                }}
-              >
-                {typeStyle ? <span className="dz-chip">Aa {typeStyle}</span> : null}
-              </Pick>
-            ) : typeStyle ? (
-              <span className="dz-chip">Aa {typeStyle}</span>
-            ) : null}
-            <span className="dz-meta">
-              {style.fontFamily.split(',')[0].replace(/"/g, '').split(' ')[0]} ·{' '}
-              {weightNames[Number(style.fontWeight)] ?? style.fontWeight} · {px(style.fontSize)}/
-              {px(style.lineHeight)}
-            </span>
-          </Field>
+        <Prop
+          title="Typography"
+          actions={side('tokens', 'Text styles', () => openPicker('Text style'))}
+        >
+          <div className="dz-resettable">
+            <Field wide>
+              {onEdit ? (
+                <Pick
+                  label="Text style"
+                  value={typeStyle ?? ''}
+                  options={[
+                    ...(typeStyle ? [] : [{ value: '', label: 'Custom' }]),
+                    ...tokens.textStyles.map((token) => ({
+                      value: token.name,
+                      label: `${token.name} · ${token.size}/${token.lineHeight} · ${token.weight}`,
+                    })),
+                  ]}
+                  onChange={(name) => {
+                    const token = tokens.textStyles.find((item) => item.name === name);
+                    if (token)
+                      onEdit([
+                        { op: 'style', prop: 'font-size', value: `${token.size}px` },
+                        { op: 'style', prop: 'line-height', value: `${token.lineHeight}px` },
+                        { op: 'style', prop: 'font-weight', value: String(token.weight) },
+                      ]);
+                  }}
+                >
+                  {typeStyle ? <span className="dz-chip">Aa {typeStyle}</span> : null}
+                </Pick>
+              ) : typeStyle ? (
+                <span className="dz-chip">Aa {typeStyle}</span>
+              ) : null}
+              <span className="dz-meta">
+                {style.fontFamily.split(',')[0].replace(/"/g, '').split(' ')[0]} ·{' '}
+                {weightNames[Number(style.fontWeight)] ?? style.fontWeight} · {px(style.fontSize)}/
+                {px(style.lineHeight)}
+              </span>
+            </Field>
+            {side('link', 'Detach the text style', () =>
+              onEdit?.([
+                { op: 'style', prop: 'font-size', value: `${px(style.fontSize)}px` },
+                { op: 'style', prop: 'line-height', value: `${px(style.lineHeight)}px` },
+                { op: 'style', prop: 'font-weight', value: style.fontWeight },
+              ]),
+            )}
+          </div>
           <div className="dz-resettable">
             <div className="dz-seg3 dz-text-align" role="group" aria-label={`Text align: ${align}`}>
-              {(['left', 'center', 'right'] as const).map((side) =>
+              {(['left', 'center', 'right'] as const).map((edge) =>
                 onEdit ? (
                   <button
-                    key={side}
+                    key={edge}
                     type="button"
-                    className={align === side ? 'on' : ''}
-                    aria-label={`Align ${side}`}
-                    aria-pressed={align === side}
-                    onClick={() => set('text-align', side)}
+                    className={align === edge ? 'on' : ''}
+                    aria-label={`Align ${edge}`}
+                    aria-pressed={align === edge}
+                    onClick={() => set('text-align', edge)}
                   >
-                    <AlignIcon name={side === 'left' ? 'tl' : side === 'center' ? 'tc' : 'tr'} />
+                    <AlignIcon name={edge === 'left' ? 'tl' : edge === 'center' ? 'tc' : 'tr'} />
                   </button>
                 ) : (
-                  <span key={side} className={align === side ? 'on' : ''} aria-hidden="true">
-                    <AlignIcon name={side === 'left' ? 'tl' : side === 'center' ? 'tc' : 'tr'} />
+                  <span key={edge} className={align === edge ? 'on' : ''} aria-hidden="true">
+                    <AlignIcon name={edge === 'left' ? 'tl' : edge === 'center' ? 'tc' : 'tr'} />
                   </span>
                 ),
               )}
@@ -1107,21 +1174,48 @@ function LayerProps({
       <Prop
         title="Fill"
         actions={
-          onEdit && !visibleFill ? (
-            <button
-              type="button"
-              className="dl-icon-btn dz-add"
-              aria-label="Add a fill"
-              onClick={() => set(fillProp, 'var(--surface)')}
-            >
-              <Icon name="plus" size={14} />
-            </button>
-          ) : (
-            later
-          )
+          <>
+            {side('tokens', 'Colour tokens', () => openPicker('Fill colour'))}
+            {onEdit && !visibleFill && !hiddenFill ? (
+              <button
+                type="button"
+                className="dl-icon-btn dz-add"
+                aria-label="Add a fill"
+                onClick={() => set(fillProp, 'var(--surface)')}
+              >
+                <Icon name="plus" size={14} />
+              </button>
+            ) : (
+              later
+            )}
+          </>
         }
       >
-        {visibleFill && (
+        {hiddenFill && (
+          <div className="dz-resettable dz-hidden-fill">
+            <Field wide>
+              <FillChip
+                color={
+                  tokens.colors.find((token) => `var(--${token.name})` === hiddenFill)?.light ??
+                  hiddenFill
+                }
+                token={/^var\(--([a-z-]+)\)$/.exec(hiddenFill)?.[1] ?? null}
+              />
+              <span className="dz-meta">Hidden</span>
+            </Field>
+            {side(
+              'eyeOff',
+              'Show the fill',
+              () =>
+                onEdit?.([
+                  { op: 'style', prop: fillProp, value: hiddenFill },
+                  { op: 'style', prop: '--hidden-fill', value: null },
+                ]),
+              true,
+            )}
+          </div>
+        )}
+        {visibleFill && !hiddenFill && (
           <div className="dz-resettable">
             <Field wide>
               {onEdit ? (
@@ -1142,7 +1236,18 @@ function LayerProps({
               )}
               <span className="dz-meta">100%</span>
             </Field>
-            {reset('fill')}
+            {side('eye', 'Hide the fill', () =>
+              onEdit?.([
+                {
+                  op: 'style',
+                  prop: '--hidden-fill',
+                  value:
+                    element.style.getPropertyValue(fillProp) ||
+                    (fillToken ? `var(--${fillToken})` : fill),
+                },
+                { op: 'style', prop: fillProp, value: 'transparent' },
+              ]),
+            )}
           </div>
         )}
         {note('fill')}
@@ -1473,7 +1578,10 @@ export function RightPanel({
           <>
             <div className="dz-sel">
               <b className="dz-sel-kind">
-                <span className="dz-sel-name">{kindName[kind!]}</span>
+                <span className="dz-sel-name">
+                  {kindName[kind!]}
+                  <Icon name="down" size={11} />
+                </span>
                 <button
                   type="button"
                   className="dl-icon-btn"
@@ -1501,7 +1609,7 @@ export function RightPanel({
                     aria-expanded={moreMenu}
                     onClick={() => setMoreMenu(!moreMenu)}
                   >
-                    <Icon name="more" size={14} />
+                    <Icon name="dots" size={14} />
                   </button>
                   {moreMenu && (
                     <div

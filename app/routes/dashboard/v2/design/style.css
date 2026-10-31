@@ -1689,10 +1689,23 @@
 .dz-sel-kind.dz-component-name {
   justify-content: flex-start;
   gap: 6px;
+}
+.dz-component-name > svg,
+.dz-component-name .dz-sel-name {
   color: var(--ds-accent);
 }
-.dz-component-name .dz-sel-name {
-  margin-right: 0;
+.dz-sel-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dz-sel-name svg {
+  color: var(--ds-tertiary);
+}
+.dz-prop-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 /* Placing a component: where it goes, and what it is, by the pointer. */
 .dz-drop-line {
@@ -1773,4 +1786,36 @@
   color: var(--ds-onAction);
   font-size: var(--ds-type-caption);
   font-weight: 500;
+}
+
+/* A row's own control, in the panel's side column. */
+.dz-side {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--ds-tertiary);
+}
+.dz-prop-h .dz-side {
+  position: static;
+}
+.dz-side:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.dz-side.on {
+  color: var(--ds-text);
+}
+.dz-reset-inline {
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  color: var(--ds-tertiary);
+}
+.dz-hidden-fill .dz-field {
+  opacity: 0.55;
+}
+.dz-l svg {
+  display: block;
 }

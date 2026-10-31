@@ -521,6 +521,36 @@ export async function renderBoard(repo: string, commit: string, board: string, w
 }
 
 /** What an agent asked about a layer needs to know: the request, the element, and the rules. */
+/** What an agent asked to change a design-system component is told. */
+export function componentPrompt(input: {
+  component: Library['components'][number];
+  used: string[];
+  text: string;
+  ref: string;
+  commit: string;
+}) {
+  return [
+    `Design request about the ${input.component.name} component (\`${input.component.id}\` in \`${libraryPath}\`), starting from ${input.ref} at ${input.commit.slice(0, 8)}.`,
+    '',
+    input.text.trim(),
+    '',
+    'The component as it is now:',
+    '```json',
+    JSON.stringify(input.component, null, 2).slice(0, 6000),
+    '```',
+    '',
+    input.used.length
+      ? `Boards with instances of it: ${input.used.map((board) => `design/boards/${board}`).join(', ')}. Approving this change on main renders every instance again from the library, keeping each one's values.`
+      : 'No board uses it yet.',
+    '',
+    'How to work:',
+    `- Change the component's entry in ${libraryPath}: its html (with {{property}} placeholders), props, name or description. Keep its id.`,
+    '- Use only the design system in design/ds (the dl-* classes and the tokens). Follow design/ds/README.md.',
+    '- Commit as you go with deploy_checkpoint and deploy_commit. Do not build the change in the app: this task is the design only.',
+    '- End by saying what you changed and why.',
+  ].join('\n');
+}
+
 export function askPrompt(input: {
   board: string;
   layer: string | null;
@@ -820,6 +850,42 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const board = String(body?.board ?? '');
     const layer = body?.layer == null ? null : String(body.layer);
     const text = String(body?.text ?? '').trim();
+    // Asking about a design-system component changes the component, and so every instance.
+    if (body?.component != null) {
+      const componentId = String(body.component);
+      if (!text || text.length > 8000)
+        fail('Say what you want changed, in at most 8000 characters');
+      const { ref, commit } = resolveCommit(owner, project.id, repo, url);
+      const library = parseLibrary((await readFile(repo, commit, libraryPath))?.toString());
+      const component = library?.components.find((item) => item.id === componentId);
+      if (!component) fail(`The design system has no component ${componentId}`, 404);
+      const used = componentUsage(repo, commit)[componentId] ?? [];
+      const task = queueTask(owner, {
+        projectId: project.id,
+        title: `Design: ${component!.name} component`,
+        ref: commit,
+        workerId: body?.workerId,
+        model: body?.model,
+        prompt: componentPrompt({ component: component!, used, text, ref, commit }),
+      });
+      save('task', owner, {
+        ...get('task', owner, task.id),
+        design: {
+          board: used[0] ?? '',
+          layer: null,
+          component: componentId,
+          ref,
+          commit,
+          text,
+          askedAt: now(),
+        },
+      });
+      return sendJson(
+        res,
+        { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
+        201,
+      );
+    }
     if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
     if (layer !== null && !layerPattern.test(layer)) fail('Invalid layer');
     if (!text || text.length > 8000) fail('Say what you want changed, in at most 8000 characters');
@@ -851,7 +917,6 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     );
   }
 
-  // Direct edits from the properties panel and the canvas, committed to a design branch.
   // Assets: the design system's components and where each is used, at a ref.
   if (sub === '/components' && req.method === 'GET') {
     const ref = url.searchParams.get('ref') || 'HEAD';
@@ -868,6 +933,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     return sendJson(res, { commit, library, usage: library ? componentUsage(repo, commit!) : {} });
   }
 
+  // Direct edits from the properties panel and the canvas, committed to a design branch.
   if (sub === '/edit' && req.method === 'POST') {
     const body = await readJson(req);
     const board = String(body?.board ?? '');
