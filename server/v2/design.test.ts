@@ -455,3 +455,59 @@ test('direct edits commit to a design branch, starting one from main, and refuse
   });
   assert.equal(bad.status, 400);
 });
+
+test('drawing adds layers to a board, and the canvas takes new boards and sticky notes', async () => {
+  const drawn = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: 'HEAD',
+      board: 'Welcome.html',
+      edits: [{ op: 'insert', shape: { kind: 'rectangle', x: 40, y: 60, w: 200, h: 100 } }],
+    }),
+  });
+  assert.equal(drawn.status, 200);
+  const shape = await drawn.json();
+  assert.equal(shape.layers.length, 1);
+  assert.match(
+    await git(['show', `${shape.commit}:design/boards/Welcome.html`]),
+    new RegExp(`data-layer="${shape.layers[0]}" data-name="Rectangle"`),
+  );
+  const board = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: shape.branch, op: 'board', kind: 'phone', x: 5000, y: 100 }),
+    })
+  ).json();
+  assert.equal(board.made, 'Board1.html');
+  const canvas = JSON.parse(await git(['show', `${board.commit}:design/canvas.json`]));
+  assert.deepEqual(canvas.boards['Board1.html'], {
+    x: 5000,
+    y: 100,
+    w: 390,
+    h: 844,
+    title: 'Board 1',
+  });
+  assert.match(
+    await git(['show', `${board.commit}:design/boards/Board1.html`]),
+    /<meta name="design-board" content="width=390,height=844">/,
+  );
+  const note = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: shape.branch, op: 'note', x: 10, y: 20, text: 'Move this up?' }),
+    })
+  ).json();
+  const edited = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: shape.branch, op: 'note', id: note.made, text: 'Move it up?' }),
+    })
+  ).json();
+  const notes = JSON.parse(await git(['show', `${edited.commit}:design/canvas.json`])).notes;
+  assert.deepEqual(notes[note.made], { x: 10, y: 20, w: 240, h: 160, text: 'Move it up?' });
+  const section = await call('/canvas', {
+    method: 'POST',
+    body: JSON.stringify({ ref: shape.branch, op: 'remove-note', id: 'section-start' }),
+  });
+  assert.equal(section.status, 404);
+});

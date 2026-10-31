@@ -181,4 +181,48 @@ describe('board edits', () => {
     );
     assert.throws(() => applyEdits(board, [{ op: 'text', layer: 'nope', text: 'x' }]), /no layer/);
   });
+  it('draws shapes as positioned layers with new IDs, into the board or a stack, and removes layers', async () => {
+    const { applyEdits, layerIds } = await import('./board-html.ts');
+    const drawn = applyEdits(board, [
+      { op: 'insert', shape: { kind: 'rectangle', x: 10, y: 20, w: 300, h: 80 } },
+      { op: 'insert', shape: { kind: 'text', x: 5, y: 5, text: 'Note <b>' } },
+      {
+        op: 'insert',
+        shape: {
+          kind: 'vector',
+          points: [
+            [0, 0],
+            [10, 20],
+            [30, 5],
+          ],
+          closed: true,
+        },
+      },
+    ]);
+    assert.match(
+      drawn,
+      /<div data-layer="[a-z0-9-]+" data-name="Rectangle" style="position:absolute;left:10px;top:20px;width:300px;height:80px;/,
+    );
+    assert.ok(drawn.includes('>Note &lt;b&gt;</p>'));
+    assert.ok(drawn.includes('d="M0 0 L10 20 L30 5 Z"'));
+    assert.equal(layerIds(drawn).length, layerIds(board).length + 3);
+    // Into the greeting stack, second: before the mark.
+    const into = applyEdits(board, [
+      { op: 'insert', parent: 'g', index: 1, shape: { kind: 'ellipse', x: 0, y: 0, w: 8, h: 8 } },
+    ]);
+    assert.match(
+      into,
+      /Welcome<\/h1><div data-layer="[^"]+" data-name="Ellipse"[^>]*><\/div><span data-layer="mark"/,
+    );
+    assert.throws(
+      () =>
+        applyEdits(board, [
+          { op: 'insert', parent: 'pic', shape: { kind: 'frame', x: 0, y: 0, w: 1, h: 1 } },
+        ]),
+      /Only a container/,
+    );
+    const removed = applyEdits(board, [{ op: 'remove', layer: 'mark' }]);
+    assert.ok(!removed.includes('dl-mark'));
+    assert.deepEqual(layerIds(removed), ['g', 'title', 'pic']);
+  });
 });

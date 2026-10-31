@@ -24,7 +24,18 @@ type LayerNode = { id: string; label: string; kind: IconName; children: LayerNod
 
 const components =
   /\bdl-(composer|btn|chip|seg|item|group|side|head|dock|panel|phone|tag|send|avatar|nav)\b/;
+// What the drawing tools make, by the name they give it.
+const drawnKinds: Record<string, IconName> = {
+  Rectangle: 'shape',
+  Ellipse: 'ellipse',
+  Line: 'line',
+  Vector: 'vector',
+  Frame: 'frame',
+  Text: 'text',
+};
 function kindOf(element: Element): IconName {
+  const drawn = drawnKinds[element.getAttribute('data-name') ?? ''];
+  if (drawn) return drawn;
   const name = element.tagName.toLowerCase();
   if (name === 'svg') return 'vector';
   if (name === 'img') return 'image';
@@ -35,8 +46,13 @@ function kindOf(element: Element): IconName {
   if (ownText && !element.querySelector('[data-layer]')) return 'text';
   return element.children.length > 1 ? 'stack' : 'frame';
 }
+// Drawn layers float above the board's flow, so like Figma's they list first, newest on top.
+const floating = (element: Element) =>
+  /position:\s*absolute/.test(element.getAttribute('style') ?? '');
 function tree(parent: Element): LayerNode[] {
-  return [...parent.children].flatMap((element) => {
+  const children = [...parent.children];
+  const ordered = [...children.filter(floating).reverse(), ...children.filter((e) => !floating(e))];
+  return ordered.flatMap((element) => {
     const id = element.getAttribute('data-layer');
     if (!id) return tree(element);
     const facts = layerFacts(element);
@@ -799,13 +815,15 @@ function LayerProps({
       ? rect.width - px(parentStyle.paddingLeft) - px(parentStyle.paddingRight)
       : rect.height - px(parentStyle.paddingTop) - px(parentStyle.paddingBottom);
   };
+  const inFlow = ['static', 'relative', 'sticky'].includes(style.position);
   const sizing = (along: 'width' | 'height') => {
     const own = element.style[along];
+    // A drawn layer sits where it was drawn, at its own size.
+    if (!inFlow) return String(Math.round(box[along]));
     if (own === '100%') return 'Fill';
     if (/px$/.test(own)) return String(Math.round(box[along]));
     return Math.abs(box[along] - inner(along)) < 1.5 ? 'Fill' : 'Hug';
   };
-  const inFlow = ['static', 'relative', 'sticky'].includes(style.position);
   const align =
     style.textAlign === 'start' ? 'left' : style.textAlign === 'end' ? 'right' : style.textAlign;
   const padding = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
@@ -1116,10 +1134,11 @@ function LayerProps({
             <button
               type="button"
               className="dl-icon-btn dz-add"
-              aria-label={border ? 'Remove the stroke' : 'Add a stroke'}
-              onClick={() => set('border', border ? 'none' : '1px solid var(--line)')}
+              aria-label="Add a stroke"
+              disabled={border}
+              onClick={() => set('border', '1px solid var(--line)')}
             >
-              <Icon name={border ? 'minus' : 'plus'} size={14} />
+              <Icon name="plus" size={14} />
             </button>
           ) : (
             later
@@ -1152,14 +1171,16 @@ function LayerProps({
                   token={colorToken(style.borderTopColor, tokens)}
                 />
               )}
-              <span className="dz-meta">·</span>
               {onEdit ? (
                 <Input
                   label="Stroke width"
+                  hint="0 removes the stroke"
                   value={String(px(style.borderTopWidth))}
-                  onCommit={(value) =>
-                    number(value) !== null && set('border-width', `${number(value)}px`)
-                  }
+                  onCommit={(value) => {
+                    const next = number(value);
+                    if (next !== null)
+                      set(next ? 'border-width' : 'border', next ? `${next}px` : 'none');
+                  }}
                 />
               ) : (
                 px(style.borderTopWidth)
@@ -1304,6 +1325,9 @@ export function RightPanel({
     component: 'Component',
     stack: 'Stack',
     frame: 'Frame',
+    shape: 'Rectangle',
+    ellipse: 'Ellipse',
+    line: 'Line',
   } as Record<string, string>;
   // Welcome › Greeting › Title: the board, then the named layers down to the selection.
   const crumb = element ? [boardName(selection!.board), ...layerPath(element).slice(-2)] : [];

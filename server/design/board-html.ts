@@ -87,8 +87,8 @@ function layerName(tag: string, name: string, text: string) {
  * this again after an edit only names the new elements. SVG internals are part of their icon.
  */
 export function assignLayerIds(html: string): string {
-  const bodyStart = html.search(/<body[\s>]/);
-  if (bodyStart < 0) return html;
+  // A fragment without a body is all body.
+  const bodyStart = Math.max(0, html.search(/<body[\s>]/));
   const used = new Set<string>();
   for (const match of html.matchAll(/\sdata-layer="([^"]*)"/g)) used.add(match[1]);
   const unique = (base: string) => {
@@ -275,7 +275,87 @@ export type BoardEdit =
   | { op: 'style'; layer: string; prop: string; value: string | null }
   | { op: 'class'; layer: string; add?: string[]; remove?: string[] }
   /** Back to main: the whole layer, or only the named style properties (and its text, with `text`). */
-  | { op: 'revert'; layer: string; props?: string[]; text?: boolean };
+  | { op: 'revert'; layer: string; props?: string[]; text?: boolean }
+  /** Draw a new layer; without `parent` it sits on the board at its X and Y. */
+  | { op: 'insert'; parent?: string; index?: number; shape: DrawnShape }
+  | { op: 'remove'; layer: string };
+
+/** What the drawing tools make, in board pixels. The server writes the markup. */
+export type DrawnShape =
+  | { kind: 'rectangle' | 'ellipse' | 'frame'; x: number; y: number; w: number; h: number }
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number }
+  | { kind: 'text'; x: number; y: number; text: string }
+  | { kind: 'vector'; points: [number, number][]; closed?: boolean };
+
+const coordinate = (value: unknown) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || Math.abs(n) > 20000) throw new Error('A shape is out of bounds');
+  return Math.round(n * 10) / 10;
+};
+const absolute = (x: number, y: number) => `position:absolute;left:${x}px;top:${y}px`;
+
+/** The markup for a drawn shape: positioned where it was drawn, styled with design-system tokens. */
+export function shapeMarkup(shape: DrawnShape): string {
+  if (shape.kind === 'rectangle' || shape.kind === 'ellipse' || shape.kind === 'frame') {
+    const [x, y] = [coordinate(shape.x), coordinate(shape.y)];
+    const [w, h] = [Math.max(1, coordinate(shape.w)), Math.max(1, coordinate(shape.h))];
+    const box = `${absolute(x, y)};width:${w}px;height:${h}px;box-sizing:border-box`;
+    if (shape.kind === 'frame')
+      return `<div data-name="Frame" style="${box};background:var(--surface)"></div>`;
+    const radius = shape.kind === 'ellipse' ? '50%' : 'var(--radius-card)';
+    const name = shape.kind === 'ellipse' ? 'Ellipse' : 'Rectangle';
+    return `<div data-name="${name}" style="${box};background:var(--surface);border:1px solid var(--line);border-radius:${radius}"></div>`;
+  }
+  if (shape.kind === 'text') {
+    const text = String(shape.text ?? '').slice(0, 2000) || 'Text';
+    return `<p data-name="Text" style="${absolute(coordinate(shape.x), coordinate(shape.y))};margin:0;font-family:var(--font-sans);font-size:15px;line-height:24px;font-weight:400;color:var(--ink);white-space:pre">${escapeText(text)}</p>`;
+  }
+  const points =
+    shape.kind === 'line'
+      ? [
+          [shape.x1, shape.y1],
+          [shape.x2, shape.y2],
+        ]
+      : (shape as { points: [number, number][] }).points;
+  if (!Array.isArray(points) || points.length < 2 || points.length > 500)
+    throw new Error('A vector needs 2 to 500 points');
+  const xy = points.map(([px, py]) => [coordinate(px), coordinate(py)]);
+  const left = Math.min(...xy.map(([px]) => px));
+  const top = Math.min(...xy.map(([, py]) => py));
+  const w = Math.max(1, Math.max(...xy.map(([px]) => px)) - left);
+  const h = Math.max(1, Math.max(...xy.map(([, py]) => py)) - top);
+  const d =
+    xy
+      .map(
+        ([px, py], i) =>
+          `${i ? 'L' : 'M'}${Math.round((px - left) * 10) / 10} ${Math.round((py - top) * 10) / 10}`,
+      )
+      .join(' ') + (shape.kind === 'vector' && shape.closed ? ' Z' : '');
+  const name = shape.kind === 'line' ? 'Line' : 'Vector';
+  return `<svg data-name="${name}" style="${absolute(left, top)};overflow:visible" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none"><path d="${d}" style="stroke:var(--ink);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"/></svg>`;
+}
+
+/** Children of a layer's inner markup, as [start, end) offsets: elements only, text skipped. */
+function childSpans(inner: string) {
+  const spans: [number, number][] = [];
+  let depth = 0;
+  let start = 0;
+  for (const match of inner.matchAll(/<(\/?)([a-zA-Z][\w:-]*)[^>]*?(\/?)>|<!--[\s\S]*?-->/g)) {
+    if (!match[2]) continue;
+    const name = match[2].toLowerCase();
+    const selfClosing = match[3] === '/' || VOID.has(name);
+    if (match[1]) {
+      depth--;
+      if (depth === 0) spans.push([start, match.index! + match[0].length]);
+    } else {
+      if (depth === 0) start = match.index!;
+      if (selfClosing) {
+        if (depth === 0) spans.push([start, match.index! + match[0].length]);
+      } else depth++;
+    }
+  }
+  return spans;
+}
 
 const escapeText = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -322,6 +402,27 @@ function styleOf(tag: string) {
 export function applyEdits(html: string, edits: BoardEdit[], base?: string) {
   let out = html;
   for (const edit of edits) {
+    if (edit.op === 'insert') {
+      const markup = shapeMarkup(edit.shape);
+      if (!edit.parent) {
+        const close = out.lastIndexOf('</body>');
+        const end = close >= 0 ? close : out.length;
+        out = `${out.slice(0, end)}${markup}\n${out.slice(end)}`;
+      } else {
+        if (!/^[a-z0-9-]{1,64}$/.test(edit.parent)) throw new Error(`Invalid layer ${edit.parent}`);
+        const parent = locate(out, edit.parent);
+        if (!parent) throw new Error(`The board has no layer ${edit.parent}`);
+        const name = /^<([a-zA-Z][\w:-]*)/.exec(parent.tag)?.[1].toLowerCase() ?? '';
+        if (VOID.has(name) || parent.tag.endsWith('/>') || name === 'svg')
+          throw new Error('Only a container can hold new layers');
+        const spans = childSpans(parent.inner);
+        const index = Math.max(0, Math.min(spans.length, Number(edit.index ?? spans.length)));
+        const at =
+          parent.innerStart + (index < spans.length ? spans[index][0] : parent.inner.length);
+        out = out.slice(0, at) + markup + out.slice(at);
+      }
+      continue;
+    }
     if (!/^[a-z0-9-]{1,64}$/.test(edit.layer)) throw new Error(`Invalid layer ${edit.layer}`);
     const found = locate(out, edit.layer);
     if (!found) throw new Error(`The board has no layer ${edit.layer}`);
@@ -372,6 +473,10 @@ export function applyEdits(html: string, edits: BoardEdit[], base?: string) {
         tag = original.tag;
         if (leaves) inner = original.inner;
       }
+    } else if (edit.op === 'remove') {
+      out =
+        out.slice(0, found.open) + out.slice(found.open + layerSnippet(out, edit.layer)!.length);
+      continue;
     } else throw new Error('Unknown edit');
     out =
       out.slice(0, found.open) +
@@ -380,5 +485,6 @@ export function applyEdits(html: string, edits: BoardEdit[], base?: string) {
       inner +
       out.slice(found.innerEnd);
   }
-  return out;
+  // New layers get IDs the way imported boards do.
+  return edits.some((edit) => edit.op === 'insert') ? assignLayerIds(out) : out;
 }

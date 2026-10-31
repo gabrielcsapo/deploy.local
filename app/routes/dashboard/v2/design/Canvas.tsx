@@ -10,7 +10,38 @@ import {
 
 export type View = { x: number; y: number; z: number };
 export type Selection = { board: string; layer: string | null } | null;
-export type Tool = 'move' | 'hand' | 'comment';
+export type Tool =
+  | 'move'
+  | 'hand'
+  | 'comment'
+  | 'rectangle'
+  | 'ellipse'
+  | 'line'
+  | 'frame'
+  | 'text'
+  | 'pen'
+  | 'sticky';
+/** What the drawing tools make, in board pixels; the server writes the markup. */
+export type DrawnShape =
+  | { kind: 'rectangle' | 'ellipse' | 'frame'; x: number; y: number; w: number; h: number }
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number }
+  | { kind: 'text'; x: number; y: number; text: string }
+  | { kind: 'vector'; points: [number, number][]; closed?: boolean };
+/** A finished drawing: a layer in a board, a new board, or a sticky note on the canvas. */
+export type Drawn =
+  | { board: string; shape: DrawnShape }
+  | { canvas: 'board'; x: number; y: number; kind: 'web' | 'phone' }
+  | { canvas: 'note'; x: number; y: number; text: string };
+type Point = { x: number; y: number };
+const drawingTools = new Set<Tool>([
+  'rectangle',
+  'ellipse',
+  'line',
+  'frame',
+  'text',
+  'pen',
+  'sticky',
+]);
 export type Frames = RefObject<Map<string, HTMLIFrameElement>>;
 /** An agent working on this design, as deploy_design presence reports it. */
 export type AgentPresence = {
@@ -55,6 +86,10 @@ export function DesignCanvas({
   inReview,
   boardSrc,
   onEditText,
+  onDraw,
+  onNote,
+  retypeNext,
+  onRetyped,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -78,6 +113,13 @@ export function DesignCanvas({
   boardSrc?: Map<string, { base: string; reload: number }>;
   /** Present when the design can be edited: double-clicking a text layer retypes it in place. */
   onEditText?: (board: string, layer: string, text: string) => void;
+  /** Present when the design can be edited: the drawing tools hand over what they drew. */
+  onDraw?: (drawn: Drawn) => void;
+  /** Retyping a sticky note; empty text removes it. */
+  onNote?: (id: string, text: string) => void;
+  /** A text layer just drawn, to retype in place once its board shows it. */
+  retypeNext?: { board: string; layer: string } | null;
+  onRetyped?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -86,6 +128,16 @@ export function DesignCanvas({
   const drag = useRef<{ x: number; y: number; view: View } | null>(null);
   // The text layer being retyped in place; its board lets the pointer through while it is.
   const [typing, setTyping] = useState<{ board: string; layer: string } | null>(null);
+  // A shape being drawn, in canvas coordinates; the pen collects points until it is done.
+  const [draft, setDraft] = useState<{
+    tool: Tool;
+    board: string | null;
+    start: Point;
+    end: Point;
+    points?: Point[];
+  } | null>(null);
+  const [noteDraft, setNoteDraft] = useState<Point | null>(null);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
 
   useEffect(() => {
     const element = host.current;
@@ -209,10 +261,98 @@ export function DesignCanvas({
     return true;
   };
 
+  useEffect(() => {
+    if (!retypeNext || !onRetyped) return;
+    if (retype(retypeNext.board, retypeNext.layer)) onRetyped();
+    // Waits for the board to load again: frame loads bump the revision.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retypeNext, revision]);
+
+  // Drawing: a point on screen in canvas coordinates, and the board under it.
+  const toWorld = (event: { clientX: number; clientY: number }): Point => {
+    const rect = host.current!.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left - view.x) / view.z,
+      y: (event.clientY - rect.top - view.y) / view.z,
+    };
+  };
+  const boardAt = (point: Point) =>
+    Object.entries(canvas.boards).find(
+      ([, b]) => point.x >= b.x && point.x <= b.x + b.w && point.y >= b.y && point.y <= b.y + b.h,
+    )?.[0] ?? null;
+  const drawing = Boolean(onDraw) && drawingTools.has(tool) && !panning;
+  const finishPen = (closed: boolean) => {
+    if (!draft?.points || !draft.board || !onDraw) return setDraft(null);
+    const placed = canvas.boards[draft.board];
+    const points = draft.points.map((p) => [p.x - placed.x, p.y - placed.y] as [number, number]);
+    if (points.length >= 2)
+      onDraw({ board: draft.board, shape: { kind: 'vector', points, closed } });
+    setDraft(null);
+  };
+  useEffect(() => {
+    if (!draft || draft.tool !== 'pen') return;
+    const keys = (event: KeyboardEvent) => {
+      if (event.key === 'Enter') finishPen(false);
+      if (event.key === 'Escape') setDraft(null);
+    };
+    window.addEventListener('keydown', keys);
+    return () => window.removeEventListener('keydown', keys);
+  });
+  const finishDrag = () => {
+    if (!draft || !onDraw) return setDraft(null);
+    const { start, end } = draft;
+    let [x, y] = [Math.min(start.x, end.x), Math.min(start.y, end.y)];
+    let [w, h] = [Math.abs(end.x - start.x), Math.abs(end.y - start.y)];
+    const clicked = w * view.z < 3 && h * view.z < 3;
+    setDraft(null);
+    if (draft.tool === 'frame' && !draft.board)
+      return onDraw({
+        canvas: 'board',
+        x: Math.round(start.x),
+        y: Math.round(start.y),
+        kind: !clicked && w < 900 ? 'phone' : 'web',
+      });
+    if (!draft.board) return;
+    const placed = canvas.boards[draft.board];
+    if (draft.tool === 'line') {
+      if (clicked) return;
+      return onDraw({
+        board: draft.board,
+        shape: {
+          kind: 'line',
+          x1: start.x - placed.x,
+          y1: start.y - placed.y,
+          x2: end.x - placed.x,
+          y2: end.y - placed.y,
+        },
+      });
+    }
+    // A click without a drag draws the shape at a starting size.
+    if (clicked) [x, y, w, h] = [start.x, start.y, 100, 100];
+    onDraw({
+      board: draft.board,
+      shape: {
+        kind: draft.tool as 'rectangle' | 'ellipse' | 'frame',
+        x: Math.round(x - placed.x),
+        y: Math.round(y - placed.y),
+        w: Math.round(w),
+        h: Math.round(h),
+      },
+    });
+  };
+  const near = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) * view.z < 8;
+
   const box = (target: Selection) =>
     target ? rectOf(frames, canvas, target.board, target.layer) : null;
   void revision;
   const selected = box(selection);
+  // A drawn layer shows its size under the selection, as it did while it was drawn.
+  const drawnLayer =
+    selection?.layer &&
+    layerElement(frames, selection.board, selection.layer)?.hasAttribute('data-name') &&
+    /position:\s*absolute/.test(
+      layerElement(frames, selection.board, selection.layer)?.getAttribute('style') ?? '',
+    );
   const hovered =
     hover && (hover.board !== selection?.board || hover.layer !== selection?.layer)
       ? box(hover)
@@ -266,12 +406,60 @@ export function DesignCanvas({
         {notes.map(([id, note]) => (
           <div
             key={id}
-            className={`dz-note ${note.fill ?? 'yellow'}`}
+            className={`dz-note ${note.fill ?? 'yellow'}${onNote ? ' editable' : ''}`}
             style={{ left: note.x, top: note.y, width: note.w ?? 280 }}
+            contentEditable={editingNote === id ? 'plaintext-only' : undefined}
+            suppressContentEditableWarning
+            ref={(element) => {
+              if (element && editingNote === id && document.activeElement !== element) {
+                element.focus();
+                document.getSelection()?.selectAllChildren(element);
+              }
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              if (onNote) setEditingNote(id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.currentTarget.textContent = note.text ?? '';
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={(event) => {
+              const text = event.currentTarget.textContent?.trim() ?? '';
+              setEditingNote(null);
+              if (text !== note.text) onNote?.(id, text);
+            }}
           >
             {note.text}
           </div>
         ))}
+        {noteDraft && (
+          <div
+            className="dz-note yellow editable"
+            style={{ left: noteDraft.x, top: noteDraft.y, width: 240, minHeight: 160 }}
+            contentEditable="plaintext-only"
+            aria-label="New sticky note"
+            ref={(element) => {
+              if (element && document.activeElement !== element) element.focus();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.currentTarget.textContent = '';
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={(event) => {
+              const text = event.currentTarget.textContent?.trim() ?? '';
+              const at = noteDraft;
+              setNoteDraft(null);
+              if (text && onDraw)
+                onDraw({ canvas: 'note', x: Math.round(at.x), y: Math.round(at.y), text });
+            }}
+          />
+        )}
+
         {Object.entries(canvas.boards).map(([file, board]) => {
           const on = selection?.board === file;
           const agent = agentBoards?.has(file);
@@ -420,8 +608,117 @@ export function DesignCanvas({
             ))}
           </div>
         )}
+        {selected && drawnLayer && (
+          <span
+            className="dz-dims"
+            style={{
+              left: selected.x + selected.w / 2,
+              top: selected.y + selected.h,
+              transform: `translate(-50%, ${8 / view.z}px) scale(${1 / view.z})`,
+            }}
+          >
+            {Math.round(selected.w)} × {Math.round(selected.h)}
+          </span>
+        )}
+        {draft && <DraftShape draft={draft} z={view.z} />}
       </div>
+      {drawing && (
+        <div
+          className={`dz-draw ${tool}`}
+          aria-label="Drawing area"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            // Keeps focus where the tool puts it (a new sticky note) and stops text selection.
+            event.preventDefault();
+            const point = toWorld(event);
+            const board = boardAt(point);
+            if (tool === 'sticky') {
+              // A click while a new note is open finishes that note.
+              if (noteDraft) return (document.activeElement as HTMLElement | null)?.blur();
+              return setNoteDraft(point);
+            }
+            if (tool === 'text') {
+              if (!board) return;
+              const placed = canvas.boards[board];
+              return onDraw!({
+                board,
+                shape: {
+                  kind: 'text',
+                  x: Math.round(point.x - placed.x),
+                  y: Math.round(point.y - placed.y),
+                  text: 'Text',
+                },
+              });
+            }
+            if (tool === 'pen') {
+              if (!draft) {
+                if (board) setDraft({ tool, board, start: point, end: point, points: [point] });
+              } else if (draft.points!.length > 2 && near(point, draft.points![0])) finishPen(true);
+              else setDraft({ ...draft, points: [...draft.points!, point], end: point });
+              return;
+            }
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setDraft({ tool, board, start: point, end: point });
+          }}
+          onPointerMove={(event) => draft && setDraft({ ...draft, end: toWorld(event) })}
+          onPointerUp={() => draft && draft.tool !== 'pen' && finishDrag()}
+          onDoubleClick={() => draft?.tool === 'pen' && finishPen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/** What is being drawn, before it is saved: its outline and, for boxes, its size. */
+function DraftShape({
+  draft,
+  z,
+}: {
+  draft: { tool: Tool; board: string | null; start: Point; end: Point; points?: Point[] };
+  z: number;
+}) {
+  const { tool, start, end } = draft;
+  if (tool === 'line' || tool === 'pen') {
+    const points = tool === 'line' ? [start, end] : [...draft.points!, end];
+    return (
+      <svg className="dz-draft-path" width="1" height="1" aria-hidden="true">
+        <polyline
+          points={points.map((p) => `${p.x},${p.y}`).join(' ')}
+          strokeWidth={1.5 / z}
+          fill="none"
+        />
+      </svg>
+    );
+  }
+  const x = Math.min(start.x, end.x);
+  const y = Math.min(start.y, end.y);
+  const w = Math.abs(end.x - start.x);
+  const h = Math.abs(end.y - start.y);
+  if (w * z < 3 && h * z < 3) return null;
+  // A frame on open canvas becomes a board: Phone 390 when drawn narrow, otherwise Web 1440.
+  const label =
+    tool === 'frame' && !draft.board
+      ? w < 900
+        ? 'Phone 390'
+        : 'Web 1440'
+      : `${Math.round(w)} × ${Math.round(h)}`;
+  return (
+    <>
+      <div
+        className={`dz-draft${tool === 'ellipse' ? ' round' : ''}`}
+        style={{ left: x, top: y, width: w, height: h, borderWidth: 1.5 / z }}
+      />
+      <span
+        className="dz-dims"
+        style={{
+          left: x + w / 2,
+          top: y + h,
+          transform: `translate(-50%, ${8 / z}px) scale(${1 / z})`,
+        }}
+      >
+        {label}
+      </span>
+    </>
   );
 }
 

@@ -17,6 +17,7 @@ import {
 import {
   DesignCanvas,
   layerElement,
+  type Drawn,
   rectOf,
   type AgentPresence,
   type Selection,
@@ -275,6 +276,46 @@ export default function DesignPage() {
     if (design.data) head.current = { ref, commit: design.data.commit };
   }, [design.data, ref]);
   const queue = useRef(Promise.resolve());
+  const reload = (board: string, commit: string) =>
+    setBoardSrc((current) =>
+      new Map(current).set(board, {
+        base: filesAt(commit),
+        reload: (current.get(board)?.reload ?? 0) + 1,
+      }),
+    );
+  /** One request after another on the design branch, each on top of the last. */
+  const send = <T extends { branch: string; commit: string }>(
+    path: '/edit' | '/canvas',
+    body: object,
+    done: (result: T) => void,
+    failed?: (at: { ref: string; commit: string }) => void,
+  ) => {
+    queue.current = queue.current.then(async () => {
+      const at = head.current;
+      if (!at) return;
+      try {
+        const result = await request<T>(`${projectApi}${path}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            ...body,
+            ref: at.ref,
+            expect: at.ref.startsWith('design/') ? at.commit : undefined,
+          }),
+        });
+        ownCommits.current.add(result.commit);
+        head.current = { ref: result.branch, commit: result.commit };
+        done(result);
+        if (result.branch !== at.ref) {
+          setRef(result.branch);
+          remember({ ref: result.branch });
+        }
+        design.refresh();
+      } catch (failure) {
+        failed?.(at);
+        window.alert((failure as Error).message);
+      }
+    });
+  };
   const edit = (board: string, layer: string, edits: LayerEdit[]) => {
     const element = layerElement(frames, board, layer);
     if (element)
@@ -284,30 +325,12 @@ export default function DesignPage() {
           if (change.value === null) element.style.removeProperty(change.prop);
           else element.style.setProperty(change.prop, change.value);
     setRevision((n) => n + 1);
-    const reload = (commit: string) =>
-      setBoardSrc((current) =>
-        new Map(current).set(board, {
-          base: filesAt(commit),
-          reload: (current.get(board)?.reload ?? 0) + 1,
-        }),
-      );
-    queue.current = queue.current.then(async () => {
-      const at = head.current;
-      if (!at) return;
-      try {
-        const result = await request<{ branch: string; commit: string }>(`${projectApi}/edit`, {
-          method: 'POST',
-          body: JSON.stringify({
-            ref: at.ref,
-            board,
-            edits: edits.map((change) => ({ ...change, layer })),
-            expect: at.ref.startsWith('design/') ? at.commit : undefined,
-          }),
-        });
-        ownCommits.current.add(result.commit);
-        head.current = { ref: result.branch, commit: result.commit };
+    send<{ branch: string; commit: string }>(
+      '/edit',
+      { board, edits: edits.map((change) => ({ ...change, layer })) },
+      (result) => {
         // A reset cannot be shown before the server works it out, so that board loads again.
-        if (edits.some((change) => change.op === 'revert')) reload(result.commit);
+        if (edits.some((change) => change.op === 'revert')) reload(board, result.commit);
         else
           setBoardSrc((current) =>
             new Map(current).set(board, {
@@ -315,18 +338,48 @@ export default function DesignPage() {
               reload: current.get(board)?.reload ?? 0,
             }),
           );
-        if (result.branch !== at.ref) {
-          setRef(result.branch);
-          remember({ ref: result.branch });
-        }
-        design.refresh();
-      } catch (failure) {
-        // Put the board back as it is on the branch.
-        reload(at.commit);
-        window.alert((failure as Error).message);
-      }
-    });
+      },
+      // Put the board back as it is on the branch.
+      (at) => reload(board, at.commit),
+    );
   };
+  // What the drawing tools made: a layer in a board, a new board, or a sticky note.
+  const [retypeNext, setRetypeNext] = useState<{ board: string; layer: string } | null>(null);
+  const draw = (drawn: Drawn) => {
+    setTool('move');
+    if ('board' in drawn)
+      return send<{ branch: string; commit: string; layers: string[] }>(
+        '/edit',
+        { board: drawn.board, edits: [{ op: 'insert', shape: drawn.shape }] },
+        (result) => {
+          reload(drawn.board, result.commit);
+          const layer = result.layers[0];
+          if (!layer) return;
+          select({ board: drawn.board, layer });
+          if (drawn.shape.kind === 'text') setRetypeNext({ board: drawn.board, layer });
+        },
+      );
+    if (drawn.canvas === 'board')
+      return send<{ branch: string; commit: string; made: string }>(
+        '/canvas',
+        { op: 'board', x: drawn.x, y: drawn.y, kind: drawn.kind },
+        (result) => {
+          reload(result.made, result.commit);
+          select({ board: result.made, layer: null });
+        },
+      );
+    send('/canvas', { op: 'note', x: drawn.x, y: drawn.y, text: drawn.text }, () => undefined);
+  };
+  const editNote = (id: string, text: string) =>
+    send('/canvas', text ? { op: 'note', id, text } : { op: 'remove-note', id }, () => undefined);
+  const removeLayer = (board: string, layer: string) => {
+    select(null);
+    send('/edit', { board, edits: [{ op: 'remove', layer }] }, (result) =>
+      reload(board, result.commit),
+    );
+  };
+  const [shape, setShape] = useState<'rectangle' | 'ellipse' | 'line'>('rectangle');
+  const [shapeMenu, setShapeMenu] = useState(false);
 
   const chooseSection = (id: string) => {
     setSectionId(id);
@@ -361,18 +414,41 @@ export default function DesignPage() {
       if (
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
-        event.target instanceof HTMLSelectElement
+        event.target instanceof HTMLSelectElement ||
+        (event.target as HTMLElement).isContentEditable
       )
         return;
       if (event.key === 'v' || event.key === 'V') setTool('move');
       if (event.key === 'h' || event.key === 'H') setTool('hand');
+      if (editable && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const drawingKeys: Record<string, Tool> = {
+          r: 'rectangle',
+          o: 'ellipse',
+          l: 'line',
+          t: 'text',
+          p: 'pen',
+          f: 'frame',
+          s: 'sticky',
+        };
+        const next = drawingKeys[event.key.toLowerCase()];
+        if (next) {
+          setTool(next);
+          if (next === 'rectangle' || next === 'ellipse' || next === 'line') setShape(next);
+        }
+        if ((event.key === 'Delete' || event.key === 'Backspace') && selection?.layer)
+          removeLayer(selection.board, selection.layer);
+      }
       if ((event.key === 'c' || event.key === 'C') && !event.metaKey && !event.ctrlKey)
         setTool('comment');
       if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && selection) {
         event.preventDefault();
         setAsking(true);
       }
-      if (event.key === 'Escape') select(null);
+      if (event.key === 'Escape') {
+        select(null);
+        setTool('move');
+        setShapeMenu(false);
+      }
       if (event.key === '\\' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         setMinimized((value) => !value);
@@ -381,16 +457,34 @@ export default function DesignPage() {
     };
     window.addEventListener('keydown', keys);
     return () => window.removeEventListener('keydown', keys);
-  }, [section, fitTo, select, selection]);
+    // removeLayer changes with every render; the listener is added again with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, fitTo, select, selection, editable]);
 
-  const tools: { id: string; icon: IconName; label: string; menu?: boolean; ready?: boolean }[] = [
-    { id: 'move', icon: 'move', label: 'Move  V', menu: true, ready: true },
-    { id: 'frame', icon: 'frame', label: 'Board  F', menu: true },
-    { id: 'shape', icon: 'shape', label: 'Shape  R', menu: true },
-    { id: 'pen', icon: 'pen', label: 'Pen  P', menu: true },
-    { id: 'text', icon: 'text', label: 'Text  T' },
-    { id: 'sticky', icon: 'sticky', label: 'Sticky note  N' },
-    { id: 'comment', icon: 'comment', label: 'Comment  C', ready: true },
+  const shapes = { rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line' } as const;
+  const shapeKeys = { rectangle: 'R', ellipse: 'O', line: 'L' } as const;
+  const tools: {
+    id: string;
+    tool?: Tool;
+    icon: IconName;
+    label: string;
+    menu?: boolean;
+    ready?: boolean;
+  }[] = [
+    { id: 'move', tool: 'move', icon: 'move', label: 'Move  V', menu: true, ready: true },
+    { id: 'frame', tool: 'frame', icon: 'frame', label: 'Frame  F', menu: true, ready: editable },
+    {
+      id: 'shape',
+      tool: shape,
+      icon: shape === 'rectangle' ? 'shape' : shape,
+      label: `${shapes[shape]}  ${shapeKeys[shape]}`,
+      menu: true,
+      ready: editable,
+    },
+    { id: 'pen', tool: 'pen', icon: 'pen', label: 'Pen  P', menu: true, ready: editable },
+    { id: 'text', tool: 'text', icon: 'text', label: 'Text  T', ready: editable },
+    { id: 'sticky', tool: 'sticky', icon: 'sticky', label: 'Sticky note  S', ready: editable },
+    { id: 'comment', tool: 'comment', icon: 'comment', label: 'Comment  C', ready: true },
     { id: 'ask', icon: 'spark', label: 'Ask an agent  ⌘K', ready: true },
   ];
 
@@ -588,6 +682,10 @@ export default function DesignPage() {
                 ? (board, layer, text) => edit(board, layer, [{ op: 'text', text }])
                 : undefined
             }
+            onDraw={editable ? draw : undefined}
+            onNote={editable ? editNote : undefined}
+            retypeNext={retypeNext}
+            onRetyped={() => setRetypeNext(null)}
           />
         ) : (
           <div className="dz-loading">Loading the design…</div>
@@ -640,14 +738,15 @@ export default function DesignPage() {
               {index === 6 && <i className="dz-sep" />}
               <button
                 type="button"
-                className={`dz-tool${tool === item.id ? ' on' : ''}`}
-                aria-label={item.ready ? item.label : `${item.label} (coming soon)`}
-                aria-pressed={tool === item.id}
-                title={item.ready ? item.label : `${item.label}: coming soon`}
+                className={`dz-tool${item.tool && tool === item.tool ? ' on' : ''}`}
+                aria-label={item.label}
+                aria-pressed={Boolean(item.tool && tool === item.tool)}
+                title={item.label}
                 disabled={!item.ready}
                 onClick={() => {
+                  setShapeMenu(false);
                   if (item.id === 'ask') return selection && setAsking(true);
-                  if (item.ready) setTool(item.id as Tool);
+                  if (item.tool) setTool(item.tool);
                 }}
               >
                 <Icon name={item.icon} size={18} />
@@ -657,14 +756,41 @@ export default function DesignPage() {
                   type="button"
                   className="dz-tool-more"
                   aria-label={
-                    item.id === 'move' ? 'Hand  H' : `${item.label} options (coming soon)`
+                    item.id === 'move' ? 'Hand  H' : item.id === 'shape' ? 'Shapes' : item.label
                   }
+                  aria-expanded={item.id === 'shape' ? shapeMenu : undefined}
                   title={item.id === 'move' ? 'Hand  H' : undefined}
-                  disabled={item.id !== 'move'}
-                  onClick={() => setTool(tool === 'hand' ? 'move' : 'hand')}
+                  disabled={item.id === 'shape' ? !editable : item.id !== 'move'}
+                  onClick={() =>
+                    item.id === 'shape'
+                      ? setShapeMenu((open) => !open)
+                      : setTool(tool === 'hand' ? 'move' : 'hand')
+                  }
                 >
                   <Icon name={item.id === 'move' && tool === 'hand' ? 'hand' : 'down'} size={10} />
                 </button>
+              )}
+              {item.id === 'shape' && shapeMenu && (
+                <div className="dz-shape-menu" role="menu" aria-label="Shapes">
+                  {(['rectangle', 'ellipse', 'line'] as const).map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={shape === name}
+                      className={shape === name ? 'on' : ''}
+                      onClick={() => {
+                        setShape(name);
+                        setTool(name);
+                        setShapeMenu(false);
+                      }}
+                    >
+                      <Icon name={name === 'rectangle' ? 'shape' : name} size={14} />
+                      {shapes[name]}
+                      <kbd>{shapeKeys[name]}</kbd>
+                    </button>
+                  ))}
+                </div>
               )}
             </span>
           ))}

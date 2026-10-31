@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyEdits, layerChanges, layerSnippet } from '../design/board-html.ts';
+import { applyEdits, layerChanges, layerIds, layerSnippet } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
@@ -201,6 +202,52 @@ function copyPaths(
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * The design branch an edit lands on. Editing main (or any non-design ref) starts a design
+ * branch, so main only changes through review; `expect` guards against editing a stale branch.
+ */
+function editBranch(repo: string, body: any, name: string) {
+  let branch = String(body?.ref || 'HEAD');
+  if (!validRef(branch)) fail('Invalid ref');
+  if (!branch.startsWith('design/')) {
+    const from = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      `${branch}^{commit}`,
+    ]);
+    if (!from) fail(`No commit named ${branch} in this project`, 404);
+    branch = createBranch(repo, `${name} edits`, from).name;
+  }
+  const head = gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}^{commit}`]);
+  if (!head) fail(`No design branch named ${branch}`, 404);
+  if (body?.expect && body.expect !== head && String(body.ref).startsWith('design/'))
+    fail('This design branch changed since you loaded it; reload and edit again', 409);
+  return { branch, head: head! };
+}
+
+/** A new, empty board styled by the design system, from the frame tool. */
+function blankBoard(title: string, w: number, h: number) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=${w},height=${h}">
+<title>${title}</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;min-height:100vh;background:var(--paper);font-family:"Hanken Grotesk",system-ui,sans-serif}
+</style>
+</head>
+<body>
+</body>
+</html>
+`;
 }
 
 /** The branch a project's design is approved onto: the repository's default branch. */
@@ -742,29 +789,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
     const edits = body?.edits;
     if (!Array.isArray(edits) || !edits.length || edits.length > 50) fail('Send 1 to 50 edits');
-    let branch = String(body?.ref || 'HEAD');
-    if (!validRef(branch)) fail('Invalid ref');
-    // Editing main starts a design branch, so main only changes through review.
-    if (!branch.startsWith('design/')) {
-      const from = gitSync(repo, [
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        '--end-of-options',
-        `${branch}^{commit}`,
-      ]);
-      if (!from) fail(`No commit named ${branch} in this project`, 404);
-      branch = createBranch(repo, `${board.replace(/\.html$/, '')} edits`, from).name;
-    }
-    const head = gitSync(repo, [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      `refs/heads/${branch}^{commit}`,
-    ]);
-    if (!head) fail(`No design branch named ${branch}`, 404);
-    if (body?.expect && body.expect !== head && String(body.ref).startsWith('design/'))
-      fail('This design branch changed since you loaded it; reload and edit again', 409);
+    const { branch, head } = editBranch(repo, body, board.replace(/\.html$/, ''));
     const html = await readFile(repo, head, `design/boards/${board}`);
     if (!html) fail(`design/boards/${board} is missing on ${branch}`, 404);
     const main = gitSync(repo, [
@@ -780,9 +805,15 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     } catch (error) {
       fail((error as Error).message);
     }
-    if (next === html.toString()) return sendJson(res, { branch, commit: head });
+    if (next === html.toString()) return sendJson(res, { branch, commit: head, layers: [] });
+    const before = new Set(layerIds(html.toString()));
+    const layers = layerIds(next).filter((layer) => !before.has(layer));
     const kinds = [
-      ...new Set(edits.map((edit: any) => (edit.op === 'style' ? edit.prop : edit.op))),
+      ...new Set(
+        edits.map((edit: any) =>
+          edit.op === 'style' ? edit.prop : edit.op === 'insert' ? edit.shape?.kind : edit.op,
+        ),
+      ),
     ];
     const commit = copyPaths(repo, {
       target: head,
@@ -793,7 +824,63 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       by: owner,
       writes: [{ path: `design/boards/${board}`, content: next }],
     });
-    return sendJson(res, { branch, commit });
+    return sendJson(res, { branch, commit, layers });
+  }
+
+  // The canvas itself: new boards from the frame tool, and sticky notes.
+  if (sub === '/canvas' && req.method === 'POST') {
+    const body = await readJson(req);
+    const op = body?.op;
+    const { branch, head } = editBranch(repo, body, op === 'board' ? 'new board' : 'notes');
+    const canvas = await readCanvas(repo, head);
+    if (!canvas) fail('This design has no canvas.json', 404);
+    const notes = (canvas!.notes ??= {}) as Record<string, any>;
+    const at = (value: unknown) => {
+      const n = Number(value);
+      if (!Number.isFinite(n) || Math.abs(n) > 1e7) fail('A position is out of bounds');
+      return Math.round(n);
+    };
+    const writes: { path: string; content: string }[] = [];
+    let made: string;
+    if (op === 'note') {
+      const text = String(body.text ?? '').slice(0, 4000);
+      if (body.id) {
+        if (!notes[body.id]) fail(`No note named ${body.id}`, 404);
+        notes[body.id] = {
+          ...notes[body.id],
+          text,
+          ...(body.x !== undefined ? { x: at(body.x), y: at(body.y) } : {}),
+        };
+        made = body.id;
+      } else {
+        made = `note-${randomUUID().slice(0, 8)}`;
+        notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
+      }
+    } else if (op === 'remove-note') {
+      if (!notes[body.id] || String(body.id).startsWith('section-')) fail('No such note', 404);
+      delete notes[body.id];
+      made = body.id;
+    } else if (op === 'board') {
+      const phone = body.kind === 'phone';
+      const [w, h] = phone ? [390, 844] : [1440, 900];
+      let n = 1;
+      while (canvas!.boards[`Board${n}.html`]) n++;
+      made = `Board${n}.html`;
+      canvas!.boards[made] = { x: at(body.x), y: at(body.y), w, h, title: `Board ${n}` };
+      if (Array.isArray((canvas as any).order)) (canvas as any).order.push(made);
+      writes.push({ path: `design/boards/${made}`, content: blankBoard(`Board ${n}`, w, h) });
+    } else fail('Unknown canvas edit');
+    writes.push({ path: 'design/canvas.json', content: `${JSON.stringify(canvas, null, 2)}\n` });
+    const commit = copyPaths(repo, {
+      target: head,
+      from: head,
+      paths: [],
+      branch,
+      message: op === 'board' ? `Add ${made!.replace(/\.html$/, '')}` : 'Edit canvas notes',
+      by: owner,
+      writes,
+    });
+    return sendJson(res, { branch, commit, made: made! });
   }
 
   // The design tasks of this project, newest first, for the overlay and the menu.
