@@ -1260,6 +1260,14 @@
       "w": 390,
       "h": 844,
       "title": "IPhone: Ask an agent about a selection"
+    },
+    "DesignDraw.html": {
+      "x": 13760,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "Drawing a rectangle on a board; a sticky note on the canvas",
+      "expand": "fill"
     }
   },
   "order": [
@@ -1430,6 +1438,7 @@
     "PRDescKeyboard.html",
     "DesignAsk.html",
     "DesignAgent.html",
+    "DesignDraw.html",
     "DesignAskPhone.html"
   ],
   "notes": {
@@ -2194,6 +2203,13 @@
       "kind": "title1",
       "size": "xxl",
       "maxW": 5600
+    },
+    "design-draw-how": {
+      "x": 13760,
+      "y": 50644,
+      "w": 1440,
+      "h": 300,
+      "text": "Drawing (proposal)\n• Rectangle, Ellipse and Line (the shape menu, or R, O, L) draw inside a board where you drag. The shape keeps that spot (X and Y) and size, filled surface with a line stroke, and saves to the board on your design branch.\n• Text (T): click inside a board to place a text layer and type; Enter keeps it.\n• Pen (P): click points to draw a vector; Enter, or a click on the first point, ends it.\n• Frame (F): drag on empty canvas to make a new board (Web 1440 or Phone 390 by its width, named Board N until you rename it); inside a board it makes a frame layer.\n• Sticky notes (S): click on the canvas; they sit beside boards, never inside one, and save to canvas.json.\n• Escape goes back to Move (V). Everything drawn can be edited in the properties panel and undone with Reset."
     }
   }
 }

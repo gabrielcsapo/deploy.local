@@ -796,6 +796,19 @@ describe('application graph and configuration HTTP API', () => {
       headers: authHeaders('alice', aliceToken),
     });
     const alignedDigest = compileDeployYaml(exported.text).digest;
+    const deploymentStatus = () => {
+      const sqlite = new Database(join(dataDir, 'deploy.db'), { readonly: true });
+      try {
+        return (
+          sqlite.prepare('SELECT status FROM deployments WHERE name = ?').get(APPLICATION_NAME) as {
+            status: string;
+          }
+        ).status;
+      } finally {
+        sqlite.close();
+      }
+    };
+    const statusBefore = deploymentStatus();
     const aligned = await upload(
       port,
       APPLICATION_NAME,
@@ -807,6 +820,8 @@ describe('application graph and configuration HTTP API', () => {
     assert.equal(aligned.status, 200, aligned.text);
     assert.equal(aligned.body.unchanged, true);
     assert.equal(aligned.body.sourceAligned, true);
+    // Nothing restarted, so the app keeps its status instead of staying "uploading".
+    assert.equal(deploymentStatus(), statusBefore);
 
     const graph = await request(port, `/api/deployments/${APPLICATION_NAME}/application-spec`, {
       headers: authHeaders('alice', aliceToken),

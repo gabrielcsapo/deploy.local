@@ -96,6 +96,7 @@ import {
   changePassword,
   saveDeployment,
   getDeployment,
+  readDeploymentRecord,
   getDeployments,
   deleteDeployment,
   updateDeploymentSettings,
@@ -1811,6 +1812,8 @@ export function apiMiddleware(
           let artifactPath: string | null = null;
           let uploadedSourceArtifactDigest: string | null = null;
           let releaseBaselineStatus: string | null = null;
+          // The stored status this upload replaces with "uploading", for an upload that changes nothing.
+          let statusBeforeUpload: string | null = null;
           let uploadLimitError: UploadArchiveError | null = null;
           let clientAborted = false;
           let legacyResult: Record<string, unknown> | null = null;
@@ -2310,6 +2313,7 @@ export function apiMiddleware(
                       retentionClass: 'release',
                     });
                     uploadedSourceArtifactDigest = sourceArtifact.digest;
+                    statusBeforeUpload = readDeploymentRecord(name)?.status ?? null;
                     updateDeploymentStatus(name, 'uploading');
                     repositorySourceChanged = Boolean(
                       existingDeployment?.sourceArtifactDigest &&
@@ -2496,6 +2500,8 @@ export function apiMiddleware(
                 { owner: username, application: name, projectId: repositoryProjectId },
                 previousDeployment.currentBuildLogId,
               );
+            // Nothing restarted, so the app is still what it was before the upload began.
+            if (statusBeforeUpload) updateDeploymentStatus(name, statusBeforeUpload);
             releaseDeployLease();
             return json(res, {
               name,

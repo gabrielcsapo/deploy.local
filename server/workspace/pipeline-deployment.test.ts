@@ -172,7 +172,13 @@ function fullFixture(extra = '', path = '.') {
   return { ...fixtureData, run, application };
 }
 function stubUpload(
-  options: { gate?: string; failed?: boolean; lost?: boolean; releasing?: boolean } = {},
+  options: {
+    gate?: string;
+    failed?: boolean;
+    lost?: boolean;
+    releasing?: boolean;
+    unchanged?: boolean;
+  } = {},
 ) {
   const uploads: { scope: any; bytes: Buffer; buildLogId: number }[] = [];
   mock.method(globalThis, 'fetch', async (input: any, init?: RequestInit) => {
@@ -191,6 +197,11 @@ function stubUpload(
     assert.deepEqual([...form.keys()].sort(), ['detached', 'file', 'name']);
     const bytes = gunzipSync(Buffer.from(await (form.get('file') as Blob).arrayBuffer()));
     if (options.gate) return Response.json({ error: options.gate }, { status: 409 });
+    // The coordinator already runs this source: it starts nothing and the app keeps running.
+    if (options.unchanged) {
+      uploads.push({ scope, bytes, buildLogId: 0 });
+      return Response.json({ unchanged: true, sourceAligned: true });
+    }
     store.registerDeploymentStart(scope.application, scope.owner, 'application-graph');
     registerApplicationIdentity(scope.application);
     store.updateDeploymentArtifactDigests(scope.application, {
@@ -268,6 +279,24 @@ test('waits through a full release, and only gives up long after one should fini
   const stalled = await startedMinutesAgo(80);
   assert.equal(stalled.status, 'failed');
   assert.match(stalled.error, /Timed out waiting for build\/start/);
+});
+test('a run whose source is already live finishes on the running build', async () => {
+  const { run, application } = fullFixture();
+  stubUpload();
+  await advancePipelineDeployment('owner', run.id);
+  await advancePipelineDeployment('owner', run.id);
+  const live = get('pipeline-run', 'owner', run.id).deployment;
+  assert.equal(live.status, 'succeeded');
+  mock.restoreAll();
+  const uploads = stubUpload({ unchanged: true });
+  const again = save('pipeline-run', 'owner', { ...run, id: randomUUID() });
+  await advancePipelineDeployment('owner', again.id);
+  await advancePipelineDeployment('owner', again.id);
+  assert.equal(uploads.length, 1);
+  const repeated = get('pipeline-run', 'owner', again.id).deployment;
+  assert.equal(repeated.status, 'succeeded', repeated.error);
+  assert.equal(repeated.buildLogId, live.buildLogId);
+  assert.equal(store.readDeploymentRecord(application)?.status, 'running');
 });
 test('volume resources use the full upload path', async () => {
   const { run, source, project } = fullFixture(`resources:
