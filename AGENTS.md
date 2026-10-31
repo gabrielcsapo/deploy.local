@@ -2,20 +2,22 @@
 
 Instructions for any agent working in this repository: web app, Mac desktop app, iPhone app, CLI and docs. Folder-specific notes live beside the code (for example `app/AGENTS.md`).
 
-## Visual changes: sketch on the canvas, show before and after, get sign-off
+## Visual changes: change the design first, get it approved, then build it
 
-Any change people will see — layout, copy on screen, controls, states, window chrome, on web, desktop or iPhone — is drawn before it is built, and the owner signs off before the work moves forward.
+Any change people will see — layout, copy on screen, controls, states, window chrome, on web, desktop or iPhone — is drawn before it is built, and the owner approves it before the work moves forward.
 
-1. **Sketch it on the canvas first.** The product canvas is the "deploy.local Agents" Design artifact (https://claude.ai/artifact/3mS7t8tGJgTKdo1bnAanTr), built on the deploy.local Design System (https://claude.ai/artifact/5Sv6UWeiDvpgnenyfDurkZ). Draw the proposal with the installed design system and real copy, in the section that covers the screen.
-2. **Show before and after, on the canvas and as a screenshot.** On the canvas, put a Before board (a copy of the current board, or the live app as it is today) beside an After board, labelled, with a short note listing each change and anything left as a proposal. Also render both and send the owner one before-and-after screenshot in the conversation, so they can judge it without opening the canvas. Desktop boards reflow; check them at about 700 px and 1440 px, phone boards at 390 px.
-3. **Get explicit sign-off.** Ask the owner to approve the After as drawn. Nothing about the change is built, merged, pushed or released until they say yes. Comments or a "change X" mean revise the After, send a new screenshot and ask again.
-4. **On approval, the After becomes the design.** Replace the screen's current board with the After, so the canvas always shows the product as it should be, and remove the Before and After pair and its note. Then start implementation.
-5. **Build exactly what was approved.** If the build has to differ from the board (wording, a state the board missed, a platform constraint), stop and get sign-off on the difference the same way, and update the board so it matches what ships.
-6. **Verify against the board.** Before calling it done, compare the real app with the approved board at the same widths and report any gap.
+The design lives in this repository, in `design/` (see `design/README.md`): `canvas.json` and one HTML board per screen, built from the design system in `design/ds/`. deploy.local shows it on its Design page, where designs are reviewed and approved. The claude.ai canvas it was imported from is an older mirror, not the source.
+
+1. **Change the design on a design branch.** Edit the screen's board in `design/boards/` (and `canvas.json` for a new board, its place or its notes) with the design system and real copy. Keep every `data-layer` ID; after adding elements, run `node scripts/design-layers.mjs` on the boards you changed. Agents working in a deploy.local task report where they work with `deploy_design` (presence) and commit as they go.
+2. **Render it and show before and after.** Render each changed board with `node design/tools/render.mjs <Board>`: web boards at 1440 and 700 px, phone boards at 390. Look at every width. Send the owner one before-and-after screenshot in the conversation; in deploy.local the task's Design tab and its chat card show Before (main) and After (the branch) side by side.
+3. **Get explicit approval.** Propose the design for review: Propose on the Design page, or `deploy_design` with action `propose` from a task. It waits in Waiting on you. Nothing about the change is built, merged, pushed or released until the owner approves it. Asking for changes means revise the boards and propose again.
+4. **On approval, the design is on main.** Approving puts the branch's design files on main, so `design/` always shows the product as it should be. Then start implementation.
+5. **Build exactly what was approved.** If the build has to differ from the board (wording, a state the board missed, a platform constraint), stop and get approval for the difference the same way, and change the board so it matches what ships.
+6. **Verify against the board.** Before calling it done, compare the real app with the approved board at the same widths (`design/tools/capture.mjs` and `pair.py`, see `design/README.md`) and report any gap.
 
 Fixes that leave what people see unchanged (a crash, a wrong value) do not need a sketch. When in doubt, sketch.
 
-Work delegated to subagents or other sessions follows the same rule. They draw boards and report back; the owner is asked for sign-off in the main conversation.
+Work delegated to subagents or other sessions follows the same rule. They change boards on a branch and report back; the owner approves in deploy.local or in the main conversation.
 
 ## Shipping
 
