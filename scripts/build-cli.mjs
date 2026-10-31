@@ -90,8 +90,12 @@ function nodeBinaryPathInArchive(target) {
     : `node-${NODE_VERSION}-${os}-${target.arch}/bin/node`;
 }
 
+// The version is part of the name, so changing NODE_VERSION never reuses an older runtime.
 function cachedNodePath(target) {
-  return join(CACHE_DIR, `node-${target.os}-${target.arch}${target.extension || ''}`);
+  return join(
+    CACHE_DIR,
+    `node-${target.os}-${target.arch}-${NODE_VERSION}${target.extension || ''}`,
+  );
 }
 
 function outputBinaryPath(target) {
