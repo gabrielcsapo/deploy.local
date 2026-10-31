@@ -3,6 +3,8 @@
   --dz-left: 240px;
   --dz-right: 264px;
   --dz-pick: var(--ds-accent);
+  /* An agent's cursor, selection and changes. */
+  --dz-agent: var(--ds-success);
   --dz-tint: color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface));
   --dz-tint-on: color-mix(in srgb, var(--ds-accent) 16%, var(--ds-surface));
   display: grid;
@@ -93,7 +95,7 @@
   box-sizing: border-box;
   border-radius: var(--ds-radius-full);
   background: var(--ds-danger);
-  color: var(--ds-on);
+  color: var(--ds-onAction);
   font-size: var(--ds-type-caption);
   font-weight: 600;
   line-height: 16px;
@@ -122,7 +124,7 @@
 .dz-menu .dl-menu-item:hover,
 .dz-menu .dl-menu-item.on {
   background: var(--ds-accent);
-  color: var(--ds-on);
+  color: var(--ds-onAction);
 }
 .dz-menu svg,
 .dz-menu-label,
@@ -474,7 +476,7 @@
 }
 .dz-tool.on {
   background: var(--ds-accent);
-  color: var(--ds-on);
+  color: var(--ds-onAction);
 }
 .dz-tool:disabled,
 .dz-tool.disabled {
@@ -539,6 +541,7 @@
 }
 .dz-zoom {
   position: relative;
+  margin-left: var(--ds-space-2);
 }
 .dz-zoom-btn {
   display: inline-flex;
@@ -704,6 +707,344 @@
 .dz-links a {
   color: var(--ds-accent);
 }
+/* Comments */
+.dz-count {
+  margin-left: var(--ds-space-1);
+  color: var(--ds-tertiary);
+}
+.dz-sel-kind {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dz-sel-kind .dl-icon-btn {
+  width: 24px;
+  height: 24px;
+}
+.dz-comments {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.dz-comments-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3);
+}
+.dz-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-sidebar);
+}
+.dz-comment.resolved {
+  opacity: var(--ds-opacity-ended);
+}
+.dz-comment header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dz-comment header .dl-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: var(--ds-type-caption);
+}
+.dz-comment p {
+  margin: 0;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.dz-chip-button {
+  width: max-content;
+  max-width: 100%;
+  border: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dz-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ds-accent) !important;
+  cursor: pointer;
+}
+.dz-resolved-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  width: max-content;
+  color: var(--ds-tertiary) !important;
+}
+.dz-empty-note {
+  margin: 0;
+  color: var(--ds-tertiary);
+}
+.dz-comment-form {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3);
+  border-top: 1px solid var(--ds-line);
+  background: var(--ds-surface);
+}
+.dz-comment-form textarea,
+.dz-ask textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--ds-space-2) 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font: inherit;
+  resize: vertical;
+}
+.dz-comment-form textarea:focus,
+.dz-ask textarea:focus {
+  outline: none;
+  border-color: var(--ds-accent);
+}
+.dz-comment-form .dl-btn {
+  align-self: flex-end;
+}
+.dz-error {
+  margin: 0;
+  color: var(--ds-danger);
+  font-size: var(--ds-type-meta);
+}
+
+/* Ask an agent */
+.dz-ask {
+  position: absolute;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  width: 380px;
+  padding: var(--ds-space-3);
+  box-sizing: border-box;
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+  box-shadow:
+    0 0 0 1px var(--ds-line),
+    var(--ds-shadow-lg);
+}
+.dz-ask-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.dz-ask-h .dz-meta {
+  margin-left: auto;
+  font-weight: 400;
+}
+.dz-ask textarea {
+  border-color: var(--ds-accent);
+  font-size: var(--ds-type-small);
+}
+.dz-ask-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dz-ask-ctx span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--ds-sidebar);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-caption);
+}
+.dz-ask-f {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding-top: var(--ds-space-2);
+  border-top: 1px solid var(--ds-line);
+}
+.dz-ask-f .dz-meta {
+  flex: 1;
+  white-space: normal;
+}
+
+/* An agent's branch over yours */
+.dz-overlay-bar {
+  position: absolute;
+  z-index: 12;
+  top: var(--ds-space-3);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  max-width: calc(100% - var(--ds-space-6));
+  padding: 5px 6px 5px 10px;
+  box-sizing: border-box;
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+  box-shadow:
+    0 0 0 1.5px var(--dz-agent),
+    var(--ds-shadow-lg);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.dz-overlay-bar b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz-overlay-bar .dl-btn {
+  height: 28px;
+  padding: 0 10px;
+}
+.dz-live {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-tertiary);
+}
+.dz-live.on {
+  background: var(--dz-agent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dz-agent) 25%, transparent);
+}
+.dz-seg3 {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--ds-sidebar);
+}
+.dz-seg3 button {
+  height: 24px;
+  padding: 0 var(--ds-space-2);
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ds-tertiary) !important;
+  font-weight: 500;
+  cursor: pointer;
+}
+.dz-seg3 button.on {
+  background: var(--ds-surface);
+  color: var(--ds-text) !important;
+  box-shadow: 0 0 0 1px var(--ds-line);
+}
+.dz-board.agent {
+  outline: 1.5px dashed var(--dz-agent);
+  outline-offset: 3px;
+}
+.dz-board-name .dz-tag.agent {
+  background: var(--dz-agent);
+  color: var(--ds-onAction);
+}
+.dz-agent-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dz-agent-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--ds-radius-full);
+  background: var(--dz-agent);
+  color: var(--ds-onAction);
+}
+.dz-msg {
+  margin: 0;
+  padding: var(--ds-space-2) 10px;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-sidebar);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.dz-dot.agent {
+  background: var(--dz-agent);
+}
+.dz-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+}
+.dz-change.off {
+  opacity: var(--ds-opacity-ended);
+}
+.dz-change-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.dz-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 0;
+  border-radius: 5px;
+  background: var(--ds-sidebar);
+  color: var(--ds-secondary);
+  cursor: pointer;
+}
+.dz-act[aria-pressed='true'] {
+  background: var(--ds-hover);
+  color: var(--ds-danger);
+}
+.dz-renders {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.dz-renders a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dz-renders img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 4px;
+  background: var(--ds-sidebar);
+  box-shadow: 0 0 0 1px var(--ds-line);
+}
+.dz-agent-f {
+  display: flex;
+  gap: 6px;
+  padding: var(--ds-space-3);
+}
+.dz-agent-f .dl-btn {
+  height: 30px;
+  padding: 0 10px;
+}
+.dz-agent-f .dl-btn.primary {
+  flex: 1;
+  justify-content: center;
+}
+
 .dz-narrow-bar,
 .dz-sheet-scrim {
   display: none;
@@ -780,5 +1121,18 @@
   }
   .dz-right-top {
     display: none;
+  }
+  .dz.has-selection .dz-ask {
+    position: fixed;
+    top: auto !important;
+    bottom: var(--ds-space-2);
+    left: var(--ds-space-2) !important;
+    z-index: 30;
+    width: calc(100% - var(--ds-space-4));
+  }
+  .dz-overlay-bar {
+    top: 60px;
+    flex-wrap: wrap;
+    white-space: normal;
   }
 }

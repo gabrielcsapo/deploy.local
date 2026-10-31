@@ -1,4 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { layerSnippet } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
@@ -129,6 +132,51 @@ function createBranch(repo: string, name: string, commit: string) {
   )
     fail('Could not create the design branch', 500);
   return { name: branch, commit };
+}
+
+/** Commit `paths` as they are in `from` on top of `target`, and move `branch` to it if nobody else did. */
+async function copyPaths(
+  repo: string,
+  input: {
+    target: string;
+    from: string;
+    paths: string[];
+    branch: string;
+    task: string;
+    by: string;
+  },
+) {
+  const index = join(mkdtempSync(join(tmpdir(), 'design-accept-')), 'index');
+  const env = { indexFile: index };
+  try {
+    await repositoryGit(repo, ['read-tree', input.target], env);
+    for (const path of input.paths) {
+      const entry = gitSync(repo, ['ls-tree', input.from, '--', path]);
+      if (entry) {
+        const [meta] = entry.split('\t');
+        const [mode, , oid] = meta.split(' ');
+        await repositoryGit(
+          repo,
+          ['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`],
+          env,
+        );
+      } else await repositoryGit(repo, ['update-index', '--force-remove', '--', path], env);
+    }
+    const tree = (await repositoryGit(repo, ['write-tree'], env)).toString().trim();
+    const message = `Accept ${input.paths.length === 1 ? input.paths[0].replace(/^design\//, '') : `${input.paths.length} design changes`} from ${input.task}`;
+    const commit = (
+      await repositoryGit(repo, ['commit-tree', tree, '-p', input.target, '-m', message], {
+        identity: input.by,
+      })
+    )
+      .toString()
+      .trim();
+    if (gitSync(repo, ['update-ref', `refs/heads/${input.branch}`, commit, input.target]) === null)
+      fail(`${input.branch} moved while accepting; try again`, 409);
+    return commit;
+  } finally {
+    rmSync(dirname(index), { recursive: true, force: true });
+  }
 }
 
 function presentComment(row: any) {
@@ -408,13 +456,80 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     });
     save('task', owner, {
       ...get('task', owner, task.id),
-      design: { board, layer, ref, commit, askedAt: now() },
+      design: { board, layer, ref, commit, text, askedAt: now() },
     });
     return sendJson(
       res,
       { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
       201,
     );
+  }
+
+  // The design tasks of this project, newest first, for the overlay and the menu.
+  if (sub === '/asks' && req.method === 'GET') {
+    const asks = list('task', owner)
+      .filter((task: any) => task.projectId === project.id && task.design)
+      .sort((a: any, b: any) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .slice(0, 20)
+      .map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        branch: currentTaskBranch(task),
+        ...task.design,
+      }));
+    return sendJson(res, { asks });
+  }
+
+  // Accept an agent's design changes: copy its version of the chosen design files onto a design
+  // branch. Accepting while viewing main starts a new design branch, so main only changes through review.
+  if (sub === '/accept' && req.method === 'POST') {
+    const body = await readJson(req);
+    const task = get('task', owner, String(body?.task ?? ''));
+    if (task.projectId !== project.id || !task.design)
+      fail('That is not a design task of this project', 404);
+    const agentRef = `refs/heads/${currentTaskBranch(task)}`;
+    const agent = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${agentRef}^{commit}`]);
+    if (!agent) fail('The agent has not committed any design changes yet', 409);
+    let into = String(body?.into || 'HEAD');
+    if (!validRef(into)) fail('Invalid branch');
+    if (!into.startsWith('design/')) {
+      const from = gitSync(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        '--end-of-options',
+        `${into}^{commit}`,
+      ]);
+      if (!from) fail(`No commit named ${into} in this project`, 404);
+      into = createBranch(repo, task.title.replace(/^Design:\s*/, ''), from).name;
+    }
+    const target = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${into}^{commit}`,
+    ]);
+    if (!target) fail(`No design branch named ${into}`, 404);
+    const base = task.design.commit as string;
+    const changed = (
+      gitSync(repo, ['diff', '--name-only', '--no-renames', base, agent, '--', 'design/']) ?? ''
+    )
+      .split('\n')
+      .filter(Boolean);
+    const paths: string[] = Array.isArray(body?.paths) ? body.paths.map(String) : changed;
+    if (!paths.length) fail('Choose at least one change to accept');
+    if (paths.some((path) => !changed.includes(path)))
+      fail('Only the agent’s design changes can be accepted');
+    const commit = await copyPaths(repo, {
+      target,
+      from: agent,
+      paths,
+      branch: into,
+      task: task.title,
+      by: owner,
+    });
+    return sendJson(res, { branch: into, commit, accepted: paths });
   }
 
   fail('Not found', 404);

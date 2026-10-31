@@ -206,3 +206,69 @@ test('a task’s design reads from the branch it commits to, or its base before 
   save('task', 'alice', { id: 'other-task', projectId: 'elsewhere', baseRevision: main });
   assert.equal((await call('?task=other-task')).status, 404);
 });
+
+test('accepting an agent’s changes puts them on a design branch, never straight on main', async () => {
+  save('task', 'alice', {
+    id: 'ee11ff22-0000',
+    projectId: 'site',
+    title: 'Design: Welcome › title',
+    baseRevision: main,
+    createdAt: new Date().toISOString(),
+    design: { board: 'Welcome.html', layer: 'title', ref: 'HEAD', commit: main, text: 'Bigger' },
+  });
+  assert.equal(
+    (await call('/accept', { method: 'POST', body: JSON.stringify({ task: 'ee11ff22-0000' }) }))
+      .status,
+    409,
+  );
+  writeFileSync(join(repo, 'design/boards/Welcome.html'), '<h1 data-layer="title">Big</h1>');
+  writeFileSync(join(repo, 'design/boards/New.html'), '<p data-layer="p">New</p>');
+  await git(['add', '.']);
+  await git(['commit', '-m', 'Agent work']);
+  await git(['branch', 'task/ee11ff22', 'HEAD']);
+  await git(['reset', '--hard', main]);
+
+  const asks = await (await call('/asks')).json();
+  assert.equal(asks.asks[0].id, 'ee11ff22-0000');
+  assert.equal(asks.asks[0].text, 'Bigger');
+
+  const partial = await call('/accept', {
+    method: 'POST',
+    body: JSON.stringify({ task: 'ee11ff22-0000', paths: ['design/boards/New.html'] }),
+  });
+  assert.equal(partial.status, 200);
+  const first = await partial.json();
+  assert.equal(first.branch, 'design/welcome-title');
+  assert.deepEqual(first.accepted, ['design/boards/New.html']);
+  assert.equal(
+    await git(['show', `${first.commit}:design/boards/New.html`]),
+    '<p data-layer="p">New</p>',
+  );
+  assert.match(
+    await git(['show', `${first.commit}:design/boards/Welcome.html`]),
+    /Welcome to deploy\.local/,
+  );
+  assert.equal(await git(['rev-parse', 'main']), main);
+
+  const rest = await (
+    await call('/accept', {
+      method: 'POST',
+      body: JSON.stringify({ task: 'ee11ff22-0000', into: first.branch }),
+    })
+  ).json();
+  assert.equal(rest.branch, 'design/welcome-title');
+  assert.equal(
+    await git(['show', `${rest.commit}:design/boards/Welcome.html`]),
+    '<h1 data-layer="title">Big</h1>',
+  );
+  assert.equal(await git(['rev-parse', `${rest.commit}^`]), first.commit);
+  assert.equal(
+    (
+      await call('/accept', {
+        method: 'POST',
+        body: JSON.stringify({ task: 'ee11ff22-0000', paths: ['README.md'] }),
+      })
+    ).status,
+    400,
+  );
+});

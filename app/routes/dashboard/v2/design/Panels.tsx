@@ -593,6 +593,12 @@ export function RightPanel({
   changes,
   select,
   owner,
+  tab,
+  setTab,
+  commentCount,
+  comments,
+  agent,
+  onAsk,
 }: {
   project: Project | undefined;
   design: Design | undefined;
@@ -607,6 +613,13 @@ export function RightPanel({
   changes: { status: string; path: string }[];
   select: (selection: Selection) => void;
   owner: string;
+  tab: 'edit' | 'comments';
+  setTab: (tab: 'edit' | 'comments') => void;
+  commentCount: number;
+  comments: ReactNode;
+  /** While an agent's branch is open, its panel replaces Edit. */
+  agent: ReactNode;
+  onAsk: () => void;
 }) {
   const [zoomMenu, setZoomMenu] = useState(false);
   void revision;
@@ -648,17 +661,24 @@ export function RightPanel({
       </div>
       <div className="dz-right-tabs">
         <div className="dz-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected className="on">
-            Edit
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'edit'}
+            className={tab === 'edit' ? 'on' : ''}
+            onClick={() => setTab('edit')}
+          >
+            {agent ? 'Agent' : 'Edit'}
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={false}
-            disabled
-            title="Comments arrive in the next step"
+            aria-selected={tab === 'comments'}
+            className={tab === 'comments' ? 'on' : ''}
+            onClick={() => setTab('comments')}
           >
             Comments
+            {commentCount > 0 && <span className="dz-count">{commentCount}</span>}
           </button>
         </div>
         <span className="dl-grow" />
@@ -692,10 +712,25 @@ export function RightPanel({
         </div>
       </div>
       <div className="dz-right-body">
-        {selection && element ? (
+        {tab === 'comments' ? (
+          comments
+        ) : agent ? (
+          agent
+        ) : selection && element ? (
           <>
             <div className="dz-sel">
-              <b>{kindName[kind!]}</b>
+              <b className="dz-sel-kind">
+                {kindName[kind!]}
+                <button
+                  type="button"
+                  className="dl-icon-btn"
+                  aria-label="Ask an agent  ⌘K"
+                  title="Ask an agent  ⌘K"
+                  onClick={onAsk}
+                >
+                  <Icon name="spark" size={14} />
+                </button>
+              </b>
               <span className="dz-crumb">{crumb.join(' › ')}</span>
             </div>
             <LayerProps element={element} tokens={tokens} />

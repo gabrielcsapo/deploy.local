@@ -4,7 +4,7 @@ import { boardName, type Canvas as CanvasData, type Section } from './model';
 
 export type View = { x: number; y: number; z: number };
 export type Selection = { board: string; layer: string | null } | null;
-export type Tool = 'move' | 'hand';
+export type Tool = 'move' | 'hand' | 'comment';
 export type Frames = RefObject<Map<string, HTMLIFrameElement>>;
 
 /** The element a layer ID names inside a mounted board, or null. */
@@ -13,7 +13,7 @@ export function layerElement(frames: Frames, board: string, layer: string) {
   return doc?.querySelector<HTMLElement>(`[data-layer="${CSS.escape(layer)}"]`) ?? null;
 }
 
-function rectOf(frames: Frames, canvas: CanvasData, board: string, layer: string | null) {
+export function rectOf(frames: Frames, canvas: CanvasData, board: string, layer: string | null) {
   const placed = canvas.boards[board];
   if (!placed) return null;
   if (!layer) return { x: placed.x, y: placed.y, w: placed.w, h: placed.h };
@@ -35,6 +35,7 @@ export function DesignCanvas({
   frames,
   revision,
   onFrameLoad,
+  agentBoards,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -47,6 +48,8 @@ export function DesignCanvas({
   frames: Frames;
   revision: number;
   onFrameLoad: () => void;
+  /** Boards an open agent branch changed, outlined while its overlay shows. */
+  agentBoards?: Set<string>;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -207,10 +210,11 @@ export function DesignCanvas({
         ))}
         {Object.entries(canvas.boards).map(([file, board]) => {
           const on = selection?.board === file;
+          const agent = agentBoards?.has(file);
           return (
             <div
               key={file}
-              className={`dz-board${on ? ' on' : ''}`}
+              className={`dz-board${on ? ' on' : ''}${agent ? ' agent' : ''}`}
               style={{ left: board.x, top: board.y, width: board.w, height: board.h }}
             >
               <button
@@ -224,6 +228,7 @@ export function DesignCanvas({
                 <span className="dz-tag">
                   {board.w <= 500 ? `Phone ${board.w}` : `Web ${board.w}`}
                 </span>
+                {agent && <span className="dz-tag agent">Agent’s version</span>}
               </button>
               {visible(file) ? (
                 <iframe
