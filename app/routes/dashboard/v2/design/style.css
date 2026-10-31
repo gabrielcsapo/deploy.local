@@ -1045,6 +1045,57 @@
   justify-content: center;
 }
 
+/* An agent's live cursor and selection, from deploy_design presence. */
+.dz-agent-box {
+  position: absolute;
+  box-sizing: content-box;
+  margin: -2px 0 0 -2px;
+  border: 1.5px solid var(--dz-agent);
+  pointer-events: none;
+}
+.dz-agent-box b {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--dz-agent);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  transform-origin: 0 100%;
+}
+.dz-agent-cursor {
+  position: absolute;
+  top: 100%;
+  left: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--dz-agent);
+  transform-origin: 0 0;
+}
+.dz-agent-cursor svg {
+  fill: currentColor;
+}
+.dz-agent-cursor i {
+  margin-top: 12px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--dz-agent);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dz-dot.agent-here {
+  background: var(--dz-agent);
+}
+
 .dz-narrow-bar,
 .dz-sheet-scrim {
   display: none;

@@ -337,6 +337,7 @@ function presentComment(row: any) {
     layer: row.layer ?? null,
     text: row.text,
     author: row.author,
+    agent: row.taskId ? { taskId: row.taskId, title: row.agentTitle ?? 'Agent' } : null,
     commit: row.commit ?? null,
     resolved: Boolean(row.resolved),
     createdAt: row.createdAt,
@@ -424,9 +425,106 @@ export function askPrompt(input: {
     '- Change only files in design/. Keep every existing data-layer ID; after adding elements, run `node scripts/design-layers.mjs` on the boards you changed.',
     '- Use only the design system in design/ds (the dl-* classes and the tokens). Follow design/ds/README.md.',
     '- Render each board you change with `node design/tools/render.mjs <Board>` and look at every width before you finish.',
-    '- Commit as you go, so the Design page shows your changes while you work. Do not build the change in the app: this task is the design only.',
+    '- Before you change a board or a layer, call deploy_design with action presence (board, layer, a short note) so the person watching sees where you work.',
+    '- Commit as you go with deploy_checkpoint and deploy_commit, so the Design page shows your changes while you work. Do not build the change in the app: this task is the design only.',
+    '- Read open comments with deploy_design action comments, and resolve the ones you addressed.',
     '- End by saying what you changed, board by board, and what you checked.',
   ].join('\n');
+}
+
+// Where agents are working right now, by owner and project. Presence is a hint for people
+// watching, so it lives in memory and lapses after a minute without an update.
+type Presence = {
+  taskId: string;
+  title: string;
+  board: string;
+  layer: string | null;
+  note: string;
+  at: number;
+};
+const presence = new Map<string, Map<string, Presence>>();
+const presenceLife = 60_000;
+function livePresence(owner: string, projectId: string) {
+  const here = presence.get(`${owner}\0${projectId}`);
+  if (!here) return [];
+  const cutoff = Date.now() - presenceLife;
+  for (const [taskId, entry] of here) if (entry.at < cutoff) here.delete(taskId);
+  return [...here.values()];
+}
+
+/**
+ * deploy_design: what an agent working on a project's design can do beyond editing files.
+ * It reads and edits design/ in its own workspace and renders with design/tools/render.mjs;
+ * this tool shows where it works, handles comments, and asks for review.
+ */
+export function designTool(scope: { owner: string; taskId: string }, args: any) {
+  const task = get('task', scope.owner, scope.taskId);
+  if (!task.projectId) fail('This conversation has no repository project');
+  const project = requireRepository(scope.owner, task.projectId);
+  const board = args.board == null ? null : String(args.board);
+  const layer = args.layer == null ? null : String(args.layer);
+  if (board !== null && !boardPattern.test(board))
+    fail('board must be a file in design/boards, like Welcome.html');
+  if (layer !== null && !layerPattern.test(layer)) fail('layer must be a data-layer ID');
+  switch (args.action) {
+    case 'presence': {
+      const key = `${scope.owner}\0${project.id}`;
+      const here = presence.get(key) ?? new Map<string, Presence>();
+      presence.set(key, here);
+      if (!board) {
+        here.delete(task.id);
+        return { presence: null };
+      }
+      const entry: Presence = {
+        taskId: task.id,
+        title: String(task.title ?? 'Agent').replace(/^Design:\s*/, ''),
+        board,
+        layer,
+        note: String(args.note ?? '').slice(0, 200),
+        at: Date.now(),
+      };
+      here.set(task.id, entry);
+      return { presence: entry };
+    }
+    case 'comments':
+      return {
+        comments: comments(scope.owner, project.id, board).filter(
+          (comment) => args.all || !comment.resolved,
+        ),
+      };
+    case 'comment': {
+      const text = String(args.text ?? '').trim();
+      if (!board) fail('Name the board the comment is on');
+      if (!text || text.length > 4000) fail('A comment needs 1 to 4000 characters');
+      const row = save('design-comment', scope.owner, {
+        id: id(),
+        projectId: project.id,
+        board,
+        layer,
+        text,
+        commit: null,
+        author: scope.owner,
+        taskId: task.id,
+        agentTitle: String(task.title ?? 'Agent'),
+        resolved: false,
+        createdAt: now(),
+      });
+      return { comment: presentComment(row) };
+    }
+    case 'resolve': {
+      const row = get('design-comment', scope.owner, String(args.commentId ?? ''));
+      if (row.projectId !== project.id) fail('Not found', 404);
+      return {
+        comment: presentComment(
+          save('design-comment', scope.owner, { ...row, resolved: true, resolvedAt: now() }),
+        ),
+      };
+    }
+    case 'propose':
+      return { item: proposeDesign(scope.owner, project, { task: task.id }) };
+    default:
+      fail('action must be presence, comments, comment, resolve or propose');
+  }
 }
 
 export async function designApi(req: IncomingMessage, res: ServerResponse, owner: string) {
@@ -692,6 +790,10 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       201,
     );
   }
+
+  // Agents working on this design right now.
+  if (sub === '/presence' && req.method === 'GET')
+    return sendJson(res, { agents: livePresence(owner, project.id) });
 
   // Open design reviews of this project, newest first.
   if (sub === '/proposals' && req.method === 'GET') {

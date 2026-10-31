@@ -88,9 +88,12 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
                   ? interactiveTool(scope, body.args || {})
                   : body.name === 'deploy_project'
                     ? await projectTool(scope, body.args || {})
-                    : body.name === 'deploy_read_artifact'
-                      ? readJobArtifact(scope, body.args || {})
-                      : coordinationTool(scope, body.name, body.args || {}),
+                    : body.name === 'deploy_design'
+                      ? // Loaded when used: the design module registers itself with the v2 inbox.
+                        (await import('../v2/design.ts')).designTool(scope, body.args || {})
+                      : body.name === 'deploy_read_artifact'
+                        ? readJobArtifact(scope, body.args || {})
+                        : coordinationTool(scope, body.name, body.args || {}),
       200,
     );
   } catch (error: any) {

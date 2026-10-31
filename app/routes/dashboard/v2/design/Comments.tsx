@@ -11,6 +11,7 @@ export type Comment = {
   layer: string | null;
   text: string;
   author: string;
+  agent: { taskId: string; title: string } | null;
   commit: string | null;
   resolved: boolean;
   createdAt: string;
@@ -99,8 +100,14 @@ export function CommentsPanel({
   const item = (comment: Comment) => (
     <article key={comment.id} className={`dz-comment${comment.resolved ? ' resolved' : ''}`}>
       <header>
-        <span className="dl-avatar">{comment.author.slice(0, 1).toUpperCase()}</span>
-        <b>{comment.author}</b>
+        {comment.agent ? (
+          <span className="dz-agent-dot">
+            <Icon name="spark" size={11} />
+          </span>
+        ) : (
+          <span className="dl-avatar">{comment.author.slice(0, 1).toUpperCase()}</span>
+        )}
+        <b>{comment.agent ? comment.agent.title.replace(/^Design:\s*/, '') : comment.author}</b>
         <span className="dz-meta">{ago(comment.createdAt)}</span>
         <span className="dl-grow" />
         <button

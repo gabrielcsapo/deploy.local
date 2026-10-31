@@ -14,7 +14,14 @@ import {
   type Change,
   type OverlayMode,
 } from './Agent';
-import { DesignCanvas, rectOf, type Selection, type Tool, type View } from './Canvas';
+import {
+  DesignCanvas,
+  rectOf,
+  type AgentPresence,
+  type Selection,
+  type Tool,
+  type View,
+} from './Canvas';
 import { CommentsPanel, useComments } from './Comments';
 import {
   bounds,
@@ -107,6 +114,22 @@ export default function DesignPage() {
   const [commentFocus, setCommentFocus] = useState(0);
   const { comments, refresh: refreshComments } = useComments(project?.id);
   const [asking, setAsking] = useState(false);
+  // Agents working on this design right now: a light poll of the coordinator's presence.
+  const [agents, setAgents] = useState<AgentPresence[]>([]);
+  useEffect(() => {
+    if (!projectApi) return;
+    let live = true;
+    const look = () =>
+      request<{ agents: AgentPresence[] }>(`${projectApi}/presence`)
+        .then((value) => live && setAgents(value.agents))
+        .catch(() => undefined);
+    look();
+    const timer = window.setInterval(look, 3000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [projectApi]);
   const proposals = useData<{ proposals: { id: string; state: string }[] }>(
     project ? `${projectApi}/proposals?v=${poll}` : undefined,
   );
@@ -388,6 +411,7 @@ export default function DesignPage() {
             revision={revision}
             onFrameLoad={() => setRevision((n) => n + 1)}
             agentBoards={agentBoards}
+            agents={agents}
           />
         ) : (
           <div className="dz-loading">Loading the design…</div>

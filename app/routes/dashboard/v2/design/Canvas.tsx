@@ -6,6 +6,14 @@ export type View = { x: number; y: number; z: number };
 export type Selection = { board: string; layer: string | null } | null;
 export type Tool = 'move' | 'hand' | 'comment';
 export type Frames = RefObject<Map<string, HTMLIFrameElement>>;
+/** An agent working on this design, as deploy_design presence reports it. */
+export type AgentPresence = {
+  taskId: string;
+  title: string;
+  board: string;
+  layer: string | null;
+  note: string;
+};
 
 /** The element a layer ID names inside a mounted board, or null. */
 export function layerElement(frames: Frames, board: string, layer: string) {
@@ -36,6 +44,7 @@ export function DesignCanvas({
   revision,
   onFrameLoad,
   agentBoards,
+  agents = [],
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -50,6 +59,7 @@ export function DesignCanvas({
   onFrameLoad: () => void;
   /** Boards an open agent branch changed, outlined while its overlay shows. */
   agentBoards?: Set<string>;
+  agents?: AgentPresence[];
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -270,6 +280,35 @@ export function DesignCanvas({
                   }}
                 />
               )}
+            </div>
+          );
+        })}
+        {agents.map((agent) => {
+          const at = canvas.boards[agent.board]
+            ? rectOf(frames, canvas, agent.board, agent.layer)
+            : null;
+          if (!at) return null;
+          return (
+            <div
+              key={agent.taskId}
+              className="dz-agent-box"
+              style={{
+                left: at.x,
+                top: at.y,
+                width: at.w,
+                height: at.h,
+                borderWidth: 1.5 / view.z,
+              }}
+            >
+              <b style={{ transform: `scale(${1 / view.z})` }}>
+                {agent.note || `Working on ${agent.layer ?? boardName(agent.board)}`}
+              </b>
+              <span className="dz-agent-cursor" style={{ transform: `scale(${1 / view.z})` }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 2l16 9-7 2-3 7z" />
+                </svg>
+                <i>{agent.title}</i>
+              </span>
             </div>
           );
         })}

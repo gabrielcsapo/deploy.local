@@ -329,3 +329,54 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   assert.ok(notes.comments.some((comment: any) => comment.text === 'Too big now'));
   assert.equal(await git(['rev-parse', 'main']), after);
 });
+
+test('agents show where they work, comment and resolve through deploy_design', async () => {
+  // Each action returns its own shape; the test reads them loosely.
+  const designTool = (await import('./design.ts')).designTool as (
+    scope: object,
+    args: object,
+  ) => any;
+  const scope = { owner: 'alice', taskId: 'ab12cd34-0000' };
+  save('task', 'alice', {
+    id: 'ab12cd34-0000',
+    projectId: 'site',
+    title: 'Design: Welcome › title',
+    baseRevision: main,
+  });
+  const here = designTool(scope, {
+    action: 'presence',
+    board: 'Welcome.html',
+    layer: 'title',
+    note: 'Making it bigger',
+  });
+  assert.equal(here.presence.title, 'Welcome › title');
+  const live = await (await call('/presence')).json();
+  assert.deepEqual(
+    live.agents.map((agent: any) => [agent.taskId, agent.board, agent.layer, agent.note]),
+    [['ab12cd34-0000', 'Welcome.html', 'title', 'Making it bigger']],
+  );
+  assert.deepEqual(
+    (await (await call('/presence', { owner: 'mallory' })).json?.())?.agents ?? [],
+    [],
+  );
+  designTool(scope, { action: 'presence' });
+  assert.deepEqual((await (await call('/presence')).json()).agents, []);
+
+  const { comment } = designTool(scope, {
+    action: 'comment',
+    board: 'Welcome.html',
+    layer: 'title',
+    text: 'Bigger now; check 390.',
+  });
+  assert.deepEqual(comment.agent, { taskId: 'ab12cd34-0000', title: 'Design: Welcome › title' });
+  const open = designTool(scope, { action: 'comments', board: 'Welcome.html' }).comments;
+  assert.ok(open.some((row: any) => row.id === comment.id));
+  designTool(scope, { action: 'resolve', commentId: comment.id });
+  assert.ok(
+    !designTool(scope, { action: 'comments', board: 'Welcome.html' }).comments.some(
+      (row: any) => row.id === comment.id,
+    ),
+  );
+  assert.throws(() => designTool(scope, { action: 'presence', board: '../x' }), /board must be/);
+  assert.throws(() => designTool(scope, { action: 'approve' }), /action must be/);
+});
