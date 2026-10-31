@@ -269,3 +269,103 @@ export function layerChanges(before: string, after: string, limit = 40): LayerCh
     if (!now.has(layer)) changes.push({ layer, change: 'removed', details: [] });
   return changes.slice(0, limit);
 }
+
+export type BoardEdit =
+  | { op: 'text'; layer: string; text: string }
+  | { op: 'style'; layer: string; prop: string; value: string | null }
+  | { op: 'class'; layer: string; add?: string[]; remove?: string[] }
+  | { op: 'revert'; layer: string };
+
+const escapeText = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escapeAttr = (text: string) => escapeText(text).replace(/"/g, '&quot;');
+
+/** Where a layer's start tag sits, its attributes, and (for a leaf) its inner text span. */
+function locate(html: string, layer: string) {
+  const at = html.indexOf(` data-layer="${layer}"`);
+  if (at < 0) return null;
+  const open = html.lastIndexOf('<', at);
+  const close = html.indexOf('>', at);
+  const outer = layerSnippet(html, layer);
+  const tag = html.slice(open, close + 1);
+  const innerStart = close + 1;
+  // Void elements (img, input) and self-closed tags have no inner span.
+  const closing = outer && !tag.endsWith('/>') ? outer.lastIndexOf('</') : -1;
+  const innerEnd = closing > 0 ? open + closing : innerStart;
+  return { open, close, tag, inner: html.slice(innerStart, innerEnd), innerStart, innerEnd };
+}
+
+function withAttribute(tag: string, name: string, value: string | null) {
+  const pattern = new RegExp(`\\s${name}="[^"]*"`);
+  const without = tag.replace(pattern, '');
+  if (value === null || value === '') return without;
+  const end = without.endsWith('/>') ? without.length - 2 : without.length - 1;
+  return `${without.slice(0, end).replace(/\s+$/, '')} ${name}="${escapeAttr(value)}"${without.slice(end)}`;
+}
+
+function styleOf(tag: string) {
+  const value = /\sstyle="([^"]*)"/.exec(tag)?.[1] ?? '';
+  const out: [string, string][] = [];
+  for (const part of value.split(';')) {
+    const colon = part.indexOf(':');
+    if (colon > 0)
+      out.push([part.slice(0, colon).trim().toLowerCase(), part.slice(colon + 1).trim()]);
+  }
+  return out;
+}
+
+/**
+ * Apply edits to a board, layer by layer, the way the properties panel changes it. Layer IDs never
+ * change. `base` is the board on main, which `revert` restores a layer from.
+ */
+export function applyEdits(html: string, edits: BoardEdit[], base?: string) {
+  let out = html;
+  for (const edit of edits) {
+    if (!/^[a-z0-9-]{1,64}$/.test(edit.layer)) throw new Error(`Invalid layer ${edit.layer}`);
+    const found = locate(out, edit.layer);
+    if (!found) throw new Error(`The board has no layer ${edit.layer}`);
+    let { tag } = found;
+    let inner = found.inner;
+    if (edit.op === 'text') {
+      if (/<[a-zA-Z]/.test(inner)) throw new Error('Only a text layer can be retyped');
+      if (typeof edit.text !== 'string' || edit.text.length > 2000)
+        throw new Error('Text is too long');
+      inner = escapeText(edit.text);
+    } else if (edit.op === 'style') {
+      if (!/^[a-z-]{1,40}$/.test(edit.prop)) throw new Error(`Invalid style property ${edit.prop}`);
+      if (edit.value !== null && (edit.value.length > 200 || /[;{}<>"]/.test(edit.value)))
+        throw new Error(`Invalid value for ${edit.prop}`);
+      const styles = styleOf(tag).filter(([name]) => name !== edit.prop);
+      if (edit.value !== null && edit.value.trim()) styles.push([edit.prop, edit.value.trim()]);
+      tag = withAttribute(
+        tag,
+        'style',
+        styles.map(([name, value]) => `${name}:${value}`).join(';'),
+      );
+    } else if (edit.op === 'class') {
+      const valid = (names: string[] = []) => {
+        for (const name of names)
+          if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) throw new Error(`Invalid class ${name}`);
+        return names;
+      };
+      const remove = new Set(valid(edit.remove));
+      const classes = (/\sclass="([^"]*)"/.exec(tag)?.[1] ?? '')
+        .split(/\s+/)
+        .filter((name) => name && !remove.has(name));
+      for (const name of valid(edit.add)) if (!classes.includes(name)) classes.push(name);
+      tag = withAttribute(tag, 'class', classes.join(' '));
+    } else if (edit.op === 'revert') {
+      const original = base ? locate(base, edit.layer) : null;
+      if (!original) throw new Error(`${edit.layer} is not on main`);
+      tag = original.tag;
+      if (!/<[a-zA-Z]/.test(original.inner) && !/<[a-zA-Z]/.test(inner)) inner = original.inner;
+    } else throw new Error('Unknown edit');
+    out =
+      out.slice(0, found.open) +
+      tag +
+      out.slice(found.close + 1, found.innerStart) +
+      inner +
+      out.slice(found.innerEnd);
+  }
+  return out;
+}

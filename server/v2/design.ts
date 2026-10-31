@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { layerChanges, layerSnippet } from '../design/board-html.ts';
+import { applyEdits, layerChanges, layerSnippet } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
@@ -151,6 +151,8 @@ function copyPaths(
     branch: string;
     message: string;
     by: string;
+    /** New contents for files, written alongside the copied paths. */
+    writes?: { path: string; content: string }[];
   },
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'design-copy-'));
@@ -162,11 +164,12 @@ function copyPaths(
     GIT_COMMITTER_NAME: input.by,
     GIT_COMMITTER_EMAIL: `${input.by}@deploy.local`,
   };
-  const git = (args: string[]) => {
+  const git = (args: string[], input?: string) => {
     const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-C', repo, ...args], {
       env,
       encoding: 'utf8',
       timeout: 30000,
+      input,
     });
     if (result.status !== 0) throw new Error(result.stderr || `git ${args[0]} failed`);
     return result.stdout.trim();
@@ -179,6 +182,10 @@ function copyPaths(
         const [mode, , oid] = entry.split('\t')[0].split(' ');
         git(['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`]);
       } else git(['update-index', '--force-remove', '--', path]);
+    }
+    for (const write of input.writes ?? []) {
+      const oid = git(['hash-object', '-w', '--stdin'], write.content);
+      git(['update-index', '--add', '--cacheinfo', `100644,${oid},${write.path}`]);
     }
     const commit = git([
       'commit-tree',
@@ -726,6 +733,67 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
       201,
     );
+  }
+
+  // Direct edits from the properties panel and the canvas, committed to a design branch.
+  if (sub === '/edit' && req.method === 'POST') {
+    const body = await readJson(req);
+    const board = String(body?.board ?? '');
+    if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+    const edits = body?.edits;
+    if (!Array.isArray(edits) || !edits.length || edits.length > 50) fail('Send 1 to 50 edits');
+    let branch = String(body?.ref || 'HEAD');
+    if (!validRef(branch)) fail('Invalid ref');
+    // Editing main starts a design branch, so main only changes through review.
+    if (!branch.startsWith('design/')) {
+      const from = gitSync(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        '--end-of-options',
+        `${branch}^{commit}`,
+      ]);
+      if (!from) fail(`No commit named ${branch} in this project`, 404);
+      branch = createBranch(repo, `${board.replace(/\.html$/, '')} edits`, from).name;
+    }
+    const head = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${branch}^{commit}`,
+    ]);
+    if (!head) fail(`No design branch named ${branch}`, 404);
+    if (body?.expect && body.expect !== head && String(body.ref).startsWith('design/'))
+      fail('This design branch changed since you loaded it; reload and edit again', 409);
+    const html = await readFile(repo, head, `design/boards/${board}`);
+    if (!html) fail(`design/boards/${board} is missing on ${branch}`, 404);
+    const main = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${mainBranch(repo)}^{commit}`,
+    ]);
+    const base = main ? await readFile(repo, main, `design/boards/${board}`) : null;
+    let next: string;
+    try {
+      next = applyEdits(html.toString(), edits, base?.toString());
+    } catch (error) {
+      fail((error as Error).message);
+    }
+    if (next === html.toString()) return sendJson(res, { branch, commit: head });
+    const kinds = [
+      ...new Set(edits.map((edit: any) => (edit.op === 'style' ? edit.prop : edit.op))),
+    ];
+    const commit = copyPaths(repo, {
+      target: head,
+      from: head,
+      paths: [],
+      branch,
+      message: `Edit ${board.replace(/\.html$/, '')}: ${kinds.slice(0, 4).join(', ')}`,
+      by: owner,
+      writes: [{ path: `design/boards/${board}`, content: next }],
+    });
+    return sendJson(res, { branch, commit });
   }
 
   // The design tasks of this project, newest first, for the overlay and the menu.

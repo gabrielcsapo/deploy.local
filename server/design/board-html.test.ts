@@ -115,3 +115,59 @@ describe('layer changes', () => {
     assert.deepEqual(layerChanges(before, before), []);
   });
 });
+
+describe('board edits', () => {
+  const board =
+    '<body><div data-layer="g" class="dl-greeting" style="gap:8px"><h1 data-layer="title" class="dl-title">Welcome</h1><span data-layer="mark" class="dl-mark">d</span><img data-layer="pic" src="a.png"></div></body>';
+  it('retypes text, sets and clears styles, and changes classes, keeping layer IDs', async () => {
+    const { applyEdits, layerIds } = await import('./board-html.ts');
+    const edited = applyEdits(board, [
+      { op: 'text', layer: 'title', text: 'Hi <there> & you' },
+      { op: 'style', layer: 'title', prop: 'font-size', value: '30px' },
+      { op: 'style', layer: 'g', prop: 'gap', value: '12px' },
+      { op: 'style', layer: 'g', prop: 'padding', value: '0 16px' },
+      { op: 'class', layer: 'mark', add: ['big'], remove: ['dl-mark'] },
+      { op: 'style', layer: 'pic', prop: 'width', value: '40px' },
+    ]);
+    assert.ok(
+      edited.includes(
+        '<h1 data-layer="title" class="dl-title" style="font-size:30px">Hi &lt;there&gt; &amp; you</h1>',
+      ),
+    );
+    assert.ok(
+      edited.includes('<div data-layer="g" class="dl-greeting" style="gap:12px;padding:0 16px">'),
+    );
+    assert.ok(edited.includes('<span data-layer="mark" class="big">d</span>'));
+    assert.ok(edited.includes('<img data-layer="pic" src="a.png" style="width:40px">'));
+    assert.deepEqual(layerIds(edited), layerIds(board));
+    const cleared = applyEdits(edited, [
+      { op: 'style', layer: 'title', prop: 'font-size', value: null },
+    ]);
+    assert.ok(cleared.includes('<h1 data-layer="title" class="dl-title">Hi'));
+  });
+  it('reverts a layer to main and refuses edits it cannot make safely', async () => {
+    const { applyEdits } = await import('./board-html.ts');
+    const edited = applyEdits(board, [
+      { op: 'text', layer: 'title', text: 'Changed' },
+      { op: 'style', layer: 'title', prop: 'color', value: 'red' },
+    ]);
+    assert.equal(applyEdits(edited, [{ op: 'revert', layer: 'title' }], board), board);
+    assert.throws(
+      () => applyEdits(board, [{ op: 'text', layer: 'g', text: 'x' }]),
+      /Only a text layer/,
+    );
+    assert.throws(
+      () => applyEdits(board, [{ op: 'style', layer: 'title', prop: 'color', value: 'red;x:y' }]),
+      /Invalid value/,
+    );
+    assert.throws(
+      () => applyEdits(board, [{ op: 'style', layer: 'title', prop: 'b@d', value: '1' }]),
+      /Invalid style/,
+    );
+    assert.throws(
+      () => applyEdits(board, [{ op: 'class', layer: 'title', add: ['a"b'] }]),
+      /Invalid class/,
+    );
+    assert.throws(() => applyEdits(board, [{ op: 'text', layer: 'nope', text: 'x' }]), /no layer/);
+  });
+});

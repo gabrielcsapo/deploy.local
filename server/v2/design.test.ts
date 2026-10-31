@@ -400,3 +400,58 @@ test('agents show where they work, comment and resolve through deploy_design', a
   assert.throws(() => designTool(scope, { action: 'presence', board: '../x' }), /board must be/);
   assert.throws(() => designTool(scope, { action: 'approve' }), /action must be/);
 });
+
+test('direct edits commit to a design branch, starting one from main, and refuse a stale head', async () => {
+  const before = await git(['rev-parse', 'main']);
+  const first = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: 'HEAD',
+      board: 'Welcome.html',
+      edits: [{ op: 'style', layer: 'title', prop: 'text-align', value: 'left' }],
+    }),
+  });
+  assert.equal(first.status, 200);
+  const edited = await first.json();
+  assert.match(edited.branch, /^design\/welcome-edits/);
+  assert.equal(await git(['rev-parse', 'main']), before);
+  assert.match(
+    await git(['show', `${edited.commit}:design/boards/Welcome.html`]),
+    /text-align:left/,
+  );
+  const second = await (
+    await call('/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: edited.branch,
+        expect: edited.commit,
+        board: 'Welcome.html',
+        edits: [{ op: 'revert', layer: 'title' }],
+      }),
+    })
+  ).json();
+  assert.equal(await git(['rev-parse', `${second.commit}^`]), edited.commit);
+  assert.doesNotMatch(
+    await git(['show', `${second.commit}:design/boards/Welcome.html`]),
+    /text-align/,
+  );
+  const stale = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: edited.branch,
+      expect: edited.commit,
+      board: 'Welcome.html',
+      edits: [{ op: 'style', layer: 'title', prop: 'color', value: 'red' }],
+    }),
+  });
+  assert.equal(stale.status, 409);
+  const bad = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: edited.branch,
+      board: 'Welcome.html',
+      edits: [{ op: 'text', layer: 'nope', text: 'x' }],
+    }),
+  });
+  assert.equal(bad.status, 400);
+});
