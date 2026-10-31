@@ -50,7 +50,7 @@ struct V2Row: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 17)).foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(2)
                 if let subtitle, !subtitle.isEmpty { Text(subtitle).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).lineLimit(2) }
-            }
+            }.multilineTextAlignment(.leading)
             Spacer(minLength: 4)
             if let state { V2Status(state: state) }
             else if let trailing { Text(trailing).font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme)) }

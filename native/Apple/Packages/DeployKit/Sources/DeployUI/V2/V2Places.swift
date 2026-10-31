@@ -25,7 +25,10 @@ struct V2InboxView: View {
                 }
                 if store.answered.isEmpty { V2Empty(title: "No answered decisions", message: "Answers from every device appear here.") }
             } else {
-                ForEach(store.waiting, id: \.id) { item in V2Decision(item: item, store: store) }
+                ForEach(store.waiting, id: \.id) { item in
+                    if V2DesignReview.project(of: item.id) != nil { V2DesignCard(store: store, item: item) }
+                    else { V2Decision(item: item, store: store) }
+                }
             }
         }.navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
     }

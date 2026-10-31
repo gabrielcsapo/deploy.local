@@ -8,6 +8,8 @@ struct V2ProjectSection: View {
     @State private var pulls: [ProjectWorkItem] = []
     @State private var issues: [ProjectWorkItem] = []
     @State private var releases: [Release] = []
+    @State private var design: V2DesignSummary?
+    @State private var openDesign = false
     @State private var error: String?
     @State private var evidence = false
     var body: some View {
@@ -15,6 +17,7 @@ struct V2ProjectSection: View {
             V2Group(title: project.name) {
                 if !pulls.isEmpty { NavigationLink { V2ProjectWorkList(store: store, project: project, kind: "Pull requests", items: pulls) } label: { V2Row(title: "Pull requests", subtitle: pulls.first?.displayTitle, icon: "arrow.triangle.pull", trailing: "\(pulls.count)") } }
                 if !issues.isEmpty { NavigationLink { V2ProjectWorkList(store: store, project: project, kind: "Issues", items: issues) } label: { V2Row(title: "Issues", subtitle: issues.first?.displayTitle, icon: "circle.dotted", trailing: "\(issues.count)") } }
+                if let design { Button { openDesign = true } label: { V2Row(title: "Design", subtitle: design.subtitle, icon: "square.3.layers.3d") } }
                 ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == project.id } ?? []) { app in
                     NavigationLink { V2WorkerView(store: store, appId: app.id) } label: { V2Row(title: project.apps?.count == 1 ? "App" : app.name, subtitle: [app.release, app.name].compactMap { $0 }.joined(separator: " · "), state: app.state) }
                 }
@@ -29,10 +32,12 @@ struct V2ProjectSection: View {
             if ["ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone"].contains(V2Evidence.board) { evidence = true }
         }.onChange(of: store.snapshot.cursor) { _, _ in Task { await load() } }
             .navigationDestination(isPresented: $evidence) { V2ReleasesView(store: store, project: project) }
+            .fullScreenCover(isPresented: $openDesign) { V2DesignView(connection: store.connection, projectId: project.id) }
     }
     private func load() async {
         do { releases = try await store.client.releases(project: project.id); error = nil }
         catch { self.error = coordinatorErrorDescription(error) }
+        design = try? await store.client.designSummary(project: project.id)
         do { pulls = try await store.client.projectWork(project.id, kind: "pulls"); issues = try await store.client.projectWork(project.id, kind: "issues") }
         catch { if !(project.id.hasPrefix("app:")) { self.error = coordinatorErrorDescription(error) } }
     }

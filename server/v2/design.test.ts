@@ -603,3 +603,16 @@ test('Assets lists the library and its use, and approving a library change updat
     /<em data-layer="[^"]+" class="dl-tag" data-props="[^"]+" data-component="tag" data-name="Tag" style="position:absolute;left:10px;top:20px">New<\/em>/,
   );
 });
+
+test('a design review gives the apps its boards, their pages and what changed', async () => {
+  const listed = (await (await call('/proposals')).json()).proposals;
+  const proposal = listed.find((item: any) => item.branch === 'design/welcome-title');
+  assert.ok(proposal, 'the earlier proposal is listed');
+  const review = await (await call(`/review?item=${encodeURIComponent(proposal.id)}`)).json();
+  assert.equal(review.item.id, proposal.id);
+  assert.equal(review.branch, 'design/welcome-title');
+  const welcome = review.boards.find((board: any) => board.file === 'Welcome.html');
+  assert.equal(welcome.w, 1440);
+  assert.ok(welcome.lines.length > 0, JSON.stringify(welcome));
+  assert.equal((await call('/review?item=design:other:x:y')).status, 404);
+});

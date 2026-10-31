@@ -121,6 +121,11 @@ public actor WorkspaceClient {
     }
 
     public func request<T: Decodable & Sendable>(_ path: String, method: String = "GET", body: Data? = nil, contentType: String = "application/json", timeout: TimeInterval = 20) async throws -> T {
+        try JSONDecoder().decode(T.self, from: await data(path, method: method, body: body, contentType: contentType, timeout: timeout))
+    }
+
+    /// The response's bytes, for what is not JSON, like a rendered board.
+    public func data(_ path: String, method: String = "GET", body: Data? = nil, contentType: String = "application/json", timeout: TimeInterval = 20) async throws -> Data {
         let base = try connection.baseURL()
         guard let url = URL(string: path, relativeTo: base)?.absoluteURL,
               url.host == base.host, url.port == base.port, url.scheme == base.scheme else {
@@ -143,7 +148,7 @@ public actor WorkspaceClient {
             let payload = try? JSONDecoder().decode(APIError.self, from: data)
             throw ClientError.response(response.statusCode, payload?.error ?? "Request failed")
         }
-        return try JSONDecoder().decode(T.self, from: data)
+        return data
     }
 
     public static func login(origin: String, username: String, password: String) async throws -> Connection {

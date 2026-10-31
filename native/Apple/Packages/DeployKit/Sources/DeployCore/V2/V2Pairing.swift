@@ -48,6 +48,11 @@ public enum V2PairingVault {
         } else if status != errSecSuccess { throw ClientError.response(500, "Could not update the paired device in Keychain.") }
     }
     public static func clear() { SecItemDelete(query as CFDictionary) }
+    /// The paired coordinator's pinned trust, when this connection came from a pairing code.
+    public static func pinned(for connection: Connection) -> V2PinnedCoordinator? {
+        guard let device = load(), device.connection == connection else { return nil }
+        return V2PinnedCoordinator(origin: connection.origin, fingerprint: device.fingerprint, certificate: device.certificate)
+    }
     public static func session(for connection: Connection) -> URLSession? {
         guard URL(string: connection.origin)?.scheme == "https", let device = load(), device.connection == connection else { return nil }
         return URLSession(configuration: .ephemeral, delegate: V2PinnedCoordinator(origin: connection.origin, fingerprint: device.fingerprint, certificate: device.certificate), delegateQueue: nil)
@@ -64,10 +69,15 @@ public final class V2PinnedCoordinator: NSObject, URLSessionDelegate, URLSession
         SHA256.hash(data: certificate).map { String(format: "%02X", $0) }.joined(separator: ":") == fingerprint.uppercased()
     }
     public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let (disposition, credential) = evaluate(challenge)
+        completionHandler(disposition, credential)
+    }
+    /// The same check for any client of the coordinator, such as the Design page's web view.
+    public func evaluate(_ challenge: URLAuthenticationChallenge) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
               let url = URL(string: origin), challenge.protectionSpace.host.lowercased() == url.host?.lowercased(),
               challenge.protectionSpace.port == (url.port ?? 443),
-              let trust = challenge.protectionSpace.serverTrust else { completionHandler(.cancelAuthenticationChallenge, nil); return }
+              let trust = challenge.protectionSpace.serverTrust else { return (.cancelAuthenticationChallenge, nil) }
         // The downloaded root is authenticated by the QR before any token is sent.
         SecTrustSetNetworkFetchAllowed(trust, false)
         guard Self.matches(certificate: certificate, fingerprint: fingerprint),
@@ -75,8 +85,8 @@ public final class V2PinnedCoordinator: NSObject, URLSessionDelegate, URLSession
               SecTrustSetAnchorCertificates(trust, [root] as CFArray) == errSecSuccess,
               SecTrustSetAnchorCertificatesOnly(trust, true) == errSecSuccess,
               SecTrustSetPolicies(trust, SecPolicyCreateSSL(true, url.host! as CFString)) == errSecSuccess,
-              SecTrustEvaluateWithError(trust, nil) else { completionHandler(.cancelAuthenticationChallenge, nil); return }
-        completionHandler(.useCredential, URLCredential(trust: trust))
+              SecTrustEvaluateWithError(trust, nil) else { return (.cancelAuthenticationChallenge, nil) }
+        return (.useCredential, URLCredential(trust: trust))
     }
     public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }

@@ -22,6 +22,7 @@ import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.t
 import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
 import { startRun } from '../workspace/service.ts';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
+import { describeChange, layerLabel, sections, type Canvas } from '../../shared/v2/design.ts';
 
 /**
  * The Design page reads a project's design/ folder (canvas.json, boards/*.html, ds/) from any ref:
@@ -48,13 +49,6 @@ const boardPolicy = [
   "frame-ancestors 'self'",
   'sandbox allow-same-origin',
 ].join('; ');
-
-type Canvas = {
-  title?: string;
-  boards: Record<string, { x: number; y: number; w: number; h: number; title?: string }>;
-  order?: string[];
-  notes?: Record<string, unknown>;
-};
 
 const commitPattern = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 const boardPattern = /^[A-Za-z0-9_-]+\.html$/;
@@ -1123,6 +1117,65 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     return sendJson(res, { agents: livePresence(owner, project.id) });
 
   // Open design reviews of this project, newest first.
+  // One design review, as the apps show it: the request, Before and After, and per changed board
+  // its page, size, notes and the changes in a line each.
+  if (sub === '/review' && req.method === 'GET') {
+    const id = String(url.searchParams.get('item') ?? '');
+    if (!id.startsWith(`design:${project.id}:`)) fail('Name a design review of this project', 404);
+    const row = list('v2-inbox-native', owner).find((entry: any) => entry.id === id);
+    const item = syncInbox(owner).find((entry) => entry.id === id);
+    if (!row || !item) fail('No such design review', 404);
+    const context = row!.context;
+    const canvas = await readCanvas(repo, context.commit);
+    const pages = canvas ? sections(canvas) : [];
+    const boards = [];
+    for (const path of (context.paths as string[]).filter((entry) =>
+      entry.startsWith('design/boards/'),
+    )) {
+      const file = path.slice('design/boards/'.length);
+      const before = (await readFile(repo, context.base, path))?.toString() ?? null;
+      const after = (await readFile(repo, context.commit, path))?.toString() ?? null;
+      const placed = canvas?.boards[file];
+      const page = pages.find((section) => section.boards.includes(file));
+      const changes = before && after ? layerChanges(before, after) : [];
+      const notes = await readFile(
+        repo,
+        context.commit,
+        `design/notes/${file.replace(/\.html$/, '.md')}`,
+      );
+      boards.push({
+        file,
+        title: placed?.title ?? file.replace(/\.html$/, ''),
+        w: placed?.w ?? 1440,
+        h: placed?.h ?? 900,
+        page: page?.title ?? null,
+        index: page ? page.boards.indexOf(file) + 1 : null,
+        count: page?.boards.length ?? null,
+        added: !before,
+        notes: notes ? notes.toString().slice(0, 2000) : null,
+        lines: changes.slice(0, 12).map((change) => {
+          const snippet = after ? layerSnippet(after, change.layer) : null;
+          const own = snippet ? snippet.replace(/<[^>]+>/g, ' ') : '';
+          return describeChange(change, layerLabel(change.layer, own));
+        }),
+      });
+    }
+    let task: string | null = null;
+    try {
+      task = context.taskId ? String(get('task', owner, context.taskId).title) : null;
+    } catch {
+      // A removed task leaves the review without its name.
+    }
+    return sendJson(res, {
+      item,
+      task,
+      branch: context.branch,
+      before: context.base,
+      after: context.commit,
+      boards,
+    });
+  }
+
   if (sub === '/proposals' && req.method === 'GET') {
     const prefix = `design:${project.id}:`;
     // Each request also names the boards it would change, so the canvas can mark them In review.

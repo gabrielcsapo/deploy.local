@@ -199,6 +199,8 @@ export default function DesignPage() {
   const [tool, setTool] = useState<Tool>('move');
   const [menu, setMenu] = useState(false);
   const [narrowMenu, setNarrowMenu] = useState(false);
+  // On a phone, Layers opens as a sheet from the tool bar.
+  const [layersOpen, setLayersOpen] = useState(false);
   // Figma's Minimize UI: hide both panels for more canvas.
   const [minimized, setMinimized] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -625,13 +627,73 @@ export default function DesignPage() {
   const empty = projects.data && !projects.data.projects.length;
   return (
     <div
-      className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}`}
+      className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}${layersOpen ? ' layers-open' : ''}`}
       ref={stage}
     >
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
       />
+      <div className="dz-phone-bar">
+        <a className="dl-icon-btn" href="/dashboard" aria-label="Back to deploy.local">
+          <Icon name="back" />
+        </a>
+        <span className="dz-phone-title">
+          <b>{selection ? boardName(selection.board) : 'Designs'}</b>
+          {selection ? (
+            <button
+              type="button"
+              className="dz-phone-sub"
+              aria-haspopup="menu"
+              aria-expanded={narrowMenu}
+              onClick={() => setNarrowMenu(!narrowMenu)}
+            >
+              <Icon name="branch" size={11} />
+              {ref === 'HEAD' ? 'main' : ref}
+              <Icon name="down" size={10} />
+            </button>
+          ) : (
+            <label className="dz-phone-sub">
+              <Icon name="branch" size={11} />
+              {section?.title.replace(/^[\w]+\s·\s/, '') ?? ''}
+              <Icon name="down" size={10} />
+              <select
+                className="dz-pick"
+                value={section?.id ?? ''}
+                onChange={(event) => chooseSection(event.target.value)}
+                aria-label="Page"
+              >
+                {sections.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </span>
+        <button
+          type="button"
+          className="dl-icon-btn"
+          aria-label="Comments"
+          onClick={() => {
+            setTab('comments');
+            if (!selection && section?.boards[0]) select({ board: section.boards[0], layer: null });
+          }}
+        >
+          <Icon name="comment" size={18} />
+        </button>
+        {propose && (
+          <Action
+            variant="primary"
+            disabled={propose.state === 'in-review'}
+            loading={propose.state === 'busy'}
+            onClick={propose.run}
+          >
+            {propose.state === 'in-review' ? 'In review' : 'Propose'}
+          </Action>
+        )}
+      </div>
       <div className="dz-narrow-bar">
         <a className="dl-icon-btn" href="/dashboard" aria-label="Back to deploy.local">
           <Icon name="back" />
@@ -731,6 +793,7 @@ export default function DesignPage() {
         inReview={inReviewBoards}
         agentAt={agentAt}
         onHide={() => setMinimized(true)}
+        onCloseSheet={() => setLayersOpen(false)}
         assets={
           <AssetsPanel
             library={assets ? assets.library : undefined}
@@ -921,6 +984,42 @@ export default function DesignPage() {
           >
             <Icon name="code" size={18} />
           </a>
+        </div>
+        <div className="dz-phone-hud">
+          <span className="dz-phone-zoom">{Math.round(view.z * 100)}%</span>
+          {!selection && <span className="dz-phone-hint">Pinch to zoom · double-tap a board</span>}
+        </div>
+        <div className="dz-phone-tools" role="toolbar" aria-label="Tools">
+          {(
+            [
+              ['move', 'move', 'Move'],
+              ['pen', 'pen', 'Pen'],
+              ['text', 'text', 'Text'],
+              ['sticky', 'sticky', 'Sticky note'],
+              ['comment', 'comment', 'Comment'],
+            ] as const
+          ).map(([id, icon, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`dz-tool${tool === id ? ' on' : ''}`}
+              aria-label={label}
+              aria-pressed={tool === id}
+              disabled={id !== 'move' && id !== 'comment' && !editable}
+              onClick={() => setTool(id)}
+            >
+              <Icon name={icon} size={18} />
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`dz-tool${layersOpen ? ' on' : ''}`}
+            aria-label="Layers"
+            aria-pressed={layersOpen}
+            onClick={() => setLayersOpen(!layersOpen)}
+          >
+            <Icon name="layers" size={18} />
+          </button>
         </div>
       </div>
       <RightPanel
