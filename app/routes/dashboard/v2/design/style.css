@@ -338,6 +338,10 @@
   position: absolute;
   inset: 0;
 }
+/* Retyping a text layer: the board takes the pointer so the caret can move. */
+.dz-board.typing iframe {
+  pointer-events: auto;
+}
 .dz-board-name {
   position: absolute;
   bottom: 100%;
@@ -1162,7 +1166,8 @@
 .dz-text-align {
   margin-right: 30px;
 }
-.dz-text-align span {
+.dz-text-align span,
+.dz-text-align button {
   display: inline-flex;
   flex: 1;
   align-items: center;
@@ -1171,7 +1176,11 @@
   border-radius: 4px;
   color: var(--ds-tertiary);
 }
-.dz-text-align span.on {
+.dz-text-align button {
+  padding: 0;
+}
+.dz-text-align span.on,
+.dz-text-align button.on {
   background: var(--ds-surface);
   color: var(--ds-text);
   box-shadow: 0 0 0 1px var(--ds-line);
@@ -1412,4 +1421,53 @@
     flex-wrap: wrap;
     white-space: normal;
   }
+}
+
+/* Editing a layer: values stay as they read, and you type over them or pick from a list. */
+.dz-field {
+  position: relative;
+}
+.dz-field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ds-accent);
+}
+.dz-input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.dz-pick {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+/* A changed row keeps its reset in the panel's right column, beside it. */
+.dz-resettable {
+  position: relative;
+}
+.dz-reset {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--ds-tertiary);
+}
+.dz-was {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+}
+.dz-was .dz-dot {
+  background: var(--ds-accent);
 }

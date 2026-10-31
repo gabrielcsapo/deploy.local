@@ -53,6 +53,8 @@ export function DesignCanvas({
   agentLayers,
   agents = [],
   inReview,
+  boardSrc,
+  onEditText,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -72,12 +74,18 @@ export function DesignCanvas({
   agentLayers?: Map<string, LayerChange[]>;
   /** Boards a waiting design review would change. */
   inReview?: Set<string>;
+  /** Boards you edited: where each one's latest version is, and a count that reloads it. */
+  boardSrc?: Map<string, { base: string; reload: number }>;
+  /** Present when the design can be edited: double-clicking a text layer retypes it in place. */
+  onEditText?: (board: string, layer: string, text: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
   const [hover, setHover] = useState<Selection>(null);
   const [space, setSpace] = useState(false);
   const drag = useRef<{ x: number; y: number; view: View } | null>(null);
+  // The text layer being retyped in place; its board lets the pointer through while it is.
+  const [typing, setTyping] = useState<{ board: string; layer: string } | null>(null);
 
   useEffect(() => {
     const element = host.current;
@@ -167,6 +175,40 @@ export function DesignCanvas({
     [frames, view.z],
   );
 
+  const retype = (file: string, layer: string) => {
+    const element = layerElement(frames, file, layer);
+    // Only a layer that is just text: retyping a stack would flatten what is inside it.
+    if (!element || !onEditText || element.children.length || !element.textContent?.trim())
+      return false;
+    const before = element.textContent;
+    element.contentEditable = 'plaintext-only';
+    element.focus();
+    element.ownerDocument.getSelection()?.selectAllChildren(element);
+    setTyping({ board: file, layer });
+    let cancelled = false;
+    const keys = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        element.blur();
+      }
+      if (event.key === 'Escape') {
+        cancelled = true;
+        element.textContent = before;
+        element.blur();
+      }
+    };
+    const done = () => {
+      element.removeEventListener('keydown', keys);
+      element.removeAttribute('contenteditable');
+      setTyping(null);
+      const text = element.textContent ?? '';
+      if (!cancelled && text !== before) onEditText(file, layer, text);
+    };
+    element.addEventListener('keydown', keys);
+    element.addEventListener('blur', done, { once: true });
+    return true;
+  };
+
   const box = (target: Selection) =>
     target ? rectOf(frames, canvas, target.board, target.layer) : null;
   void revision;
@@ -236,7 +278,7 @@ export function DesignCanvas({
           return (
             <div
               key={file}
-              className={`dz-board${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}`}
+              className={`dz-board${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}${typing?.board === file ? ' typing' : ''}`}
               style={{ left: board.x, top: board.y, width: board.w, height: board.h }}
             >
               <button
@@ -256,23 +298,20 @@ export function DesignCanvas({
                 {!agent && inReview?.has(file) && <span className="dz-tag review">In review</span>}
               </button>
               {visible(file) ? (
-                <iframe
+                <BoardFrame
+                  key={`${base}:${boardSrc?.get(file)?.reload ?? 0}`}
+                  file={file}
                   title={board.title ?? boardName(file)}
-                  sandbox="allow-same-origin"
-                  src={`${base}/boards/${encodeURIComponent(file)}`}
+                  src={`${boardSrc?.get(file)?.base ?? base}/boards/${encodeURIComponent(file)}`}
                   width={board.w}
                   height={board.h}
-                  loading="lazy"
-                  ref={(frame) => {
-                    if (frame) frames.current?.set(file, frame);
-                    else frames.current?.delete(file);
-                  }}
+                  frames={frames}
                   onLoad={onFrameLoad}
                 />
               ) : (
                 <div className="dz-board-placeholder">{board.title ?? boardName(file)}</div>
               )}
-              {!panning && (
+              {!panning && typing?.board !== file && (
                 <div
                   className="dz-board-hit"
                   onMouseMove={(event) => setHover(pick(file, event))}
@@ -283,6 +322,8 @@ export function DesignCanvas({
                   }}
                   onDoubleClick={(event) => {
                     event.stopPropagation();
+                    const target = pick(file, event);
+                    if (target?.layer && retype(file, target.layer)) return;
                     const placed = canvas.boards[file];
                     const z = Math.min(1, (size.h - 96) / placed.h, (size.w - 96) / placed.w);
                     setView(() => ({
@@ -381,5 +422,44 @@ export function DesignCanvas({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * One board's page. It keeps the address it opened with, so your own edits, already applied to
+ * what is on screen, do not reload it; a new key (another branch, a reset) loads it again.
+ */
+function BoardFrame({
+  file,
+  title,
+  src,
+  width,
+  height,
+  frames,
+  onLoad,
+}: {
+  file: string;
+  title: string;
+  src: string;
+  width: number;
+  height: number;
+  frames: Frames;
+  onLoad: () => void;
+}) {
+  const [opened] = useState(src);
+  return (
+    <iframe
+      title={title}
+      sandbox="allow-same-origin"
+      src={opened}
+      width={width}
+      height={height}
+      loading="lazy"
+      ref={(frame) => {
+        if (frame) frames.current?.set(file, frame);
+        else frames.current?.delete(file);
+      }}
+      onLoad={onLoad}
+    />
   );
 }

@@ -15,6 +15,7 @@ import {
   textStyle,
   type Canvas,
   type Design,
+  type LayerChange,
   type Section,
   type Tokens,
 } from './model';
@@ -378,6 +379,7 @@ export function LeftPanel({
   selection,
   select,
   base,
+  boardSrc,
   changed,
   inReview,
   agentAt,
@@ -399,6 +401,8 @@ export function LeftPanel({
   selection: Selection;
   select: (selection: Selection) => void;
   base: string | null;
+  /** Boards you edited, loaded from their latest commit. */
+  boardSrc?: Map<string, { base: string }>;
   changed: Set<string>;
   /** Boards a waiting design review would change. */
   inReview: Set<string>;
@@ -556,7 +560,7 @@ export function LeftPanel({
             <BoardLayers
               key={`${base}/${file}`}
               file={file}
-              url={`${base}/boards/${encodeURIComponent(file)}`}
+              url={`${boardSrc?.get(file)?.base ?? base}/boards/${encodeURIComponent(file)}`}
               selection={selection}
               select={select}
               changed={changed.has(file)}
@@ -639,13 +643,141 @@ function Swatch({ color }: { color: string }) {
   return <span className="dz-swatch" style={{ background: color }} />;
 }
 
-function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens }) {
+/** One edit to the selected layer, before the page adds the layer's ID. */
+export type LayerEdit =
+  | { op: 'style'; prop: string; value: string | null }
+  | { op: 'text'; text: string }
+  | { op: 'revert'; props?: string[]; text?: boolean };
+
+/** A value you can type over; it commits on Enter or when it loses focus, Escape puts it back. */
+function Input({
+  value,
+  onCommit,
+  label,
+  hint,
+}: {
+  value: string;
+  onCommit: (value: string) => void;
+  label: string;
+  hint?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <input
+      className="dz-input"
+      aria-label={label}
+      title={hint}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => draft.trim() !== value && onCommit(draft.trim())}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur();
+        if (event.key === 'Escape') {
+          setDraft(value);
+          requestAnimationFrame(() => (event.target as HTMLInputElement).blur());
+        }
+      }}
+    />
+  );
+}
+
+/** A chip that opens a list: the field looks as it does read-only, with the list over it. */
+function Pick({
+  value,
+  options,
+  onChange,
+  label,
+  children,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      {children}
+      <select
+        className="dz-pick"
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
+const number = (value: string) => {
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
+const weightNames: Record<number, string> = {
+  300: 'Light',
+  400: 'Regular',
+  500: 'Medium',
+  600: 'Semibold',
+  700: 'Bold',
+};
+
+type SectionName = 'layout' | 'appearance' | 'typography' | 'fill' | 'stroke' | 'effects';
+const propNames: Record<string, string> = {
+  width: 'Width',
+  height: 'Height',
+  gap: 'Gap',
+  padding: 'Padding',
+  opacity: 'Opacity',
+  'border-radius': 'Radius',
+  'font-size': 'Size',
+  'line-height': 'Line height',
+  'font-weight': 'Weight',
+  'text-align': 'Align',
+  color: 'Fill',
+  'background-color': 'Fill',
+  background: 'Fill',
+  border: 'Stroke',
+  'border-color': 'Stroke colour',
+  'border-width': 'Stroke width',
+  'box-shadow': 'Shadow',
+};
+const sectionOf = (prop: string): SectionName | null => {
+  if (/^(width|height|gap|padding)/.test(prop)) return 'layout';
+  if (prop === 'opacity' || prop.endsWith('radius')) return 'appearance';
+  if (/^(font|line-height|text-align|letter-spacing)/.test(prop)) return 'typography';
+  if (['color', 'background-color', 'background'].includes(prop)) return 'fill';
+  if (prop.startsWith('border')) return 'stroke';
+  if (prop === 'box-shadow') return 'effects';
+  return null;
+};
+
+function LayerProps({
+  element,
+  tokens,
+  onEdit,
+  change,
+}: {
+  element: HTMLElement;
+  tokens: Tokens;
+  /** Present when this design can be edited; absent shows the properties read-only. */
+  onEdit?: (edits: LayerEdit[]) => void;
+  /** What this branch changed on the layer, noted under each section with its reset. */
+  change?: LayerChange | null;
+}) {
   const view = element.ownerDocument.defaultView!;
   const style = view.getComputedStyle(element);
   const box = element.getBoundingClientRect();
   const kind = kindOf(element);
   const text = kind === 'text';
   const fill = text ? style.color : style.backgroundColor;
+  const fillProp = text ? 'color' : 'background-color';
   const fillToken = colorToken(fill, tokens);
   const visibleFill = !/rgba\(0, 0, 0, 0\)|transparent/.test(fill);
   const typeStyle = textStyle(
@@ -656,6 +788,7 @@ function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens 
   );
   const flex = style.display.includes('flex');
   const border = px(style.borderTopWidth) > 0 && style.borderTopStyle !== 'none';
+  const shadow = style.boxShadow !== 'none';
   // Sizes in a designer's terms: Fill when it spans its parent's content, Hug when its content sets it.
   const parent = element.parentElement;
   const parentStyle = parent ? view.getComputedStyle(parent) : null;
@@ -666,15 +799,140 @@ function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens 
       ? rect.width - px(parentStyle.paddingLeft) - px(parentStyle.paddingRight)
       : rect.height - px(parentStyle.paddingTop) - px(parentStyle.paddingBottom);
   };
-  const sizing = (along: 'width' | 'height') =>
-    Math.abs(box[along] - inner(along)) < 1.5 ? 'Fill' : 'Hug';
+  const sizing = (along: 'width' | 'height') => {
+    const own = element.style[along];
+    if (own === '100%') return 'Fill';
+    if (/px$/.test(own)) return String(Math.round(box[along]));
+    return Math.abs(box[along] - inner(along)) < 1.5 ? 'Fill' : 'Hug';
+  };
   const inFlow = ['static', 'relative', 'sticky'].includes(style.position);
   const align =
     style.textAlign === 'start' ? 'left' : style.textAlign === 'end' ? 'right' : style.textAlign;
+  const padding = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
+    .map(px)
+    .join(' ');
+  const set = (prop: string, value: string | null) => onEdit?.([{ op: 'style', prop, value }]);
+  const colorOptions = tokens.colors.map((token) => ({ value: token.name, label: token.name }));
+
+  // What this branch changed, by section: "Align changed on this branch, was Left".
+  const changed = new Map<SectionName, string[]>();
+  let retyped = false;
+  for (const detail of change?.change === 'changed' ? change.details : []) {
+    if (detail.startsWith('Text ')) retyped = true;
+    const prop = /^([a-z-]+)\s/.exec(detail)?.[1];
+    const section = prop ? sectionOf(prop) : null;
+    if (prop && section) changed.set(section, [...(changed.get(section) ?? []), prop]);
+  }
+  if (retyped) changed.set('typography', changed.get('typography') ?? []);
+  // The value before this branch: its inline value on main, or what the board's styles give.
+  const was = (prop: string) => {
+    const detail = change?.details.find((line) => line.startsWith(`${prop} `));
+    const before =
+      detail && / → /.test(detail) ? detail.slice(prop.length + 1).split(' → ')[0] : null;
+    if (before) return before;
+    const own = element.style.getPropertyValue(prop);
+    element.style.removeProperty(prop);
+    const value = view.getComputedStyle(element).getPropertyValue(prop);
+    if (own) element.style.setProperty(prop, own);
+    return value;
+  };
+  const shown = (prop: string, value: string) => {
+    const token = /color|background/.test(prop) ? colorToken(value, tokens) : null;
+    if (token) return token;
+    if (/^[a-z]+$/.test(value)) return value[0].toUpperCase() + value.slice(1);
+    return value;
+  };
+  const note = (section: SectionName) => {
+    const props = changed.get(section);
+    if (!props) return null;
+    const typeProps = ['font-size', 'line-height', 'font-weight'];
+    let line: string;
+    if (section === 'typography' && typeProps.every((prop) => props.includes(prop))) {
+      const others = [
+        ...new Set(
+          props.filter((prop) => !typeProps.includes(prop)).map((prop) => propNames[prop] ?? prop),
+        ),
+      ];
+      const before = textStyle(
+        px(was('font-size')),
+        px(was('line-height')),
+        Number(was('font-weight')),
+        tokens,
+      );
+      line = others.length
+        ? `Text style, ${others.join(', ')} changed on this branch`
+        : `Text style changed on this branch${before ? `, was ${before}` : ''}`;
+    } else if (!props.length) line = 'Text changed on this branch';
+    else {
+      const names = [...new Set(props.map((prop) => propNames[prop] ?? prop))];
+      line =
+        names.length === 1 && props.length === 1
+          ? `${names[0]} changed on this branch, was ${shown(props[0], was(props[0]))}`
+          : `${names.join(', ')} changed on this branch`;
+    }
+    return (
+      <div className="dz-was">
+        <span className="dz-dot" />
+        {line}
+      </div>
+    );
+  };
+  const reset = (section: SectionName) =>
+    onEdit && changed.has(section) ? (
+      <button
+        type="button"
+        className="dl-icon-btn dz-reset"
+        aria-label={`Reset ${section} to main`}
+        title="Reset to main"
+        onClick={() =>
+          onEdit([
+            {
+              op: 'revert',
+              props: changed.get(section),
+              text: section === 'typography' && retyped,
+            },
+          ])
+        }
+      >
+        <Icon name="undo" size={13} />
+      </button>
+    ) : null;
+  const sizeField = (along: 'width' | 'height', label: 'W' | 'H') => (
+    <Field label={label}>
+      {onEdit ? (
+        <Input
+          label={along === 'width' ? 'Width' : 'Height'}
+          hint="A number of pixels, Hug or Fill"
+          value={sizing(along)}
+          onCommit={(value) => {
+            const word = value.toLowerCase();
+            if (word === 'hug') set(along, null);
+            else if (word === 'fill') set(along, '100%');
+            else if (number(value) !== null) set(along, `${number(value)}px`);
+          }}
+        />
+      ) : (
+        <span title={`${Math.round(box[along])} px`}>{sizing(along)}</span>
+      )}
+    </Field>
+  );
+  const pxField = (label: ReactNode, name: string, prop: string, value: number) => (
+    <Field label={label}>
+      {onEdit ? (
+        <Input
+          label={name}
+          value={String(value)}
+          onCommit={(next) => number(next) !== null && set(prop, `${number(next)}px`)}
+        />
+      ) : (
+        value
+      )}
+    </Field>
+  );
   return (
     <>
       <Prop title="Position">
-        <div className="dz-align" role="group" aria-label="Align (editing comes later)">
+        <div className="dz-align" role="group" aria-label="Align">
           {(['al', 'ac', 'ar', 'at', 'am', 'ab'] as const).map((name) => (
             <span key={name} aria-hidden="true">
               <AlignIcon name={name} />
@@ -694,78 +952,285 @@ function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens 
             : 'Layout'
         }
       >
-        <div className="dz-grid">
-          <Field label="W">
-            <span title={`${Math.round(box.width)} px`}>{sizing('width')}</span>
-          </Field>
-          <Field label="H">
-            <span title={`${Math.round(box.height)} px`}>{sizing('height')}</span>
-          </Field>
-          {flex && <Field label="Gap">{px(style.rowGap) || px(style.columnGap)}</Field>}
+        <div className="dz-grid dz-resettable">
+          {sizeField('width', 'W')}
+          {sizeField('height', 'H')}
+          {flex && pxField('Gap', 'Gap', 'gap', px(style.rowGap) || px(style.columnGap))}
           {flex && (
             <Field label="Pad">
-              {[style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
-                .map(px)
-                .join(' ')}
+              {onEdit ? (
+                <Input
+                  label="Padding"
+                  hint="One to four numbers: top, right, bottom, left"
+                  value={padding}
+                  onCommit={(value) =>
+                    /^(\d+(\.\d+)?\s*){1,4}$/.test(value) &&
+                    set(
+                      'padding',
+                      value
+                        .split(/\s+/)
+                        .map((part) => `${part}px`)
+                        .join(' '),
+                    )
+                  }
+                />
+              ) : (
+                padding
+              )}
             </Field>
           )}
+          {reset('layout')}
         </div>
+        {note('layout')}
       </Prop>
       <Prop title="Appearance">
-        <div className="dz-grid">
-          <Field label="Opacity">{Math.round(Number(style.opacity) * 100)}%</Field>
-          <Field label="Radius">{px(style.borderTopLeftRadius)}</Field>
+        <div className="dz-grid dz-resettable">
+          <Field label="Opacity">
+            {onEdit ? (
+              <Input
+                label="Opacity"
+                hint="Percent"
+                value={`${Math.round(Number(style.opacity) * 100)}%`}
+                onCommit={(value) => {
+                  const next = number(value);
+                  if (next !== null) set('opacity', next >= 100 ? null : String(next / 100));
+                }}
+              />
+            ) : (
+              `${Math.round(Number(style.opacity) * 100)}%`
+            )}
+          </Field>
+          {pxField('Radius', 'Radius', 'border-radius', px(style.borderTopLeftRadius))}
+          {reset('appearance')}
         </div>
+        {note('appearance')}
       </Prop>
       {text && (
         <Prop title="Typography">
           <Field wide>
-            {typeStyle ? <span className="dz-chip">Aa {typeStyle}</span> : null}
+            {onEdit ? (
+              <Pick
+                label="Text style"
+                value={typeStyle ?? ''}
+                options={[
+                  ...(typeStyle ? [] : [{ value: '', label: 'Custom' }]),
+                  ...tokens.textStyles.map((token) => ({
+                    value: token.name,
+                    label: `${token.name} · ${token.size}/${token.lineHeight} · ${token.weight}`,
+                  })),
+                ]}
+                onChange={(name) => {
+                  const token = tokens.textStyles.find((item) => item.name === name);
+                  if (token)
+                    onEdit([
+                      { op: 'style', prop: 'font-size', value: `${token.size}px` },
+                      { op: 'style', prop: 'line-height', value: `${token.lineHeight}px` },
+                      { op: 'style', prop: 'font-weight', value: String(token.weight) },
+                    ]);
+                }}
+              >
+                {typeStyle ? <span className="dz-chip">Aa {typeStyle}</span> : null}
+              </Pick>
+            ) : typeStyle ? (
+              <span className="dz-chip">Aa {typeStyle}</span>
+            ) : null}
             <span className="dz-meta">
-              {style.fontFamily.split(',')[0].replace(/"/g, '')} · {style.fontWeight} ·{' '}
-              {px(style.fontSize)}/{px(style.lineHeight)}
+              {style.fontFamily.split(',')[0].replace(/"/g, '').split(' ')[0]} ·{' '}
+              {weightNames[Number(style.fontWeight)] ?? style.fontWeight} · {px(style.fontSize)}/
+              {px(style.lineHeight)}
             </span>
           </Field>
-          <div className="dz-seg3 dz-text-align" role="group" aria-label={`Text align: ${align}`}>
-            {(['left', 'center', 'right'] as const).map((side) => (
-              <span key={side} className={align === side ? 'on' : ''} aria-hidden="true">
-                <AlignIcon name={side === 'left' ? 'tl' : side === 'center' ? 'tc' : 'tr'} />
-              </span>
-            ))}
+          <div className="dz-resettable">
+            <div className="dz-seg3 dz-text-align" role="group" aria-label={`Text align: ${align}`}>
+              {(['left', 'center', 'right'] as const).map((side) =>
+                onEdit ? (
+                  <button
+                    key={side}
+                    type="button"
+                    className={align === side ? 'on' : ''}
+                    aria-label={`Align ${side}`}
+                    aria-pressed={align === side}
+                    onClick={() => set('text-align', side)}
+                  >
+                    <AlignIcon name={side === 'left' ? 'tl' : side === 'center' ? 'tc' : 'tr'} />
+                  </button>
+                ) : (
+                  <span key={side} className={align === side ? 'on' : ''} aria-hidden="true">
+                    <AlignIcon name={side === 'left' ? 'tl' : side === 'center' ? 'tc' : 'tr'} />
+                  </span>
+                ),
+              )}
+            </div>
+            {reset('typography')}
           </div>
+          {note('typography')}
         </Prop>
       )}
-      <Prop title="Fill" actions={later}>
+      <Prop
+        title="Fill"
+        actions={
+          onEdit && !visibleFill ? (
+            <button
+              type="button"
+              className="dl-icon-btn dz-add"
+              aria-label="Add a fill"
+              onClick={() => set(fillProp, 'var(--surface)')}
+            >
+              <Icon name="plus" size={14} />
+            </button>
+          ) : (
+            later
+          )
+        }
+      >
         {visibleFill && (
-          <Field wide>
-            {fillToken ? (
-              <span className="dz-chip">
-                <Swatch color={fill} />
-                {fillToken}
-              </span>
-            ) : (
-              <>
-                <Swatch color={fill} />
-                {fill}
-              </>
-            )}
-            <span className="dz-meta">100%</span>
-          </Field>
+          <div className="dz-resettable">
+            <Field wide>
+              {onEdit ? (
+                <Pick
+                  label="Fill colour"
+                  value={fillToken ?? ''}
+                  options={[
+                    ...(fillToken ? [] : [{ value: '', label: fill }]),
+                    ...colorOptions,
+                    { value: '-', label: 'Remove the fill' },
+                  ]}
+                  onChange={(name) => set(fillProp, name === '-' ? null : `var(--${name})`)}
+                >
+                  <FillChip color={fill} token={fillToken} />
+                </Pick>
+              ) : (
+                <FillChip color={fill} token={fillToken} />
+              )}
+              <span className="dz-meta">100%</span>
+            </Field>
+            {reset('fill')}
+          </div>
         )}
+        {note('fill')}
       </Prop>
-      <Prop title="Stroke" actions={later}>
+      <Prop
+        title="Stroke"
+        actions={
+          onEdit ? (
+            <button
+              type="button"
+              className="dl-icon-btn dz-add"
+              aria-label={border ? 'Remove the stroke' : 'Add a stroke'}
+              onClick={() => set('border', border ? 'none' : '1px solid var(--line)')}
+            >
+              <Icon name={border ? 'minus' : 'plus'} size={14} />
+            </button>
+          ) : (
+            later
+          )
+        }
+      >
         {border && (
-          <Field wide>
-            <Swatch color={style.borderTopColor} />
-            {colorToken(style.borderTopColor, tokens) ?? style.borderTopColor} ·{' '}
-            {px(style.borderTopWidth)}
-          </Field>
+          <div className="dz-resettable">
+            <Field wide>
+              {onEdit ? (
+                <Pick
+                  label="Stroke colour"
+                  value={colorToken(style.borderTopColor, tokens) ?? ''}
+                  options={[
+                    ...(colorToken(style.borderTopColor, tokens)
+                      ? []
+                      : [{ value: '', label: style.borderTopColor }]),
+                    ...colorOptions,
+                  ]}
+                  onChange={(name) => name && set('border-color', `var(--${name})`)}
+                >
+                  <FillChip
+                    color={style.borderTopColor}
+                    token={colorToken(style.borderTopColor, tokens)}
+                  />
+                </Pick>
+              ) : (
+                <FillChip
+                  color={style.borderTopColor}
+                  token={colorToken(style.borderTopColor, tokens)}
+                />
+              )}
+              <span className="dz-meta">·</span>
+              {onEdit ? (
+                <Input
+                  label="Stroke width"
+                  value={String(px(style.borderTopWidth))}
+                  onCommit={(value) =>
+                    number(value) !== null && set('border-width', `${number(value)}px`)
+                  }
+                />
+              ) : (
+                px(style.borderTopWidth)
+              )}
+            </Field>
+            {reset('stroke')}
+          </div>
         )}
+        {note('stroke')}
       </Prop>
-      <Prop title="Effects" actions={later}>
-        {style.boxShadow !== 'none' && <Field wide>Shadow</Field>}
+      <Prop
+        title="Effects"
+        actions={
+          onEdit ? (
+            <button
+              type="button"
+              className="dl-icon-btn dz-add"
+              aria-label={shadow ? 'Remove the shadow' : 'Add a shadow'}
+              onClick={() => set('box-shadow', shadow ? 'none' : 'var(--shadow-sm)')}
+            >
+              <Icon name={shadow ? 'minus' : 'plus'} size={14} />
+            </button>
+          ) : (
+            later
+          )
+        }
+      >
+        {shadow && (
+          <div className="dz-resettable">
+            <Field wide>
+              {onEdit ? (
+                <Pick
+                  label="Shadow"
+                  value={/var\(--(shadow-[a-z]+)\)/.exec(element.style.boxShadow)?.[1] ?? ''}
+                  options={[
+                    ...(/var\(--shadow-/.test(element.style.boxShadow)
+                      ? []
+                      : [{ value: '', label: 'Shadow' }]),
+                    ...['shadow-sm', 'shadow-lg', 'shadow-xl'].map((name) => ({
+                      value: name,
+                      label: name,
+                    })),
+                  ]}
+                  onChange={(name) => name && set('box-shadow', `var(--${name})`)}
+                >
+                  {/var\(--(shadow-[a-z]+)\)/.exec(element.style.boxShadow)?.[1] ?? 'Shadow'}
+                </Pick>
+              ) : (
+                'Shadow'
+              )}
+            </Field>
+            {reset('effects')}
+          </div>
+        )}
+        {note('effects')}
       </Prop>
       <Prop title="Export" actions={later} />
+    </>
+  );
+}
+
+function FillChip({ color, token }: { color: string; token: string | null }) {
+  return token ? (
+    <span className="dz-chip">
+      <Swatch color={color} />
+      {token}
+    </span>
+  ) : (
+    <>
+      <Swatch color={color} />
+      {color}
     </>
   );
 }
@@ -794,6 +1259,7 @@ export function RightPanel({
   agents,
   onComment,
   htmlHref,
+  onEdit,
 }: {
   project: Project | undefined;
   design: Design | undefined;
@@ -805,7 +1271,7 @@ export function RightPanel({
   revision: number;
   view: View;
   onZoom: (zoom: 'fit' | number) => void;
-  changes: { status: string; path: string }[];
+  changes: { status: string; path: string; layers?: LayerChange[] }[];
   select: (selection: Selection) => void;
   owner: string;
   tab: 'edit' | 'comments';
@@ -822,6 +1288,8 @@ export function RightPanel({
   onComment: () => void;
   /** The selected board's HTML, for View HTML. */
   htmlHref: string | null;
+  /** Present when this design can be edited. */
+  onEdit?: (board: string, layer: string, edits: LayerEdit[]) => void;
 }) {
   const [zoomMenu, setZoomMenu] = useState(false);
   const [moreMenu, setMoreMenu] = useState(false);
@@ -1001,7 +1469,17 @@ export function RightPanel({
               </b>
               <span className="dz-crumb">{crumb.join(' › ')}</span>
             </div>
-            <LayerProps element={element} tokens={tokens} />
+            <LayerProps
+              key={`${selection!.board}:${selection!.layer}`}
+              element={element}
+              tokens={tokens}
+              onEdit={onEdit && ((edits) => onEdit(selection!.board, selection!.layer!, edits))}
+              change={
+                changes
+                  .find((file) => file.path === `design/boards/${selection!.board}`)
+                  ?.layers?.find((layer) => layer.layer === selection!.layer) ?? null
+              }
+            />
           </>
         ) : selection && board ? (
           <>
@@ -1111,9 +1589,11 @@ export function RightPanel({
 }
 
 export function useChanges(projectId: string | undefined, ref: string, commit: string | undefined) {
-  const { data } = useData<{ files: { status: string; path: string }[] }>(
+  const { data } = useData<{
+    files: { status: string; path: string; layers?: LayerChange[] }[];
+  }>(
     projectId && commit
-      ? `/api/v2/projects/${encodeURIComponent(projectId)}/design/changes?ref=${encodeURIComponent(ref)}`
+      ? `/api/v2/projects/${encodeURIComponent(projectId)}/design/changes?ref=${encodeURIComponent(ref)}&v=${commit}`
       : undefined,
   );
   return data?.files ?? [];

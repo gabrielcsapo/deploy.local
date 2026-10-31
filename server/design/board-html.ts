@@ -274,7 +274,8 @@ export type BoardEdit =
   | { op: 'text'; layer: string; text: string }
   | { op: 'style'; layer: string; prop: string; value: string | null }
   | { op: 'class'; layer: string; add?: string[]; remove?: string[] }
-  | { op: 'revert'; layer: string };
+  /** Back to main: the whole layer, or only the named style properties (and its text, with `text`). */
+  | { op: 'revert'; layer: string; props?: string[]; text?: boolean };
 
 const escapeText = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -335,13 +336,9 @@ export function applyEdits(html: string, edits: BoardEdit[], base?: string) {
       if (!/^[a-z-]{1,40}$/.test(edit.prop)) throw new Error(`Invalid style property ${edit.prop}`);
       if (edit.value !== null && (edit.value.length > 200 || /[;{}<>"]/.test(edit.value)))
         throw new Error(`Invalid value for ${edit.prop}`);
-      const styles = styleOf(tag).filter(([name]) => name !== edit.prop);
-      if (edit.value !== null && edit.value.trim()) styles.push([edit.prop, edit.value.trim()]);
-      tag = withAttribute(
-        tag,
-        'style',
-        styles.map(([name, value]) => `${name}:${value}`).join(';'),
-      );
+      const kept = styleOf(tag).filter(([name]) => name !== edit.prop);
+      if (edit.value !== null && edit.value.trim()) kept.push([edit.prop, edit.value.trim()]);
+      tag = withAttribute(tag, 'style', kept.map(([name, value]) => `${name}:${value}`).join(';'));
     } else if (edit.op === 'class') {
       const valid = (names: string[] = []) => {
         for (const name of names)
@@ -357,8 +354,24 @@ export function applyEdits(html: string, edits: BoardEdit[], base?: string) {
     } else if (edit.op === 'revert') {
       const original = base ? locate(base, edit.layer) : null;
       if (!original) throw new Error(`${edit.layer} is not on main`);
-      tag = original.tag;
-      if (!/<[a-zA-Z]/.test(original.inner) && !/<[a-zA-Z]/.test(inner)) inner = original.inner;
+      const leaves = !/<[a-zA-Z]/.test(original.inner) && !/<[a-zA-Z]/.test(inner);
+      if (edit.props || edit.text) {
+        const props = new Set(edit.props ?? []);
+        for (const name of props)
+          if (!/^[a-z-]{1,40}$/.test(name)) throw new Error(`Invalid style property ${name}`);
+        const was = new Map(styleOf(original.tag));
+        const kept = styleOf(tag).filter(([name]) => !props.has(name));
+        for (const name of props) if (was.has(name)) kept.push([name, was.get(name)!]);
+        tag = withAttribute(
+          tag,
+          'style',
+          kept.map(([name, value]) => `${name}:${value}`).join(';'),
+        );
+        if (edit.text && leaves) inner = original.inner;
+      } else {
+        tag = original.tag;
+        if (leaves) inner = original.inner;
+      }
     } else throw new Error('Unknown edit');
     out =
       out.slice(0, found.open) +

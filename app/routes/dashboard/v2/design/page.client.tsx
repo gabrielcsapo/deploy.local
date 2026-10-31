@@ -16,6 +16,7 @@ import {
 } from './Agent';
 import {
   DesignCanvas,
+  layerElement,
   rectOf,
   type AgentPresence,
   type Selection,
@@ -34,7 +35,7 @@ import {
   type Design,
   type Tokens,
 } from './model';
-import { DesignMenu, LeftPanel, RightPanel, useChanges } from './Panels';
+import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from './Panels';
 import './style.css';
 
 const noTokens: Tokens = { colors: [], textStyles: [] };
@@ -96,10 +97,20 @@ export default function DesignPage() {
   const overlay = Boolean(taskId && ask);
   const shown = overlay && mode !== 'mine' && lastAgent ? lastAgent : design.data;
   const canvas = shown?.canvas ?? null;
-  const base =
-    project && shown
-      ? `/api/v2/projects/${encodeURIComponent(project.id)}/design/files/${shown.commit}`
-      : null;
+  // Your own edits make new commits, but the boards on screen already show them, so the canvas
+  // keeps the commit it opened and loads only the boards you edited from their latest commit.
+  const ownCommits = useRef(new Set<string>());
+  const [frameCommit, setFrameCommit] = useState<string>();
+  const [boardSrc, setBoardSrc] = useState(new Map<string, { base: string; reload: number }>());
+  useEffect(() => {
+    if (!shown || ownCommits.current.has(shown.commit)) return;
+    ownCommits.current.clear();
+    setFrameCommit(shown.commit);
+    setBoardSrc(new Map());
+  }, [shown]);
+  const filesAt = (commit: string) =>
+    `/api/v2/projects/${encodeURIComponent(project!.id)}/design/files/${commit}`;
+  const base = project && shown && frameCommit ? filesAt(frameCommit) : null;
   const agentBoards = useMemo(
     () =>
       new Set(
@@ -200,12 +211,12 @@ export default function DesignPage() {
   const fitted = useRef('');
   useEffect(() => {
     if (!canvas || !section) return;
-    const key = `${design.data?.commit}:${section.id}`;
+    const key = `${frameCommit}:${section.id}`;
     if (fitted.current === key) return;
     fitted.current = key;
     const named = selection && canvas.boards[selection.board] ? [selection.board] : section.boards;
     requestAnimationFrame(() => fitTo(named));
-  }, [canvas, section, design.data?.commit, selection, fitTo]);
+  }, [canvas, section, frameCommit, selection, fitTo]);
 
   const select = useCallback((next: Selection) => {
     setSelection(next);
@@ -256,6 +267,67 @@ export default function DesignPage() {
       setAccepting(false);
     }
   };
+  // Edits apply to the board on screen at once, then commit one after another to the design
+  // branch; the first edit on main starts a branch, so main only changes through review.
+  const editable = Boolean(project && design.data && !(overlay && mode !== 'mine'));
+  const head = useRef<{ ref: string; commit: string } | null>(null);
+  useEffect(() => {
+    if (design.data) head.current = { ref, commit: design.data.commit };
+  }, [design.data, ref]);
+  const queue = useRef(Promise.resolve());
+  const edit = (board: string, layer: string, edits: LayerEdit[]) => {
+    const element = layerElement(frames, board, layer);
+    if (element)
+      for (const change of edits)
+        if (change.op === 'text') element.textContent = change.text;
+        else if (change.op === 'style')
+          if (change.value === null) element.style.removeProperty(change.prop);
+          else element.style.setProperty(change.prop, change.value);
+    setRevision((n) => n + 1);
+    const reload = (commit: string) =>
+      setBoardSrc((current) =>
+        new Map(current).set(board, {
+          base: filesAt(commit),
+          reload: (current.get(board)?.reload ?? 0) + 1,
+        }),
+      );
+    queue.current = queue.current.then(async () => {
+      const at = head.current;
+      if (!at) return;
+      try {
+        const result = await request<{ branch: string; commit: string }>(`${projectApi}/edit`, {
+          method: 'POST',
+          body: JSON.stringify({
+            ref: at.ref,
+            board,
+            edits: edits.map((change) => ({ ...change, layer })),
+            expect: at.ref.startsWith('design/') ? at.commit : undefined,
+          }),
+        });
+        ownCommits.current.add(result.commit);
+        head.current = { ref: result.branch, commit: result.commit };
+        // A reset cannot be shown before the server works it out, so that board loads again.
+        if (edits.some((change) => change.op === 'revert')) reload(result.commit);
+        else
+          setBoardSrc((current) =>
+            new Map(current).set(board, {
+              base: filesAt(result.commit),
+              reload: current.get(board)?.reload ?? 0,
+            }),
+          );
+        if (result.branch !== at.ref) {
+          setRef(result.branch);
+          remember({ ref: result.branch });
+        }
+        design.refresh();
+      } catch (failure) {
+        // Put the board back as it is on the branch.
+        reload(at.commit);
+        window.alert((failure as Error).message);
+      }
+    });
+  };
+
   const chooseSection = (id: string) => {
     setSectionId(id);
     remember({ page: id, board: null, layer: null });
@@ -471,6 +543,7 @@ export default function DesignPage() {
         selection={selection}
         select={select}
         base={base}
+        boardSrc={boardSrc}
         changed={changed}
         waiting={waiting}
         menu={menu}
@@ -509,6 +582,12 @@ export default function DesignPage() {
             agentLayers={agentLayers}
             inReview={inReviewBoards}
             agents={agents}
+            boardSrc={boardSrc}
+            onEditText={
+              editable
+                ? (board, layer, text) => edit(board, layer, [{ op: 'text', text }])
+                : undefined
+            }
           />
         ) : (
           <div className="dz-loading">Loading the design…</div>
@@ -596,7 +675,7 @@ export default function DesignPage() {
             title="View the board’s HTML"
             href={
               selection && base
-                ? `${base}/boards/${encodeURIComponent(selection.board)}`
+                ? `${boardSrc.get(selection.board)?.base ?? base}/boards/${encodeURIComponent(selection.board)}`
                 : undefined
             }
             target="_blank"
@@ -642,8 +721,11 @@ export default function DesignPage() {
           setCommentFocus((n) => n + 1);
         }}
         htmlHref={
-          selection && base ? `${base}/boards/${encodeURIComponent(selection.board)}` : null
+          selection && base
+            ? `${boardSrc.get(selection.board)?.base ?? base}/boards/${encodeURIComponent(selection.board)}`
+            : null
         }
+        onEdit={editable ? edit : undefined}
         comments={
           project ? (
             <CommentsPanel

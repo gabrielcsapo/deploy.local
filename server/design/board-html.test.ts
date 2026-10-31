@@ -152,6 +152,17 @@ describe('board edits', () => {
       { op: 'style', layer: 'title', prop: 'color', value: 'red' },
     ]);
     assert.equal(applyEdits(edited, [{ op: 'revert', layer: 'title' }], board), board);
+    // One section's reset: only those properties go back; the text stays retyped.
+    const colorBack = applyEdits(
+      edited,
+      [{ op: 'revert', layer: 'title', props: ['color'] }],
+      board,
+    );
+    assert.ok(colorBack.includes('<h1 data-layer="title" class="dl-title">Changed'));
+    assert.equal(
+      applyEdits(colorBack, [{ op: 'revert', layer: 'title', text: true }], board),
+      board,
+    );
     assert.throws(
       () => applyEdits(board, [{ op: 'text', layer: 'g', text: 'x' }]),
       /Only a text layer/,
