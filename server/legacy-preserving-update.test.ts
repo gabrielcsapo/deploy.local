@@ -13,7 +13,7 @@ import {
   copyFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { legacyHostIdentityDigest, restoreStoppedLegacyData } from './legacy-snapshot.mjs';
 import { DatabaseSync } from 'node:sqlite';
@@ -393,9 +393,17 @@ test('unconfirmed candidate stop retains recovery lock and does not restart old 
 test('rollback durably flushes files and directories before the old writer is started', async () => {
   const f = fixture();
   const original = fs.fsyncSync;
+  const originalOpen = fs.openSync;
+  // Remember what each descriptor opened (portable, unlike reading /proc/self/fd).
+  const opened = new Map<number, string>();
+  fs.openSync = ((path: fs.PathLike, flags: fs.OpenMode = 'r', mode?: fs.Mode | null) => {
+    const fd = originalOpen(path, flags, mode);
+    opened.set(fd, resolve(String(path)));
+    return fd;
+  }) as typeof fs.openSync;
   const flushed = new Set<string>();
   fs.fsyncSync = (fd) => {
-    flushed.add(fs.readlinkSync(`/proc/self/fd/${fd}`));
+    flushed.add(opened.get(fd) ?? `fd ${fd}`);
     original(fd);
   };
   syncBuiltinESMExports();
@@ -425,6 +433,7 @@ test('rollback durably flushes files and directories before the old writer is st
     await assert.rejects(runLegacyPreservingUpdate(f.input), /synthetic activation failure/);
   } finally {
     fs.fsyncSync = original;
+    fs.openSync = originalOpen;
     syncBuiltinESMExports();
     f.cleanup();
   }

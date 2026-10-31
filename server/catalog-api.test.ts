@@ -113,7 +113,14 @@ describe('catalog API integration', () => {
       body: JSON.stringify({ applicationName: 'home-assistant', targetSiteId: 'coordinator' }),
     });
     assert.equal(preflight.status, 200);
-    assert.equal((preflight.body as { ready: boolean }).ready, true);
+    // Readiness is derived from the coordinator itself. Home Assistant's matrix is Linux with
+    // host networking, so elsewhere (a Mac running these tests) it is correctly blocked.
+    const answer = preflight.body as { ready: boolean; findings: Array<{ id: string }> };
+    if (process.platform === 'linux') assert.equal(answer.ready, true);
+    else {
+      assert.equal(answer.ready, false);
+      assert.ok(answer.findings.some((finding) => finding.id === 'target-operating-system'));
+    }
 
     const forged = await request(endpoint, {
       method: 'POST',

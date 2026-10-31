@@ -8,6 +8,23 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const execute = promisify(execFile);
+// The CA profile needs OpenSSL 3 (strict X.509 checks, -verify_hostname). macOS ships
+// LibreSSL as `openssl`, so put Homebrew's OpenSSL 3 first on PATH there, for these checks
+// and for the generator they run. Without any OpenSSL 3 the tests are skipped.
+const openssl3 = ['', '/opt/homebrew/opt/openssl@3/bin', '/usr/local/opt/openssl@3/bin'].find(
+  (dir) => {
+    try {
+      return execFileSync(dir ? join(dir, 'openssl') : 'openssl', ['version'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).startsWith('OpenSSL 3');
+    } catch {
+      return false;
+    }
+  },
+);
+if (openssl3) process.env.PATH = `${openssl3}:${process.env.PATH}`;
+const needsOpenssl3 = openssl3 === undefined && 'needs OpenSSL 3 (macOS ships LibreSSL)';
 const openssl = (root: string, ...args: string[]) =>
   execFileSync('openssl', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 async function generate(root: string) {
@@ -93,7 +110,7 @@ async function clients(root: string, ca: string, key: string, cert: string) {
 
 test(
   'generated root has explicit strict CA profile and all clients enforce hostname validation',
-  { timeout: 30_000 },
+  { timeout: 30_000, skip: needsOpenssl3 },
   async () => {
     const root = mkdtempSync(join(tmpdir(), 'ca-profile-generated-'));
     try {
@@ -143,7 +160,7 @@ test(
 
 test(
   'same-key subject and SKI correction validates existing leaf; startup never replaces existing CA or keys',
-  { timeout: 30_000 },
+  { timeout: 30_000, skip: needsOpenssl3 },
   async () => {
     const root = mkdtempSync(join(tmpdir(), 'ca-profile-existing-'));
     try {
