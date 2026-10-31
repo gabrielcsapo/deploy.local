@@ -1,15 +1,19 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { layerSnippet } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
-import { gitSync, repositoryGit } from '../workspace/repository-git.ts';
+import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
 import { get, id, list, now, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { readJson, sendJson } from './attachments.ts';
-import { fail } from './inbox.ts';
+import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.ts';
+import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
+import { startRun } from '../workspace/service.ts';
+import type { InboxItem } from '../../shared/v2/contracts.ts';
 
 /**
  * The Design page reads a project's design/ folder (canvas.json, boards/*.html, ds/) from any ref:
@@ -134,50 +138,197 @@ function createBranch(repo: string, name: string, commit: string) {
   return { name: branch, commit };
 }
 
-/** Commit `paths` as they are in `from` on top of `target`, and move `branch` to it if nobody else did. */
-async function copyPaths(
+/**
+ * Commit `paths` as they are in `from` on top of `target`, and move `branch` to it unless someone
+ * moved it first. Synchronous, so an inbox decision can apply it inside its answer.
+ */
+function copyPaths(
   repo: string,
   input: {
     target: string;
     from: string;
     paths: string[];
     branch: string;
-    task: string;
+    message: string;
     by: string;
   },
 ) {
-  const index = join(mkdtempSync(join(tmpdir(), 'design-accept-')), 'index');
-  const env = { indexFile: index };
+  const dir = mkdtempSync(join(tmpdir(), 'design-copy-'));
+  const env = {
+    ...gitEnvironment(),
+    GIT_INDEX_FILE: join(dir, 'index'),
+    GIT_AUTHOR_NAME: input.by,
+    GIT_AUTHOR_EMAIL: `${input.by}@deploy.local`,
+    GIT_COMMITTER_NAME: input.by,
+    GIT_COMMITTER_EMAIL: `${input.by}@deploy.local`,
+  };
+  const git = (args: string[]) => {
+    const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-C', repo, ...args], {
+      env,
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+    if (result.status !== 0) throw new Error(result.stderr || `git ${args[0]} failed`);
+    return result.stdout.trim();
+  };
   try {
-    await repositoryGit(repo, ['read-tree', input.target], env);
+    git(['read-tree', input.target]);
     for (const path of input.paths) {
-      const entry = gitSync(repo, ['ls-tree', input.from, '--', path]);
+      const entry = git(['ls-tree', input.from, '--', path]);
       if (entry) {
-        const [meta] = entry.split('\t');
-        const [mode, , oid] = meta.split(' ');
-        await repositoryGit(
-          repo,
-          ['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`],
-          env,
-        );
-      } else await repositoryGit(repo, ['update-index', '--force-remove', '--', path], env);
+        const [mode, , oid] = entry.split('\t')[0].split(' ');
+        git(['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`]);
+      } else git(['update-index', '--force-remove', '--', path]);
     }
-    const tree = (await repositoryGit(repo, ['write-tree'], env)).toString().trim();
-    const message = `Accept ${input.paths.length === 1 ? input.paths[0].replace(/^design\//, '') : `${input.paths.length} design changes`} from ${input.task}`;
-    const commit = (
-      await repositoryGit(repo, ['commit-tree', tree, '-p', input.target, '-m', message], {
-        identity: input.by,
-      })
-    )
-      .toString()
-      .trim();
+    const commit = git([
+      'commit-tree',
+      git(['write-tree']),
+      '-p',
+      input.target,
+      '-m',
+      input.message,
+    ]);
     if (gitSync(repo, ['update-ref', `refs/heads/${input.branch}`, commit, input.target]) === null)
-      fail(`${input.branch} moved while accepting; try again`, 409);
+      fail(`${input.branch} moved meanwhile; try again`, 409);
     return commit;
   } finally {
-    rmSync(dirname(index), { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
   }
 }
+
+/** The branch a project's design is approved onto: the repository's default branch. */
+function mainBranch(repo: string) {
+  return gitSync(repo, ['symbolic-ref', '--short', 'HEAD']) || 'main';
+}
+
+/** What a design branch or a design task would change on main, and where it starts from. */
+function proposalFor(owner: string, project: any, input: { ref?: string; task?: string }) {
+  const repo = project.repositoryPath as string;
+  let branch: string;
+  let taskId: string | null = null;
+  let name: string;
+  if (input.task) {
+    const task = get('task', owner, input.task);
+    if (task.projectId !== project.id) fail('That task belongs to another project', 404);
+    branch = currentTaskBranch(task);
+    taskId = task.id;
+    name = String(task.title).replace(/^Design:\s*/, '');
+  } else {
+    branch = String(input.ref ?? '');
+    if (!branch.startsWith('design/') || !validRef(branch))
+      fail('Propose a design branch, like design/title-size');
+    name = branch.replace(/^design\//, '');
+  }
+  const commit = gitSync(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}^{commit}`,
+  ]);
+  if (!commit) fail(`Nothing is committed on ${branch} yet`, 409);
+  const main = mainBranch(repo);
+  const head = gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${main}^{commit}`]);
+  if (!head) fail(`${main} has no commits`, 409);
+  const base = gitSync(repo, ['merge-base', head, commit]) || head;
+  const paths = (
+    gitSync(repo, ['diff', '--name-only', '--no-renames', base, commit, '--', 'design/']) ?? ''
+  )
+    .split('\n')
+    .filter(Boolean);
+  if (!paths.length) fail(`${branch} changes nothing in design/`, 409);
+  return { branch, commit, base, paths, taskId, main, name };
+}
+
+// Inbox IDs travel as one URL path segment, so the branch's slashes become tildes.
+const branchKey = (branch: string) => branch.replaceAll('/', '~');
+function designItemId(projectId: string, branch: string, commit: string) {
+  return `design:${projectId}:${branchKey(branch)}:${commit.slice(0, 12)}`;
+}
+
+/** Ask for approval in Waiting on you. The same branch at the same commit asks only once. */
+export function proposeDesign(owner: string, project: any, input: { ref?: string; task?: string }) {
+  const proposal = proposalFor(owner, project, input);
+  const boards = proposal.paths
+    .filter((path) => path.startsWith('design/boards/'))
+    .map((path) => path.slice('design/boards/'.length).replace(/\.html$/, ''));
+  const item: InboxItem = {
+    id: designItemId(project.id, proposal.branch, proposal.commit),
+    kind: 'other',
+    title: `Approve the ${boards.length === 1 ? boards[0] : proposal.name} design?`,
+    text: boards.length
+      ? `${boards.length} board${boards.length === 1 ? '' : 's'} changed on ${proposal.branch}: ${boards.slice(0, 4).join(', ')}${boards.length > 4 ? '…' : ''}.`
+      : `${proposal.paths.length} design files changed on ${proposal.branch}.`,
+    from: 'scout',
+    projectId: project.id,
+    ...(proposal.taskId ? { taskId: proposal.taskId } : {}),
+    createdAt: now(),
+    state: 'waiting',
+    actions: [
+      { id: 'approve', label: 'Approve design', primary: true },
+      { id: 'changes', label: 'Ask for changes' },
+    ],
+  };
+  // A newer commit replaces the request for the same branch.
+  const stale = `design:${project.id}:${branchKey(proposal.branch)}:`;
+  for (const row of list('v2-inbox-native', owner))
+    if (row.id.startsWith(stale) && row.id !== item.id && row.item.state === 'waiting')
+      save('v2-inbox-native', owner, { ...row, item: { ...row.item, state: 'withdrawn' } });
+  return createInboxItem(owner, item, { source: 'design', projectId: project.id, ...proposal });
+}
+
+// Approving puts the proposal's design files on main; asking for changes records the note on
+// the first changed board and, for an agent's task, sends it to the agent.
+registerInboxSource('design', (owner, item, body, context) => {
+  const project = requireRepository(owner, context.projectId);
+  const repo = project.repositoryPath as string;
+  if (body.actionId === 'approve') {
+    const target = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${context.main}^{commit}`,
+    ]);
+    if (!target) fail(`${context.main} has no commits`, 409);
+    const commit = copyPaths(repo, {
+      target,
+      from: context.commit,
+      paths: context.paths,
+      branch: context.main,
+      message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
+      by: owner,
+    });
+    save('project', owner, {
+      ...get('project', owner, project.id),
+      head: commit,
+      updatedAt: now(),
+    });
+    queuePushTrigger(owner, project.id, `refs/heads/${context.main}`, commit);
+    return;
+  }
+  if (body.actionId !== 'changes') return;
+  const note = String(body.note ?? '').trim();
+  const board = (context.paths as string[]).find((path) => path.startsWith('design/boards/'));
+  if (board && note)
+    save('design-comment', owner, {
+      id: id(),
+      projectId: project.id,
+      board: board.slice('design/boards/'.length),
+      layer: null,
+      text: note,
+      commit: context.commit,
+      author: owner,
+      resolved: false,
+      createdAt: now(),
+    });
+  if (context.taskId && note) {
+    try {
+      const task = get('task', owner, context.taskId);
+      startRun(owner, task.id, { revision: task.revision, content: note });
+    } catch {
+      // A busy agent still gets the note as a comment on the board.
+    }
+  }
+});
 
 function presentComment(row: any) {
   return {
@@ -521,15 +672,34 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (!paths.length) fail('Choose at least one change to accept');
     if (paths.some((path) => !changed.includes(path)))
       fail('Only the agent’s design changes can be accepted');
-    const commit = await copyPaths(repo, {
+    const commit = copyPaths(repo, {
       target,
       from: agent,
       paths,
       branch: into,
-      task: task.title,
+      message: `Accept ${paths.length === 1 ? paths[0].replace(/^design\//, '') : `${paths.length} design changes`} from ${task.title}`,
       by: owner,
     });
     return sendJson(res, { branch: into, commit, accepted: paths });
+  }
+
+  // Ask for approval of a design branch or a design task, in Waiting on you.
+  if (sub === '/propose' && req.method === 'POST') {
+    const body = await readJson(req);
+    return sendJson(
+      res,
+      { item: proposeDesign(owner, project, { ref: body?.ref, task: body?.task }) },
+      201,
+    );
+  }
+
+  // Open design reviews of this project, newest first.
+  if (sub === '/proposals' && req.method === 'GET') {
+    const prefix = `design:${project.id}:`;
+    const items = syncInbox(owner)
+      .filter((item) => item.id.startsWith(prefix))
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    return sendJson(res, { proposals: items });
   }
 
   fail('Not found', 404);

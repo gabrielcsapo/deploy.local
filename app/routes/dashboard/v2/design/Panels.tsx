@@ -599,6 +599,7 @@ export function RightPanel({
   comments,
   agent,
   onAsk,
+  propose,
 }: {
   project: Project | undefined;
   design: Design | undefined;
@@ -620,6 +621,8 @@ export function RightPanel({
   /** While an agent's branch is open, its panel replaces Edit. */
   agent: ReactNode;
   onAsk: () => void;
+  /** Propose the current design branch for review; null when there is nothing to propose. */
+  propose: { state: 'ready' | 'busy' | 'in-review'; run: () => void; note: string } | null;
 }) {
   const [zoomMenu, setZoomMenu] = useState(false);
   void revision;
@@ -655,8 +658,14 @@ export function RightPanel({
         <button type="button" className="dl-icon-btn" aria-label="Play (coming soon)" disabled>
           <Icon name="play" size={14} />
         </button>
-        <Action variant="primary" disabled title="Proposing for review arrives with design review">
-          Propose
+        <Action
+          variant="primary"
+          disabled={!propose || propose.state === 'in-review'}
+          loading={propose?.state === 'busy'}
+          title={propose?.note ?? 'Switch to a design branch with changes to propose it for review'}
+          onClick={propose?.run}
+        >
+          {propose?.state === 'in-review' ? 'In review' : 'Propose'}
         </Action>
       </div>
       <div className="dz-right-tabs">

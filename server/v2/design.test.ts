@@ -272,3 +272,60 @@ test('accepting an agent’s changes puts them on a design branch, never straigh
     400,
   );
 });
+
+test('proposing asks in Waiting on you; approving puts the design on main, asking for changes notes it', async () => {
+  const { answerInbox, syncInbox } = await import('./inbox.ts');
+  assert.equal(
+    (await call('/propose', { method: 'POST', body: JSON.stringify({ ref: 'main' }) })).status,
+    400,
+  );
+  const proposed = await call('/propose', {
+    method: 'POST',
+    body: JSON.stringify({ ref: 'design/welcome-title' }),
+  });
+  assert.equal(proposed.status, 201);
+  const { item } = await proposed.json();
+  assert.equal(item.kind, 'other');
+  assert.match(item.title, /^Approve the .+ design\?$/);
+  assert.deepEqual(
+    item.actions.map((action: any) => action.id),
+    ['approve', 'changes'],
+  );
+  assert.equal((await (await call('/proposals')).json()).proposals[0].id, item.id);
+  // Proposing the same commit again returns the same request.
+  const again = await (
+    await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({ ref: 'design/welcome-title' }),
+    })
+  ).json();
+  assert.equal(again.item.id, item.id);
+
+  const before = await git(['rev-parse', 'main']);
+  answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  const after = await git(['rev-parse', 'main']);
+  assert.notEqual(after, before);
+  assert.equal(await git(['rev-parse', `${after}^`]), before);
+  assert.equal(
+    await git(['show', 'main:design/boards/Welcome.html']),
+    '<h1 data-layer="title">Big</h1>',
+  );
+  assert.equal(await git(['show', 'main:design/boards/New.html']), '<p data-layer="p">New</p>');
+  assert.equal(syncInbox('alice').find((entry) => entry.id === item.id)!.state, 'answered');
+
+  // A task's design asks for changes: the note lands on its first changed board.
+  // Approving moved main under the checked-out tree; work on a scratch branch from it.
+  await git(['checkout', '-q', '-f', '-B', 'scratch', 'main']);
+  writeFileSync(join(repo, 'design/boards/Welcome.html'), '<h1 data-layer="title">Huge</h1>');
+  await git(['commit', '-qam', 'Huge']);
+  await git(['branch', '-f', 'task/ab12cd34', 'HEAD']);
+  await git(['checkout', '-q', '-f', 'main']);
+  const forTask = await (
+    await call('/propose', { method: 'POST', body: JSON.stringify({ task: 'ab12cd34-0000' }) })
+  ).json();
+  assert.equal(forTask.item.taskId, 'ab12cd34-0000');
+  answerInbox('alice', forTask.item.id, { actionId: 'changes', on: 'web', note: 'Too big now' });
+  const notes = await (await call('/comments?board=Welcome.html')).json();
+  assert.ok(notes.comments.some((comment: any) => comment.text === 'Too big now'));
+  assert.equal(await git(['rev-parse', 'main']), after);
+});

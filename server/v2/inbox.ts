@@ -144,8 +144,9 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
         ...(note ? { note } : {}),
       };
       if (item.kind !== 'question' && item.kind !== 'control') {
-        const handler = nativeActions.get(item.kind);
         const row = get('v2-inbox-native', owner, itemId);
+        // A producer that shares a kind names itself in its context and gets its own handler.
+        const handler = sourceActions.get(row.context?.source) ?? nativeActions.get(item.kind);
         if (!['not-now', 'keep', 'dismiss'].includes(body.actionId)) {
           if (!handler)
             fail('This action is not available yet. The decision is still waiting.', 501);
@@ -174,6 +175,20 @@ export function registerInboxAction(
   nativeActions.set(kind, handler);
   return () => {
     if (nativeActions.get(kind) === handler) nativeActions.delete(kind);
+  };
+}
+const sourceActions = new Map<
+  string,
+  (owner: string, item: InboxItem, body: any, context: any) => void
+>();
+/** Handle the decisions whose private context says `source`, whatever their public kind. */
+export function registerInboxSource(
+  source: string,
+  handler: (owner: string, item: InboxItem, body: any, context: any) => void,
+) {
+  sourceActions.set(source, handler);
+  return () => {
+    if (sourceActions.get(source) === handler) sourceActions.delete(source);
   };
 }
 export function createInboxItem(owner: string, item: InboxItem, context: unknown): InboxItem {

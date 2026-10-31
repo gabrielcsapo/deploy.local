@@ -238,6 +238,10 @@ older handler cannot remove a newer registration. Resolve asynchronous project l
 before producing the decision. Handlers must persist/enqueue work within the answer
 transaction and throw when admission fails; never launch unawaited network mutations.
 
+A producer that shares a public kind with another (design reviews use `other`, which native
+clients already decode) puts `source` in its context and registers
+`registerInboxSource(source, handler)`; that handler wins over the kind's.
+
 The advertised `keep`, `dismiss` and `not-now` actions need no handler. Every other native
 action requires a registered handler; absence returns HTTP 501 without saving an answer.
 Handlers must reject action IDs they do not support. Answers remain first-answer-wins:

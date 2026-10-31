@@ -225,9 +225,11 @@ export function DesignCanvas({
                 onClick={() => select({ board: file, layer: null })}
               >
                 <span className="dz-t">{boardName(file)}</span>
-                <span className="dz-tag">
-                  {board.w <= 500 ? `Phone ${board.w}` : `Web ${board.w}`}
-                </span>
+                {board.w * view.z > 160 && (
+                  <span className="dz-tag">
+                    {board.w <= 500 ? `Phone ${board.w}` : `Web ${board.w}`}
+                  </span>
+                )}
                 {agent && <span className="dz-tag agent">Agent’s version</span>}
               </button>
               {visible(file) ? (

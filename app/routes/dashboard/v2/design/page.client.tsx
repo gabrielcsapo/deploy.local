@@ -107,6 +107,15 @@ export default function DesignPage() {
   const [commentFocus, setCommentFocus] = useState(0);
   const { comments, refresh: refreshComments } = useComments(project?.id);
   const [asking, setAsking] = useState(false);
+  const proposals = useData<{ proposals: { id: string; state: string }[] }>(
+    project ? `${projectApi}/proposals?v=${poll}` : undefined,
+  );
+  const [proposing, setProposing] = useState(false);
+  const inReview = proposals.data?.proposals.some(
+    (item) =>
+      item.state === 'waiting' &&
+      item.id.startsWith(`design:${project?.id}:${ref.replaceAll('/', '~')}:`),
+  );
   const tokensData = useData<unknown>(base ? `${base}/ds/deploy-local/tokens.json` : undefined);
   const tokens = useMemo(
     () => (tokensData.data ? readTokens(tokensData.data) : noTokens),
@@ -265,6 +274,32 @@ export default function DesignPage() {
     { id: 'ask', icon: 'spark', label: 'Ask an agent  ⌘K', ready: true },
   ];
 
+  const propose =
+    ref.startsWith('design/') && changes.length && project
+      ? {
+          state: (proposing ? 'busy' : inReview ? 'in-review' : 'ready') as
+            | 'ready'
+            | 'busy'
+            | 'in-review',
+          note: inReview
+            ? 'Waiting on you: approve it there or in the task'
+            : `Ask to approve ${ref}`,
+          run: async () => {
+            setProposing(true);
+            try {
+              await request(`${projectApi}/propose`, {
+                method: 'POST',
+                body: JSON.stringify({ ref }),
+              });
+              setPoll((n) => n + 1);
+            } catch (failure) {
+              window.alert((failure as Error).message);
+            } finally {
+              setProposing(false);
+            }
+          },
+        }
+      : null;
   // The ask box opens under the selection, kept inside the canvas.
   const askPosition = () => {
     const host = stage.current?.querySelector('.dz-stage') as HTMLElement | null;
@@ -474,6 +509,7 @@ export default function DesignPage() {
         setTab={setTab}
         commentCount={comments.filter((comment) => !comment.resolved).length}
         onAsk={() => setAsking(true)}
+        propose={propose}
         comments={
           project ? (
             <CommentsPanel
