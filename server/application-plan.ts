@@ -824,7 +824,11 @@ const BUILD_FIELDS: Record<keyof BuildSpec, true> = {
 const INTERFACE_FIELDS: Record<keyof InterfaceSpec, true> = { port: true, protocol: true };
 const VALUE_REFERENCE_FIELDS: Record<keyof ValueReferenceSpec, true> = { from: true };
 const MOUNT_FIELDS: Record<keyof MountSpec, true> = { resource: true, readOnly: true };
-const HEALTH_FIELDS: Record<keyof HealthSpec, true> = { interface: true, path: true };
+const HEALTH_FIELDS: Record<keyof HealthSpec, true> = {
+  interface: true,
+  path: true,
+  startupSeconds: true,
+};
 const RUNTIME_FIELDS: Record<keyof RuntimeSpec, true> = {
   gpus: true,
   privileged: true,

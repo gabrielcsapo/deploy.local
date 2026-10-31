@@ -3,7 +3,11 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createReadStream, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { ComponentExecutionPlan, StableComponentService } from './application-execution.ts';
+import {
+  componentHealthTimeoutMs,
+  type ComponentExecutionPlan,
+  type StableComponentService,
+} from './application-execution.ts';
 import { planApplicationJobs } from './application-jobs.ts';
 import type { ActualComponentInstance } from './application-reconciler.ts';
 import type { ResolvedApplicationGraphRuntime } from './application-runtime.ts';
@@ -470,7 +474,10 @@ export class ApplicationGraphExecutor {
                 context.runtime.execution.components[instance.componentKey],
                 profileValues.get(instance.componentKey),
               ),
-              context.healthTimeoutMs ?? 30_000,
+              componentHealthTimeoutMs(
+                context.runtime.execution.components[instance.componentKey],
+                context.healthTimeoutMs,
+              ),
             )
             .catch(() => false);
           this.#state.patchInstance(instance.id, {
@@ -1121,7 +1128,7 @@ export class ApplicationGraphExecutor {
         !(await this.#docker.waitHealthy(
           bootstrapName,
           healthProbe(targetComponent, profileValues.get(request.component)),
-          target.healthTimeoutMs ?? 30_000,
+          componentHealthTimeoutMs(targetComponent, target.healthTimeoutMs),
         ))
       ) {
         throw new Error('Fresh profile volume failed its pre-restore readiness gate');
@@ -1158,7 +1165,7 @@ export class ApplicationGraphExecutor {
         !(await this.#docker.waitHealthy(
           bootstrapName,
           healthProbe(targetComponent, profileValues.get(request.component)),
-          target.healthTimeoutMs ?? 30_000,
+          componentHealthTimeoutMs(targetComponent, target.healthTimeoutMs),
         ))
       ) {
         throw new Error('Restored profile volume failed its PostgreSQL readiness gate');
@@ -1548,7 +1555,7 @@ export class ApplicationGraphExecutor {
           await this.#docker.waitHealthy(
             candidate.containerName,
             healthProbe(component, input.profileValues.get(component.name)),
-            context.healthTimeoutMs ?? 30_000,
+            componentHealthTimeoutMs(component, context.healthTimeoutMs),
           )
         ) {
           await this.ensureComponentProvisioned(
@@ -1684,7 +1691,7 @@ export class ApplicationGraphExecutor {
     const healthy = await this.#docker.waitHealthy(
       created.name,
       healthProbe(component, input.profileValues.get(component.name)),
-      context.healthTimeoutMs ?? 30_000,
+      componentHealthTimeoutMs(component, context.healthTimeoutMs),
     );
     if (!healthy) {
       this.#state.patchInstance(id, {

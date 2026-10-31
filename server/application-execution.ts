@@ -60,6 +60,17 @@ export interface ComponentExecutionPlan {
   findings: readonly RuntimeAdmissionFinding[];
 }
 
+/**
+ * How long a new instance of a component may take to pass its health gate: the
+ * component's declared startup window, or 30 seconds. An explicit override wins.
+ */
+export function componentHealthTimeoutMs(
+  component: Pick<ComponentExecutionPlan, 'health'>,
+  override?: number,
+): number {
+  return override ?? (component.health?.startupSeconds ?? 30) * 1000;
+}
+
 export interface StableComponentService {
   id: string;
   applicationId: string;

@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { resolve, sep } from 'node:path';
-import type { ApplicationExecutionPlan, ComponentExecutionPlan } from './application-execution.ts';
+import {
+  componentHealthTimeoutMs,
+  type ApplicationExecutionPlan,
+  type ComponentExecutionPlan,
+} from './application-execution.ts';
 import type { ApplicationSpec } from './application-spec.ts';
 
 // The same pinned helper the local Docker adapter uses for archives.
@@ -429,7 +433,7 @@ async function createGraphInstance(input: {
     containerName,
     input.component,
     graph.profileValues[input.component.name] ?? {},
-    input.input.healthTimeoutMs ?? 30_000,
+    componentHealthTimeoutMs(input.component, input.input.healthTimeoutMs),
     input.input.probePort,
     input.input.internalNetwork,
   );

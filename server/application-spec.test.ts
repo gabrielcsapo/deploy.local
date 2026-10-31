@@ -309,6 +309,27 @@ resources:
     );
   });
 
+  it('accepts a bounded health startup window and keeps it through export', () => {
+    const manifest = (startupSeconds: unknown) =>
+      ({
+        apiVersion: 'deploy.local/v1',
+        kind: 'Application',
+        components: {
+          web: {
+            image: 'example.invalid/web:v1',
+            interfaces: { http: { port: 3000, protocol: 'http' } },
+            health: { interface: 'http', path: '/health', startupSeconds },
+          },
+        },
+      }) as unknown as Parameters<typeof compileApplicationManifest>[0];
+    const compiled = compileApplicationManifest(manifest(180));
+    assert.equal(compiled.spec.components.web.health?.startupSeconds, 180);
+    const exported = compileDeployYaml(renderDeployYaml(compiled.spec));
+    assert.equal(exported.spec.components.web.health?.startupSeconds, 180);
+    for (const invalid of [0, 601, 1.5, '180'])
+      assert.throws(() => compileApplicationManifest(manifest(invalid)), /startupSeconds/);
+  });
+
   it('carries repository ancestry outside the normalized application digest', () => {
     const compiled = compileDeployYaml(GRAPH_MANIFEST);
     const exported = renderRepositoryDeployYaml(compiled.spec, compiled.digest);

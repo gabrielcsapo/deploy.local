@@ -10,6 +10,8 @@ const NAME_PATTERN = /^[a-z][a-z0-9-]{0,62}$/;
 const CONFIGURATION_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const ENVIRONMENT_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const PROFILE_PATTERN = /^[a-z0-9.-]+\/[a-z0-9.-]+@\d+$/;
+// Ten minutes: long enough for a large library over a VM file share, short of a release job.
+const MAX_STARTUP_SECONDS = 600;
 const RESERVED_MAPPING_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 type JsonScalar = string | number | boolean | null;
@@ -125,6 +127,11 @@ export interface VolumeMountManifest {
 export interface HealthManifest {
   interface: string;
   path?: string;
+  /**
+   * How long a new instance may take to answer before it fails its health gate (default 30).
+   * For apps that read a large store before they listen.
+   */
+  startupSeconds?: number;
 }
 
 export interface RuntimeManifest {
@@ -1167,12 +1174,15 @@ function validateMountMap(value: unknown, path: string, issues: string[]) {
 function validateHealth(value: unknown, path: string, issues: string[]) {
   if (value === undefined) return undefined;
   const input = record(value, path, issues);
-  unknownFields(input, ['interface', 'path'], path, issues);
+  unknownFields(input, ['interface', 'path', 'startupSeconds'], path, issues);
   validateName(input.interface, `${path}.interface`, issues);
   if (input.path !== undefined) absolutePath(input.path, `${path}.path`, issues);
+  if (input.startupSeconds !== undefined)
+    integer(input.startupSeconds, `${path}.startupSeconds`, issues, 1, MAX_STARTUP_SECONDS);
   return omitUndefined({
     interface: input.interface as string,
     path: input.path as string | undefined,
+    startupSeconds: input.startupSeconds as number | undefined,
   });
 }
 

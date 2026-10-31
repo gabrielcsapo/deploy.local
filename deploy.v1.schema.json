@@ -602,6 +602,12 @@
         "path": {
           "type": "string",
           "pattern": "^/"
+        },
+        "startupSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600,
+          "description": "How long a new instance may take to answer before it fails its health gate. Defaults to 30."
         }
       }
     },

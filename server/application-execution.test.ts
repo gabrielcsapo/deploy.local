@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { planApplicationExecution } from './application-execution.ts';
+import { componentHealthTimeoutMs, planApplicationExecution } from './application-execution.ts';
 import { placementTargetFromFacts } from './application-placement.ts';
 import { compileApplicationManifest, type ApplicationSpec } from './application-spec.ts';
 
@@ -229,5 +229,19 @@ describe('application service execution planning', () => {
       'deploy.local/site-id': 'node-unreported',
       storage: 'ssd',
     });
+  });
+
+  it('gives each component its declared health startup window, or 30 seconds', () => {
+    assert.equal(componentHealthTimeoutMs({}), 30_000);
+    assert.equal(componentHealthTimeoutMs({ health: { interface: 'http' } }), 30_000);
+    assert.equal(
+      componentHealthTimeoutMs({ health: { interface: 'http', startupSeconds: 180 } }),
+      180_000,
+    );
+    // Callers that set an explicit timeout (tests, bounded probes) keep it.
+    assert.equal(
+      componentHealthTimeoutMs({ health: { interface: 'http', startupSeconds: 180 } }, 500),
+      500,
+    );
   });
 });
