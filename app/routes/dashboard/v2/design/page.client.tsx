@@ -36,6 +36,14 @@ import {
   type Design,
   type Tokens,
 } from './model';
+import {
+  AssetsPanel,
+  ComponentPanel,
+  useLibrary,
+  type Component,
+  type DropTarget,
+  type Placing,
+} from './Assets';
 import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from './Panels';
 import './style.css';
 
@@ -221,6 +229,7 @@ export default function DesignPage() {
 
   const select = useCallback((next: Selection) => {
     setSelection(next);
+    if (next) setPicked(null);
     setAsking(false);
     remember({ board: next?.board ?? null, layer: next?.layer ?? null });
   }, []);
@@ -378,6 +387,80 @@ export default function DesignPage() {
       reload(board, result.commit),
     );
   };
+  // Assets: a component picked to look at, or being dragged onto a board.
+  const assets = useLibrary(projectApi, ref, design.data?.commit);
+  const [picked, setPicked] = useState<{
+    component: Component;
+    props: Record<string, string>;
+  } | null>(null);
+  const [placing, setPlacing] = useState<Placing | null>(null);
+  const [dropping, setDropping] = useState<DropTarget | null>(null);
+  const dropAt = useRef<DropTarget | null>(null);
+  const place = (component: Component, props: Record<string, string>, target: DropTarget) =>
+    send<{ branch: string; commit: string; layers: string[] }>(
+      '/edit',
+      {
+        board: target.board,
+        edits: [
+          {
+            op: 'insert',
+            parent: target.parent ?? undefined,
+            index: target.index,
+            component: { id: component.id, props, x: target.x, y: target.y },
+          },
+        ],
+      },
+      (result) => {
+        reload(target.board, result.commit);
+        const layer = result.layers[0];
+        if (layer) select({ board: target.board, layer });
+      },
+    );
+  const dragComponent = (component: Component, event: React.PointerEvent) => {
+    const props = picked?.component.id === component.id ? picked.props : {};
+    const start = { x: event.clientX, y: event.clientY };
+    let moving = false;
+    let cancelled = false;
+    const move = (next: PointerEvent) => {
+      // A click picks the component; a drag of a few pixels starts placing it.
+      if (!moving && Math.hypot(next.clientX - start.x, next.clientY - start.y) < 4) return;
+      if (!moving && !editable) return;
+      moving = true;
+      setPicked({ component, props });
+      setPlacing({ component, props, x: next.clientX, y: next.clientY });
+    };
+    const keys = (next: KeyboardEvent) => {
+      if (next.key === 'Escape') {
+        cancelled = true;
+        up();
+      }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('keydown', keys);
+      if (!moving) return;
+      setPlacing(null);
+      const target = dropAt.current;
+      if (target && !cancelled) place(component, props, target);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('keydown', keys);
+  };
+  const inAssets = placing ?? picked;
+  const componentPanel =
+    inAssets && assets?.library ? (
+      <ComponentPanel
+        component={inAssets.component}
+        library={assets.library}
+        props={inAssets.props}
+        setProps={(props) => setPicked({ component: inAssets.component, props })}
+        target={placing ? dropping : null}
+        usage={assets.usage[inAssets.component.id] ?? []}
+        sections={sections}
+      />
+    ) : undefined;
   const [shape, setShape] = useState<'rectangle' | 'ellipse' | 'line'>('rectangle');
   const [shapeMenu, setShapeMenu] = useState(false);
 
@@ -541,7 +624,7 @@ export default function DesignPage() {
   const empty = projects.data && !projects.data.projects.length;
   return (
     <div
-      className={`dz${selection ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}`}
+      className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}`}
       ref={stage}
     >
       <link
@@ -647,6 +730,18 @@ export default function DesignPage() {
         inReview={inReviewBoards}
         agentAt={agentAt}
         onHide={() => setMinimized(true)}
+        assets={
+          <AssetsPanel
+            library={assets ? assets.library : undefined}
+            files={base}
+            picked={inAssets?.component.id ?? null}
+            onPick={(component) => {
+              select(null);
+              setPicked({ component, props: {} });
+            }}
+            onDrag={dragComponent}
+          />
+        }
       />
       <div className="dz-stage">
         {empty ? (
@@ -686,6 +781,13 @@ export default function DesignPage() {
             onNote={editable ? editNote : undefined}
             retypeNext={retypeNext}
             onRetyped={() => setRetypeNext(null)}
+            placing={placing}
+            onTarget={(target) => {
+              dropAt.current = target;
+              setDropping(target);
+            }}
+            owner={owner}
+            designFiles={base}
           />
         ) : (
           <div className="dz-loading">Loading the design…</div>
@@ -852,6 +954,7 @@ export default function DesignPage() {
             : null
         }
         onEdit={editable ? edit : undefined}
+        component={componentPanel}
         comments={
           project ? (
             <CommentsPanel

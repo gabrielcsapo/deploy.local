@@ -1565,3 +1565,212 @@
   font: inherit;
   font-size: var(--ds-type-meta);
 }
+
+/* Assets: the design system's components to place on boards. */
+.dz-assets {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: var(--ds-space-3);
+}
+.dz-as-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: var(--ds-space-2) 10px 2px;
+  padding: 0 var(--ds-space-2);
+  border-radius: 6px;
+  background: var(--ds-sidebar);
+  color: var(--ds-tertiary);
+}
+.dz-as-search:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ds-accent);
+}
+.dz-as-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ds-text);
+  font: inherit;
+}
+.dz-as-lib {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--ds-space-3) 2px;
+  font-weight: 600;
+}
+.dz-as-lib span {
+  margin-left: auto;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+  font-weight: 400;
+}
+.dz-as-g {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px var(--ds-space-3) 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ds-secondary);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.dz-as-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px var(--ds-space-3) 6px;
+}
+.dz-as-it {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-secondary);
+  font: inherit;
+  font-size: var(--ds-type-caption);
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+}
+.dz-as-th {
+  display: block;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--ds-sidebar);
+  box-shadow: inset 0 0 0 1px var(--ds-line);
+}
+.dz-as-th iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  pointer-events: none;
+}
+.dz-as-it.on .dz-as-th {
+  box-shadow: inset 0 0 0 1.5px var(--ds-accent);
+}
+.dz-as-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-as-empty {
+  padding: var(--ds-space-3);
+  color: var(--ds-tertiary);
+}
+.dz-as-about {
+  margin: 0;
+  padding-right: var(--ds-space-3);
+  color: var(--ds-secondary);
+  line-height: 1.5;
+}
+.dz-as-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  padding-right: var(--ds-space-3);
+}
+.dz-as-row.muted {
+  color: var(--ds-tertiary);
+}
+.dz-sel-kind.dz-component-name {
+  justify-content: flex-start;
+  gap: 6px;
+  color: var(--ds-accent);
+}
+.dz-component-name .dz-sel-name {
+  margin-right: 0;
+}
+/* Placing a component: where it goes, and what it is, by the pointer. */
+.dz-drop-line {
+  position: absolute;
+  border-radius: 1px;
+  background: var(--ds-accent);
+  pointer-events: none;
+}
+/* Its ends, as the board draws them: open dots at canvas scale. */
+.dz-drop-line::before,
+.dz-drop-line::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: var(--dz-dot);
+  height: var(--dz-dot);
+  box-sizing: border-box;
+  border: calc(var(--dz-dot) / 4) solid var(--ds-accent);
+  border-radius: 50%;
+  background: var(--ds-surface);
+  transform: translate(-50%, -50%);
+}
+.dz-drop-line::before {
+  left: 0;
+}
+.dz-drop-line::after {
+  left: 100%;
+}
+.dz-drop-line.vertical::before,
+.dz-drop-line.vertical::after {
+  left: 50%;
+}
+.dz-drop-line.vertical::before {
+  top: 0;
+}
+.dz-drop-line.vertical::after {
+  top: 100%;
+}
+.dz-drop-tip {
+  position: absolute;
+  padding: 0 7px;
+  border-radius: 4px;
+  background: var(--ds-accent);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+.dz-ghost {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.dz-ghost-card {
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--ds-surface);
+  box-shadow:
+    0 0 0 1.5px var(--ds-accent),
+    var(--ds-shadow-lg);
+  opacity: 0.95;
+}
+.dz-ghost-card iframe {
+  display: block;
+  border: 0;
+}
+.dz-you {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--ds-action);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 500;
+}

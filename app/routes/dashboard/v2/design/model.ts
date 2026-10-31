@@ -131,6 +131,21 @@ export function hex(color: string) {
       .toLowerCase();
   const long = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(color.trim());
   if (long) return long[2] && long[2].toLowerCase() !== 'ff' ? null : long[1].toLowerCase();
+  // color-mix() computes to color(srgb r g b), each from 0 to 1.
+  const srgb = /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)$/i.exec(
+    color.trim(),
+  );
+  if (srgb)
+    return srgb[4] !== undefined && Number(srgb[4]) < 1
+      ? null
+      : srgb
+          .slice(1, 4)
+          .map((part) =>
+            Math.round(Number(part) * 255)
+              .toString(16)
+              .padStart(2, '0'),
+          )
+          .join('');
   const rgb = /^rgba?\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)(?:[ ,/]+([\d.]+))?\s*\)$/i.exec(color.trim());
   if (!rgb || (rgb[4] !== undefined && Number(rgb[4]) < 1)) return null;
   return rgb

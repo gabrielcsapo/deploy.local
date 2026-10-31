@@ -1,0 +1,696 @@
+{
+  "name": "deploy.local design system",
+  "components": [
+    {
+      "id": "composer",
+      "name": "Composer",
+      "group": "Input",
+      "description": "Where a person asks, builds or follows up. One per screen, at the foot of a conversation or under the greeting.",
+      "props": [],
+      "html": "<div class=\"dl-composer\" style=\"margin:0\"><input type=\"text\" value=\"Make Wednesday pick-up night, and put the item count before the button\" aria-label=\"Message\"><div class=\"dl-composer-bar\"><span class=\"dl-chip\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>Screenshot with 2 marks</span><span class=\"dl-grow\"></span><button type=\"button\" class=\"dl-send\" aria-label=\"Send\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg></button></div></div>"
+    },
+    {
+      "id": "button-primary",
+      "name": "Button · primary",
+      "group": "Input",
+      "description": "The one next decision on a screen. Near-black, never violet; one per screen.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Button"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"dl-btn primary\">{{label}}</button>"
+    },
+    {
+      "id": "button-secondary",
+      "name": "Button · secondary",
+      "group": "Input",
+      "description": "Any other action beside the primary one.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Button"
+        }
+      ],
+      "html": "<button type=\"button\" class=\"dl-btn\">{{label}}</button>"
+    },
+    {
+      "id": "icon-button",
+      "name": "Icon button",
+      "group": "Input",
+      "description": "An action shown as a line icon, with its name as the label people hear.",
+      "props": [],
+      "html": "<button type=\"button\" class=\"dl-icon-btn\" aria-label=\"Search\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-3.5-3.5\"/></svg></button>"
+    },
+    {
+      "id": "chip",
+      "name": "Chip",
+      "group": "Input",
+      "description": "A small choice inside a field or composer, like the computer a task runs on.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Any computer"
+        }
+      ],
+      "html": "<span class=\"dl-chip\">{{label}}</span>"
+    },
+    {
+      "id": "segmented",
+      "name": "Segmented",
+      "group": "Input",
+      "description": "Two to four views of the same thing; one is always on.",
+      "props": [],
+      "html": "<div class=\"dl-seg\" style=\"display:flex\"><a style=\"flex:1;justify-content:center\">Waiting 2</a><a class=\"on\" style=\"flex:1;justify-content:center\">Answered</a></div>"
+    },
+    {
+      "id": "setting",
+      "name": "Setting row",
+      "group": "Input",
+      "description": "One setting in a settings list: its name, what it does, and its control.",
+      "props": [],
+      "html": "<div class=\"dl-setting\"><span class=\"dl-t\"><span>Every morning</span><span>Off: only when you press Run now</span></span><span class=\"dl-v\"><label for=\"agent-time\" class=\"dl-sr\">Morning time</label><span class=\"dl-field\" style=\"width:132px;height:32px\"><input id=\"agent-time\" type=\"time\" value=\"08:00\" disabled></span><button type=\"button\" class=\"dl-switch off\" role=\"switch\" aria-checked=\"false\" aria-label=\"Every morning\"><span></span></button></span></div>"
+    },
+    {
+      "id": "kbd",
+      "name": "Shortcut",
+      "group": "Input",
+      "description": "A keyboard shortcut beside the action it runs.",
+      "props": [],
+      "html": "<span class=\"dl-kbd\">⌘N</span>"
+    },
+    {
+      "id": "list-group",
+      "name": "List row",
+      "group": "Lists and feedback",
+      "description": "Rows in a rounded group: a title, a line that explains it, and where it leads.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Add a project"
+        },
+        {
+          "id": "detail",
+          "label": "Detail",
+          "default": "A repository and the apps it runs."
+        },
+        {
+          "id": "meta",
+          "label": "Meta",
+          "default": "New project"
+        }
+      ],
+      "html": "<div class=\"dl-group\"><div class=\"dl-item\"><span class=\"dl-t\"><span>{{title}}</span><span>{{detail}}</span></span><span class=\"dl-meta\">{{meta}}</span></div></div>"
+    },
+    {
+      "id": "notice",
+      "name": "Notice",
+      "group": "Lists and feedback",
+      "description": "A short message above content. Use it for something the person should know before acting, not for errors on a field.",
+      "props": [
+        {
+          "id": "tone",
+          "label": "Tone",
+          "default": "Warning",
+          "options": {
+            "Warning": "warning",
+            "Danger": "danger",
+            "Neutral": ""
+          }
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Docker isn’t reachable"
+        },
+        {
+          "id": "action",
+          "label": "Action",
+          "default": "Check again"
+        }
+      ],
+      "html": "<div class=\"dl-banner {{tone}}\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 9v4M12 17h.01M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z\"/></svg><span class=\"dl-t\"><span>{{title}}</span><span>{{action}}</span></span></div>"
+    },
+    {
+      "id": "approval",
+      "name": "Approval card",
+      "group": "Lists and feedback",
+      "description": "A decision an agent brings to a person. The only card in a conversation; it stays as a record once answered.",
+      "props": [],
+      "html": "<div class=\"dl-approval\"><div class=\"dl-approval-head\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"6\" cy=\"5\" r=\"2\"/><circle cx=\"6\" cy=\"19\" r=\"2\"/><circle cx=\"18\" cy=\"12\" r=\"2\"/><path d=\"M6 7v10M6 7a7 7 0 0 0 10 5\"/></svg><div class=\"dl-t\"><p class=\"dl-approval-title\">Merge PR #18</p><p class=\"dl-approval-text\">Reviewed by GPT-6.1-Sol. 4 checks passed on this version.</p></div></div><div class=\"dl-approval-actions\"><button type=\"button\" class=\"dl-btn primary\">Merge and release</button><a href=\"ReviewPhone.html\" class=\"dl-btn secondary\">Review</a><button type=\"button\" class=\"dl-btn quiet\">Not now</button></div></div>"
+    },
+    {
+      "id": "status",
+      "name": "Status",
+      "group": "Lists and feedback",
+      "description": "Running work as a spinner, ready as a check; apps and computers as a dot with a label.",
+      "props": [],
+      "html": "<span class=\"dl-status failed\" style=\"color:var(--danger)\"><span class=\"dl-dot\"></span>1 failing</span>"
+    },
+    {
+      "id": "worklog",
+      "name": "Work log",
+      "group": "Lists and feedback",
+      "description": "An agent’s steps folded into one line, like “Worked for 3m”.",
+      "props": [],
+      "html": "<div class=\"dl-worklog\"><span class=\"dl-worklog-toggle\">Morning brief · Monday · 2 proposals, both done<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"/></svg></span><ul class=\"dl-steps\"></ul></div>"
+    },
+    {
+      "id": "steps",
+      "name": "Steps",
+      "group": "Lists and feedback",
+      "description": "Numbered steps for setting something up, one action each.",
+      "props": [],
+      "html": "<ul class=\"dl-steps\"><li class=\"dl-step\"><span class=\"dl-i\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"6\" cy=\"5\" r=\"2\"/><circle cx=\"6\" cy=\"19\" r=\"2\"/><circle cx=\"18\" cy=\"19\" r=\"2\"/><path d=\"M6 7v10M18 17V9a3 3 0 0 0-3-3h-4M13 4l-2 2 2 2\"/></svg></span><span class=\"dl-t\">Reviewed 14 pull requests</span></li><li class=\"dl-step\"><span class=\"dl-i\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12h4l3-7 4 14 3-7h4\"/></svg></span><span class=\"dl-t\">Checked SER with Warden</span></li></ul>"
+    },
+    {
+      "id": "reply",
+      "name": "Agent reply",
+      "group": "Lists and feedback",
+      "description": "What an agent found, as prose at reply size.",
+      "props": [],
+      "html": "<div class=\"dl-reply\"><p>PR #17 shipped overnight. Two things need you.</p></div>"
+    },
+    {
+      "id": "section",
+      "name": "Section",
+      "group": "Lists and feedback",
+      "description": "A titled part of a page, like a settings section.",
+      "props": [],
+      "html": "<section class=\"dl-section\">\n    <label for=\"agent-name\" class=\"dl-field-label\">Name</label>\n    <div class=\"dl-field\"><input id=\"agent-name\" type=\"text\" value=\"Release notes writer\"></div>\n  </section>"
+    },
+    {
+      "id": "tag",
+      "name": "Tag",
+      "group": "Lists and feedback",
+      "description": "A short label on a row, never a colored badge.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "Draft"
+        }
+      ],
+      "html": "<span class=\"dl-tag\">{{label}}</span>"
+    },
+    {
+      "id": "avatar",
+      "name": "Avatar",
+      "group": "Lists and feedback",
+      "description": "A person or agent, by initial.",
+      "props": [],
+      "html": "<span class=\"dl-avatar\">G</span>"
+    },
+    {
+      "id": "sidebar",
+      "name": "Sidebar",
+      "group": "Navigation",
+      "description": "The one sidebar: New task, Projects, Live, Computers, then Agents, Waiting on you and the days. It is the inbox.",
+      "props": [],
+      "html": "<nav class=\"dl-side\" aria-label=\"deploy.local\">\n  <div class=\"dl-side-top\"><span class=\"dl-brand\"><span class=\"dl-mark\">d</span>deploy.local</span><button type=\"button\" class=\"dl-icon-btn\" aria-label=\"Search\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-3.5-3.5\"/></svg></button></div>\n  <div class=\"dl-side-nav\">\n    <a href=\"Home.html\" class=\"dl-nav strong\"><span class=\"dl-lead\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z\"/></svg></span><span class=\"dl-t\">New task</span><span class=\"dl-end\"><span class=\"dl-kbd\">⌘N</span></span></a>\n    <a href=\"Projects.html\" class=\"dl-nav\"><span class=\"dl-lead\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg></span><span class=\"dl-t\">Projects</span></a>\n    <a href=\"Live.html\" class=\"dl-nav\"><span class=\"dl-lead\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12h4l3-7 4 14 3-7h4\"/></svg></span><span class=\"dl-t\">Live</span><span class=\"dl-end\"><span class=\"dl-status failed\" style=\"color:var(--danger)\"><span class=\"dl-dot\"></span>1 failing</span></span></a>\n    <a href=\"Compute.html\" class=\"dl-nav on\"><span class=\"dl-lead\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 20h8M12 16v4\"/></svg></span><span class=\"dl-t\">Computers</span></a>\n  </div>\n  <div class=\"dl-side-scroll\">\n    <div class=\"dl-side-label\"><span>Agents</span><a href=\"NewAgent.html\" class=\"dl-icon-btn sm\" aria-label=\"New agent\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></a></div>\n    <a href=\"Main.html\" class=\"dl-nav\"><span class=\"dl-lead\"><span class=\"dl-glyph\">S</span></span><span class=\"dl-t\">Scout</span></a>\n    <a href=\"Warden.html\" class=\"dl-nav\"><span class=\"dl-lead\"><span class=\"dl-glyph warden\">W</span></span><span class=\"dl-t\">Warden</span></a>\n    \n    <div class=\"dl-side-label\"><span><a href=\"Inbox.html\">Waiting on you</a></span><span class=\"dl-c\">3</span></div>\n    <a href=\"Warden.html\" class=\"dl-nav\"><span class=\"dl-lead\"><svg class=\"dl-attn\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Needs you\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v6M12 17h.01\"/></svg></span><span class=\"dl-t\">Roll back home-gym?</span><span class=\"dl-end\">now</span></a><a href=\"Review.html\" class=\"dl-nav\"><span class=\"dl-lead\"><svg class=\"dl-attn\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Needs you\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v6M12 17h.01\"/></svg></span><span class=\"dl-t\">Merge PR #18</span><span class=\"dl-end\">4m</span></a><a href=\"Task.html\" class=\"dl-nav\"><span class=\"dl-lead\"><svg class=\"dl-attn\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Needs you\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v6M12 17h.01\"/></svg></span><span class=\"dl-t\">Keep 3 or 5 releases?</span><span class=\"dl-end\">12m</span></a>\n    <div class=\"dl-side-label\"><span>Today</span><button type=\"button\" class=\"dl-icon-btn sm\" aria-label=\"New\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button></div>\n    <a href=\"Task.html\" class=\"dl-nav\"><span class=\"dl-lead\"><svg class=\"dl-run\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Running\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg></span><span class=\"dl-t\">Self-release pipeline</span><span class=\"dl-end\">12m</span></a><a href=\"TaskStalled.html\" class=\"dl-nav\"><span class=\"dl-lead\"><svg class=\"dl-run\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Running\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg></span><span class=\"dl-t\">Fix the sync migration</span><span class=\"dl-end\">3m</span></a><a href=\"TaskChanges.html\" class=\"dl-nav\"><span class=\"dl-t\">Show checks on merged PRs</span><span class=\"dl-end\">40m</span></a><a href=\"#\" class=\"dl-nav\"><span class=\"dl-t\">Rename workouts.started safely</span><span class=\"dl-end\">2h</span></a>\n    <div class=\"dl-side-label\"><span>Yesterday</span></div><a href=\"#\" class=\"dl-nav\"><span class=\"dl-t\">Update from main after conflicts</span></a><a href=\"#\" class=\"dl-nav\"><span class=\"dl-t\">Keep leading zeros in SSH keys</span></a><a href=\"#\" class=\"dl-nav\"><span class=\"dl-t\">Queue runs per computer</span></a>\n  </div>\n  <a href=\"Settings.html\" class=\"dl-side-foot\"><span class=\"dl-avatar\">G</span><span class=\"dl-who\"><span class=\"dl-strong\">Gabriel</span><span class=\"dl-meta\">3 computers online</span></span><span class=\"dl-icon-btn\" aria-hidden=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0\"/><circle cx=\"16\" cy=\"6\" r=\"2\"/><circle cx=\"10\" cy=\"12\" r=\"2\"/><circle cx=\"18\" cy=\"18\" r=\"2\"/></svg></span></a>\n</nav>"
+    },
+    {
+      "id": "nav-item",
+      "name": "Nav item",
+      "group": "Navigation",
+      "description": "One place in the sidebar.",
+      "props": [
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "New task"
+        }
+      ],
+      "html": "<a href=\"#\" class=\"dl-nav\"><span class=\"dl-lead\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></span><span class=\"dl-t\">{{label}}</span></a>"
+    },
+    {
+      "id": "header",
+      "name": "Header",
+      "group": "Navigation",
+      "description": "A 48 px header: the title, a muted subtitle and end-aligned icon actions.",
+      "props": [],
+      "html": "<header class=\"dl-head\"><button type=\"button\" class=\"dl-icon-btn dl-menu-btn\" aria-label=\"Show sidebar\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg></button><span class=\"dl-t\">Computers</span><span class=\"dl-end\"><button type=\"button\" class=\"dl-icon-btn\" aria-label=\"Search\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-3.5-3.5\"/></svg></button></span></header>"
+    },
+    {
+      "id": "page-head",
+      "name": "Page header",
+      "group": "Navigation",
+      "description": "A page’s 22 px title and its actions.",
+      "props": [],
+      "html": "<div class=\"dl-page-head\"><div class=\"dl-t\"><h1 class=\"dl-title\">Computers</h1><span class=\"dl-meta\">3 online · 2 of 3 busy</span></div><span class=\"dl-end\"><button type=\"button\" class=\"dl-btn primary\">Add a computer</button></span></div>"
+    },
+    {
+      "id": "tabs",
+      "name": "Tabs",
+      "group": "Navigation",
+      "description": "Views of one thing, shown once there is more than one.",
+      "props": [],
+      "html": "<nav class=\"dl-tabs\" aria-label=\"Sections\"><a href=\"Compute.html\">Computers<span class=\"dl-n\">3</span></a><a href=\"Models.html\">Models</a><a href=\"AddComputer.html\" class=\"on\">Add a computer</a></nav>"
+    },
+    {
+      "id": "phone-sheet",
+      "name": "Phone sheet",
+      "group": "Navigation",
+      "description": "A sheet over a phone screen, for one task at a time.",
+      "props": [],
+      "html": "<div class=\"dl-dialog dl-sheet\" role=\"dialog\" aria-label=\"Add a computer\">\n  <div class=\"dl-dialog-head\"><h2>Add a computer</h2><button type=\"button\" class=\"dl-icon-btn\" aria-label=\"Close\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 6l12 12M18 6L6 18\"/></svg></button></div>\n  <p class=\"dl-soft\" style=\"margin:0\">Install the deploy.local app on the computer you want to add and sign in. It asks which roles to take: Take tasks, Run apps, Serve models, Use the screen.</p>\n  <div style=\"display:flex;gap:8px;flex-wrap:wrap\"><button type=\"button\" class=\"dl-btn primary\">Download for Mac</button><button type=\"button\" class=\"dl-btn secondary\" disabled style=\"opacity:.45;cursor:default\">Linux</button><button type=\"button\" class=\"dl-btn secondary\" disabled style=\"opacity:.45;cursor:default\">Windows</button></div>\n  <div style=\"display:flex;flex-direction:column;gap:8px\"><span class=\"dl-field-label\" style=\"font-weight:600\">For a server without a screen</span><label class=\"dl-field-label\" for=\"cname\">Computer name</label><input id=\"cname\" class=\"dl-input\" value=\"bazzite\" disabled style=\"width:100%;box-sizing:border-box;height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);font:inherit\"><pre class=\"dl-term wrap\" style=\"margin:0\">curl -fsSL http://deploy.local/install | sh -s -- --join 7KQ2-M9XD</pre><p class=\"dl-meta\" style=\"margin:0\">Installs the CLI if it’s missing, then joins as bazzite. Linux asks for your password. The code expires at 1:42 PM.</p></div>\n  <div class=\"dl-notice\"><svg class=\"dl-run\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Running\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg><span>Waiting for bazzite to connect…</span></div>\n  <div class=\"dl-dialog-foot\"><button type=\"button\" class=\"dl-btn quiet\">Copy command</button><button type=\"button\" class=\"dl-btn secondary\">Done</button></div>\n</div>"
+    },
+    {
+      "id": "phone-title",
+      "name": "Phone title bar",
+      "group": "Navigation",
+      "description": "A phone screen’s large title and its buttons.",
+      "props": [],
+      "html": "<header class=\"dl-ph-top\"><a href=\"HomePhone.html\" class=\"dl-ph-btn\" aria-label=\"Back\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 6l-6 6 6 6\"/></svg></a><span class=\"dl-t\"><a href=\"AgentInfoPhone.html\" style=\"display:flex;flex-direction:column;align-items:center;line-height:1.2\"><span>Scout</span><span style=\"font-size:12px;line-height:16px;font-weight:400;color:var(--muted)\">2 tasks running ›</span></a></span><button type=\"button\" class=\"dl-ph-btn\" aria-label=\"More\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"5\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/></svg></button></header>"
+    },
+    {
+      "id": "phone-group",
+      "name": "Phone list group",
+      "group": "Navigation",
+      "description": "Rounded groups of 17 px rows on a phone, with 44 px targets.",
+      "props": [],
+      "html": "<a href=\"Task.html\" class=\"dl-ph-group\" style=\"margin:0;display:block\"><a href=\"Task.html\" class=\"dl-ph-row\"><svg class=\"dl-run\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" role=\"img\" aria-label=\"Running\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg><span class=\"dl-t\"><span>Self-release pipeline</span><span>Running tests · MacBook Pro · 12m</span></span></a></a>"
+    },
+    {
+      "id": "phone-composer",
+      "name": "Phone composer",
+      "group": "Navigation",
+      "description": "The composer at the foot of a phone conversation.",
+      "props": [],
+      "html": "<div class=\"dl-ph-composer\"><a href=\"AttachPhone.html\" class=\"dl-ph-btn\" style=\"width:32px;height:32px;margin-left:-8px\" aria-label=\"Attach\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></a><span class=\"dl-grow\">Ask Scout…</span><a href=\"ModelPhone.html\" style=\"flex:none;display:inline-flex;align-items:center;gap:2px;font-size:13px;color:var(--muted)\">Auto<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 9l6 6 6-6\"/></svg></a><span class=\"dl-send\" aria-hidden=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg></span></div>"
+    },
+    {
+      "id": "icon-compose",
+      "name": "Compose",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z\"/></svg>"
+    },
+    {
+      "id": "icon-folder",
+      "name": "Folder",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>"
+    },
+    {
+      "id": "icon-pulse",
+      "name": "Pulse",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12h4l3-7 4 14 3-7h4\"/></svg>"
+    },
+    {
+      "id": "icon-computer",
+      "name": "Computer",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 20h8M12 16v4\"/></svg>"
+    },
+    {
+      "id": "icon-plus",
+      "name": "Plus",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg>"
+    },
+    {
+      "id": "icon-chevron",
+      "name": "Chevron",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"/></svg>"
+    },
+    {
+      "id": "icon-down",
+      "name": "Down",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 9l6 6 6-6\"/></svg>"
+    },
+    {
+      "id": "icon-menu",
+      "name": "Menu",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg>"
+    },
+    {
+      "id": "icon-panel",
+      "name": "Panel",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM15 4v16\"/></svg>"
+    },
+    {
+      "id": "icon-send",
+      "name": "Send",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg>"
+    },
+    {
+      "id": "icon-bulb",
+      "name": "Bulb",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z\"/></svg>"
+    },
+    {
+      "id": "icon-voice",
+      "name": "Voice",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0M12 18v3\"/></svg>"
+    },
+    {
+      "id": "icon-search",
+      "name": "Search",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M18 11a7 7 0 1 1-14 0 7 7 0 0 1 14 0M20 20l-3.5-3.5\"/></svg>"
+    },
+    {
+      "id": "icon-settings",
+      "name": "Settings",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M18 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0M12 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0\"/></svg>"
+    },
+    {
+      "id": "icon-running",
+      "name": "Running",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3a9 9 0 1 0 9 9\"/></svg>"
+    },
+    {
+      "id": "icon-attention",
+      "name": "Attention",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M12 7v6M12 17h.01\"/></svg>"
+    },
+    {
+      "id": "icon-check",
+      "name": "Check",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M8 12l3 3 5-6\"/></svg>"
+    },
+    {
+      "id": "icon-close",
+      "name": "Close",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 6l12 12M18 6L6 18\"/></svg>"
+    },
+    {
+      "id": "icon-file",
+      "name": "File",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5\"/></svg>"
+    },
+    {
+      "id": "icon-terminal",
+      "name": "Terminal",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM7 9l3 3-3 3M13 15h4\"/></svg>"
+    },
+    {
+      "id": "icon-merge",
+      "name": "Merge",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M8 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0M8 19a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0M6 7v10M6 7a7 7 0 0 0 10 5\"/></svg>"
+    },
+    {
+      "id": "icon-cloud",
+      "name": "Cloud",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7 18a5 5 0 0 1-.6-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z\"/></svg>"
+    },
+    {
+      "id": "icon-clock",
+      "name": "Clock",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M12 7v5l3 2\"/></svg>"
+    },
+    {
+      "id": "icon-image",
+      "name": "Image",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM21 16l-5-5-9 9M11 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0\"/></svg>"
+    },
+    {
+      "id": "icon-play",
+      "name": "Play",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M8 5l11 7-11 7z\"/></svg>"
+    },
+    {
+      "id": "icon-download",
+      "name": "Download",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 4v12M6 10l6 6 6-6M5 20h14\"/></svg>"
+    },
+    {
+      "id": "icon-shield",
+      "name": "Shield",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z\"/></svg>"
+    },
+    {
+      "id": "icon-move",
+      "name": "Move",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3l14 8-6 2-2 6z\"/></svg>"
+    },
+    {
+      "id": "icon-hand",
+      "name": "Hand",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-4a1.5 1.5 0 0 1 2.6-1.5L8 13\"/></svg>"
+    },
+    {
+      "id": "icon-frame",
+      "name": "Frame",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7 3v18M17 3v18M3 7h18M3 17h18\"/></svg>"
+    },
+    {
+      "id": "icon-shape",
+      "name": "Shape",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z\"/></svg>"
+    },
+    {
+      "id": "icon-pen",
+      "name": "Pen",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19l7-7 3 3-7 7zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18zM2 2l7.6 7.6\"/></svg>"
+    },
+    {
+      "id": "icon-text",
+      "name": "Text",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 6V4h14v2M12 4v16M9 20h6\"/></svg>"
+    },
+    {
+      "id": "icon-sticky",
+      "name": "Sticky",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 4h14v10l-6 6H5zM13 20v-6h6\"/></svg>"
+    },
+    {
+      "id": "icon-comment",
+      "name": "Comment",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z\"/></svg>"
+    },
+    {
+      "id": "icon-spark",
+      "name": "Spark",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z\"/></svg>"
+    },
+    {
+      "id": "icon-code",
+      "name": "Code",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 8l-4 4 4 4M15 8l4 4-4 4\"/></svg>"
+    },
+    {
+      "id": "icon-layers",
+      "name": "Layers",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3l9 5-9 5-9-5zM3 13l9 5 9-5\"/></svg>"
+    },
+    {
+      "id": "icon-stack",
+      "name": "Stack",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 4h14a1.5 1.5 0 0 1 1.5 1.5v3A1.5 1.5 0 0 1 19 10H5a1.5 1.5 0 0 1-1.5-1.5v-3A1.5 1.5 0 0 1 5 4zM5 14h14a1.5 1.5 0 0 1 1.5 1.5v3A1.5 1.5 0 0 1 19 20H5a1.5 1.5 0 0 1-1.5-1.5v-3A1.5 1.5 0 0 1 5 14z\"/></svg>"
+    },
+    {
+      "id": "icon-component",
+      "name": "Component",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3l4 4-4 4-4-4zM12 13l4 4-4 4-4-4z\"/></svg>"
+    },
+    {
+      "id": "icon-vector",
+      "name": "Vector",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 18C8 6 16 6 20 18\"/></svg>"
+    },
+    {
+      "id": "icon-branch",
+      "name": "Branch",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M8 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0M8 19a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0M6 7v10M18 9c0 5-6 4-10 8\"/></svg>"
+    },
+    {
+      "id": "icon-tokens",
+      "name": "Tokens",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0M20 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0M10 17a3 3 0 1 1-6 0 3 3 0 0 1 6 0M20 17a3 3 0 1 1-6 0 3 3 0 0 1 6 0\"/></svg>"
+    },
+    {
+      "id": "icon-eye",
+      "name": "Eye",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0\"/></svg>"
+    },
+    {
+      "id": "icon-more",
+      "name": "More",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h.01M12 12h.01M19 12h.01\"/></svg>"
+    },
+    {
+      "id": "icon-minus",
+      "name": "Minus",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/></svg>"
+    },
+    {
+      "id": "icon-back",
+      "name": "Back",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 6l-6 6 6 6\"/></svg>"
+    },
+    {
+      "id": "icon-undo",
+      "name": "Undo",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 12a8 8 0 1 0 2.3-5.7L4 8.6M4 4v4.6h4.6\"/></svg>"
+    },
+    {
+      "id": "icon-ellipse",
+      "name": "Ellipse",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0\"/></svg>"
+    },
+    {
+      "id": "icon-line",
+      "name": "Line",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 19L19 5\"/></svg>"
+    },
+    {
+      "id": "icon-keyboard",
+      "name": "Keyboard",
+      "group": "Icons and art",
+      "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
+      "props": [],
+      "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10\"/></svg>"
+    }
+  ]
+}

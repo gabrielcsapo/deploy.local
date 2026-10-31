@@ -7,6 +7,7 @@ import {
   type LayerChange,
   type Section,
 } from './model';
+import { ComponentFrame, dropTarget, type DropTarget, type Placing } from './Assets';
 
 export type View = { x: number; y: number; z: number };
 export type Selection = { board: string; layer: string | null } | null;
@@ -90,6 +91,10 @@ export function DesignCanvas({
   onNote,
   retypeNext,
   onRetyped,
+  placing,
+  onTarget,
+  owner,
+  designFiles,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -120,6 +125,13 @@ export function DesignCanvas({
   /** A text layer just drawn, to retype in place once its board shows it. */
   retypeNext?: { board: string; layer: string } | null;
   onRetyped?: () => void;
+  /** A component dragged from Assets; the canvas works out where it would land. */
+  placing?: Placing | null;
+  onTarget?: (target: DropTarget | null) => void;
+  /** Your name, shown by the pointer while you place a component. */
+  owner?: string;
+  /** The design files at the commit on screen, for drawing the component being placed. */
+  designFiles?: string | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -340,6 +352,30 @@ export function DesignCanvas({
       },
     });
   };
+  // Placing a component: the stack under the pointer and where in it, or a spot on the board.
+  const [drop, setDrop] = useState<DropTarget | null>(null);
+  useEffect(() => {
+    let next: DropTarget | null = null;
+    if (placing && host.current) {
+      const rect = host.current.getBoundingClientRect();
+      const inside =
+        placing.x >= rect.left &&
+        placing.x <= rect.right &&
+        placing.y >= rect.top &&
+        placing.y <= rect.bottom;
+      const point = toWorld({ clientX: placing.x, clientY: placing.y });
+      const board = inside ? boardAt(point) : null;
+      const doc = board ? frames.current?.get(board)?.contentDocument : null;
+      if (board && doc) {
+        const placed = canvas.boards[board];
+        next = dropTarget(board, placed, doc, { x: point.x - placed.x, y: point.y - placed.y });
+      }
+    }
+    setDrop(next);
+    onTarget?.(next);
+    // toWorld and boardAt read the current view and canvas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placing, view, canvas]);
   const near = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) * view.z < 8;
 
   const box = (target: Selection) =>
@@ -353,8 +389,9 @@ export function DesignCanvas({
     /position:\s*absolute/.test(
       layerElement(frames, selection.board, selection.layer)?.getAttribute('style') ?? '',
     );
+  // While a component is placed, the drop line is the only mark on the board.
   const hovered =
-    hover && (hover.board !== selection?.board || hover.layer !== selection?.layer)
+    !placing && hover && (hover.board !== selection?.board || hover.layer !== selection?.layer)
       ? box(hover)
       : null;
   const notes = Object.entries(canvas.notes ?? {}).filter(
@@ -621,7 +658,65 @@ export function DesignCanvas({
           </span>
         )}
         {draft && <DraftShape draft={draft} z={view.z} />}
+        {drop && drop.line.w > 0 && (
+          <>
+            <div
+              className={`dz-drop-line${drop.line.vertical ? ' vertical' : ''}`}
+              style={
+                drop.line.vertical
+                  ? {
+                      ['--dz-dot' as string]: `${8 / view.z}px`,
+                      left: drop.line.x,
+                      top: drop.line.y,
+                      height: drop.line.w,
+                      width: 2 / view.z,
+                    }
+                  : {
+                      ['--dz-dot' as string]: `${8 / view.z}px`,
+                      left: drop.line.x,
+                      top: drop.line.y,
+                      width: drop.line.w,
+                      height: 2 / view.z,
+                    }
+              }
+            />
+            <span
+              className="dz-drop-tip"
+              style={{
+                left: drop.line.vertical ? drop.line.x : drop.line.x + drop.line.w,
+                top: drop.line.vertical ? drop.line.y + drop.line.w : drop.line.y,
+                transform: `translate(${8 / view.z}px, -50%) scale(${1 / view.z})`,
+              }}
+            >
+              Into {drop.into.split(' › ').pop()} · {drop.place}
+            </span>
+          </>
+        )}
       </div>
+      {placing && host.current && (
+        <div
+          className="dz-ghost"
+          style={{
+            left: placing.x - host.current.getBoundingClientRect().left + 12,
+            top: placing.y - host.current.getBoundingClientRect().top + 12,
+          }}
+        >
+          {designFiles && (
+            <div className="dz-ghost-card">
+              <ComponentFrame
+                component={placing.component}
+                props={placing.props}
+                files={designFiles}
+                width={drop?.line.vertical ? 240 : Math.min(drop?.line.w || 320, 480)}
+                height={40}
+                hug
+                scale={view.z}
+              />
+            </div>
+          )}
+          {owner && <span className="dz-you">{owner}</span>}
+        </div>
+      )}
       {drawing && (
         <div
           className={`dz-draw ${tool}`}

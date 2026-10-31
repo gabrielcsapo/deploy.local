@@ -4,7 +4,14 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyEdits, layerChanges, layerIds, layerSnippet } from '../design/board-html.ts';
+import {
+  applyEdits,
+  layerChanges,
+  layerIds,
+  layerSnippet,
+  syncInstances,
+  type Library,
+} from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
@@ -91,6 +98,67 @@ async function readFile(repo: string, commit: string, path: string, limit = 2 * 
   } catch {
     return null;
   }
+}
+
+/** The design system's components, which Assets lists and boards hold instances of. */
+const libraryPath = 'design/ds/deploy-local/components/library.json';
+function parseLibrary(text: string | null | undefined): Library | null {
+  if (!text) return null;
+  try {
+    const library = JSON.parse(text) as Library;
+    return Array.isArray(library?.components) ? library : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Which boards hold instances of each component, at a commit. */
+function componentUsage(repo: string, commit: string) {
+  const out =
+    gitSync(repo, [
+      'grep',
+      '-o',
+      '-I',
+      'data-component="[a-z0-9-]*"',
+      commit,
+      '--',
+      'design/boards',
+    ]) ?? '';
+  const usage: Record<string, string[]> = {};
+  for (const line of out.split('\n')) {
+    const match = /^[^:]+:design\/boards\/([^:]+):data-component="([^"]+)"$/.exec(line);
+    if (!match) continue;
+    const boards = (usage[match[2]] ??= []);
+    if (!boards.includes(match[1])) boards.push(match[1]);
+  }
+  return usage;
+}
+
+/**
+ * Approving a change to the component library renders every instance on main again, so editing a
+ * component on main updates every board that uses it. Boards the approval copies come from the
+ * branch; the rest are as they are on main.
+ */
+function instanceWrites(repo: string, target: string, from: string, paths: string[]) {
+  if (!paths.includes(libraryPath)) return [];
+  const library = parseLibrary(gitSync(repo, ['show', `${from}:${libraryPath}`]));
+  if (!library) return [];
+  const boards = new Set([
+    ...Object.values(componentUsage(repo, target)).flat(),
+    ...Object.values(componentUsage(repo, from))
+      .flat()
+      .filter((board) => paths.includes(`design/boards/${board}`)),
+  ]);
+  const writes: { path: string; content: string }[] = [];
+  for (const board of boards) {
+    const path = `design/boards/${board}`;
+    const html = gitSync(repo, ['show', `${paths.includes(path) ? from : target}:${path}`]);
+    if (!html) continue;
+    const synced = syncInstances(html, library);
+    // gitSync trims the file's last newline; put it back.
+    if (synced !== html) writes.push({ path, content: `${synced}\n` });
+  }
+  return writes;
 }
 
 async function readCanvas(repo: string, commit: string): Promise<Canvas | null> {
@@ -347,6 +415,7 @@ registerInboxSource('design', (owner, item, body, context) => {
       target,
       from: context.commit,
       paths: context.paths,
+      writes: instanceWrites(repo, target, context.commit, context.paths),
       branch: context.main,
       message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
       by: owner,
@@ -783,6 +852,22 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   }
 
   // Direct edits from the properties panel and the canvas, committed to a design branch.
+  // Assets: the design system's components and where each is used, at a ref.
+  if (sub === '/components' && req.method === 'GET') {
+    const ref = url.searchParams.get('ref') || 'HEAD';
+    if (!validRef(ref)) fail('Invalid ref');
+    const commit = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      `${ref}^{commit}`,
+    ]);
+    if (!commit) fail(`No commit named ${ref} in this project`, 404);
+    const library = parseLibrary((await readFile(repo, commit!, libraryPath))?.toString());
+    return sendJson(res, { commit, library, usage: library ? componentUsage(repo, commit!) : {} });
+  }
+
   if (sub === '/edit' && req.method === 'POST') {
     const body = await readJson(req);
     const board = String(body?.board ?? '');
@@ -799,9 +884,12 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       `refs/heads/${mainBranch(repo)}^{commit}`,
     ]);
     const base = main ? await readFile(repo, main, `design/boards/${board}`) : null;
+    const library = edits.some((edit: any) => edit.op === 'insert' && edit.component)
+      ? parseLibrary((await readFile(repo, head, libraryPath))?.toString())
+      : undefined;
     let next: string;
     try {
-      next = applyEdits(html.toString(), edits, base?.toString());
+      next = applyEdits(html.toString(), edits, base?.toString(), library ?? undefined);
     } catch (error) {
       fail((error as Error).message);
     }
@@ -811,7 +899,11 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const kinds = [
       ...new Set(
         edits.map((edit: any) =>
-          edit.op === 'style' ? edit.prop : edit.op === 'insert' ? edit.shape?.kind : edit.op,
+          edit.op === 'style'
+            ? edit.prop
+            : edit.op === 'insert'
+              ? (edit.shape?.kind ?? edit.component?.id)
+              : edit.op,
         ),
       ),
     ];

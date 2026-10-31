@@ -225,4 +225,49 @@ describe('board edits', () => {
     assert.ok(!removed.includes('dl-mark'));
     assert.deepEqual(layerIds(removed), ['g', 'title', 'pic']);
   });
+  it('places component instances and renders them again when the component changes', async () => {
+    const { applyEdits, syncInstances, layerIds } = await import('./board-html.ts');
+    const library = {
+      components: [
+        {
+          id: 'notice',
+          name: 'Notice',
+          props: [
+            { id: 'tone', default: 'Warning', options: { Warning: 'warning', Neutral: '' } },
+            { id: 'title', default: 'Hi' },
+          ],
+          html: '<div class="dl-banner {{tone}}"><span class="dl-t">{{title}}</span></div>',
+        },
+      ],
+    };
+    const placed = applyEdits(
+      board,
+      [
+        {
+          op: 'insert',
+          parent: 'g',
+          index: 0,
+          component: { id: 'notice', props: { tone: 'Neutral', title: 'Docker <isn’t> up' } },
+        },
+      ],
+      undefined,
+      library,
+    );
+    assert.match(
+      placed,
+      /<div data-layer="([a-z0-9-]+)" class="dl-banner" data-props="\{&quot;tone&quot;:&quot;Neutral&quot;,&quot;title&quot;:&quot;Docker &lt;isn’t&gt; up&quot;\}" data-component="notice" data-name="Notice"><span data-layer="[^"]+" class="dl-t">Docker &lt;isn’t&gt; up<\/span><\/div><h1/,
+    );
+    const root = /<div data-layer="([a-z0-9-]+)" class="dl-banner"/.exec(placed)![1];
+    // The component changes on main: every instance follows, keeping its layer and its values.
+    library.components[0].html = '<p class="dl-notice {{tone}}"><b>{{title}}</b></p>';
+    const synced = syncInstances(placed, library);
+    assert.ok(synced.includes(`<p data-layer="${root}" class="dl-notice"`));
+    assert.ok(synced.includes('>Docker &lt;isn’t&gt; up</b></p>'));
+    assert.equal(syncInstances(synced, library), synced);
+    assert.equal(layerIds(synced).filter((id) => id === root).length, 1);
+    assert.throws(
+      () => applyEdits(board, [{ op: 'insert', component: { id: 'nope' } }], undefined, library),
+      /no component nope/,
+    );
+  });
 });

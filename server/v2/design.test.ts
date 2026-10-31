@@ -511,3 +511,73 @@ test('drawing adds layers to a board, and the canvas takes new boards and sticky
   });
   assert.equal(section.status, 404);
 });
+
+test('Assets lists the library and its use, and approving a library change updates every instance', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { answerInbox } = await import('./inbox.ts');
+  // Commit files onto a branch without touching the checkout.
+  const commitFiles = (branch: string, from: string, files: Record<string, string>) => {
+    const env = {
+      ...process.env,
+      GIT_INDEX_FILE: join(root, `index-${branch.replace(/\//g, '-')}`),
+    };
+    const run = (args: string[], input?: string) =>
+      spawnSync('git', ['-C', repo, ...args], { env, input, encoding: 'utf8' }).stdout.trim();
+    run(['read-tree', from]);
+    for (const [path, content] of Object.entries(files))
+      run([
+        'update-index',
+        '--add',
+        '--cacheinfo',
+        `100644,${run(['hash-object', '-w', '--stdin'], content)},${path}`,
+      ]);
+    const commit = run(['commit-tree', run(['write-tree']), '-p', from, '-m', `Change ${branch}`]);
+    run(['update-ref', `refs/heads/${branch}`, commit]);
+    return commit;
+  };
+  const library = (html: string) =>
+    JSON.stringify({
+      name: 'Test system',
+      components: [{ id: 'tag', name: 'Tag', props: [{ id: 'label', default: 'Draft' }], html }],
+    });
+  const path = 'design/ds/deploy-local/components/library.json';
+  commitFiles('main', await git(['rev-parse', 'main']), {
+    [path]: library('<span class="dl-tag">{{label}}</span>'),
+  });
+  const placed = await (
+    await call('/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: 'main',
+        board: 'Welcome.html',
+        edits: [{ op: 'insert', component: { id: 'tag', props: { label: 'New' }, x: 10, y: 20 } }],
+      }),
+    })
+  ).json();
+  assert.ok(placed.commit, JSON.stringify(placed));
+  assert.match(
+    await git(['show', `${placed.commit}:design/boards/Welcome.html`]),
+    /data-component="tag" data-name="Tag" style="position:absolute;left:10px;top:20px">New<\/span>/,
+  );
+  const listed = await (await call(`/components?ref=${encodeURIComponent(placed.branch)}`)).json();
+  assert.equal(listed.library.components[0].name, 'Tag');
+  assert.deepEqual(listed.usage, { tag: ['Welcome.html'] });
+  // Put the instance on main, then approve a change to the component from another branch.
+  const withInstance = commitFiles('main', await git(['rev-parse', 'main']), {
+    'design/boards/Welcome.html': await git([
+      'show',
+      `${placed.commit}:design/boards/Welcome.html`,
+    ]),
+  });
+  commitFiles('design/tag-style', withInstance, {
+    [path]: library('<em class="dl-tag">{{label}}</em>'),
+  });
+  const { item } = await (
+    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: 'design/tag-style' }) })
+  ).json();
+  answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  assert.match(
+    await git(['show', 'main:design/boards/Welcome.html']),
+    /<em data-layer="[^"]+" class="dl-tag" data-props="[^"]+" data-component="tag" data-name="Tag" style="position:absolute;left:10px;top:20px">New<\/em>/,
+  );
+});

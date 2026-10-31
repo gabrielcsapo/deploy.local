@@ -276,8 +276,17 @@ export type BoardEdit =
   | { op: 'class'; layer: string; add?: string[]; remove?: string[] }
   /** Back to main: the whole layer, or only the named style properties (and its text, with `text`). */
   | { op: 'revert'; layer: string; props?: string[]; text?: boolean }
-  /** Draw a new layer; without `parent` it sits on the board at its X and Y. */
-  | { op: 'insert'; parent?: string; index?: number; shape: DrawnShape }
+  /**
+   * Draw a new layer, or place a design-system component as an instance. Without `parent` it sits
+   * on the board at its X and Y; with one it joins that stack at `index`.
+   */
+  | {
+      op: 'insert';
+      parent?: string;
+      index?: number;
+      shape?: DrawnShape;
+      component?: { id: string; props?: Record<string, string>; x?: number; y?: number };
+    }
   | { op: 'remove'; layer: string };
 
 /** What the drawing tools make, in board pixels. The server writes the markup. */
@@ -333,6 +342,92 @@ export function shapeMarkup(shape: DrawnShape): string {
       .join(' ') + (shape.kind === 'vector' && shape.closed ? ' Z' : '');
   const name = shape.kind === 'line' ? 'Line' : 'Vector';
   return `<svg data-name="${name}" style="${absolute(left, top)};overflow:visible" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none"><path d="${d}" style="stroke:var(--ink);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"/></svg>`;
+}
+
+/** The design system's components (design/ds/<system>/components/library.json). */
+export type Library = {
+  name?: string;
+  components: {
+    id: string;
+    name: string;
+    group?: string;
+    props: { id: string; label?: string; default: string; options?: Record<string, string> }[];
+    html: string;
+  }[];
+};
+
+const unescapeAttr = (text: string) =>
+  text
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
+/**
+ * An instance of a component: its markup with the property values filled in, marked with the
+ * component and its values so a change to the component on main can render it again.
+ */
+export function renderComponent(
+  library: Library,
+  id: string,
+  props: Record<string, string> = {},
+  keep: { layer?: string; style?: string } = {},
+) {
+  const component = library.components.find((item) => item.id === id);
+  if (!component) throw new Error(`The design system has no component ${id}`);
+  const values: Record<string, string> = {};
+  const filled: Record<string, string> = {};
+  for (const prop of component.props) {
+    let value = String(props[prop.id] ?? prop.default).slice(0, 500);
+    if (prop.options && !(value in prop.options)) value = prop.default;
+    values[prop.id] = value;
+    filled[prop.id] = prop.options ? (prop.options[value] ?? '') : value;
+  }
+  const html = component.html
+    .trim()
+    .replace(/\{\{([a-z0-9-]+)\}\}/g, (_, key: string) => escapeAttr(filled[key] ?? ''));
+  const end = html.indexOf('>');
+  if (!html.startsWith('<') || end < 0) throw new Error(`Component ${id} has no root element`);
+  let root = html
+    .slice(0, end + 1)
+    .replace(/\sclass="\s*([^"]*?)\s*"/, (_, names: string) => (names ? ` class="${names}"` : ''));
+  root = withAttribute(root, 'data-props', component.props.length ? JSON.stringify(values) : null);
+  root = withAttribute(root, 'data-component', id);
+  // Layers names an instance after its component.
+  root = withAttribute(root, 'data-name', component.name);
+  if (keep.style) root = withAttribute(root, 'style', keep.style);
+  // The layer ID comes first, as on every other element of a board.
+  if (keep.layer) root = root.replace(/^(<[a-zA-Z][\w:-]*)/, `$1 data-layer="${keep.layer}"`);
+  return root + html.slice(end + 1);
+}
+
+/** Render every instance on a board again from the library, keeping each one's layer and place. */
+export function syncInstances(html: string, library: Library) {
+  let out = html;
+  const starts = [...out.matchAll(/\sdata-component="([a-z0-9-]+)"/g)].map((match) => match.index!);
+  for (const at of starts.reverse()) {
+    const open = out.lastIndexOf('<', at);
+    const close = out.indexOf('>', at);
+    const tag = out.slice(open, close + 1);
+    const id = /\sdata-component="([^"]*)"/.exec(tag)![1];
+    const layer = /\sdata-layer="([^"]*)"/.exec(tag)?.[1];
+    if (!layer || !library.components.some((item) => item.id === id)) continue;
+    const snippet = layerSnippet(out, layer);
+    if (!snippet) continue;
+    let props: Record<string, string> = {};
+    try {
+      props = JSON.parse(unescapeAttr(/\sdata-props="([^"]*)"/.exec(tag)?.[1] ?? '{}'));
+    } catch {
+      // An instance with unreadable values takes the component's defaults.
+    }
+    const style = /\sstyle="([^"]*)"/.exec(tag)?.[1];
+    const next = renderComponent(library, id, props, {
+      layer,
+      style: style ? unescapeAttr(style) : undefined,
+    });
+    out = out.slice(0, open) + next + out.slice(open + snippet.length);
+  }
+  return out === html ? html : assignLayerIds(out);
 }
 
 /** Children of a layer's inner markup, as [start, end) offsets: elements only, text skipped. */
@@ -399,11 +494,20 @@ function styleOf(tag: string) {
  * Apply edits to a board, layer by layer, the way the properties panel changes it. Layer IDs never
  * change. `base` is the board on main, which `revert` restores a layer from.
  */
-export function applyEdits(html: string, edits: BoardEdit[], base?: string) {
+export function applyEdits(html: string, edits: BoardEdit[], base?: string, library?: Library) {
   let out = html;
   for (const edit of edits) {
     if (edit.op === 'insert') {
-      const markup = shapeMarkup(edit.shape);
+      let markup: string;
+      if (edit.component) {
+        if (!library) throw new Error('This design has no component library');
+        const { x, y } = edit.component;
+        markup = renderComponent(library, String(edit.component.id), edit.component.props ?? {}, {
+          style:
+            edit.parent || x === undefined ? undefined : absolute(coordinate(x), coordinate(y)),
+        });
+      } else if (edit.shape) markup = shapeMarkup(edit.shape);
+      else throw new Error('Say what to insert');
       if (!edit.parent) {
         const close = out.lastIndexOf('</body>');
         const end = close >= 0 ? close : out.length;

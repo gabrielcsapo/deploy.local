@@ -8,6 +8,7 @@ import { layerElement, type Frames, type Selection, type View } from './Canvas';
 import {
   boardName,
   colorToken,
+  hex,
   isWrapper,
   layerFacts,
   layerName,
@@ -36,6 +37,8 @@ const drawnKinds: Record<string, IconName> = {
 function kindOf(element: Element): IconName {
   const drawn = drawnKinds[element.getAttribute('data-name') ?? ''];
   if (drawn) return drawn;
+  // An instance of a design-system component, placed from Assets.
+  if (element.hasAttribute('data-component')) return 'component';
   const name = element.tagName.toLowerCase();
   if (name === 'svg') return 'vector';
   if (name === 'img') return 'image';
@@ -50,8 +53,8 @@ function kindOf(element: Element): IconName {
 const floating = (element: Element) =>
   /position:\s*absolute/.test(element.getAttribute('style') ?? '');
 function tree(parent: Element): LayerNode[] {
-  const children = [...parent.children];
-  const ordered = [...children.filter(floating).reverse(), ...children.filter((e) => !floating(e))];
+  const all = [...parent.children];
+  const ordered = [...all.filter(floating).reverse(), ...all.filter((e) => !floating(e))];
   return ordered.flatMap((element) => {
     const id = element.getAttribute('data-layer');
     if (!id) return tree(element);
@@ -405,6 +408,7 @@ export function LeftPanel({
   onRef,
   onNewBranch,
   onHide,
+  assets,
 }: {
   projects: Project[];
   project: Project | undefined;
@@ -430,7 +434,10 @@ export function LeftPanel({
   onRef: (ref: string) => void;
   onNewBranch: () => void;
   onHide: () => void;
+  /** The Assets tab's contents. */
+  assets: ReactNode;
 }) {
+  const [tab, setTab] = useState<'file' | 'assets'>('file');
   const [allPages, setAllPages] = useState(false);
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState('');
@@ -497,15 +504,21 @@ export function LeftPanel({
         </span>
       </div>
       <div className="dz-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected className="on">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'file'}
+          className={tab === 'file' ? 'on' : ''}
+          onClick={() => setTab('file')}
+        >
           File
         </button>
         <button
           type="button"
           role="tab"
-          aria-selected={false}
-          disabled
-          title="Assets arrive with building from components"
+          aria-selected={tab === 'assets'}
+          className={tab === 'assets' ? 'on' : ''}
+          onClick={() => setTab('assets')}
         >
           Assets
         </button>
@@ -515,6 +528,7 @@ export function LeftPanel({
           className={`dl-icon-btn dz-find${finding ? ' on' : ''}`}
           aria-label="Find a page or board"
           aria-pressed={finding}
+          disabled={tab === 'assets'}
           onClick={() => {
             setFinding(!finding);
             setQuery('');
@@ -523,68 +537,74 @@ export function LeftPanel({
           <Icon name="search" size={14} />
         </button>
       </div>
-      {finding && (
-        <input
-          className="dz-find-input"
-          autoFocus
-          value={query}
-          placeholder="Find a page or board"
-          aria-label="Find a page or board"
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => event.key === 'Escape' && (setFinding(false), setQuery(''))}
-        />
-      )}
-      <div className="dz-group-h">
-        <Icon name="down" size={10} />
-        Pages
-        <span className="dl-grow" />
-        <button
-          type="button"
-          className="dl-icon-btn dz-add"
-          aria-label="Add a page (comes with direct editing)"
-          title="Adding pages comes with direct editing"
-          disabled
-        >
-          <Icon name="plus" size={14} />
-        </button>
-      </div>
-      <div className="dz-pages" role="listbox" aria-label="Pages">
-        {shown.map((item) => (
-          <Row
-            key={item.id}
-            depth={0}
-            icon="frame"
-            label={item.title}
-            meta={<span className="dz-meta">{item.boards.length}</span>}
-            on={item.id === section?.id}
-            onClick={() => onSection(item.id)}
-          />
-        ))}
-        {!query && pages.length > 6 && (
-          <button type="button" className="dz-more" onClick={() => setAllPages(!allPages)}>
-            {allPages ? 'Fewer' : `${pages.length - 6} more`}
-          </button>
-        )}
-      </div>
-      <div className="dz-group-h">
-        <Icon name="down" size={10} />
-        Layers
-      </div>
-      <div className="dz-layers" role="tree" aria-label="Layers">
-        {base &&
-          boards.map((file) => (
-            <BoardLayers
-              key={`${base}/${file}`}
-              file={file}
-              url={`${boardSrc?.get(file)?.base ?? base}/boards/${encodeURIComponent(file)}`}
-              selection={selection}
-              select={select}
-              changed={changed.has(file)}
-              inReview={inReview.has(file)}
-              agentAt={agentAt.get(file) ?? new Set()}
+      {tab === 'assets' ? (
+        assets
+      ) : (
+        <>
+          {finding && (
+            <input
+              className="dz-find-input"
+              autoFocus
+              value={query}
+              placeholder="Find a page or board"
+              aria-label="Find a page or board"
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => event.key === 'Escape' && (setFinding(false), setQuery(''))}
             />
-          ))}
-      </div>
+          )}
+          <div className="dz-group-h">
+            <Icon name="down" size={10} />
+            Pages
+            <span className="dl-grow" />
+            <button
+              type="button"
+              className="dl-icon-btn dz-add"
+              aria-label="Add a page (comes with direct editing)"
+              title="Adding pages comes with direct editing"
+              disabled
+            >
+              <Icon name="plus" size={14} />
+            </button>
+          </div>
+          <div className="dz-pages" role="listbox" aria-label="Pages">
+            {shown.map((item) => (
+              <Row
+                key={item.id}
+                depth={0}
+                icon="frame"
+                label={item.title}
+                meta={<span className="dz-meta">{item.boards.length}</span>}
+                on={item.id === section?.id}
+                onClick={() => onSection(item.id)}
+              />
+            ))}
+            {!query && pages.length > 6 && (
+              <button type="button" className="dz-more" onClick={() => setAllPages(!allPages)}>
+                {allPages ? 'Fewer' : `${pages.length - 6} more`}
+              </button>
+            )}
+          </div>
+          <div className="dz-group-h">
+            <Icon name="down" size={10} />
+            Layers
+          </div>
+          <div className="dz-layers" role="tree" aria-label="Layers">
+            {base &&
+              boards.map((file) => (
+                <BoardLayers
+                  key={`${base}/${file}`}
+                  file={file}
+                  url={`${boardSrc?.get(file)?.base ?? base}/boards/${encodeURIComponent(file)}`}
+                  selection={selection}
+                  select={select}
+                  changed={changed.has(file)}
+                  inReview={inReview.has(file)}
+                  agentAt={agentAt.get(file) ?? new Set()}
+                />
+              ))}
+          </div>
+        </>
+      )}
     </aside>
   );
 }
@@ -1242,7 +1262,23 @@ function LayerProps({
   );
 }
 
+/** A colour that is not a token, as a designer reads it: hex, with its opacity when see-through. */
+function shownColor(color: string, code: string | null) {
+  if (code) return `#${code.toUpperCase()}`;
+  const parts =
+    /^(?:color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)|rgba\(\s*(\d+),\s*(\d+),\s*(\d+)),?\s*\/?\s*([\d.]+)\)$/.exec(
+      color.trim(),
+    );
+  if (!parts) return color;
+  const channels = parts[1]
+    ? parts.slice(1, 4).map((part) => Number(part) * 255)
+    : parts.slice(4, 7).map(Number);
+  const value = channels.map((part) => Math.round(part).toString(16).padStart(2, '0')).join('');
+  return `#${value.toUpperCase()} ${Math.round(Number(parts[7]) * 100)}%`;
+}
+
 function FillChip({ color, token }: { color: string; token: string | null }) {
+  const code = hex(color);
   return token ? (
     <span className="dz-chip">
       <Swatch color={color} />
@@ -1251,7 +1287,7 @@ function FillChip({ color, token }: { color: string; token: string | null }) {
   ) : (
     <>
       <Swatch color={color} />
-      {color}
+      {shownColor(color, code)}
     </>
   );
 }
@@ -1281,6 +1317,7 @@ export function RightPanel({
   onComment,
   htmlHref,
   onEdit,
+  component,
 }: {
   project: Project | undefined;
   design: Design | undefined;
@@ -1311,6 +1348,8 @@ export function RightPanel({
   htmlHref: string | null;
   /** Present when this design can be edited. */
   onEdit?: (board: string, layer: string, edits: LayerEdit[]) => void;
+  /** A design-system component picked or being placed from Assets, shown instead of a layer. */
+  component?: ReactNode;
 }) {
   const [zoomMenu, setZoomMenu] = useState(false);
   const [moreMenu, setMoreMenu] = useState(false);
@@ -1428,6 +1467,8 @@ export function RightPanel({
           comments
         ) : agent ? (
           agent
+        ) : component ? (
+          component
         ) : selection && element ? (
           <>
             <div className="dz-sel">
