@@ -93,7 +93,9 @@ export async function releasesApi(
   try {
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Only a signed-in person can start releases or change approvals' }, 403);
-    await recoverProjectReleases();
+    // Recovery can wait on a computer for minutes after a restart. Reads show the saved
+    // records as they are; only changes wait, so nothing starts on top of a recovering release.
+    if (req.method !== 'GET') await recoverProjectReleases();
     if (path === '/projects' && req.method === 'GET')
       return send({ projects: await projectsForOwner(owner) });
     if (path === '/approvals') {
