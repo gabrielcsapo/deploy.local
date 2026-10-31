@@ -15,6 +15,7 @@ struct V2DesignReviewView: View {
     @State private var viewing: Int?
     @State private var asking = false
     @State private var note = ""
+    @State private var designPage = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
     private var project: String? { V2DesignReview.project(of: item.id) }
@@ -39,7 +40,7 @@ struct V2DesignReviewView: View {
                             }.buttonStyle(.plain).tag(index)
                                 .accessibilityLabel("\(board.name), \(after ? "After" : "Before"). Opens the board.")
                         }
-                    }.tabViewStyle(.page(indexDisplayMode: review.boards.count > 1 ? .always : .never))
+                    }.tabViewStyle(.page(indexDisplayMode: .never))
                         .frame(height: 300)
                         .padding(10)
                         .background(WorkspaceStyle.sidebar(scheme), in: RoundedRectangle(cornerRadius: 12))
@@ -69,12 +70,16 @@ struct V2DesignReviewView: View {
         .background(WorkspaceStyle.canvas(scheme))
         .navigationTitle("Design review").navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { dismiss() } label: { Image(systemName: "chevron.left") }.accessibilityLabel("Back")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Done") { dismiss() }
+                    Button("Open the Design page") { designPage = true }
                 } label: { Image(systemName: "ellipsis") }.accessibilityLabel("More")
             }
         }
+        .fullScreenCover(isPresented: $designPage) { V2DesignView(connection: store.connection, projectId: project ?? "") }
         .navigationDestination(isPresented: Binding(get: { viewing != nil }, set: { if !$0 { viewing = nil } })) {
             if let review, let viewing { V2DesignBoardView(store: store, project: project ?? "", review: review, index: viewing) }
         }
@@ -121,6 +126,7 @@ struct V2DesignBoardView: View {
     let review: V2DesignReview
     @State var index: Int
     @State private var width: Int?
+    @State private var designPage = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
@@ -131,7 +137,7 @@ struct V2DesignBoardView: View {
                 Text("Phone 390").tag(390)
                 Text("Web 720").tag(720)
                 Text("Web 1440").tag(1440)
-            }.pickerStyle(.segmented).padding(.horizontal, 16)
+            }.pickerStyle(.segmented).frame(width: 250)
             TabView(selection: $index) {
                 ForEach(Array(review.boards.enumerated()), id: \.element.id) { offset, item in
                     ScrollView {
@@ -150,22 +156,36 @@ struct V2DesignBoardView: View {
                         }.padding(.horizontal, 16)
                     }.tag(offset)
                 }
-            }.tabViewStyle(.page(indexDisplayMode: .always))
+            }.tabViewStyle(.page(indexDisplayMode: .never))
+            if review.boards.count > 1 {
+                HStack(spacing: 6) {
+                    ForEach(review.boards.indices, id: \.self) { dot in
+                        Circle().fill(dot == index ? WorkspaceStyle.text(scheme) : WorkspaceStyle.tertiary(scheme).opacity(0.4)).frame(width: 6, height: 6)
+                    }
+                }.accessibilityHidden(true)
+            }
             HStack {
-                Button { index = max(0, index - 1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
+                Button { index = max(0, index - 1) } label: { step("chevron.left") }
                     .disabled(index == 0).accessibilityLabel("Previous screen")
                 Spacer()
                 Text("Swipe for the next screen").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.secondary(scheme))
                 Spacer()
-                Button { index = min(review.boards.count - 1, index + 1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+                Button { index = min(review.boards.count - 1, index + 1) } label: { step("chevron.right") }
                     .disabled(index == review.boards.count - 1).accessibilityLabel("Next screen")
-            }.buttonStyle(.bordered).buttonBorderShape(.circle).padding(.horizontal, 16).padding(.bottom, 8)
+            }.buttonStyle(.plain).padding(.horizontal, 16).padding(.vertical, 10)
+                .overlay(alignment: .top) { Rectangle().fill(WorkspaceStyle.line(scheme)).frame(height: 1) }
         }
         .background(WorkspaceStyle.canvas(scheme))
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Open the Design page") { designPage = true }
+                } label: { Image(systemName: "ellipsis") }.accessibilityLabel("More")
+            }
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 1) {
-                    Text(board.title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                    // The board's name, and which layout of it is showing.
+                    Text(board.isPhone || shown != 720 ? board.name : "\(board.name), narrow").font(.system(size: 17, weight: .semibold)).lineLimit(1)
                     if let page = board.page, let at = board.index, let count = board.count {
                         Text("\(page) · \(at) of \(count)").font(.system(size: 12)).foregroundStyle(WorkspaceStyle.secondary(scheme))
                     }
@@ -173,6 +193,11 @@ struct V2DesignBoardView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $designPage) { V2DesignView(connection: store.connection, projectId: project) }
+    }
+    private func step(_ symbol: String) -> some View {
+        Image(systemName: symbol).font(.system(size: 15, weight: .semibold)).foregroundStyle(WorkspaceStyle.text(scheme))
+            .frame(width: 44, height: 44).background(WorkspaceStyle.line(scheme), in: Circle())
     }
 }
 
@@ -263,7 +288,7 @@ struct V2DesignCard: View {
             }
         }.padding(12).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme), style: StrokeStyle(lineWidth: 1, dash: current.answer == nil ? [] : [4, 3])))
-            .sheet(isPresented: $open) { NavigationStack { V2DesignReviewView(store: store, item: current) } }
+            .fullScreenCover(isPresented: $open) { NavigationStack { V2DesignReviewView(store: store, item: current) } }
             .alert("Ask for changes", isPresented: $asking) {
                 TextField("What should change?", text: $note)
                 Button("Send") { send("changes", note: note) }.disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

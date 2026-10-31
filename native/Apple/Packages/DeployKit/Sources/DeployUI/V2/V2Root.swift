@@ -51,6 +51,7 @@ struct V2Tabs: View {
     @State private var agent: String?
     @State private var app: String?
     @State private var decision: String?
+    private var designDecision: Bool { decision.flatMap(V2DesignReview.project(of:)) != nil }
     @State private var signIn = false
     @State private var evidenceOpened = false
     @State private var evidenceAgentTask: String?
@@ -91,14 +92,15 @@ struct V2Tabs: View {
             .sheet(isPresented: Binding(get: { app != nil }, set: { if !$0 { app = nil } })) {
                 if let app { V2WorkerView(store: store, appId: app) }
             }
-            .sheet(isPresented: Binding(get: { decision != nil }, set: { if !$0 { decision = nil } })) {
+            .sheet(isPresented: Binding(get: { decision != nil && !designDecision }, set: { if !$0 { decision = nil } })) {
                 if let item = store.snapshot.inbox.first(where: { $0.id == decision }) {
-                    if V2DesignReview.project(of: item.id) != nil {
-                        // A design review shows its boards, Before and After.
-                        NavigationStack { V2DesignReviewView(store: store, item: item) }
-                    } else {
-                        NavigationStack { ScrollView { V2Decision(item: item, store: store).padding(16) }.navigationTitle(item.from.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { decision = nil } } }
-                    }
+                    NavigationStack { ScrollView { V2Decision(item: item, store: store).padding(16) }.navigationTitle(item.from.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { decision = nil } } }
+                }
+            }
+            // A design review is a page of its own, full screen: its boards, Before and After.
+            .fullScreenCover(isPresented: Binding(get: { designDecision }, set: { if !$0 { decision = nil } })) {
+                if let item = store.snapshot.inbox.first(where: { $0.id == decision }) {
+                    NavigationStack { V2DesignReviewView(store: store, item: item) }
                 }
             }
             .sheet(isPresented: $signIn) { V2SignIn(workspace: workspace, connected: paired) }

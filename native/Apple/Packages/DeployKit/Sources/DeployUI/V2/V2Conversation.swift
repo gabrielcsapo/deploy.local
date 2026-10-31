@@ -47,12 +47,12 @@ struct V2ConversationView: View {
                 }.opacity(store.online ? 1 : 0.45)
                 Button { compose = true } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "plus")
-                        Text(designs.contains { $0.state == .waiting } ? "Ask for a change…" : "Ask, build, or follow up…").font(.system(size: 15)).foregroundStyle(.secondary)
+                        Image(systemName: "plus").foregroundStyle(WorkspaceStyle.text(scheme))
+                        Text(designs.contains { $0.state == .waiting } ? "Ask for a change…" : "Ask, build, or follow up…").font(.system(size: 15)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                         Spacer()
-                        Image(systemName: "arrow.up.circle.fill").font(.system(size: 28))
+                        Image(systemName: "arrow.up.circle.fill").font(.system(size: 28)).foregroundStyle(WorkspaceStyle.text(scheme))
                     }.padding(12).background(WorkspaceStyle.surface(scheme), in: Capsule()).overlay(Capsule().stroke(WorkspaceStyle.line(scheme)))
-                }.padding(12)
+                }.buttonStyle(.plain).padding(12)
             }.background(WorkspaceStyle.canvas(scheme)).navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }.accessibilityLabel("Back") }
@@ -64,7 +64,7 @@ struct V2ConversationView: View {
                                 else if let project {
                                     Text("\(project.name)\(designs.contains { $0.state == .waiting } ? " · design waiting" : "") ›").font(.system(size: 12)).foregroundStyle(.secondary)
                                 }
-                            }
+                            }.frame(maxWidth: 230)
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
