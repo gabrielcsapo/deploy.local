@@ -32,8 +32,12 @@ import {
   nameOf,
   type LayerChange,
   readTokens,
+  isMark,
+  sectionAt,
   sections as readSections,
   type Design,
+  type Mark,
+  type Note,
   type Tokens,
 } from './model';
 import {
@@ -105,7 +109,18 @@ export default function DesignPage() {
   }, [agentChanges.data]);
   const overlay = Boolean(taskId && ask);
   const shown = overlay && mode !== 'mine' && lastAgent ? lastAgent : design.data;
-  const canvas = shown?.canvas ?? null;
+  // Pen marks you changed show at once; the canvas from the server catches up after each commit.
+  const [markEdits, setMarkEdits] = useState<Record<string, Partial<Note> | null>>({});
+  useEffect(() => setMarkEdits({}), [shown?.commit]);
+  const canvas = useMemo(() => {
+    const saved = shown?.canvas ?? null;
+    if (!saved || !Object.keys(markEdits).length) return saved;
+    const notes = { ...saved.notes };
+    for (const [id, patch] of Object.entries(markEdits))
+      if (patch === null) delete notes[id];
+      else if (notes[id]) notes[id] = { ...notes[id], ...patch };
+    return { ...saved, notes };
+  }, [shown, markEdits]);
   // Your own edits make new commits, but the boards on screen already show them, so the canvas
   // keeps the commit it opened and loads only the boards you edited from their latest commit.
   const ownCommits = useRef(new Set<string>());
@@ -229,8 +244,11 @@ export default function DesignPage() {
     requestAnimationFrame(() => fitTo(named));
   }, [canvas, section, frameCommit, selection, fitTo]);
 
+  // A pen mark on the canvas, selected instead of a board or a layer.
+  const [mark, setMarkId] = useState<string | null>(null);
   const select = useCallback((next: Selection) => {
     setSelection(next);
+    if (next) setMarkId(null);
     if (next) setPicked(null);
     setAsking(false);
     remember({ board: next?.board ?? null, layer: next?.layer ?? null });
@@ -357,7 +375,8 @@ export default function DesignPage() {
   // What the drawing tools made: a layer in a board, a new board, or a sticky note.
   const [retypeNext, setRetypeNext] = useState<{ board: string; layer: string } | null>(null);
   const draw = (drawn: Drawn) => {
-    setTool('move');
+    // The pen keeps inking, as Apple Pencil markup does; the other tools draw once.
+    if (!('canvas' in drawn && drawn.canvas === 'mark')) setTool('move');
     if ('board' in drawn)
       return send<{ branch: string; commit: string; layers: string[] }>(
         '/edit',
@@ -379,7 +398,60 @@ export default function DesignPage() {
           select({ board: result.made, layer: null });
         },
       );
+    if (drawn.canvas === 'mark')
+      return send<{ branch: string; commit: string; made: string }>(
+        '/canvas',
+        { op: 'mark', points: drawn.points },
+        (result) => chooseMark(result.made),
+      );
     send('/canvas', { op: 'note', x: drawn.x, y: drawn.y, text: drawn.text }, () => undefined);
+  };
+  const chooseMark = (id: string | null) => {
+    setMarkId(id);
+    if (id) {
+      setSelection(null);
+      setPicked(null);
+      remember({ board: null, layer: null });
+    }
+  };
+  type MarkPatch = Partial<Mark & { x: number; y: number; w: number; h: number }>;
+  const editMark = (id: string, patch: MarkPatch) => {
+    setMarkEdits((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
+    send('/canvas', { op: 'mark', id, ...patch }, () => undefined);
+  };
+  const removeMark = (id: string) => {
+    setMarkId(null);
+    setMarkEdits((current) => ({ ...current, [id]: null }));
+    send('/canvas', { op: 'remove-note', id }, () => undefined);
+  };
+  const markNote = mark ? canvas?.notes?.[mark] : undefined;
+  const shownMark =
+    mark && markNote && isMark(markNote)
+      ? { id: mark, note: markNote, page: sectionAt(sections, markNote)?.title ?? 'Canvas' }
+      : null;
+  // Beside this page's boards in Layers: its pen marks and the sticky notes people added, not
+  // the labels the canvas is laid out with.
+  const loose = section
+    ? Object.entries(canvas?.notes ?? {})
+        .filter(
+          ([id, note]) =>
+            (isMark(note) || (id.startsWith('note-') && note.text)) &&
+            sectionAt(sections, note)?.id === section.id,
+        )
+        .map(([id, note]) => ({ id, note }))
+    : [];
+  const showLoose = (id: string) => {
+    const note = canvas?.notes?.[id];
+    if (!note) return;
+    if (isMark(note)) chooseMark(id);
+    const host = stage.current?.querySelector('.dz-canvas');
+    if (!host) return;
+    const [w, h] = [note.w ?? 240, note.h ?? 160];
+    setView((current) => ({
+      ...current,
+      x: host.clientWidth / 2 - (note.x + w / 2) * current.z,
+      y: host.clientHeight / 2 - (note.y + h / 2) * current.z,
+    }));
   };
   const editNote = (id: string, text: string) =>
     send('/canvas', text ? { op: 'note', id, text } : { op: 'remove-note', id }, () => undefined);
@@ -523,6 +595,7 @@ export default function DesignPage() {
         }
         if ((event.key === 'Delete' || event.key === 'Backspace') && selection?.layer)
           removeLayer(selection.board, selection.layer);
+        if ((event.key === 'Delete' || event.key === 'Backspace') && mark) removeMark(mark);
       }
       if ((event.key === 'c' || event.key === 'C') && !event.metaKey && !event.ctrlKey)
         setTool('comment');
@@ -532,6 +605,7 @@ export default function DesignPage() {
       }
       if (event.key === 'Escape') {
         select(null);
+        setMarkId(null);
         setTool('move');
         setShapeMenu(false);
       }
@@ -545,7 +619,7 @@ export default function DesignPage() {
     return () => window.removeEventListener('keydown', keys);
     // removeLayer changes with every render; the listener is added again with it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, fitTo, select, selection, editable]);
+  }, [section, fitTo, select, selection, editable, mark]);
 
   const shapes = { rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line' } as const;
   const shapeKeys = { rectangle: 'R', ellipse: 'O', line: 'L' } as const;
@@ -794,6 +868,9 @@ export default function DesignPage() {
         agentAt={agentAt}
         onHide={() => setMinimized(true)}
         onCloseSheet={() => setLayersOpen(false)}
+        loose={loose}
+        mark={mark}
+        onLoose={showLoose}
         assets={
           <AssetsPanel
             library={assets ? assets.library : undefined}
@@ -852,6 +929,9 @@ export default function DesignPage() {
             }}
             owner={owner}
             designFiles={base}
+            mark={mark}
+            onMark={chooseMark}
+            onMoveMark={editable ? (id, x, y) => editMark(id, { x, y }) : undefined}
           />
         ) : (
           <div className="dz-loading">Loading the design…</div>
@@ -1063,6 +1143,9 @@ export default function DesignPage() {
             : null
         }
         onEdit={editable ? edit : undefined}
+        mark={shownMark}
+        onMark={editable && shownMark ? (patch) => editMark(shownMark.id, patch) : undefined}
+        onRemoveMark={editable && shownMark ? () => removeMark(shownMark.id) : undefined}
         component={componentPanel}
         comments={
           project ? (

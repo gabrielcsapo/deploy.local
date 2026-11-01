@@ -3,8 +3,11 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   boardName,
   changeLabel,
+  isMark,
   type Canvas as CanvasData,
   type LayerChange,
+  type Mark,
+  type Note,
   type Section,
 } from './model';
 import { ComponentFrame, dropTarget, type DropTarget, type Placing } from './Assets';
@@ -28,11 +31,12 @@ export type DrawnShape =
   | { kind: 'line'; x1: number; y1: number; x2: number; y2: number }
   | { kind: 'text'; x: number; y: number; text: string }
   | { kind: 'vector'; points: [number, number][]; closed?: boolean };
-/** A finished drawing: a layer in a board, a new board, or a sticky note on the canvas. */
+/** A finished drawing: a layer in a board, a new board, or a sticky note or pen mark on the canvas. */
 export type Drawn =
   | { board: string; shape: DrawnShape }
   | { canvas: 'board'; x: number; y: number; kind: 'web' | 'phone' }
-  | { canvas: 'note'; x: number; y: number; text: string };
+  | { canvas: 'note'; x: number; y: number; text: string }
+  | { canvas: 'mark'; points: [number, number][] };
 type Point = { x: number; y: number };
 const drawingTools = new Set<Tool>([
   'rectangle',
@@ -95,6 +99,9 @@ export function DesignCanvas({
   onTarget,
   owner,
   designFiles,
+  mark,
+  onMark,
+  onMoveMark,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -132,6 +139,11 @@ export function DesignCanvas({
   owner?: string;
   /** The design files at the commit on screen, for drawing the component being placed. */
   designFiles?: string | null;
+  /** The pen mark selected on the canvas, and choosing one (null lets it go). */
+  mark?: string | null;
+  onMark?: (id: string | null) => void;
+  /** Present when the design can be edited: a mark dragged to a new place. */
+  onMoveMark?: (id: string, x: number, y: number) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -153,6 +165,13 @@ export function DesignCanvas({
     points?: Point[];
   } | null>(null);
   const [noteDraft, setNoteDraft] = useState<Point | null>(null);
+  // Ink: a pen stroke being drawn by Apple Pencil, or by a drag with the pen tool.
+  const ink = useRef<{ points: Point[]; from: Point; board: string | null; length: number } | null>(
+    null,
+  );
+  const [inked, setInked] = useState<Point[] | null>(null);
+  // A mark being dragged to a new place, in canvas units.
+  const [moving, setMoving] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [editingNote, setEditingNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -399,8 +418,35 @@ export function DesignCanvas({
       ? box(hover)
       : null;
   const notes = Object.entries(canvas.notes ?? {}).filter(
-    ([id, note]) => !id.startsWith('section-') && note.text && files.length,
+    ([id, note]) => !id.startsWith('section-') && !isMark(note) && note.text && files.length,
   );
+  const marks = Object.entries(canvas.notes ?? {}).filter(
+    (entry): entry is [string, Note & Mark] => isMark(entry[1]) && Boolean(files.length),
+  );
+  const markAt = (id: string, note: Note & Mark) =>
+    moving?.id === id ? { ...note, x: note.x + moving.dx, y: note.y + moving.dy } : note;
+  const grab = (id: string, note: Note & Mark, event: React.PointerEvent) => {
+    if (event.button !== 0 || panning || tool !== 'move') return;
+    event.stopPropagation();
+    onMark?.(id);
+    if (!onMoveMark) return;
+    const start = { x: event.clientX, y: event.clientY };
+    let shift = { dx: 0, dy: 0 };
+    const move = (next: PointerEvent) => {
+      shift = { dx: (next.clientX - start.x) / view.z, dy: (next.clientY - start.y) / view.z };
+      if (Math.hypot(shift.dx, shift.dy) * view.z >= 3) setMoving({ id, ...shift });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setMoving(null);
+      if (Math.hypot(shift.dx, shift.dy) * view.z >= 3)
+        onMoveMark(id, Math.round(note.x + shift.dx), Math.round(note.y + shift.dy));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const shownMark = mark && canvas.notes?.[mark] && isMark(canvas.notes[mark]) ? mark : null;
 
   return (
     <div
@@ -482,7 +528,10 @@ export function DesignCanvas({
         drag.current = null;
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) select(null);
+        if (event.target === event.currentTarget) {
+          select(null);
+          onMark?.(null);
+        }
       }}
     >
       <div
@@ -504,63 +553,6 @@ export function DesignCanvas({
               {note.text?.replace(/\s*\(for approval\)\s*$/i, '')}
             </div>
           ))}
-        {notes.map(([id, note]) => (
-          <div
-            key={id}
-            className={`dz-note ${note.fill ?? 'yellow'}${onNote ? ' editable' : ''}`}
-            style={{ left: note.x, top: note.y, width: note.w ?? 280 }}
-            contentEditable={editingNote === id ? 'plaintext-only' : undefined}
-            suppressContentEditableWarning
-            ref={(element) => {
-              if (element && editingNote === id && document.activeElement !== element) {
-                element.focus();
-                document.getSelection()?.selectAllChildren(element);
-              }
-            }}
-            onDoubleClick={(event) => {
-              event.stopPropagation();
-              if (onNote) setEditingNote(id);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.currentTarget.textContent = note.text ?? '';
-                event.currentTarget.blur();
-              }
-            }}
-            onBlur={(event) => {
-              const text = event.currentTarget.textContent?.trim() ?? '';
-              setEditingNote(null);
-              if (text !== note.text) onNote?.(id, text);
-            }}
-          >
-            {note.text}
-          </div>
-        ))}
-        {noteDraft && (
-          <div
-            className="dz-note yellow editable"
-            style={{ left: noteDraft.x, top: noteDraft.y, width: 240, minHeight: 160 }}
-            contentEditable="plaintext-only"
-            aria-label="New sticky note"
-            ref={(element) => {
-              if (element && document.activeElement !== element) element.focus();
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.currentTarget.textContent = '';
-                event.currentTarget.blur();
-              }
-            }}
-            onBlur={(event) => {
-              const text = event.currentTarget.textContent?.trim() ?? '';
-              const at = noteDraft;
-              setNoteDraft(null);
-              if (text && onDraw)
-                onDraw({ canvas: 'note', x: Math.round(at.x), y: Math.round(at.y), text });
-            }}
-          />
-        )}
-
         {Object.entries(canvas.boards).map(([file, board]) => {
           const on = selection?.board === file;
           const agent = agentBoards?.has(file);
@@ -627,6 +619,63 @@ export function DesignCanvas({
             </div>
           );
         })}
+        {/* Sticky notes sit over the boards they point at. */}
+        {notes.map(([id, note]) => (
+          <div
+            key={id}
+            className={`dz-note ${note.fill ?? 'yellow'}${onNote ? ' editable' : ''}`}
+            style={{ left: note.x, top: note.y, width: note.w ?? 280 }}
+            contentEditable={editingNote === id ? 'plaintext-only' : undefined}
+            suppressContentEditableWarning
+            ref={(element) => {
+              if (element && editingNote === id && document.activeElement !== element) {
+                element.focus();
+                document.getSelection()?.selectAllChildren(element);
+              }
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              if (onNote) setEditingNote(id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.currentTarget.textContent = note.text ?? '';
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={(event) => {
+              const text = event.currentTarget.textContent?.trim() ?? '';
+              setEditingNote(null);
+              if (text !== note.text) onNote?.(id, text);
+            }}
+          >
+            {note.text}
+          </div>
+        ))}
+        {noteDraft && (
+          <div
+            className="dz-note yellow editable"
+            style={{ left: noteDraft.x, top: noteDraft.y, width: 240, minHeight: 160 }}
+            contentEditable="plaintext-only"
+            aria-label="New sticky note"
+            ref={(element) => {
+              if (element && document.activeElement !== element) element.focus();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.currentTarget.textContent = '';
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={(event) => {
+              const text = event.currentTarget.textContent?.trim() ?? '';
+              const at = noteDraft;
+              setNoteDraft(null);
+              if (text && onDraw)
+                onDraw({ canvas: 'note', x: Math.round(at.x), y: Math.round(at.y), text });
+            }}
+          />
+        )}
         {[...(agentLayers ?? [])].flatMap(([file, layers]) =>
           layers.map((layer) => {
             const at = rectOf(frames, canvas, file, layer.layer);
@@ -678,6 +727,16 @@ export function DesignCanvas({
             </div>
           );
         })}
+        {marks.map(([id, note]) => (
+          <MarkShape
+            key={id}
+            note={markAt(id, note)}
+            z={view.z}
+            on={shownMark === id}
+            onPointerDown={(event) => grab(id, note, event)}
+          />
+        ))}
+        {inked && <InkPath points={inked} z={view.z} />}
         {hovered && (
           <div
             className="dz-hover"
@@ -723,6 +782,12 @@ export function DesignCanvas({
           </span>
         )}
         {draft && <DraftShape draft={draft} z={view.z} />}
+        {shownMark && (
+          <MarkSelection
+            note={markAt(shownMark, canvas.notes![shownMark] as Note & Mark)}
+            z={view.z}
+          />
+        )}
         {drop && drop.line.w > 0 && (
           <>
             <div
@@ -811,17 +876,52 @@ export function DesignCanvas({
               });
             }
             if (tool === 'pen') {
+              // A stroke inks a mark on the canvas; a tap starts, or adds to, a vector in a board.
               if (!draft) {
-                if (board) setDraft({ tool, board, start: point, end: point, points: [point] });
-              } else if (draft.points!.length > 2 && near(point, draft.points![0])) finishPen(true);
+                // Keeps the stroke when it leaves the canvas; a pointer that cannot be held still draws.
+                try {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                } catch {}
+                ink.current = { points: [point], from: point, board, length: 0 };
+                return setInked([point]);
+              }
+              if (draft.points!.length > 2 && near(point, draft.points![0])) finishPen(true);
               else setDraft({ ...draft, points: [...draft.points!, point], end: point });
               return;
             }
             event.currentTarget.setPointerCapture(event.pointerId);
             setDraft({ tool, board, start: point, end: point });
           }}
-          onPointerMove={(event) => draft && setDraft({ ...draft, end: toWorld(event) })}
-          onPointerUp={() => draft && draft.tool !== 'pen' && finishDrag()}
+          onPointerMove={(event) => {
+            const stroke = ink.current;
+            if (stroke) {
+              // Apple Pencil reports more points than frames; take them all.
+              const events = event.nativeEvent.getCoalescedEvents?.() ?? [event.nativeEvent];
+              for (const next of events.length ? events : [event.nativeEvent]) {
+                const point = toWorld(next);
+                const last = stroke.points[stroke.points.length - 1];
+                const step = Math.hypot(point.x - last.x, point.y - last.y) * view.z;
+                if (step < 1.5) continue;
+                stroke.length += step;
+                stroke.points.push(point);
+              }
+              return setInked([...stroke.points]);
+            }
+            if (draft) setDraft({ ...draft, end: toWorld(event) });
+          }}
+          onPointerUp={() => {
+            const stroke = ink.current;
+            if (stroke) {
+              ink.current = null;
+              setInked(null);
+              if (stroke.length >= 6)
+                return onDraw!({ canvas: 'mark', points: inkPoints(stroke.points) });
+              const { from, board } = stroke;
+              if (board) setDraft({ tool: 'pen', board, start: from, end: from, points: [from] });
+              return;
+            }
+            if (draft && draft.tool !== 'pen') finishDrag();
+          }}
           onDoubleClick={() => draft?.tool === 'pen' && finishPen(false)}
         />
       )}
@@ -879,6 +979,134 @@ function DraftShape({
         {label}
       </span>
     </>
+  );
+}
+
+/** A stroke's points for saving: whole canvas pixels, no more than the server keeps. */
+function inkPoints(points: Point[]): [number, number][] {
+  const every = Math.ceil(points.length / 1500);
+  const kept = points.filter((_, i) => i % every === 0 || i === points.length - 1);
+  return kept.map((p) => [Math.round(p.x), Math.round(p.y)]);
+}
+
+/** A mark's points at the size it is drawn. */
+function markPoints(note: Note & Mark): [number, number][] {
+  const numbers = (note.path.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+  const sx = (note.w ?? note.pw) / note.pw;
+  const sy = (note.h ?? note.ph) / note.ph;
+  const points: [number, number][] = [];
+  for (let i = 0; i + 1 < numbers.length; i += 2)
+    points.push([numbers[i] * sx, numbers[i + 1] * sy]);
+  return points;
+}
+
+/** The arrowhead at a stroke's end, pointing along its last stretch; unit is one screen pixel. */
+export function arrowHead(points: [number, number][], width: number, unit = 1) {
+  if (points.length < 2) return '';
+  const [ex, ey] = points[points.length - 1];
+  const reach = (width * 3 + 8) * unit;
+  let [bx, by] = points[0];
+  for (let i = points.length - 2; i >= 0; i--) {
+    [bx, by] = points[i];
+    if (Math.hypot(ex - bx, ey - by) >= reach) break;
+  }
+  const angle = Math.atan2(ey - by, ex - bx);
+  const size = (width * 4 + 8) * unit;
+  const wing = (turn: number) =>
+    `${ex - size * Math.cos(angle + turn)} ${ey - size * Math.sin(angle + turn)}`;
+  return `M${wing(0.5)} L${ex} ${ey} L${wing(-0.5)}`;
+}
+
+/**
+ * A pen mark on the canvas, in its colour token, turned by its rotation. Like markup, its stroke
+ * keeps its width on screen at any zoom, so a mark stays readable from far out.
+ */
+function MarkShape({
+  note,
+  z,
+  on,
+  onPointerDown,
+}: {
+  note: Note & Mark;
+  z: number;
+  on: boolean;
+  onPointerDown: (event: React.PointerEvent) => void;
+}) {
+  const points = markPoints(note);
+  const d = points.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
+  const color = `var(--ds-${note.stroke})`;
+  return (
+    <svg
+      className={`dz-mark${on ? ' on' : ''}`}
+      style={{
+        left: note.x,
+        top: note.y,
+        width: note.w ?? note.pw,
+        height: note.h ?? note.ph,
+        transform: note.rotate ? `rotate(${note.rotate}deg)` : undefined,
+        opacity: note.hidden ? 0 : (note.opacity ?? 1),
+      }}
+      aria-label={note.arrow ? 'Annotation, arrow' : 'Annotation'}
+      onPointerDown={onPointerDown}
+    >
+      <path className="dz-mark-hit" d={d} strokeWidth={(note.width + 12) / z} />
+      <path d={d} stroke={color} strokeWidth={note.width / z} />
+      {note.arrow && (
+        <path
+          d={arrowHead(points, note.width, 1 / z)}
+          stroke={color}
+          strokeWidth={note.width / z}
+        />
+      )}
+    </svg>
+  );
+}
+
+/** The box around a mark as it shows: upright, around the stroke once it is turned. */
+function MarkSelection({ note, z }: { note: Note & Mark; z: number }) {
+  const [w, h] = [note.w ?? note.pw, note.h ?? note.ph];
+  const turn = ((note.rotate ?? 0) * Math.PI) / 180;
+  const turned = markPoints(note).map(([x, y]) => {
+    const [dx, dy] = [x - w / 2, y - h / 2];
+    return [
+      w / 2 + dx * Math.cos(turn) - dy * Math.sin(turn),
+      h / 2 + dx * Math.sin(turn) + dy * Math.cos(turn),
+    ];
+  });
+  const left = Math.min(...turned.map(([x]) => x));
+  const top = Math.min(...turned.map(([, y]) => y));
+  return (
+    <div
+      className="dz-selection"
+      style={{
+        left: note.x + left,
+        top: note.y + top,
+        width: Math.max(...turned.map(([x]) => x)) - left,
+        height: Math.max(...turned.map(([, y]) => y)) - top,
+        borderWidth: 1.5 / z,
+      }}
+    >
+      {[0, 1, 2, 3].map((corner) => (
+        <i
+          key={corner}
+          className={`c${corner}`}
+          style={{ width: 7 / z, height: 7 / z, borderWidth: 1.5 / z }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** The stroke being drawn, in the colour a new mark gets. */
+function InkPath({ points, z }: { points: Point[]; z: number }) {
+  return (
+    <svg className="dz-draft-path dz-ink" width="1" height="1" aria-hidden="true">
+      <polyline
+        points={points.map((p) => `${p.x},${p.y}`).join(' ')}
+        strokeWidth={2.5 / z}
+        fill="none"
+      />
+    </svg>
   );
 }
 

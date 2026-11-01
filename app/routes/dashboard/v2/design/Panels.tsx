@@ -13,10 +13,14 @@ import {
   layerFacts,
   layerName,
   layerPath,
+  markColors,
+  markName,
   textStyle,
   type Canvas,
   type Design,
   type LayerChange,
+  type Mark,
+  type Note,
   type Section,
   type Tokens,
 } from './model';
@@ -414,6 +418,9 @@ export function LeftPanel({
   onHide,
   onCloseSheet,
   assets,
+  loose = [],
+  mark = null,
+  onLoose,
 }: {
   projects: Project[];
   project: Project | undefined;
@@ -443,6 +450,11 @@ export function LeftPanel({
   assets: ReactNode;
   /** On a phone, Layers is a sheet; this puts it away. */
   onCloseSheet?: () => void;
+  /** What sits on this page beside its boards: pen marks and sticky notes. */
+  loose?: { id: string; note: Note }[];
+  /** The pen mark selected on the canvas. */
+  mark?: string | null;
+  onLoose?: (id: string) => void;
 }) {
   const [tab, setTab] = useState<'file' | 'assets'>('file');
   const [allPages, setAllPages] = useState(false);
@@ -632,6 +644,20 @@ export function LeftPanel({
                   changed={changed.has(file)}
                   inReview={inReview.has(file)}
                   agentAt={agentAt.get(file) ?? new Set()}
+                />
+              ))}
+            {loose
+              .filter(({ note }) =>
+                match(note.kind === 'mark' ? markName(note) : (note.text ?? '')),
+              )
+              .map(({ id, note }) => (
+                <Row
+                  key={id}
+                  depth={0}
+                  icon={note.kind === 'mark' ? 'vector' : 'sticky'}
+                  label={note.kind === 'mark' ? markName(note) : (note.text ?? '').split('\n')[0]}
+                  on={mark === id}
+                  onClick={() => onLoose?.(id)}
                 />
               ))}
           </div>
@@ -1487,6 +1513,191 @@ function LayerProps({
   );
 }
 
+/** A pen mark's properties, laid out like a layer's: where it is, its size, and its stroke. */
+function MarkProps({
+  note,
+  tokens,
+  onEdit,
+}: {
+  note: Note & Mark;
+  tokens: Tokens;
+  /** Present when this design can be edited. */
+  onEdit?: (patch: Partial<Mark & { x: number; y: number; w: number; h: number }>) => void;
+}) {
+  const w = note.w ?? note.pw;
+  const h = note.h ?? note.ph;
+  const color = tokens.colors.find((token) => token.name === note.stroke)?.light ?? note.stroke;
+  const field = (label: ReactNode, name: string, value: string, commit: (n: number) => void) => (
+    <Field label={label}>
+      {onEdit ? (
+        <Input
+          label={name}
+          value={value}
+          onCommit={(next) => {
+            // Rotation and position can be negative.
+            const n = parseFloat(next);
+            if (Number.isFinite(n)) commit(n);
+          }}
+        />
+      ) : (
+        value
+      )}
+    </Field>
+  );
+  // Opens the stroke colour picker, as the tokens button beside a layer's fill does.
+  const tokensButton = (label: string, ready: boolean) => (
+    <button
+      type="button"
+      className="dl-icon-btn dz-side"
+      aria-label={label}
+      title={label}
+      disabled={!ready}
+      onClick={() =>
+        (
+          document.querySelector('select[aria-label="Stroke colour"]') as
+            | (HTMLSelectElement & { showPicker?: () => void })
+            | null
+        )?.showPicker?.()
+      }
+    >
+      <Icon name="tokens" size={13} />
+    </button>
+  );
+  const eye = (hidden: boolean, label: string, run: () => void) => (
+    <button
+      type="button"
+      className={`dl-icon-btn dz-side${hidden ? ' on' : ''}`}
+      aria-label={label}
+      title={label}
+      aria-pressed={hidden}
+      disabled={!onEdit}
+      onClick={run}
+    >
+      <Icon name={hidden ? 'eyeOff' : 'eye'} size={13} />
+    </button>
+  );
+  return (
+    <>
+      <Prop title="Position">
+        <div className="dz-align" role="group" aria-label="Align">
+          {(['al', 'ac', 'ar', 'at', 'am', 'ab'] as const).map((name) => (
+            <span key={name} aria-hidden="true">
+              <AlignIcon name={name} />
+            </span>
+          ))}
+        </div>
+        <div className="dz-grid">
+          {field('X', 'X', String(note.x), (x) => onEdit?.({ x }))}
+          {field('Y', 'Y', String(note.y), (y) => onEdit?.({ y }))}
+          {field('↻', 'Rotation', `${note.rotate ?? 0}°`, (rotate) =>
+            onEdit?.({ rotate: Math.max(-360, Math.min(360, rotate)) }),
+          )}
+        </div>
+      </Prop>
+      <Prop title="Layout">
+        <div className="dz-grid dz-resettable">
+          {field('W', 'Width', String(Math.round(w)), (next) => next >= 1 && onEdit?.({ w: next }))}
+          {field(
+            'H',
+            'Height',
+            String(Math.round(h)),
+            (next) => next >= 1 && onEdit?.({ h: next }),
+          )}
+          <button
+            type="button"
+            className="dl-icon-btn dz-side"
+            aria-label="Back to the size it was drawn"
+            title="Back to the size it was drawn"
+            disabled={!onEdit}
+            onClick={() => onEdit?.({ w: note.pw, h: note.ph })}
+          >
+            <Icon name="fit" size={13} />
+          </button>
+        </div>
+      </Prop>
+      <Prop title="Appearance">
+        <div className="dz-grid dz-resettable">
+          {field(
+            <Icon name="opacity" size={12} />,
+            'Opacity',
+            `${Math.round((note.opacity ?? 1) * 100)}%`,
+            (next) => onEdit?.({ opacity: Math.max(0, Math.min(100, next)) / 100 }),
+          )}
+          <Field label={<Icon name="radius" size={12} />}>0</Field>
+          {eye(Boolean(note.hidden), note.hidden ? 'Show the mark' : 'Hide the mark', () =>
+            onEdit?.({ hidden: !note.hidden }),
+          )}
+        </div>
+      </Prop>
+      <Prop
+        title="Fill"
+        actions={
+          <>
+            {tokensButton('Colour tokens', false)}
+            {later}
+          </>
+        }
+      />
+      <Prop
+        title="Stroke"
+        actions={
+          <>
+            {tokensButton('Stroke colour tokens', Boolean(onEdit))}
+            {later}
+          </>
+        }
+      >
+        <div className="dz-resettable">
+          <Field wide>
+            {onEdit ? (
+              <Pick
+                label="Stroke colour"
+                value={note.stroke}
+                options={markColors.map((name) => ({ value: name, label: name }))}
+                onChange={(stroke) => stroke && onEdit({ stroke })}
+              >
+                <FillChip color={color} token={note.stroke} />
+              </Pick>
+            ) : (
+              <FillChip color={color} token={note.stroke} />
+            )}
+            <span className="dz-meta">100%</span>
+          </Field>
+          {eye(Boolean(note.hidden), note.hidden ? 'Show the stroke' : 'Hide the stroke', () =>
+            onEdit?.({ hidden: !note.hidden }),
+          )}
+        </div>
+        <div className="dz-grid dz-resettable">
+          {field('W', 'Stroke width', String(note.width), (width) =>
+            onEdit?.({ width: Math.max(0.5, Math.min(40, width)) }),
+          )}
+          <Field>
+            {onEdit ? (
+              <Pick
+                label="Stroke end"
+                value={note.arrow ? 'arrow' : 'none'}
+                options={[
+                  { value: 'none', label: 'No end' },
+                  { value: 'arrow', label: 'Arrow end' },
+                ]}
+                onChange={(end) => onEdit({ arrow: end === 'arrow' })}
+              >
+                {note.arrow ? 'Arrow end' : 'No end'}
+              </Pick>
+            ) : note.arrow ? (
+              'Arrow end'
+            ) : (
+              'No end'
+            )}
+          </Field>
+        </div>
+      </Prop>
+      <Prop title="Effects" actions={later} />
+      <Prop title="Export" actions={later} />
+    </>
+  );
+}
+
 /** A colour that is not a token, as a designer reads it: hex, with its opacity when see-through. */
 function shownColor(color: string, code: string | null) {
   if (code) return `#${code.toUpperCase()}`;
@@ -1543,6 +1754,9 @@ export function RightPanel({
   htmlHref,
   onEdit,
   component,
+  mark,
+  onMark,
+  onRemoveMark,
 }: {
   project: Project | undefined;
   design: Design | undefined;
@@ -1575,6 +1789,11 @@ export function RightPanel({
   onEdit?: (board: string, layer: string, edits: LayerEdit[]) => void;
   /** A design-system component picked or being placed from Assets, shown instead of a layer. */
   component?: ReactNode;
+  /** A pen mark selected on the canvas, with its page, shown instead of a layer. */
+  mark?: { id: string; note: Note & Mark; page: string } | null;
+  /** Present when this design can be edited. */
+  onMark?: (patch: Partial<Mark & { x: number; y: number; w: number; h: number }>) => void;
+  onRemoveMark?: () => void;
 }) {
   const [zoomMenu, setZoomMenu] = useState(false);
   const [moreMenu, setMoreMenu] = useState(false);
@@ -1694,6 +1913,68 @@ export function RightPanel({
           agent
         ) : component ? (
           component
+        ) : mark ? (
+          <>
+            <div className="dz-sel">
+              <b className="dz-sel-kind">
+                <span className="dz-sel-name">
+                  Vector
+                  <Icon name="down" size={11} />
+                </span>
+                <button
+                  type="button"
+                  className="dl-icon-btn"
+                  aria-label="Ask an agent about a board or a layer"
+                  title="Ask an agent about a board or a layer"
+                  disabled
+                >
+                  <Icon name="spark" size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="dl-icon-btn"
+                  aria-label="Comment on a board or a layer"
+                  title="Comment on a board or a layer"
+                  disabled
+                >
+                  <Icon name="comment" size={14} />
+                </button>
+                <span className="dz-more-wrap">
+                  <button
+                    type="button"
+                    className="dl-icon-btn"
+                    aria-label="More"
+                    aria-haspopup="menu"
+                    aria-expanded={moreMenu}
+                    onClick={() => setMoreMenu(!moreMenu)}
+                  >
+                    <Icon name="dots" size={14} />
+                  </button>
+                  {moreMenu && (
+                    <div
+                      className="dl-menu dz-zoom-menu"
+                      role="menu"
+                      onClick={() => setMoreMenu(false)}
+                    >
+                      <button
+                        type="button"
+                        className="dl-menu-item"
+                        role="menuitem"
+                        disabled={!onRemoveMark}
+                        onClick={onRemoveMark}
+                      >
+                        Delete the mark
+                      </button>
+                    </div>
+                  )}
+                </span>
+              </b>
+              <span className="dz-crumb">
+                {mark.page} › {markName(mark.note)}
+              </span>
+            </div>
+            <MarkProps key={mark.id} note={mark.note} tokens={tokens} onEdit={onMark} />
+          </>
         ) : selection && element ? (
           <>
             <div className="dz-sel">

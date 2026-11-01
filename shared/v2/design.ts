@@ -5,10 +5,33 @@ export type Note = {
   x: number;
   y: number;
   w?: number;
+  h?: number;
   text?: string;
   kind?: string;
   fill?: string;
+} & Partial<Omit<Mark, 'kind'>>;
+/**
+ * A mark drawn on the canvas with the pen, like Apple Pencil markup: it sits beside the boards,
+ * as sticky notes do, so it never becomes part of a design. Its path is in its own units, pw by
+ * ph, drawn at w by h.
+ */
+export type Mark = {
+  kind: 'mark';
+  path: string;
+  pw: number;
+  ph: number;
+  /** A colour token: danger, ink, accent, active, success or warning. */
+  stroke: string;
+  width: number;
+  arrow?: boolean;
+  rotate?: number;
+  opacity?: number;
+  hidden?: boolean;
 };
+export const markColors = ['danger', 'ink', 'accent', 'active', 'success', 'warning'];
+export const isMark = (note: Note): note is Note & Mark => note.kind === 'mark';
+/** A mark's name in the panels. */
+export const markName = (note: Note) => (note.arrow ? 'Annotation · arrow' : 'Annotation');
 export type Canvas = {
   title?: string;
   boards: Record<string, Board>;
@@ -44,11 +67,7 @@ export function sections(canvas: Canvas): Section[] {
   for (const file of order) {
     const board = canvas.boards[file];
     if (!board) continue;
-    const above = titles.filter((section) => section.y <= board.y);
-    const rowY = Math.max(...above.map((section) => section.y));
-    const row = above.filter((section) => section.y === rowY);
-    const home =
-      row.filter((section) => section.x <= board.x).sort((a, b) => b.x - a.x)[0] ?? row[0];
+    const home = homeOf(titles, board);
     if (home) home.boards.push(file);
     else loose.push(file);
   }
@@ -56,6 +75,25 @@ export function sections(canvas: Canvas): Section[] {
   if (loose.length)
     placed.unshift({ id: 'section-loose', title: 'Boards', x: 0, y: 0, boards: loose });
   return placed;
+}
+
+function homeOf<T extends { x: number; y: number }>(titles: T[], at: { x: number; y: number }) {
+  const above = titles.filter((section) => section.y <= at.y);
+  const rowY = Math.max(...above.map((section) => section.y));
+  const row = above.filter((section) => section.y === rowY);
+  return row.filter((section) => section.x <= at.x).sort((a, b) => b.x - a.x)[0] ?? row[0];
+}
+
+/** The page a spot on the canvas belongs to, by the rule boards follow; null outside every page. */
+export function sectionAt(list: Section[], at: { x: number; y: number }) {
+  return (
+    homeOf(
+      list.filter((section) => section.id !== 'section-loose'),
+      at,
+    ) ??
+    list.find((section) => section.id === 'section-loose') ??
+    null
+  );
 }
 
 /** A layer's name in the panels: its own text when it is short text, otherwise its ID in words. */

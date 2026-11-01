@@ -534,6 +534,71 @@ test('drawing adds layers to a board, and the canvas takes new boards and sticky
   assert.equal(section.status, 404);
 });
 
+test('the pen draws marks on the canvas, beside the boards, and they change a property at a time', async () => {
+  const drawn = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: 'HEAD',
+        op: 'mark',
+        points: [
+          [100, 200],
+          [140, 180],
+          [180, 230],
+        ],
+      }),
+    })
+  ).json();
+  assert.match(drawn.made, /^mark-/);
+  const edited = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: drawn.branch,
+        op: 'mark',
+        id: drawn.made,
+        rotate: -18,
+        width: 4,
+        arrow: true,
+        stroke: 'accent',
+      }),
+    })
+  ).json();
+  const canvas = JSON.parse(await git(['show', `${edited.commit}:design/canvas.json`]));
+  assert.deepEqual(canvas.notes[drawn.made], {
+    kind: 'mark',
+    x: 100,
+    y: 180,
+    w: 80,
+    h: 50,
+    pw: 80,
+    ph: 50,
+    path: 'M0 20 L40 0 L80 50',
+    stroke: 'accent',
+    width: 4,
+    rotate: -18,
+    arrow: true,
+  });
+  // A mark is not a board: drawing one changes no board.
+  assert.equal(
+    await git(['diff', '--name-only', 'HEAD', edited.commit, '--', 'design/boards']),
+    '',
+  );
+  const wrong = await call('/canvas', {
+    method: 'POST',
+    body: JSON.stringify({ ref: drawn.branch, op: 'mark', id: drawn.made, stroke: 'red' }),
+  });
+  assert.equal(wrong.status, 400);
+  const removed = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: drawn.branch, op: 'remove-note', id: drawn.made }),
+    })
+  ).json();
+  const after = JSON.parse(await git(['show', `${removed.commit}:design/canvas.json`]));
+  assert.equal(after.notes[drawn.made], undefined);
+});
+
 test('Assets lists the library and its use, and approving a library change updates every instance', async () => {
   const { spawnSync } = await import('node:child_process');
   const { answerInbox } = await import('./inbox.ts');
