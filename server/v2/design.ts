@@ -22,7 +22,13 @@ import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.t
 import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
 import { startRun } from '../workspace/service.ts';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
-import { describeChange, layerLabel, sections, type Canvas } from '../../shared/v2/design.ts';
+import {
+  describeChange,
+  layerLabel,
+  markColors,
+  sections,
+  type Canvas,
+} from '../../shared/v2/design.ts';
 
 /**
  * The Design page reads a project's design/ folder (canvas.json, boards/*.html, ds/) from any ref:
@@ -1008,6 +1014,57 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         made = `note-${randomUUID().slice(0, 8)}`;
         notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
       }
+    } else if (op === 'mark') {
+      // A pen mark on the canvas: drawn from its points, then changed a property at a time.
+      const number = (value: unknown, low: number, high: number, name: string) => {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < low || n > high) fail(`${name} must be ${low} to ${high}`);
+        return Math.round(n * 10) / 10;
+      };
+      if (body.id) {
+        const mark = notes[body.id];
+        if (mark?.kind !== 'mark') fail(`No mark named ${body.id}`, 404);
+        if (body.x !== undefined) mark.x = at(body.x);
+        if (body.y !== undefined) mark.y = at(body.y);
+        if (body.w !== undefined) mark.w = number(body.w, 1, 20000, 'W');
+        if (body.h !== undefined) mark.h = number(body.h, 1, 20000, 'H');
+        if (body.rotate !== undefined) mark.rotate = number(body.rotate, -360, 360, 'Rotation');
+        if (body.width !== undefined) mark.width = number(body.width, 0.5, 40, 'Stroke width');
+        if (body.opacity !== undefined) mark.opacity = number(body.opacity, 0, 1, 'Opacity');
+        if (body.stroke !== undefined) {
+          if (!markColors.includes(String(body.stroke))) fail('Pick a stroke colour token');
+          mark.stroke = String(body.stroke);
+        }
+        if (body.arrow !== undefined) mark.arrow = Boolean(body.arrow);
+        if (body.hidden !== undefined) mark.hidden = Boolean(body.hidden);
+        made = body.id;
+      } else {
+        const points = body.points;
+        if (!Array.isArray(points) || points.length < 2 || points.length > 2000)
+          fail('A mark needs 2 to 2000 points');
+        const xy = (points as unknown[]).map((point) => {
+          if (!Array.isArray(point)) fail('A point is [x, y]');
+          return [at((point as number[])[0]), at((point as number[])[1])];
+        });
+        const left = Math.min(...xy.map(([x]) => x));
+        const top = Math.min(...xy.map(([, y]) => y));
+        const pw = Math.max(1, Math.max(...xy.map(([x]) => x)) - left);
+        const ph = Math.max(1, Math.max(...xy.map(([, y]) => y)) - top);
+        const path = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x - left} ${y - top}`).join(' ');
+        made = `mark-${randomUUID().slice(0, 8)}`;
+        notes[made] = {
+          kind: 'mark',
+          x: left,
+          y: top,
+          w: pw,
+          h: ph,
+          pw,
+          ph,
+          path,
+          stroke: markColors.includes(String(body.stroke)) ? String(body.stroke) : 'danger',
+          width: body.width !== undefined ? number(body.width, 0.5, 40, 'Stroke width') : 2.5,
+        };
+      }
     } else if (op === 'remove-note') {
       if (!notes[body.id] || String(body.id).startsWith('section-')) fail('No such note', 404);
       delete notes[body.id];
@@ -1028,7 +1085,14 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       from: head,
       paths: [],
       branch,
-      message: op === 'board' ? `Add ${made!.replace(/\.html$/, '')}` : 'Edit canvas notes',
+      message:
+        op === 'board'
+          ? `Add ${made!.replace(/\.html$/, '')}`
+          : op === 'mark'
+            ? body.id
+              ? 'Edit a mark on the canvas'
+              : 'Draw a mark on the canvas'
+            : 'Edit canvas notes',
       by: owner,
       writes,
     });

@@ -1535,6 +1535,27 @@
 .dz-draft-path polyline {
   stroke: var(--ds-accent);
 }
+/* Pen marks: Apple Pencil markup on the canvas, beside the boards. */
+.dz-ink polyline {
+  stroke: var(--ds-danger);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dz-mark {
+  position: absolute;
+  overflow: visible;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-origin: center;
+  pointer-events: none;
+}
+.dz-mark-hit {
+  stroke: transparent;
+  pointer-events: stroke;
+  cursor: default;
+}
+
 .dz-dims {
   position: absolute;
   padding: 1px 6px;

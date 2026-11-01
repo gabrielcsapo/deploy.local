@@ -9,11 +9,16 @@ import {
 export {
   boardName,
   describeChange,
+  isMark,
   layerLabel,
+  markColors,
+  markName,
+  sectionAt,
   sections,
   type Board,
   type Canvas,
   type LayerChange,
+  type Mark,
   type Note,
   type Section,
 } from '../../../../../shared/v2/design';
