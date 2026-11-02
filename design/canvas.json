@@ -1268,6 +1268,21 @@
       "h": 900,
       "title": "Drawing a rectangle on a board; a sticky note on the canvas",
       "expand": "fill"
+    },
+    "DesignReviewNote.html": {
+      "x": 7890,
+      "y": 50884,
+      "w": 1440,
+      "h": 900,
+      "title": "Reviewing a design whose change is a canvas note",
+      "expand": "fill"
+    },
+    "DesignReviewNotePhone.html": {
+      "x": 9410,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "Approve a canvas note change on iPhone"
     }
   },
   "order": [
@@ -1439,7 +1454,9 @@
     "DesignAsk.html",
     "DesignAgent.html",
     "DesignDraw.html",
-    "DesignAskPhone.html"
+    "DesignAskPhone.html",
+    "DesignReviewNote.html",
+    "DesignReviewNotePhone.html"
   ],
   "notes": {
     "intro": {
@@ -2203,6 +2220,13 @@
       "kind": "title1",
       "size": "xxl",
       "maxW": 5600
+    },
+    "design-review-notes-how": {
+      "x": 7890,
+      "y": 51840,
+      "w": 1910,
+      "h": 220,
+      "text": "Reviewing changes that are not boards\n• Opening a design item in Waiting on you shows its review, task or not: changed boards as Before and After, and changed canvas notes as their text, Before and After, with the new lines marked.\n• The list on the left names each change: a board by its name, a note by its first line, tagged Note.\n• The item's line says what changed in words: “The note “Drawing: how it works” changed on design/drawing-note”, or “2 boards and 1 note changed”; never “1 design files”.\n• iPhone shows the same: the note's text in place of a board, with Before and After."
     },
     "design-draw-how": {
       "x": 13760,

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=390,height=844">
+<title>iPhone: approve a canvas note change from Waiting on you</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+.ba-strip{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:20;padding:2px 12px;border-radius:0 0 8px 8px;font:600 12px/18px var(--font-sans);letter-spacing:.02em;color:#fff}
+.ba-strip.before{background:#6b6b76}.ba-strip.after{background:#18181b}
+.mini{position:relative;overflow:hidden;border-radius:8px;background:#fafafb;box-shadow:0 0 0 1px var(--line)}
+.rp-tog{display:flex;justify-content:center;padding:12px 16px 4px}
+.rp-shot{margin:8px 16px 0;display:flex;justify-content:center}
+.rp-shot .mini{border-radius:10px}
+.nr-note{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;background:var(--accent-soft);display:flex;flex-direction:column;gap:2px;max-height:387px;overflow:hidden}
+.nr-line{margin:0;padding:1px 8px;font-size:13px;line-height:19px;color:var(--ink);border-left:2px solid transparent;border-radius:0 4px 4px 0}
+.nr-line.in{border-left-color:var(--accent);background:var(--paper)}
+.nr-line:first-child{font-weight:600}
+.rp-cap{text-align:center;font-size:12px;line-height:16px;color:var(--muted);padding:6px 0 0}
+
+</style>
+</head>
+<body>
+<div data-layer="phone" class="dl-phone"><header data-layer="ph-top" class="dl-ph-top"><a data-layer="back" href="#" class="dl-ph-btn" aria-label="Back"><svg data-layer="svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a><span data-layer="design-review" class="dl-t">Design review</span><button data-layer="more" type="button" class="dl-ph-btn" aria-label="More"><svg data-layer="svg-2" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></header><div data-layer="ph-body" class="dl-ph-body">
+<div data-layer="ph-thread" class="dl-ph-thread"><div data-layer="approve-the-welcome" class="dl-reply" style="font-weight:600;font-size:22px;line-height:28px">Approve the drawing-note design?</div><span data-layer="from-the-task" class="dl-meta" style="font-size:13px">From design/drawing-note · 1 note</span></div>
+<div data-layer="rp-tog" class="rp-tog"><div data-layer="show" class="dl-seg" role="group" aria-label="Show"><a data-layer="before" href="#">Before</a><a data-layer="after" href="#" class="on" aria-current="true">After</a></div></div>
+<div data-layer="rp-shot" class="rp-shot"><div data-layer="nr-note" class="nr-note"><p data-layer="drawing-how-it" class="nr-line">Drawing: how it works</p><p data-layer="rectangle-ellipse-and" class="nr-line">• Rectangle, Ellipse and Line (the shape menu, or R, O, L) draw inside a board where you drag. The shape keeps that spot (X and Y) and size, filled surface with a line stroke, and saves to the board on your design branch.</p><p data-layer="text-t-click" class="nr-line">• Text (T): click inside a board to place a text layer and type; Enter keeps it.</p><p data-layer="pen-p-a" class="nr-line in">• Pen (P): a stroke with Apple Pencil, or a drag, inks a mark on the canvas: danger, W 2.5, the same width on screen at any zoom. Marks sit beside boards like sticky notes, never inside one, and save to canvas.json. Select one to set its rotation, size, opacity, stroke colour, W and Arrow end; drag it to move it; Delete removes it. Tapping points instead draws a vector in a board; Enter, or a tap on the first point, ends it.</p><p data-layer="frame-f-drag" class="nr-line">• Frame (F): drag on empty canvas to make a new board (Web 1440 or Phone 390 by its width, named Board N until you rename it); inside a board it makes a frame layer.</p><p data-layer="sticky-notes-s" class="nr-line in">• Sticky notes (S): click on the canvas; they save to canvas.json and show over the boards they point at. Layers lists a page&#x27;s marks and sticky notes after its boards.</p><p data-layer="escape-goes-back" class="nr-line in">• Escape goes back to Move (V); the pen keeps inking until you do. Layers drawn in a board can be edited in the properties panel and undone with Reset.</p></div></div><div data-layer="welcome-after-narrow" class="rp-cap">Drawing: how it works · After · note</div>
+<div data-layer="what-changes" class="dl-ph-label">What changes</div>
+<div data-layer="ph-group" class="dl-ph-group"><div data-layer="ph-row" class="dl-ph-row"><span data-layer="t-5" class="dl-t"><span data-layer="the-input-box" style="white-space:normal">3 of 7 lines rewritten; the marked lines are new</span></span></div><div data-layer="ph-row-2" class="dl-ph-row"><span data-layer="t-6" class="dl-t"><span data-layer="a-side-gutter" style="white-space:normal">No board changes</span></span></div></div>
+</div><div data-layer="div-2" style="padding:12px 16px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)"><button data-layer="approve-design" type="button" class="dl-btn primary">Approve design</button><button data-layer="ask-for-changes" type="button" class="dl-btn secondary">Ask for changes</button></div></div>
+</body>
+</html>
