@@ -1376,6 +1376,22 @@
       "h": 1240,
       "title": "A merged pull request no task opened",
       "expand": "fill"
+    },
+    "ProjectsRail.html": {
+      "x": 18440,
+      "y": 13104,
+      "w": 1440,
+      "h": 900,
+      "title": "Projects with the sidebar collapsed to the rail",
+      "expand": "fill"
+    },
+    "DesignConnections.html": {
+      "x": 13060,
+      "y": 52200,
+      "w": 1440,
+      "h": 900,
+      "title": "Connections: every link between boards, always on, the selected board's lit",
+      "expand": "fill"
     }
   },
   "order": [
@@ -1561,7 +1577,9 @@
     "TaskChecksEmpty.html",
     "CodeFile.html",
     "PullRequestsEmpty.html",
-    "PullRequest.html"
+    "PullRequest.html",
+    "ProjectsRail.html",
+    "DesignConnections.html"
   ],
   "notes": {
     "intro": {
@@ -2338,7 +2356,7 @@
       "y": 52200,
       "w": 1400,
       "h": 320,
-      "text": "Prototype and Play: how boards connect\n• Links already live in the boards: a layer that opens another board carries its link (href). 143 of 171 boards have them.\n• Prototype, beside Edit and Comments, draws the selected board's links on the canvas: a line from each layer to the board it opens, the selected layer's line strongest. The repeated sidebar links stay hidden until you show them.\n• With a layer selected, Interaction says what a click does: On click › Go to a board. Change the board, remove the link, or drag the dot at the layer's edge onto a board. Saving writes the layer's link on your design branch, like any edit.\n• The board section lists where the board leads and what leads to it; Flow says where Play starts (the page's first board unless you choose another).\n• Play (▷, top right) opens the start board full screen and follows links: Back, the trail of boards you passed through, Restart, and the width (1440, 700, 390). Clicking where there's no link lights up the links. Esc or Exit returns to the canvas.\n• On iPad, Play is tap to follow, swipe from the left edge to go back, Done to leave."
+      "text": "Prototype and Play: how boards connect\n• Links already live in the boards: a layer that opens another board carries its link (href). 143 of 171 boards have them.\n• Prototype, beside Edit and Comments, draws the selected board's links on the canvas: a line from each layer to the board it opens, the selected layer's line strongest. The repeated sidebar links stay hidden until you show them.\n• To see every connection while you move around the canvas, in any tab, turn on Connections in the tool bar (⇧C); see the Connections board.\n• With a layer selected, Interaction says what a click does: On click › Go to a board. Change the board, remove the link, or drag the dot at the layer's edge onto a board. Saving writes the layer's link on your design branch, like any edit.\n• The board section lists where the board leads and what leads to it; Flow says where Play starts (the page's first board unless you choose another).\n• Play (▷, top right) opens the start board full screen and follows links: Back, the trail of boards you passed through, Restart, and the width (1440, 700, 390). Clicking where there's no link lights up the links. Esc or Exit returns to the canvas.\n• On iPad, Play is tap to follow, swipe from the left edge to go back, Done to leave."
     },
     "design-draw-how": {
       "x": 13760,
@@ -2367,6 +2385,20 @@
       "x": 16420,
       "y": 19164,
       "text": "Code and pull requests\nWeb app\niPhone: later\n\nCode reads like GitHub and Gitea: files, then the README. Every pull request opens; one no task opened shows read-only, with its commits and files."
+    },
+    "projects-rail-how": {
+      "x": 19960,
+      "y": 13104,
+      "w": 1520,
+      "fill": "blue",
+      "text": "The sidebar collapses to the rail, on every page\n• The rail is the one the Design page already has: d (New task), Projects, Live (a red dot while something fails), Computers, Design, then Waiting on you with its count, and your initial (Settings) at the foot. Hovering an icon names it.\n• Collapse sidebar sits at the top of the full sidebar, beside Search. On the rail, Expand sidebar sits just above your initial. ⌘\\ does both, everywhere.\n• Wide work surfaces open as the rail: Design, a task's Changes and Code. Every other page opens with the full sidebar.\n• Your choice is remembered on this device for that kind of page: collapse on Projects and list pages stay collapsed; expand on Design and Design keeps the sidebar. Opening a work surface never changes how list pages look.\n• Agents and the Today list live only in the full sidebar; on the rail they're one click away through Expand sidebar or ⌘K.\n• Below 820 px neither shows: the menu button opens the full sidebar over the page, as today."
+    },
+    "design-connections-how": {
+      "x": 14580,
+      "y": 52200,
+      "w": 900,
+      "fill": "blue",
+      "text": "Connections: see how boards link without opening Prototype\n• Connections, the last button in the tool bar (⇧C, also in the zoom menu), draws every link between boards on the page as an arrow, in Edit, Prototype and Comments alike. It stays on until you turn it off, per person.\n• Arrows run board to board, one per pair, however many layers make that link. They're grey and thin so the boards stay readable.\n• Select a board and its arrows turn violet: the boards it leads to and the boards that lead to it. Selecting a layer lights only that layer's link.\n• Links to boards on other pages don't draw; the board's Connections section lists them under their page. Clicking a row goes to that board.\n• Repeated links, like the sidebar on every board, stay hidden; the eye on the Sidebar row draws them too.\n• Narrow windows show the same arrows; the Connections section sits in the bottom sheet."
     }
   },
   "starts": {}
