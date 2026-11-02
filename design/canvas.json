@@ -532,7 +532,7 @@
       "x": 7870,
       "y": 15584,
       "w": 1440,
-      "h": 1000,
+      "h": 1100,
       "title": "A sick worker: what health means without an address",
       "expand": "fill"
     },
@@ -2317,6 +2317,13 @@
       "w": 1800,
       "h": 220,
       "text": "Design on iPhone and iPad\n• Projects › a project › Design opens the Design page full screen, signed in as you. ‹ goes back to the project.\n• iPad shows the desktop layout (the iPad board) and draws with Apple Pencil through the pen tool; iPhone shows the phone layout (these boards).\n• Approving from Waiting on you and the design card in a task's chat stay native and show rendered boards.\n• Ask has no agent choice: a design ask runs as its own task, on any free computer or the one you pick."
+    },
+    "projects-live-link": {
+      "fill": "orange",
+      "w": 420,
+      "x": 16420,
+      "y": 14420,
+      "text": "For approval. Every running app says where it comes from.\n• Live: each row names its project (or From Discover, or No project).\n• An app opens as Live › app, with Project, Repository, Release and Computer as links: app → project → repository → release.\n• A project’s Overview lists what is Running: each app with health, address and computer, opening its page on Live."
     }
   }
 }
