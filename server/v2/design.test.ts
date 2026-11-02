@@ -681,3 +681,26 @@ test('a design review gives the apps its boards, their pages and what changed', 
   assert.ok(welcome.lines.length > 0, JSON.stringify(welcome));
   assert.equal((await call('/review?item=design:other:x:y')).status, 404);
 });
+
+test('a review of a canvas note says so in words and gives its lines before and after', async () => {
+  const note = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: 'HEAD', op: 'note', x: 40, y: 40, text: 'Gutters\nKeep 16 px' }),
+    })
+  ).json();
+  const { item } = await (
+    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: note.branch }) })
+  ).json();
+  assert.equal(item.text, `The note “Gutters” was added on ${note.branch}.`);
+  const review = await (await call(`/review?item=${encodeURIComponent(item.id)}`)).json();
+  assert.deepEqual(review.boards, []);
+  assert.equal(review.notes.length, 1);
+  assert.equal(review.notes[0].title, 'Gutters');
+  assert.equal(review.notes[0].before, null);
+  assert.deepEqual(review.notes[0].after, [
+    { text: 'Gutters', added: true },
+    { text: 'Keep 16 px', added: true },
+  ]);
+  assert.equal(review.notes[0].changed, 2);
+});

@@ -141,12 +141,31 @@ public struct V2DesignReview: Decodable, Sendable {
         public var name: String { file.replacingOccurrences(of: ".html", with: "") }
         public var isPhone: Bool { w <= 500 }
     }
+    /// A canvas note the branch rewrote, line by line: what went in Before, what is new in After.
+    public struct Note: Decodable, Sendable, Identifiable {
+        public struct Line: Decodable, Sendable, Hashable {
+            public let text: String
+            public let gone: Bool?
+            public let added: Bool?
+            public var marked: Bool { (gone ?? false) || (added ?? false) }
+        }
+        public let id: String
+        public let title: String
+        public let page: String?
+        public let before: [Line]?
+        public let after: [Line]?
+        public let changed: Int
+        public let total: Int
+    }
     public let item: InboxItem
     public let task: String?
     public let branch: String
     public let before: String
     public let after: String
     public let boards: [Board]
+    let notes: [Note]?
+    /// Older coordinators send no notes.
+    public var changedNotes: [Note] { notes ?? [] }
     /// A design review's inbox ID names its project: design:<project>:<branch>:<commit>.
     public static func project(of itemId: String) -> String? {
         let parts = itemId.split(separator: ":", omittingEmptySubsequences: false)

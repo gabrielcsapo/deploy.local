@@ -231,4 +231,15 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(V2DesignSummary(boards: 1, waiting: 0).subtitle == "1 board")
     }
 
+    @Test func aDesignReviewCarriesItsRewrittenNotesAndOlderCoordinatorsSendNone() throws {
+        let note = #"{"id":"design-draw-how","title":"Drawing: how it works","page":"Design canvas","before":[{"text":"Pen (P): click points","gone":true}],"after":[{"text":"Pen (P): a stroke inks a mark","added":true}],"changed":1,"total":1}"#
+        let review = #"{"item":\#(answeredJSON),"task":null,"branch":"design/drawing-note","before":"a","after":"b","boards":[],"notes":[\#(note)]}"#
+        let decoded = try JSONDecoder().decode(V2DesignReview.self, from: Data(review.utf8))
+        #expect(decoded.changedNotes.first?.title == "Drawing: how it works")
+        #expect(decoded.changedNotes.first?.after?.first?.marked == true)
+        #expect(decoded.changedNotes.first?.before?.first?.marked == true)
+        let older = review.replacingOccurrences(of: #","notes":[\#(note)]"#, with: "")
+        #expect(try JSONDecoder().decode(V2DesignReview.self, from: Data(older.utf8)).changedNotes.isEmpty)
+    }
+
 }

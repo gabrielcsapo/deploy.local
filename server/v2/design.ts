@@ -23,9 +23,13 @@ import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
 import { startRun } from '../workspace/service.ts';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
 import {
+  changeSummary,
   describeChange,
   layerLabel,
+  markChanges,
   markColors,
+  noteChanges,
+  sectionAt,
   sections,
   type Canvas,
 } from '../../shared/v2/design.ts';
@@ -368,18 +372,40 @@ function designItemId(projectId: string, branch: string, commit: string) {
 }
 
 /** Ask for approval in Waiting on you. The same branch at the same commit asks only once. */
+/** The canvas at a commit, read at once for the line a proposal shows; null when it has none. */
+function canvasAt(repo: string, commit: string): Canvas | null {
+  try {
+    return JSON.parse(gitSync(repo, ['show', `${commit}:design/canvas.json`]) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
 export function proposeDesign(owner: string, project: any, input: { ref?: string; task?: string }) {
   const proposal = proposalFor(owner, project, input);
   const boards = proposal.paths
     .filter((path) => path.startsWith('design/boards/'))
     .map((path) => path.slice('design/boards/'.length).replace(/\.html$/, ''));
+  const canvas = proposal.paths.includes('design/canvas.json');
+  const [before, after] = canvas
+    ? [
+        canvasAt(project.repositoryPath, proposal.base),
+        canvasAt(project.repositoryPath, proposal.commit),
+      ]
+    : [null, null];
+  const notes = canvas ? noteChanges(before, after) : [];
+  const marks = canvas ? markChanges(before, after) : 0;
+  // canvas.json carries the boards' places too; it counts as its own change only when nothing on it is named.
+  const others = proposal.paths.filter(
+    (path) =>
+      !path.startsWith('design/boards/') &&
+      !(path === 'design/canvas.json' && (notes.length || marks || boards.length)),
+  ).length;
   const item: InboxItem = {
     id: designItemId(project.id, proposal.branch, proposal.commit),
     kind: 'other',
     title: `Approve the ${boards.length === 1 ? boards[0] : proposal.name} design?`,
-    text: boards.length
-      ? `${boards.length} board${boards.length === 1 ? '' : 's'} changed on ${proposal.branch}: ${boards.slice(0, 4).join(', ')}${boards.length > 4 ? '…' : ''}.`
-      : `${proposal.paths.length} design files changed on ${proposal.branch}.`,
+    text: changeSummary(proposal.branch, { boards, notes, marks, others }),
     from: 'scout',
     projectId: project.id,
     ...(proposal.taskId ? { taskId: proposal.taskId } : {}),
@@ -1230,6 +1256,14 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     } catch {
       // A removed task leaves the review without its name.
     }
+    // Canvas notes the branch rewrote, line by line, each with the page it sits on.
+    const notes = (context.paths as string[]).includes('design/canvas.json')
+      ? noteChanges(await readCanvas(repo, context.base), canvas).map((change) => {
+          const note = canvas?.notes?.[change.id];
+          const page = note ? sectionAt(pages, note)?.title : null;
+          return { ...change, page: change.id.startsWith('section-') ? null : (page ?? null) };
+        })
+      : [];
     return sendJson(res, {
       item,
       task,
@@ -1237,6 +1271,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       before: context.base,
       after: context.commit,
       boards,
+      notes,
     });
   }
 
