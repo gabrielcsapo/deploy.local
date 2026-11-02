@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -28,6 +28,7 @@ import {
   layerLabel,
   markChanges,
   markColors,
+  mergeCanvas,
   noteChanges,
   sectionAt,
   sections,
@@ -163,6 +164,78 @@ function instanceWrites(repo: string, target: string, from: string, paths: strin
     if (synced !== html) writes.push({ path, content: `${synced}\n` });
   }
   return writes;
+}
+
+/**
+ * Files the branch changed that main also changed since the branch started, merged: canvas.json
+ * entry by entry, anything else line by line. Approving writes these instead of the branch's copy,
+ * so it never undoes what main gained meanwhile. Edits to the same lines stop the approval.
+ */
+function mergedWrites(
+  repo: string,
+  input: {
+    base: string;
+    target: string;
+    from: string;
+    paths: string[];
+    main: string;
+    branch: string;
+  },
+) {
+  const blob = (commit: string, path: string) =>
+    gitSync(repo, ['rev-parse', '--verify', '--quiet', `${commit}:${path}`]);
+  const writes: { path: string; content: string }[] = [];
+  for (const path of input.paths) {
+    const [base, target, from] = [input.base, input.target, input.from].map((commit) =>
+      blob(commit, path),
+    );
+    if (target === base || from === base || target === from || !target || !from) continue;
+    const text = (commit: string) => showFile(repo, commit, path);
+    if (path === 'design/canvas.json') {
+      const [was, main, branch] = [input.base, input.target, input.from].map((commit) => {
+        try {
+          return JSON.parse(text(commit) || 'null') as Canvas | null;
+        } catch {
+          return null;
+        }
+      });
+      if (was && main && branch) {
+        writes.push({
+          path,
+          content: `${JSON.stringify(mergeCanvas(was, main, branch), null, 2)}\n`,
+        });
+        continue;
+      }
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'design-merge-'));
+    try {
+      const [ours, old, theirs] = ['main', 'base', 'branch'].map((name) => join(dir, name));
+      writeFileSync(ours, text(input.target));
+      writeFileSync(old, text(input.base));
+      writeFileSync(theirs, text(input.from));
+      const merged = spawnSync('git', ['merge-file', '-p', ours, old, theirs], {
+        encoding: 'utf8',
+      });
+      if (merged.status !== 0)
+        fail(
+          `${input.main} changed ${path.replace(/^design\//, '')} since ${input.branch} started, on the same lines. Ask for changes so the branch is brought up to date, then approve again.`,
+          409,
+        );
+      writes.push({ path, content: merged.stdout });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  return writes;
+}
+/** A file's whole text at a commit, last newline kept. */
+function showFile(repo: string, commit: string, path: string) {
+  const result = spawnSync('git', ['-C', repo, 'show', `${commit}:${path}`], {
+    env: gitEnvironment(),
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  return result.status === 0 ? result.stdout : '';
 }
 
 async function readCanvas(repo: string, commit: string): Promise<Canvas | null> {
@@ -441,7 +514,17 @@ registerInboxSource('design', (owner, item, body, context) => {
       target,
       from: context.commit,
       paths: context.paths,
-      writes: instanceWrites(repo, target, context.commit, context.paths),
+      writes: [
+        ...mergedWrites(repo, {
+          base: context.base,
+          target,
+          from: context.commit,
+          paths: context.paths,
+          main: context.main,
+          branch: context.branch,
+        }),
+        ...instanceWrites(repo, target, context.commit, context.paths),
+      ],
       branch: context.main,
       message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
       by: owner,

@@ -669,6 +669,57 @@ test('Assets lists the library and its use, and approving a library change updat
   );
 });
 
+test('approving one design branch keeps what another approval added to main since it started', async () => {
+  const { answerInbox } = await import('./inbox.ts');
+  // Two branches from the same main: one adds a board, the other a note.
+  const board = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: 'main', op: 'board', kind: 'phone', x: 9000, y: 9000 }),
+    })
+  ).json();
+  const note = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: 'main', op: 'note', x: 9100, y: 9100, text: 'Kept beside it' }),
+    })
+  ).json();
+  for (const ref of [board.branch, note.branch]) {
+    const { item } = await (
+      await call('/propose', { method: 'POST', body: JSON.stringify({ ref }) })
+    ).json();
+    answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  }
+  const canvas = JSON.parse(await git(['show', 'main:design/canvas.json']));
+  assert.ok(canvas.boards[board.made], 'the first approval’s board is still on main');
+  assert.equal(canvas.notes[note.made]?.text, 'Kept beside it');
+  assert.match(await git(['show', `main:design/boards/${board.made}`]), /design-board/);
+});
+
+test('approving stops when main rewrote the same lines of a board since the branch started', async () => {
+  const { answerInbox } = await import('./inbox.ts');
+  const edit = async (text: string) =>
+    (
+      await call('/edit', {
+        method: 'POST',
+        body: JSON.stringify({
+          ref: 'main',
+          board: 'Welcome.html',
+          edits: [{ op: 'text', layer: 'title', text }],
+        }),
+      })
+    ).json();
+  const [first, second] = [await edit('Hello there'), await edit('Hi again')];
+  const propose = async (ref: string) =>
+    (await (await call('/propose', { method: 'POST', body: JSON.stringify({ ref }) })).json()).item;
+  answerInbox('alice', (await propose(first.branch)).id, { actionId: 'approve', on: 'web' });
+  const later = await propose(second.branch);
+  assert.throws(
+    () => answerInbox('alice', later.id, { actionId: 'approve', on: 'web' }),
+    /changed boards\/Welcome.html since .* on the same lines/,
+  );
+});
+
 test('a design review gives the apps its boards, their pages and what changed', async () => {
   const listed = (await (await call('/proposals')).json()).proposals;
   const proposal = listed.find((item: any) => item.branch === 'design/welcome-title');
