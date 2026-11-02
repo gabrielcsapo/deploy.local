@@ -10,9 +10,11 @@ struct V2DesignView: View {
     let projectId: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.horizontalSizeClass) private var width
     var body: some View {
+        // Full screen on iPad reaches the bottom edge; on iPhone the page ends at the tab bar.
         V2DesignWebView(connection: connection, projectId: projectId, leave: { dismiss() })
-            .ignoresSafeArea(.container, edges: .bottom)
+            .ignoresSafeArea(.container, edges: width == .compact ? [] : .bottom)
             .background(WorkspaceStyle.canvas(scheme).ignoresSafeArea())
     }
 }

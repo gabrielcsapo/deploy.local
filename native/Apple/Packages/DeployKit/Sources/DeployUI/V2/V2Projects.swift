@@ -10,6 +10,7 @@ struct V2ProjectSection: View {
     @State private var releases: [Release] = []
     @State private var design: V2DesignSummary?
     @State private var openDesign = false
+    @Environment(\.horizontalSizeClass) private var width
     @State private var error: String?
     @State private var evidence = false
     var body: some View {
@@ -32,7 +33,14 @@ struct V2ProjectSection: View {
             if ["ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone"].contains(V2Evidence.board) { evidence = true }
         }.onChange(of: store.snapshot.cursor) { _, _ in Task { await load() } }
             .navigationDestination(isPresented: $evidence) { V2ReleasesView(store: store, project: project) }
-            .fullScreenCover(isPresented: $openDesign) { V2DesignView(connection: store.connection, projectId: project.id) }
+            // On iPhone, Design opens inside Projects so the tab bar stays; on iPad it fills the
+            // screen and the page's own rail holds the app's places.
+            .navigationDestination(isPresented: Binding(get: { openDesign && width == .compact }, set: { if !$0 { openDesign = false } })) {
+                V2DesignView(connection: store.connection, projectId: project.id).toolbar(.hidden, for: .navigationBar)
+            }
+            .fullScreenCover(isPresented: Binding(get: { openDesign && width != .compact }, set: { if !$0 { openDesign = false } })) {
+                V2DesignView(connection: store.connection, projectId: project.id)
+            }
     }
     private func load() async {
         do { releases = try await store.client.releases(project: project.id); error = nil }

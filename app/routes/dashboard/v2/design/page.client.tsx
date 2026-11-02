@@ -51,6 +51,8 @@ import {
 } from './Assets';
 import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from './Panels';
 import { Play } from './Play';
+import { DesignRail } from './Rail';
+import { PickSheet } from './Pickers';
 import './style.css';
 
 const noTokens: Tokens = { colors: [], textStyles: [] };
@@ -182,15 +184,25 @@ export default function DesignPage() {
       window.clearInterval(timer);
     };
   }, [projectApi]);
-  const proposals = useData<{ proposals: { id: string; state: string; boards: string[] }[] }>(
-    project ? `${projectApi}/proposals?v=${poll}` : undefined,
-  );
+  const proposals = useData<{
+    proposals: { id: string; state: string; boards: string[]; branch?: string | null }[];
+  }>(project ? `${projectApi}/proposals?v=${poll}` : undefined);
   const [proposing, setProposing] = useState(false);
+  // In review only while the waiting request is for the branch as it is now; new edits since
+  // make it something to propose again.
   const inReview = proposals.data?.proposals.some(
     (item) =>
       item.state === 'waiting' &&
-      item.id.startsWith(`design:${project?.id}:${ref.replaceAll('/', '~')}:`),
+      item.id ===
+        `design:${project?.id}:${ref.replaceAll('/', '~')}:${design.data?.commit.slice(0, 12)}`,
   );
+  const reviewedEarlier =
+    !inReview &&
+    proposals.data?.proposals.some(
+      (item) =>
+        item.state === 'waiting' &&
+        item.id.startsWith(`design:${project?.id}:${ref.replaceAll('/', '~')}:`),
+    );
   const tokensData = useData<unknown>(base ? `${base}/ds/deploy-local/tokens.json` : undefined);
   const tokens = useMemo(
     () => (tokensData.data ? readTokens(tokensData.data) : noTokens),
@@ -214,8 +226,9 @@ export default function DesignPage() {
   );
   const [view, setView] = useState<View>({ x: 0, y: 0, z: 0.25 });
   const [tool, setTool] = useState<Tool>('move');
-  const [menu, setMenu] = useState(false);
   const [narrowMenu, setNarrowMenu] = useState(false);
+  // On a phone, the sheet that picks the project, branch and page.
+  const [pickSheet, setPickSheet] = useState(false);
   // On a phone, Layers opens as a sheet from the tool bar.
   const [layersOpen, setLayersOpen] = useState(false);
   // Figma's Minimize UI: hide both panels for more canvas.
@@ -605,11 +618,10 @@ export default function DesignPage() {
   };
   const chooseRef = (next: string) => {
     setRef(next);
-    setMenu(false);
+
     remember({ ref: next === 'HEAD' ? null : next });
   };
   const newBranch = async () => {
-    setMenu(false);
     const name = window.prompt('Name the design branch', '');
     if (!name || !project) return;
     try {
@@ -714,7 +726,9 @@ export default function DesignPage() {
             | 'in-review',
           note: inReview
             ? 'Waiting on you: approve it there or in the task'
-            : `Ask to approve ${ref}`,
+            : reviewedEarlier
+              ? 'Propose again: it changed since you proposed it'
+              : `Ask to approve ${ref}`,
           run: async () => {
             setProposing(true);
             try {
@@ -744,6 +758,11 @@ export default function DesignPage() {
     const top = Math.min((box.y + box.h) * view.z + view.y + 12, (host?.clientHeight ?? 600) - 300);
     return { left, top: Math.max(12, top) };
   };
+  const reviewingBranches = new Set(
+    (proposals.data?.proposals ?? [])
+      .filter((item) => item.state === 'waiting' && item.branch)
+      .map((item) => item.branch!),
+  );
   const inReviewBoards = new Set(
     (proposals.data?.proposals ?? [])
       .filter((item) => item.state === 'waiting')
@@ -761,6 +780,7 @@ export default function DesignPage() {
       className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}${layersOpen ? ' layers-open' : ''}`}
       ref={stage}
     >
+      <DesignRail />
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
@@ -771,37 +791,23 @@ export default function DesignPage() {
         </a>
         <span className="dz-phone-title">
           <b>{selection ? boardName(selection.board) : 'Designs'}</b>
-          {selection ? (
-            <button
-              type="button"
-              className="dz-phone-sub"
-              aria-haspopup="menu"
-              aria-expanded={narrowMenu}
-              onClick={() => setNarrowMenu(!narrowMenu)}
-            >
-              <Icon name="branch" size={11} />
-              {ref === 'HEAD' ? 'main' : ref}
-              <Icon name="down" size={10} />
-            </button>
-          ) : (
-            <label className="dz-phone-sub">
-              <Icon name="branch" size={11} />
-              {section?.title.replace(/^[\w]+\s·\s/, '') ?? ''}
-              <Icon name="down" size={10} />
-              <select
-                className="dz-pick"
-                value={section?.id ?? ''}
-                onChange={(event) => chooseSection(event.target.value)}
-                aria-label="Page"
-              >
-                {sections.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <button
+            type="button"
+            className="dz-phone-sub"
+            aria-haspopup="dialog"
+            aria-expanded={pickSheet}
+            onClick={() => setPickSheet(true)}
+          >
+            {project?.name ?? ''}
+            {' · '}
+            <Icon name="branch" size={11} />
+            {selection
+              ? ref === 'HEAD'
+                ? 'main'
+                : ref
+              : (section?.title.replace(/^[\w]+\s·\s/, '') ?? '')}
+            <Icon name="down" size={10} />
+          </button>
         </span>
         <button
           type="button"
@@ -916,9 +922,8 @@ export default function DesignPage() {
         base={base}
         boardSrc={boardSrc}
         changed={changed}
-        waiting={waiting}
-        menu={menu}
-        setMenu={setMenu}
+        owner={owner}
+        reviewing={reviewingBranches}
         onRef={chooseRef}
         onNewBranch={newBranch}
         inReview={inReviewBoards}
@@ -1257,6 +1262,28 @@ export default function DesignPage() {
         }
       />
       <div className={`dz-sheet-scrim${selection ? ' on' : ''}`} onClick={() => select(null)} />
+      <PickSheet
+        open={pickSheet}
+        onClose={() => setPickSheet(false)}
+        first={selection ? 'branch' : 'page'}
+        projects={projects.data?.projects ?? []}
+        project={project}
+        onProject={(id) => {
+          setProjectId(id);
+          setRef('HEAD');
+          setSelection(null);
+          remember({ project: id, ref: null, board: null, layer: null, page: null });
+        }}
+        branches={design.data?.branches ?? []}
+        current={ref}
+        owner={owner}
+        reviewing={reviewingBranches}
+        onRef={chooseRef}
+        onNewBranch={() => void newBranch()}
+        sections={sections}
+        section={section}
+        onSection={chooseSection}
+      />
       {playing && canvas && base && (
         <Play
           canvas={canvas}

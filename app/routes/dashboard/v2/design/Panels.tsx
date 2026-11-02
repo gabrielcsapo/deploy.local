@@ -5,6 +5,7 @@ import type { InboxItem, Project } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch } from '../data/hooks';
 import { useData } from '../projects/data';
 import { layerElement, type Frames, type Selection, type View } from './Canvas';
+import { BranchPicker, ProjectPicker } from './Pickers';
 import {
   boardName,
   colorToken,
@@ -420,9 +421,8 @@ export function LeftPanel({
   changed,
   inReview,
   agentAt,
-  waiting,
-  menu,
-  setMenu,
+  owner,
+  reviewing,
   onRef,
   onNewBranch,
   onHide,
@@ -451,9 +451,10 @@ export function LeftPanel({
   inReview: Set<string>;
   /** Where agents are working: board → layers (null for the board itself). */
   agentAt: Map<string, Set<string | null>>;
-  waiting: InboxItem[];
-  menu: boolean;
-  setMenu: (open: boolean) => void;
+  /** You, for telling your branches from agents'. */
+  owner: string;
+  /** Branches with a design review waiting. */
+  reviewing: Set<string>;
   onRef: (ref: string) => void;
   onNewBranch: () => void;
   onHide: () => void;
@@ -483,18 +484,8 @@ export function LeftPanel({
   return (
     <aside className="dz-left" aria-label="Design navigation">
       <div className="dz-left-top">
-        <div className="dz-menu-row">
-          <button
-            type="button"
-            className={`dz-mark${menu ? ' open' : ''}`}
-            aria-haspopup="menu"
-            aria-expanded={menu}
-            onClick={() => setMenu(!menu)}
-          >
-            <span className="dl-mark">d</span>
-            <Icon name="down" size={12} />
-            {waiting.length > 0 && <span className="dz-badge">{waiting.length}</span>}
-          </button>
+        <div className="dz-left-head">
+          <ProjectPicker projects={projects} project={project} onProject={onProject} />
           <span className="dl-grow" />
           <button
             type="button"
@@ -506,34 +497,15 @@ export function LeftPanel({
             <Icon name="panel" size={15} />
           </button>
         </div>
-        <DesignMenu
-          open={menu}
-          onClose={() => setMenu(false)}
-          waiting={waiting}
+        <BranchPicker
           branches={design?.branches ?? []}
           current={current}
+          owner={owner}
+          reviewing={reviewing}
+          changed={changed.size}
           onRef={onRef}
           onNewBranch={onNewBranch}
         />
-        <label className="dz-file">
-          <select
-            value={project?.id ?? ''}
-            onChange={(event) => onProject(event.target.value)}
-            aria-label="Project"
-          >
-            {projects.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <Icon name="down" size={12} />
-        </label>
-        <span className="dz-branch">
-          <Icon name="branch" size={11} />
-          {current === 'HEAD' ? 'main' : current}
-          {changed.size > 0 && ` · ${changed.size} changed`}
-        </span>
       </div>
       <div className="dz-sheet-head">
         <button
