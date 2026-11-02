@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { InboxItem, LiveAppResponse, LiveResponse } from '../../../../../shared/v2/contracts';
 import type { V2EventsResponse } from '../../../../../shared/v2/api';
 import { getAuth } from '../../detail/shared';
+import { remember, remembered } from '../data/hooks';
 
 export async function liveRequest<T>(
   path: string,
@@ -29,8 +30,11 @@ export async function liveRequest<T>(
 }
 
 export function useLive(appId?: string) {
-  const [live, setLive] = useState<LiveResponse>();
-  const [detail, setDetail] = useState<LiveAppResponse>();
+  const detailKey = appId && `/api/v2/live/${encodeURIComponent(appId)}`;
+  const [live, setLive] = useState(() => remembered<LiveResponse>('/api/v2/live'));
+  const [detail, setDetail] = useState(() =>
+    detailKey ? remembered<LiveAppResponse>(detailKey) : undefined,
+  );
   const [items, setItems] = useState<InboxItem[]>([]);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -38,8 +42,9 @@ export function useLive(appId?: string) {
     const controller = new AbortController();
     let loading = false;
     let stopped = false;
-    setLive(undefined);
-    setDetail(undefined);
+    // What Live showed last stays on screen while it refreshes.
+    setLive(remembered<LiveResponse>('/api/v2/live'));
+    setDetail(detailKey ? remembered<LiveAppResponse>(detailKey) : undefined);
     async function refresh() {
       if (loading || stopped) return;
       loading = true;
@@ -52,6 +57,8 @@ export function useLive(appId?: string) {
             : undefined,
         ]);
         if (stopped) return;
+        remember('/api/v2/live', next);
+        if (detailKey) remember(detailKey, app);
         setLive(next);
         setItems(inbox.items);
         setDetail(app);
@@ -93,6 +100,6 @@ export function useLive(appId?: string) {
       clearInterval(timer);
       clearTimeout(retryTimer);
     };
-  }, [appId, attempt]);
+  }, [appId, detailKey, attempt]);
   return { live, detail, items, error, retry: () => setAttempt((value) => value + 1) };
 }

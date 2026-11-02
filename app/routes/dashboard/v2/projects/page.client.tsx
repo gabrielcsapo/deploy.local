@@ -18,14 +18,14 @@ import {
 } from '@/components/ui';
 import type { LiveResponse, Project, Release } from '../../../../../shared/v2/contracts';
 import { request, useData, type Overview, type Work } from './data';
-import { projectPath, projectSegment, projectTabs } from './routing';
+import { projectPath, projectSegment, projectTabItems } from './routing';
 import { AppOverview, Health, ReleaseList } from './app.client';
 import { ProjectCode, ProjectIssues } from './code.client';
 import { ProjectConfiguration } from './settings.client';
 import { ProjectLogs } from './logs.client';
 import './projects.css';
 import { formatTime } from '../data/time';
-import { useInbox, useResource } from '../data/hooks';
+import { remembered, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
 import { parsePatch } from '../tasks/api';
@@ -302,22 +302,6 @@ function ProjectPage({
     !data?.tasks.length &&
     !data?.pulls.length &&
     !data?.issues.length;
-  const labels =
-    project && data
-      ? projectTabs({
-          code: !!data.repository,
-          pulls: data.pulls.length,
-          issues: data.issues.length,
-          apps: project.apps.length,
-          releases: releases.length,
-        })
-      : [];
-  const tabHref = (label: string) =>
-    label === 'Overview'
-      ? base
-      : label === 'Apps'
-        ? `${base}?tab=apps`
-        : `${base}/${label === 'Pull requests' ? 'pulls' : label.toLowerCase()}`;
   async function addApp() {
     setBusy(true);
     setError('');
@@ -337,7 +321,15 @@ function ProjectPage({
   return (
     <>
       <Header
-        title={selectedApp?.name || project?.name || projectKey}
+        title={
+          selectedApp?.name ||
+          project?.name ||
+          // Until the project loads, its name from the project list, never its ID.
+          remembered<{ projects: Project[] }>('/api/v2/projects')?.projects.find(
+            (item) => item.id === projectKey,
+          )?.name ||
+          ''
+        }
         subtitle={
           selectedApp
             ? `${selectedApp.kind === 'worker' ? 'Worker' : 'Web app'} in ${project?.name}`
@@ -377,17 +369,7 @@ function ProjectPage({
                           href: `${base}/apps/${projectSegment(selectedApp.name)}/settings`,
                         },
                       ]
-                    : labels.map((label) => ({
-                        label,
-                        href: tabHref(label),
-                        ...(label === 'Apps'
-                          ? { count: project.apps.length }
-                          : label === 'Pull requests'
-                            ? { count: data.pulls.length }
-                            : label === 'Issues'
-                              ? { count: data.issues.length }
-                              : {}),
-                      }))
+                    : projectTabItems(base, data, releases.length)
                 }
               />
               {selectedApp && (

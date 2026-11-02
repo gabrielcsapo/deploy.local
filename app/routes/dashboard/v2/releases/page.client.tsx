@@ -25,7 +25,7 @@ import type {
 import type { V2EventsResponse } from '../../../../../shared/v2/api';
 import { getAuth } from '../../detail/shared';
 import './releases.css';
-import { projectPath, projectTabs } from '../projects/routing';
+import { projectPath, projectTabItems } from '../projects/routing';
 import { useData, request as workspaceRequest, type Overview } from '../projects/data';
 import { formatTime } from '../data/time';
 import { missingVariable } from './presentation';
@@ -261,26 +261,7 @@ export default function Releases() {
         <div className="dl-page wide v2-releases-page">
           <Tabs
             value={`${base}/releases`}
-            items={projectTabs({
-              code: !!overview.data?.repository,
-              pulls: overview.data?.pulls.length || 0,
-              issues: overview.data?.issues.length || 0,
-              apps: project?.apps.length || 0,
-              releases: releases?.length || 0,
-            }).map((label) => ({
-              label,
-              href:
-                label === 'Overview'
-                  ? base
-                  : label === 'Apps'
-                    ? `${base}?tab=apps`
-                    : `${base}/${label === 'Pull requests' ? 'pulls' : label.toLowerCase()}`,
-              ...(label === 'Pull requests'
-                ? { count: overview.data?.pulls.length }
-                : label === 'Issues'
-                  ? { count: overview.data?.issues.length }
-                  : {}),
-            }))}
+            items={projectTabItems(base, overview.data, releases?.length || 0)}
           />
           {error && (
             <Banner

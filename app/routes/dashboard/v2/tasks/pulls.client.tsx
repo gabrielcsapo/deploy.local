@@ -1,17 +1,35 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
-import { Action, Banner, Head, Icon, IconButton, Seg, Skeleton, Tabs } from '@/components/ui';
+import {
+  Action,
+  Banner,
+  Empty,
+  Head,
+  Icon,
+  IconButton,
+  Seg,
+  Skeleton,
+  Tabs,
+} from '@/components/ui';
 import { authenticatedFetch } from '../data/hooks';
 import { formatTime } from '../data/time';
 import { requestJson, workspaceCommand } from './api';
 import type { TaskPull } from './types';
+import type { Release } from '../../../../../shared/v2/contracts';
+import { useData, type Overview } from '../projects/data';
+import { projectPath, projectSegment, projectTabItems } from '../projects/routing';
 import './style.css';
 
 export default function PullRequests() {
   const { pathname } = useLocation();
   const project = decodeURIComponent(pathname.split('/')[3] || '');
-  const base = `/dashboard/projects/${encodeURIComponent(project)}`;
+  const base = projectPath(project);
+  // The project page's own data, usually already read there, names the project and its tabs.
+  const overview = useData<Overview>(`/api/v2/projects/${projectSegment(project)}/overview`);
+  const history = useData<{ releases: Release[] }>(
+    `/api/v2/projects/${projectSegment(project)}/releases`,
+  );
   const [items, setItems] = useState<TaskPull[] | null>(null);
   const [next, setNext] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -117,7 +135,7 @@ export default function PullRequests() {
   return (
     <>
       <Head
-        title={project}
+        title={overview.data?.project.name ?? ''}
         subtitle="Project"
         actions={
           <a className="dl-btn primary" href="/dashboard">
@@ -137,16 +155,7 @@ export default function PullRequests() {
         <div className="dl-page dl-pulls-page">
           <Tabs
             value={`${base}/pulls`}
-            items={[
-              { label: 'Overview', href: base },
-              { label: 'Code', href: `${base}/code` },
-              {
-                label: 'Pull requests',
-                href: `${base}/pulls`,
-                count: items?.filter((item) => item.status === 'open').length,
-              },
-              { label: 'Settings', href: `${base}/settings` },
-            ]}
+            items={projectTabItems(base, overview.data, history.data?.releases.length ?? 0)}
           />
           <div className="dl-pulls-filter">
             <Seg
@@ -183,12 +192,21 @@ export default function PullRequests() {
           {!items && !error ? (
             <Skeleton rows={3} />
           ) : (
-            <div className="dl-group">
-              {filtered.filter((pull) => pull.status === status).map(row)}
-              {!filtered.some((pull) => pull.status === status) && (
-                <p className="dl-meta">No {status} pull requests.</p>
-              )}
-            </div>
+            (() => {
+              const shown = filtered.filter((pull) => pull.status === status);
+              return shown.length ? (
+                <div className="dl-group">{shown.map(row)}</div>
+              ) : (
+                <Empty
+                  icon="merge"
+                  title={
+                    search
+                      ? `No ${status} pull requests match “${search}”`
+                      : `No ${status} pull requests`
+                  }
+                />
+              );
+            })()
           )}
           {status === 'open' && filtered.some((pull) => pull.status === 'merged') && (
             <>
