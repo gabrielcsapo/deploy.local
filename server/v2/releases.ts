@@ -21,6 +21,7 @@ import { createInboxItem, fail, registerInboxAction, withdrawInboxItems } from '
 export interface ReleasePlan {
   apps: Release['apps'];
   migrations: Release['migrations'];
+  source?: Pick<Release['source'], 'commit' | 'message' | 'gitRef'>;
   undo?: ReleasePlan[];
   // Adapter-owned immutable runtime receipts, never returned by the public API.
   runtime: unknown;
@@ -427,6 +428,7 @@ export class ProjectReleaseService {
             project.apps.some((app) => !record.plan!.apps.some((entry) => entry.appId === app.id))
           )
             fail('Release plan must contain every app exactly once');
+          release.source = { ...release.source, ...record.plan.source };
           release.apps = record.plan.apps;
           release.migrations = record.plan.migrations;
           persistRelease(owner, record);

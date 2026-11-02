@@ -163,6 +163,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     const runtime: RuntimePlan = { id: randomUUID(), apps: [] };
     const apps: ReleasePlan['apps'] = [];
     const migrations: ReleasePlan['migrations'] = [];
+    let source: ReleasePlan['source'];
     for (const app of project.apps) {
       const deployment = readDeploymentRecord(app.name);
       if (!deployment?.directory) fail(`Source for ${app.name} is unavailable`, 409);
@@ -181,6 +182,15 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         ]);
         const commit = stdout.trim();
         if (!/^[a-f0-9]{40,64}$/.test(commit)) fail('Invalid repository ref');
+        const { stdout: message } = await execFileAsync('git', [
+          '-C',
+          repository.repositoryPath,
+          'show',
+          '-s',
+          '--format=%s',
+          commit,
+        ]);
+        source = { commit, message: message.trim(), gitRef: ref };
         const archive = join(directory, '.source.tar.gz');
         await execFileAsync('git', [
           '-C',
@@ -251,7 +261,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       for (const name of Object.keys(spec.jobs))
         migrations.push({ id: `${app.id}:${name}`, title: name, reversible: !!reverse[name] });
     }
-    return { apps, migrations, runtime };
+    return { apps, migrations, runtime, ...(source ? { source } : {}) };
   }
   fork(plan: ReleasePlan): ReleasePlan {
     const copy = structuredClone(plan);

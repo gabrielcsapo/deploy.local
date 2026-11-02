@@ -3,11 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { once } from 'node:events';
+import { routeFetch } from './test-request.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-live-test-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { saveDeployment, updateDeploymentStatus, registerUser, authenticate, _resetDb } =
+const { saveDeployment, updateDeploymentStatus, registerUser, authenticate, getSqlite, _resetDb } =
   await import('../store.ts');
 const { issueOwnedCiCredential, revokeCiCredential } = await import('../ci-releases.ts');
 const { db, save } = await import('../workspace/store.ts');
@@ -24,31 +23,17 @@ const headers = { 'x-deploy-username': owner, 'x-deploy-token': token };
 saveDeployment({ name: 'sync', username: owner, type: 'worker' });
 updateDeploymentStatus('sync', 'running');
 saveDeployment({ name: 'private', username: 'other', type: 'worker' });
-const server = createServer(
-  (req, res) =>
-    void v2Api(req, res, (request, response) => {
-      const username = request.headers['x-deploy-username'] as string;
-      if (authenticate(username, request.headers['x-deploy-token'] as string)) return { username };
-      response.writeHead(401);
-      response.end('{}');
-      return null;
-    }),
+const fetch = routeFetch((req, res) =>
+  v2Api(req, res, (request, response) => {
+    const username = request.headers['x-deploy-username'] as string;
+    if (authenticate(username, request.headers['x-deploy-token'] as string)) return { username };
+    response.writeHead(401);
+    response.end('{}');
+    return null;
+  }),
 );
-let port = 5180;
-for (; port <= 5199; port++) {
-  try {
-    server.listen(port, '127.0.0.1');
-    await once(server, 'listening');
-    break;
-  } catch (error: any) {
-    if (error.code !== 'EADDRINUSE') throw error;
-  }
-}
-if (port > 5199) throw new Error('No isolated test port available');
-const origin = `http://127.0.0.1:${port}/api/v2`;
-after(async () => {
-  server.closeAllConnections();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+const origin = 'http://localhost/api/v2';
+after(() => {
   db.close();
   _resetDb();
   rmSync(root, { recursive: true, force: true });
@@ -347,4 +332,75 @@ test('rollback outcomes require continuous health and retain rule provenance', a
       at,
     );
   assert.equal(syncInbox(owner).find((item) => item.id.endsWith(':manual'))?.outcome, undefined);
+});
+
+test('Live exposes project membership, catalog origin and immutable source metadata without leaking other owners', async () => {
+  const username = 'live-provenance';
+  const provenanceToken = registerUser(username, 'test-password').token!;
+  const provenanceHeaders = { 'x-deploy-username': username, 'x-deploy-token': provenanceToken };
+  const database = getSqlite()!;
+  save('project', username, { id: 'forma-project', name: 'forma' });
+  for (const name of ['forma-web', 'forma-jobs', 'photos', 'unlinked']) {
+    saveDeployment({ name, username, type: 'worker' });
+    updateDeploymentStatus(name, 'running');
+  }
+  database
+    .prepare('INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?)')
+    .run('forma-jobs', username, 'forma-project');
+  const at = new Date().toISOString();
+  database
+    .prepare(`INSERT INTO catalog_installations(id,application_name,blueprint_id,release,blueprint_digest,installed_spec_digest,current_spec_digest,site_id,mode,status,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      'photos-install',
+      'photos',
+      'immich',
+      '1',
+      'd',
+      'd',
+      'd',
+      's',
+      'native',
+      'installed',
+      at,
+      at,
+    );
+  const source = {
+    kind: 'ship',
+    ref: 'main',
+    gitRef: 'main',
+    commit: 'a1b2c3d' + '0'.repeat(33),
+    message: 'Fix the sign-in redirect loop',
+  };
+  const release = {
+    id: 'stable-release-id',
+    projectId: 'forma-project',
+    source,
+    startedBy: username,
+    apps: [{ appId: 'forma-web', to: 'artifact' }],
+    migrations: [],
+    steps: [],
+    state: 'live',
+  };
+  save('v2-release', username, { id: release.id, release });
+  save('v2-project-current', username, {
+    id: 'forma-project',
+    releaseId: release.id,
+    releasedAt: at,
+  });
+  const response = await fetch(origin + '/live', { headers: provenanceHeaders });
+  assert.equal(response.status, 200);
+  const live = await response.json();
+  const apps = live.computers.flatMap((computer: any) => computer.apps);
+  assert.deepEqual(apps.find((app: any) => app.appId === 'forma-web').source, source);
+  assert.equal(apps.find((app: any) => app.appId === 'forma-web').release, release.id);
+  assert.equal(apps.find((app: any) => app.appId === 'forma-jobs').project, 'forma-project');
+  assert.equal(apps.find((app: any) => app.appId === 'photos').fromDiscover, true);
+  assert.equal(apps.find((app: any) => app.appId === 'unlinked').project, undefined);
+  assert.equal(apps.find((app: any) => app.appId === 'unlinked').fromDiscover, undefined);
+  const detail = await (
+    await fetch(origin + '/live/forma-web', { headers: provenanceHeaders })
+  ).json();
+  assert.deepEqual(detail.release.source, source);
+  assert.equal((await fetch(origin + '/live/private', { headers: provenanceHeaders })).status, 404);
 });

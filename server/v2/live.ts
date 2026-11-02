@@ -18,6 +18,7 @@ import {
   getDeployment,
   getDeployments,
   getNodes,
+  getSqlite,
   getRequestSeries,
 } from '../store.ts';
 import { db, event, list, save } from '../workspace/store.ts';
@@ -54,6 +55,14 @@ async function projectNames(owner: string) {
     } catch {
       /* A missing repository is not health evidence. */
     }
+  }
+  const links = getSqlite()!
+    .prepare('SELECT application, project_id AS projectId FROM project_applications WHERE owner=?')
+    .all(owner) as { application: string; projectId: string }[];
+  for (const link of links) {
+    values.delete(link.application);
+    if (list('project', owner).some((project) => project.id === link.projectId))
+      values.set(link.application, link.projectId);
   }
   projects.set(owner, { at: Date.now(), values });
   return values;
@@ -204,6 +213,13 @@ async function collectLive(owner: string): Promise<LiveResponse> {
     list('v2-worker-health', owner).map((row) => [row.id, row.state as WorkerState]),
   );
   const releases = currentProjectReleases(owner);
+  const discoveries = new Set(
+    (
+      getSqlite()!.prepare('SELECT application_name FROM catalog_installations').all() as {
+        application_name: string;
+      }[]
+    ).map((row) => row.application_name),
+  );
   const computers: LiveResponse['computers'] = [];
   for (const deployment of getDeployments(owner)) {
     const nodeId = deployment.activeNodeId || 'coordinator';
@@ -255,7 +271,10 @@ async function collectLive(owner: string): Promise<LiveResponse> {
         ? { project: release?.release.projectId ?? names.get(deployment.name) }
         : {}),
       ...(kind === 'web' && deployment.port ? { address: `https://${deployment.name}.local` } : {}),
-      ...(release ? { release: release.id, releasedAt: release.releasedAt } : {}),
+      ...(release
+        ? { release: release.id, releasedAt: release.releasedAt, source: release.release.source }
+        : {}),
+      ...(discoveries.has(deployment.name) ? { fromDiscover: true } : {}),
     };
     publishHealth(owner, health);
     if (release) await requestWorkerRollback(owner, health, now);
