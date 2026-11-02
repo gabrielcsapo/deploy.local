@@ -1283,6 +1283,29 @@
       "w": 390,
       "h": 844,
       "title": "Approve a canvas note change on iPhone"
+    },
+    "DesignPrototype.html": {
+      "x": 1600,
+      "y": 52200,
+      "w": 1440,
+      "h": 900,
+      "title": "Prototype: where each click on a board goes, and linking a layer to a board",
+      "expand": "fill"
+    },
+    "DesignPlay.html": {
+      "x": 3120,
+      "y": 52200,
+      "w": 1440,
+      "h": 900,
+      "title": "Play: walking the boards, link by link",
+      "expand": "fill"
+    },
+    "DesignPlayPad.html": {
+      "x": 4640,
+      "y": 52200,
+      "w": 1180,
+      "h": 820,
+      "title": "Play on iPad: tap through the boards"
     }
   },
   "order": [
@@ -1456,7 +1479,10 @@
     "DesignDraw.html",
     "DesignAskPhone.html",
     "DesignReviewNote.html",
-    "DesignReviewNotePhone.html"
+    "DesignReviewNotePhone.html",
+    "DesignPrototype.html",
+    "DesignPlay.html",
+    "DesignPlayPad.html"
   ],
   "notes": {
     "intro": {
@@ -2227,6 +2253,13 @@
       "w": 1910,
       "h": 220,
       "text": "Reviewing changes that are not boards\n• Opening a design item in Waiting on you shows its review, task or not: changed boards as Before and After, and changed canvas notes as their text, Before and After, with the new lines marked.\n• The list on the left names each change: a board by its name, a note by its first line, tagged Note.\n• The item's line says what changed in words: “The note “Drawing: how it works” changed on design/drawing-note”, or “2 boards and 1 note changed”; never “1 design files”.\n• iPhone shows the same: the note's text in place of a board, with Before and After."
+    },
+    "design-prototype-how": {
+      "x": 5900,
+      "y": 52200,
+      "w": 1400,
+      "h": 320,
+      "text": "Prototype and Play: how boards connect\n• Links already live in the boards: a layer that opens another board carries its link (href). 143 of 171 boards have them.\n• Prototype, beside Edit and Comments, draws the selected board's links on the canvas: a line from each layer to the board it opens, the selected layer's line strongest. The repeated sidebar links stay hidden until you show them.\n• With a layer selected, Interaction says what a click does: On click › Go to a board. Change the board, remove the link, or drag the dot at the layer's edge onto a board. Saving writes the layer's link on your design branch, like any edit.\n• The board section lists where the board leads and what leads to it; Flow says where Play starts (the page's first board unless you choose another).\n• Play (▷, top right) opens the start board full screen and follows links: Back, the trail of boards you passed through, Restart, and the width (1440, 700, 390). Clicking where there's no link lights up the links. Esc or Exit returns to the canvas.\n• On iPad, Play is tap to follow, swipe from the left edge to go back, Done to leave."
     },
     "design-draw-how": {
       "x": 13760,

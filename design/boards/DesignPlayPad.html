@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1180,height=820">
+<title>iPad: Play, tapping through the boards</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#18181b}
+.pl{display:flex;flex-direction:column;height:820px;background:#18181b;color:#ececf0;font-family:var(--font-sans);font-size:13px}
+.pd-status{height:24px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font:600 12px var(--font-sans);color:#ececf0}
+.pl-top{height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid #2a2a30}
+.pl-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:7px;border:0;background:#26262c;color:#ececf0;font:500 13px var(--font-sans)}
+.pl-btn.quiet{background:transparent;color:#b4b4bd}
+.pl-btn kbd{font:500 11px var(--font-sans);color:#8b8b95}
+.trail{display:flex;align-items:center;gap:6px;min-width:0;color:#8b8b95;white-space:nowrap;overflow:hidden}
+.trail svg{flex:none}
+.trail b{color:#ececf0;font-weight:600}
+.grow{flex:1}
+.pl-seg{display:inline-flex;padding:2px;border-radius:8px;background:#26262c}
+.pl-seg span{height:26px;padding:0 10px;border-radius:6px;display:inline-flex;align-items:center;color:#8b8b95;font-weight:500}
+.pl-seg span.on{background:#3a3a42;color:#ececf0}
+.pl-stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;position:relative}
+.pl-board{position:relative;width:calc(1440px * var(--s));height:calc(900px * var(--s));overflow:hidden;border-radius:8px;box-shadow:0 0 0 1px #2a2a30,0 20px 50px rgba(0,0,0,.45);background:#fafafb}
+.pl-board iframe,.pl-hots{position:absolute;left:0;top:0;width:1440px;height:900px;border:0;transform:scale(var(--s));transform-origin:0 0;pointer-events:none}
+.pl-hots i{position:absolute;border-radius:6px;background:color-mix(in srgb,#6d5bd0 10%,transparent);box-shadow:0 0 0 1.5px color-mix(in srgb,#6d5bd0 80%,transparent)}
+.pl-hint{display:flex;align-items:center;gap:14px;padding:8px 14px;border-radius:999px;background:#26262c;color:#cfcfd6;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.pl-hint kbd{font:500 11px var(--font-sans);padding:1px 5px;border-radius:4px;background:#3a3a42;color:#ececf0}
+.pl-hint .k{display:inline-flex;align-items:center;gap:5px;color:#8b8b95}
+
+</style>
+</head>
+<body>
+<div data-layer="pl" class="pl" style="--s:0.74"><div data-layer="pd-status" class="pd-status"><span data-layer="9-41-fri">9:41  Fri 30 Oct</span><span data-layer="100">100%</span></div><header data-layer="pl-top" class="pl-top"><button data-layer="back" type="button" class="pl-btn quiet back" aria-label="Back"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span data-layer="back-2" class="lbl">Back</span></button><nav data-layer="where-you-have" class="trail" aria-label="Where you have been"><span data-layer="welcome">Welcome</span><svg data-layer="svg-2" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span data-layer="projects">Projects</span><svg data-layer="svg-3" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><b data-layer="project">Project</b></nav><span data-layer="grow" class="grow"></span><div data-layer="width" class="pl-seg" role="group" aria-label="Width"><span data-layer="1440" class="on">1440</span><span data-layer="700">700</span><span data-layer="390">390</span></div><button data-layer="pl-btn" type="button" class="pl-btn quiet restart"><svg data-layer="svg-4" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg><span data-layer="restart" class="lbl">Restart</span></button><button data-layer="pl-btn-2" type="button" class="pl-btn"><svg data-layer="svg-5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span data-layer="done" class="lbl">Done</span></button></header><main data-layer="pl-stage" class="pl-stage"><div data-layer="pl-board" class="pl-board"><iframe data-layer="iframe" title="Project" src="Project.html" tabindex="-1"></iframe><div data-layer="pl-hots" class="pl-hots" aria-hidden="true"><i data-layer="i" style="left:475px;top:56px;width:31px;height:42px" title="Code"></i><i data-layer="i-2" style="left:527px;top:56px;width:88px;height:42px" title="Pull requests"></i><i data-layer="i-3" style="left:634px;top:56px;width:48px;height:42px" title="Issues"></i><i data-layer="i-4" style="left:703px;top:56px;width:42px;height:42px" title="Apps"></i><i data-layer="i-5" style="left:765px;top:56px;width:51px;height:42px" title="Releases"></i><i data-layer="i-6" style="left:836px;top:56px;width:26px;height:42px" title="Logs"></i><i data-layer="i-7" style="left:883px;top:56px;width:46px;height:42px" title="Settings"></i><i data-layer="i-8" style="left:401px;top:293px;width:434px;height:61px" title="Self-release pipeline"></i><i data-layer="i-9" style="left:401px;top:354px;width:434px;height:60px" title="Show checks on merged PRs"></i><i data-layer="i-10" style="left:861px;top:277px;width:434px;height:61px" title="2a91c0e"></i><i data-layer="i-11" style="left:861px;top:338px;width:434px;height:61px" title="0d96f82"></i><i data-layer="i-12" style="left:861px;top:399px;width:434px;height:60px" title="d279f45"></i><i data-layer="i-13" style="left:1348px;top:8px;width:80px;height:32px" title="New task"></i></div></div><div data-layer="pl-hint" class="pl-hint"><span data-layer="tap-a-lit">Tap a lit spot to go there</span><span data-layer="swipe-from-the" class="k">Swipe from the left edge to go back</span></div></main></div>
+</body>
+</html>
