@@ -92,21 +92,44 @@ export function checkDuration(check: TaskCheck) {
     ? `${Math.round(ms / 1000)} s`
     : `${Math.floor(ms / 60000)} min ${Math.round((ms % 60000) / 1000)} s`;
 }
-export function taskStatus(view: TaskView, diff: TaskDiff | null, checks: TaskCheck[]) {
+/**
+ * The task's state in the header. `checks` ran on the pull request's head; `latest` are the latest
+ * checkpoint's, which may be newer work. Only a head whose checks all passed is ready to merge, and
+ * a failure on either is never called ready.
+ */
+export function taskStatus(
+  view: TaskView,
+  diff: TaskDiff | null,
+  checks: TaskCheck[],
+  latest: TaskCheck[] = [],
+) {
   const pull = view.pulls.at(-1);
   const status = view.run?.status || view.task.status;
   const passed = checks.length > 0 && checks.every(checkPassed);
+  const failedOn = [checks, latest].find((set) => set.some((check) => check.status === 'failed'));
   const target = pull?.targetBranch || 'main';
   if (pull?.status === 'merged')
     return { label: 'Merged', detail: undefined, icon: 'check' as const };
   if (pull?.status === 'closed')
     return { label: 'Pull request closed', detail: undefined, icon: 'clock' as const };
   if (pull?.status === 'open' && diff?.mergeable)
-    return {
-      label: 'Ready to merge',
-      detail: `${passed ? 'Checks passed, n' : checks.some((check) => check.status === 'failed') ? 'Checks failed, n' : 'N'}o conflicts with ${target}`,
-      icon: 'check' as const,
-    };
+    return failedOn
+      ? {
+          label: 'Checks failed',
+          detail: `${checkSummary(failedOn)}, no conflicts with ${target}`,
+          icon: 'close' as const,
+        }
+      : passed
+        ? {
+            label: 'Ready to merge',
+            detail: `Checks passed, no conflicts with ${target}`,
+            icon: 'check' as const,
+          }
+        : {
+            label: 'Not checked',
+            detail: `No checks on this version, no conflicts with ${target}`,
+            icon: 'clock' as const,
+          };
   if (pull && diff?.conflicts?.length)
     return { label: 'Changes needed', detail: `Conflicts with ${target}`, icon: 'close' as const };
   if (pull)

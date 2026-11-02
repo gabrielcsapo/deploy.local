@@ -175,7 +175,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
     earlier,
     headChecks,
   } = taskCheckpoints(view, checks, diff?.headCommit);
-  const summary = taskStatus(view, detailError ? null : diff, headChecks);
+  const summary = taskStatus(view, detailError ? null : diff, headChecks, currentChecks);
   const waiting = view.events.some(
     (event) =>
       event.kind === 'decision' &&
@@ -322,9 +322,11 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                   className={
                     summary.icon === 'check'
                       ? 'dl-ok'
-                      : summary.icon === 'running'
-                        ? 'dl-run dl-spin'
-                        : ''
+                      : summary.icon === 'close'
+                        ? 'dl-fail'
+                        : summary.icon === 'running'
+                          ? 'dl-run dl-spin'
+                          : ''
                   }
                 />
                 {summary.label}

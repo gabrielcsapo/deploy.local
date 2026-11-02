@@ -32,10 +32,26 @@ test('ready and passed claims require merge evidence and current successful chec
     pulls: [{ status: 'open', targetBranch: 'main' }],
   } as TaskView;
   assert.equal(taskStatus(view, null, []).label, 'In review');
-  assert.equal(
-    taskStatus(view, { patch: '', mergeable: true }, []).detail,
-    'No conflicts with main',
+  assert.deepEqual(
+    [
+      taskStatus(view, { patch: '', mergeable: true }, []).label,
+      taskStatus(view, { patch: '', mergeable: true }, []).detail,
+    ],
+    ['Not checked', 'No checks on this version, no conflicts with main'],
   );
+  // Failures on the head, or on a newer checkpoint when the head has none, are never ready.
+  const failed = [
+    { id: 'a', status: 'succeeded' },
+    { id: 'b', status: 'failed' },
+  ];
+  assert.deepEqual(
+    [
+      taskStatus(view, { patch: '', mergeable: true }, failed).label,
+      taskStatus(view, { patch: '', mergeable: true }, failed).detail,
+    ],
+    ['Checks failed', '1 of 2 passed, no conflicts with main'],
+  );
+  assert.equal(taskStatus(view, { patch: '', mergeable: true }, [], failed).label, 'Checks failed');
   assert.equal(
     taskStatus(view, { patch: '', mergeable: true }, [{ id: 'x', status: 'succeeded' }]).detail,
     'Checks passed, no conflicts with main',
