@@ -720,6 +720,70 @@ test('approving stops when main rewrote the same lines of a board since the bran
   );
 });
 
+test('a layer links to a board, the links are listed per commit, and Play starts where the page says', async () => {
+  const linked = await (
+    await call('/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: 'main',
+        board: 'Welcome.html',
+        edits: [{ op: 'link', layer: 'title', to: 'Welcome.html' }],
+      }),
+    })
+  ).json();
+  assert.match(
+    await git(['show', `${linked.commit}:design/boards/Welcome.html`]),
+    /data-layer="title"[^>]*href="Welcome.html"/,
+  );
+  const { links } = await (await call(`/links?ref=${encodeURIComponent(linked.branch)}`)).json();
+  assert.deepEqual(
+    links.find((link: any) => link.layer === 'title'),
+    {
+      from: 'Welcome.html',
+      layer: 'title',
+      to: 'Welcome.html',
+      text: 'Hello there',
+      sidebar: false,
+    },
+  );
+  const bad = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: linked.branch,
+      board: 'Welcome.html',
+      edits: [{ op: 'link', layer: 'title', to: 'https://example.com' }],
+    }),
+  });
+  assert.equal(bad.status, 400);
+  const unlinked = await (
+    await call('/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: linked.branch,
+        board: 'Welcome.html',
+        edits: [{ op: 'link', layer: 'title', to: null }],
+      }),
+    })
+  ).json();
+  assert.doesNotMatch(
+    await git(['show', `${unlinked.commit}:design/boards/Welcome.html`]),
+    /href=/,
+  );
+  const start = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: linked.branch,
+        op: 'start',
+        page: 'section-start',
+        board: 'Welcome.html',
+      }),
+    })
+  ).json();
+  const canvas = JSON.parse(await git(['show', `${start.commit}:design/canvas.json`]));
+  assert.deepEqual(canvas.starts, { 'section-start': 'Welcome.html' });
+});
+
 test('a design review gives the apps its boards, their pages and what changed', async () => {
   const listed = (await (await call('/proposals')).json()).proposals;
   const proposal = listed.find((item: any) => item.branch === 'design/welcome-title');

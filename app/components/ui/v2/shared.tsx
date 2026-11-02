@@ -46,6 +46,7 @@ const paths = {
   image:
     'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM21 16l-5-5-9 9M11 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
   play: 'M8 5l11 7-11 7z',
+  arrow: 'M5 12h14M13 6l6 6-6 6',
   download: 'M12 4v12M6 10l6 6 6-6M5 20h14',
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   // Design canvas: tools, layers and properties.

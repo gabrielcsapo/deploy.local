@@ -287,7 +287,9 @@ export type BoardEdit =
       shape?: DrawnShape;
       component?: { id: string; props?: Record<string, string>; x?: number; y?: number };
     }
-  | { op: 'remove'; layer: string };
+  | { op: 'remove'; layer: string }
+  /** Where a click on the layer goes: another board, or nowhere (null). */
+  | { op: 'link'; layer: string; to: string | null };
 
 /** What the drawing tools make, in board pixels. The server writes the markup. */
 export type DrawnShape =
@@ -456,6 +458,38 @@ const escapeText = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escapeAttr = (text: string) => escapeText(text).replace(/"/g, '&quot;');
 
+/** A link from a layer of a board to another board, and whether it sits in the app's sidebar. */
+export type BoardLink = { layer: string; to: string; text: string; sidebar: boolean };
+
+/**
+ * The links a board makes: every layer whose href names another board. Links inside the app's
+ * sidebar are marked, since nearly every board repeats them.
+ */
+export function boardLinks(html: string): BoardLink[] {
+  const sidebars: [number, number][] = [];
+  for (const nav of html.matchAll(
+    /<nav\b[^>]*\sdata-layer="([^"]+)"[^>]*\sclass="[^"]*\bdl-side\b[^"]*"[^>]*>/g,
+  )) {
+    const outer = layerSnippet(html, nav[1]);
+    if (outer) sidebars.push([nav.index!, nav.index! + outer.length]);
+  }
+  const links: BoardLink[] = [];
+  for (const tag of html.matchAll(/<[a-zA-Z][^>]*\shref="([A-Za-z0-9_-]{1,80}\.html)"[^>]*>/g)) {
+    const layer = /\sdata-layer="([^"]+)"/.exec(tag[0])?.[1];
+    if (!layer) continue;
+    const text = (layerSnippet(html, layer) ?? '')
+      .replace(/<svg[\s\S]*?<\/svg>/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+    const at = tag.index!;
+    links.push({ layer, to: tag[1], text, sidebar: sidebars.some(([a, b]) => at >= a && at < b) });
+  }
+  return links;
+}
+
 /** Where a layer's start tag sits, its attributes, and (for a leaf) its inner text span. */
 function locate(html: string, layer: string) {
   const at = html.indexOf(` data-layer="${layer}"`);
@@ -577,6 +611,10 @@ export function applyEdits(html: string, edits: BoardEdit[], base?: string, libr
         tag = original.tag;
         if (leaves) inner = original.inner;
       }
+    } else if (edit.op === 'link') {
+      if (edit.to !== null && !/^[A-Za-z0-9_-]{1,80}\.html$/.test(String(edit.to)))
+        throw new Error('A link goes to a board, like Inbox.html');
+      tag = withAttribute(tag, 'href', edit.to);
     } else if (edit.op === 'remove') {
       out =
         out.slice(0, found.open) + out.slice(found.open + layerSnippet(out, edit.layer)!.length);

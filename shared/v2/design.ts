@@ -37,6 +37,16 @@ export type Canvas = {
   boards: Record<string, Board>;
   order?: string[];
   notes?: Record<string, Note>;
+  /** Where Play starts on a page, by its section ID; a page without one starts on its first board. */
+  starts?: Record<string, string>;
+};
+/** A link from a layer of one board to another board, as /design/links lists them. */
+export type DesignLink = {
+  from: string;
+  layer: string;
+  to: string;
+  text: string;
+  sidebar: boolean;
 };
 export type Section = { id: string; title: string; x: number; y: number; boards: string[] };
 export type LayerChange = {
@@ -161,7 +171,7 @@ export function mergeCanvas(base: Canvas, main: Canvas, branch: Canvas): Canvas 
   const merged = JSON.parse(JSON.stringify(main)) as Canvas & Record<string, unknown>;
   const was = base as Canvas & Record<string, unknown>;
   const now = branch as Canvas & Record<string, unknown>;
-  for (const key of ['boards', 'notes'] as const) {
+  for (const key of ['boards', 'notes', 'starts'] as const) {
     const into = (merged[key] ??= {}) as Record<string, unknown>;
     const before = (was[key] ?? {}) as Record<string, unknown>;
     const after = (now[key] ?? {}) as Record<string, unknown>;
@@ -177,7 +187,7 @@ export function mergeCanvas(base: Canvas, main: Canvas, branch: Canvas): Canvas 
     merged.order = [...kept, ...(now.order ?? []).filter((file) => !kept.includes(file))];
   }
   for (const key of Object.keys({ ...was, ...now }))
-    if (!['boards', 'notes', 'order'].includes(key) && !same(was[key], now[key]))
+    if (!['boards', 'notes', 'starts', 'order'].includes(key) && !same(was[key], now[key]))
       if (now[key] === undefined) delete merged[key];
       else merged[key] = now[key];
   return merged;
