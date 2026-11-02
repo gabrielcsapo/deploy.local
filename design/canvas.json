@@ -1306,6 +1306,44 @@
       "w": 1180,
       "h": 820,
       "title": "Play on iPad: tap through the boards"
+    },
+    "DesignMac.html": {
+      "x": 7400,
+      "y": 52200,
+      "w": 1440,
+      "h": 960,
+      "title": "The Design page keeps the app rail: the app’s places beside the canvas, window buttons on top",
+      "expand": "fill"
+    },
+    "DesignRailPhone.html": {
+      "x": 8960,
+      "y": 52200,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone: Design inside Projects, with the app’s tab bar kept below the tools"
+    },
+    "DesignBranchMenu.html": {
+      "x": 9500,
+      "y": 52200,
+      "w": 1440,
+      "h": 960,
+      "title": "The branch menu: main, the design branches with their edits, and New branch",
+      "expand": "fill"
+    },
+    "DesignProjectMenu.html": {
+      "x": 11020,
+      "y": 52200,
+      "w": 1440,
+      "h": 960,
+      "title": "The project menu: switch to another project’s design",
+      "expand": "fill"
+    },
+    "DesignPickPhone.html": {
+      "x": 12540,
+      "y": 52200,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone: one sheet to pick the project, the branch and the page"
     }
   },
   "order": [
@@ -1482,7 +1520,12 @@
     "DesignReviewNotePhone.html",
     "DesignPrototype.html",
     "DesignPlay.html",
-    "DesignPlayPad.html"
+    "DesignPlayPad.html",
+    "DesignMac.html",
+    "DesignRailPhone.html",
+    "DesignBranchMenu.html",
+    "DesignProjectMenu.html",
+    "DesignPickPhone.html"
   ],
   "notes": {
     "intro": {
