@@ -1352,6 +1352,30 @@
       "h": 900,
       "title": "A task's checks before the first run",
       "expand": "fill"
+    },
+    "CodeFile.html": {
+      "x": 16920,
+      "y": 19164,
+      "w": 1440,
+      "h": 900,
+      "title": "A file in the code",
+      "expand": "fill"
+    },
+    "PullRequestsEmpty.html": {
+      "x": 18440,
+      "y": 19164,
+      "w": 1440,
+      "h": 900,
+      "title": "Pull requests with none open",
+      "expand": "fill"
+    },
+    "PullRequest.html": {
+      "x": 19960,
+      "y": 19164,
+      "w": 1440,
+      "h": 1240,
+      "title": "A merged pull request no task opened",
+      "expand": "fill"
     }
   },
   "order": [
@@ -1534,7 +1558,10 @@
     "DesignBranchMenu.html",
     "DesignProjectMenu.html",
     "DesignPickPhone.html",
-    "TaskChecksEmpty.html"
+    "TaskChecksEmpty.html",
+    "CodeFile.html",
+    "PullRequestsEmpty.html",
+    "PullRequest.html"
   ],
   "notes": {
     "intro": {
@@ -2333,6 +2360,13 @@
       "x": 16420,
       "y": 14420,
       "text": "For approval. Every running app says where it comes from.\n• Live: each row names its project (or From Discover, or No project).\n• An app opens as Live › app, with Project, Repository, Release and Computer as links: app → project → repository → release.\n• A project’s Overview lists what is Running: each app with health, address and computer, opening its page on Live."
+    },
+    "projects-5": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 19164,
+      "text": "Code and pull requests\nWeb app\niPhone: later\n\nCode reads like GitHub and Gitea: files, then the README. Every pull request opens; one no task opened shows read-only, with its commits and files."
     }
   },
   "starts": {}
