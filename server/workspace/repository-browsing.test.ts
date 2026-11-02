@@ -38,6 +38,15 @@ test('repository browsing pins files, entry lookup, images, history and root dif
   assert.equal((await read('entry', { path: 'docs' })).type, 'tree');
   assert.equal((await read('entry', { path: 'docs/guide.md' })).type, 'blob');
   assert.equal((await read('history')).commits[0].author, 'Repository Test');
+  const tree = await read('tree');
+  assert.equal(tree.commitCount, 1);
+  assert.equal(tree.latestCommit.oid, initial);
+  assert.equal(tree.latestCommit.author, 'Repository Test');
+  assert.equal(tree.latestCommit.subject, 'Initial repository');
+  assert.equal(tree.entries[0].name, 'docs', 'directories sort before files');
+  const blob = await read('blob', { path: 'docs/guide.md' });
+  assert.equal(blob.latestCommit.oid, initial);
+  assert.equal(blob.size, Buffer.byteLength('# Guide'));
   assert.match((await read('diff')).patch, /Initial repository|diff --git/);
   const image = await read('blob', { path: 'image.png' });
   assert.equal(image.image.mimeType, 'image/png');
@@ -51,6 +60,17 @@ test('repository browsing pins files, entry lookup, images, history and root dif
     false,
     'pinned finder cannot drift with the branch',
   );
+  assert.equal((await read('tree')).commitCount, 1, 'cached history stays pinned');
+  const current = (await repositoryRead('alice', 'browsing', 'tree', new URLSearchParams())) as any;
+  assert.equal(current.commitCount, 2);
+  assert.equal(current.latestCommit.subject, 'Newer branch');
+  const unchanged = (await repositoryRead(
+    'alice',
+    'browsing',
+    'blob',
+    new URLSearchParams({ path: 'docs/guide.md' }),
+  )) as any;
+  assert.equal(unchanged.latestCommit.oid, initial, 'file metadata follows the file, not HEAD');
   await assert.rejects(read('entry', { path: '../outside' }), /Invalid repository path/);
   await assert.rejects(
     repositoryRead('bob', 'browsing', 'files', new URLSearchParams()),

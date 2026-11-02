@@ -1,3 +1,4 @@
+import { preferences } from '../v2/auth-store.ts';
 import { pullTaskChecks } from './workspace-checks.ts';
 import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
 import { cancelTaskQuestions } from './question-lifecycle.ts';
@@ -157,6 +158,65 @@ function editable(owner: string, pull: any) {
     conflict('Merge is pending or needs recovery; inspect its operation first');
 }
 
+async function presentPull(owner: string, pull: any) {
+  const task = list('task', owner).find(
+    (row) => row.projectId === pull.projectId && pull.taskIds?.includes(row.id),
+  );
+  const agent = task && list('agent', owner).find((row) => row.id === task.agentId);
+  let head = pull.mergedCommit || pull.closedHeadCommit;
+  if (pull.status === 'open') {
+    try {
+      head = await resolveCommit(
+        requireRepository(owner, pull.projectId).repositoryPath,
+        `refs/heads/${pull.sourceBranch}`,
+      );
+    } catch {
+      /* Repository availability must not hide the pull request. */
+    }
+  }
+  const runs = list('pipeline-run', owner).filter(
+    (run) =>
+      run.projectId === pull.projectId && run.pullId === pull.id && head && run.commit === head,
+  );
+  const latestRun = runs.at(-1);
+  const checks = [
+    ...pullTaskChecks(owner, pull).filter((check) => head && check.commit === head),
+    ...list('job', owner).filter((job) => latestRun && job.pipelineId === latestRun.id),
+  ];
+  const release = list('v2-release', owner)
+    .map((row) => row.release)
+    .reverse()
+    .find(
+      (row) =>
+        row.projectId === pull.projectId &&
+        pull.status === 'merged' &&
+        row.steps?.some((step: any) => step.name === 'activate' && step.state === 'done') &&
+        ((row.source?.kind === 'pr' && row.source.ref === `PR #${pull.number}`) ||
+          [pull.mergedTargetCommit, pull.mergedCommit].filter(Boolean).includes(row.source?.ref)),
+    );
+  return {
+    ...pull,
+    authorName: pull.author ? preferences(pull.author).name : undefined,
+    mergedByName: pull.mergedBy ? preferences(pull.mergedBy).name : undefined,
+    closedByName: pull.closedBy ? preferences(pull.closedBy).name : undefined,
+    taskAuthor: agent?.name,
+    checksPassed: checks.filter(
+      (check) => check.status === 'succeeded' || check.status === 'passed',
+    ).length,
+    checkCount: checks.length,
+    checksCommit: head,
+    release: release
+      ? {
+          id: release.id,
+          commit: /^[a-f0-9]{40,64}$/.test(release.source.ref)
+            ? release.source.ref
+            : pull.mergedTargetCommit || pull.mergedCommit,
+          at: release.steps.find((step: any) => step.name === 'activate')?.endedAt,
+        }
+      : undefined,
+  };
+}
+
 export async function collaborationRead(
   owner: string,
   projectId: string,
@@ -170,22 +230,41 @@ export async function collaborationRead(
     const status = params.get('status') || 'all';
     if (!['all', 'open', 'closed', ...(collection === 'pulls' ? ['merged'] : [])].includes(status))
       throw new Error('Invalid status');
+    const search = (params.get('q') || '').trim().toLowerCase();
     const before = Number(params.get('before') || Number.MAX_SAFE_INTEGER);
     const limit = Math.min(100, Math.max(1, Number(params.get('limit')) || 50));
-    const rows = list(kind(collection), owner)
+    const all = list(kind(collection), owner).filter((row) => row.projectId === projectId);
+    const rows = all
       .filter(
         (r) =>
           r.projectId === projectId &&
           r.number < before &&
-          (status === 'all' || r.status === status),
+          (status === 'all' || r.status === status) &&
+          `${r.title} #${r.number} ${r.sourceBranch || ''}`.toLowerCase().includes(search),
       )
       .sort((a, b) => b.number - a.number);
     const items = rows.slice(0, limit);
-    return { items, nextBefore: rows.length > limit ? items.at(-1)?.number : null };
+    return {
+      items:
+        collection === 'pulls'
+          ? await Promise.all(items.map((pull) => presentPull(owner, pull)))
+          : items,
+      counts: Object.fromEntries(
+        ['open', 'merged', 'closed'].map((state) => [
+          state,
+          all.filter((row) => row.status === state).length,
+        ]),
+      ),
+      nextBefore: rows.length > limit ? items.at(-1)?.number : null,
+    };
   }
   const row = record(owner, projectId, collection, recordId);
   if (action === 'diff') {
     if (collection !== 'pulls') throw new Error('Only pull requests have diffs');
+    if (row.status === 'closed' && (!row.closedBaseCommit || !row.closedHeadCommit))
+      conflict(
+        'Historical diff unavailable: this closed pull request did not retain its commit IDs',
+      );
     if (row.status === 'merged' && (!row.mergedBaseCommit || !row.mergedCommit))
       conflict(
         'Historical diff unavailable: the imported pull request did not retain its merge commit IDs',
@@ -194,10 +273,12 @@ export async function collaborationRead(
     const [baseCommit, headCommit] =
       row.status === 'merged'
         ? [row.mergedBaseCommit, row.mergedCommit]
-        : await Promise.all([
-            resolveCommit(project.repositoryPath, `refs/heads/${row.targetBranch}`),
-            resolveCommit(project.repositoryPath, `refs/heads/${row.sourceBranch}`),
-          ]);
+        : row.status === 'closed'
+          ? [row.closedBaseCommit, row.closedHeadCommit]
+          : await Promise.all([
+              resolveCommit(project.repositoryPath, `refs/heads/${row.targetBranch}`),
+              resolveCommit(project.repositoryPath, `refs/heads/${row.sourceBranch}`),
+            ]);
     const mergeBase = await gitText(project.repositoryPath, ['merge-base', baseCommit, headCommit]);
     const patch = await gitText(project.repositoryPath, [
       'diff',
@@ -224,7 +305,26 @@ export async function collaborationRead(
     else if (conflicts.length) mergeBlock = conflictReason(row, conflicts);
     else if (!(await requiredChecksPassed(owner, project, headCommit, gitText, 'ignore')))
       mergeBlock = `Required pipeline checks have not passed for ${headCommit.slice(0, 7)}.`;
+    const rawCommits = await gitText(project.repositoryPath, [
+      'log',
+      '--max-count=100',
+      '--reverse',
+      '--format=%H%x00%an%x00%aI%x00%s',
+      `${mergeBase}..${headCommit}`,
+    ]);
+    const commitCount = Number(
+      await gitText(project.repositoryPath, ['rev-list', '--count', `${mergeBase}..${headCommit}`]),
+    );
+    const commits = rawCommits
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [oid, author, date, subject] = line.split('\0');
+        return { oid, author, date, subject };
+      });
     return {
+      commits,
+      commitCount,
       baseCommit,
       headCommit,
       mergeBase,
@@ -236,7 +336,7 @@ export async function collaborationRead(
     };
   }
   return {
-    record: row,
+    record: collection === 'pulls' ? await presentPull(owner, row) : row,
     comments: list('project-comment', owner).filter(
       (c) => c.parentId === row.id && c.projectId === projectId,
     ),
@@ -278,6 +378,23 @@ export async function collaborationCommand(
       resolveCommit(project.repositoryPath, `refs/heads/${sourceBranch}`),
       resolveCommit(project.repositoryPath, `refs/heads/${targetBranch}`),
     ]);
+  }
+  let closedCommits = {};
+  if (recordId && collection === 'pulls' && action === 'close') {
+    const pull = record(owner, projectId, collection, recordId);
+    if (pull.status === 'open') {
+      closedCommits = { closedBy: owner, closedAt: now() };
+      try {
+        const project = requireRepository(owner, projectId);
+        const [closedBaseCommit, closedHeadCommit] = await Promise.all([
+          resolveCommit(project.repositoryPath, `refs/heads/${pull.targetBranch}`),
+          resolveCommit(project.repositoryPath, `refs/heads/${pull.sourceBranch}`),
+        ]);
+        closedCommits = { ...closedCommits, closedBaseCommit, closedHeadCommit };
+      } catch {
+        // A deleted branch must not prevent closing its PR; its historical diff stays unavailable.
+      }
+    }
   }
   return command(
     owner,
@@ -401,7 +518,7 @@ export async function collaborationCommand(
                 ? { issueIds: linked(owner, projectId, 'issue', input.issueIds) }
                 : {}),
             }
-          : { status: action === 'close' ? 'closed' : 'open' }),
+          : { status: action === 'close' ? 'closed' : 'open', ...closedCommits }),
         revision: row.revision + 1,
         updatedAt: now(),
       });
@@ -469,6 +586,7 @@ export async function executePullMerge(owner: string, operation: any, runGit: ty
     // The target's new tip: the source head for a fast-forward, the merge commit otherwise.
     // Baselines and follow-ups key off mergedCommit, so that stays the commit that was merged.
     mergedTargetCommit: landed,
+    mergedBy: pull.mergedBy || owner,
     mergedAt: pull.mergedAt || now(),
     updatedAt: now(),
     revision: pull.revision + (pull.status === 'merged' ? 0 : 1),

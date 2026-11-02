@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import {
   Action,
@@ -8,129 +8,28 @@ import {
   Head,
   Icon,
   IconButton,
+  Item,
   Seg,
   Skeleton,
   Tabs,
 } from '@/components/ui';
-import { authenticatedFetch } from '../data/hooks';
-import { formatTime } from '../data/time';
-import { requestJson, workspaceCommand } from './api';
 import type { TaskPull } from './types';
 import type { Release } from '../../../../../shared/v2/contracts';
 import { useData, type Overview } from '../projects/data';
 import { projectPath, projectSegment, projectTabItems } from '../projects/routing';
+import { pullElapsed, pullHref, pullMeta } from './pull-presentation';
+import PullRequest from './pull.client';
 import './style.css';
+import './pulls.css';
 
 export default function PullRequests() {
   const { pathname } = useLocation();
   const project = decodeURIComponent(pathname.split('/')[3] || '');
+  const pullId = decodeURIComponent(pathname.split('/')[5] || '');
   const base = projectPath(project);
-  // The project page's own data, usually already read there, names the project and its tabs.
   const overview = useData<Overview>(`/api/v2/projects/${projectSegment(project)}/overview`);
   const history = useData<{ releases: Release[] }>(
     `/api/v2/projects/${projectSegment(project)}/releases`,
-  );
-  const [items, setItems] = useState<TaskPull[] | null>(null);
-  const [next, setNext] = useState<number | null>(null);
-  const [error, setError] = useState('');
-  const [status, setStatus] = useState('open');
-  const [search, setSearch] = useState('');
-  const [version, setVersion] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const createdTasks = useRef(new Map<string, string>());
-  const load = useCallback(
-    async (before?: number, signal?: AbortSignal) => {
-      const page = await requestJson<{ items: TaskPull[]; nextBefore: number | null }>(
-        authenticatedFetch,
-        `/api/workspace/projects/${encodeURIComponent(project)}/pulls?status=all${before ? `&before=${before}` : ''}`,
-        { signal },
-      );
-      if (signal?.aborted) return;
-      setItems((old) => (before ? [...(old || []), ...page.items] : page.items));
-      setNext(page.nextBefore);
-      setError('');
-    },
-    [project],
-  );
-  useEffect(() => {
-    const controller = new AbortController();
-    setItems(null);
-    void load(undefined, controller.signal).catch(() => {
-      if (!controller.signal.aborted) setError('Pull requests are unavailable. Try again.');
-    });
-    return () => controller.abort();
-  }, [project, version, load]);
-  async function openUnlinked(pull: TaskPull) {
-    setBusy(true);
-    setError('');
-    try {
-      let id = createdTasks.current.get(pull.id);
-      if (!id) {
-        const result = await workspaceCommand<{ id: string }>(authenticatedFetch, '/tasks', {
-          projectId: project,
-          title: pull.title,
-          ref: pull.sourceBranch,
-        });
-        id = result.id;
-        createdTasks.current.set(pull.id, id);
-      }
-      await workspaceCommand(
-        authenticatedFetch,
-        `/projects/${encodeURIComponent(project)}/pulls/${encodeURIComponent(pull.id)}/update`,
-        {
-          revision: pull.revision,
-          taskIds: [...pull.taskIds, id],
-        },
-      );
-      window.location.assign(`/dashboard/tasks/${encodeURIComponent(id)}`);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not open task.');
-    } finally {
-      setBusy(false);
-    }
-  }
-  function row(pull: TaskPull) {
-    const content = (
-      <>
-        <Icon name="merge" />
-        <span className="dl-t">
-          {pull.title}
-          <span>
-            #{pull.number} · {pull.sourceBranch} → {pull.targetBranch}
-          </span>
-        </span>
-        <span className="dl-meta">
-          {pull.updatedAt ? formatTime(pull.updatedAt, 'elapsed') : pull.status}
-        </span>
-        <Icon name="chevron" size={14} />
-      </>
-    );
-    return pull.taskIds.length ? (
-      <a
-        className="dl-pull-row"
-        key={pull.id}
-        href={`/dashboard/tasks/${encodeURIComponent(pull.taskIds.at(-1)!)}`}
-      >
-        {content}
-      </a>
-    ) : (
-      <button
-        className="dl-pull-row"
-        disabled={busy || pull.status !== 'open'}
-        title={
-          pull.status !== 'open'
-            ? 'This historical pull request has no linked task'
-            : 'Open as a task'
-        }
-        key={pull.id}
-        onClick={() => void openUnlinked(pull)}
-      >
-        {content}
-      </button>
-    );
-  }
-  const filtered = (items || []).filter((pull) =>
-    pull.title.toLowerCase().includes(search.toLowerCase()),
   );
   return (
     <>
@@ -152,84 +51,171 @@ export default function PullRequests() {
         }
       />
       <div className="dl-scroll">
-        <div className="dl-page dl-pulls-page">
+        <div className="dl-page wide dl-pulls-page">
           <Tabs
             value={`${base}/pulls`}
             items={projectTabItems(base, overview.data, history.data?.releases.length ?? 0)}
           />
-          <div className="dl-pulls-filter">
-            <Seg
-              label="Pull request state"
-              value={status}
-              onChange={setStatus}
-              options={[
-                { value: 'open', label: 'Open' },
-                { value: 'merged', label: 'Merged' },
-                { value: 'closed', label: 'Closed' },
-              ]}
-            />
-            <label className="dl-pulls-search">
-              <Icon name="search" size={14} />
-              <input
-                type="search"
-                aria-label="Search pull requests"
-                placeholder="Search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-          </div>
-          <p className="dl-meta">
-            A pull request is the last stage of a task. Open one to see its chat, changes and checks
-            in one place.
-          </p>
-          {error && (
+          {overview.error && (
             <Banner
-              title={error}
-              action={<Action onClick={() => setVersion((value) => value + 1)}>Retry</Action>}
+              title={overview.error}
+              action={<Action onClick={overview.refresh}>Retry</Action>}
             />
           )}
-          {!items && !error ? (
-            <Skeleton rows={3} />
+          {pullId ? (
+            <PullRequest key={`${project}/${pullId}`} project={project} id={pullId} />
           ) : (
-            (() => {
-              const shown = filtered.filter((pull) => pull.status === status);
-              return shown.length ? (
-                <div className="dl-group">{shown.map(row)}</div>
-              ) : (
-                <Empty
-                  icon="merge"
-                  title={
-                    search
-                      ? `No ${status} pull requests match “${search}”`
-                      : `No ${status} pull requests`
-                  }
-                />
-              );
-            })()
-          )}
-          {status === 'open' && filtered.some((pull) => pull.status === 'merged') && (
-            <>
-              <h2 className="dl-section-title">Merged recently</h2>
-              <div className="dl-group">
-                {filtered
-                  .filter((pull) => pull.status === 'merged')
-                  .slice(0, 5)
-                  .map(row)}
-              </div>
-            </>
-          )}
-          {next && (
-            <Action
-              onClick={() =>
-                void load(next).catch(() => setError('Could not load more pull requests.'))
-              }
-            >
-              Load more
-            </Action>
+            <PullList key={project} project={project} />
           )}
         </div>
       </div>
+    </>
+  );
+}
+function PullList({ project }: { project: string }) {
+  const [status, setStatus] = useState('open');
+  const [search, setSearch] = useState('');
+  const [before, setBefore] = useState<number>();
+  const [older, setOlder] = useState<TaskPull[]>([]);
+  const base = `/api/workspace/projects/${projectSegment(project)}/pulls`;
+  const page = useData<{
+    items: TaskPull[];
+    counts: Record<string, number>;
+    nextBefore: number | null;
+  }>(
+    `${base}?status=${status}&q=${encodeURIComponent(search)}${before ? `&before=${before}` : ''}`,
+  );
+  const recent = useData<{ items: TaskPull[] }>(
+    status === 'open' ? `${base}?status=merged&limit=5&q=${encodeURIComponent(search)}` : undefined,
+  );
+  useEffect(() => {
+    setOlder([]);
+    setBefore(undefined);
+  }, [status, search]);
+  const items = [
+    ...new Map([...older, ...(page.data?.items ?? [])].map((pull) => [pull.id, pull])).values(),
+  ].filter((pull) => pull.status === status);
+  const matches = (pull: TaskPull) =>
+    `${pull.title} #${pull.number} ${pull.sourceBranch}`
+      .toLowerCase()
+      .includes(search.toLowerCase());
+  const shown = items.filter(matches);
+  function row(pull: TaskPull) {
+    return (
+      <Item
+        key={pull.id}
+        href={pullHref(project, pull)}
+        lead={<Icon name="merge" />}
+        title={pull.title}
+        description={pullMeta(pull)}
+        end={pullElapsed(pull.mergedAt || pull.closedAt || pull.updatedAt)}
+      />
+    );
+  }
+  const empty = status === 'open' && page.data?.counts.open === 0 && !search;
+  return (
+    <>
+      <div className="dl-pulls-filter">
+        <Seg
+          label="Pull request state"
+          value={status}
+          onChange={(value) => {
+            setStatus(value);
+            setBefore(undefined);
+            setOlder([]);
+          }}
+          options={['open', 'merged', 'closed'].map((state) => ({
+            value: state,
+            label: `${state[0].toUpperCase() + state.slice(1)}${page.data?.counts[state] ? ` ${page.data.counts[state]}` : ''}`,
+          }))}
+        />
+        <label className="dl-field v2-pulls-search">
+          <span className="dl-sr">Search pull requests</span>
+          <Icon name="search" size={14} />
+          <input
+            type="search"
+            placeholder="Search"
+            value={search}
+            onChange={(event) => {
+              setBefore(undefined);
+              setOlder([]);
+              setSearch(event.target.value);
+            }}
+          />
+        </label>
+      </div>
+      {!empty && (
+        <p className="dl-section-sub">
+          A pull request is the last stage of a task: its changes, waiting for you to merge. Open
+          one to see its changes and checks, and the task's chat when a task opened it.
+        </p>
+      )}
+      {page.error && (
+        <Banner title={page.error} action={<Action onClick={page.refresh}>Retry</Action>} />
+      )}
+      {!page.data && !page.error ? (
+        <Skeleton rows={3} />
+      ) : (
+        page.data &&
+        (shown.length ? (
+          <div className="dl-group">{shown.map(row)}</div>
+        ) : (
+          <div className="dl-group">
+            <Empty
+              className="v2-pulls-empty"
+              icon="merge"
+              title={
+                search
+                  ? `No ${status} pull requests match “${search}”`
+                  : `No ${status} pull requests`
+              }
+              actions={
+                empty ? (
+                  <a className="dl-btn secondary" href="/dashboard">
+                    New task
+                  </a>
+                ) : undefined
+              }
+            >
+              {empty
+                ? 'A pull request is the last stage of a task: its changes, waiting for you to merge. Tasks open one when their work is ready.'
+                : undefined}
+            </Empty>
+          </div>
+        ))
+      )}
+      {page.data?.nextBefore && (
+        <Action
+          disabled={before === page.data.nextBefore}
+          onClick={() => {
+            setOlder(items);
+            setBefore(page.data!.nextBefore!);
+          }}
+        >
+          Load more
+        </Action>
+      )}
+      {status === 'open' && recent.error && (
+        <Banner
+          title="Merged pull requests are unavailable"
+          action={<Action onClick={recent.refresh}>Retry</Action>}
+        />
+      )}
+      {status === 'open' && !!recent.data?.items.length && (
+        <section className="dl-section">
+          <div className="v2-pulls-section-head">
+            <h2 className="dl-section-title">Merged recently</h2>
+            <button
+              type="button"
+              className="dl-link v2-pulls-all"
+              onClick={() => setStatus('merged')}
+            >
+              All {page.data?.counts.merged ?? '…'} merged
+            </button>
+          </div>
+          <div className="dl-group">{recent.data.items.filter(matches).map(row)}</div>
+        </section>
+      )}
     </>
   );
 }

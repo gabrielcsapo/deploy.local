@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { once } from 'node:events';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 const data = mkdtempSync(join(tmpdir(), 'deploy-project-collaboration-'));
 process.env.DEPLOY_DATA_DIR = data;
@@ -16,30 +16,40 @@ const { db, get, list, save } = await import('./store.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
 const { executePullMerge } = await import('./project-collaboration.ts');
 const { projectTool } = await import('./project-tools.ts');
-const server = createServer((req, res) => {
-  void workspaceApi(
-    req,
-    res,
-    String(req.headers['x-owner'] || 'alice'),
-    req.headers['x-worker'] ? 'limited-worker' : undefined,
-  );
-});
-server.listen(0, '127.0.0.1');
-await once(server, 'listening');
-const origin = `http://127.0.0.1:${(server.address() as any).port}/api/workspace`;
-after(async () => {
-  server.closeAllConnections();
-  await new Promise<void>((r) => server.close(() => r()));
+after(() => {
   db.close();
   rmSync(data, { recursive: true, force: true });
 });
+// Exercise the HTTP handler in process so this suite also runs without permission to bind a port.
 async function request(path: string, body?: any, headers: Record<string, string> = {}) {
-  const response = await fetch(origin + path, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: body === undefined ? undefined : JSON.stringify({ operationId: randomUUID(), ...body }),
-  });
-  return { status: response.status, body: (await response.json()) as any };
+  const req = Object.assign(
+    Readable.from(
+      body === undefined ? [] : [JSON.stringify({ operationId: randomUUID(), ...body })],
+    ),
+    {
+      url: `/api/workspace${path}`,
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      complete: true,
+    },
+  );
+  let status = 200;
+  let result: any;
+  const res = {
+    writeHead(code: number) {
+      status = code;
+    },
+    end(value: string) {
+      result = JSON.parse(value);
+    },
+  };
+  await workspaceApi(
+    req as unknown as IncomingMessage,
+    res as unknown as ServerResponse,
+    headers['x-owner'] || 'alice',
+    headers['x-worker'] ? 'limited-worker' : undefined,
+  );
+  return { status, body: result };
 }
 function fixture() {
   const source = join(data, randomUUID());
@@ -464,4 +474,122 @@ test('merging a pull request closes its linked tasks, and tasks can be closed an
     (await request(`/tasks/${linked.id}/close`, { revision: reopened.body.revision })).status,
     409,
   );
+});
+
+test('pull list totals span pages and filters and name linked agents and matching checks', async () => {
+  const f = fixture();
+  const task = createTask('alice', { projectId: f.project.id });
+  save('agent', 'alice', { id: 'scout', name: 'Scout' });
+  save('task', 'alice', { ...task, agentId: 'scout' });
+  const first = await createPull(f, { taskIds: [task.id] });
+  const second = await createPull(f);
+  await request(`${f.path}/pulls/${second.id}/close`, { revision: second.revision });
+  save('pipeline-run', 'alice', {
+    id: 'checks-current',
+    projectId: f.project.id,
+    pullId: first.id,
+    commit: f.head,
+  });
+  save('job', 'alice', { id: 'check-passed', pipelineId: 'checks-current', status: 'succeeded' });
+  save('pipeline-run', 'alice', {
+    id: 'checks-old',
+    projectId: f.project.id,
+    pullId: first.id,
+    commit: f.base,
+  });
+  save('job', 'alice', { id: 'old-check', pipelineId: 'checks-old', status: 'succeeded' });
+  const page = (await request(`${f.path}/pulls?status=open&limit=1`)).body;
+  assert.deepEqual(page.counts, { open: 1, merged: 0, closed: 1 });
+  assert.equal(page.items[0].taskAuthor, 'Scout');
+  assert.equal(page.items[0].checksPassed, 1);
+  assert.equal(page.items[0].checksCommit, f.head);
+  assert.equal((await request(`${f.path}/pulls?limit=1`)).body.nextBefore, second.number);
+  const found = (await request(`${f.path}/pulls?status=all&limit=1&q=%23${first.number}`)).body;
+  assert.equal(found.items[0].id, first.id, 'search runs before pagination');
+  assert.deepEqual(found.counts, page.counts, 'search does not change state totals');
+  const detail = (await request(`${f.path}/pulls/${first.id}`)).body;
+  assert.equal(detail.record.taskAuthor, 'Scout');
+  assert.equal((await request(`${f.path}/pulls`, undefined, { 'x-owner': 'bob' })).status, 404);
+});
+
+test('closed pull commits and diffs stay pinned after branch deletion', async () => {
+  const f = fixture();
+  const pull = await createPull(f);
+  const path = `${f.path}/pulls/${pull.id}`;
+  const closed = (await request(path + '/close', { revision: pull.revision })).body;
+  assert.equal(closed.closedHeadCommit, f.head);
+  assert.equal(closed.closedBy, 'alice');
+  await gitText(f.project.repositoryPath, ['update-ref', '-d', 'refs/heads/feature']);
+  const diff = (await request(path + '/diff')).body;
+  assert.equal(diff.headCommit, f.head);
+  assert.equal(diff.commitCount, 1);
+  assert.equal(diff.commits[0].subject, 'Feature');
+  assert.equal(diff.commits[0].author, 'Test');
+  assert.match(diff.patch, /\+feature/);
+  save('pull-request', 'alice', { ...closed, closedHeadCommit: undefined });
+  assert.equal(
+    (await request(path + '/diff')).status,
+    409,
+    'legacy closed records do not show a moving branch',
+  );
+});
+
+test('merged pull history and release evidence survive source branch deletion', async () => {
+  const f = fixture();
+  const pull = await createPull(f);
+  const queued = await queueMerge(f, pull);
+  await executePullMerge(
+    'alice',
+    get('repository-operation', 'alice', queued.mergeOperationId),
+    gitText,
+  );
+  await gitText(f.project.repositoryPath, ['update-ref', '-d', 'refs/heads/feature']);
+  const path = `${f.path}/pulls/${pull.id}`;
+  const diff = (await request(path + '/diff')).body;
+  assert.equal(diff.commitCount, 1);
+  assert.equal(diff.commits[0].oid, f.head);
+  const release = {
+    id: 'release-receipt',
+    projectId: f.project.id,
+    source: { kind: 'ship', ref: f.head },
+    steps: [{ name: 'activate', state: 'done', endedAt: '2026-11-01T12:00:00Z' }],
+  };
+  save('v2-release', 'alice', { id: release.id, release });
+  const record = (await request(path)).body.record;
+  assert.equal(record.mergedBy, 'alice');
+  assert.equal(record.release.commit, f.head);
+  assert.equal(record.release.id, release.id);
+  save('v2-release', 'alice', {
+    id: release.id,
+    release: { ...release, source: { kind: 'ship', ref: 'main' } },
+  });
+  assert.equal(
+    (await request(path)).body.record.release,
+    undefined,
+    'a moving release ref is not evidence of the merged version',
+  );
+});
+
+test('a deleted source branch can still be closed without inventing history', async () => {
+  const f = fixture();
+  const pull = await createPull(f);
+  await gitText(f.project.repositoryPath, ['update-ref', '-d', 'refs/heads/feature']);
+  const path = `${f.path}/pulls/${pull.id}`;
+  const closed = await request(path + '/close', { revision: pull.revision });
+  assert.equal(closed.status, 200);
+  assert.equal(closed.body.status, 'closed');
+  assert.equal((await request(path + '/diff')).status, 409);
+});
+
+test('pull presentation uses account names while preserving actor identifiers', async () => {
+  const { authDb, updatePreferences } = await import('../v2/auth-store.ts');
+  authDb()
+    .prepare('INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)')
+    .run('alice', '', 'admin', new Date().toISOString());
+  updatePreferences('alice', { name: 'Alice Example' });
+  const f = fixture();
+  const pull = await createPull(f);
+  const record = (await request(`${f.path}/pulls/${pull.id}`)).body.record;
+  assert.equal(record.author, 'alice');
+  assert.equal(record.authorName, 'Alice Example');
 });
