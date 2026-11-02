@@ -17,6 +17,7 @@ export {
   sections,
   type Board,
   type Canvas,
+  type DesignLink,
   type LayerChange,
   type Mark,
   type Note,

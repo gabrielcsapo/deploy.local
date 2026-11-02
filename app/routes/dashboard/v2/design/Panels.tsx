@@ -18,6 +18,7 @@ import {
   textStyle,
   type Canvas,
   type Design,
+  type DesignLink,
   type LayerChange,
   type Mark,
   type Note,
@@ -175,6 +176,7 @@ function BoardLayers({
   changed,
   inReview,
   agentAt,
+  linkTo,
 }: {
   file: string;
   /** The board's width, shown beside it on a phone. */
@@ -186,6 +188,8 @@ function BoardLayers({
   inReview: boolean;
   /** Layers an agent is working on in this board; null means the board itself. */
   agentAt: Set<string | null>;
+  /** On Prototype, the board each linked layer opens. */
+  linkTo?: Map<string, string>;
 }) {
   const here = selection?.board === file;
   const [open, setOpen] = useState(here);
@@ -222,7 +226,13 @@ function BoardLayers({
                 })
             : undefined
         }
-        meta={agentAt.has(node.id) ? <AgentMark /> : undefined}
+        meta={
+          agentAt.has(node.id) ? (
+            <AgentMark />
+          ) : linkTo?.has(node.id) ? (
+            <span className="dz-meta dz-link-meta">→ {boardName(linkTo.get(node.id)!)}</span>
+          ) : undefined
+        }
         onClick={() => select({ board: file, layer: node.id })}
       >
         {render(node.children, depth + 1)}
@@ -421,6 +431,7 @@ export function LeftPanel({
   loose = [],
   mark = null,
   onLoose,
+  links,
 }: {
   projects: Project[];
   project: Project | undefined;
@@ -455,6 +466,8 @@ export function LeftPanel({
   /** The pen mark selected on the canvas. */
   mark?: string | null;
   onLoose?: (id: string) => void;
+  /** On Prototype, the links between boards, shown beside the layers that make them. */
+  links?: DesignLink[];
 }) {
   const [tab, setTab] = useState<'file' | 'assets'>('file');
   const [allPages, setAllPages] = useState(false);
@@ -644,6 +657,15 @@ export function LeftPanel({
                   changed={changed.has(file)}
                   inReview={inReview.has(file)}
                   agentAt={agentAt.get(file) ?? new Set()}
+                  linkTo={
+                    links
+                      ? new Map(
+                          links
+                            .filter((link) => link.from === file)
+                            .map((link) => [link.layer, link.to]),
+                        )
+                      : undefined
+                  }
                 />
               ))}
             {loose
@@ -1728,6 +1750,237 @@ function FillChip({ color, token }: { color: string; token: string | null }) {
   );
 }
 
+/** What Prototype needs from the page: the links, where Play starts, and the edits it makes. */
+export type PrototypeProps = {
+  links: DesignLink[];
+  /** Show the sidebar's links on the canvas too. */
+  sidebar: boolean;
+  setSidebar: (show: boolean) => void;
+  /** The board Play starts on for this page. */
+  start: string | null;
+  /** Present when this design can be edited. */
+  onStart?: (board: string) => void;
+  onLink?: (board: string, layer: string, to: string | null) => void;
+};
+
+/** Where a list of boards ends up said: "Home, Inbox and 3 more". */
+function said(names: string[]) {
+  if (names.length <= 3) return names.join(names.length === 2 ? ' and ' : ', ');
+  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+}
+
+/**
+ * Prototype: what a click on the selected layer does, where its board leads and what leads to it,
+ * and where Play starts on this page.
+ */
+function PrototypePanel({
+  canvas,
+  section,
+  selection,
+  element,
+  heading,
+  prototype,
+  select,
+}: {
+  canvas: Canvas | null;
+  section: Section | null;
+  selection: Selection;
+  element: HTMLElement | null;
+  /** The selected layer's kind and crumb, as Edit shows them. */
+  heading: ReactNode;
+  prototype: PrototypeProps;
+  select: (selection: Selection) => void;
+}) {
+  const { links, sidebar, setSidebar, start, onStart, onLink } = prototype;
+  const boards = Object.keys(canvas?.boards ?? {}).sort((a, b) => a.localeCompare(b));
+  const options = boards.map((file) => ({ value: file, label: boardName(file) }));
+  const board = selection?.board ?? null;
+  const layer = selection?.layer ?? null;
+  // A layer's own link: what the board file says, or what was just set on screen.
+  const linked =
+    element?.getAttribute('href')?.match(/^[A-Za-z0-9_-]+\.html$/)?.[0] ??
+    links.find((link) => link.from === board && link.layer === layer)?.to ??
+    null;
+  const [adding, setAdding] = useState(false);
+  useEffect(() => setAdding(false), [board, layer]);
+  const out = board ? links.filter((link) => link.from === board) : [];
+  const own = out.filter((link) => !link.sidebar && link.to !== board);
+  const inSidebar = out.filter((link) => link.sidebar).length;
+  const targets = new Set(own.map((link) => link.to));
+  const into = board ? links.filter((link) => link.to === board && link.from !== board) : [];
+  const fromPages = [...new Set(into.filter((link) => !link.sidebar).map((link) => link.from))];
+  const fromSidebars = new Set(into.filter((link) => link.sidebar).map((link) => link.from)).size;
+  const reached = fromPages.length
+    ? `Reached from ${said(fromPages.map(boardName))}.`
+    : fromSidebars
+      ? `Reached from the sidebar of ${fromSidebars} board${fromSidebars === 1 ? '' : 's'}.`
+      : board
+        ? `Nothing links to ${boardName(board)}.`
+        : '';
+  const go = (to: string) => board && layer && onLink?.(board, layer, to);
+  const startBoard = start && canvas?.boards[start] ? start : (section?.boards[0] ?? null);
+  return (
+    <>
+      {layer && heading}
+      {layer && (
+        <Prop
+          title="Interaction"
+          actions={
+            onLink && !linked && !adding ? (
+              <button
+                type="button"
+                className="dl-icon-btn dz-add"
+                aria-label="Add an interaction"
+                onClick={() => setAdding(true)}
+              >
+                <Icon name="plus" size={14} />
+              </button>
+            ) : undefined
+          }
+        >
+          {linked || adding ? (
+            <>
+              <div className="dz-resettable">
+                <Field wide>
+                  <span>On click</span>
+                </Field>
+                {onLink ? (
+                  <button
+                    type="button"
+                    className="dl-icon-btn dz-side"
+                    aria-label="Remove the interaction"
+                    title="Remove the interaction"
+                    onClick={() => {
+                      setAdding(false);
+                      if (board && layer && linked) onLink(board, layer, null);
+                    }}
+                  >
+                    <Icon name="close" size={13} />
+                  </button>
+                ) : (
+                  <span />
+                )}
+              </div>
+              <div className="dz-resettable">
+                <Field label="Go to" wide>
+                  {onLink ? (
+                    <Pick
+                      label="Go to board"
+                      value={linked ?? ''}
+                      options={[
+                        ...(linked ? [] : [{ value: '', label: 'Choose a board' }]),
+                        ...options,
+                      ]}
+                      onChange={(to) => to && go(to)}
+                    >
+                      <span className="dz-chip dz-board-chip">
+                        <Icon name="frame" size={11} />
+                        {linked ? boardName(linked) : 'Choose a board'}
+                      </span>
+                    </Pick>
+                  ) : (
+                    linked && (
+                      <span className="dz-chip dz-board-chip">
+                        <Icon name="frame" size={11} />
+                        {boardName(linked)}
+                      </span>
+                    )
+                  )}
+                </Field>
+                <span />
+              </div>
+              {onLink && (
+                <p className="dz-hint">Or drag the dot at the layer’s edge onto a board.</p>
+              )}
+            </>
+          ) : (
+            <p className="dz-hint">
+              {onLink
+                ? 'A click does nothing yet. Add one, or drag the dot at the layer’s edge onto a board.'
+                : 'A click does nothing.'}
+            </p>
+          )}
+        </Prop>
+      )}
+      {board && (
+        <Prop
+          title={boardName(board)}
+          actions={
+            <span className="dz-meta">
+              {targets.size
+                ? `Leads to ${targets.size} board${targets.size === 1 ? '' : 's'}`
+                : 'Leads nowhere'}
+            </span>
+          }
+        >
+          <div className="dz-links">
+            {own.map((link) => (
+              <button
+                key={link.layer}
+                type="button"
+                className={`dz-link-row${layer === link.layer ? ' on' : ''}`}
+                onClick={() => select({ board, layer: link.layer })}
+              >
+                <span className="dz-t">{link.text || link.layer}</span>
+                <Icon name="arrow" size={12} />
+                <span className={`dz-to${canvas?.boards[link.to] ? '' : ' missing'}`}>
+                  <Icon name="frame" size={11} />
+                  {boardName(link.to)}
+                </span>
+              </button>
+            ))}
+            {inSidebar > 0 && (
+              <div className={`dz-link-row off${sidebar ? ' shown' : ''}`}>
+                <span className="dz-t">Sidebar · {inSidebar} links</span>
+                <span className="dl-grow" />
+                <button
+                  type="button"
+                  className="dl-icon-btn"
+                  aria-label={sidebar ? 'Hide the sidebar’s links' : 'Show the sidebar’s links'}
+                  title={sidebar ? 'Hide the sidebar’s links' : 'Show the sidebar’s links'}
+                  aria-pressed={sidebar}
+                  onClick={() => setSidebar(!sidebar)}
+                >
+                  <Icon name={sidebar ? 'eye' : 'eyeOff'} size={13} />
+                </button>
+              </div>
+            )}
+          </div>
+          {own.some((link) => !canvas?.boards[link.to]) && (
+            <p className="dz-hint warn">A link goes to a board that isn’t on the canvas.</p>
+          )}
+          <p className="dz-hint">{reached}</p>
+        </Prop>
+      )}
+      <Prop title="Flow">
+        <div className="dz-resettable">
+          <Field label={<Icon name="play" size={11} />} wide>
+            {onStart && section ? (
+              <Pick
+                label="Play starts on"
+                value={startBoard ?? ''}
+                options={section.boards.map((file) => ({ value: file, label: boardName(file) }))}
+                onChange={(file) => file && onStart(file)}
+              >
+                <span>Starts on {startBoard ? boardName(startBoard) : '—'}</span>
+              </Pick>
+            ) : (
+              <span>Starts on {startBoard ? boardName(startBoard) : '—'}</span>
+            )}
+          </Field>
+          <span />
+        </div>
+        <p className="dz-hint">
+          {startBoard
+            ? `Play opens this page on ${boardName(startBoard)} and follows its links.`
+            : 'This page has no boards to play.'}
+        </p>
+        {!board && <p className="dz-hint">Select a board to see where it leads.</p>}
+      </Prop>
+    </>
+  );
+}
+
 export function RightPanel({
   project,
   design,
@@ -1757,6 +2010,8 @@ export function RightPanel({
   mark,
   onMark,
   onRemoveMark,
+  prototype,
+  onPlay,
 }: {
   project: Project | undefined;
   design: Design | undefined;
@@ -1771,8 +2026,8 @@ export function RightPanel({
   changes: { status: string; path: string; layers?: LayerChange[] }[];
   select: (selection: Selection) => void;
   owner: string;
-  tab: 'edit' | 'comments';
-  setTab: (tab: 'edit' | 'comments') => void;
+  tab: 'edit' | 'prototype' | 'comments';
+  setTab: (tab: 'edit' | 'prototype' | 'comments') => void;
   commentCount: number;
   comments: ReactNode;
   /** While an agent's branch is open, its panel replaces Edit. */
@@ -1794,6 +2049,9 @@ export function RightPanel({
   /** Present when this design can be edited. */
   onMark?: (patch: Partial<Mark & { x: number; y: number; w: number; h: number }>) => void;
   onRemoveMark?: () => void;
+  prototype?: PrototypeProps;
+  /** Opens Play on this page; absent while there is nothing to play. */
+  onPlay?: () => void;
 }) {
   const [zoomMenu, setZoomMenu] = useState(false);
   const [moreMenu, setMoreMenu] = useState(false);
@@ -1833,7 +2091,14 @@ export function RightPanel({
           ))}
         </span>
         <span className="dl-grow" />
-        <button type="button" className="dl-icon-btn" aria-label="Play (coming soon)" disabled>
+        <button
+          type="button"
+          className="dl-icon-btn"
+          aria-label="Play"
+          title="Play"
+          disabled={!onPlay}
+          onClick={onPlay}
+        >
           <Icon name="play" size={14} />
         </button>
         <button
@@ -1865,6 +2130,17 @@ export function RightPanel({
           >
             {agent ? 'Agent' : 'Edit'}
           </button>
+          {prototype && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'prototype'}
+              className={tab === 'prototype' ? 'on' : ''}
+              onClick={() => setTab('prototype')}
+            >
+              Prototype
+            </button>
+          )}
           <button
             type="button"
             role="tab"
@@ -1909,6 +2185,28 @@ export function RightPanel({
       <div className="dz-right-body">
         {tab === 'comments' ? (
           comments
+        ) : tab === 'prototype' && prototype ? (
+          <PrototypePanel
+            canvas={canvas}
+            section={section}
+            selection={selection}
+            element={element}
+            prototype={prototype}
+            select={select}
+            heading={
+              element && (
+                <div className="dz-sel">
+                  <b className="dz-sel-kind">
+                    <span className="dz-sel-name">
+                      {kindName[kind!]}
+                      <Icon name="down" size={11} />
+                    </span>
+                  </b>
+                  <span className="dz-crumb">{crumb.join(' › ')}</span>
+                </div>
+              )
+            }
+          />
         ) : agent ? (
           agent
         ) : component ? (

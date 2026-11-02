@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   applyEdits,
+  boardLinks,
+  type BoardLink,
   layerChanges,
   layerIds,
   layerSnippet,
@@ -445,6 +447,9 @@ function designItemId(projectId: string, branch: string, commit: string) {
 }
 
 /** Ask for approval in Waiting on you. The same branch at the same commit asks only once. */
+/** Links per commit: a commit never changes, so its links are worked out once. */
+const linkCache = new Map<string, (BoardLink & { from: string })[]>();
+
 /** The canvas at a commit, read at once for the line a proposal shows; null when it has none. */
 function canvasAt(repo: string, commit: string): Canvas | null {
   try {
@@ -894,6 +899,28 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   }
 
   // What a branch or a task changed in design/, against main (or `base`).
+  // Every link between boards at a commit, for Prototype's lines and Play: which layer of which
+  // board opens which board. Sidebar links are marked; nearly every board repeats them.
+  if (sub === '/links' && req.method === 'GET') {
+    const { commit } = resolveCommit(owner, project.id, repo, url);
+    const key = `${repo}:${commit}`;
+    let links = linkCache.get(key);
+    if (!links) {
+      const canvas = await readCanvas(repo, commit);
+      const files = Object.keys(canvas?.boards ?? {});
+      const found = await Promise.all(
+        files.map(async (file) => {
+          const html = await readFile(repo, commit, `design/boards/${file}`);
+          return html ? boardLinks(html.toString()).map((link) => ({ from: file, ...link })) : [];
+        }),
+      );
+      links = found.flat();
+      linkCache.set(key, links);
+      if (linkCache.size > 20) linkCache.delete(linkCache.keys().next().value!);
+    }
+    return sendJson(res, { commit, links });
+  }
+
   if (sub === '/changes' && req.method === 'GET') {
     const { commit } = resolveCommit(owner, project.id, repo, url);
     const base = url.searchParams.get('base') || 'HEAD';
@@ -1174,6 +1201,17 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
           width: body.width !== undefined ? number(body.width, 0.5, 40, 'Stroke width') : 2.5,
         };
       }
+    } else if (op === 'start') {
+      // Where Play starts on a page; null goes back to the page's first board.
+      const page = String(body.page ?? '');
+      if (!/^section-[a-z0-9-]{1,60}$/.test(page)) fail('Name a page');
+      const starts = ((canvas as any).starts ??= {}) as Record<string, string>;
+      if (body.board === null) delete starts[page];
+      else {
+        if (!canvas!.boards[String(body.board)]) fail(`No board named ${body.board}`, 404);
+        starts[page] = String(body.board);
+      }
+      made = page;
     } else if (op === 'remove-note') {
       if (!notes[body.id] || String(body.id).startsWith('section-')) fail('No such note', 404);
       delete notes[body.id];

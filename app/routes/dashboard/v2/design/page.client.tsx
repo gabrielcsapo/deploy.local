@@ -36,6 +36,7 @@ import {
   sectionAt,
   sections as readSections,
   type Design,
+  type DesignLink,
   type Mark,
   type Note,
   type Tokens,
@@ -49,6 +50,7 @@ import {
   type Placing,
 } from './Assets';
 import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from './Panels';
+import { Play } from './Play';
 import './style.css';
 
 const noTokens: Tokens = { colors: [], textStyles: [] };
@@ -160,7 +162,7 @@ export default function DesignPage() {
   }, [overlay, mode, lastChanges]);
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [accepting, setAccepting] = useState(false);
-  const [tab, setTab] = useState<'edit' | 'comments'>('edit');
+  const [tab, setTab] = useState<'edit' | 'prototype' | 'comments'>('edit');
   const [commentFocus, setCommentFocus] = useState(0);
   const { comments, refresh: refreshComments } = useComments(project?.id);
   const [asking, setAsking] = useState(false);
@@ -419,6 +421,61 @@ export default function DesignPage() {
     setMarkEdits((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
     send('/canvas', { op: 'mark', id, ...patch }, () => undefined);
   };
+  // Prototype: every link between boards at the commit on screen, with links you just set on top.
+  const linkData = useData<{ links: DesignLink[] }>(
+    projectApi && shown ? `${projectApi}/links?ref=${shown.commit}` : undefined,
+  );
+  const [linkEdits, setLinkEdits] = useState<Record<string, DesignLink | null>>({});
+  useEffect(() => setLinkEdits({}), [linkData.data]);
+  const links = useMemo(() => {
+    const keyOf = (link: { from: string; layer: string }) => `${link.from}:${link.layer}`;
+    const kept = (linkData.data?.links ?? []).filter((link) => !(keyOf(link) in linkEdits));
+    return [
+      ...kept,
+      ...Object.values(linkEdits).filter((link): link is DesignLink => Boolean(link)),
+    ];
+  }, [linkData.data, linkEdits]);
+  const [sidebarLinks, setSidebarLinks] = useState(false);
+  const setLink = (board: string, layer: string, to: string | null) => {
+    const element = layerElement(frames, board, layer);
+    if (element)
+      if (to) element.setAttribute('href', to);
+      else element.removeAttribute('href');
+    setLinkEdits((current) => ({
+      ...current,
+      [`${board}:${layer}`]: to
+        ? {
+            from: board,
+            layer,
+            to,
+            text: element?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 80) ?? '',
+            sidebar: Boolean(element?.closest('.dl-side')),
+          }
+        : null,
+    }));
+    setRevision((n) => n + 1);
+    send<{ branch: string; commit: string }>(
+      '/edit',
+      { board, edits: [{ op: 'link', layer, to }] },
+      (result) =>
+        setBoardSrc((current) =>
+          new Map(current).set(board, {
+            base: filesAt(result.commit),
+            reload: current.get(board)?.reload ?? 0,
+          }),
+        ),
+      (at) => reload(board, at.commit),
+    );
+  };
+  const start = section
+    ? canvas?.starts?.[section.id] && canvas.boards[canvas.starts[section.id]]
+      ? canvas.starts[section.id]
+      : (section.boards[0] ?? null)
+    : null;
+  const setStart = (board: string) =>
+    section && send('/canvas', { op: 'start', page: section.id, board }, () => undefined);
+  // Play: the page's boards full screen, from its start board.
+  const [playing, setPlaying] = useState<string | null>(null);
   const removeMark = (id: string) => {
     setMarkId(null);
     setMarkEdits((current) => ({ ...current, [id]: null }));
@@ -871,6 +928,7 @@ export default function DesignPage() {
         loose={loose}
         mark={mark}
         onLoose={showLoose}
+        links={tab === 'prototype' ? links : undefined}
         assets={
           <AssetsPanel
             library={assets ? assets.library : undefined}
@@ -932,6 +990,16 @@ export default function DesignPage() {
             mark={mark}
             onMark={chooseMark}
             onMoveMark={editable ? (id, x, y) => editMark(id, { x, y }) : undefined}
+            prototype={
+              tab === 'prototype'
+                ? {
+                    links,
+                    sidebar: sidebarLinks,
+                    start,
+                    onLink: editable ? (board, layer, to) => setLink(board, layer, to) : undefined,
+                  }
+                : null
+            }
           />
         ) : (
           <div className="dz-loading">Loading the design…</div>
@@ -1146,6 +1214,15 @@ export default function DesignPage() {
         mark={shownMark}
         onMark={editable && shownMark ? (patch) => editMark(shownMark.id, patch) : undefined}
         onRemoveMark={editable && shownMark ? () => removeMark(shownMark.id) : undefined}
+        prototype={{
+          links,
+          sidebar: sidebarLinks,
+          setSidebar: setSidebarLinks,
+          start,
+          onStart: editable ? setStart : undefined,
+          onLink: editable ? setLink : undefined,
+        }}
+        onPlay={start && canvas ? () => setPlaying(start) : undefined}
         component={componentPanel}
         comments={
           project ? (
@@ -1180,6 +1257,16 @@ export default function DesignPage() {
         }
       />
       <div className={`dz-sheet-scrim${selection ? ' on' : ''}`} onClick={() => select(null)} />
+      {playing && canvas && base && (
+        <Play
+          canvas={canvas}
+          start={playing}
+          src={(board) =>
+            `${boardSrc.get(board)?.base ?? base}/boards/${encodeURIComponent(board)}`
+          }
+          onClose={() => setPlaying(null)}
+        />
+      )}
     </div>
   );
 }

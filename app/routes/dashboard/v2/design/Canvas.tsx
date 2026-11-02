@@ -1,10 +1,12 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { Icon } from '@/components/ui';
 import {
   boardName,
   changeLabel,
   isMark,
   type Canvas as CanvasData,
+  type DesignLink,
   type LayerChange,
   type Mark,
   type Note,
@@ -102,6 +104,7 @@ export function DesignCanvas({
   mark,
   onMark,
   onMoveMark,
+  prototype,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -144,6 +147,13 @@ export function DesignCanvas({
   onMark?: (id: string | null) => void;
   /** Present when the design can be edited: a mark dragged to a new place. */
   onMoveMark?: (id: string, x: number, y: number) => void;
+  /** Present on Prototype: the links to draw from the selected board, and linking by dragging. */
+  prototype?: {
+    links: DesignLink[];
+    sidebar: boolean;
+    start: string | null;
+    onLink?: (board: string, layer: string, to: string) => void;
+  } | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -447,6 +457,36 @@ export function DesignCanvas({
     window.addEventListener('pointerup', up);
   };
   const shownMark = mark && canvas.notes?.[mark] && isMark(canvas.notes[mark]) ? mark : null;
+  // Prototype: a line from each linked layer of the selected board to the board it opens.
+  const [linkDrag, setLinkDrag] = useState<{ from: Point; to: Point } | null>(null);
+  const linked = (() => {
+    if (!prototype || !selection) return [];
+    const from = selection.board;
+    return prototype.links
+      .filter(
+        (link) =>
+          link.from === from &&
+          link.to !== from &&
+          canvas.boards[link.to] &&
+          (prototype.sidebar || !link.sidebar),
+      )
+      .map((link) => ({ link, at: rectOf(frames, canvas, from, link.layer) }))
+      .filter((entry): entry is { link: DesignLink; at: NonNullable<typeof entry.at> } =>
+        Boolean(entry.at),
+      );
+  })();
+  const curve = (
+    x1: number,
+    y1: number,
+    target: { x: number; y: number; w: number; h: number },
+  ) => {
+    const right = target.x >= x1;
+    const x2 = right ? target.x - 4 / view.z : target.x + target.w + 4 / view.z;
+    const y2 = target.y + target.h / 2;
+    const bend = Math.max(60 / view.z, Math.abs(x2 - x1) / 2);
+    return `M${x1} ${y1} C${x1 + bend} ${y1}, ${x2 + (right ? -bend : bend)} ${y2}, ${x2} ${y2}`;
+  };
+  const dragFrom = prototype?.onLink && selection?.layer ? box(selection) : null;
 
   return (
     <div
@@ -576,6 +616,12 @@ export function DesignCanvas({
                   </span>
                 )}
                 {agent && <span className="dz-tag agent">Agent’s version</span>}
+                {prototype && prototype.start === file && (
+                  <span className="dz-tag start">
+                    <Icon name="play" size={10} />
+                    Start
+                  </span>
+                )}
                 {!agent && inReview?.has(file) && <span className="dz-tag review">In review</span>}
               </button>
               {visible(file) ? (
@@ -737,6 +783,95 @@ export function DesignCanvas({
           />
         ))}
         {inked && <InkPath points={inked} z={view.z} />}
+        {prototype && (
+          <>
+            {linked.map(({ link, at }) => (
+              <div
+                key={`hot:${link.layer}`}
+                className="dz-hot"
+                style={{
+                  left: at.x - 2 / view.z,
+                  top: at.y - 2 / view.z,
+                  width: at.w + 4 / view.z,
+                  height: at.h + 4 / view.z,
+                }}
+              />
+            ))}
+            <svg className="dz-proto" aria-hidden="true">
+              <defs>
+                <marker
+                  id="dz-arrow"
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="5"
+                  markerHeight="5"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M0 0L10 5L0 10z" className="dz-arrow-head" />
+                </marker>
+              </defs>
+              {linked.map(({ link, at }) => {
+                const x1 = at.x + at.w + 3 / view.z;
+                const y1 = at.y + at.h / 2;
+                return (
+                  <g key={link.layer} className={selection?.layer === link.layer ? 'on' : ''}>
+                    <circle cx={x1} cy={y1} r={3 / view.z} />
+                    <path
+                      d={curve(x1, y1, canvas.boards[link.to])}
+                      strokeWidth={(selection?.layer === link.layer ? 2 : 1.5) / view.z}
+                      markerEnd="url(#dz-arrow)"
+                    />
+                  </g>
+                );
+              })}
+              {linkDrag && (
+                <g className="drag">
+                  <path
+                    d={`M${linkDrag.from.x} ${linkDrag.from.y} L${linkDrag.to.x} ${linkDrag.to.y}`}
+                    strokeWidth={2 / view.z}
+                    markerEnd="url(#dz-arrow)"
+                  />
+                </g>
+              )}
+            </svg>
+            {dragFrom && selection?.layer && (
+              <span
+                className="dz-link-dot"
+                role="button"
+                aria-label="Drag onto a board to link it"
+                title="Drag onto a board to link it"
+                style={{
+                  left: dragFrom.x + dragFrom.w + 3 / view.z - 5 / view.z,
+                  top: dragFrom.y + dragFrom.h / 2 - 5 / view.z,
+                  width: 10 / view.z,
+                  height: 10 / view.z,
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  const from = {
+                    x: dragFrom.x + dragFrom.w + 3 / view.z,
+                    y: dragFrom.y + dragFrom.h / 2,
+                  };
+                  const layer = selection.layer!;
+                  const board = selection.board;
+                  setLinkDrag({ from, to: toWorld(event) });
+                  const move = (next: PointerEvent) => setLinkDrag({ from, to: toWorld(next) });
+                  const up = (next: PointerEvent) => {
+                    window.removeEventListener('pointermove', move);
+                    window.removeEventListener('pointerup', up);
+                    setLinkDrag(null);
+                    const target = boardAt(toWorld(next));
+                    if (target && target !== board) prototype.onLink?.(board, layer, target);
+                  };
+                  window.addEventListener('pointermove', move);
+                  window.addEventListener('pointerup', up);
+                }}
+              />
+            )}
+          </>
+        )}
         {hovered && (
           <div
             className="dz-hover"
