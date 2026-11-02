@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import {
   Action,
@@ -29,10 +29,10 @@ import type {
 import { liveRequest, useLive } from './data';
 import { formatTime } from '../data/time';
 import { authenticatedFetch } from '../data/hooks';
-import { useData } from '../projects/data';
-import { projectPath } from '../projects/routing';
+import { useData, type Overview as ProjectOverview } from '../projects/data';
+import { projectPath, projectSegment } from '../projects/routing';
 import './style.css';
-import { latestError } from './presentation';
+import { appAddress, latestError, releaseLabel, repositoryName } from './presentation';
 
 const roles: Record<Role, string> = {
   coordinator: 'Coordinator',
@@ -41,7 +41,7 @@ const roles: Record<Role, string> = {
   'serve-models': 'Serve models',
   'use-screen': 'Use the screen',
 };
-const appPath = (app: string) => `/dashboard/live/${encodeURIComponent(app)}`;
+const appPath = (app: string) => `/dashboard/live/${projectSegment(app)}`;
 const age = (at?: string) => formatTime(at, 'elapsed');
 function StartApp({ appId, refresh }: { appId: string; refresh: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -323,6 +323,17 @@ function RollbackAction({ item, refresh }: { item: InboxItem; refresh: () => voi
     </>
   );
 }
+function ProjectOrigin({ app, names }: { app: LiveApp; names: Record<string, string> }) {
+  return app.project && !app.project.startsWith('app:') ? (
+    <a className="dl-link" href={projectPath(app.project)}>
+      {names[app.project] ?? 'Unavailable'}
+    </a>
+  ) : app.fromDiscover ? (
+    'From Discover'
+  ) : (
+    'No project'
+  );
+}
 function Computer({
   computer,
   names,
@@ -371,14 +382,14 @@ function Computer({
             {apps.map((app) => (
               <tr key={app.appId}>
                 <td className="dl-name">
-                  <a className="live-stack" href={appPath(app.appId)}>
-                    <span>{app.name}</span>
+                  <div className="live-stack">
+                    <a href={appPath(app.appId)}>{app.name}</a>
                     <span className="dl-meta dl-truncate">
-                      {app.kind === 'worker'
-                        ? `Worker${app.project ? ` · ${names[app.project] ?? app.project}` : ''}`
-                        : (app.address?.replace(/^https?:\/\//, '') ?? 'Web app')}
+                      <ProjectOrigin app={app} names={names} />
+                      {' · '}
+                      {app.kind === 'worker' ? 'worker, no address' : appAddress(app)}
                     </span>
-                  </a>
+                  </div>
                 </td>
                 <td className="live-health-cell">
                   <div className="live-stack">
@@ -412,7 +423,7 @@ function Computer({
                 <td className="dl-hide-mid">
                   {app.release ? (
                     <>
-                      <span className="dl-mono">{app.release}</span>{' '}
+                      <span className="dl-mono">{releaseLabel(app.release, app.source)}</span>{' '}
                       <span className="dl-meta">{app.releasedAt && age(app.releasedAt)}</span>
                     </>
                   ) : (
@@ -499,7 +510,11 @@ function Overview({
                   </Glyph>
                 }
                 title={app.name}
-                description={app.summary}
+                description={
+                  <>
+                    <ProjectOrigin app={app} names={names} /> · {app.summary}
+                  </>
+                }
                 end={<StartApp appId={app.appId} refresh={refresh} />}
               />
             ))}
@@ -563,6 +578,26 @@ function History({ detail }: { detail: LiveAppResponse }) {
     </section>
   );
 }
+function ProvenanceCell({
+  label,
+  value,
+  description,
+  href,
+}: {
+  label: string;
+  value: ReactNode;
+  description?: string;
+  href?: string;
+}) {
+  const Cell = href ? 'a' : 'div';
+  return (
+    <Cell className="live-provenance-cell" href={href}>
+      <span className="dl-meta">{label}</span>
+      <span className={`${href ? 'dl-link ' : ''}dl-truncate live-provenance-value`}>{value}</span>
+      {description && <span className="dl-meta dl-truncate">{description}</span>}
+    </Cell>
+  );
+}
 function Worker({
   detail,
   live,
@@ -577,12 +612,19 @@ function Worker({
   refresh: () => void;
 }) {
   const app = detail.app;
+  const overview = useData<ProjectOverview>(
+    app.project && !app.project.startsWith('app:')
+      ? `/api/v2/projects/${encodeURIComponent(app.project)}/overview`
+      : undefined,
+  );
+  const repository = overview.data?.repository;
+  const source = detail.release?.source ?? app.source;
   const computer = live.computers.find((c) => c.apps.some((a) => a.appId === app.appId));
   const project = app.project && projectPath(app.project);
   const decision = items.find((item) => item.kind === 'rollback' && item.projectId === app.project);
   const siblings = live.computers
     .flatMap((c) => c.apps)
-    .filter((a) => app.project && a.project === app.project);
+    .filter((a) => detail.release?.apps.some((entry) => entry.appId === a.appId));
   return (
     <>
       <Tabs
@@ -605,18 +647,7 @@ function Worker({
             {app.name} <HealthStatus app={app} />
           </h1>
           <span className="dl-meta">
-            {app.kind === 'worker' ? 'Worker · no address' : (app.address ?? 'Web app')}
-            {project && (
-              <>
-                {' '}
-                · part of{' '}
-                <a className="dl-link" href={project}>
-                  {projectName ?? app.project}
-                </a>
-              </>
-            )}
-            {app.release && ` · release ${app.release}`}
-            {computer && ` on ${computer.name}`}
+            {app.kind === 'worker' ? 'Worker' : 'Web app'} · {appAddress(app)}
           </span>
         </div>
         <span className="dl-end">
@@ -630,6 +661,61 @@ function Worker({
           )}
           {decision && project && <RollbackAction item={decision} refresh={refresh} />}
         </span>
+      </div>
+      <div className="dl-group live-provenance" aria-label="Where it comes from">
+        <ProvenanceCell
+          label="Project"
+          href={app.project && !app.project.startsWith('app:') ? project || undefined : undefined}
+          value={
+            app.project && !app.project.startsWith('app:')
+              ? (projectName ?? 'Unavailable')
+              : app.fromDiscover
+                ? 'From Discover'
+                : 'No project'
+          }
+          description={
+            overview.data
+              ? `${overview.data.project.apps.length} ${overview.data.project.apps.length === 1 ? 'app' : 'apps'}, one release`
+              : undefined
+          }
+        />
+        <ProvenanceCell
+          label="Repository"
+          href={repository && project ? `${project}/code` : undefined}
+          value={
+            repository
+              ? repositoryName(repository.source) || projectName || 'Unavailable'
+              : 'Unavailable'
+          }
+          description={
+            repository?.defaultBranch ? `Releases from ${repository.defaultBranch}` : undefined
+          }
+        />
+        <ProvenanceCell
+          label="Release"
+          href={
+            app.release && project
+              ? `${project}/releases/${encodeURIComponent(app.release)}`
+              : undefined
+          }
+          value={
+            <>
+              <span className="dl-mono">{releaseLabel(app.release, source)}</span>
+              {app.releasedAt && ` · ${formatTime(app.releasedAt, 'clock')}`}
+            </>
+          }
+          description={source?.message}
+        />
+        <ProvenanceCell
+          label="Computer"
+          href={computer ? `/dashboard/computers/${encodeURIComponent(computer.id)}` : undefined}
+          value={computer?.name ?? 'Unavailable'}
+          description={
+            computer
+              ? `${computer.roles.includes('coordinator') ? 'Coordinator' : 'Run apps'} · ${computer.online ? 'online' : 'offline'}`
+              : undefined
+          }
+        />
       </div>
       <section className="dl-section">
         <h2 className="dl-section-title">Health</h2>
@@ -727,14 +813,13 @@ function Worker({
       </section>
       {app.release && project && (
         <section className="dl-section">
-          <h2 className="dl-section-title">Release {app.release}</h2>
+          <h2 className="dl-section-title">In this release</h2>
           <p className="dl-section-sub">
-            {detail.release?.source.ref && <>{detail.release.source.ref} · </>}
-            {app.releasedAt && <>Released {formatTime(app.releasedAt, 'clock')}. </>}
-            One release covers the project.{' '}
-            <a className="dl-link" href={`${project}/releases`}>
-              Review release and migrations
-            </a>
+            {siblings.length === 2 &&
+            detail.release?.migrations.length === 1 &&
+            detail.release.migrations[0].reversible
+              ? 'One release covers the project, so rolling back moves both apps and undoes the migration.'
+              : 'One release covers the project.'}
           </p>
           <Group>
             {siblings.map((sibling) => (
@@ -799,11 +884,18 @@ export default function LivePage() {
   return (
     <>
       <Head
-        title={detail?.app.name ?? (appId || 'Live')}
-        subtitle={
-          detail?.app.project
-            ? `${detail.app.kind === 'worker' ? 'Worker' : 'App'} in ${projectName ?? 'a project'}`
-            : undefined
+        title={
+          appId ? (
+            <nav className="live-crumbs" aria-label="Breadcrumb">
+              <a href="/dashboard/live">Live</a>
+              <Icon name="chevron" size={14} />
+              <span className="dl-truncate" aria-current="page">
+                {detail?.app.name ?? appId}
+              </span>
+            </nav>
+          ) : (
+            'Live'
+          )
         }
         menu={
           <IconButton

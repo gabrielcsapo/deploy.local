@@ -19,6 +19,7 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { request, useData, type Overview } from './data';
 import { projectPath, projectSegment } from './routing';
+import { releaseLabel } from '../live/presentation';
 export function Health({ app }: { app?: LiveApp }) {
   return (
     <Status
@@ -51,8 +52,8 @@ export function ReleaseList({ project, releases }: { project: Project; releases:
         {releases.slice(0, 5).map((release) => (
           <Item
             key={release.id}
-            title={release.id.slice(0, 7)}
-            description={release.source.ref}
+            title={releaseLabel(release.id, release.source)}
+            description={release.source.message || release.source.ref}
             end={release.state === 'live' ? <Status>Live</Status> : release.state}
             href={`${projectPath(project.id)}/releases/${projectSegment(release.id)}`}
           />
