@@ -80,7 +80,17 @@ function useChangeLines(design: { api: string; changes?: Changes }, board: strin
 }
 
 /** A board as it is at a commit, scaled to fit a width. */
-function BoardFrame({ src, width, w, h }: { src: string; width: number; w: number; h: number }) {
+export function BoardFrame({
+  src,
+  width,
+  w,
+  h,
+}: {
+  src: string;
+  width: number;
+  w: number;
+  h: number;
+}) {
   // `w` is the width the board lays out at (1440, 700 or 390); `width` is how wide it shows.
   const scale = width / w;
   return (
@@ -99,9 +109,9 @@ function BoardFrame({ src, width, w, h }: { src: string; width: number; w: numbe
 }
 
 /** The widths a board is reviewed at: web boards at 1440, 700 and 390, phone boards at their own. */
-const widthsOf = (board: { w: number }) => (board.w <= 500 ? [board.w] : [1440, 700, 390]);
+export const widthsOf = (board: { w: number }) => (board.w <= 500 ? [board.w] : [1440, 700, 390]);
 
-function WidthSwitch({
+export function WidthSwitch({
   widths,
   value,
   onChange,

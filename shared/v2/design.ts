@@ -104,6 +104,79 @@ export function layerLabel(id: string, text: string) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/**
+ * A canvas note whose text a design branch changed, line by line: the lines that went from the
+ * note and the lines that are new in it. Pen marks are counted, not compared; they have no text.
+ */
+export type NoteChange = {
+  id: string;
+  title: string;
+  before: { text: string; gone: boolean }[] | null;
+  after: { text: string; added: boolean }[] | null;
+  /** New lines in the note, out of all its lines now. */
+  changed: number;
+  total: number;
+};
+
+export function noteChanges(before: Canvas | null, after: Canvas | null): NoteChange[] {
+  const old = before?.notes ?? {};
+  const now = after?.notes ?? {};
+  const changes: NoteChange[] = [];
+  for (const id of new Set([...Object.keys(old), ...Object.keys(now)])) {
+    const [a, b] = [old[id], now[id]];
+    if ((a && isMark(a)) || (b && isMark(b)) || (a?.text ?? null) === (b?.text ?? null)) continue;
+    const was = a?.text?.split('\n') ?? null;
+    const is = b?.text?.split('\n') ?? null;
+    const added = is?.filter((line) => !was?.includes(line)).length ?? 0;
+    changes.push({
+      id,
+      title: (is ?? was ?? [''])[0].replace(/\s*\(for approval\)\s*$/i, '').trim() || id,
+      before: was?.map((text) => ({ text, gone: !is?.includes(text) })) ?? null,
+      after: is?.map((text) => ({ text, added: !was?.includes(text) })) ?? null,
+      changed: added,
+      total: is?.length ?? 0,
+    });
+  }
+  return changes;
+}
+
+/** Pen marks a design branch drew, moved or removed. */
+export function markChanges(before: Canvas | null, after: Canvas | null) {
+  const old = before?.notes ?? {};
+  const now = after?.notes ?? {};
+  return [...new Set([...Object.keys(old), ...Object.keys(now)])].filter(
+    (id) =>
+      ((old[id] && isMark(old[id])) || (now[id] && isMark(now[id]))) &&
+      JSON.stringify(old[id] ?? null) !== JSON.stringify(now[id] ?? null),
+  ).length;
+}
+
+const counted = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+
+/**
+ * What a design review changes, in words: "The note “Drawing: how it works” changed on design/x."
+ * or "2 boards and 1 note changed on design/x: Welcome, WelcomeNarrow."
+ */
+export function changeSummary(
+  branch: string,
+  change: { boards: string[]; notes: NoteChange[]; marks: number; others: number },
+) {
+  const { boards, notes, marks, others } = change;
+  if (!boards.length && !marks && !others && notes.length === 1)
+    return `The note “${notes[0].title}” ${notes[0].after ? (notes[0].before ? 'changed' : 'was added') : 'was removed'} on ${branch}.`;
+  const parts = [
+    boards.length ? counted(boards.length, 'board') : '',
+    notes.length ? counted(notes.length, 'note') : '',
+    marks ? counted(marks, 'mark') : '',
+    others ? counted(others, 'other design file') : '',
+  ].filter(Boolean);
+  const said = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
+  const names = boards.length
+    ? `: ${boards.slice(0, 4).join(', ')}${boards.length > 4 ? '…' : ''}`
+    : '';
+  return `${said ?? 'Nothing'} changed on ${branch}${names}.`;
+}
+
 /** One line a reviewer reads: "Welcome to deploy.local: font-size 30px, line-height 36px". */
 export function describeChange(change: LayerChange, name: string) {
   if (change.change === 'added') return `${name} added`;

@@ -239,3 +239,71 @@
   color: var(--ds-tertiary);
   font-size: var(--ds-type-meta);
 }
+
+/* A design item opened from Waiting on you: its line under the title, and changed canvas notes. */
+.dzr-line {
+  padding: var(--ds-space-2) var(--ds-space-5) var(--ds-space-4);
+  border-bottom: 1px solid var(--ds-line);
+}
+.dzr-kind {
+  margin-left: auto;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-meta);
+}
+.dzr-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border-radius: var(--ds-radius-control);
+  /* The colour of a note on the canvas. */
+  background: color-mix(in srgb, var(--ds-accent) 16%, var(--ds-surface));
+}
+.dzr-text.empty {
+  color: var(--ds-tertiary);
+}
+.dzr-text p {
+  margin: 0;
+  padding: 1px var(--ds-space-2);
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  white-space: pre-wrap;
+}
+.dzr-text p:first-child {
+  font-weight: 600;
+}
+.dzr-text p.out {
+  border-left-color: var(--ds-secondary);
+  color: var(--ds-secondary);
+}
+.dzr-text p.in {
+  border-left-color: var(--ds-accent);
+  background: var(--ds-surface);
+}
+.dzr-item .dzr-what ul {
+  list-style: disc;
+  color: var(--ds-text);
+}
+/* As the board draws it, the list of changes gives the page its width below 1180 px. */
+@media (max-width: 1180px) {
+  .dzr.dzr-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dzr-item .dzr-boards {
+    display: none;
+  }
+}
+.dzr-more {
+  position: relative;
+}
+.dzr-menu {
+  position: absolute;
+  z-index: 20;
+  top: 30px;
+  right: 0;
+  width: 170px;
+}

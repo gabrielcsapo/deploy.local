@@ -40,11 +40,17 @@ struct V2DesignReviewView: View {
                             }.buttonStyle(.plain).tag(index)
                                 .accessibilityLabel("\(board.name), \(after ? "After" : "Before"). Opens the board.")
                         }
+                        // Canvas notes follow the boards, as their text.
+                        ForEach(Array(review.changedNotes.enumerated()), id: \.element.id) { offset, note in
+                            V2NoteText(lines: after ? note.after : note.before, after: after)
+                                .tag(review.boards.count + offset)
+                        }
                     }.tabViewStyle(.page(indexDisplayMode: .never))
-                        .frame(height: 300)
-                        .padding(10)
-                        .background(WorkspaceStyle.sidebar(scheme), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
+                        .frame(height: page < review.boards.count ? 300 : 340)
+                        // A board sits in a frame; a note shows on its own, in its colour.
+                        .padding(page < review.boards.count ? 10 : 0)
+                        .background(page < review.boards.count ? WorkspaceStyle.sidebar(scheme) : .clear, in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(page < review.boards.count ? WorkspaceStyle.line(scheme) : .clear))
                     if review.boards.indices.contains(page) {
                         let board = review.boards[page]
                         Text("\(board.name) · \(after ? "After" : "Before") · \(board.isPhone ? "phone" : "narrow")")
@@ -58,6 +64,17 @@ struct V2DesignReviewView: View {
                             }.padding(12).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
                                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
                         }
+                    } else if review.changedNotes.indices.contains(page - review.boards.count) {
+                        let note = review.changedNotes[page - review.boards.count]
+                        Text("\(note.title) · \(after ? "After" : "Before") · note")
+                            .font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).frame(maxWidth: .infinity)
+                        Text("What changes").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, 12)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(note.after == nil ? "The note is removed" : "\(note.changed) of \(note.total) lines rewritten; the marked lines are new")
+                                .font(.system(size: 15)).frame(maxWidth: .infinity, alignment: .leading)
+                            if review.boards.isEmpty { Text("No board changes").font(.system(size: 15)) }
+                        }.padding(12).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
                     }
                 } else if let error {
                     Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme))
@@ -105,8 +122,12 @@ struct V2DesignReviewView: View {
     }
 
     private func source(_ review: V2DesignReview) -> String {
-        let boards = "\(review.boards.count) board\(review.boards.count == 1 ? "" : "s")"
-        return review.task.map { "From the task “\($0)” · \(boards)" } ?? "From \(review.branch) · \(boards)"
+        let count = { (n: Int, one: String) in "\(n) \(one)\(n == 1 ? "" : "s")" }
+        let what = [
+            review.boards.isEmpty && !review.changedNotes.isEmpty ? nil : count(review.boards.count, "board"),
+            review.changedNotes.isEmpty ? nil : count(review.changedNotes.count, "note"),
+        ].compactMap { $0 }.joined(separator: " · ")
+        return review.task.map { "From the task “\($0)” · \(what)" } ?? "From \(review.branch) · \(what)"
     }
     private func send(_ id: String, note: String? = nil) {
         guard let action = current.actions.first(where: { $0.id == id }) else { return }
@@ -116,6 +137,39 @@ struct V2DesignReviewView: View {
         guard let project else { error = "This review names no project."; return }
         do { review = try await store.client.designReview(project: project, item: item.id); error = nil }
         catch { self.error = coordinatorErrorDescription(error) }
+    }
+}
+
+/// A canvas note's text in a review, in the colour of a note: Before marks the lines that went,
+/// After the lines that are new.
+struct V2NoteText: View {
+    let lines: [V2DesignReview.Note.Line]?
+    let after: Bool
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                if let lines {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        Text(line.text)
+                            .font(.system(size: 13, weight: index == 0 ? .semibold : .regular))
+                            .foregroundStyle(line.marked && !after ? WorkspaceStyle.secondary(scheme) : WorkspaceStyle.text(scheme))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8).padding(.vertical, 1)
+                            .background(line.marked && after ? WorkspaceStyle.surface(scheme) : .clear)
+                            .overlay(alignment: .leading) {
+                                if line.marked {
+                                    Rectangle().fill(after ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.secondary(scheme)).frame(width: 2)
+                                }
+                            }
+                    }
+                } else {
+                    Text(after ? "Removed" : "Not on main").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                }
+            }.padding(12)
+        }
+        .background(WorkspaceStyle.accentSoft(scheme), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .combine)
     }
 }
 

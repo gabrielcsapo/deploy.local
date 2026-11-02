@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import { useAgentName, useInbox } from '../data/hooks';
 import { dayLabel } from '../data/sidebar';
+import { DesignItemReview } from '../design/ItemReview';
 import { answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
 
 export default function Inbox() {
@@ -48,6 +49,11 @@ export default function Inbox() {
     if (selected)
       document.getElementById(`decision-${selected}`)?.scrollIntoView({ block: 'center' });
   }, [selected, inbox.loading]);
+  // A design item opens as its review: what changed, Before and After, then the decision.
+  const design = selected?.startsWith('design:')
+    ? inbox.items.find((item) => item.id === selected)
+    : undefined;
+  if (design) return <DesignItemReview key={design.id} item={design} />;
   return (
     <>
       <Head
