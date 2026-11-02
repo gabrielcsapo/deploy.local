@@ -467,10 +467,11 @@ export type BoardLink = { layer: string; to: string; text: string; sidebar: bool
  */
 export function boardLinks(html: string): BoardLink[] {
   const sidebars: [number, number][] = [];
-  for (const nav of html.matchAll(
-    /<nav\b[^>]*\sdata-layer="([^"]+)"[^>]*\sclass="[^"]*\bdl-side\b[^"]*"[^>]*>/g,
-  )) {
-    const outer = layerSnippet(html, nav[1]);
+  for (const nav of html.matchAll(/<(?:nav|aside)\b[^>]*>/g)) {
+    const classes = /\sclass="([^"]*)"/.exec(nav[0])?.[1].split(/\s+/) ?? [];
+    if (!classes.some((name) => ['dl-side', 'rail', 'dz-rail'].includes(name))) continue;
+    const layer = /\sdata-layer="([^"]+)"/.exec(nav[0])?.[1];
+    const outer = layer ? layerSnippet(html, layer) : null;
     if (outer) sidebars.push([nav.index!, nav.index! + outer.length]);
   }
   const links: BoardLink[] = [];

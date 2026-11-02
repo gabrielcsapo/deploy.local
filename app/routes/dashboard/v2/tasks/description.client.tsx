@@ -8,6 +8,7 @@ import { authenticatedFetch } from '../data/hooks';
 import { formatTime } from '../data/time';
 import { workspaceCommand } from './api';
 import { fileMarkdown, fileSize, safeUrl } from './description';
+import { descriptionWithoutChecks } from './presentation';
 import type { PullFile, TaskPull } from './types';
 
 // A pull request's description, on the task's Changes tab. Any file can be dropped, pasted or
@@ -80,16 +81,15 @@ function FileCard({ file }: { file: PullFile }) {
 function Figure({ file, alt }: { file: PullFile; alt?: string }) {
   return (
     <figure className="dl-desc-figure">
-      <img src={file.url} alt={alt || file.name} loading="lazy" />
+      <a href={file.url} target="_blank" rel="noopener">
+        <img src={file.url} alt={alt || file.name} loading="lazy" />
+      </a>
       <figcaption>
         <Icon name="image" size={14} />
         <span>
           {file.name}
           {alt && alt !== file.name ? ` · ${alt}` : ''}
         </span>
-        <a href={file.url} target="_blank" rel="noopener">
-          Open
-        </a>
       </figcaption>
     </figure>
   );
@@ -300,7 +300,7 @@ export function PullDescription({
       </div>
       {!editing ? (
         pull.body?.trim() ? (
-          <Rendered body={pull.body} files={files} />
+          <Rendered body={descriptionWithoutChecks(pull.body)} files={files} />
         ) : (
           <p className="dl-meta dl-desc-empty">No description yet.</p>
         )

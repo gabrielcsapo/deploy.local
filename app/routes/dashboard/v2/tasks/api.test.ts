@@ -149,3 +149,110 @@ test('PR checks read jobs only from the latest run of the displayed commit', asy
   assert.deepEqual(await readPullChecks(request, 'p', 'pr', 'unbuilt'), []);
   assert.equal(paths.length, 1);
 });
+
+test('recorded task checks are results, not pipeline IDs, and older commits do not count', async () => {
+  const { readPullChecks } = await import('./api.ts');
+  const paths: string[] = [];
+  const request = (async (path) => {
+    paths.push(String(path));
+    return Response.json({
+      checks: [
+        {
+          id: 'workspace:r:test',
+          source: 'workspace',
+          commit: 'head',
+          label: 'Unit tests',
+          status: 'succeeded',
+          evidence: '12 passed',
+          durationMs: 3000,
+        },
+        { id: 'job:old', source: 'job', commit: 'old', status: 'failed' },
+      ],
+    });
+  }) as typeof fetch;
+  const checks = await readPullChecks(request, 'p', 'pr', 'head');
+  assert.equal(paths.length, 1);
+  assert.equal(checks.length, 1);
+  assert.equal(checks[0].evidence, '12 passed');
+  assert.equal(checks[0].durationMs, 3000);
+});
+
+test('pipeline jobs and recorded checks for the displayed commit both survive', async () => {
+  const { readPullChecks } = await import('./api.ts');
+  const request = (async (path) =>
+    Response.json(
+      String(path).endsWith('/pulls/pr')
+        ? {
+            checks: [
+              { id: 'pipeline', commit: 'head', status: 'succeeded' },
+              { id: 'workspace', source: 'workspace', commit: 'head', status: 'succeeded' },
+            ],
+          }
+        : { jobs: [{ id: 'pipeline-job', status: 'succeeded' }] },
+    )) as typeof fetch;
+  assert.deepEqual(
+    (await readPullChecks(request, 'p', 'pr', 'head')).map((check) => check.id),
+    ['pipeline-job', 'workspace'],
+  );
+});
+
+test('merge and release waits for the exact operation and releases its landed commit', async () => {
+  const { mergeAndRelease } = await import('./api.ts');
+  const pull = {
+    id: 'pr',
+    number: 5,
+    title: 'Time',
+    revision: 1,
+    status: 'open',
+    sourceBranch: 'task/time',
+    targetBranch: 'main',
+    taskIds: ['t'],
+  };
+  const diff = { patch: '', baseCommit: 'base', headCommit: 'head' };
+  let polls = 0;
+  let waits = 0;
+  const request = (async (path, init) => {
+    if (String(path).endsWith('/merge')) return Response.json({ mergeOperationId: 'op' });
+    if (String(path).endsWith('/releases')) {
+      assert.equal(polls, 2);
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        source: { kind: 'pr', ref: '5' },
+        ref: 'landed',
+      });
+      return Response.json({ release: { id: 'release', steps: [] } });
+    }
+    polls++;
+    return Response.json({
+      record: {
+        ...pull,
+        mergeOperationId: 'op',
+        status: polls === 1 ? 'open' : 'merged',
+        mergedTargetCommit: 'landed',
+      },
+      mergeOperation: { status: polls === 1 ? 'running' : 'succeeded' },
+    });
+  }) as typeof fetch;
+  assert.equal(
+    (
+      await mergeAndRelease(request, 'p', pull, diff, async () => {
+        waits++;
+      })
+    ).id,
+    'release',
+  );
+  assert.equal(waits, 1);
+  for (const status of ['failed', 'unknown']) {
+    const failure = (async (path) => {
+      assert.ok(!String(path).endsWith('/releases'));
+      return Response.json(
+        String(path).endsWith('/merge')
+          ? { mergeOperationId: 'op' }
+          : { record: { ...pull, mergeOperationId: 'op' }, mergeOperation: { status } },
+      );
+    }) as typeof fetch;
+    await assert.rejects(
+      mergeAndRelease(failure, 'p', pull, diff, async () => {}),
+      /merge stopped/,
+    );
+  }
+});

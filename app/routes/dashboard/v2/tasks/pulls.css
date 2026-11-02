@@ -1,0 +1,125 @@
+.v2-pulls-search {
+  max-width: 280px;
+  height: 32px;
+  margin-left: auto;
+}
+.v2-pulls-empty {
+  padding: 48px 24px;
+}
+.v2-pulls-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.v2-pulls-all {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--ds-type-ui);
+  cursor: pointer;
+}
+.dl-pulls-page .dl-section {
+  gap: 12px;
+}
+.v2-pr-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-pr-number {
+  font-weight: 400;
+  color: var(--ds-muted);
+}
+.v2-pr-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--ds-secondary);
+}
+.v2-pr-ref {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-meta);
+  line-height: 18px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--ds-line);
+  color: var(--ds-ink);
+  overflow-wrap: anywhere;
+}
+.v2-pr-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: var(--ds-type-meta);
+}
+.v2-pr-description {
+  padding: 16px 20px;
+  font-size: var(--ds-type-body);
+  line-height: 24px;
+  color: var(--ds-ink);
+  border-bottom: 1px solid var(--ds-line);
+}
+.v2-pr-description p {
+  margin: 0;
+}
+.v2-pr-description code {
+  font-family: var(--ds-font-mono);
+  font-size: 0.87em;
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: var(--ds-line);
+}
+.v2-pr-description img {
+  max-width: 100%;
+}
+.v2-pr-description pre {
+  overflow: auto;
+}
+.v2-pr-total {
+  font-size: var(--ds-type-ui);
+  font-weight: 400;
+}
+.v2-pr-diffs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-pr-diff-open {
+  position: relative;
+}
+.v2-pr-diff-open .dl-source-head {
+  padding-left: 40px;
+}
+.v2-pr-diff-open .dl-source-head > svg {
+  display: none;
+}
+.v2-pr-diff-toggle {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  height: 38px;
+  width: 38px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ds-secondary);
+  cursor: pointer;
+}
+.v2-pr-file {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .v2-pr-notice {
+    flex-wrap: wrap;
+  }
+}
+.dl-pulls-filter {
+  gap: 8px;
+}

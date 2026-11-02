@@ -113,3 +113,120 @@
     padding-left: 92px;
   }
 }
+
+/* The app rail: the app's places beside Design, with the Mac app's window buttons on top. */
+.dz-rail {
+  width: 64px;
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 0;
+  padding-bottom: var(--ds-space-3);
+  border-right: 1px solid var(--ds-line);
+  background: var(--ds-sidebar);
+}
+.dz-rail-lights {
+  height: 0;
+  flex: none;
+}
+.dz-rail-item {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-decoration: none;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ds-radius-card);
+  color: var(--ds-secondary);
+}
+.dz-rail-item:hover {
+  background: var(--ds-hover);
+}
+.dz-rail-item.on {
+  background: color-mix(in srgb, var(--ds-accent) 12%, var(--ds-sidebar));
+  color: var(--ds-accent);
+}
+.dz-rail-mark {
+  height: 48px;
+  margin-bottom: var(--ds-space-1);
+}
+.dz-rail-mark .dl-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+.dz-rail-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-danger);
+  box-shadow: 0 0 0 2px var(--ds-sidebar);
+}
+.dz-rail-count {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-danger);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+.dz-rail-sep {
+  width: 28px;
+  height: 1px;
+  flex: none;
+  margin: var(--ds-space-1) 0;
+  background: var(--ds-line);
+}
+.dz-rail-who {
+  margin-top: 6px;
+  text-decoration: none;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-hover);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
+}
+
+.deploy-desktop-mac .dz-rail {
+  width: 76px;
+}
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dz-rail-lights {
+  height: 52px;
+  align-self: stretch;
+  -webkit-app-region: drag;
+}
+
+.dl-design-shell > .dl-main {
+  overflow: hidden;
+}
+@media (max-width: 820px) {
+  .dz-rail {
+    display: none;
+  }
+}

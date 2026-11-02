@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Project } from '../../shared/v2/contracts.ts';
 import type { ReleaseRuntime } from './releases.ts';
+import { routeFetch } from './test-request.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-releases-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { db, list, get, save } = await import('../workspace/store.ts');
@@ -373,45 +374,28 @@ test('invalid approval updates are atomic', () => {
 });
 
 test('agent and worker tokens cannot Ship through the actual v2 router', async () => {
-  const { createServer } = await import('node:http');
-  const { once } = await import('node:events');
   const { v2Api } = await import('./api.ts');
-  const server = createServer((req, res) => void v2Api(req, res, () => ({ username: 'owner' })));
-  let port = 5180;
-  for (; port <= 5199; port++) {
-    try {
-      server.listen(port, '127.0.0.1');
-      await once(server, 'listening');
-      break;
-    } catch (error: any) {
-      if (error.code !== 'EADDRINUSE') throw error;
-    }
-  }
-  try {
-    for (const header of ['x-deploy-agent-token', 'x-deploy-worker-token']) {
-      const response = await fetch(`http://127.0.0.1:${port}/api/v2/projects/home-gym/releases`, {
-        method: 'POST',
-        headers: { [header]: 'credential', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: { kind: 'ship', ref: 'main' } }),
-      });
-      assert.equal(response.status, 403);
-    }
-    const put = await fetch(`http://127.0.0.1:${port}/api/v2/approvals`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        rules: [{ id: 'rule', agent: 'warden', action: 'rollback', mode: 'ask' }],
-      }),
+  const fetch = routeFetch((req, res) => v2Api(req, res, () => ({ username: 'owner' })));
+  for (const header of ['x-deploy-agent-token', 'x-deploy-worker-token']) {
+    const response = await fetch(`http://localhost/api/v2/projects/home-gym/releases`, {
+      method: 'POST',
+      headers: { [header]: 'credential', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: { kind: 'ship', ref: 'main' } }),
     });
-    assert.equal(put.status, 200);
-    const response = await fetch(`http://127.0.0.1:${port}/api/v2/approvals`);
-    assert.equal((await response.json()).rules[0].mode, 'ask');
-    const projects = await fetch(`http://127.0.0.1:${port}/api/v2/projects`);
-    assert.deepEqual(await projects.json(), { projects: [] });
-  } finally {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    assert.equal(response.status, 403);
   }
+  const put = await fetch(`http://localhost/api/v2/approvals`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rules: [{ id: 'rule', agent: 'warden', action: 'rollback', mode: 'ask' }],
+    }),
+  });
+  assert.equal(put.status, 200);
+  const response = await fetch(`http://localhost/api/v2/approvals`);
+  assert.equal((await response.json()).rules[0].mode, 'ask');
+  const projects = await fetch(`http://localhost/api/v2/projects`);
+  assert.deepEqual(await projects.json(), { projects: [] });
 });
 
 test('retention keeps the current release plus N prior releases and leaves backup audit records', async () => {
@@ -437,4 +421,21 @@ test('retention keeps the current release plus N prior releases and leaves backu
     () => f.service.rollback(f.owner, project, { to: first.id }, f.owner),
     /prior release/,
   );
+});
+
+test('releases retain verified commit metadata while keeping their stable identity and source label', async () => {
+  const f = fixture();
+  const plan = f.runtime.plan;
+  const source = {
+    commit: '9c3e1fa' + '0'.repeat(33),
+    message: 'Rename workouts.started to started_at',
+    gitRef: 'main',
+  };
+  f.runtime.plan = async (...args) => ({ ...(await plan(...args)), source });
+  const accepted = f.ship();
+  await f.service.settled();
+  const stored = projectReleases(f.owner, project.id)[0];
+  assert.equal(stored.id, accepted.id);
+  assert.notEqual(stored.id, source.commit);
+  assert.deepEqual(stored.source, { kind: 'ship', ref: 'main', ...source });
 });

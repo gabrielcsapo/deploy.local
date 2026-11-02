@@ -29,6 +29,7 @@ import { remembered, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
 import { parsePatch } from '../tasks/api';
+import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
 
 function Header({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -181,7 +182,7 @@ function ProjectList() {
                   title={project.name}
                   description={
                     project.apps.length > 1
-                      ? `${project.apps.length} apps${apps?.[0]?.release ? ` · release ${apps[0].release}` : ''}`
+                      ? `${project.apps.length} apps${apps?.[0]?.release ? ` · release ${releaseLabel(apps[0].release, apps[0].source)}` : ''}`
                       : project.apps.length
                         ? apps?.[0]?.address || '1 app'
                         : 'Repository only · no app'
@@ -288,10 +289,14 @@ function ProjectPage({
     .filter((at): at is string => !!at)
     .sort()
     .at(-1);
-  const computer = live.data?.computers.find((computer) =>
-    computer.apps.some((app) => app.appId === project?.apps[0]?.id),
-  );
-  const liveApp = computer?.apps.find((app) => app.appId === project?.apps[0]?.id);
+  const runningApps =
+    live.data?.computers.flatMap((computer) =>
+      computer.apps
+        .filter(
+          (app) => app.state !== 'stopped' && project?.apps.some((entry) => entry.id === app.appId),
+        )
+        .map((app) => ({ app, computer: computer.name })),
+    ) ?? [];
   const params = new URLSearchParams(search);
   const appList = section === '' && params.get('tab') === 'apps';
   const selectedApp = appKey
@@ -337,7 +342,7 @@ function ProjectPage({
         }
       />
       <div className="dl-scroll">
-        <div className="dl-page v2-project-page v2-project-detail">
+        <div className="dl-page wide v2-project-page v2-project-detail">
           {overview.error && (
             <Banner
               title={overview.error}
@@ -475,20 +480,51 @@ function ProjectPage({
                         {latest ? `Last ${formatTime(latest)}` : 'No releases yet'}
                       </span>
                     </div>
-                    <div className="dl-stat">
-                      <span className="dl-meta">{project.apps.length === 1 ? 'App' : 'Apps'}</span>
-                      {project.apps.length === 1 ? (
-                        <Health app={liveApp} />
-                      ) : (
-                        <span className="dl-v">{project.apps.length}</span>
-                      )}
-                      {liveApp && (
-                        <span className="dl-meta">
-                          {liveApp.release || 'Release unavailable'} on {computer?.name}
-                        </span>
-                      )}
-                    </div>
                   </div>
+                  {runningApps.length > 0 && (
+                    <section className="dl-section">
+                      <h2 className="dl-section-title">Running</h2>
+                      <p className="dl-section-sub">
+                        {runningSubtitle(
+                          runningApps.map(({ app }) => app),
+                          repositoryName(data.repository?.source),
+                        )}
+                      </p>
+                      <Group>
+                        {runningApps.map(({ app, computer }) => (
+                          <Item
+                            key={app.appId}
+                            title={app.name}
+                            lead={
+                              <Glyph kind="plain">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  aria-hidden="true"
+                                >
+                                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                                </svg>
+                              </Glyph>
+                            }
+                            description={`${app.kind === 'worker' ? 'Worker' : 'Web app'} · ${appAddress(app)} · ${computer}`}
+                            end={<Health app={app} />}
+                            href={`/dashboard/live/${projectSegment(app.appId)}`}
+                          >
+                            <span className="dl-c dl-mono dl-hide-narrow">
+                              {releaseLabel(app.release, app.source)}
+                            </span>
+                          </Item>
+                        ))}
+                      </Group>
+                    </section>
+                  )}
                   <div className="dl-cols">
                     <section className="dl-section">
                       <h2 className="dl-section-title">Work</h2>

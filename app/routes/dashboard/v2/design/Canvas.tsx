@@ -12,6 +12,7 @@ import {
   type Note,
   type Section,
 } from './model';
+import { connectionCurve, connectionPairs } from './connections';
 import { ComponentFrame, dropTarget, type DropTarget, type Placing } from './Assets';
 
 export type View = { x: number; y: number; z: number };
@@ -105,6 +106,7 @@ export function DesignCanvas({
   onMark,
   onMoveMark,
   prototype,
+  connections,
 }: {
   canvas: CanvasData;
   section: Section | null;
@@ -147,6 +149,7 @@ export function DesignCanvas({
   onMark?: (id: string | null) => void;
   /** Present when the design can be edited: a mark dragged to a new place. */
   onMoveMark?: (id: string, x: number, y: number) => void;
+  connections?: { links: DesignLink[]; sidebar: boolean } | null;
   /** Present on Prototype: the links to draw from the selected board, and linking by dragging. */
   prototype?: {
     links: DesignLink[];
@@ -486,6 +489,14 @@ export function DesignCanvas({
     const bend = Math.max(60 / view.z, Math.abs(x2 - x1) / 2);
     return `M${x1} ${y1} C${x1 + bend} ${y1}, ${x2 + (right ? -bend : bend)} ${y2}, ${x2} ${y2}`;
   };
+  const pairs = connections
+    ? connectionPairs(
+        connections.links,
+        section?.boards ?? Object.keys(canvas.boards),
+        connections.sidebar,
+        selection,
+      )
+    : [];
   const dragFrom = prototype?.onLink && selection?.layer ? box(selection) : null;
 
   return (
@@ -783,6 +794,41 @@ export function DesignCanvas({
           />
         ))}
         {inked && <InkPath points={inked} z={view.z} />}
+        {connections && (
+          <svg className="dz-proto dz-connections" aria-hidden="true">
+            <defs>
+              {['quiet', 'selected'].map((tone) => (
+                <marker
+                  key={tone}
+                  id={`dz-connection-${tone}`}
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <path className={tone} d="M1 1.5L9 5 1 8.5z" />
+                </marker>
+              ))}
+            </defs>
+            {pairs.map(({ from, to, highlighted }) => {
+              const at = canvas.boards[from];
+              const target = canvas.boards[to];
+              const arrow = connectionCurve(at, target, view.z);
+              return (
+                <g key={`${from}:${to}`} className={highlighted ? 'on' : ''}>
+                  <circle cx={arrow.x} cy={arrow.y} r={2.25 / view.z} />
+                  <path
+                    d={arrow.path}
+                    strokeWidth={(highlighted ? 1.5 : 1) / view.z}
+                    markerEnd={`url(#dz-connection-${highlighted ? 'selected' : 'quiet'})`}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        )}
         {prototype && (
           <>
             {linked.map(({ link, at }) => (
@@ -811,7 +857,7 @@ export function DesignCanvas({
                   <path d="M0 0L10 5L0 10z" className="dz-arrow-head" />
                 </marker>
               </defs>
-              {linked.map(({ link, at }) => {
+              {(!connections ? linked : []).map(({ link, at }) => {
                 const x1 = at.x + at.w + 3 / view.z;
                 const y1 = at.y + at.h / 2;
                 return (

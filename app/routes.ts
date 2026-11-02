@@ -236,6 +236,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/v2/tasks/pulls.js'),
           },
           {
+            id: 'v2-projects-p-pulls-id',
+            path: 'projects/:p/pulls/:id',
+            component: () => import('./routes/dashboard/v2/tasks/pulls.js'),
+          },
+          {
             id: 'v2-projects-p-issues',
             path: 'projects/:p/issues',
             component: () => import('./routes/dashboard/v2/projects/page.js'),

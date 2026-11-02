@@ -359,6 +359,19 @@ export async function resolveCommit(repositoryPath: string, ref: string) {
     throw new Error('Invalid Git revision');
   return gitText(repositoryPath, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
 }
+async function latestCommit(repo: string, commit: string, path: string) {
+  const raw = await gitText(repo, [
+    'log',
+    '-1',
+    '--format=%H%x00%an%x00%cI%x00%s',
+    commit,
+    '--',
+    ...(path ? [path] : []),
+  ]);
+  if (!raw) return null;
+  const [oid, author, date, subject] = raw.split('\0');
+  return { oid, author, date, subject };
+}
 const treeMetadataCache = new Map<string, unknown>();
 export async function repositoryRead(
   owner: string,
@@ -432,7 +445,15 @@ export async function repositoryRead(
         }
       }),
     );
-    const result = { commit, path, entries };
+    const [latest, count] = await Promise.all([
+      latestCommit(repo, commit, path),
+      gitText(repo, ['rev-list', '--count', commit, '--', ...(path ? [path] : [])]),
+    ]);
+    entries.sort(
+      (a, b) =>
+        Number(b.type === 'tree') - Number(a.type === 'tree') || a.name.localeCompare(b.name),
+    );
+    const result = { commit, path, entries, latestCommit: latest, commitCount: Number(count) };
     if (treeMetadataCache.size >= 100)
       treeMetadataCache.delete(treeMetadataCache.keys().next().value!);
     treeMetadataCache.set(cacheKey, result);
@@ -444,12 +465,19 @@ export async function repositoryRead(
     if ((await gitText(repo, ['cat-file', '-t', object])) !== 'blob')
       throw new Error('Path is not a file');
     const size = Number(await gitText(repo, ['cat-file', '-s', object]));
+    const latest = await latestCommit(repo, commit, path);
     if (size > repositoryPreviewLimit)
-      return { commit, path, size, omitted: 'File exceeds 256 KiB preview limit' };
+      return {
+        commit,
+        path,
+        size,
+        latestCommit: latest,
+        omitted: 'File exceeds 256 KiB preview limit',
+      };
     const content = await repositoryGit(repo, ['cat-file', 'blob', object], {
       limit: repositoryPreviewLimit,
     });
-    return { commit, path, size, ...filePreview(content) };
+    return { commit, path, size, latestCommit: latest, ...filePreview(content) };
   }
   if (action === 'history') {
     const limit = Math.min(100, Math.max(1, Number(params.get('limit')) || 30));

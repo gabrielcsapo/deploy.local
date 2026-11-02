@@ -139,7 +139,7 @@ export function updateTaskFromEvents(
   return next;
 }
 
-/** A green run on an older commit must never look like a check on the displayed diff. */
+/** Recorded workspace checks already carry their result; only pipeline runs have job endpoints. */
 export async function readPullChecks(
   request: typeof fetch,
   project: string,
@@ -148,17 +148,63 @@ export async function readPullChecks(
   signal?: AbortSignal,
 ) {
   const base = `/api/workspace/projects/${encodeURIComponent(project)}`;
-  const detail = await requestJson<{ checks: { id: string; commit: string }[] }>(
+  const detail = await requestJson<{ checks: import('./types.ts').TaskCheck[] }>(
     request,
     `${base}/pulls/${encodeURIComponent(pull)}`,
     { signal },
   );
-  const run = detail.checks.find((check) => check.commit === headCommit);
-  if (!run) return [];
-  const pipeline = await requestJson<{ jobs: import('./types.ts').TaskCheck[] }>(
-    request,
-    `${base}/pipelines/${encodeURIComponent(run.id)}`,
-    { signal },
-  );
-  return pipeline.jobs.map((job) => ({ ...job, headCommit }));
+  const current = detail.checks.filter((check) => check.commit === headCommit);
+  const recorded = current.filter((check) => check.source);
+  const run = current.find((check) => !check.source);
+  const pipeline = run
+    ? await requestJson<{ jobs: import('./types.ts').TaskCheck[] }>(
+        request,
+        `${base}/pipelines/${encodeURIComponent(run.id)}`,
+        { signal },
+      )
+    : { jobs: [] };
+  return [...pipeline.jobs, ...recorded].map((job) => ({ ...job, headCommit }));
+}
+
+/** Release only the commit the merge worker actually landed, after it reports success. */
+export async function mergeAndRelease(
+  request: typeof fetch,
+  project: string,
+  pull: TaskPull,
+  diff: TaskDiff,
+  wait = () => new Promise<void>((resolve) => setTimeout(resolve, 1000)),
+) {
+  const queued = (await mergePull(request, project, pull, diff)) as { mergeOperationId: string };
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const detail = await requestJson<{
+      record: TaskPull & { mergeOperationId?: string };
+      mergeOperation?: { status: string; error?: string };
+    }>(
+      request,
+      `/api/workspace/projects/${encodeURIComponent(project)}/pulls/${encodeURIComponent(pull.id)}`,
+    );
+    if (detail.record.mergeOperationId !== queued.mergeOperationId)
+      throw new Error('The merge changed. Review the pull request before releasing.');
+    if (detail.record.status === 'merged') {
+      const ref = detail.record.mergedTargetCommit || detail.record.mergedCommit;
+      if (!ref) throw new Error('The merge did not record a commit to release.');
+      const body = await requestJson<{ release: Release }>(
+        request,
+        `/api/v2/projects/${encodeURIComponent(project)}/releases`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: { kind: 'pr', ref: String(pull.number) }, ref }),
+        },
+      );
+      return body.release;
+    }
+    if (['failed', 'cancelled', 'unknown'].includes(detail.mergeOperation?.status || ''))
+      throw new Error(
+        detail.mergeOperation?.error ||
+          'The merge stopped. Review the pull request before retrying.',
+      );
+    await wait();
+  }
+  throw new Error('The merge is still pending. Check the pull request before releasing.');
 }

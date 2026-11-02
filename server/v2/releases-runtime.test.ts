@@ -1,6 +1,7 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
@@ -13,7 +14,7 @@ const root = mkdtempSync(join(tmpdir(), 'v2-release-runtime-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { CoordinatorReleaseRuntime } = await import('./releases-runtime.ts');
 const { getSqlite, saveDeployment, readDeploymentRecord, _resetDb } = await import('../store.ts');
-const { db } = await import('../workspace/store.ts');
+const { db, save } = await import('../workspace/store.ts');
 after(() => {
   _resetDb();
   db.close();
@@ -341,4 +342,35 @@ test('read-only external media is shared with the Verify copy and left out of th
 test('writable external data still cannot be copied for Verify', async () => {
   const f = mediaFixture(false);
   await assert.rejects(f.runtime.plan(f.project), /external data that cannot be copied for Verify/);
+});
+
+test('repository plans capture the exact archived commit, subject and ref', async () => {
+  const f = fixture();
+  f.project.apps = [f.project.apps[0]];
+  const directory = readDeploymentRecord(f.names[0])!.directory!;
+  const git = (...args: string[]) =>
+    execFileSync('git', ['-C', directory, ...args], { encoding: 'utf8' }).trim();
+  git('init', '-b', 'main');
+  git('add', 'deploy.yaml');
+  git(
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.test',
+    'commit',
+    '-m',
+    'Fix the sign-in redirect loop',
+  );
+  save('project', 'owner', { id: f.project.id, name: 'forma', repositoryPath: directory });
+  const plan = await f.runtime.plan(f.project, 'main');
+  assert.deepEqual(plan.source, {
+    commit: git('rev-parse', 'HEAD'),
+    message: 'Fix the sign-in redirect loop',
+    gitRef: 'main',
+  });
+  assert.equal(
+    (await f.runtime.plan(f.project)).source,
+    undefined,
+    'an unversioned upload does not claim repository HEAD',
+  );
 });

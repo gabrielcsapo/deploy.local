@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { assignLayerIds, convertCanvasBoard, layerIds, layerSnippet } from './board-html.ts';
+import {
+  boardLinks,
+  assignLayerIds,
+  convertCanvasBoard,
+  layerIds,
+  layerSnippet,
+} from './board-html.ts';
 
 const exported = `<!doctype html>
 <html lang="en">
@@ -268,6 +274,31 @@ describe('board edits', () => {
     assert.throws(
       () => applyEdits(board, [{ op: 'insert', component: { id: 'nope' } }], undefined, library),
       /no component nope/,
+    );
+  });
+});
+
+describe('board links', () => {
+  it('marks full sidebars and collapsed rails regardless of attribute order', () => {
+    for (const name of ['dl-side', 'rail', 'dz-rail']) {
+      for (const tag of ['nav', 'aside']) {
+        const links = boardLinks(
+          `<${tag} class="${name}" data-layer="navigation"><a href="Projects.html" data-layer="projects">Projects</a></${tag}><a data-layer="open" href="App.html">Open app</a>`,
+        );
+        assert.deepEqual(links, [
+          { layer: 'projects', to: 'Projects.html', text: 'Projects', sidebar: true },
+          { layer: 'open', to: 'App.html', text: 'Open app', sidebar: false },
+        ]);
+      }
+    }
+  });
+
+  it('keeps ordinary navigation links visible', () => {
+    assert.equal(
+      boardLinks(
+        '<nav data-layer="links" class="links"><a data-layer="go" href="App.html">Go</a></nav>',
+      )[0].sidebar,
+      false,
     );
   });
 });

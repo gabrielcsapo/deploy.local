@@ -50,9 +50,15 @@ export type InboxItem = {
 
 // A release is the whole project.
 export type Release = {
-  id: string; // short commit, e.g. "9c3e1fa"
+  id: string; // Stable release identity; display source.commit when available.
   projectId: string;
-  source: { kind: 'pr' | 'ship' | 'cli' | 'pipeline'; ref: string }; // "PR #43"
+  source: {
+    kind: 'pr' | 'ship' | 'cli' | 'pipeline';
+    ref: string; // Source label, e.g. "PR #43".
+    commit?: string;
+    message?: string;
+    gitRef?: string;
+  };
   startedBy: UserId; // always a person; agents can't start releases
   apps: { appId: string; from?: string; to: string }[];
   migrations: { id: string; title: string; reversible: boolean }[];
@@ -141,6 +147,8 @@ export type LiveApp = AppHealth & {
   address?: string;
   release?: string;
   releasedAt?: string;
+  source?: Release['source'];
+  fromDiscover?: boolean;
 };
 export type LiveResponse = {
   rollbacks?: Rollback[];
