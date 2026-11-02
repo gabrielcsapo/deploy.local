@@ -221,7 +221,7 @@
       "y": 1860,
       "w": 1440,
       "h": 900,
-      "title": "A task, while it runs",
+      "title": "A task: the conversation, ready to merge",
       "expand": "fill"
     },
     "TaskChanges.html": {
@@ -229,7 +229,7 @@
       "y": 1860,
       "w": 1440,
       "h": 1240,
-      "title": "A task under review: its description and changes",
+      "title": "A task's changes: the description, then files and diffs",
       "expand": "fill"
     },
     "TaskChecks.html": {
@@ -237,7 +237,7 @@
       "y": 1860,
       "w": 1440,
       "h": 900,
-      "title": "A task under review: checks",
+      "title": "A task's checks: every run, its result and its log",
       "expand": "fill"
     },
     "TaskPhone.html": {
@@ -1344,6 +1344,14 @@
       "w": 390,
       "h": 844,
       "title": "iPhone: one sheet to pick the project, the branch and the page"
+    },
+    "TaskChecksEmpty.html": {
+      "x": 26250,
+      "y": 2860,
+      "w": 1440,
+      "h": 900,
+      "title": "A task's checks before the first run",
+      "expand": "fill"
     }
   },
   "order": [
@@ -1525,7 +1533,8 @@
     "DesignRailPhone.html",
     "DesignBranchMenu.html",
     "DesignProjectMenu.html",
-    "DesignPickPhone.html"
+    "DesignPickPhone.html",
+    "TaskChecksEmpty.html"
   ],
   "notes": {
     "intro": {
@@ -2325,5 +2334,6 @@
       "y": 14420,
       "text": "For approval. Every running app says where it comes from.\n• Live: each row names its project (or From Discover, or No project).\n• An app opens as Live › app, with Project, Repository, Release and Computer as links: app → project → repository → release.\n• A project’s Overview lists what is Running: each app with health, address and computer, opening its page on Live."
     }
-  }
+  },
+  "starts": {}
 }
