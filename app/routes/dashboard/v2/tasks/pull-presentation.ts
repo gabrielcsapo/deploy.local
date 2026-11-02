@@ -27,9 +27,11 @@ export function pullElapsed(value?: string, now = Date.now()) {
   const time = value ? Date.parse(value) : NaN;
   if (!Number.isFinite(time)) return 'Unavailable';
   const minutes = Math.max(0, Math.floor((now - time) / 60000));
-  return minutes < 60
-    ? `${minutes}m`
-    : minutes < 1440
-      ? `${Math.floor(minutes / 60)}h`
-      : `${Math.floor(minutes / 1440)}d`;
+  return minutes < 1
+    ? 'now'
+    : minutes < 60
+      ? `${minutes}m`
+      : minutes < 1440
+        ? `${Math.floor(minutes / 60)}h`
+        : `${Math.floor(minutes / 1440)}d`;
 }

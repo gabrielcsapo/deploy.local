@@ -68,24 +68,31 @@ export default function PullRequest({ project, id }: { project: string; id: stri
                 {pull.status[0].toUpperCase() + pull.status.slice(1)}
               </span>
               <span>
-                {pull.status === 'merged' ? (
-                  <>
-                    <span className="dl-strong">
-                      {pull.mergedByName || pull.mergedBy || 'Unavailable'}
-                    </span>{' '}
-                    merged {changes.data?.commitCount ?? 'an unavailable number of'} commits
-                    into{' '}
-                  </>
-                ) : (
-                  <>
-                    <span className="dl-strong">
-                      {pull.status === 'closed'
-                        ? pull.closedByName || pull.closedBy || 'Unavailable'
-                        : pull.authorName || pull.author || 'Unavailable'}
-                    </span>{' '}
-                    {pull.status === 'closed' ? 'closed changes into ' : 'proposes changes into '}
-                  </>
-                )}
+                {(() => {
+                  const who =
+                    pull.status === 'merged'
+                      ? pull.mergedByName || pull.mergedBy
+                      : pull.status === 'closed'
+                        ? pull.closedByName || pull.closedBy
+                        : pull.authorName || pull.author;
+                  const count = changes.data?.commitCount;
+                  const did =
+                    pull.status === 'merged'
+                      ? count === undefined
+                        ? 'merged'
+                        : `merged ${count} commit${count === 1 ? '' : 's'}`
+                      : pull.status === 'closed'
+                        ? 'closed changes'
+                        : 'proposes changes';
+                  // Who did it when it was recorded; the sentence still reads without them.
+                  return who ? (
+                    <>
+                      <span className="dl-strong">{who}</span> {did} into{' '}
+                    </>
+                  ) : (
+                    <>{did[0].toUpperCase() + did.slice(1)} into </>
+                  );
+                })()}
                 <span className="v2-pr-ref">{pull.targetBranch}</span> from{' '}
                 <span className="v2-pr-ref">{pull.sourceBranch}</span>{' '}
                 {repositoryTime(pull.mergedAt || pull.closedAt || pull.createdAt)}
@@ -116,8 +123,14 @@ export default function PullRequest({ project, id }: { project: string; id: stri
                 <span className="dl-avatar v2-pr-avatar">
                   {(pull.authorName || pull.author)?.slice(0, 1) || '?'}
                 </span>
-                <span className="dl-strong">{pull.authorName || pull.author || 'Unavailable'}</span>
-                <span>opened this {repositoryTime(pull.createdAt)}</span>
+                {pull.authorName || pull.author ? (
+                  <>
+                    <span className="dl-strong">{pull.authorName || pull.author}</span>
+                    <span>opened this {repositoryTime(pull.createdAt)}</span>
+                  </>
+                ) : (
+                  <span>Opened {repositoryTime(pull.createdAt)}</span>
+                )}
               </>
             }
           >
