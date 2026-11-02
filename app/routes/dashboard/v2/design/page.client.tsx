@@ -51,7 +51,6 @@ import {
 } from './Assets';
 import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from './Panels';
 import { Play } from './Play';
-import { DesignRail } from './Rail';
 import { PickSheet } from './Pickers';
 import './style.css';
 
@@ -164,6 +163,24 @@ export default function DesignPage() {
   }, [overlay, mode, lastChanges]);
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [accepting, setAccepting] = useState(false);
+  const [connections, setConnections] = useState(false);
+  useEffect(() => {
+    try {
+      setConnections(localStorage.getItem(`deploy.design.connections.${owner}`) === 'true');
+    } catch {
+      // Connections still work without device storage.
+    }
+  }, [owner]);
+  const toggleConnections = useCallback(() => {
+    setConnections((current) => {
+      try {
+        localStorage.setItem(`deploy.design.connections.${owner}`, String(!current));
+      } catch {
+        // Keep the choice for this visit when storage is unavailable.
+      }
+      return !current;
+    });
+  }, [owner]);
   const [tab, setTab] = useState<'edit' | 'prototype' | 'comments'>('edit');
   const [commentFocus, setCommentFocus] = useState(0);
   const { comments, refresh: refreshComments } = useComments(project?.id);
@@ -462,7 +479,7 @@ export default function DesignPage() {
             layer,
             to,
             text: element?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 80) ?? '',
-            sidebar: Boolean(element?.closest('.dl-side')),
+            sidebar: Boolean(element?.closest('.dl-side, .rail, .dz-rail')),
           }
         : null,
     }));
@@ -645,6 +662,17 @@ export default function DesignPage() {
         (event.target as HTMLElement).isContentEditable
       )
         return;
+      if (
+        event.shiftKey &&
+        event.key.toLowerCase() === 'c' &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        toggleConnections();
+        return;
+      }
       if (event.key === 'v' || event.key === 'V') setTool('move');
       if (event.key === 'h' || event.key === 'H') setTool('hand');
       if (editable && !event.metaKey && !event.ctrlKey && !event.altKey) {
@@ -678,17 +706,13 @@ export default function DesignPage() {
         setTool('move');
         setShapeMenu(false);
       }
-      if (event.key === '\\' && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        setMinimized((value) => !value);
-      }
       if (event.shiftKey && event.key === '!' && section) fitTo(section.boards);
     };
     window.addEventListener('keydown', keys);
     return () => window.removeEventListener('keydown', keys);
     // removeLayer changes with every render; the listener is added again with it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, fitTo, select, selection, editable, mark]);
+  }, [section, fitTo, select, selection, editable, mark, toggleConnections]);
 
   const shapes = { rectangle: 'Rectangle', ellipse: 'Ellipse', line: 'Line' } as const;
   const shapeKeys = { rectangle: 'R', ellipse: 'O', line: 'L' } as const;
@@ -780,15 +804,19 @@ export default function DesignPage() {
       className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}${layersOpen ? ' layers-open' : ''}`}
       ref={stage}
     >
-      <DesignRail />
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
       />
       <div className="dz-phone-bar">
-        <a className="dl-icon-btn" href="/dashboard" aria-label="Back to deploy.local">
-          <Icon name="back" />
-        </a>
+        <button
+          type="button"
+          className="dl-icon-btn"
+          aria-label="Show sidebar"
+          onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+        >
+          <Icon name="menu" />
+        </button>
         <span className="dz-phone-title">
           <b>{selection ? boardName(selection.board) : 'Designs'}</b>
           <button
@@ -832,9 +860,14 @@ export default function DesignPage() {
         )}
       </div>
       <div className="dz-narrow-bar">
-        <a className="dl-icon-btn" href="/dashboard" aria-label="Back to deploy.local">
-          <Icon name="back" />
-        </a>
+        <button
+          type="button"
+          className="dl-icon-btn"
+          aria-label="Show sidebar"
+          onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+        >
+          <Icon name="menu" />
+        </button>
         <span className="dz-narrow-menu">
           <button
             type="button"
@@ -895,8 +928,8 @@ export default function DesignPage() {
         <button
           type="button"
           className="dz-restore"
-          aria-label="Show panels  ⌘\\"
-          title="Show panels  ⌘\\"
+          aria-label="Show panels"
+          title="Show panels"
           onClick={() => setMinimized(false)}
         >
           <span className="dl-mark">d</span>
@@ -933,7 +966,7 @@ export default function DesignPage() {
         loose={loose}
         mark={mark}
         onLoose={showLoose}
-        links={tab === 'prototype' ? links : undefined}
+        links={tab === 'prototype' || connections ? links : undefined}
         assets={
           <AssetsPanel
             library={assets ? assets.library : undefined}
@@ -995,6 +1028,7 @@ export default function DesignPage() {
             mark={mark}
             onMark={chooseMark}
             onMoveMark={editable ? (id, x, y) => editMark(id, { x, y }) : undefined}
+            connections={connections ? { links, sidebar: sidebarLinks } : null}
             prototype={
               tab === 'prototype'
                 ? {
@@ -1137,6 +1171,16 @@ export default function DesignPage() {
           >
             <Icon name="code" size={18} />
           </a>
+          <button
+            type="button"
+            className={`dz-tool dz-connections-toggle${connections ? ' on' : ''}`}
+            aria-label="Connections"
+            title="Connections ⇧C"
+            aria-pressed={connections}
+            onClick={toggleConnections}
+          >
+            <Icon name="connections" size={18} />
+          </button>
         </div>
         <div className="dz-phone-hud">
           <span className="dz-phone-zoom">{Math.round(view.z * 100)}%</span>
@@ -1172,6 +1216,16 @@ export default function DesignPage() {
             onClick={() => setLayersOpen(!layersOpen)}
           >
             <Icon name="layers" size={18} />
+          </button>
+          <button
+            type="button"
+            className={`dz-tool dz-connections-toggle${connections ? ' on' : ''}`}
+            aria-label="Connections"
+            title="Connections ⇧C"
+            aria-pressed={connections}
+            onClick={toggleConnections}
+          >
+            <Icon name="connections" size={18} />
           </button>
         </div>
       </div>
@@ -1219,6 +1273,16 @@ export default function DesignPage() {
         mark={shownMark}
         onMark={editable && shownMark ? (patch) => editMark(shownMark.id, patch) : undefined}
         onRemoveMark={editable && shownMark ? () => removeMark(shownMark.id) : undefined}
+        connections={connections}
+        onConnections={toggleConnections}
+        onConnection={(board) => {
+          const page = sections.find((item) => item.boards.includes(board));
+          if (!page) return;
+          setSectionId(page.id);
+          select({ board, layer: null });
+          remember({ page: page.id });
+          requestAnimationFrame(() => fitTo([board]));
+        }}
         prototype={{
           links,
           sidebar: sidebarLinks,

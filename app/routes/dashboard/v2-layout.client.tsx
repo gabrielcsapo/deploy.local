@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import { Sidebar, Nav, Icon, IconButton, Glyph, Status } from '@/components/ui';
 import {
@@ -18,6 +18,8 @@ import {
   type LiveSummary,
 } from './v2/data/sidebar';
 import './v2-shell.css';
+import { DesignRail } from './v2/design/Rail';
+import { sidebarKind, sidebarCollapsed } from './v2/data/sidebar-preference';
 import { FirstTask } from './v2/start/page.client';
 import { useInAppLinks } from './v2/data/links';
 
@@ -37,9 +39,11 @@ function useSidebarData() {
 export function V2Sidebar({
   pathname,
   data,
+  onCollapse,
 }: {
   pathname: string;
   data: ReturnType<typeof useSidebarData>;
+  onCollapse?: () => void;
 }) {
   const { inbox, workspace, live, user, computers } = data;
   const agents = data.agents.data?.agents ?? [];
@@ -54,6 +58,7 @@ export function V2Sidebar({
   const online = computers.data?.nodes.filter((computer) => computer.online).length;
   return (
     <Sidebar
+      onCollapse={onCollapse}
       brand={
         <>
           <span className="dl-brand">
@@ -250,8 +255,7 @@ export function V2Layout() {
   if (pathname === '/dashboard/design-system') return <Outlet />;
   return (
     <InboxProvider>
-      {/* Design is full screen with its own navigation, like Figma; it still reads Waiting on you. */}
-      {pathname === '/dashboard/design' ? <Outlet /> : <V2Shell />}
+      <V2Shell />
     </InboxProvider>
   );
 }
@@ -259,6 +263,23 @@ export function V2Layout() {
 function V2Shell() {
   const data = useSidebarData();
   const { pathname } = useLocation();
+  const [choices, setChoices] = useState<Record<string, boolean>>({});
+  const kind = sidebarKind(pathname);
+  useEffect(() => {
+    setChoices((current) =>
+      current[kind] === undefined ? { ...current, [kind]: sidebarCollapsed(kind) } : current,
+    );
+  }, [kind]);
+  const collapsed = choices[kind] ?? kind !== 'pages';
+  const toggleSidebar = useCallback(() => {
+    const next = !collapsed;
+    setChoices((current) => ({ ...current, [kind]: next }));
+    try {
+      localStorage.setItem(`deploy.sidebar.${kind}`, String(next));
+    } catch {
+      // The choice still works when storage is unavailable.
+    }
+  }, [kind, collapsed]);
   const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -282,6 +303,10 @@ function V2Shell() {
   }, [open]);
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
+        event.preventDefault();
+        toggleSidebar();
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
         event.preventDefault();
         window.location.assign('/dashboard');
@@ -289,14 +314,20 @@ function V2Shell() {
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, []);
+  }, [toggleSidebar]);
   return (
-    <div className="dl-app">
+    <div
+      className={`dl-app${collapsed ? ' dl-rail-shell' : ''}${pathname === '/dashboard/design' ? ' dl-design-shell' : ''}`}
+    >
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
       />
-      <V2Sidebar pathname={pathname} data={data} />
+      {collapsed ? (
+        <DesignRail pathname={pathname} onExpand={toggleSidebar} />
+      ) : (
+        <V2Sidebar pathname={pathname} data={data} onCollapse={toggleSidebar} />
+      )}
       <dialog
         ref={drawer}
         className="dl-drawer"

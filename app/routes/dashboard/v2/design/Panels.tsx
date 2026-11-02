@@ -5,6 +5,7 @@ import type { InboxItem, Project } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch } from '../data/hooks';
 import { useData } from '../projects/data';
 import { layerElement, type Frames, type Selection, type View } from './Canvas';
+import { boardConnections } from './connections';
 import { BranchPicker, ProjectPicker } from './Pickers';
 import {
   boardName,
@@ -12,6 +13,7 @@ import {
   hex,
   isWrapper,
   layerFacts,
+  layerLabel,
   layerName,
   layerPath,
   markColors,
@@ -387,7 +389,8 @@ export function DesignMenu({
             ['⌘K', 'Ask an agent'],
             ['⌘ scroll or pinch', 'Zoom'],
             ['Shift 1', 'Zoom to the page'],
-            ['⌘\\', 'Hide panels'],
+            ['⇧C', 'Connections'],
+            ['⌘\\', 'Toggle sidebar'],
             ['Esc', 'Clear the selection'],
           ].map(([key, what]) => (
             <div key={key}>
@@ -490,8 +493,8 @@ export function LeftPanel({
           <button
             type="button"
             className="dl-icon-btn dz-hide"
-            aria-label="Hide panels  ⌘\\"
-            title="Hide panels  ⌘\\"
+            aria-label="Hide panels"
+            title="Hide panels"
             onClick={onHide}
           >
             <Icon name="panel" size={15} />
@@ -1735,10 +1738,118 @@ export type PrototypeProps = {
   onLink?: (board: string, layer: string, to: string | null) => void;
 };
 
-/** Where a list of boards ends up said: "Home, Inbox and 3 more". */
-function said(names: string[]) {
-  if (names.length <= 3) return names.join(names.length === 2 ? ' and ' : ', ');
-  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+function ConnectionsPanel({
+  canvas,
+  section,
+  board,
+  prototype,
+  onConnection,
+}: {
+  canvas: Canvas;
+  section: Section | null;
+  board: string;
+  prototype: PrototypeProps;
+  onConnection: (board: string) => void;
+}) {
+  const { links, sidebar, setSidebar } = prototype;
+  const connections = boardConnections(canvas, section, board, links, sidebar);
+  const [showOtherPages, setShowOtherPages] = useState(false);
+  useEffect(() => setShowOtherPages(false), [board]);
+  const otherCount = connections.incoming
+    .filter((group) => group.page?.id !== section?.id)
+    .reduce((sum, group) => sum + group.items.length, 0);
+  const count = (n: number) => `${n} board${n === 1 ? '' : 's'}`;
+  return (
+    <Prop title="Connections">
+      <div className="dz-connection-sub">
+        <span>Leads to</span>
+        <span>{count(connections.leadsTo)}</span>
+      </div>
+      <div className="dz-links">
+        {connections.outgoing.map((group) => (
+          <Fragment key={group.page?.id ?? 'missing'}>
+            {group.page && group.page.id !== section?.id && (
+              <div className="dz-connection-page">{group.page.title}</div>
+            )}
+            {group.items.map((link) => (
+              <button
+                key={link.layer}
+                type="button"
+                className="dz-link-row"
+                disabled={!canvas.boards[link.to]}
+                onClick={() => onConnection(link.to)}
+              >
+                <span className="dz-t">{link.text || layerLabel(link.layer, '')}</span>
+                <Icon name="arrow" size={12} />
+                <span className={`dz-to${canvas.boards[link.to] ? '' : ' missing'}`}>
+                  <Icon name="frame" size={12} />
+                  {boardName(link.to)}
+                </span>
+              </button>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+      <div className="dz-connection-sub">
+        <span>Comes from</span>
+        <span>{count(connections.comesFrom)}</span>
+      </div>
+      <div className="dz-links">
+        {connections.incoming
+          .filter((group) => group.page?.id === section?.id || showOtherPages)
+          .map((group) => (
+            <Fragment key={group.page?.id ?? 'missing'}>
+              {group.page && group.page.id !== section?.id && (
+                <div className="dz-connection-page">{group.page.title}</div>
+              )}
+              {group.items.map((entry) => (
+                <button
+                  key={entry.from}
+                  type="button"
+                  className="dz-link-row"
+                  disabled={!canvas.boards[entry.from]}
+                  onClick={() => onConnection(entry.from)}
+                >
+                  <span className="dz-to">
+                    <Icon name="frame" size={12} />
+                    {boardName(entry.from)}
+                  </span>
+                  <span className="dl-grow" />
+                  <span className="dz-meta">
+                    {entry.layers} {entry.layers === 1 ? 'layer' : 'layers'}
+                  </span>
+                </button>
+              ))}
+            </Fragment>
+          ))}
+        {otherCount > 0 && !showOtherPages && (
+          <button
+            type="button"
+            className="dz-link-row dz-connection-more"
+            onClick={() => setShowOtherPages(true)}
+          >
+            <span className="dz-t">{otherCount} more on other pages</span>
+            <Icon name="chevron" size={12} />
+          </button>
+        )}
+        {connections.sidebar > 0 && (
+          <div className="dz-link-row off">
+            <span className="dz-t">Sidebar · {connections.sidebar} links</span>
+            <button
+              type="button"
+              className="dl-icon-btn"
+              aria-label={sidebar ? 'Hide repeated links' : 'Show repeated links'}
+              title={sidebar ? 'Hide repeated links' : 'Show repeated links'}
+              aria-pressed={sidebar}
+              onClick={() => setSidebar(!sidebar)}
+            >
+              <Icon name={sidebar ? 'eye' : 'eyeOff'} size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+    </Prop>
+  );
 }
 
 /**
@@ -1752,7 +1863,7 @@ function PrototypePanel({
   element,
   heading,
   prototype,
-  select,
+  onConnection,
 }: {
   canvas: Canvas | null;
   section: Section | null;
@@ -1761,9 +1872,9 @@ function PrototypePanel({
   /** The selected layer's kind and crumb, as Edit shows them. */
   heading: ReactNode;
   prototype: PrototypeProps;
-  select: (selection: Selection) => void;
+  onConnection: (board: string) => void;
 }) {
-  const { links, sidebar, setSidebar, start, onStart, onLink } = prototype;
+  const { links, start, onStart, onLink } = prototype;
   const boards = Object.keys(canvas?.boards ?? {}).sort((a, b) => a.localeCompare(b));
   const options = boards.map((file) => ({ value: file, label: boardName(file) }));
   const board = selection?.board ?? null;
@@ -1775,20 +1886,6 @@ function PrototypePanel({
     null;
   const [adding, setAdding] = useState(false);
   useEffect(() => setAdding(false), [board, layer]);
-  const out = board ? links.filter((link) => link.from === board) : [];
-  const own = out.filter((link) => !link.sidebar && link.to !== board);
-  const inSidebar = out.filter((link) => link.sidebar).length;
-  const targets = new Set(own.map((link) => link.to));
-  const into = board ? links.filter((link) => link.to === board && link.from !== board) : [];
-  const fromPages = [...new Set(into.filter((link) => !link.sidebar).map((link) => link.from))];
-  const fromSidebars = new Set(into.filter((link) => link.sidebar).map((link) => link.from)).size;
-  const reached = fromPages.length
-    ? `Reached from ${said(fromPages.map(boardName))}.`
-    : fromSidebars
-      ? `Reached from the sidebar of ${fromSidebars} board${fromSidebars === 1 ? '' : 's'}.`
-      : board
-        ? `Nothing links to ${boardName(board)}.`
-        : '';
   const go = (to: string) => board && layer && onLink?.(board, layer, to);
   const startBoard = start && canvas?.boards[start] ? start : (section?.boards[0] ?? null);
   return (
@@ -1874,55 +1971,14 @@ function PrototypePanel({
           )}
         </Prop>
       )}
-      {board && (
-        <Prop
-          title={boardName(board)}
-          actions={
-            <span className="dz-meta">
-              {targets.size
-                ? `Leads to ${targets.size} board${targets.size === 1 ? '' : 's'}`
-                : 'Leads nowhere'}
-            </span>
-          }
-        >
-          <div className="dz-links">
-            {own.map((link) => (
-              <button
-                key={link.layer}
-                type="button"
-                className={`dz-link-row${layer === link.layer ? ' on' : ''}`}
-                onClick={() => select({ board, layer: link.layer })}
-              >
-                <span className="dz-t">{link.text || link.layer}</span>
-                <Icon name="arrow" size={12} />
-                <span className={`dz-to${canvas?.boards[link.to] ? '' : ' missing'}`}>
-                  <Icon name="frame" size={11} />
-                  {boardName(link.to)}
-                </span>
-              </button>
-            ))}
-            {inSidebar > 0 && (
-              <div className={`dz-link-row off${sidebar ? ' shown' : ''}`}>
-                <span className="dz-t">Sidebar · {inSidebar} links</span>
-                <span className="dl-grow" />
-                <button
-                  type="button"
-                  className="dl-icon-btn"
-                  aria-label={sidebar ? 'Hide the sidebar’s links' : 'Show the sidebar’s links'}
-                  title={sidebar ? 'Hide the sidebar’s links' : 'Show the sidebar’s links'}
-                  aria-pressed={sidebar}
-                  onClick={() => setSidebar(!sidebar)}
-                >
-                  <Icon name={sidebar ? 'eye' : 'eyeOff'} size={13} />
-                </button>
-              </div>
-            )}
-          </div>
-          {own.some((link) => !canvas?.boards[link.to]) && (
-            <p className="dz-hint warn">A link goes to a board that isn’t on the canvas.</p>
-          )}
-          <p className="dz-hint">{reached}</p>
-        </Prop>
+      {board && canvas && (
+        <ConnectionsPanel
+          canvas={canvas}
+          section={section}
+          board={board}
+          prototype={prototype}
+          onConnection={onConnection}
+        />
       )}
       <Prop title="Flow">
         <div className="dz-resettable">
@@ -1983,6 +2039,9 @@ export function RightPanel({
   onMark,
   onRemoveMark,
   prototype,
+  connections,
+  onConnections,
+  onConnection,
   onPlay,
 }: {
   project: Project | undefined;
@@ -2022,6 +2081,9 @@ export function RightPanel({
   onMark?: (patch: Partial<Mark & { x: number; y: number; w: number; h: number }>) => void;
   onRemoveMark?: () => void;
   prototype?: PrototypeProps;
+  connections: boolean;
+  onConnections: () => void;
+  onConnection: (board: string) => void;
   /** Opens Play on this page; absent while there is nothing to play. */
   onPlay?: () => void;
 }) {
@@ -2150,13 +2212,36 @@ export function RightPanel({
                   {zoom * 100}%
                 </button>
               ))}
+              <button
+                type="button"
+                className="dl-menu-item"
+                role="menuitemcheckbox"
+                aria-checked={connections}
+                onClick={onConnections}
+              >
+                <Icon name="connections" size={14} />
+                Connections
+                <span className="dl-grow" />
+                <kbd>⇧C</kbd>
+              </button>
             </div>
           )}
         </div>
       </div>
       <div className="dz-right-body">
         {tab === 'comments' ? (
-          comments
+          <>
+            {comments}
+            {connections && selection && canvas && prototype && (
+              <ConnectionsPanel
+                canvas={canvas}
+                section={section}
+                board={selection.board}
+                prototype={prototype}
+                onConnection={onConnection}
+              />
+            )}
+          </>
         ) : tab === 'prototype' && prototype ? (
           <PrototypePanel
             canvas={canvas}
@@ -2164,7 +2249,7 @@ export function RightPanel({
             selection={selection}
             element={element}
             prototype={prototype}
-            select={select}
+            onConnection={onConnection}
             heading={
               element && (
                 <div className="dz-sel">
@@ -2323,6 +2408,32 @@ export function RightPanel({
                   .find((file) => file.path === `design/boards/${selection!.board}`)
                   ?.layers?.find((layer) => layer.layer === selection!.layer) ?? null
               }
+            />
+          </>
+        ) : selection && board && connections && canvas && prototype ? (
+          <>
+            <div className="dz-sel">
+              <b className="dz-sel-kind">
+                <Icon name="frame" size={13} />
+                {boardName(selection.board)}
+              </b>
+            </div>
+            <Prop title="Board">
+              <div className="dz-grid">
+                <Field label="X">{board.x}</Field>
+                <Field label="Y">{board.y}</Field>
+              </div>
+              <div className="dz-grid">
+                <Field label="W">{board.w}</Field>
+                <Field label="H">{board.h}</Field>
+              </div>
+            </Prop>
+            <ConnectionsPanel
+              canvas={canvas}
+              section={section}
+              board={selection.board}
+              prototype={prototype}
+              onConnection={onConnection}
             />
           </>
         ) : selection && board ? (
