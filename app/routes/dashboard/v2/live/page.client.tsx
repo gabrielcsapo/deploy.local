@@ -22,12 +22,14 @@ import type {
   LiveApp,
   LiveAppResponse,
   LiveResponse,
+  Project,
   Role,
   Rollback,
 } from '../../../../../shared/v2/contracts';
 import { liveRequest, useLive } from './data';
 import { formatTime } from '../data/time';
 import { authenticatedFetch } from '../data/hooks';
+import { useData } from '../projects/data';
 import { projectPath } from '../projects/routing';
 import './style.css';
 import { latestError } from './presentation';
@@ -74,7 +76,15 @@ function StartApp({ appId, refresh }: { appId: string; refresh: () => void }) {
     </>
   );
 }
-function AutoRollback({ rollback, refresh }: { rollback: Rollback; refresh: () => void }) {
+function AutoRollback({
+  rollback,
+  names,
+  refresh,
+}: {
+  rollback: Rollback;
+  names: Record<string, string>;
+  refresh: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function undo() {
@@ -99,7 +109,8 @@ function AutoRollback({ rollback, refresh }: { rollback: Rollback; refresh: () =
         <Glyph kind="warden">d</Glyph>
         <div className="dl-t">
           <h3 className="dl-approval-title">
-            Automatically rolled back {rollback.projectId} to {rollback.to.slice(0, 7)}
+            Automatically rolled back {names[rollback.projectId] ?? rollback.projectId} to{' '}
+            {rollback.to.slice(0, 7)}
           </h3>
           <p className="dl-approval-text">
             {rollback.reason}
@@ -312,7 +323,13 @@ function RollbackAction({ item, refresh }: { item: InboxItem; refresh: () => voi
     </>
   );
 }
-function Computer({ computer }: { computer: LiveResponse['computers'][number] }) {
+function Computer({
+  computer,
+  names,
+}: {
+  computer: LiveResponse['computers'][number];
+  names: Record<string, string>;
+}) {
   const apps = computer.apps.filter((app) => app.state !== 'stopped');
   if (!apps.length) return null;
   return (
@@ -358,7 +375,7 @@ function Computer({ computer }: { computer: LiveResponse['computers'][number] })
                     <span>{app.name}</span>
                     <span className="dl-meta dl-truncate">
                       {app.kind === 'worker'
-                        ? `Worker${app.project ? ` · ${app.project}` : ''}`
+                        ? `Worker${app.project ? ` · ${names[app.project] ?? app.project}` : ''}`
                         : (app.address?.replace(/^https?:\/\//, '') ?? 'Web app')}
                     </span>
                   </a>
@@ -413,10 +430,12 @@ function Computer({ computer }: { computer: LiveResponse['computers'][number] })
 function Overview({
   live,
   items,
+  names,
   refresh,
 }: {
   live: LiveResponse;
   items: InboxItem[];
+  names: Record<string, string>;
   refresh: () => void;
 }) {
   const apps = live.computers.flatMap((computer) => computer.apps);
@@ -449,7 +468,7 @@ function Overview({
         </span>
       </div>
       {live.rollbacks?.map((rollback) => (
-        <AutoRollback key={rollback.id} rollback={rollback} refresh={refresh} />
+        <AutoRollback key={rollback.id} rollback={rollback} names={names} refresh={refresh} />
       ))}
       {items
         .filter(
@@ -464,7 +483,7 @@ function Overview({
         </Empty>
       )}
       {live.computers.map((computer) => (
-        <Computer key={computer.id} computer={computer} />
+        <Computer key={computer.id} computer={computer} names={names} />
       ))}
       {stopped.length > 0 && (
         <section className="dl-section">
@@ -548,11 +567,13 @@ function Worker({
   detail,
   live,
   items,
+  projectName,
   refresh,
 }: {
   detail: LiveAppResponse;
   live: LiveResponse;
   items: InboxItem[];
+  projectName?: string;
   refresh: () => void;
 }) {
   const app = detail.app;
@@ -590,7 +611,7 @@ function Worker({
                 {' '}
                 · part of{' '}
                 <a className="dl-link" href={project}>
-                  {app.project}
+                  {projectName ?? app.project}
                 </a>
               </>
             )}
@@ -770,13 +791,18 @@ export default function LivePage() {
   const encoded = pathname.split('/')[3];
   const appId = encoded ? decodeURIComponent(encoded) : undefined;
   const { live, detail, items, error, retry } = useLive(appId);
+  const projects = useData<{ projects: Project[] }>('/api/v2/projects');
+  const names = Object.fromEntries(
+    projects.data?.projects.map((project) => [project.id, project.name]) ?? [],
+  );
+  const projectName = detail?.app.project ? names[detail.app.project] : undefined;
   return (
     <>
       <Head
         title={detail?.app.name ?? (appId || 'Live')}
         subtitle={
           detail?.app.project
-            ? `${detail.app.kind === 'worker' ? 'Worker' : 'App'} in ${detail.app.project}`
+            ? `${detail.app.kind === 'worker' ? 'Worker' : 'App'} in ${projectName ?? 'a project'}`
             : undefined
         }
         menu={
@@ -813,9 +839,15 @@ export default function LivePage() {
               />
             )
           ) : appId && detail ? (
-            <Worker detail={detail} live={live} items={items} refresh={retry} />
+            <Worker
+              detail={detail}
+              live={live}
+              items={items}
+              projectName={projectName}
+              refresh={retry}
+            />
           ) : (
-            <Overview live={live} items={items} refresh={retry} />
+            <Overview live={live} items={items} names={names} refresh={retry} />
           )}
         </div>
       </div>

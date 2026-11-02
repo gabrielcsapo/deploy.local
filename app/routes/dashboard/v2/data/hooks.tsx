@@ -85,13 +85,26 @@ export function useInbox() {
   return { ...snapshot, answer: store.answer, retry: store.retry };
 }
 
+/**
+ * The last answer for each path, so a page that mounts again (switching tabs, going back) shows
+ * what it had at once and refreshes behind it instead of blanking to a loading state.
+ */
+const resources = new Map<string, unknown>();
+if (typeof window !== 'undefined')
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'deploy-sh-auth' || event.key === null) resources.clear();
+  });
+export const remembered = <T,>(path: string) => resources.get(path) as T | undefined;
+export const remember = (path: string, data: unknown) => resources.set(path, data);
+
 export function useResource<T>(path: string, optional = false) {
-  const [state, setState] = useState<{ data: T | null; loading: boolean; error: boolean }>({
-    data: null,
-    loading: true,
-    error: false,
+  const [state, setState] = useState<{ data: T | null; loading: boolean; error: boolean }>(() => {
+    const data = remembered<T | null>(path);
+    return { data: data ?? null, loading: data === undefined, error: false };
   });
   useEffect(() => {
+    const data = remembered<T | null>(path);
+    setState({ data: data ?? null, loading: data === undefined, error: false });
     let controller: AbortController;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
@@ -99,7 +112,10 @@ export function useResource<T>(path: string, optional = false) {
       const signal = controller.signal;
       try {
         const data = await readResource<T>(authenticatedFetch, path, signal, optional);
-        if (!signal.aborted) setState({ data, loading: false, error: false });
+        if (!signal.aborted) {
+          remember(path, data);
+          setState({ data, loading: false, error: false });
+        }
       } catch {
         if (!signal.aborted) setState({ data: null, loading: false, error: true });
       }

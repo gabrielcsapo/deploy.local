@@ -19,6 +19,7 @@ import {
 } from './v2/data/sidebar';
 import './v2-shell.css';
 import { FirstTask } from './v2/start/page.client';
+import { useInAppLinks } from './v2/data/links';
 
 function useSidebarData() {
   return {
@@ -121,7 +122,9 @@ export function V2Sidebar({
             <span className="dl-strong">{username}</span>
             <span className="dl-meta">
               {online === undefined
-                ? 'Computers unavailable'
+                ? computers.loading
+                  ? ' '
+                  : 'Computers unavailable'
                 : `${online} ${online === 1 ? 'computer' : 'computers'} online`}
             </span>
           </span>
@@ -243,6 +246,7 @@ export function V2Sidebar({
 
 export function V2Layout() {
   const { pathname } = useLocation();
+  useInAppLinks();
   if (pathname === '/dashboard/design-system') return <Outlet />;
   return (
     <InboxProvider>
