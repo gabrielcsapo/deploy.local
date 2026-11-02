@@ -28,7 +28,7 @@ export type Design = {
   ref: string;
   commit: string;
   canvas: Canvas | null;
-  branches: { name: string; commit: string; updatedAt: string }[];
+  branches: { name: string; commit: string; updatedAt: string; by?: string; edits?: number }[];
   openComments: number;
 };
 export type Tokens = {

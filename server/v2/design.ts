@@ -255,12 +255,16 @@ function designBranches(repo: string) {
   const out = gitSync(repo, [
     'for-each-ref',
     '--sort=-committerdate',
-    '--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)',
+    '--count=40',
+    '--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)%09%(committername)',
     'refs/heads/design/',
   ]);
+  const main = mainBranch(repo);
   return (out ? out.split('\n') : []).map((line) => {
-    const [name, commit, updatedAt] = line.split('\t');
-    return { name, commit, updatedAt };
+    const [name, commit, updatedAt, by] = line.split('\t');
+    // Edits: the branch's own commits since it left main.
+    const edits = Number(gitSync(repo, ['rev-list', '--count', `${main}..${commit}`]) ?? 0);
+    return { name, commit, updatedAt, by, edits };
   });
 }
 
@@ -796,6 +800,22 @@ export function designTool(scope: { owner: string; taskId: string }, args: any) 
 
 export async function designApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const url = new URL(req.url!, 'http://localhost');
+  // Every project and how many boards its design has on main, for the project picker.
+  if (url.pathname === '/api/v2/design/projects' && req.method === 'GET') {
+    const projects = list('project', owner).filter((row: any) => row.repositoryPath);
+    const designs = await Promise.all(
+      projects.map(async (row: any) => {
+        let boards = 0;
+        try {
+          boards = Object.keys((await readCanvas(row.repositoryPath, 'HEAD'))?.boards ?? {}).length;
+        } catch {
+          // A canvas that is not valid JSON counts as no design.
+        }
+        return { id: row.id, name: row.name, boards };
+      }),
+    );
+    return sendJson(res, { projects: designs });
+  }
   const route = url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/design(\/.*)?$/);
   if (!route) return false;
   const projectId = decodeURIComponent(route[1]);
