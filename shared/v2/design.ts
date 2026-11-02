@@ -151,6 +151,38 @@ export function markChanges(before: Canvas | null, after: Canvas | null) {
   ).length;
 }
 
+/**
+ * The canvas a design branch leaves on main when main moved since the branch started: main's
+ * canvas with the branch's own edits on top, board by board and note by note, so approving one
+ * branch never drops what another approval added.
+ */
+export function mergeCanvas(base: Canvas, main: Canvas, branch: Canvas): Canvas {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const merged = JSON.parse(JSON.stringify(main)) as Canvas & Record<string, unknown>;
+  const was = base as Canvas & Record<string, unknown>;
+  const now = branch as Canvas & Record<string, unknown>;
+  for (const key of ['boards', 'notes'] as const) {
+    const into = (merged[key] ??= {}) as Record<string, unknown>;
+    const before = (was[key] ?? {}) as Record<string, unknown>;
+    const after = (now[key] ?? {}) as Record<string, unknown>;
+    for (const id of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (same(before[id], after[id])) continue;
+      if (after[id] === undefined) delete into[id];
+      else into[id] = after[id];
+    }
+  }
+  if (!same(was.order, now.order)) {
+    const removed = new Set((was.order ?? []).filter((file) => !(now.order ?? []).includes(file)));
+    const kept = (merged.order ?? []).filter((file) => !removed.has(file));
+    merged.order = [...kept, ...(now.order ?? []).filter((file) => !kept.includes(file))];
+  }
+  for (const key of Object.keys({ ...was, ...now }))
+    if (!['boards', 'notes', 'order'].includes(key) && !same(was[key], now[key]))
+      if (now[key] === undefined) delete merged[key];
+      else merged[key] = now[key];
+  return merged;
+}
+
 const counted = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
 /**
