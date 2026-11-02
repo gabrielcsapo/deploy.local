@@ -1268,21 +1268,6 @@
       "h": 900,
       "title": "Drawing a rectangle on a board; a sticky note on the canvas",
       "expand": "fill"
-    },
-    "DesignReviewNote.html": {
-      "x": 7890,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Reviewing a design whose change is a canvas note",
-      "expand": "fill"
-    },
-    "DesignReviewNotePhone.html": {
-      "x": 9410,
-      "y": 50884,
-      "w": 390,
-      "h": 844,
-      "title": "Approve a canvas note change on iPhone"
     }
   },
   "order": [
@@ -1454,9 +1439,7 @@
     "DesignAsk.html",
     "DesignAgent.html",
     "DesignDraw.html",
-    "DesignAskPhone.html",
-    "DesignReviewNote.html",
-    "DesignReviewNotePhone.html"
+    "DesignAskPhone.html"
   ],
   "notes": {
     "intro": {
@@ -2221,19 +2204,12 @@
       "size": "xxl",
       "maxW": 5600
     },
-    "design-review-notes-how": {
-      "x": 7890,
-      "y": 51840,
-      "w": 1910,
-      "h": 220,
-      "text": "Reviewing changes that are not boards\n• Opening a design item in Waiting on you shows its review, task or not: changed boards as Before and After, and changed canvas notes as their text, Before and After, with the new lines marked.\n• The list on the left names each change: a board by its name, a note by its first line, tagged Note.\n• The item's line says what changed in words: “The note “Drawing: how it works” changed on design/drawing-note”, or “2 boards and 1 note changed”; never “1 design files”.\n• iPhone shows the same: the note's text in place of a board, with Before and After."
-    },
     "design-draw-how": {
       "x": 13760,
       "y": 50644,
       "w": 1440,
-      "h": 300,
-      "text": "Drawing: how it works\n• Rectangle, Ellipse and Line (the shape menu, or R, O, L) draw inside a board where you drag. The shape keeps that spot (X and Y) and size, filled surface with a line stroke, and saves to the board on your design branch.\n• Text (T): click inside a board to place a text layer and type; Enter keeps it.\n• Pen (P): click points to draw a vector; Enter, or a click on the first point, ends it.\n• Frame (F): drag on empty canvas to make a new board (Web 1440 or Phone 390 by its width, named Board N until you rename it); inside a board it makes a frame layer.\n• Sticky notes (S): click on the canvas; they sit beside boards, never inside one, and save to canvas.json.\n• Escape goes back to Move (V). Everything drawn can be edited in the properties panel and undone with Reset."
+      "h": 420,
+      "text": "Drawing: how it works\n• Rectangle, Ellipse and Line (the shape menu, or R, O, L) draw inside a board where you drag. The shape keeps that spot (X and Y) and size, filled surface with a line stroke, and saves to the board on your design branch.\n• Text (T): click inside a board to place a text layer and type; Enter keeps it.\n• Pen (P): a stroke with Apple Pencil, or a drag, inks a mark on the canvas: danger, W 2.5, the same width on screen at any zoom. Marks sit beside boards like sticky notes, never inside one, and save to canvas.json. Select one to set its rotation, size, opacity, stroke colour, W and Arrow end; drag it to move it; Delete removes it. Tapping points instead draws a vector in a board; Enter, or a tap on the first point, ends it.\n• Frame (F): drag on empty canvas to make a new board (Web 1440 or Phone 390 by its width, named Board N until you rename it); inside a board it makes a frame layer.\n• Sticky notes (S): click on the canvas; they save to canvas.json and show over the boards they point at. Layers lists a page's marks and sticky notes after its boards.\n• Escape goes back to Move (V); the pen keeps inking until you do. Layers drawn in a board can be edited in the properties panel and undone with Reset."
     },
     "design-native-how": {
       "x": 3120,
