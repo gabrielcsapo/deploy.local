@@ -1,28 +1,26 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
-import {
-  Action,
-  Banner,
-  Composer,
-  Diff,
-  Glyph,
-  Head,
-  Icon,
-  IconButton,
-  Skeleton,
-  Term,
-} from '@/components/ui';
+import { Action, Banner, Composer, Head, Icon, IconButton, Skeleton, Tabs } from '@/components/ui';
 import { Conversation, ReleaseProgress } from '../conversation/Conversation';
 import { authenticatedFetch, useInbox } from '../data/hooks';
 import { formatTime } from '../data/time';
 import { useTask } from './data';
 import { PullDescription } from './description.client';
-import { mergePull, parsePatch, readPullChecks, requestJson, workspaceCommand } from './api';
+import {
+  mergeAndRelease,
+  mergePull,
+  parsePatch,
+  readPullChecks,
+  requestJson,
+  workspaceCommand,
+} from './api';
 import { ShipDialog } from './ShipDialog';
-import type { TaskCheck, TaskDiff, TaskView } from './types';
+import type { TaskCheck, TaskDiff } from './types';
+import { TaskChecks, TaskFiles, TaskPanel } from './details.client';
+import { latestChecks, taskCheckpoints, taskStatus, taskUpdatedAt } from './presentation';
 import './style.css';
-import { DesignCard, DesignReview, designStatus, useTaskDesign } from '../design/Review';
+import { DesignCard, DesignReview, useTaskDesign } from '../design/Review';
 
 function FirstTask({ onClose }: { onClose: () => void }) {
   return (
@@ -52,178 +50,6 @@ function FirstTask({ onClose }: { onClose: () => void }) {
     </section>
   );
 }
-function TaskPanel({
-  view,
-  files,
-  checks,
-  detailsAvailable,
-  onShip,
-  onClose,
-  base,
-}: {
-  view: TaskView;
-  files: ReturnType<typeof parsePatch>;
-  checks: TaskCheck[];
-  detailsAvailable: boolean;
-  onShip: () => void;
-  onClose: () => void;
-  base: string;
-}) {
-  const passed = checks.filter((check) => ['passed', 'succeeded'].includes(check.status));
-  const additions = files.reduce((sum, file) => sum + file.added, 0);
-  const removals = files.reduce((sum, file) => sum + file.removed, 0);
-  const pull = view.pulls.at(-1);
-  return (
-    <aside className="dl-task-panel" aria-label="This task">
-      <div className="dl-panel-head">
-        This task
-        <span className="dl-end">
-          <IconButton icon="close" label="Close task panel" onClick={onClose} />
-        </span>
-      </div>
-      <div className="dl-panel-body">
-        {view.project && (
-          <>
-            <div className="dl-panel-label">Project</div>
-            <a
-              className="dl-panel-item"
-              href={`/dashboard/projects/${encodeURIComponent(view.project.id)}`}
-            >
-              <Icon name="folder" />
-              <span>{view.project.name}</span>
-            </a>
-            <div className="dl-panel-item">
-              <Icon name="merge" />
-              <span className="dl-t">
-                <span>{view.project.repository || 'Repository address unavailable'}</span>
-                <span>{pull?.sourceBranch || view.task.sourceRef || 'Branch unavailable'}</span>
-              </span>
-            </div>
-          </>
-        )}
-        <div className="dl-panel-label">Running on</div>
-        <div className="dl-panel-item">
-          <Icon name="computer" />
-          <span className="dl-t">
-            <span>{view.computer || 'Unavailable'}</span>
-            <span>{view.run?.model || 'Model unavailable'}</span>
-          </span>
-        </div>
-        <div className="dl-panel-label">Work</div>
-        <a className="dl-panel-item" href={`${base}/changes`}>
-          <Icon name="file" />
-          <span className="dl-t">
-            <span>
-              {detailsAvailable ? `${files.length} files changed` : 'Changes unavailable'}
-            </span>
-            <span>
-              <span className="dl-add">{detailsAvailable ? `+${additions}` : ''}</span>{' '}
-              <span className="dl-del">{detailsAvailable ? `−${removals}` : ''}</span> · Changes
-            </span>
-          </span>
-        </a>
-        <a className="dl-panel-item" href={`${base}/checks`}>
-          <Icon name={passed.length ? 'check' : 'clock'} className={passed.length ? 'dl-ok' : ''} />
-          <span className="dl-t">
-            <span>
-              {!detailsAvailable
-                ? 'Checks unavailable'
-                : passed.length
-                  ? `${passed.length} checks passed`
-                  : 'No checks passed yet'}
-            </span>
-            <span>
-              {!detailsAvailable
-                ? 'Load this version’s checks to see what ran'
-                : checks.length
-                  ? checks.map((check) => check.name || check.command || check.id).join(', ')
-                  : 'No checks recorded on this version'}
-            </span>
-          </span>
-        </a>
-        {!!view.screenshots.length && (
-          <>
-            <div className="dl-panel-label">Screenshots</div>
-            <a className="dl-panel-item" href={`${base}#screenshot-${view.screenshots[0].id}`}>
-              <Icon name="computer" />
-              <span className="dl-t">
-                <span>{view.screenshots.length} screenshots</span>
-                <span>
-                  {view.screenshots[0].requestedAt ? 'Asked for at ' : 'Taken at '}
-                  {formatTime(
-                    view.screenshots[0].requestedAt || view.screenshots[0].takenAt,
-                    'clock',
-                  )}
-                </span>
-              </span>
-            </a>
-          </>
-        )}
-        <div className="dl-panel-label">Releases</div>
-        {view.releases.length ? (
-          view.releases.map((release) => (
-            <a
-              key={release.id}
-              className="dl-panel-item"
-              href={`/dashboard/projects/${encodeURIComponent(release.projectId)}/releases/${encodeURIComponent(release.id)}`}
-            >
-              <Icon name="cloud" />
-              {release.id} · {release.state === 'live' ? 'Live' : release.state}
-            </a>
-          ))
-        ) : (
-          <div className="dl-panel-item">
-            <Icon name="cloud" />
-            <span className="dl-t">
-              <span>None yet</span>
-              <span>Ship it whenever you are ready</span>
-            </span>
-          </div>
-        )}
-        {view.project && (
-          <Action onClick={onShip} disabled={!view.ship?.ref}>
-            Ship…
-          </Action>
-        )}
-        <div className="dl-panel-label">Started</div>
-        <div className="dl-panel-item">
-          <Icon name="clock" />
-          <span className="dl-t">
-            <span>
-              {view.task.startedBy ? `By ${view.task.startedBy}, ` : ''}
-              {formatTime(view.task.createdAt)}
-            </span>
-            <span>{view.task.startedFrom || 'Task source unavailable'}</span>
-          </span>
-        </div>
-        {!!view.pulls.length && (
-          <>
-            <div className="dl-panel-label">Pull requests</div>
-            {view.pulls.map((item) => (
-              <a className="dl-panel-item" key={item.id} href={`${base}/changes`}>
-                #{item.number} · {item.title}
-              </a>
-            ))}
-          </>
-        )}
-        {pull && (
-          <>
-            <div className="dl-panel-label">Merge</div>
-            <div className="dl-panel-item">
-              <Icon name="merge" />
-              <span className="dl-t">
-                <span>
-                  PR #{pull.number} · {pull.status}
-                </span>
-                <span>Checks on this version are shown above</span>
-              </span>
-            </div>
-          </>
-        )}
-      </div>
-    </aside>
-  );
-}
 export default function TaskPage() {
   const { pathname } = useLocation();
   const id = decodeURIComponent(pathname.split('/')[3] || '');
@@ -244,7 +70,6 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const design = useTaskDesign(view?.project?.id, id);
   const [diff, setDiff] = useState<TaskDiff | null>(null);
   const [checks, setChecks] = useState<TaskCheck[]>([]);
-  const [selectedCheck, setSelectedCheck] = useState<string>();
   const [detailVersion, setDetailVersion] = useState(0);
   const [detailError, setDetailError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -261,7 +86,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const pullRevision = pull?.revision;
   const taskRevision = view?.task.revision;
   const loaded = !!view;
-  const panelOpen = panel ?? !!(view?.screenshots.length || pull);
+  const panelOpen = panel ?? true;
   useEffect(() => {
     setShipOpen(window.location.hash === '#ship');
     setHint(localStorage.getItem('deploy-v2-first-task-seen') !== 'yes');
@@ -293,8 +118,8 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
             signal,
           );
           if (signal.aborted) return;
-          setChecks(currentChecks);
-        } else setChecks(data.checks || []);
+          setChecks(latestChecks(currentChecks));
+        } else setChecks([]);
         setDiff(data);
       } catch {
         if (!signal.aborted) {
@@ -319,6 +144,8 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
     try {
       await action();
       refresh();
+      setDetailVersion((value) => value + 1);
+      setMore(false);
     } catch (reason) {
       setActionError(reason instanceof Error ? reason.message : 'Could not save. Try again.');
     } finally {
@@ -342,161 +169,186 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const stalled = ['unknown', 'stalled', 'interrupted', 'blocked'].includes(status);
   const failed = status === 'failed';
   const release = view.releases.find((item) => item.id === shipped);
-  const passed = checks.filter((check) => ['passed', 'succeeded'].includes(check.status));
+  const {
+    checkpoint,
+    checks: currentChecks,
+    earlier,
+    headChecks,
+  } = taskCheckpoints(view, checks, diff?.headCommit);
+  const summary = taskStatus(view, detailError ? null : diff, headChecks);
   const waiting = view.events.some(
     (event) =>
       event.kind === 'decision' &&
       inbox.items.some((item) => item.id === event.inboxItemId && item.state === 'waiting'),
   );
-  const runLabel = stalled
-    ? 'Paused'
-    : failed
-      ? 'Stopped'
-      : status === 'running'
-        ? 'Running'
-        : view.releases.length
-          ? 'Released'
-          : 'Not released yet';
-  const stateTime =
-    status === 'running'
-      ? view.checkpoint?.at || view.run?.updatedAt || view.task.createdAt
-      : view.task.createdAt;
+  const updatedAt = pull || view.checkpoint ? taskUpdatedAt(view, currentChecks) : undefined;
+  const mergeable = pull?.status === 'open' && diff?.mergeable === true && !detailError;
+  const tabs = [
+    { label: 'Chat', href: base },
+    { label: 'Changes', href: `${base}/changes`, count: diff ? files.length : undefined },
+    { label: 'Checks', href: `${base}/checks`, count: currentChecks.length || undefined },
+    ...(design.boards.length
+      ? [{ label: 'Design', href: `${base}/design`, count: design.boards.length }]
+      : []),
+  ];
 
   return (
     <div className={`dl-task-layout ${panelOpen ? 'with-panel' : ''}`}>
       <div className="dl-task-main">
-        <Head
-          title={view.task.title}
-          subtitle={`${pull ? `PR #${pull.number} · ` : ''}${view.project?.name || 'New task'} · ${view.computer || 'Computer unavailable'}${stalled ? ' · paused' : failed ? ' · stopped' : ''}`}
-          menu={
-            <IconButton
-              className="dl-menu-btn"
-              icon="menu"
-              label="Open navigation"
-              onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
-            />
-          }
-          actions={
-            <>
-              {view.project && (
-                <Action disabled={!view.ship?.ref} onClick={() => setShipOpen(true)}>
-                  Ship…
-                </Action>
-              )}
+        <header className="dl-task-head">
+          <div className="dl-task-wrap">
+            <div className="dl-task-title">
               <IconButton
-                icon="panel"
-                label="This task"
-                aria-pressed={panelOpen}
-                onClick={() => setPanel(!panelOpen)}
+                className="dl-menu-btn"
+                icon="menu"
+                label="Show sidebar"
+                onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
               />
-              <div className="dl-task-more">
-                <button
-                  type="button"
-                  className="dl-icon-btn"
-                  aria-label="More task actions"
-                  aria-expanded={more}
-                  onClick={() => setMore(!more)}
+              <h1>{view.task.title}</h1>
+              <span className="dl-end">
+                <IconButton
+                  className="dl-task-panel-toggle"
+                  icon="panel"
+                  label="Task details"
+                  aria-pressed={panelOpen}
+                  onClick={() => setPanel(!panelOpen)}
+                />
+                <div
+                  className="dl-task-more"
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setMore(false);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setMore(false);
+                  }}
                 >
-                  ⋯
-                </button>
-                {more && (
-                  <div className="dl-task-menu">
-                    <Action
-                      variant="quiet"
-                      onClick={() => {
-                        refresh();
-                        setDetailVersion((value) => value + 1);
-                        setMore(false);
-                      }}
-                    >
-                      Refresh task
-                    </Action>
-                    {view.project && (
-                      <a href={`/dashboard/projects/${encodeURIComponent(view.project.id)}`}>
-                        Open project
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          }
-        />
-        <div className="dl-task-bar">
-          <nav className="dl-seg" aria-label="Task sections">
-            {['chat', 'changes', 'checks', ...(design.boards.length ? ['design'] : [])].map(
-              (section) => (
-                <a
-                  key={section}
-                  href={section === 'chat' ? base : `${base}/${section}`}
-                  className={tab === section ? 'on' : ''}
-                  aria-current={tab === section ? 'page' : undefined}
-                >
-                  {section[0].toUpperCase() + section.slice(1)}
-                  {section === 'checks' && passed.length > 0 && (
-                    <span className="dl-meta">{passed.length} passed</span>
+                  <button
+                    type="button"
+                    className="dl-icon-btn"
+                    aria-label="More task actions"
+                    aria-expanded={more}
+                    aria-controls="task-actions"
+                    onClick={() => setMore(!more)}
+                  >
+                    ⋯
+                  </button>
+                  {more && (
+                    <div className="dl-task-menu" id="task-actions">
+                      {pull?.status === 'open' && (
+                        <>
+                          <Action
+                            variant="quiet"
+                            disabled={!mergeable || busy}
+                            title={diff?.mergeBlock || undefined}
+                            onClick={() =>
+                              void act(() => mergePull(authenticatedFetch, projectId!, pull, diff!))
+                            }
+                          >
+                            Merge only
+                          </Action>
+                          {!!view.comparison?.behind && (
+                            <Action
+                              variant="quiet"
+                              disabled={busy}
+                              onClick={() =>
+                                void act(() =>
+                                  workspaceCommand(
+                                    authenticatedFetch,
+                                    `/tasks/${encodeURIComponent(id)}/update-base`,
+                                    { action: 'update' },
+                                  ),
+                                )
+                              }
+                            >
+                              Update from main
+                            </Action>
+                          )}
+                          <Action
+                            variant="quiet"
+                            disabled={busy}
+                            onClick={() =>
+                              void act(() =>
+                                workspaceCommand(
+                                  authenticatedFetch,
+                                  `/projects/${encodeURIComponent(projectId!)}/pulls/${encodeURIComponent(pull.id)}/close`,
+                                  { revision: pull.revision },
+                                ),
+                              )
+                            }
+                          >
+                            Close pull request
+                          </Action>
+                        </>
+                      )}
+                      <Action
+                        variant="quiet"
+                        onClick={() => {
+                          refresh();
+                          setDetailVersion((value) => value + 1);
+                          setMore(false);
+                        }}
+                      >
+                        Refresh task
+                      </Action>
+                    </div>
                   )}
-                  {section === 'design' && <span className="dl-meta">{design.boards.length}</span>}
-                </a>
-              ),
-            )}
-          </nav>
-          {view.agent && (
-            <a
-              className="dl-meta dl-task-agent"
-              href={`/dashboard/agents/${encodeURIComponent(view.agent.id)}/tune`}
-            >
-              <Glyph kind="plain">{view.agent.name[0]}</Glyph>
-              <span>
-                {['queued', 'starting', 'running', 'unknown'].includes(view.run?.status || '')
-                  ? 'Running as'
-                  : 'Ran as'}{' '}
-                {view.agent.name}
+                </div>
+                {mergeable && (
+                  <Action
+                    variant="primary"
+                    loading={busy}
+                    onClick={() =>
+                      void act(async () => {
+                        const item = await mergeAndRelease(
+                          authenticatedFetch,
+                          projectId!,
+                          pull!,
+                          diff!,
+                        );
+                        setShipped(item.id);
+                        updateRelease(item);
+                      })
+                    }
+                  >
+                    Merge and release
+                  </Action>
+                )}
               </span>
-              <span aria-hidden="true">·</span>
-              <span className="dl-link">Job</span>
-            </a>
-          )}
-          <span className="dl-meta">
-            {tab === 'design' ||
-            (tab === 'chat' && design.boards.length && design.proposal?.state !== 'answered')
-              ? designStatus(design)
-              : pull
-                ? `PR #${pull.number} · ${pull.status}`
-                : tab !== 'chat' && !view.releases.length
-                  ? 'Not a pull request yet'
-                  : runLabel}
-            {view.checkpoint && ` · checkpoint ${view.checkpoint.number}`} ·{' '}
-            {formatTime(
-              stateTime,
-              status === 'running' && view.checkpoint ? 'relative' : 'elapsed',
-            )}
-          </span>
-          <div className="dl-task-bar-actions">
-            <Action disabled title="Updating from main is not available on this coordinator yet.">
-              Update from main
-            </Action>
-            {tab !== 'chat' && !pull && (
-              <Action
-                variant="primary"
-                disabled
-                title="Publishing a pull request is not available from this task yet."
-              >
-                Publish pull request
-              </Action>
-            )}
-            {pull?.status === 'open' && (
-              <Action
-                disabled={!diff?.headCommit || busy}
-                onClick={() =>
-                  void act(() => mergePull(authenticatedFetch, projectId!, pull, diff!))
-                }
-              >
-                Merge only
-              </Action>
-            )}
+            </div>
+            <div className="dl-task-status">
+              <span className="dl-status dl-task-state">
+                <Icon
+                  name={summary.icon}
+                  className={
+                    summary.icon === 'check'
+                      ? 'dl-ok'
+                      : summary.icon === 'running'
+                        ? 'dl-run dl-spin'
+                        : ''
+                  }
+                />
+                {summary.label}
+              </span>
+              {summary.detail && (
+                <>
+                  <span className="dl-task-sep" aria-hidden="true">
+                    ·
+                  </span>
+                  <span>{summary.detail}</span>
+                </>
+              )}
+              {updatedAt && (
+                <>
+                  <span className="dl-task-sep" aria-hidden="true">
+                    ·
+                  </span>
+                  <span>Updated {formatTime(updatedAt).toLowerCase()}</span>
+                </>
+              )}
+            </div>
+            <Tabs label="Task" items={tabs} value={tab === 'chat' ? base : `${base}/${tab}`} />
           </div>
-        </div>
+        </header>
         <div className="dl-scroll">
           {(error || actionError) && (
             <div className="dl-col dl-task-notice">
@@ -510,7 +362,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
           {tab === 'design' && view.project ? (
             <DesignReview projectId={view.project.id} taskId={id} design={design} />
           ) : tab === 'chat' ? (
-            <div className="dl-col">
+            <div className="dl-task-wrap dl-task-chat">
               {stalled && (
                 <div className="dl-task-notice">
                   <Banner title={`${view.computer || 'The computer'} stopped reporting progress`}>
@@ -538,7 +390,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                 resources={{
                   screenshots: view.screenshots,
                   releases: view.releases,
-                  showAuthors: !!pull,
+                  showAuthors: false,
                 }}
               />
               {view.project && design.boards.length > 0 && (
@@ -556,7 +408,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                 ) && <ReleaseProgress release={release} />}
             </div>
           ) : (
-            <div className={tab === 'changes' ? 'dl-task-changes' : 'dl-col dl-task-checks'}>
+            <div
+              className={`dl-task-wrap ${tab === 'changes' ? 'dl-task-changes' : 'dl-task-checks'}`}
+            >
               {detailError && (
                 <Banner
                   title={detailError}
@@ -574,145 +428,43 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
               )}
               {tab === 'changes' ? (
                 <>
-                  <nav className="dl-task-files" aria-label="Changed files">
-                    <h3>{files.length} files changed</h3>
-                    {files.map((file) => (
-                      <a
-                        className="dl-task-file"
-                        href={`#${encodeURIComponent(file.file)}`}
-                        key={file.file}
-                      >
-                        {file.file}
-                        <span className="dl-add">+{file.added}</span>
-                        <span className="dl-del">−{file.removed}</span>
-                      </a>
-                    ))}
-                  </nav>
-                  <div className="dl-task-diffs">
-                    {pull && view.project && (
-                      <PullDescription
-                        pull={pull}
-                        projectId={view.project.id}
-                        drafter={`Drafted by ${agentLabel(view.run?.adapter)}${view.checkpoint ? ` from checkpoint ${view.checkpoint.number}` : ''}`}
-                        onSaved={refresh}
-                      />
-                    )}
-                    {files.map((file) => (
-                      <div id={encodeURIComponent(file.file)} key={file.file}>
-                        <Diff file={file.file} lines={file.lines} />
-                      </div>
-                    ))}
-                    {!files.length && (
-                      <p className="dl-meta">
-                        {diff?.status ||
-                          (diff ? 'No changed files on this version.' : 'Loading changes…')}
-                      </p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="dl-group">
-                    <div className="dl-task-check-head">
-                      <span>
-                        {view.checkpoint
-                          ? `Checkpoint ${view.checkpoint.number}`
-                          : pull
-                            ? `Checks for PR #${pull.number}`
-                            : 'Checks on this task'}
-                      </span>
-                      <Action
-                        variant="quiet"
-                        disabled
-                        title="Rerunning checks is not available for this version yet."
-                      >
-                        Run again
-                      </Action>
-                    </div>
-                    {checks.length ? (
-                      checks.map((check) => {
-                        const ok = ['passed', 'succeeded'].includes(check.status);
-                        const running = check.status === 'running';
-                        const endedAt = check.finishedAt || check.completedAt;
-                        const duration =
-                          check.startedAt && (running || endedAt)
-                            ? formatTime(
-                                check.startedAt,
-                                'elapsed',
-                                endedAt ? new Date(endedAt) : undefined,
-                              )
-                            : undefined;
-                        const label = ok
-                          ? 'Passed'
-                          : running
-                            ? 'Running'
-                            : check.status === 'failed'
-                              ? 'Failed'
-                              : check.status;
-                        return (
-                          <button
-                            type="button"
-                            className="dl-task-check"
-                            key={check.id}
-                            onClick={() => setSelectedCheck(check.id)}
-                            aria-pressed={(selectedCheck || checks[0]?.id) === check.id}
-                          >
-                            <Icon
-                              name={
-                                ok
-                                  ? 'check'
-                                  : running
-                                    ? 'running'
-                                    : check.status === 'failed'
-                                      ? 'close'
-                                      : 'clock'
-                              }
-                              className={
-                                ok
-                                  ? 'dl-ok'
-                                  : running
-                                    ? 'dl-run dl-spin'
-                                    : check.status === 'failed'
-                                      ? 'dl-fail'
-                                      : ''
-                              }
-                            />
-                            <span className="dl-t">
-                              <span>{check.name || check.command || check.id}</span>
-                              {check.command && <span className="dl-mono">{check.command}</span>}
-                            </span>
-                            <span className="dl-meta">
-                              {label}
-                              {duration && ` · ${duration}`}
-                            </span>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <p className="dl-meta dl-inset">
-                        {diff ? 'No checks recorded on this version.' : 'Checks unavailable.'}
-                      </p>
-                    )}
-                  </div>
-                  {!!checks.length && (
-                    <Term>
-                      {(checks.find((check) => check.id === selectedCheck) || checks[0]).output ||
-                        (checks.find((check) => check.id === selectedCheck) || checks[0]).error ||
-                        'No output recorded.'}
-                    </Term>
+                  {pull && view.project && (
+                    <PullDescription
+                      pull={pull}
+                      projectId={view.project.id}
+                      drafter={`Written by the agent${pull.createdAt ? ` · ${formatTime(pull.createdAt)}` : ''}`}
+                      onSaved={refresh}
+                    />
+                  )}
+                  {diff ? (
+                    <TaskFiles files={files} />
+                  ) : (
+                    !detailError && <Skeleton rows={4} label="Loading changes" />
+                  )}
+                  {diff && !files.length && (
+                    <p className="dl-meta">{diff.status || 'No changed files on this version.'}</p>
                   )}
                 </>
+              ) : !diff && pull ? (
+                !detailError && <Skeleton rows={3} label="Loading checks" />
+              ) : (
+                <TaskChecks
+                  view={view}
+                  checks={currentChecks}
+                  checkpoint={checkpoint}
+                  earlier={earlier}
+                />
               )}
             </div>
           )}
         </div>
         {tab === 'chat' && (
-          <div className="dl-dock">
+          <div className="dl-dock dl-task-wrap">
             <Composer
               key={sent}
               project={view.project?.name || 'New task'}
               computer={view.computer || 'Unavailable'}
-              model={view.run?.model || 'Default'}
+              model={view.run?.modelName || view.run?.model || 'Default'}
               loading={busy}
               onSend={(text) =>
                 void act(async () => {
@@ -733,15 +485,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
           </div>
         )}
       </div>
-      <TaskPanel
-        view={view}
-        files={files}
-        checks={checks}
-        detailsAvailable={!!diff && !detailError}
-        base={base}
-        onShip={() => setShipOpen(true)}
-        onClose={() => setPanel(false)}
-      />
+      <TaskPanel view={view} base={base} onClose={() => setPanel(false)} />
       <ShipDialog
         open={shipOpen}
         onClose={() => setShipOpen(false)}
@@ -754,7 +498,4 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
       />
     </div>
   );
-}
-function agentLabel(adapter?: string) {
-  return adapter === 'claude' ? 'Claude' : adapter === 'codex' ? 'Codex' : 'the agent';
 }
