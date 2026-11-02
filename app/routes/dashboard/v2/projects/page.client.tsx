@@ -337,7 +337,7 @@ function ProjectPage({
         }
       />
       <div className="dl-scroll">
-        <div className="dl-page v2-project-page v2-project-detail">
+        <div className="dl-page wide v2-project-page v2-project-detail">
           {overview.error && (
             <Banner
               title={overview.error}
