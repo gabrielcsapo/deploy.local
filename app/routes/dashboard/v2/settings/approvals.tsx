@@ -43,7 +43,7 @@ export function AgentRules({ agent }: { agent: Agent }) {
     <>
       {error && <Banner kind="danger" title={error} />}
       <SettingsList
-        title="Approvals"
+        title={<h2 className="dl-section-title">Approvals</h2>}
         note="Merging and rolling back always show you what changes first."
       >
         {rules ? (
@@ -98,17 +98,25 @@ export function Approvals() {
       (a) =>
         rules.find((r) => r.agent === agent.id && r.action === a.id && !r.projectId)?.mode ?? 'ask',
     );
-    if (entries.every((m) => m === 'ask')) return 'Asks before every action';
-    return agentActions.map((a, i) => `${a.name}: ${labels[entries[i]]}`).join(' · ');
+    if (entries.every((m) => m === 'ask')) return 'Asks before everything';
+    if (entries[0] === 'allow' && entries.slice(1).every((m) => m === 'ask'))
+      return 'Starts tasks · asks before the rest';
+    return 'Custom approvals';
   }
   return (
     <div className="dl-agent-fields">
-      <h1 className="dl-section-title">What agents may do</h1>
+      <section className="dl-section">
+        <h1 className="dl-section-title">What agents may do</h1>
+        <p className="dl-section-sub">
+          Each agent starts by asking. Trust grows one action at a time, and every answer is in{' '}
+          <a className="dl-link" href="/dashboard/inbox?tab=answered">
+            Answered
+          </a>
+          .
+        </p>
+      </section>
       {error && <Banner kind="danger" title={error} />}
-      <SettingsList
-        title="Agents"
-        note="Each agent starts by asking. Trust grows one action at a time."
-      >
+      <SettingsList title={<h2 className="dl-section-title">Agents</h2>}>
         {agents?.map((agent) => (
           <SettingsRow
             key={agent.id}
@@ -123,6 +131,7 @@ export function Approvals() {
         )}
         {!agents && <Skeleton rows={5} />}
       </SettingsList>
+      <ReleaseChecks onChanged={setRules} />
       <Dialog
         open={!!selected}
         title={selected?.name ?? 'Agent rules'}
@@ -132,5 +141,71 @@ export function Approvals() {
         {selected && <AgentRules key={selected.id} agent={selected} />}
       </Dialog>
     </div>
+  );
+}
+
+function ReleaseChecks({ onChanged }: { onChanged: (rules: Rule[]) => void }) {
+  const [rules, setRules] = useState<Rule[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    request('/approvals')
+      .then((v) => setRules(v.rules))
+      .catch((e) => setError(e.message));
+  }, []);
+  const current = rules?.find(
+    (rule) => rule.agent === 'warden' && rule.action === 'rollback' && !rule.projectId,
+  );
+  async function change(mode: Rule['mode']) {
+    setBusy(true);
+    setError('');
+    try {
+      const latest: Rule[] = (await request('/approvals')).rules;
+      const old = latest.find(
+        (rule) => rule.agent === 'warden' && rule.action === 'rollback' && !rule.projectId,
+      );
+      const rule: Rule = {
+        ...(old ?? { id: crypto.randomUUID(), agent: 'warden', action: 'rollback' }),
+        mode,
+      };
+      const result = await request('/approvals', 'PUT', {
+        rules: [...latest.filter((entry) => entry.id !== rule.id), rule],
+      });
+      setRules(result.rules);
+      onChanged(result.rules);
+    } catch (failure: any) {
+      setError(failure.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="dl-section">
+      <h2 className="dl-section-title">After a failed release</h2>
+      {error && <Banner kind="danger" title={error} />}
+      <div className="dl-group">
+        <SettingsRow
+          title="Roll back a release"
+          subtitle="When health checks fail after a release"
+          value={
+            <select
+              className="dl-agent-select"
+              aria-label="Roll back a release"
+              disabled={busy || !rules}
+              value={current?.mode ?? 'ask'}
+              onChange={(e) => void change(e.target.value as Rule['mode'])}
+            >
+              <option value="ask">Ask me</option>
+              <option value="allow">Allowed</option>
+              <option value="never">Never</option>
+            </select>
+          }
+        />
+      </div>
+      <p className="dl-list-note">
+        deploy.local checks each release’s health. When a release fails, it can put the previous one
+        back.
+      </p>
+    </section>
   );
 }

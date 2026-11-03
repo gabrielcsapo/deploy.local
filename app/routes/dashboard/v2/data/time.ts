@@ -1,7 +1,7 @@
 /** Short, local calendar labels shared by task pages and conversation decisions. */
 export function formatTime(
   value: string | number | Date | undefined,
-  style: 'relative' | 'elapsed' | 'clock' | 'day' = 'relative',
+  style: 'relative' | 'elapsed' | 'clock' | 'day' | 'list' = 'relative',
   now: Date = new Date(),
 ) {
   if (value === undefined) return 'Unavailable';
@@ -14,6 +14,16 @@ export function formatTime(
   yesterday.setDate(yesterday.getDate() - 1);
   const sameDay = date.toDateString() === now.toDateString();
   const previousDay = date.toDateString() === yesterday.toDateString();
+  if (style === 'list') {
+    if (now.getTime() - date.getTime() < 60000) return 'now';
+    if (sameDay)
+      return `${date.getHours() % 12 || 12}:${String(date.getMinutes()).padStart(2, '0')}`;
+    if (previousDay) return 'Yesterday';
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    if (date >= weekAgo) return date.toLocaleDateString('en-US', { weekday: 'short' });
+    return `${date.getDate()} ${date.toLocaleDateString('en-US', { month: 'short' })}`;
+  }
   if (style === 'day') {
     if (sameDay) return 'Today';
     if (previousDay) return 'Yesterday';

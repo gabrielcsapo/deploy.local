@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Action, Banner, Composer, Skeleton } from '@/components/ui';
+import { Action, Banner, Composer, Icon, Skeleton } from '@/components/ui';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
 import type {
   AgentConfiguration as Agent,
@@ -8,10 +8,10 @@ import type {
   ConversationEvent,
   LooksAfterItem,
 } from '../../../../../shared/v2/contracts';
-import { agentSuggestions, itemSummary, itemWhen } from '../../../../../shared/v2/agents';
+import { agentSuggestions, itemSummary, itemWhen, weekDays } from '../../../../../shared/v2/agents';
 import { ConversationItem } from '../conversation/Conversation';
 import { formatTime } from '../data/time';
-import { LooksAfterEditor, LooksAfterList } from './item';
+import { LooksAfterEditor, itemHistoryPath } from './item';
 import { request } from './shared';
 import { useResource } from '../data/hooks';
 export function AgentConversation({
@@ -69,15 +69,49 @@ export function AgentConversation({
   }
   const groups = Map.groupBy(events ?? [], (e) => formatTime(e.at, 'day'));
   function render(event: ConversationEvent) {
+    const task =
+      event.kind === 'task'
+        ? tracking?.running.find((entry) => entry.id === event.taskId)
+        : undefined;
     return (
-      <div key={event.id}>
-        {event.kind === 'reply' && (
-          <div className="dl-agent-decision-author">
+      <div key={event.id} className="dl-agent-event">
+        {event.kind === 'reply' &&
+          !events
+            ?.slice(0, events.indexOf(event))
+            .some(
+              (entry) =>
+                entry.kind === 'reply' &&
+                entry.agent === event.agent &&
+                formatTime(entry.at, 'day') === formatTime(event.at, 'day'),
+            ) && (
+            <div className="dl-agent-decision-author">
+              <AgentAvatar id={agent.id} avatar={agent.avatar} />
+              <span>{agent.name}</span>
+            </div>
+          )}
+        {event.kind === 'task' ? (
+          <a
+            className="dl-item dl-agent-task"
+            href={`/dashboard/tasks/${encodeURIComponent(event.taskId)}`}
+          >
             <AgentAvatar id={agent.id} avatar={agent.avatar} />
-            <span>{agent.name}</span>
-          </div>
+            <span className="dl-t">
+              <span>
+                {task?.title ??
+                  tracking?.runs?.find((entry) => entry.id === event.taskId)?.title ??
+                  event.taskId}
+              </span>
+              <span>
+                Task ·{' '}
+                {task?.computer ? `Running on ${task.computer}` : task ? 'Running' : 'Started'} ·{' '}
+                {formatTime(event.at).toLowerCase()}
+              </span>
+            </span>
+            <Icon name="chevron" />
+          </a>
+        ) : (
+          <ConversationItem event={event} resources={{ tasks: tracking?.running }} />
         )}
-        <ConversationItem event={event} resources={{ tasks: tracking?.running }} />
         {event.kind === 'reply' &&
           event.receipts?.map((receipt, i) =>
             receipt.kind === 'job' ? (
@@ -93,7 +127,7 @@ export function AgentConversation({
                 return item ? (
                   <div className="dl-agent-receipt" key={i}>
                     {item.confirmedAt
-                      ? `Confirmed · first check ${itemWhen(item)}`
+                      ? `Confirmed · first check ${item.when.every === 'week' ? `${weekDays[item.when.day ?? 1]} ${item.when.time}` : itemWhen(item)}`
                       : `Now looks after: ${item.what.split('\n')[0]} · ${itemSummary(item, projects)}`}{' '}
                     ·{' '}
                     {!item.confirmedAt && (
@@ -108,9 +142,9 @@ export function AgentConversation({
                         ·{' '}
                       </>
                     )}
-                    <Action variant="quiet" onClick={() => setEdit(item)}>
+                    <button type="button" className="dl-link" onClick={() => setEdit(item)}>
                       Edit
-                    </Action>
+                    </button>
                   </div>
                 ) : null;
               })()
@@ -124,6 +158,16 @@ export function AgentConversation({
       <div className="dl-agent-chat-main">
         <div className="dl-scroll">
           <div className="dl-agent-chat">
+            {agent.looksAfter
+              ?.filter((item) => item.confirmedAt)
+              .map((item) => (
+                <p className="dl-meta" key={item.id}>
+                  Looks after: {item.what.split('\n')[0]} · {itemWhen(item)} ·{' '}
+                  <a className="dl-link" href={itemHistoryPath(agent.id, item.id)}>
+                    History
+                  </a>
+                </p>
+              ))}
             {error && <Banner kind="danger" title={error} />}{' '}
             {!events && !error && <Skeleton rows={4} />}{' '}
             {events?.length === 0 && (
@@ -157,17 +201,13 @@ export function AgentConversation({
           </div>
         </div>
         <div className="dl-agent-composer">
-          <Composer project={agent.name} suggestedText={suggestion} />
+          <Composer
+            project={null}
+            computer={tracking?.running.find((task) => task.computer)?.computer ?? null}
+            suggestedText={suggestion}
+          />
         </div>
       </div>
-      {!!agent.looksAfter?.length && (
-        <aside className="dl-agent-tracking">
-          <LooksAfterList agent={agent} onSaved={onChanged} />
-          <a className="dl-link" href={`/dashboard${path}/tune`}>
-            Agent details
-          </a>
-        </aside>
-      )}
       {edit && (
         <LooksAfterEditor
           agent={agent}

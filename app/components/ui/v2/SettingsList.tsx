@@ -8,7 +8,7 @@ export function SettingsList({
   children,
   end,
 }: {
-  title: string;
+  title: ReactNode;
   note?: ReactNode;
   children: ReactNode;
   end?: ReactNode;

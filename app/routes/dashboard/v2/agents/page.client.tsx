@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import { Action, Banner, Dialog, Empty, Field, Skeleton } from '@/components/ui';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
@@ -7,6 +7,7 @@ import { SettingsList, SettingsRow } from '@/components/ui/v2/SettingsList';
 import type { AgentConfiguration as Agent, Project } from '../../../../../shared/v2/contracts';
 import { avatarFromId, randomAgentAvatar } from '../../../../../shared/v2/agents';
 import { AgentHead, request } from './shared';
+import { AgentHistory } from './history';
 import { AgentConversation } from './conversation';
 import { AgentIdentity } from './identity';
 import { LooksAfterList } from './item';
@@ -21,7 +22,14 @@ export default function Agents() {
   ) : agentId === 'new' ? (
     <NewAgent />
   ) : (
-    <ExistingAgent key={agentId} agentId={agentId} tune={pathname.endsWith('/tune')} />
+    <ExistingAgent
+      key={agentId}
+      agentId={agentId}
+      tune={pathname.endsWith('/tune')}
+      historyItemId={
+        pathname.endsWith('/history') ? decodeURIComponent(pathname.split('/')[5] || '') : undefined
+      }
+    />
   );
 }
 function AgentsLanding() {
@@ -38,16 +46,18 @@ function AgentsLanding() {
       ) : error ? (
         <Banner kind="danger" title="Agents are unavailable. Try again." />
       ) : !data?.agents.length ? (
-        <Empty
-          title="Make an agent to talk to"
-          actions={
-            <a className="dl-btn primary" href="/dashboard/agents/new">
-              New agent
-            </a>
-          }
-        >
-          Give it a name. Teach it what to do in the chat.
-        </Empty>
+        <div className="dl-agent-empty">
+          <Empty
+            title="Make an agent to talk to"
+            actions={
+              <a className="dl-btn primary" href="/dashboard/agents/new">
+                New agent
+              </a>
+            }
+          >
+            Give it a name. Teach it what to do in the chat.
+          </Empty>
+        </div>
       ) : null}
     </>
   );
@@ -95,6 +105,7 @@ function NewAgent() {
           {error && <Banner kind="danger" title={error} />}
           <AgentIdentity creating value={avatar} onChange={setAvatar} />
           <Field
+            data-dialog-focus
             label="Name"
             placeholder="Name your agent"
             value={name}
@@ -106,13 +117,21 @@ function NewAgent() {
     </>
   );
 }
-function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
+function ExistingAgent({
+  agentId,
+  tune,
+  historyItemId,
+}: {
+  agentId: string;
+  tune: boolean;
+  historyItemId?: string;
+}) {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const [editJob, setEditJob] = useState(false);
+  const jobField = useRef<HTMLTextAreaElement>(null);
   const path = `/agents/${encodeURIComponent(agentId)}`;
   useEffect(() => {
     let active = true;
@@ -180,10 +199,21 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
           tune ? (
             'Agent details'
           ) : (
-            <a className="dl-agent-identity" href={`/dashboard${path}/tune`}>
-              {agent && <AgentAvatar avatar={agent.avatar} id={agent.id} />}
-              <span className="dl-agent-name">{agent?.name || 'Agent'}</span>⌄
-            </a>
+            <span className="dl-agent-header">
+              {historyItemId && (
+                <a
+                  className="dl-icon-btn"
+                  href={`/dashboard${path}`}
+                  aria-label="Back to conversation"
+                >
+                  ‹
+                </a>
+              )}
+              <a className="dl-agent-identity" href={`/dashboard${path}/tune`}>
+                {agent && <AgentAvatar avatar={agent.avatar} id={agent.id} />}
+                <span className="dl-agent-name">{agent?.name || 'Agent'}</span>⌄
+              </a>
+            </span>
           )
         }
         actions={
@@ -207,6 +237,8 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
       {error && <Banner kind="danger" title={error} />}
       {!agent ? (
         <Skeleton rows={4} label="Loading agent" />
+      ) : historyItemId ? (
+        <AgentHistory agent={agent} itemId={historyItemId} onChanged={setAgent} />
       ) : tune ? (
         <div className="dl-scroll">
           <div className="dl-agent-form">
@@ -227,27 +259,25 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
                   ? 'Learned from your messages'
                   : 'Tell it what you want it to do in chat'}{' '}
                 ·{' '}
-                <Action variant="quiet" onClick={() => setEditJob(!editJob)}>
+                <button type="button" className="dl-link" onClick={() => jobField.current?.focus()}>
                   Edit
-                </Action>
+                </button>
               </p>
-              {editJob ? (
-                <textarea
-                  aria-label="What it does"
-                  className="dl-agent-instructions"
-                  value={agent.job}
-                  maxLength={12000}
-                  onChange={(e) => setAgent({ ...agent, job: e.target.value })}
-                />
-              ) : (
-                <p className="dl-agent-prose">{agent.job}</p>
-              )}
+              <textarea
+                ref={jobField}
+                aria-label="What it does"
+                className="dl-agent-instructions"
+                value={agent.job}
+                maxLength={12000}
+                onChange={(e) => setAgent({ ...agent, job: e.target.value })}
+              />
+
               <p className="dl-meta">
                 Changes apply to future replies and work. Existing messages stay as they were.
               </p>
             </section>
             <SettingsList
-              title="What it’s learned"
+              title={<h2 className="dl-section-title">What it's learned</h2>}
               note="Lessons come from your answers. It asks before keeping anything it worked out itself."
             >
               <SettingsRow title="Nothing learned yet. It learns from how you answer its work." />
@@ -256,7 +286,7 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
               agent={agent}
               onSaved={(updated) => setAgent({ ...agent, looksAfter: updated.looksAfter })}
             />
-            <SettingsList title="What it may use">
+            <SettingsList title={<h2 className="dl-section-title">What it may use</h2>}>
               <SettingsRow
                 title="Project"
                 subtitle="Choose one project, or no project"

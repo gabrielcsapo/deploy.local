@@ -89,6 +89,7 @@ export function LooksAfterEditor({
         <label>
           What
           <textarea
+            data-dialog-focus
             className="dl-agent-instructions"
             value={draft.what}
             onChange={(e) => setDraft({ ...draft, what: e.target.value })}
@@ -116,7 +117,10 @@ export function LooksAfterEditor({
           </select>
         </label>
         {typeof draft.where !== 'string' && (
-          <SettingsList title="Projects" note="Choosing a project never grants access.">
+          <SettingsList
+            title="Projects"
+            note={`${agent.projectId ? `Only ${projects.find((p) => p.id === agent.projectId)?.name ?? agent.projectId} is within this agent’s access. ` : ''}Choosing a project never grants access.`}
+          >
             {projects.map((p) => (
               <SettingsRow
                 key={p.id}
@@ -128,6 +132,7 @@ export function LooksAfterEditor({
                   <input
                     aria-label={p.name}
                     type="checkbox"
+                    disabled={!!agent.projectId && agent.projectId !== p.id}
                     checked={typeof draft.where !== 'string' && draft.where.projects.includes(p.id)}
                     onChange={(e) => {
                       const ids = typeof draft.where === 'string' ? [] : draft.where.projects;
@@ -235,59 +240,50 @@ export function LooksAfterList({
 }) {
   const projects = useResource<{ projects: Project[] }>('/api/v2/projects').data?.projects ?? [];
   const [edit, setEdit] = useState<LooksAfterItem | null>(null);
-  const [history, setHistory] = useState<LooksAfterItem | null>(null);
-  const [runs, setRuns] = useState<{ id: string; title: string; at: string; status: string }[]>([]);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    if (history) {
-      setRuns([]);
-      setError('');
-      request(
-        `/agents/${encodeURIComponent(agent.id)}/items/${encodeURIComponent(history.id)}/runs`,
-      )
-        .then((v) => setRuns(v.runs))
-        .catch((e) => setError(e.message));
-    }
-  }, [history, agent.id]);
   return (
     <>
-      <SettingsList
-        title="Looks after"
-        end={
-          <Action variant="quiet" onClick={() => setEdit(newLooksAfter())}>
-            + Add
-          </Action>
-        }
-        note="What · where · when · brings"
-      >
+      <section className="dl-section">
+        <div className="dl-agent-section-head">
+          <div>
+            <h2 className="dl-section-title">Looks after</h2>
+            <p className="dl-section-sub">What · where · when · brings</p>
+          </div>
+
+          <Action onClick={() => setEdit(newLooksAfter())}>Add</Action>
+        </div>
         {!agent.looksAfter?.length && (
-          <SettingsRow
-            title="Nothing to look after yet"
-            value="Add something in chat"
-            href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}
-          />
+          <div className="dl-group">
+            <SettingsRow
+              title="Nothing to look after yet"
+              subtitle="Add something in chat"
+              href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}
+            />
+          </div>
         )}
         {agent.looksAfter?.map((item) => (
           <div key={item.id}>
-            <SettingsRow
-              title={item.what.split('\n')[0]}
-              subtitle={itemSummary(item, projects)}
-              value="Edit"
-              onClick={() => setEdit(item)}
-            />
-            <div className="dl-item">
-              <Action variant="quiet" onClick={() => setHistory(item)}>
+            <div className="dl-group">
+              <SettingsRow
+                title={item.what.split('\n')[0]}
+                subtitle={itemSummary(item, projects)}
+                value={<span className="dl-link">Edit</span>}
+                onClick={() => setEdit(item)}
+              />
+            </div>
+            <p className="dl-meta dl-agent-item-history">
+              <a className="dl-link" href={itemHistoryPath(agent.id, item.id)}>
                 History
-              </Action>
-              <span className="dl-meta">
+              </a>{' '}
+              ·{' '}
+              <span>
                 {item.confirmedAt
-                  ? `Confirmed · Next ${item.when.every === 'change' ? 'change' : item.nextAt ? new Date(item.nextAt).toLocaleString([], { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: item.when.timezone }) : 'scheduled check'}`
+                  ? `Confirmed · Next ${item.when.every === 'change' ? 'change' : item.nextAt ? new Date(item.nextAt).toLocaleString('en-GB', { weekday: 'long', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: item.when.timezone }).replace(',', '') : 'scheduled check'}`
                   : 'Starts after you confirm'}
               </span>
-            </div>
+            </p>
           </div>
         ))}
-      </SettingsList>
+      </section>
       {edit && (
         <LooksAfterEditor
           agent={agent}
@@ -296,42 +292,10 @@ export function LooksAfterList({
           onSaved={onSaved}
         />
       )}
-      <Dialog
-        open={!!history}
-        title="History"
-        onClose={() => setHistory(null)}
-        actions={
-          <Action
-            disabled={!history?.confirmedAt}
-            onClick={() => {
-              if (history)
-                void request(
-                  `/agents/${encodeURIComponent(agent.id)}/items/${encodeURIComponent(history.id)}/run`,
-                  'POST',
-                )
-                  .then((v) =>
-                    window.location.assign(`/dashboard/tasks/${encodeURIComponent(v.task.id)}`),
-                  )
-                  .catch((e) => setError(e.message));
-            }}
-          >
-            Run now
-          </Action>
-        }
-      >
-        {error && <Banner kind="danger" title={error} />}
-        <SettingsList title={history?.what ?? 'History'}>
-          {runs.map((run) => (
-            <SettingsRow
-              key={run.id}
-              title={run.title}
-              subtitle={`${run.status} · ${new Date(run.at).toLocaleString()}`}
-              href={`/dashboard/tasks/${encodeURIComponent(run.id)}`}
-            />
-          ))}
-          {!runs.length && !error && <SettingsRow title="No runs yet" />}
-        </SettingsList>
-      </Dialog>
     </>
   );
+}
+
+export function itemHistoryPath(agentId: string, itemId: string) {
+  return `/dashboard/agents/${encodeURIComponent(agentId)}/items/${encodeURIComponent(itemId)}/history`;
 }

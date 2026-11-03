@@ -85,15 +85,20 @@
   text-align: center;
 }
 .dl-agent-suggestions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
   margin-top: 16px;
   width: 100%;
+  max-width: 620px;
 }
 .dl-agent-suggestions button {
   white-space: normal;
-  text-align: left;
+  text-align: center;
+  border-radius: var(--ds-radius-control);
+  min-height: 44px;
+  padding: 10px 14px;
 }
 .dl-agent-receipt {
   display: flex;
@@ -113,6 +118,7 @@
   min-width: 0;
 }
 .dl-nav .dl-t > span {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -160,9 +166,6 @@
 @media (max-width: 600px) {
   .dl-agent-glyphs {
     grid-template-columns: repeat(7, 1fr);
-  }
-  .dl-agent-suggestions {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -214,4 +217,22 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.dl-nav:has(.dl-agent-avatar) {
+  height: auto;
+  min-height: 52px;
+  gap: 10px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.dl-nav .dl-lead:has(.dl-agent-avatar) {
+  width: 28px;
+  flex: none;
+}
+
+.dl-list > .dl-group-head:has(.dl-section-title) {
+  padding: 0;
+  border: 0;
+  color: var(--ds-text);
 }

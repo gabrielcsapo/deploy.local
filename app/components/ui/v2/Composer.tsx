@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { formatTime } from '../../../routes/dashboard/v2/data/time';
 import { AgentAvatar } from './AgentAvatar';
 import type { AgentConfiguration } from '../../../../shared/v2/contracts';
 import { Icon, IconButton, type ComponentState } from './shared';
@@ -27,8 +28,8 @@ export function Composer({
   footer,
   suggestedText,
 }: ComponentState & {
-  project?: string;
-  computer?: string;
+  project?: string | null;
+  computer?: string | null;
   model?: string;
   onSend?: (text: string, message?: ComposerMessage) => void | Promise<void>;
   onAttach?: () => void;
@@ -236,12 +237,7 @@ export function Composer({
                   <span>{agent.lastMessage?.text || 'Say hello'}</span>
                 </span>
                 {agent.lastMessage && (
-                  <span className="dl-meta">
-                    {new Date(agent.lastMessage.at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
+                  <span className="dl-meta">{formatTime(agent.lastMessage.at, 'list')}</span>
                 )}
               </button>
             ))}
@@ -297,14 +293,18 @@ export function Composer({
               else setMenu('attach');
             }}
           />
-          <span className="dl-chip">
-            <Icon name="folder" size={14} />
-            {project}
-          </span>
-          <span className="dl-chip">
-            <Icon name="computer" size={14} />
-            {computer}
-          </span>
+          {project && (
+            <span className="dl-chip">
+              <Icon name="folder" size={14} />
+              {project}
+            </span>
+          )}
+          {computer && (
+            <span className="dl-chip">
+              <Icon name="computer" size={14} />
+              {computer}
+            </span>
+          )}
           <span className="dl-grow" />
           <button
             type="button"

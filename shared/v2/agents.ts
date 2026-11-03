@@ -43,7 +43,7 @@ export const weekDays = [
 export function itemWhen(item: LooksAfterItem) {
   return item.when.every === 'change'
     ? 'On each change'
-    : `${item.when.every === 'week' ? weekDays[item.when.day ?? 1] : 'Every day'} ${item.when.time}`;
+    : `${item.when.every === 'week' ? `${weekDays[item.when.day ?? 1]}s` : 'Every day'} ${item.when.time}`;
 }
 export function itemSummary(item: LooksAfterItem, projects: { id: string; name: string }[] = []) {
   const where =

@@ -87,6 +87,7 @@ export function AgentIdentity({
                   type="button"
                   key={glyph}
                   aria-label={glyph}
+                  data-dialog-focus={draft.glyph === glyph ? true : undefined}
                   aria-pressed={draft.glyph === glyph}
                   onClick={() => setDraft({ ...draft, glyph })}
                 >

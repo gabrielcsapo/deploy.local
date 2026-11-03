@@ -134,21 +134,6 @@
 .dl-agent-history .dl-agent-day {
   margin-top: 16px;
 }
-.dl-agent-tracking {
-  width: 320px;
-  flex: 0 0 320px;
-  border-left: 1px solid var(--ds-line);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  font-size: var(--ds-type-ui);
-}
-@media (max-width: 1179px) {
-  .dl-agent-tracking {
-    display: none;
-  }
-}
 @media (max-width: 599px) {
   .dl-agent-form,
   .dl-agent-chat,
@@ -175,9 +160,6 @@
   font-size: var(--ds-type-meta);
   color: var(--ds-secondary);
 }
-.dl-agent-tracking section .dl-item {
-  padding: 12px 0;
-}
 .dl-agent-template {
   width: 100%;
   text-align: left;
@@ -189,4 +171,75 @@
 }
 .dl-agent-template:disabled {
   cursor: default;
+}
+
+.dl-agent-event {
+  display: flex;
+  flex-direction: column;
+}
+.dl-agent-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dl-agent-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.dl-agent-item-history {
+  margin-top: 8px;
+}
+
+.dl-agent-form .dl-section > .dl-meta {
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+.dl-agent-form button.dl-link,
+.dl-agent-receipt button.dl-link,
+.dl-agent-chat button.dl-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.dl-agent-chat > .dl-btn {
+  align-self: flex-start;
+}
+
+.dl-agent-chat > button.dl-link {
+  align-self: flex-start;
+  min-height: 44px;
+}
+.dl-agent-section-head .dl-section-sub {
+  margin-bottom: 0;
+}
+.dl-agent-chat .dl-group > .dl-item .dl-t > span,
+.dl-agent-event > .dl-item .dl-t > span {
+  white-space: normal;
+}
+
+.dl-agent-event > .dl-agent-task {
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+}
+
+.dl-agent-form .dl-group > .dl-item {
+  width: 100%;
+  text-align: left;
+}
+
+.dl-agent-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.dl-agent-chat > .dl-meta {
+  margin: 0;
 }

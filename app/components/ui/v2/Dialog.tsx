@@ -27,8 +27,16 @@ export function Dialog({
     const dialog = ref.current;
     if (!dialog) return;
     const previous = document.activeElement;
-    if (open && !dialog.open) dialog.showModal();
-    else if (!open && dialog.open) dialog.close();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      const target =
+        dialog.querySelector<HTMLElement>('[data-dialog-focus]') ??
+        dialog.querySelector<HTMLElement>(
+          '.dl-dialog-body :is(input, textarea, select, button, a[href]):not(:disabled)',
+        ) ??
+        dialog.querySelector<HTMLElement>('.dl-dialog-foot button:not(:disabled)');
+      target?.focus();
+    } else if (!open && dialog.open) dialog.close();
     return () => {
       if (dialog.open) dialog.close();
       if (previous instanceof HTMLElement) previous.focus();
