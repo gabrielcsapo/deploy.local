@@ -1552,6 +1552,568 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — instructions saved, routine proposed"
+    },
+    "AgentBeat.html": {
+      "x": 20760,
+      "y": 29964,
+      "w": 1440,
+      "h": 900,
+      "title": "Teach a beat in chat with an attributed, editable receipt.",
+      "expand": "fill"
+    },
+    "AgentBeatPhone.html": {
+      "x": 22280,
+      "y": 29964,
+      "w": 390,
+      "h": 844,
+      "title": "Teach a beat in chat with an attributed, editable receipt."
+    },
+    "AgentCareDetails.html": {
+      "x": 22750,
+      "y": 29964,
+      "w": 1440,
+      "h": 900,
+      "title": "Code reviewer’s configured beat, access scope and stopped suggestions.",
+      "expand": "fill"
+    },
+    "AgentCareDetailsPhone.html": {
+      "x": 24270,
+      "y": 29964,
+      "w": 390,
+      "h": 844,
+      "title": "Code reviewer’s configured beat, access scope and stopped suggestions."
+    },
+    "AgentBeatProjects.html": {
+      "x": 24740,
+      "y": 29964,
+      "w": 1440,
+      "h": 900,
+      "title": "Chosen-project beat editor, constrained by access and stage.",
+      "expand": "fill"
+    },
+    "AgentBeatProjectsPhone.html": {
+      "x": 26260,
+      "y": 29964,
+      "w": 390,
+      "h": 844,
+      "title": "Chosen-project beat editor, constrained by access and stage."
+    },
+    "ProjectsCare.html": {
+      "x": 20760,
+      "y": 31104,
+      "w": 1440,
+      "h": 900,
+      "title": "Projects grouped by owner-set stage, with care and Done entries.",
+      "expand": "fill"
+    },
+    "ProjectsCarePhone.html": {
+      "x": 22280,
+      "y": 31104,
+      "w": 390,
+      "h": 844,
+      "title": "Projects grouped by owner-set stage, with care and Done entries."
+    },
+    "ProjectCare.html": {
+      "x": 22750,
+      "y": 31104,
+      "w": 1440,
+      "h": 900,
+      "title": "Care: stage, health, agent beats, weekly activity, proposals and reached PR limit.",
+      "expand": "fill"
+    },
+    "ProjectCarePhone.html": {
+      "x": 24270,
+      "y": 31104,
+      "w": 390,
+      "h": 844,
+      "title": "Care: stage, health, agent beats, weekly activity, proposals and reached PR limit."
+    },
+    "ProjectCareUnassigned.html": {
+      "x": 24740,
+      "y": 31104,
+      "w": 1440,
+      "h": 900,
+      "title": "Care edge state: No agent looks after tally yet.",
+      "expand": "fill"
+    },
+    "ProjectCareQuiet.html": {
+      "x": 26260,
+      "y": 31104,
+      "w": 1440,
+      "h": 900,
+      "title": "Care edge state: Nothing proposed. Your team checked tally on Monday.",
+      "expand": "fill"
+    },
+    "ProjectCareUnassignedPhone.html": {
+      "x": 27780,
+      "y": 31104,
+      "w": 390,
+      "h": 844,
+      "title": "Care edge state: No agent looks after tally yet."
+    },
+    "ProjectCareQuietPhone.html": {
+      "x": 28250,
+      "y": 31104,
+      "w": 390,
+      "h": 844,
+      "title": "Care edge state: Nothing proposed. Your team checked tally on Monday."
+    },
+    "ProposalFix.html": {
+      "x": 20760,
+      "y": 32244,
+      "w": 1440,
+      "h": 900,
+      "title": "Fix proposal: evidence, scope, size and three answers.",
+      "expand": "fill"
+    },
+    "ProposalFixPhone.html": {
+      "x": 22280,
+      "y": 32244,
+      "w": 390,
+      "h": 844,
+      "title": "Fix proposal: evidence, scope, size and three answers."
+    },
+    "ProposalFeature.html": {
+      "x": 22750,
+      "y": 32244,
+      "w": 1440,
+      "h": 900,
+      "title": "Feature idea proposal: evidence, scope, size and three answers.",
+      "expand": "fill"
+    },
+    "ProposalFeaturePhone.html": {
+      "x": 24270,
+      "y": 32244,
+      "w": 390,
+      "h": 844,
+      "title": "Feature idea proposal: evidence, scope, size and three answers."
+    },
+    "ProposalDesign.html": {
+      "x": 24740,
+      "y": 32244,
+      "w": 1440,
+      "h": 900,
+      "title": "Design proposal: evidence, scope, size and three answers.",
+      "expand": "fill"
+    },
+    "ProposalDesignPhone.html": {
+      "x": 26260,
+      "y": 32244,
+      "w": 390,
+      "h": 844,
+      "title": "Design proposal: evidence, scope, size and three answers."
+    },
+    "ProposalUpdate.html": {
+      "x": 26730,
+      "y": 32244,
+      "w": 1440,
+      "h": 900,
+      "title": "Update proposal: evidence, scope, size and three answers.",
+      "expand": "fill"
+    },
+    "ProposalUpdatePhone.html": {
+      "x": 28250,
+      "y": 32244,
+      "w": 390,
+      "h": 844,
+      "title": "Update proposal: evidence, scope, size and three answers."
+    },
+    "ProposalImprovement.html": {
+      "x": 28720,
+      "y": 32244,
+      "w": 1440,
+      "h": 900,
+      "title": "Improvement proposal: evidence, scope, size and three answers.",
+      "expand": "fill"
+    },
+    "ProposalImprovementPhone.html": {
+      "x": 30240,
+      "y": 32244,
+      "w": 390,
+      "h": 844,
+      "title": "Improvement proposal: evidence, scope, size and three answers."
+    },
+    "WaitingCarePhone.html": {
+      "x": 30710,
+      "y": 32244,
+      "w": 390,
+      "h": 844,
+      "title": "Care proposals mixed with merge and question decisions."
+    },
+    "ProposalEvidence.html": {
+      "x": 31180,
+      "y": 32244,
+      "w": 1440,
+      "h": 900,
+      "title": "Update evidence separates reported release changes from checks still needed.",
+      "expand": "fill"
+    },
+    "ProposalEvidencePhone.html": {
+      "x": 32700,
+      "y": 32244,
+      "w": 390,
+      "h": 844,
+      "title": "Update evidence separates reported release changes from checks still needed."
+    },
+    "CareTask.html": {
+      "x": 20760,
+      "y": 33384,
+      "w": 1440,
+      "h": 900,
+      "title": "After a proposal: Test the workout sync paths.",
+      "expand": "fill"
+    },
+    "CareTaskPhone.html": {
+      "x": 22280,
+      "y": 33384,
+      "w": 390,
+      "h": 844,
+      "title": "After a proposal: Test the workout sync paths."
+    },
+    "CareDesignTask.html": {
+      "x": 22750,
+      "y": 33384,
+      "w": 1440,
+      "h": 900,
+      "title": "After a proposal: A calmer Tally header.",
+      "expand": "fill"
+    },
+    "CareDesignTaskPhone.html": {
+      "x": 24270,
+      "y": 33384,
+      "w": 390,
+      "h": 844,
+      "title": "After a proposal: A calmer Tally header."
+    },
+    "CareUpdateTask.html": {
+      "x": 24740,
+      "y": 33384,
+      "w": 1440,
+      "h": 900,
+      "title": "After a proposal: Prepare the Immich update.",
+      "expand": "fill"
+    },
+    "CareUpdateTaskPhone.html": {
+      "x": 26260,
+      "y": 33384,
+      "w": 390,
+      "h": 844,
+      "title": "After a proposal: Prepare the Immich update."
+    },
+    "ProposalDeferred.html": {
+      "x": 26730,
+      "y": 33384,
+      "w": 1440,
+      "h": 900,
+      "title": "After a proposal: Not now.",
+      "expand": "fill"
+    },
+    "ProposalDeferredPhone.html": {
+      "x": 28250,
+      "y": 33384,
+      "w": 390,
+      "h": 844,
+      "title": "After a proposal: Not now."
+    },
+    "ProposalSuppressed.html": {
+      "x": 28720,
+      "y": 33384,
+      "w": 1440,
+      "h": 900,
+      "title": "After a proposal: Stopped suggesting this.",
+      "expand": "fill"
+    },
+    "ProposalSuppressedPhone.html": {
+      "x": 30240,
+      "y": 33384,
+      "w": 390,
+      "h": 844,
+      "title": "After a proposal: Stopped suggesting this."
+    },
+    "ProposalStale.html": {
+      "x": 30710,
+      "y": 33384,
+      "w": 1440,
+      "h": 900,
+      "title": "After a proposal: This no longer applies.",
+      "expand": "fill"
+    },
+    "ProposalStalePhone.html": {
+      "x": 32230,
+      "y": 33384,
+      "w": 390,
+      "h": 844,
+      "title": "After a proposal: This no longer applies."
+    },
+    "CareDesignReview.html": {
+      "x": 20760,
+      "y": 34524,
+      "w": 1440,
+      "h": 900,
+      "title": "Second approval: Before/After design review before implementation.",
+      "expand": "fill"
+    },
+    "CareDesignReviewPhone.html": {
+      "x": 22280,
+      "y": 34524,
+      "w": 390,
+      "h": 844,
+      "title": "Second approval: Before/After design review before implementation."
+    },
+    "CareBuildQueued.html": {
+      "x": 22750,
+      "y": 34524,
+      "w": 1440,
+      "h": 900,
+      "title": "Approved design, build queued at the project PR limit.",
+      "expand": "fill"
+    },
+    "CareBuildQueuedPhone.html": {
+      "x": 24270,
+      "y": 34524,
+      "w": 390,
+      "h": 844,
+      "title": "Approved design, build queued at the project PR limit."
+    },
+    "WeeklySummary.html": {
+      "x": 20760,
+      "y": 35664,
+      "w": 1440,
+      "h": 900,
+      "title": "Monday message in Home, with per-project work and decisions.",
+      "expand": "fill"
+    },
+    "WeeklySummaryPhone.html": {
+      "x": 22280,
+      "y": 35664,
+      "w": 390,
+      "h": 844,
+      "title": "Monday team message on Work, sourced from linked event records."
+    },
+    "CareActivity.html": {
+      "x": 22750,
+      "y": 35664,
+      "w": 1440,
+      "h": 900,
+      "title": "Linked fixture records behind care and the weekly summary.",
+      "expand": "fill"
+    },
+    "CareActivityPhone.html": {
+      "x": 24270,
+      "y": 35664,
+      "w": 390,
+      "h": 844,
+      "title": "Linked fixture records behind care and the weekly summary."
+    },
+    "ProposalArchive.html": {
+      "x": 20760,
+      "y": 36804,
+      "w": 1440,
+      "h": 900,
+      "title": "Archive review with explicit stop, retained backup, read-only repository and restore contract.",
+      "expand": "fill"
+    },
+    "ProposalArchivePhone.html": {
+      "x": 22280,
+      "y": 36804,
+      "w": 390,
+      "h": 844,
+      "title": "Archive review with explicit stop, retained backup, read-only repository and restore contract."
+    },
+    "ProposalArchiveManual.html": {
+      "x": 22750,
+      "y": 36804,
+      "w": 1440,
+      "h": 900,
+      "title": "Archive review with explicit stop, retained backup, read-only repository and restore contract.",
+      "expand": "fill"
+    },
+    "ProposalArchiveManualPhone.html": {
+      "x": 24270,
+      "y": 36804,
+      "w": 390,
+      "h": 844,
+      "title": "Archive review with explicit stop, retained backup, read-only repository and restore contract."
+    },
+    "ArchiveProgress.html": {
+      "x": 24740,
+      "y": 36804,
+      "w": 1440,
+      "h": 900,
+      "title": "Archive progress without an invented completion.",
+      "expand": "fill"
+    },
+    "ArchiveProgressPhone.html": {
+      "x": 26260,
+      "y": 36804,
+      "w": 390,
+      "h": 844,
+      "title": "Archive progress without an invented completion."
+    },
+    "ArchiveFailed.html": {
+      "x": 26730,
+      "y": 36804,
+      "w": 1440,
+      "h": 900,
+      "title": "Archive failure keeps data and stage; retry verifies the backup.",
+      "expand": "fill"
+    },
+    "ArchiveFailedPhone.html": {
+      "x": 28250,
+      "y": 36804,
+      "w": 390,
+      "h": 844,
+      "title": "Archive failure keeps data and stage; retry verifies the backup."
+    },
+    "ArchiveSuppressed.html": {
+      "x": 28720,
+      "y": 36804,
+      "w": 1440,
+      "h": 900,
+      "title": "Archive-specific suppression with Undo.",
+      "expand": "fill"
+    },
+    "ArchiveSuppressedPhone.html": {
+      "x": 30240,
+      "y": 36804,
+      "w": 390,
+      "h": 844,
+      "title": "Archive-specific suppression with Undo."
+    },
+    "ProjectDone.html": {
+      "x": 30710,
+      "y": 36804,
+      "w": 1440,
+      "h": 900,
+      "title": "Done project with one-button restore and a precise restore contract.",
+      "expand": "fill"
+    },
+    "ProjectDonePhone.html": {
+      "x": 32230,
+      "y": 36804,
+      "w": 390,
+      "h": 844,
+      "title": "Done project with one-button restore and a precise restore contract."
+    },
+    "ProjectRestoring.html": {
+      "x": 32700,
+      "y": 36804,
+      "w": 1440,
+      "h": 900,
+      "title": "Restore in progress; no invented success and apps stay stopped.",
+      "expand": "fill"
+    },
+    "ProjectRestoringPhone.html": {
+      "x": 34220,
+      "y": 36804,
+      "w": 390,
+      "h": 844,
+      "title": "Restore in progress; no invented success and apps stay stopped."
+    },
+    "TeamLimits.html": {
+      "x": 20760,
+      "y": 37944,
+      "w": 1440,
+      "h": 900,
+      "title": "Owner proposal cap, per-project PR budget, quiet hours and stage defaults.",
+      "expand": "fill"
+    },
+    "TeamLimitsPhone.html": {
+      "x": 22280,
+      "y": 37944,
+      "w": 390,
+      "h": 844,
+      "title": "Owner proposal cap, per-project PR budget, quiet hours and stage defaults."
+    },
+    "ProjectStage.html": {
+      "x": 22750,
+      "y": 37944,
+      "w": 1440,
+      "h": 900,
+      "title": "Owner stage control; Done opens archive review.",
+      "expand": "fill"
+    },
+    "ProjectStagePhone.html": {
+      "x": 24270,
+      "y": 37944,
+      "w": 390,
+      "h": 844,
+      "title": "Owner stage control; Done opens archive review."
+    },
+    "ProjectMaintained.html": {
+      "x": 24740,
+      "y": 37944,
+      "w": 1440,
+      "h": 900,
+      "title": "Confirm stage change and withdrawal of incompatible proposals.",
+      "expand": "fill"
+    },
+    "ProjectMaintainedPhone.html": {
+      "x": 26260,
+      "y": 37944,
+      "w": 390,
+      "h": 844,
+      "title": "Confirm stage change and withdrawal of incompatible proposals."
+    },
+    "ProjectMaintainedSet.html": {
+      "x": 26730,
+      "y": 37944,
+      "w": 1440,
+      "h": 900,
+      "title": "Owner-set Maintained state.",
+      "expand": "fill"
+    },
+    "ProjectMaintainedSetPhone.html": {
+      "x": 28250,
+      "y": 37944,
+      "w": 390,
+      "h": 844,
+      "title": "Owner-set Maintained state."
+    },
+    "CareFeatureTask.html": {
+      "x": 20760,
+      "y": 39700,
+      "w": 1440,
+      "h": 900,
+      "title": "Reset the count from your phone",
+      "expand": "fill"
+    },
+    "CareImprovementTask.html": {
+      "x": 20760,
+      "y": 40840,
+      "w": 1440,
+      "h": 900,
+      "title": "Simplify the release-state check",
+      "expand": "fill"
+    },
+    "ArchiveManualProgress.html": {
+      "x": 20760,
+      "y": 41980,
+      "w": 1440,
+      "h": 900,
+      "title": "Archiving tally",
+      "expand": "fill"
+    },
+    "CareFeatureTaskPhone.html": {
+      "x": 22280,
+      "y": 39700,
+      "w": 390,
+      "h": 844,
+      "title": "Reset the count from your phone"
+    },
+    "CareImprovementTaskPhone.html": {
+      "x": 22280,
+      "y": 40840,
+      "w": 390,
+      "h": 844,
+      "title": "Simplify the release-state check"
+    },
+    "ArchiveManualProgressPhone.html": {
+      "x": 22280,
+      "y": 41980,
+      "w": 390,
+      "h": 844,
+      "title": "Archiving tally"
     }
   },
   "order": [
@@ -1760,7 +2322,82 @@
     "DesignConnections.html",
     "QuestionDecision.html",
     "QuestionDecisionPhone.html",
-    "WorkEmptyTodayPhone.html"
+    "WorkEmptyTodayPhone.html",
+    "AgentBeat.html",
+    "AgentBeatPhone.html",
+    "AgentCareDetails.html",
+    "AgentCareDetailsPhone.html",
+    "AgentBeatProjects.html",
+    "AgentBeatProjectsPhone.html",
+    "ProjectsCare.html",
+    "ProjectsCarePhone.html",
+    "ProjectCare.html",
+    "ProjectCarePhone.html",
+    "ProjectCareUnassigned.html",
+    "ProjectCareQuiet.html",
+    "ProjectCareUnassignedPhone.html",
+    "ProjectCareQuietPhone.html",
+    "ProposalFix.html",
+    "ProposalFixPhone.html",
+    "ProposalFeature.html",
+    "ProposalFeaturePhone.html",
+    "ProposalDesign.html",
+    "ProposalDesignPhone.html",
+    "ProposalUpdate.html",
+    "ProposalUpdatePhone.html",
+    "ProposalImprovement.html",
+    "ProposalImprovementPhone.html",
+    "WaitingCarePhone.html",
+    "ProposalEvidence.html",
+    "ProposalEvidencePhone.html",
+    "CareTask.html",
+    "CareTaskPhone.html",
+    "CareDesignTask.html",
+    "CareDesignTaskPhone.html",
+    "CareUpdateTask.html",
+    "CareUpdateTaskPhone.html",
+    "ProposalDeferred.html",
+    "ProposalDeferredPhone.html",
+    "ProposalSuppressed.html",
+    "ProposalSuppressedPhone.html",
+    "ProposalStale.html",
+    "ProposalStalePhone.html",
+    "CareDesignReview.html",
+    "CareDesignReviewPhone.html",
+    "CareBuildQueued.html",
+    "CareBuildQueuedPhone.html",
+    "WeeklySummary.html",
+    "WeeklySummaryPhone.html",
+    "CareActivity.html",
+    "CareActivityPhone.html",
+    "ProposalArchive.html",
+    "ProposalArchivePhone.html",
+    "ProposalArchiveManual.html",
+    "ProposalArchiveManualPhone.html",
+    "ArchiveProgress.html",
+    "ArchiveProgressPhone.html",
+    "ArchiveFailed.html",
+    "ArchiveFailedPhone.html",
+    "ArchiveSuppressed.html",
+    "ArchiveSuppressedPhone.html",
+    "ProjectDone.html",
+    "ProjectDonePhone.html",
+    "ProjectRestoring.html",
+    "ProjectRestoringPhone.html",
+    "TeamLimits.html",
+    "TeamLimitsPhone.html",
+    "ProjectStage.html",
+    "ProjectStagePhone.html",
+    "ProjectMaintained.html",
+    "ProjectMaintainedPhone.html",
+    "ProjectMaintainedSet.html",
+    "ProjectMaintainedSetPhone.html",
+    "CareFeatureTask.html",
+    "CareImprovementTask.html",
+    "ArchiveManualProgress.html",
+    "CareFeatureTaskPhone.html",
+    "CareImprovementTaskPhone.html",
+    "ArchiveManualProgressPhone.html"
   ],
   "notes": {
     "intro": {
@@ -2631,7 +3268,7 @@
       "w": 420,
       "x": 19450,
       "y": 23864,
-      "text": "iPhone Settings · nothing that looks pressable is inert\n• Account is identity, with no link or chevron.\n• Notification settings and Paired devices are full-width rows with chevrons. They open the existing V2NotificationSettings and V2DevicesView sheets; these static boards specify those native destinations with data-destination.\n• What agents may do opens SettingsApprovalsPhone. Done dismisses it back to Settings. Each agent’s rules are plain, read-only action/value rows: Ask, Allowed or Never. No editable chips, switches or chevrons. Change these in Settings on a computer.\n• SettingsAgents and SettingsApprovalsPhone show all four saved agents. Release notes writer: Start a task Allowed, the other four actions Ask. Ops watcher, Code reviewer and Researcher: all five actions Ask in the shared settings snapshot. The agent list comes from the coordinator; no built-ins. Creation defaults every action to Ask without an approvals step. This Settings sheet remains read-only, with changes made on a computer. When opened from agent details, Done returns to those details; from Settings, it returns to Settings.\n• Backups opens the existing restore sheet (RestorePhone); its copy stays “Restore to a copy”.\n• Appearance opens a menu: System (selected), Light, Dark. Choosing a value immediately applies and remembers this iPhone’s appearance preference; System follows iOS.\n• Screen use, removing data and secrets stay on a computer. This is a plain footnote under the groups.\n• The settings list scrolls above a full-width, centered destructive Sign out button at the bottom. Sign out uses the existing sign-out flow. No app implementation changes in this design pass."
+      "text": "iPhone Settings · nothing that looks pressable is inert\n• Account is identity, with no link or chevron.\n• Notification settings and Paired devices are full-width rows with chevrons. They open the existing V2NotificationSettings and V2DevicesView sheets; these static boards specify those native destinations with data-destination.\n• What agents may do opens SettingsApprovalsPhone. Done dismisses it back to Settings. Each agent’s rules are plain, read-only action/value rows: Ask, Allowed or Never. No editable chips, switches or chevrons. Change these in Settings on a computer.\n• SettingsAgents and SettingsApprovalsPhone show all five saved agents. Release notes writer: Start a task Allowed, the other four actions Ask. Ops watcher, Code reviewer, Researcher and Designer: all five actions Ask in the shared settings snapshot. The agent list comes from the coordinator; no built-ins. Creation defaults every action to Ask without an approvals step. This Settings sheet remains read-only, with changes made on a computer. When opened from agent details, Done returns to those details; from Settings, it returns to Settings.\n• Backups opens the existing restore sheet (RestorePhone); its copy stays “Restore to a copy”.\n• Appearance opens a menu: System (selected), Light, Dark. Choosing a value immediately applies and remembers this iPhone’s appearance preference; System follows iOS.\n• Screen use, removing data and secrets stay on a computer. This is a plain footnote under the groups.\n• The settings list scrolls above a full-width, centered destructive Sign out button at the bottom. Sign out uses the existing sign-out flow. No app implementation changes in this design pass.\n• Team limits is a separate editable section on iPhone. Existing per-action permission rows remain read-only. Archive is immutable Always asks, outside the five action selectors."
     },
     "chat-agents-model": {
       "x": 18560,
@@ -2639,7 +3276,15 @@
       "w": 1440,
       "h": 3200,
       "fill": "blue",
-      "text": "Agents are conversations first — approved direction; additions for review\n• New agent is a name and an avatar; you teach it in the chat; details and routines live behind its name. No built-in agents and no templates. The fixture has four saved agents: Release notes writer (variant28, af61f2), Ops watcher (variant21, 2fb5a3), Code reviewer (variant29, 76a7ff), Researcher (variant10, ffaa64); the 35 picker glyphs are avatar choices, not saved agents.\n• Avatars are DiceBear Glyphs (@dicebear/core 10 + @dicebear/styles, bundled, drawn offline): one of 35 glyphs plus one color, never a random photo. One color draws the whole avatar: a tinted circle, the glyph and darker shoulders. An agent stores its glyph and color; a new agent starts with a random glyph and color picked when the dialog opens (blank fixture: variant07, ff4d6f). Typing a name never changes its glyph; Shuffle and Choose avatar do. Glyphs is CC BY 4.0 by Matt Houser (a remix of “Abstract Avatars for All Creative Profile Use”): credit him in Settings → General (Credits at the bottom).\n• AvatarPicker boards show the state reached by tapping the large avatar in creation or details. All 35 glyphs show in the current color, the chosen one outlined. The current example is Release notes writer as glyph 28 in Violet everywhere: list, chat, task mention and approvals. Selection keeps the current color; a swatch keeps the current drawing; Shuffle picks a glyph/color pair. Done returns to the invoking surface, preserving the Name and all other edits. Cancel restores the prior avatar. The picker is shared by creation and details, not another creation step.\n• Ten colors: Violet #af61f2, Blue #76a7ff, Green #75c675, Amber #e8b130, Red #ff4d6f, Indigo #525fa3, Teal #2fb5a3, Orange #ffaa64, Pink #e66bb8, Gray #8c8c8c (Glyphs' own palette plus four). These are identity colors, never status indicators; status keeps its own icon and label.\n• Open an agent to its conversation. Ordinary answers stay prose. Requested work appears as an attributed linked task. Sidebar and Work rows show avatar, name, last message and time. An empty conversation says Say hello with no fabricated timestamp. No agents keeps the + and the invitation to make one. The web sidebar folds below 820 px; chat, details and dialogs remain usable at 700 px.\n• Details contain avatar/color, Name, editable What it does, Routines (“Runs on its own”), What it may use (project and computers), and an approvals summary with a link. What it does updates from explicit instructions in chat; it is not a generated pre-creation draft. New agents begin with no learned purpose and no routines. No per-agent connected-app setup: connections belong to the account and are managed in account settings. Project and computer access still applies to each agent.\n• TaskMention / TaskMentionPhone keep @ in the composer: only saved agents are offered, filtered by name. Select inserts a stable @Name reference; sending delivers it. Arrow keys, Enter and Escape work on web. No match says No matching agents; no agents offers New agent. The picker stays above the keyboard. Mentions do not expand resource access or bypass approvals.\n• Agents may message other saved agents: use the same identity and attributed-message model, surface the sender and recipient, keep their replies in the originating conversation, and apply each agent’s own access and approval rules. no autonomous message loops or automatic routines implied by a mention.\n• Routines are separate saved work with their own When to run and What to do, not a single switch on the agent’s learned purpose. The proposed weekly fixture is Fridays at 16:00 on SER’s clock. AgentTaught and agent details show it pending; AgentRoutine shows review before confirmation. AgentPage and AgentRuns show the later saved routine and its history, after confirmation and subsequent Fridays. 16:00 is the agent’s suggestion, not a time supplied by the owner. Absent history never reads as a successful run. Routine prompts, multiple routines, weekly recurrence, avatar persistence, learning from messages and agent-to-agent routing require implementation after approval; existing APIs are not assumed to already support this proposal. The weekly choice reveals a weekday before saving.\n• The current chat/task bridge still needs approval-aware task creation, structured mention recipients and enforced resource scope. Retain the five Ask / Allowed / Never actions and the connected model/default. Saved legacy apps/trigger values must survive an eventual migration; removing their controls is not permission to erase them. No implementation, merge, push or release is part of this branch.\n• Instructions in chat update What it does with a visible, attributed “Saved to What it does · Edit” receipt. Time-based requests propose a routine you confirm; they never silently save a routine. AgentTaught / AgentTaughtPhone show this moment.\n• NewAgentBlank / NewAgentBlankPhone are the immediate + state: empty Name with placeholder, visibly disabled Create (aria-disabled). NewAgent / NewAgentPhone remain filled examples after choosing the violet glyph. Name-only edits preserve the random avatar. Picker Done returns to its invoking state and keeps the name.\n• Saved-agent list links carry the selected agent identity; query examples reuse the chat layout with that agent’s name, glyph, color and history. The drawn chat and details fixtures remain Release notes writer. Ops incident/report and Release notes writer long-history boards are examples of owner-created agents with access and confirmed routines, never built-ins. The four-agent list previews represent the shared current snapshot, independent of historical or creation-state examples.\n• Confirm routine saves a schedule with no runs yet (AgentRuns?state=scheduled). Its initial history is “No runs yet · Next Friday at 16:00”; Run now is a separate explicit action. The drawn AgentRuns fixture is a later historical state. No routine begins immediately on confirmation."
+      "text": "Agents are conversations first — approved direction; additions for review\n• New agent is a name and an avatar; you teach it in the chat; details and routines live behind its name. No built-in agents and no templates. The fixture has five saved agents: Release notes writer (variant28, af61f2), Ops watcher (variant21, 2fb5a3), Code reviewer (variant29, 76a7ff), Researcher (variant10, ffaa64), Designer (variant03, e66bb8); the 35 picker glyphs are avatar choices, not saved agents.\n• Avatars are DiceBear Glyphs (@dicebear/core 10 + @dicebear/styles, bundled, drawn offline): one of 35 glyphs plus one color, never a random photo. One color draws the whole avatar: a tinted circle, the glyph and darker shoulders. An agent stores its glyph and color; a new agent starts with a random glyph and color picked when the dialog opens (blank fixture: variant07, ff4d6f). Typing a name never changes its glyph; Shuffle and Choose avatar do. Glyphs is CC BY 4.0 by Matt Houser (a remix of “Abstract Avatars for All Creative Profile Use”): credit him in Settings → General (Credits at the bottom).\n• AvatarPicker boards show the state reached by tapping the large avatar in creation or details. All 35 glyphs show in the current color, the chosen one outlined. The current example is Release notes writer as glyph 28 in Violet everywhere: list, chat, task mention and approvals. Selection keeps the current color; a swatch keeps the current drawing; Shuffle picks a glyph/color pair. Done returns to the invoking surface, preserving the Name and all other edits. Cancel restores the prior avatar. The picker is shared by creation and details, not another creation step.\n• Ten colors: Violet #af61f2, Blue #76a7ff, Green #75c675, Amber #e8b130, Red #ff4d6f, Indigo #525fa3, Teal #2fb5a3, Orange #ffaa64, Pink #e66bb8, Gray #8c8c8c (Glyphs' own palette plus four). These are identity colors, never status indicators; status keeps its own icon and label.\n• Open an agent to its conversation. Ordinary answers stay prose. Requested work appears as an attributed linked task. Sidebar and Work rows show avatar, name, last message and time. An empty conversation says Say hello with no fabricated timestamp. No agents keeps the + and the invitation to make one. The web sidebar folds below 820 px; chat, details and dialogs remain usable at 700 px.\n• Details contain avatar/color, Name, editable What it does, Routines (“Runs on its own”), What it may use (project and computers), and an approvals summary with a link. What it does updates from explicit instructions in chat; it is not a generated pre-creation draft. New agents begin with no learned purpose and no routines. No per-agent connected-app setup: connections belong to the account and are managed in account settings. Project and computer access still applies to each agent.\n• TaskMention / TaskMentionPhone keep @ in the composer: only saved agents are offered, filtered by name. Select inserts a stable @Name reference; sending delivers it. Arrow keys, Enter and Escape work on web. No match says No matching agents; no agents offers New agent. The picker stays above the keyboard. Mentions do not expand resource access or bypass approvals.\n• Agents may message other saved agents: use the same identity and attributed-message model, surface the sender and recipient, keep their replies in the originating conversation, and apply each agent’s own access and approval rules. no autonomous message loops or automatic routines implied by a mention.\n• Routines are separate saved work with their own When to run and What to do, not a single switch on the agent’s learned purpose. The proposed weekly fixture is Fridays at 16:00 on SER’s clock. AgentTaught and agent details show it pending; AgentRoutine shows review before confirmation. AgentPage and AgentRuns show the later saved routine and its history, after confirmation and subsequent Fridays. 16:00 is the agent’s suggestion, not a time supplied by the owner. Absent history never reads as a successful run. Routine prompts, multiple routines, weekly recurrence, avatar persistence, learning from messages and agent-to-agent routing require implementation after approval; existing APIs are not assumed to already support this proposal. The weekly choice reveals a weekday before saving.\n• The current chat/task bridge still needs approval-aware task creation, structured mention recipients and enforced resource scope. Retain the five Ask / Allowed / Never actions and the connected model/default. Saved legacy apps/trigger values must survive an eventual migration; removing their controls is not permission to erase them. No implementation, merge, push or release is part of this branch.\n• Instructions in chat update What it does with a visible, attributed “Saved to What it does · Edit” receipt. Time-based requests propose a routine you confirm; they never silently save a routine. AgentTaught / AgentTaughtPhone show this moment.\n• NewAgentBlank / NewAgentBlankPhone are the immediate + state: empty Name with placeholder, visibly disabled Create (aria-disabled). NewAgent / NewAgentPhone remain filled examples after choosing the violet glyph. Name-only edits preserve the random avatar. Picker Done returns to its invoking state and keeps the name.\n• Saved-agent list links carry the selected agent identity; query examples reuse the chat layout with that agent’s name, glyph, color and history. The drawn chat and details fixtures remain Release notes writer. Ops incident/report and Release notes writer long-history boards are examples of owner-created agents with access and confirmed routines, never built-ins. The five-agent list previews represent the shared current snapshot, independent of historical or creation-state examples.\n• Confirm routine saves a schedule with no runs yet (AgentRuns?state=scheduled). Its initial history is “No runs yet · Next Friday at 16:00”; Run now is a separate explicit action. The drawn AgentRuns fixture is a later historical state. No routine begins immediately on confirmation.\n• A taught beat is separate from a routine: it may inspect accessible projects in its stage scope and bring proposals. Nothing changes without owner approval. Time-based work still requires a confirmed routine. Looks after is editable behind the agent name; see the adjacent care flow. Designer’s shared last message is “Proposed a calmer Tally header.” · Tue."
+    },
+    "project-care-model": {
+      "x": 20760,
+      "y": 28400,
+      "w": 2000,
+      "h": 1480,
+      "fill": "blue",
+      "text": "Your agents look after your projects\n• Flow below reads left to right, then down: beat → noticing → proposal → approve → task/design review → weekly summary → archive → limits. Projects and Care, existing Waiting on you, Home/Work and Settings are sufficient; no new navigation item.\n• Only the owner changes stage. Active accepts Fix, Update, Improvement, Feature idea, Design and Archive. Maintained accepts Fix and Update only; feature/design beats stop there. Done accepts nothing, including health checks. Ops watches running apps subject to stage/access; it may propose archiving an idle Active project, never infer Done or archive it. Manual archive is available for Active and Maintained. Moving to Maintained withdraws incompatible proposals and pauses previously approved incompatible work for the owner to review.\n• Saved agents are owner-created, not built-ins. Code reviewer: quality and dependency updates across accessible Active and Maintained. Researcher: feature ideas across Active. Designer: design polish across Active (variant03/e66bb8, Tue preview). Ops watcher: health of running apps and archive suggestions for idle Active projects. Release notes writer keeps its separate confirmed routine. Looks after supports all Active, all Active and Maintained, or chosen projects, intersected with granted access and stage defaults. Teaching saves a visible editable receipt; it grants no resource access. The earlier beat receipt excludes recipes because Code reviewer lacks access. New agents have no beat until taught. Unassigned and Quiet boards are independent states, not simultaneous.\n• Beats can perform read-only checks and propose; routines still require explicit confirmation. A proposal includes an agent, project, kind, evidence revision/source, proposed work and rough size. Approve grants only that scoped task; Never blocks it, Ask is satisfied by this explicit scope only, Allowed never skips proposal approval. Recheck stage, evidence, access, permissions and limits atomically at answer time and again before execution. A changed evidence revision withdraws it as “This no longer applies”, removes it from Waiting, frees its slot and preserves the record in Answered. No stale Approve. No duplicate task when two devices answer.\n• Not now closes the item, frees the slot and suppresses the same finding until evidence materially changes; Reopen is in Answered. Stop suggesting this stores an agent + project + finding-family preference, not a global kind ban; management and Undo live in Looks after. Archive suppression is separate. Changed evidence does not bypass that explicit suppression.\n• Approval never merges, ships, releases or changes stage itself. Code goes through PRs and the existing five Ask/Allowed/Never rules. Every visible change, including a Feature or Fix with UI effects, goes through design branch → Before/After owner review → approved design on main → implementation. ProposalDesign’s small drawing is an illustrative direction, not an approved board. CareDesignReview is the subsequent review state; requests for changes return to that design conversation and require review again. Existing DesignReview comparison behavior applies at 1440/700 and 390 on phone. Archive always asks and cannot be Allowed. Existing incident permissions remain separate; a care beat cannot use them as a bypass.\n• Team limits are per owner: maximum 5 open care proposals across all agents/projects; maximum 3 team-opened PRs per project per calendar week, including closed PRs. Reserve budgets atomically to prevent races. Other decisions do not consume proposal slots. The five current proposals: home-gym Fix, tally Feature, tally Design, immich Update, recipes Archive. Improvement, stale, after-answer and stage-change boards are separate snapshots, not extra open proposals. At cap, agents wait and coalesce findings; recheck them before presenting later. Approved code work queues before creating a branch/PR when budget is exhausted. Design-only review can continue; build waits. Weekly PR budget resets Monday 00:00 in the owner timezone; restarting an agent never resets it.\n• Quiet hours 22:00–08:00 America/New_York: no care checks, new care tasks or proposal notifications; already approved running work can finish. Urgent app incident handling stays under existing explicit rules. Local wall-clock boundaries handle DST. Owner can change the limits and hours on web or phone. Defaults by stage are shown plainly and cannot widen Done beyond nothing or Maintained beyond Fix/Update in this version.\n• Archive preview lists every affected app. Revalidate active tasks/PRs before executing; pause conflicting work and require the owner to resolve it. Stop apps, take a named final backup of repository/app data/configuration, verify it, make the repository read-only, then atomically move to Done, remove from sidebar/active lists, close proposals and stop beats/routines for that project. Retain backup indefinitely until explicit deletion; no hidden 30-day expiry. Failure keeps original stage/data and shows actual app state; retry resumes safely. Manual archive uses the same preview, with actual project-specific evidence; no silent stage dropdown archive.\n• Done is available only under Projects → Done. Restore is one explicit action: verify retained backup, bring back writable repository and app configuration/data, move to Maintained and restore applicable access-scoped Fix/Update beats. Apps remain stopped until the owner starts them. Do not reopen old proposals, resume old tasks or start routines automatically. Failure leaves Done and the retained backup intact. kettle-timer is an independent historical Done example, not an invented completion of the recipes archive.\n• Monday 09:00 owner-local time produces exactly one Home/Work message from recorded events, grouped by project: done, proposed, needs you. Link each claim to its actual source; no event means no success claim. WeeklySummary is a historical message; a line about last week’s PR cap describes that time, not the current reset. Counts in current Care reflect its own week. CareActivity supplies the illustrative source records; implementation must read actual check, task, PR, design, answer and archive events. Unavailable signals say Unavailable, never healthy/zero. Immich version/security numbers are brief-supplied design fixtures; exact upstream advisories, compatibility and backup plan remain required before an update can run.\n• Server work required after design approval: persist stage/archive state and verified retained backups; typed beats and access intersections; read-only scheduled checks with evidence provenance; deduplicated proposal lifecycle and suppression preferences; transactional owner/project budgets and timezone scheduling; approval-aware task creation with idempotent answers; design-to-build linkage; PR/incident permission enforcement; safe resumable archive/restore with locks; shared event-backed Care and weekly summary APIs. Web, Mac and iPhone render the same events. No server support is assumed, and no app implementation is included.\n• All fixtures are design examples, not claims about deployed projects. Boards scroll vertically where needed; five agent rows fit the web sidebar at 900 px and iPhone Work before lower history. The owner’s orchestrator renders 1440/700/390, regenerates glyph SVGs, reviews visual parity and commits. This edit does not render, commit, push, merge or release.\n• Query links such as ?agent=designer and ?project=home-gym use the shared details/Care layout with that identity, stage, beats and evidence. Answer routes retain the originating proposal identity and render its exact agent/project/finding in the receipt; static generic answer boards show the shared layout. Manual archive reuses the same archive task with its selected project (ArchiveManualProgress draws tally). No cross-project navigation may silently change the target."
     }
   },
   "starts": {}

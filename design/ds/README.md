@@ -50,7 +50,7 @@ Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settin
 - **Teach a word where it first happens.** Task, pull request and release are explained once, in place, then never again.
 - **Shipping is yours to start.** A task never asks to ship; Ship… sits in the task header, its panel and its info sheet. Only agents acting on a running app (like Ops watcher’s rollback) bring a decision to you.
 - **Previews are screenshots you ask for.** They come from where the app runs: a browser for web apps, Simulator for iPhone apps, the window for Mac apps. No preview runs unless you ask.
-- **Agents answer in chat.** Routines report when confirmed work finishes or needs a decision. No background work runs until you save a routine. Past days fold into one line.
+- **Agents answer in chat.** Routines report when confirmed work finishes or needs a decision. Scheduled work requires a confirmed routine. A taught beat may inspect accessible projects and propose; it cannot change anything without approval. Past days fold into one line.
 
 ## Consuming this system on a Design canvas
 
@@ -59,3 +59,7 @@ Load, after the canvas `support.js` line: `ds/deploy-local/tokens.css`, then `ds
 ## Not synced
 
 No font files (Hanken Grotesk loads from Google Fonts). The live React components in `@/components/ui` are not bundled; cards are static renditions.
+
+## Project care boards
+
+`.dl-care` composes the existing sections, groups, agent rows and approval cards. It wraps evidence and care lines instead of truncating them, keeps a 768 px reading column, and gives phone reviews a scrollable body with decisions in `.dl-care-footer`. Use existing color, spacing and touch-size tokens. Stage and proposal-kind labels are plain text.

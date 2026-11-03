@@ -34,7 +34,7 @@ The server tests check that every board on the canvas exists and has unique laye
 
 ## Parity: implementation against design
 
-A screen is done when it matches its board at the board's widths (1440 and 700 for web, 390 for iPhone) with the same data the board shows. Use the fixture names from the boards: home-gym, tally, SER, bazzite, Release notes writer, Ops watcher, Code reviewer, Researcher.
+A screen is done when it matches its board at the board's widths (1440 and 700 for web, 390 for iPhone) with the same data the board shows. Use the fixture names from the boards: home-gym, tally, SER, bazzite, Release notes writer, Ops watcher, Code reviewer, Researcher, Designer.
 
 - **Board:** `node design/tools/render.mjs <Board>` writes `output/design/<Board>-<width>.png`.
 - **Screenshot:** start your page against a fixture on ports 5180–5199, then run `node design/tools/capture.mjs <url> docs/evidence/<slice>/captures/<Board> 1440,700 <height>`. Add `--dark` for the dark theme.
