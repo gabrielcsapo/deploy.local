@@ -62,6 +62,16 @@ private func body(_ request: URLRequest) -> [String: Any] {
 }
 
 @Suite(.serialized) struct V2Tests {
+    @Test func approvalsFetchUsesTheReadOnlyEndpointAndDecodesTheEnvelope() async throws {
+        V2URLProtocol.state.reset(["GET /api/v2/approvals": [(200, #"{"rules":[{"agent":"custom-agent","action":"start-task","mode":"allow"}],"suggestions":[]}"#)]])
+        let approvals = try await client().approvals()
+        #expect(approvals.mode(agent: "custom-agent", action: .startTask) == .allow)
+        let requests = V2URLProtocol.state.recorded()
+        #expect(requests.count == 1)
+        #expect(requests.first?.httpMethod == "GET")
+        #expect(requests.first?.url?.path == "/api/v2/approvals")
+    }
+
     @Test func agentDraftPostsOnlyTheDescriptionAndDecodesTheEnvelope() async throws {
         V2URLProtocol.state.reset(["POST /api/v2/agents/draft": [(200, #"{"draft":{"name":"Notes","job":"Summarize changes.\nAsk before publishing.","computers":["SER"],"apps":[],"futureField":true}}"#)]])
         let draft = try await client().draftAgent(job: "Write release notes for home-gym")

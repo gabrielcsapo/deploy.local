@@ -151,42 +151,104 @@ struct V2ComputersView: View {
         return computer.roles?.compactMap { names[$0] }.joined(separator: " · ") ?? "Roles unavailable"
     }
 }
+enum V2Appearance: String, CaseIterable {
+    case system, light, dark
+    static let defaultsKey = "deploy.v2.appearance"
+    var label: String { rawValue.capitalized }
+    var colorScheme: ColorScheme? {
+        switch self { case .system: nil; case .light: .light; case .dark: .dark }
+    }
+}
+
 struct V2SettingsView: View {
     @Bindable var store: V2Store
     @Bindable var workspace: WorkspaceStore
     @State private var backups = false
     @State private var notifications = false
     @State private var devices = false
+    @State private var approvals = false
+    @AppStorage(V2Appearance.defaultsKey) private var appearance = V2Appearance.system
+    @Environment(\.colorScheme) private var scheme
+    private var agentNames: String {
+        store.snapshot.agents.isEmpty ? "No agents" : store.snapshot.agents.map(\.name).joined(separator: ", ")
+    }
     var body: some View {
-        V2Page(title: "Settings") {
-            V2Group { V2Row(title: store.snapshot.account?.username ?? store.connection.username, subtitle: "Signed in on this iPhone", avatar: store.snapshot.account?.username ?? store.connection.username) }
-            V2NotificationControls(store: store)
-            Button("Notification settings") { notifications = true }.frame(minHeight: 44)
-            Button("Paired devices") { devices = true }.frame(minHeight: 44)
-            V2Group {
-                V2Row(title: "What agents may do", subtitle: "Manage approvals on a computer", icon: "shield")
-                Divider().padding(.leading, 46)
-                Button { backups = true } label: { V2Row(title: "Backups", subtitle: "Restore to a copy", icon: "arrow.down.to.line") }
-                Divider().padding(.leading, 46)
-                V2Row(title: "Appearance", subtitle: "System", icon: "slider.horizontal.3")
-            }
-            V2Group(title: "On a computer only") { V2Row(title: "Screen use, removing data, secrets", subtitle: "Kept off the phone on purpose", icon: "desktopcomputer") }
-            Button("Sign out", role: .destructive) {
-                Task {
-                    if let token = UserDefaults.standard.string(forKey: "deploy.apns.token") {
-                        do { try await store.client.removeDevice(token: token) }
-                        catch { store.error = "Could not remove notifications. Reconnect before signing out."; return }
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Settings").font(.system(size: 28, weight: .bold)).tracking(-0.56)
+                .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 8)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    V2Group {
+                        V2Row(title: store.snapshot.account?.username ?? store.connection.username,
+                              subtitle: "Signed in on this iPhone",
+                              avatar: store.snapshot.account?.username ?? store.connection.username, compact: true)
                     }
-                    store.suspend(); V2PairingVault.clear(); workspace.disconnect()
+                    V2NotificationControls(store: store, compact: true).padding(.top, 4)
+                    V2Group {
+                        Button { notifications = true } label: {
+                            V2Row(title: "Notification settings", icon: "bell", chevron: true, compact: true)
+                        }
+                        Divider()
+                        Button { devices = true } label: {
+                            V2Row(title: "Paired devices", icon: "iphone", chevron: true, compact: true)
+                        }
+                    }
+                    V2Group {
+                        Button { approvals = true } label: {
+                            V2Row(title: "What agents may do", subtitle: agentNames, icon: "shield", chevron: true, compact: true)
+                        }
+                        Divider()
+                        Button { backups = true } label: {
+                            V2Row(title: "Backups", subtitle: "Restore to a copy", icon: "arrow.down.to.line", chevron: true, compact: true)
+                        }
+                        Divider()
+                        Menu {
+                            Picker("Appearance", selection: $appearance) {
+                                ForEach(V2Appearance.allCases, id: \.self) { choice in
+                                    Text(choice.label).tag(choice)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "slider.horizontal.3").foregroundStyle(WorkspaceStyle.secondary(scheme)).frame(width: 20)
+                                Text("Appearance")
+                                Spacer(minLength: 4)
+                                Text(appearance.label)
+                                Image(systemName: "chevron.up.chevron.down").font(.system(size: 11))
+                            }.font(.system(size: 17)).padding(.horizontal, 16).frame(minHeight: 44).contentShape(Rectangle())
+                        }.accessibilityLabel("Appearance").accessibilityValue(appearance.label)
+                    }
+                    Text("Screen use, removing data and secrets stay on a computer.")
+                        .font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                        .padding(.horizontal, 16).padding(.top, 2)
+                }.padding(.horizontal, 16).padding(.bottom, 8)
+            }.scrollIndicators(.hidden)
+            V2Group {
+                Button(role: .destructive, action: signOut) {
+                    Text("Sign out").font(.system(size: 17)).foregroundStyle(WorkspaceStyle.danger(scheme))
+                        .frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
                 }
-            }.frame(minHeight: 44)
-        }.sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
+            }.padding(.horizontal, 16).padding(.vertical, 8)
+        }.buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
+        .sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
         .sheet(isPresented: $notifications) { V2NotificationSettings(store: store) }
         .sheet(isPresented: $devices) { V2DevicesView(store: store) }
+        .sheet(isPresented: $approvals) { V2SettingsApprovals(store: store) }
         .task {
             if V2Evidence.board == "RestorePhone" { backups = true }
+            if V2Evidence.board == "SettingsApprovalsPhone" { approvals = true }
+        }
+    }
+    private func signOut() {
+        Task {
+            if let token = UserDefaults.standard.string(forKey: "deploy.apns.token") {
+                do { try await store.client.removeDevice(token: token) }
+                catch { store.error = "Could not remove notifications. Reconnect before signing out."; return }
+            }
+            store.suspend(); V2PairingVault.clear(); workspace.disconnect()
         }
     }
 }
+
 import UserNotifications
 #endif

@@ -6,6 +6,7 @@ public struct DeployV2Root: View {
     @Bindable private var workspace: WorkspaceStore
     @State private var store: V2Store?
     @State private var connect = false
+    @AppStorage(V2Appearance.defaultsKey) private var appearance = V2Appearance.system
     @Environment(\.scenePhase) private var scenePhase
     private let paired: (Connection) -> Void
     public init(store: WorkspaceStore, paired: @escaping (Connection) -> Void = { _ in }) { workspace = store; self.paired = paired }
@@ -19,7 +20,8 @@ public struct DeployV2Root: View {
                     Button("Sign in") { connect = true }.buttonStyle(V2ActionStyle(primary: true))
                 }.padding(32).sheet(isPresented: $connect) { V2SignIn(workspace: workspace, connected: paired) }
             }
-        }.task(id: workspace.connection) {
+        }.preferredColorScheme(appearance.colorScheme)
+        .task(id: workspace.connection) {
             self.store?.suspend()
             guard let connection = workspace.connection else { self.store = nil; return }
             workspace.suspend()
@@ -152,7 +154,7 @@ struct V2Tabs: View {
         case "ScoutPhone", "AgentInfoPhone", "AgentMenuPhone": evidenceAgentTask = "scout"; agent = "scout"
         case "ProjectPhone", "ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone": tab = .projects
         case "ComputePhone": tab = .computers
-        case "SettingsPhone", "RestorePhone": tab = .settings
+        case "SettingsPhone", "SettingsApprovalsPhone", "RestorePhone": tab = .settings
         default: break
         }
     }

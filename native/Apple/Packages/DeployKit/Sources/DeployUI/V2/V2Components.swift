@@ -23,11 +23,12 @@ struct V2Page<Content: View>: View {
 }
 struct V2Group<Content: View>: View {
     var title: String? = nil
+    var compact = false
     @ViewBuilder var content: Content
     @Environment(\.colorScheme) private var scheme
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let title { Text(title).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, 12) }
+        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
+            if let title { Text(title).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, compact ? 16 : 12) }
             VStack(spacing: 0) { content }
                 .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme), lineWidth: 1))
@@ -42,10 +43,12 @@ struct V2Row: View {
     var state: HealthState? = nil
     var attention = false
     var avatar: String? = nil
+    var chevron = false
+    var compact = false
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 12) {
-            if let avatar { V2Avatar(name: avatar) }
+            if let avatar { V2Avatar(name: avatar, size: compact ? 32 : 26) }
             else { Image(systemName: attention ? "exclamationmark.circle" : icon).foregroundStyle(attention ? WorkspaceStyle.warning(scheme) : WorkspaceStyle.secondary(scheme)).frame(width: 20) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 17)).foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(2)
@@ -54,7 +57,12 @@ struct V2Row: View {
             Spacer(minLength: 4)
             if let state { V2Status(state: state) }
             else if let trailing { Text(trailing).font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme)) }
-        }.padding(.horizontal, 14).padding(.vertical, 12).frame(minHeight: 56).contentShape(Rectangle())
+            if chevron {
+                Image(systemName: "chevron.right").font(.system(size: 13))
+                    .foregroundStyle(WorkspaceStyle.tertiary(scheme)).accessibilityHidden(true)
+            }
+        }.padding(.horizontal, compact ? 16 : 14).padding(.vertical, compact ? 6 : 12)
+            .frame(minHeight: compact ? 44 : 56).contentShape(Rectangle())
     }
 }
 struct V2Avatar: View {
