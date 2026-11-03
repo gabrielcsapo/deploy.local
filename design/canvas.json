@@ -602,7 +602,7 @@
       "y": 13104,
       "w": 1440,
       "h": 900,
-      "title": "Projects",
+      "title": "Projects by stage: Active, Maintained and Done, one care line each",
       "expand": "fill"
     },
     "ProjectPhone.html": {
@@ -1598,14 +1598,6 @@
       "h": 844,
       "title": "Chosen-project beat editor, constrained by access and stage."
     },
-    "ProjectsCare.html": {
-      "x": 20760,
-      "y": 31104,
-      "w": 1440,
-      "h": 900,
-      "title": "Projects grouped by owner-set stage, with care and Done entries.",
-      "expand": "fill"
-    },
     "ProjectsCarePhone.html": {
       "x": 22280,
       "y": 31104,
@@ -2329,7 +2321,6 @@
     "AgentCareDetailsPhone.html",
     "AgentBeatProjects.html",
     "AgentBeatProjectsPhone.html",
-    "ProjectsCare.html",
     "ProjectsCarePhone.html",
     "ProjectCare.html",
     "ProjectCarePhone.html",
