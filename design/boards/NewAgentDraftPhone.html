@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
-<meta name="design-board" content="width=390,height=844">
+<meta name="design-board" content="width=390,height=1120">
 <title>iPhone — New agent: review the draft, ready to edit</title>
 <link rel="stylesheet" href="../ds/deploy-local/tokens.css">
 <link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
 <style>
 body{margin:0;background:var(--paper)}
-.dl-phone{height:min(844px,100dvh);background:var(--sidebar)}
+.dl-phone{height:1120px;background:var(--sidebar)}
 .dl-sheet{flex:1;min-height:0;margin-top:64px;display:flex;flex-direction:column;border-radius:var(--radius-dialog) var(--radius-dialog) 0 0;box-shadow:var(--shadow-lg);overflow:hidden}
 .sheet-grabber{flex:none;align-self:center;width:36px;height:5px;margin:8px 0 0;border-radius:var(--radius-full);background:var(--line-strong)}
 .dl-sheet .dl-ph-top{padding:0 8px 4px;border-bottom:1px solid var(--line)}
@@ -25,6 +25,8 @@ body{margin:0;background:var(--paper)}
 .draft-fields .dl-textarea{min-height:112px;font-family:var(--font-sans);font-size:17px;line-height:24px;resize:vertical}
 .sheet-footer{flex:none;padding:12px 20px max(24px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
 .sheet-footer .dl-btn{box-sizing:border-box}
+.dl-setting{gap:12px}.dl-setting .dl-t > span + span{font-size:13px;line-height:18px}
+.dl-phone .dl-item .dl-t > span{white-space:normal}.dl-phone .dl-section-sub,.dl-phone .dl-meta{font-size:13px;line-height:18px}
 </style>
 </head>
 <body>
@@ -35,21 +37,16 @@ body{margin:0;background:var(--paper)}
 <div data-layer="ph-body" class="dl-ph-body">
 <div data-layer="sheet-intro" class="sheet-intro"><p data-layer="step-2-of">Step 2 of 2 · Review the draft</p><h1 data-layer="ready-to-edit">Ready to edit</h1><p data-layer="change-anything-before">Change anything before you create the agent.</p></div>
 <div data-layer="draft-fields" class="draft-fields">
-<div data-layer="div"><label data-layer="name" for="agent-name" class="dl-field-label">Name</label><input data-layer="field" id="agent-name" class="dl-field" type="text" value="Release notes writer"></div>
-<div data-layer="div-2"><label data-layer="instructions" for="instructions" class="dl-field-label">Instructions</label><textarea data-layer="draft-release-notes" id="instructions" class="dl-textarea" rows="4">Draft release notes for home-gym from what merged since the last run.
-Group changes by feature and fix.
-Ask me before publishing.</textarea></div>
-<div data-layer="div-3"><label data-layer="project" for="project" class="dl-field-label">Project</label><select data-layer="field-2" id="project" class="dl-field"><option data-layer="home-gym">home-gym</option><option data-layer="no-project">No project</option></select></div>
-<div data-layer="div-4"><span data-layer="when-it-runs" id="schedule-label" class="dl-field-label">When it runs</span><div data-layer="field-3" id="schedule" class="dl-ph-group" role="group" aria-labelledby="schedule-label" style="margin:0">
-<label data-layer="ph-row-2" class="dl-ph-row" style="padding:8px 12px;gap:8px;font-size:15px"><input data-layer="input" type="radio" name="run-schedule" value="manual" checked style="accent-color:var(--action);width:20px;height:20px;margin:0;flex:none"><span data-layer="only-when-you">Only when you press Run now</span></label>
-<div data-layer="ph-row-3" class="dl-ph-row" style="padding:8px 12px;gap:8px"><label data-layer="label" style="display:flex;align-items:center;gap:8px;min-height:44px;flex:1;font-size:15px"><input data-layer="input-2" type="radio" name="run-schedule" value="daily" style="accent-color:var(--action);width:20px;height:20px;margin:0;flex:none"><span data-layer="every-day-at">Every day at</span></label><input data-layer="daily-run-time" type="time" value="08:00" aria-label="Daily run time on SER’s clock" class="dl-field" style="width:116px;font-size:15px"></div>
-</div><p data-layer="daily-runs-use" class="dl-meta" style="margin:6px 0 0;font-size:13px;line-height:18px">Daily runs use SER’s clock and ask first unless Start a task is Allowed in Approvals.</p></div>
+<div data-layer="div"><label data-layer="name" for="agent-name" class="dl-label">Name</label><input data-layer="field" id="agent-name" class="dl-field" type="text" value="Release notes writer"></div>
+<div data-layer="div-2"><label data-layer="instructions" for="instructions" class="dl-label">Personality and instructions</label><p data-layer="how-it-talks" class="dl-meta" style="margin:0 0 6px;font-size:13px">How it talks and what it knows</p><textarea data-layer="draft-release-notes" id="instructions" class="dl-textarea" rows="4">Be clear, warm, and concise. Know home-gym’s release history. Explain changes in everyday language, grouped by feature and fix. Draft notes for what merged. Ask me before publishing.</textarea></div>
+<h2 data-layer="what-it-may-2" class="dl-section-title">What it may use</h2><div data-layer="div-3"><label data-layer="project" for="project" class="dl-label">Project</label><select data-layer="field-2" id="project" class="dl-field"><option data-layer="home-gym">home-gym</option><option data-layer="no-project">No project</option></select></div>
+<div data-layer="div-4"><label data-layer="computers" class="dl-label" for="draft-computers">Computers</label><select data-layer="field-3" class="dl-field" id="draft-computers"><option data-layer="ser">SER</option><option data-layer="bazzite">bazzite</option><option data-layer="any-computer">Any computer</option></select></div>
 </div>
-<div data-layer="what-it-may" class="dl-ph-label">What it may do without asking</div>
-<div data-layer="ph-group" class="dl-ph-group"><div data-layer="ph-row" class="dl-ph-row"><span data-layer="t" class="dl-t"><span data-layer="nothing-yet">Nothing yet</span><span data-layer="every-action-starts" style="white-space:normal">Every action starts at Ask me.</span></span></div></div>
-<p data-layer="manage-each-action" class="dl-meta" style="margin:8px 32px 0;font-size:13px;line-height:18px">Manage each action in Approvals after creating.</p>
-</div>
-<footer data-layer="sheet-footer" class="sheet-footer"><a data-layer="create-agent" href="AgentPhone.html" class="dl-btn primary">Create agent</a></footer>
+<div data-layer="what-it-may" class="dl-ph-label">Approvals</div>
+<div data-layer="ph-group" class="dl-ph-group"><div data-layer="ph-row" class="dl-ph-row"><span data-layer="t" class="dl-t"><span data-layer="nothing-yet">All five actions: Ask</span><span data-layer="every-action-starts" style="white-space:normal">Start work, open a pull request, merge, restart, or roll back.</span></span></div></div>
+<div data-layer="manage-each-action" style="margin:0 20px 12px"><details data-layer="details"><summary data-layer="change-approvals" class="dl-link" style="min-height:44px;display:flex;align-items:center;cursor:pointer">Change approvals</summary><div data-layer="group" class="dl-group"><div data-layer="item" class="dl-item"><label data-layer="start-a-task" for="draft-rule-0" style="flex:1">Start a task</label><select data-layer="start-a-task-2" id="draft-rule-0" class="dl-field" style="width:108px;height:44px" aria-label="Start a task"><option data-layer="ask">Ask</option><option data-layer="allowed">Allowed</option><option data-layer="never">Never</option></select></div><div data-layer="item-2" class="dl-item"><label data-layer="open-a-pull" for="draft-rule-1" style="flex:1">Open a pull request</label><select data-layer="open-a-pull-2" id="draft-rule-1" class="dl-field" style="width:108px;height:44px" aria-label="Open a pull request"><option data-layer="ask-2">Ask</option><option data-layer="allowed-2">Allowed</option><option data-layer="never-2">Never</option></select></div><div data-layer="item-3" class="dl-item"><label data-layer="merge" for="draft-rule-2" style="flex:1">Merge</label><select data-layer="merge-2" id="draft-rule-2" class="dl-field" style="width:108px;height:44px" aria-label="Merge"><option data-layer="ask-3">Ask</option><option data-layer="allowed-3">Allowed</option><option data-layer="never-3">Never</option></select></div><div data-layer="item-4" class="dl-item"><label data-layer="restart-an-app" for="draft-rule-3" style="flex:1">Restart an app</label><select data-layer="restart-an-app-2" id="draft-rule-3" class="dl-field" style="width:108px;height:44px" aria-label="Restart an app"><option data-layer="ask-4">Ask</option><option data-layer="allowed-4">Allowed</option><option data-layer="never-4">Never</option></select></div><div data-layer="item-5" class="dl-item"><label data-layer="roll-back" for="draft-rule-4" style="flex:1">Roll back</label><select data-layer="roll-back-2" id="draft-rule-4" class="dl-field" style="width:108px;height:44px" aria-label="Roll back"><option data-layer="ask-5">Ask</option><option data-layer="allowed-5">Allowed</option><option data-layer="never-5">Never</option></select></div></div></details></div>
+<div data-layer="div-5" style="padding:0 20px 12px"><section data-layer="section" class="dl-section"><div data-layer="setting" class="dl-setting"><span data-layer="t-2" class="dl-t"><span data-layer="also-run-on">Also run on its own</span><span data-layer="optional-you-can">Optional. You can always talk to it.</span></span><a data-layer="also-run-on-2" class="dl-switch off" role="switch" aria-checked="false" aria-label="Also run on its own" href="NewAgentDraftScheduledPhone.html"><span data-layer="span"></span></a></div></section></div></div>
+<footer data-layer="sheet-footer" class="sheet-footer"><a data-layer="create-agent" class="dl-btn primary" href="AgentHelloPhone.html">Create and start chatting</a></footer>
 </section>
 </div>
 </body>

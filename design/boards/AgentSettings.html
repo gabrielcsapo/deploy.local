@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="design-board" content="width=1440,height=1380">
-<title>Tune an agent: its job is a setting every run gets</title>
+<title>Agent settings: personality, what it may use, and optional background work</title>
 <link rel="stylesheet" href="../ds/deploy-local/tokens.css">
 <link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
 <style>
-body{margin:0;background:#fafafb}
+body{margin:0;background:var(--paper)}
+.dl-side .dl-nav .dl-t > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -19,10 +20,11 @@ body{margin:0;background:#fafafb}
     <a data-layer="nav-2" href="Projects.html" class="dl-nav"><span data-layer="lead-2" class="dl-lead"><svg data-layer="svg-3" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span data-layer="projects" class="dl-t">Projects</span></a>
     <a data-layer="nav-3" href="Live.html" class="dl-nav"><span data-layer="lead-3" class="dl-lead"><svg data-layer="svg-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span><span data-layer="live" class="dl-t">Live</span></a>
     <a data-layer="nav-4" href="Compute.html" class="dl-nav"><span data-layer="lead-4" class="dl-lead"><svg data-layer="svg-5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span data-layer="computers" class="dl-t">Computers</span></a>
+    <a data-layer="nav-7" href="DesignCanvas.html" class="dl-nav"><span data-layer="lead-7" class="dl-lead"><svg data-layer="svg-13" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></svg></span><span data-layer="design" class="dl-t">Design</span></a>
   </div>
   <div data-layer="side-scroll" class="dl-side-scroll">
-    <div data-layer="side-label" class="dl-side-label"><span data-layer="agents">Agents</span><a data-layer="new-agent" href="NewAgent.html" class="dl-icon-btn sm" aria-label="New agent"><svg data-layer="svg-6" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a></div>
-    <a data-layer="nav-5" href="AgentPage.html" class="dl-nav on" aria-current="page"><span data-layer="lead-5" class="dl-lead"><span data-layer="r" class="dl-glyph">R</span></span><span data-layer="release-notes-writer" class="dl-t">Release notes writer</span></a>
+    <div data-layer="side-label" class="dl-side-label"><span data-layer="agents">Agents</span><a data-layer="new-agent" href="NewAgent.html" class="dl-btn quiet" style="height:28px;padding:0 4px;font-size:12px"><svg data-layer="svg-6" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> New agent</a></div>
+    <a data-layer="nav-5" href="AgentPage.html" class="dl-nav on" aria-current="page" style="height:56px;align-items:center"><span data-layer="lead-5" class="dl-lead"><span data-layer="r" class="dl-glyph">R</span></span><span data-layer="release-notes-writer" class="dl-t" style="display:flex;flex-direction:column"><span data-layer="release-notes-writer-3">Release notes writer</span><span data-layer="i-ll-draft" class="dl-meta">I’ll draft a first pass.</span></span><time data-layer="now" class="dl-end">now</time></a>
     <div data-layer="side-label-2" class="dl-side-label"><span data-layer="span"><a data-layer="waiting-on-you" href="Inbox.html">Waiting on you</a></span><span data-layer="0" class="dl-c">0</span></div>
     <div data-layer="side-label-3" class="dl-side-label"><span data-layer="today">Today</span></div>
     <a data-layer="nav-6" href="RunTask.html" class="dl-nav"><span data-layer="lead-6" class="dl-lead"><svg data-layer="running" class="dl-run" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span><span data-layer="release-notes-writer-2" class="dl-t">Release notes writer · run 2026-10-29</span><span data-layer="1m" class="dl-end">1m</span></a>
@@ -32,43 +34,43 @@ body{margin:0;background:#fafafb}
 <header data-layer="head" class="dl-head ruled"><button data-layer="show-sidebar" type="button" class="dl-icon-btn dl-menu-btn" aria-label="Show sidebar"><svg data-layer="svg-8" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><span data-layer="r-2" class="dl-glyph">R</span><span data-layer="tune-release-notes" class="dl-t">Tune Release notes writer</span><span data-layer="end-2" class="dl-end"><a data-layer="cancel" href="AgentPage.html" class="dl-btn quiet">Cancel</a><button data-layer="save" type="button" class="dl-btn primary">Save</button></span></header>
 <div data-layer="scroll" class="dl-scroll"><div data-layer="page" class="dl-page" style="max-width:768px;gap:32px">
   <section data-layer="section" class="dl-section">
-    <label data-layer="name" for="agent-name" class="dl-field-label">Name</label>
+    <label data-layer="name" for="agent-name" class="dl-label">Name</label>
     <div data-layer="field" class="dl-field"><input data-layer="input" id="agent-name" type="text" value="Release notes writer"></div>
   </section>
   <section data-layer="section-2" class="dl-section">
-    <label data-layer="job" for="agent-job" class="dl-section-title">Job</label>
-    <p data-layer="standing-instructions-ev" class="dl-section-sub">Standing instructions. Every run, and every follow-up in its tasks, gets this. Editing it changes the next run.</p>
+    <label data-layer="job" for="agent-job" class="dl-section-title">Personality and instructions</label>
+    <p data-layer="standing-instructions-ev" class="dl-section-sub">How it talks and what it knows</p>
     <div data-layer="div" style="height:12px"></div>
-    <textarea data-layer="summarize-what-was" id="agent-job" class="dl-textarea" rows="5" style="font-family:var(--font-sans);font-size:15px;line-height:24px">Summarize what was merged and released since your last run as short release notes. Ask before publishing them anywhere.</textarea>
-    <p data-layer="each-run-also" class="dl-meta" style="margin:8px 0 0">Each run also gets its last report and deploy.local’s rules: it never merges, releases, or deletes data, and asks in Waiting on you when it needs a decision.</p>
+    <textarea data-layer="summarize-what-was" id="agent-job" class="dl-textarea" rows="5" style="font-family:var(--font-sans);font-size:15px;line-height:24px">Be clear, warm, and concise. Know home-gym’s release history. Explain changes in everyday language, grouped by feature and fix. Draft notes for what merged. Ask me before publishing.</textarea>
+    <p data-layer="each-run-also" class="dl-meta" style="margin:8px 0 0">Changes apply to future replies and work. Existing messages stay as they were.</p>
   </section>
-  <section data-layer="section-3" class="dl-section">
-    <h2 data-layer="when-release-notes" class="dl-section-title">When Release notes writer works</h2>
-    <div data-layer="div-2" style="height:12px"></div>
-    <div data-layer="group" class="dl-group"><div data-layer="inset" class="dl-inset">
-      <div data-layer="setting" class="dl-setting"><span data-layer="t" class="dl-t"><span data-layer="every-morning">Every morning</span><span data-layer="off-only-when">Off: only when you press Run now</span></span><span data-layer="v" class="dl-v"><label data-layer="morning-time" for="agent-time" class="dl-sr">Morning time</label><span data-layer="field-2" class="dl-field" style="width:132px;height:32px"><input data-layer="input-2" id="agent-time" type="time" value="08:00" disabled></span><button data-layer="every-morning-2" type="button" class="dl-switch off" role="switch" aria-checked="false" aria-label="Every morning"><span data-layer="span-2"></span></button></span></div>
-    </div></div>
-    <p data-layer="on-at-08" class="dl-meta" style="margin:8px 0 0">On at 08:00, it starts a task every morning on SER’s clock. It asks you first in Waiting on you unless Start a task is Allowed in Approvals.</p>
-  </section>
+
   <section data-layer="section-4" class="dl-section">
-    <h2 data-layer="covers" class="dl-section-title">Covers</h2>
+    <h2 data-layer="covers" class="dl-section-title">What it may use</h2>
     <div data-layer="div-3" style="height:12px"></div>
     <div data-layer="group-2" class="dl-group"><div data-layer="inset-2" class="dl-inset">
-      <div data-layer="setting-2" class="dl-setting"><span data-layer="t-2" class="dl-t"><span data-layer="works-in">Works in</span><span data-layer="the-project-each">The project each run checks out</span></span><span data-layer="v-2" class="dl-v"><label data-layer="works-in-2" for="agent-project" class="dl-sr">Works in</label><span data-layer="field-3" class="dl-field" style="width:200px;height:32px"><select data-layer="select" id="agent-project" style="flex:1;border:0;background:transparent;font:inherit;color:inherit"><option data-layer="home-gym">home-gym</option><option data-layer="no-project">No project</option></select></span></span></div>
-      <div data-layer="setting-3" class="dl-setting"><span data-layer="t-3" class="dl-t"><span data-layer="computers-2">Computers</span><span data-layer="blank-any-computer">Blank: any computer that takes tasks, SER first</span></span><span data-layer="v-3" class="dl-v"><label data-layer="computers-3" for="agent-computers" class="dl-sr">Computers</label><span data-layer="field-4" class="dl-field" style="width:200px;height:32px"><input data-layer="input-3" id="agent-computers" type="text" placeholder="Any computer"></span></span></div>
+      <div data-layer="setting-2" class="dl-setting"><span data-layer="t-2" class="dl-t"><span data-layer="works-in">Project</span><span data-layer="the-project-each">Choose one project, or no project</span></span><span data-layer="v-2" class="dl-v"><label data-layer="works-in-2" for="agent-project" class="dl-sr">Works in</label><span data-layer="field-3" class="dl-field" style="width:200px;height:32px"><select data-layer="select" id="agent-project" style="flex:1;border:0;background:transparent;font:inherit;color:inherit"><option data-layer="home-gym">home-gym</option><option data-layer="no-project">No project</option></select></span></span></div>
+      <div data-layer="setting-3" class="dl-setting"><span data-layer="t-3" class="dl-t"><span data-layer="computers-2">Computers</span><span data-layer="blank-any-computer">Where its tasks can run</span></span><span data-layer="v-3" class="dl-v"><label data-layer="computers-3" for="agent-computers" class="dl-sr">Computers</label><span data-layer="field-4" class="dl-field" style="width:200px;height:32px"><input data-layer="input-3" id="agent-computers" type="text" placeholder="Any computer" value="SER"></span></span></div>
       <div data-layer="setting-4" class="dl-setting"><span data-layer="t-4" class="dl-t"><span data-layer="apps">Apps</span><span data-layer="blank-all-apps">Blank: all apps</span></span><span data-layer="v-4" class="dl-v"><label data-layer="apps-2" for="agent-apps" class="dl-sr">Apps</label><span data-layer="field-5" class="dl-field" style="width:200px;height:32px"><input data-layer="input-4" id="agent-apps" type="text" placeholder="All apps"></span></span></div>
     </div></div>
   </section>
   <section data-layer="section-5" class="dl-section">
-    <h2 data-layer="set-elsewhere" class="dl-section-title">Set elsewhere</h2>
-    <p data-layer="shared-with-every" class="dl-section-sub">Shared with every agent, so they are set in one place.</p>
+    <h2 data-layer="set-elsewhere" class="dl-section-title">Approvals and model</h2>
+    <p data-layer="shared-with-every" class="dl-section-sub">Rules for this agent; model defaults are shared.</p>
     <div data-layer="div-4" style="height:12px"></div>
     <div data-layer="group-3" class="dl-group">
-      <a data-layer="item" href="SettingsAgents.html" class="dl-item"><svg data-layer="svg-9" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span data-layer="t-5" class="dl-t"><span data-layer="what-release-notes">What Release notes writer may do</span><span data-layer="every-action-asks">Every action asks you first · from Approvals</span></span><span data-layer="chev" class="dl-chev"><svg data-layer="svg-10" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+      <a data-layer="item" href="SettingsAgents.html" class="dl-item"><svg data-layer="svg-9" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span data-layer="t-5" class="dl-t"><span data-layer="what-release-notes">What Release notes writer may do</span><span data-layer="every-action-asks">Start a task: Allowed · Other actions: Ask</span></span><span data-layer="chev" class="dl-chev"><svg data-layer="svg-10" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
       <a data-layer="item-2" href="Models.html" class="dl-item"><svg data-layer="svg-11" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg><span data-layer="t-6" class="dl-t"><span data-layer="which-model-it">Which model it uses</span><span data-layer="your-writing-code">Your writing-code default</span></span><span data-layer="chev-2" class="dl-chev"><svg data-layer="svg-12" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
     </div>
   </section>
-  <section data-layer="section-6" class="dl-section">
+  <section data-layer="section-3" class="dl-section">
+    <h2 data-layer="when-release-notes" class="dl-section-title">Background work</h2>
+    <div data-layer="div-2" style="height:12px"></div>
+    <div data-layer="group" class="dl-group"><div data-layer="inset" class="dl-inset">
+      <div data-layer="setting" class="dl-setting"><span data-layer="t" class="dl-t"><span data-layer="every-morning">Also run on its own</span><span data-layer="off-only-when">Daily · on SER’s clock</span></span><span data-layer="v" class="dl-v"><label data-layer="morning-time" for="agent-time" class="dl-sr">Morning time</label><span data-layer="field-2" class="dl-field" style="width:132px;height:32px"><input data-layer="input-2" id="agent-time" type="time" value="08:00"></span><button data-layer="every-morning-2" type="button" role="switch" class="dl-switch" aria-checked="true" aria-label="Also run on its own"><span data-layer="span-2"></span></button></span></div>
+    </div></div>
+    <p data-layer="on-at-08" class="dl-meta" style="margin:8px 0 0">Daily at 08:00 on SER’s clock. Start a task is Allowed; other actions still ask. Turning this off keeps chat available.</p>
+  </section><details data-layer="section-7" class="dl-section"><summary data-layer="other-triggers" class="dl-link">Other triggers</summary><div data-layer="setting-5" class="dl-setting"><span data-layer="t-8" class="dl-t"><span data-layer="respond-to-mentions">Respond to @mentions</span><span data-layer="in-task-conversations">In task conversations</span></span><button data-layer="respond-to-mentions-2" class="dl-switch" role="switch" aria-checked="true" aria-label="Respond to mentions"><span data-layer="span-3"></span></button></div><div data-layer="setting-6" class="dl-setting"><span data-layer="t-9" class="dl-t"><span data-layer="a-disk-passes">A disk passes 80%</span><span data-layer="on-its-selected">On its selected computers</span></span><button data-layer="disk-trigger" class="dl-switch off" role="switch" aria-checked="false" aria-label="Disk trigger"><span data-layer="span-4"></span></button></div></details><section data-layer="section-6" class="dl-section">
     <div data-layer="group-4" class="dl-group"><div data-layer="item-3" class="dl-item"><span data-layer="t-7" class="dl-t"><span data-layer="delete-release-notes">Delete Release notes writer</span><span data-layer="its-schedule-and">Its schedule and approval rules go with it. Tasks it already started stay in your task list.</span></span><button data-layer="delete" type="button" class="dl-btn secondary" style="color:var(--danger)">Delete…</button></div></div>
   </section>
 </div></div></main></div>
