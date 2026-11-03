@@ -196,7 +196,7 @@ struct V2Tabs: View {
                     V2Group {
                         ForEach(store.snapshot.agents) { item in
                             if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
-                            Button { agent = item.id } label: { V2SettingsRow(title: item.name, subtitle: item.lastMessage?.text ?? "Say hello", identity: item.identity) { if let at = item.lastMessage?.at { Text(V2Evidence.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) } } }
+                            Button { agent = item.id } label: { V2SettingsRow(title: item.name, subtitle: item.lastMessage?.text ?? "Say hello", identity: item.identity) { if let at = item.lastMessage?.at { Text(V2Evidence.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) }; V2SettingsChevron() } }
                         }
                     }
                 }

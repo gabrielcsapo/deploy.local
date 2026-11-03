@@ -47,6 +47,28 @@ enum V2Evidence {
         guard agentsBoard != nil else { return V2Labels.shortDate(value) }
         return V2Labels.shortDate(value, now: referenceDate, calendar: referenceCalendar)
     }
+    // The phase-1 fixture lacks stage/access fields; keep its board-only scope here.
+    static func projectAccess(agent: V2Agent, project: V2Project) -> Bool? {
+        guard agentsBoard != nil, agent.id == "code-reviewer" else { return nil }
+        return ["home-gym", "tally", "deploy.local", "immich"].contains(project.id)
+    }
+    static func projectStage(_ project: V2Project) -> String {
+        if agentsBoard != nil, project.id == "immich" { return "Maintained" }
+        return project.stage?.capitalized ?? "Active"
+    }
+    static func projectAccessNote(agent: V2Agent) -> String? {
+        guard agentsBoard != nil, agent.id == "code-reviewer" else { return nil }
+        return "recipes needs access before this agent can check it. Choosing a project never grants access.\nDone projects are excluded."
+    }
+    static var itemConfirmationNote: String? {
+        agentsBoard == .projects ? "Starts after you confirm. Visible fixes bring a design review before code. Above Small, it brings a question." : nil
+    }
+    static func elapsed(_ value: String) -> String {
+        V2Labels.elapsed(value, now: agentsBoard == nil ? Date() : referenceDate)
+    }
+    static func historyDate(_ value: String, timezone: String) -> String {
+        V2Labels.historyDate(value, timezone: timezone, now: agentsBoard == nil ? Date() : referenceDate)
+    }
     private static var fixtureURL: URL? {
         #if DEBUG && targetEnvironment(simulator)
         let arguments = ProcessInfo.processInfo.arguments

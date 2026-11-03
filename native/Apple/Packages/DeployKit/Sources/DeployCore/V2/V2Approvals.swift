@@ -40,6 +40,13 @@ public struct V2ApprovalRule: Codable, Equatable, Sendable {
 public struct V2Approvals: Codable, Sendable {
     public var rules: [V2ApprovalRule]
 
+    public func summary(agent: String) -> String {
+        let allowed = V2ApprovalAction.allCases.filter { mode(agent: agent, action: $0) == .allow }
+        if allowed.isEmpty && V2ApprovalAction.allCases.allSatisfy({ mode(agent: agent, action: $0) == .ask }) { return "Asks before everything" }
+        if allowed == [.startTask] && V2ApprovalAction.allCases.filter({ $0 != .startTask }).allSatisfy({ mode(agent: agent, action: $0) == .ask }) { return "Starts tasks · asks before the rest" }
+        return V2ApprovalAction.allCases.map { "\($0.label): \(mode(agent: agent, action: $0).label)" }.joined(separator: " · ")
+    }
+
     /// The account-wide rule, matching the web's overview. A project override
     /// must never be displayed as permission for every project. Missing rules ask.
     public func mode(agent: String, action: V2ApprovalAction) -> V2ApprovalMode {

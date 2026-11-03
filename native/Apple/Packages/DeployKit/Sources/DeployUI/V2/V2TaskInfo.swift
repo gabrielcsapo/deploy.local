@@ -57,33 +57,23 @@ struct V2TaskInfo: View {
     }
 }
 struct V2AgentMenu: View {
-    let store: V2Store
-    @State private var control: V2AgentControl?
-    @State private var error: String?
-    @State private var busy = false
-    let agent: String
-    let taskURL: URL?
-    let search: () -> Void
     let info: () -> Void
-    @Environment(\.dismiss) private var dismiss
+    let history: () -> Void
+    let approvals: () -> Void
+    let back: () -> Void
+    @Environment(\.colorScheme) private var scheme
     var body: some View {
-        NavigationStack {
-            List {
-                Button("Search this conversation", systemImage: "magnifyingglass") { dismiss(); search() }
-                Button("Agent info", systemImage: "info.circle") { dismiss(); info() }
-                if let taskURL { Button("Copy link", systemImage: "link") { UIPasteboard.general.url = taskURL; dismiss() } }
-                Section {
-                    Button("Mute for 1 hour", systemImage: "bell.slash") { change(muteMinutes: 60) }.disabled(busy || control == nil)
-                    if let until = control?.mutedUntil { Text("Muted until \(V2Labels.shortDate(until))").font(.caption); Button("Unmute") { change(muteMinutes: 0) }.disabled(busy) }
-                    Button(control?.paused == true ? "Resume \(store.agentName(agent))" : "Pause \(store.agentName(agent))", systemImage: "pause") { change(paused: !(control?.paused ?? false)) }.disabled(busy || control == nil)
-                } footer: { Text("Pause stops new agent work.") }
-                if let error { Text(error).foregroundStyle(.red) }
-            }.task { do { control = try await store.client.agentControl(agent) } catch { self.error = error.localizedDescription } }.navigationTitle(store.agentName(agent)).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
-        }.presentationDetents([.medium, .large])
+        VStack(alignment: .leading, spacing: 0) {
+            row("Agent details", action: info)
+            row("History", action: history)
+            row("Approvals", action: approvals)
+            row("Back to conversation", action: back)
+        }.frame(width: 250).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(WorkspaceStyle.line(scheme)))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
     }
-    private func change(paused: Bool? = nil, muteMinutes: Int? = nil) {
-        busy = true; error = nil
-        Task { do { control = try await store.client.changeAgentControl(agent, paused: paused, muteMinutes: muteMinutes) } catch { self.error = error.localizedDescription }; busy = false }
+    private func row(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Text(title).font(.system(size: 17)).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).padding(.horizontal, 16).contentShape(Rectangle()) }.buttonStyle(.plain)
     }
 }
 #endif

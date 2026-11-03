@@ -100,7 +100,7 @@ struct V2ComposerSheet: View {
                     draft.taskId = taskId ?? draft.taskId; draft.agent = agent
                     if askingAgent { draft.question = true; if !initialText.isEmpty { draft.text = initialText } }
                     if let worker = store.snapshot.workspace?.workers.first(where: { $0.id == draft.workerId && $0.status == "online" }) ?? store.snapshot.workspace?.workers.first(where: { $0.status == "online" && $0.capabilities.contains(draft.adapter) }) { draft.workerId = worker.id }
-                    loadAttachments(); focused = true
+                    loadAttachments(); focused = V2Evidence.board == nil
                     switch V2Evidence.board {
                     case "ComposePhone": draft.text = "Make the home-gym sync worker read started_at, and add a test that runs it against the migrated schema"; draft.projectId = "home-gym"
                     case "AttachPhone": focused = false; attachmentMenu = true
@@ -197,6 +197,84 @@ struct V2ComposerSheet: View {
         catch { attachmentError = error.localizedDescription }
     }
 }
+/// Task messages stay in the conversation; @ opens the picker directly above this field.
+struct V2TaskComposer: View {
+    @Bindable var store: V2Store
+    let taskId: String
+    let expand: () -> Void
+    @State private var draft = V2Draft()
+    @State private var mentionClosed = false
+    @State private var sending = false
+    @State private var newAgent = false
+    @Environment(\.colorScheme) private var scheme
+    private var query: String? {
+        guard !mentionClosed, let range = draft.text.range(of: "@", options: .backwards) else { return nil }
+        let query = String(draft.text[range.upperBound...])
+        return query.contains("\n") ? nil : query
+    }
+    var body: some View {
+        VStack(spacing: 8) {
+            if let query {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Bring an agent into this task").font(.system(size: 13)).foregroundStyle(.secondary).padding(12)
+                    let matches = store.snapshot.agents.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
+                    ForEach(matches) { agent in
+                        Button { select(agent) } label: {
+                            HStack(spacing: 12) {
+                                AgentAvatar(glyph: agent.identity.glyph, color: agent.identity.color, size: 32)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(agent.name).font(.system(size: 17))
+                                    Text(agent.lastMessage?.text ?? "Say hello").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                                if let at = agent.lastMessage?.at { Text(V2Evidence.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) }
+                            }.padding(.horizontal, 12).frame(minHeight: 52).contentShape(Rectangle())
+                        }.buttonStyle(.plain)
+                    }
+                    if matches.isEmpty {
+                        if store.snapshot.agents.isEmpty { Button("New agent") { newAgent = true }.padding(12) }
+                        else { Text("No matching agents").font(.system(size: 13)).padding(12) }
+                    }
+                    Text("Select a name, then send your message.").font(.system(size: 13)).foregroundStyle(.secondary).padding(12)
+                }.background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
+            }
+            HStack(spacing: 8) {
+                Button(action: expand) { Image(systemName: "plus").frame(width: 32, height: 44) }.accessibilityLabel("Attachments and message options")
+                TextField("Ask, build, or follow up…", text: $draft.text, axis: .vertical)
+                    .font(.system(size: 17)).lineLimit(1...5).accessibilityIdentifier("v2-composer")
+                    .onChange(of: draft.text) { old, new in
+                        if new.filter({ $0 == "@" }).count > old.filter({ $0 == "@" }).count { mentionClosed = false }
+                    }
+                Button(action: expand) { HStack(spacing: 2) { Text(draft.model ?? "Auto"); Image(systemName: "chevron.down").font(.system(size: 8)) }.font(.system(size: 13)).foregroundStyle(.secondary) }
+                Button { send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)) }
+                    .buttonStyle(WorkspaceSendStyle()).accessibilityLabel("Send message")
+                    .disabled(draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sending)
+            }.padding(.horizontal, 10).padding(.vertical, 4)
+                .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 24))
+                .overlay(RoundedRectangle(cornerRadius: 24).stroke(WorkspaceStyle.line(scheme)))
+        }.padding(12)
+            .onAppear {
+                draft = store.composer(taskId: taskId); draft.taskId = taskId
+                if V2Evidence.agentsBoard == .mention { draft.text = "@" }
+            }
+            .onChange(of: draft) { _, next in store.saveComposer(next, context: taskId) }
+            .sheet(isPresented: $newAgent) { V2NewAgentSheet(store: store) { _ in newAgent = false } }
+    }
+    private func select(_ agent: V2Agent) {
+        guard let range = draft.text.range(of: "@", options: .backwards) else { return }
+        draft.text = String(draft.text[..<range.lowerBound]) + "@" + agent.name + " "
+        mentionClosed = true
+    }
+    private func send() {
+        sending = true
+        Task {
+            if await store.enqueue(draft) { draft = store.composer(taskId: taskId); draft.taskId = taskId; mentionClosed = false }
+            sending = false
+        }
+    }
+}
+
 private struct V2Camera: UIViewControllerRepresentable {
     let completion: (UIImage?) -> Void
     func makeUIViewController(context: Context) -> UIImagePickerController {

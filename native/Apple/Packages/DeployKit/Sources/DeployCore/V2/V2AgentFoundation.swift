@@ -49,11 +49,15 @@ public struct V2LooksAfterItem: Codable, Identifiable, Equatable, Sendable {
         let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
         return "\(when.every == "week" ? days[min(6, max(0, when.day ?? 1))] : "Every day") \(when.time)"
     }
+    public var recurringWhenLabel: String {
+        guard when.every == "week" else { return whenLabel }
+        return whenLabel.replacingOccurrences(of: " ", with: "s ", range: whenLabel.range(of: " "))
+    }
     public func summary(projects: [V2Project]) -> String {
         let scope: String
         if case .projects(let ids) = self.where { scope = ids.map { id in projects.first { $0.id == id }?.name ?? id }.joined(separator: ", ") }
         else { scope = self.where.label }
-        return "\(scope) · \(whenLabel) · brings a \(brings.replacingOccurrences(of: "-", with: " "))"
+        return "\(scope) · \(recurringWhenLabel) · brings a \(brings.replacingOccurrences(of: "-", with: " "))"
     }
 }
 public struct V2AgentConversation: Decodable, Sendable { public var events: [ConversationEvent] }

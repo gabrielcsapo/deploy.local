@@ -9,7 +9,7 @@ struct V2ConversationView: View {
     @State private var agentEvents: [ConversationEvent] = []
     @State private var suggestedText = ""
     @State private var editingItem: V2LooksAfterItem?
-    @State private var evidenceHistory: V2LooksAfterItem?
+    @State private var history: V2LooksAfterItem?
     @State private var evidenceOpened = false
     @State private var receiptBusy = false
     @State private var detail: TaskDetail?
@@ -19,6 +19,7 @@ struct V2ConversationView: View {
     @State private var info = false
     @State private var ship = false
     @State private var agentMenu = false
+    @State private var approvals = false
     @State private var releaseId: String?
     @State private var search = ""
     @State private var showSearch = false
@@ -52,26 +53,32 @@ struct V2ConversationView: View {
                         if let error { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                 }.opacity(store.online ? 1 : 0.45)
-                Button { compose = true } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "plus").foregroundStyle(WorkspaceStyle.text(scheme))
-                        Text(designs.contains { $0.state == .waiting } ? "Ask for a change…" : "Ask, build, or follow up…").font(.system(size: 15)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                        Spacer()
-                        Image(systemName: "arrow.up.circle.fill").font(.system(size: 28)).foregroundStyle(WorkspaceStyle.text(scheme))
-                    }.padding(12).background(WorkspaceStyle.surface(scheme), in: Capsule()).overlay(Capsule().stroke(WorkspaceStyle.line(scheme)))
-                }.buttonStyle(.plain).padding(12)
+                if agent == nil, let currentId {
+                    V2TaskComposer(store: store, taskId: currentId, expand: { compose = true })
+                } else {
+                    Button { compose = true } label: {
+                        HStack(spacing: 12) {
+                            Text("Ask, build, or follow up…").font(.system(size: 15)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                            Spacer()
+                            Image(systemName: "arrow.up.circle.fill").font(.system(size: 28)).foregroundStyle(WorkspaceStyle.text(scheme))
+                        }.padding(12).background(WorkspaceStyle.surface(scheme), in: Capsule()).overlay(Capsule().stroke(WorkspaceStyle.line(scheme)))
+                    }.buttonStyle(.plain).padding(12)
+                }
             }.background(WorkspaceStyle.canvas(scheme)).navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }.accessibilityLabel("Back") }
                     ToolbarItem(placement: .principal) {
-                        Button { info = true } label: {
-                            VStack(spacing: 3) {
-                                Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
-                                if let savedAgent { AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color, size: 26) }
-                                else if let project {
-                                    Text("\(project.name)\(designs.contains { $0.state == .waiting } ? " · design waiting" : "") ›").font(.system(size: 12)).foregroundStyle(.secondary)
-                                }
-                            }.frame(maxWidth: 230)
+                        if let savedAgent {
+                            Button { agentMenu.toggle() } label: { V2AgentHeader(agent: savedAgent) }.buttonStyle(.plain)
+                        } else {
+                            Button { info = true } label: {
+                                VStack(spacing: 3) {
+                                    Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                                    if let project {
+                                        Text("\(project.name)\(designs.contains { $0.state == .waiting } ? " · design waiting" : "") ›").font(.system(size: 12)).foregroundStyle(.secondary)
+                                    }
+                                }.frame(maxWidth: 230)
+                            }
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
@@ -89,13 +96,28 @@ struct V2ConversationView: View {
                 }
                 .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "", askingAgent: agent != nil, initialText: suggestedText) }
                 .sheet(item: $editingItem) { item in if let savedAgent { V2LooksAfterEditor(store: store, agent: savedAgent, item: item) } }
-                .sheet(item: $evidenceHistory) { item in if let agent { V2AgentItemHistory(store: store, agent: agent, item: item) } }
+                .navigationDestination(isPresented: Binding(get: { history != nil }, set: { if !$0 { history = nil } })) {
+                    if let history, let agent { V2AgentItemHistory(store: store, agent: agent, item: history) }
+                }
+                .sheet(isPresented: $approvals) { V2SettingsApprovals(store: store) }
                 .sheet(isPresented: $info) {
                     if let agent { V2AgentInfo(store: store, agent: agent).presentationDetents([.large]).presentationDragIndicator(.visible) }
                     else if let currentId { V2TaskInfo(store: store, taskId: currentId, detail: detail, diff: diff) { tab = $0 } }
                 }
                 .sheet(isPresented: $ship) { if let project, let currentId { V2ShipSheet(store: store, project: project, taskId: currentId) } }
-                .sheet(isPresented: $agentMenu) { V2AgentMenu(store: store, agent: agent ?? "", taskURL: currentId.flatMap { URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment($0)) }, search: { showSearch = true }, info: { info = true }) }
+                .overlay(alignment: .topTrailing) {
+                    if agentMenu {
+                        ZStack(alignment: .topTrailing) {
+                            Color.black.opacity(0.12).ignoresSafeArea().onTapGesture { agentMenu = false }
+                            V2AgentMenu(
+                                info: { agentMenu = false; info = true },
+                                history: { agentMenu = false; history = savedAgent?.looksAfter?.first },
+                                approvals: { agentMenu = false; approvals = true },
+                                back: { agentMenu = false }
+                            ).padding(.trailing, 12).padding(.top, 8)
+                        }
+                    }
+                }
                 .sheet(isPresented: Binding(get: { releaseId != nil }, set: { if !$0 { releaseId = nil } })) { if let releaseId { NavigationStack { V2ReleaseDetail(store: store, releaseId: releaseId).toolbar { Button("Done") { self.releaseId = nil } } } } }
                 .task(id: designs.map(\.id)) {
                     for item in designs where designBoards[item.id] == nil {
@@ -113,8 +135,8 @@ struct V2ConversationView: View {
                         case .info, .infoNew, .care: info = true
                         case .menu: agentMenu = true
                         case .routine, .projects: editingItem = savedAgent?.looksAfter?.first
-                        case .runs: evidenceHistory = savedAgent?.looksAfter?.first
-                        case .mention: compose = true
+                        case .runs: history = savedAgent?.looksAfter?.first
+                        case .mention: break
                         default: break
                         }
                         return
@@ -144,13 +166,26 @@ struct V2ConversationView: View {
         return events.sorted { $0.v2Date < $1.v2Date }.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) }
     }
     @ViewBuilder private var conversation: some View {
+        ForEach(savedAgent?.looksAfter?.filter { $0.confirmedAt != nil } ?? []) { item in
+            Button { history = item } label: {
+                (Text("Looks after: \(item.what) · \(item.recurringWhenLabel) · ").foregroundColor(WorkspaceStyle.tertiary(scheme)) + Text("History").foregroundColor(WorkspaceStyle.text(scheme)))
+                    .font(.system(size: 13)).frame(minHeight: 44, alignment: .leading)
+            }.buttonStyle(.plain)
+        }
         if let savedAgent, agentEvents.isEmpty {
             VStack(spacing: 16) {
                 AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color, size: 88)
                 Text(savedAgent.name).font(.system(size: 22, weight: .semibold))
                 Text("Tell \(savedAgent.name) what you want it to do. It remembers.").font(.system(size: 17)).multilineTextAlignment(.center)
+                VStack(spacing: 8) {
                 ForEach(["Draft release notes for what merged each week", "Watch my apps and tell me when something fails", "Review my open pull requests", "Research a question for me"], id: \.self) { text in
-                    Button(text) { suggestedText = text; compose = true }.font(.system(size: 15)).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).buttonStyle(.bordered)
+                    Button { suggestedText = text; compose = true } label: {
+                        Text(text).font(.system(size: 15)).multilineTextAlignment(.leading)
+                            .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(WorkspaceStyle.line(scheme)))
+                    }.buttonStyle(.plain)
+                }
                 }
             }.padding(.vertical, 32).frame(maxWidth: .infinity)
         }
@@ -159,9 +194,6 @@ struct V2ConversationView: View {
                 DisclosureGroup(day) {
                     VStack(alignment: .leading, spacing: 20) { ForEach(conversationEvents.filter { dayKey($0.v2Date) == day }, id: \.v2Id) { event in eventView(event) } }
                 }.font(.system(size: 13)).foregroundStyle(.secondary)
-            }
-            if !conversationEvents.filter({ V2Evidence.isToday($0.v2Date) }).isEmpty {
-                Text("Today").font(.system(size: 13)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }
         }
         ForEach(conversationEvents.filter { agent == nil || V2Evidence.isToday($0.v2Date) }, id: \.v2Id) { event in eventView(event) }
@@ -196,15 +228,25 @@ struct V2ConversationView: View {
             HStack { Spacer(minLength: 48); Text(value.text).font(.system(size: 17)).padding(14).background(WorkspaceStyle.selected(scheme), in: RoundedRectangle(cornerRadius: 18)) }
         case .reply(let value):
             if let savedAgent { HStack { AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color); Text(savedAgent.name).font(.system(size: 13)).lineLimit(1) } }
-            VStack(alignment: .leading, spacing: 14) { ForEach(Array(value.paragraphs.enumerated()), id: \.offset) { _, paragraph in Text(.init(paragraph)).font(.system(size: 17)).lineSpacing(5).textSelection(.enabled) } }
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(Array(value.paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                    Text(.init(paragraph + (paragraph.contains("outside this agent’s project access") || paragraph.contains("outside this agent's project access") ? " [Review access](deploy-agent://access)" : "")))
+                        .font(.system(size: 17)).lineSpacing(5).textSelection(.enabled)
+                        .environment(\.openURL, OpenURLAction { url in
+                            if url.scheme == "deploy-agent" { info = true; return .handled }
+                            return .systemAction
+                        })
+                }
+            }
             ForEach(Array((value.receipts ?? []).enumerated()), id: \.offset) { _, receipt in
                 if receipt.kind == "job" { HStack { Text("Saved to What it does ·"); Button("Edit") { info = true } }.font(.system(size: 13)).foregroundStyle(.secondary) }
                 else if let item = savedAgent?.looksAfter?.first(where: { $0.id == receipt.itemId }) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.confirmedAt == nil ? "Now looks after: \(item.what) · \(item.summary(projects: store.snapshot.projects))" : "Confirmed · first check \(item.whenLabel)")
                         HStack {
-                            if item.confirmedAt == nil { Button("Confirm") { confirm(item) }.buttonStyle(.borderedProminent).tint(WorkspaceStyle.text(scheme)).disabled(receiptBusy) }
-                            Button("Edit") { editingItem = item }
+                            if item.confirmedAt == nil { Button("Confirm") { confirm(item) }.buttonStyle(V2PrimaryButtonStyle(inline: true)).disabled(receiptBusy) }
+                            Text("·").foregroundStyle(.secondary)
+                            Button("Edit") { editingItem = item }.buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme))
                         }
                     }.font(.system(size: 13)).foregroundStyle(.secondary)
                 }
@@ -217,7 +259,9 @@ struct V2ConversationView: View {
             if let item = store.snapshot.inbox.first(where: { $0.id == value.inboxItemId }) { decisionView(item) }
             else { Text("Decision unavailable. Refresh Waiting on you.").font(.system(size: 13)) }
         case .task(let value):
-            Button { store.selectedTaskId = value.taskId } label: { V2Row(title: store.tasks.first { $0.id == value.taskId }?.title ?? "Started a task", subtitle: "Open task", icon: "bubble.left") }
+            Button { store.selectedTaskId = value.taskId } label: {
+                V2Group { V2Row(title: store.tasks.first { $0.id == value.taskId }?.title ?? "Started a task", subtitle: taskSummary(value.taskId, at: value.at), identity: savedAgent?.identity, chevron: true) }
+            }.buttonStyle(.plain)
         case .release(let value):
             Button { releaseId = value.releaseId } label: { V2Row(title: "Release \(value.releaseId.prefix(7))", subtitle: "View release", icon: "shippingbox") }
         case .screenshot:
@@ -237,6 +281,13 @@ struct V2ConversationView: View {
         if let diff, !diff.checks.isEmpty {
             ForEach(Array(diff.checks.enumerated()), id: \.offset) { _, check in Text(check.prettyText).font(.system(size: 13, design: .monospaced)).textSelection(.enabled) }
         } else { V2Empty(title: "No checks yet", message: "Check results appear here when they run.") }
+    }
+    private func taskSummary(_ id: String, at: String) -> String {
+        let task = store.tasks.first { $0.id == id }
+        let computer = store.snapshot.computers.first { $0.id == task?.workerId }?.name ?? store.snapshot.workspace?.workers.first { $0.id == task?.workerId }?.name
+        let status = task?.status.capitalized ?? "Running"
+        let time = V2Evidence.shortDate(at)
+        return "Task · \(status)\(computer.map { " on " + $0 } ?? "") · \(time == "now" ? "just now" : time)"
     }
     private func confirm(_ item: V2LooksAfterItem) {
         guard let agent, !receiptBusy else { return }; receiptBusy = true

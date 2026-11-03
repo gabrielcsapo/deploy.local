@@ -12,7 +12,7 @@ struct V2SettingsApprovals: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                V2SettingsGroup(list: true, title: "Agents", note: "Each agent starts by asking. Trust grows one action at a time.") {
+                V2SettingsGroup(list: true, title: "Agents", note: "Action rules are read-only here; change them on a computer.") {
                     ForEach(store.snapshot.agents) { agent in
                         Button { selected = agent } label: { V2SettingsRow(list: true, title: agent.name, subtitle: summary(agent), identity: agent.identity) { V2SettingsChevron() } }
                     }
@@ -29,8 +29,7 @@ struct V2SettingsApprovals: View {
     }
     private func summary(_ agent: V2Agent) -> String {
         guard let approvals else { return "Unavailable" }
-        if V2ApprovalAction.allCases.allSatisfy({ approvals.mode(agent: agent.id, action: $0) == .ask }) { return "Asks before every action" }
-        return V2ApprovalAction.allCases.map { "\($0.label): \(approvals.mode(agent: agent.id, action: $0).label)" }.joined(separator: " · ")
+        return approvals.summary(agent: agent.id)
     }
     private func load() async { do { approvals = try await store.client.approvals(); error = nil } catch { self.error = coordinatorErrorDescription(error) } }
 }
@@ -38,17 +37,16 @@ struct V2AgentRules: View {
     @Bindable var store: V2Store
     let agent: V2Agent
     @State private var approvals: V2Approvals?
-    @State private var busy = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         NavigationStack {
             ScrollView {
-                V2SettingsGroup(list: true, title: "Approvals", note: "Merging and rolling back always show you what changes first.") {
+                V2SettingsGroup(list: true, title: "What it may do", note: "Merging and rolling back always show you what changes first.\n\nRules are edited on a computer.") {
                     ForEach(V2ApprovalAction.allCases, id: \.self) { action in
-                        V2SettingsRow(list: true, title: action.label, subtitle: explanation(action), icon: "shield") {
-                            Picker(action.label, selection: Binding(get: { approvals?.mode(agent: agent.id, action: action) ?? .ask }, set: { mode in save(action, mode) })) { Text("Allowed").tag(V2ApprovalMode.allow); Text("Ask").tag(V2ApprovalMode.ask); Text("Never").tag(V2ApprovalMode.never) }.labelsHidden().disabled(busy || approvals == nil)
+                        V2SettingsRow(list: true, title: action.label, subtitle: explanation(action), icon: icon(action), glyph: action == .openPullRequest ? .pullRequest : nil) {
+                            Text(approvals?.mode(agent: agent.id, action: action).label ?? "Unavailable").font(.system(size: 15)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                         }
                     }
                     if let error { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
@@ -60,9 +58,8 @@ struct V2AgentRules: View {
     private func explanation(_ action: V2ApprovalAction) -> String {
         switch action { case .startTask: "Work on a branch inside its limits"; case .openPullRequest: "Bring a branch for review"; case .merge: "Apply a reviewed change"; case .restart: "Stop and start the running app"; case .rollback: "Restore the previous release" }
     }
-    private func save(_ action: V2ApprovalAction, _ mode: V2ApprovalMode) {
-        busy = true; error = nil
-        Task { defer { busy = false }; do { approvals = try await store.client.setAgentRule(agent.id, action: action, mode: mode) } catch { self.error = coordinatorErrorDescription(error) } }
+    private func icon(_ action: V2ApprovalAction) -> String {
+        switch action { case .startTask: "list.clipboard"; case .openPullRequest: "arrow.triangle.branch"; case .merge: "arrow.triangle.merge"; case .restart: "arrow.clockwise"; case .rollback: "arrow.counterclockwise" }
     }
 }
 #endif

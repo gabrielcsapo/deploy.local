@@ -47,6 +47,7 @@ public struct V2NewAgent: Encodable, Sendable {
 }
 
 public struct V2Project: Codable, Identifiable, Equatable, Sendable {
+    public var stage: String? = nil
     public var id: String
     public var name: String
     public var summary: String?
