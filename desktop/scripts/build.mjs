@@ -1,3 +1,4 @@
+import { computeBuildInfo } from '../../scripts/build-info.mjs';
 import { build } from 'esbuild';
 import { buildIcons } from './icons.mjs';
 import { mkdir, copyFile, access, writeFile } from 'node:fs/promises';
@@ -5,6 +6,11 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const directory = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(directory);
+const buildInfo = process.env.DEPLOY_DESKTOP_BUILD_INFO
+  ? JSON.parse(process.env.DEPLOY_DESKTOP_BUILD_INFO)
+  : computeBuildInfo(directory);
+await mkdir('build', { recursive: true });
+await writeFile('build/build-info.json', JSON.stringify(buildInfo, null, 2) + '\n');
 await mkdir('build/worker', { recursive: true });
 await mkdir('build/helpers', { recursive: true });
 await copyFile('../app/design-tokens.css', 'assets/design-tokens.css');

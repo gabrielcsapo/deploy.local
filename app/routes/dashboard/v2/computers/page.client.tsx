@@ -822,6 +822,9 @@ export default function Computers() {
                 <Updates computers={data.computers} />
               ) : (
                 <>
+                  <a className="dl-btn quiet" href={`${base}?updates=1`}>
+                    deploy.local updates
+                  </a>
                   {data.computers.length ? (
                     <ComputerList computers={data.computers} />
                   ) : (
@@ -835,9 +838,6 @@ export default function Computers() {
                     </span>
                     <a href={`${base}/models`}>Models</a>
                   </div>
-                  <a className="dl-meta" href={`${base}?updates=1`}>
-                    deploy.local updates
-                  </a>
                 </>
               )}
             </>

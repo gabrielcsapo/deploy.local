@@ -93,9 +93,7 @@
   outline: 2px solid var(--ds-focus);
 }
 
-/* The Mac app has no title bar (the desktop app sets these classes). Its traffic lights sit at the
-   left of the sidebar's top row, or of the page header when the sidebar is hidden; both rows drag
-   the window, and anything you can press inside them still works. Full screen hides the lights. */
+/* Native lights occupy the Mac top row; controls remain outside its drag region. */
 .deploy-desktop-mac .dl-side-top,
 .deploy-desktop-mac .dl-head {
   height: 52px;
@@ -106,12 +104,25 @@
   -webkit-app-region: no-drag;
 }
 .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-side-top {
-  padding-left: 92px;
+  padding-left: 100px;
 }
-@media (max-width: 820px) {
-  .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-head {
-    padding-left: 92px;
-  }
+.deploy-desktop-mac .dl-side-top {
+  box-sizing: border-box;
+  padding-right: 8px;
+  gap: 8px;
+}
+.deploy-desktop-mac .dl-side-top .dl-brand {
+  flex: 1;
+  min-width: 20px;
+}
+.deploy-desktop-mac .dl-side-top .dl-icon-btn {
+  flex: 0 0 32px;
+}
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-wordmark {
+  display: none;
+}
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-rail-shell .dl-head {
+  padding-left: 44px;
 }
 
 /* The app rail: the app's places beside Design, with the Mac app's window buttons on top. */
@@ -213,10 +224,17 @@
   font-weight: 600;
 }
 
-.deploy-desktop-mac .dz-rail {
-  width: 76px;
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dz-rail {
+  padding-top: 52px;
+}
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dz-rail-mark {
+  height: 40px;
 }
 .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dz-rail-lights {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 64px;
   height: 52px;
   align-self: stretch;
   -webkit-app-region: drag;
@@ -225,14 +243,127 @@
 .dl-design-shell > .dl-main {
   overflow: hidden;
 }
+/* The saved choice stays on the left, including compact windows. */
+.dl-app > .dl-side {
+  display: flex;
+  flex: 0 0 256px;
+  width: 256px;
+}
+.dl-app .dl-icon-btn.dl-menu-btn {
+  display: none;
+}
 @media (max-width: 820px) {
-  .dz-rail {
-    display: none;
+  .dl-app .dl-page,
+  .dl-app .dl-col {
+    padding-left: 20px;
+    padding-right: 20px;
   }
 }
+.dz-rail-who {
+  position: relative;
+}
+.dz-rail-tip {
+  display: none;
+  position: absolute;
+  left: 48px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 8px;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-action);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-meta);
+  white-space: nowrap;
+  z-index: 50;
+  pointer-events: none;
+}
+:is(.dz-rail-item, .dz-rail-who):is(:hover, :focus-visible) .dz-rail-tip {
+  display: block;
+}
+.ser-update-status {
+  margin-bottom: 12px;
+}
+.ser-update-status .dl-nav {
+  padding: 0;
+}
 
-/* The coordinator's own update, above the account: available, running or failed. */
-.dl-side-update {
+/* Mac app updates belong above the account, never in a browser sidebar. */
+.dl-mac-update {
   flex: none;
-  padding: 0 8px 8px;
+  margin: 0 8px 8px;
+  padding: 10px 8px;
+  border-top: 1px solid var(--ds-line);
+  font-family: var(--ds-font);
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  color: var(--ds-text);
+}
+.dl-mac-update .update-action {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--ds-radius-control);
+  background: transparent;
+  color: var(--ds-text);
+  text-decoration: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.dl-mac-update .update-action:hover {
+  background: var(--ds-hover);
+}
+.dl-mac-update .update-title {
+  font-weight: 500;
+}
+.dl-mac-update .update-meta {
+  font-size: var(--ds-type-meta);
+  line-height: 18px;
+  color: var(--ds-tertiary);
+}
+.dl-mac-update .update-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.dl-mac-update progress {
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin: 10px 0 6px;
+  border: 0;
+  border-radius: var(--ds-radius-full);
+  overflow: hidden;
+  background: var(--ds-line);
+  accent-color: var(--ds-text);
+  appearance: none;
+}
+.dl-mac-update progress::-webkit-progress-bar {
+  background: var(--ds-line);
+}
+.dl-mac-update progress::-webkit-progress-value {
+  background: var(--ds-text);
+}
+.dl-mac-update progress::-moz-progress-bar {
+  background: var(--ds-text);
+}
+.dl-mac-update p {
+  margin: 6px 0 8px;
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+  line-height: 18px;
+}
+.dl-mac-update .dl-btn {
+  min-height: 32px;
+}
+.dl-mac-update .installing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

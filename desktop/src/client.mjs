@@ -1,4 +1,7 @@
 import http from 'node:http';
+import { createWriteStream } from 'node:fs';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { isIP } from 'node:net';
 import https from 'node:https';
 import tls from 'node:tls';
@@ -133,6 +136,49 @@ export class CoordinatorClient {
       request.on('error', reject);
       request.end(payload);
     });
+  }
+  async download(path, destination, { signal, size, onProgress }) {
+    const url = new URL(path, this.origin);
+    if (url.origin !== this.origin) throw new Error('Cross-origin request refused.');
+    const response = await new Promise((resolve, reject) => {
+      const request = (url.protocol === 'https:' ? https : http).get(
+        url,
+        {
+          signal,
+          agent: url.protocol === 'https:' && this.pin ? new PinnedAgent(this.pin) : undefined,
+          headers: this.credentials
+            ? {
+                'X-Deploy-Username': this.credentials.username,
+                'X-Deploy-Token': this.credentials.token,
+              }
+            : {},
+        },
+        resolve,
+      );
+      request.setTimeout(30000, () => request.destroy(new Error('Download timed out.')));
+      request.on('error', reject);
+    });
+    if (response.statusCode !== 200) {
+      response.destroy();
+      throw new Error(`Download returned ${response.statusCode}; redirects are not followed.`);
+    }
+    let bytes = 0;
+    await pipeline(
+      response,
+      new Transform({
+        transform(chunk, _encoding, callback) {
+          bytes += chunk.length;
+          if (bytes > size)
+            return callback(
+              Object.assign(new Error('Download size mismatch.'), { code: 'SIZE_MISMATCH' }),
+            );
+          onProgress(bytes);
+          callback(null, chunk);
+        },
+      }),
+      createWriteStream(destination, { flags: 'wx', mode: 0o600 }),
+      { signal },
+    );
   }
   async login(username, password) {
     const result = await this.request('/api/login', {

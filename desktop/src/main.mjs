@@ -12,7 +12,7 @@ import {
   dialog,
   screen,
 } from 'electron';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hostname, cpus, totalmem, platform, release } from 'node:os';
@@ -23,12 +23,22 @@ import { InboxModel, trayModel, externalUrl } from './model.mjs';
 import { icon } from './icons.mjs';
 import { Vault } from './vault.mjs';
 import { WorkerManager } from './worker.mjs';
+import { DesktopUpdater } from './updater.mjs';
+import { prepareInstall, readHandoff, acknowledgeStart, returnPage } from './update-install.mjs';
 import { activeControl, controlBody } from './control.mjs';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const shellFile = join(root, 'assets/shell.html');
 const shellUrl = pathToFileURL(shellFile).href;
-if (process.env.DEPLOY_DESKTOP_DATA_DIR)
-  app.setPath('userData', process.env.DEPLOY_DESKTOP_DATA_DIR);
+const dataArgument = process.argv
+  .find((arg) => arg.startsWith('--deploy-data-dir='))
+  ?.slice('--deploy-data-dir='.length);
+if (dataArgument || process.env.DEPLOY_DESKTOP_DATA_DIR)
+  app.setPath('userData', dataArgument || process.env.DEPLOY_DESKTOP_DATA_DIR);
+let buildInfo = null;
+try {
+  buildInfo = JSON.parse(readFileSync(join(root, 'build/build-info.json'), 'utf8'));
+} catch {}
+let updater, handoff;
 if (app.isPackaged && process.env.DEPLOY_DESKTOP_FIXTURE === '1')
   throw new Error('Fixture capture is only available in unpackaged Electron.');
 const fixtureMode = !app.isPackaged && process.env.DEPLOY_DESKTOP_FIXTURE === '1';
@@ -509,6 +519,8 @@ async function setRoles(value) {
 }
 async function switchCoordinator() {
   generation++;
+  await updater?.dispose();
+  updater = null;
   await worker.stop();
   webWindow?.destroy();
   webWindow = undefined;
@@ -560,6 +572,7 @@ ipcMain.handle('shell:action', async (event, body) => {
         throw new Error('Unlock your system keychain to sign in securely.');
       await client.login(body.username, body.password);
       save();
+      startUpdater();
       await refresh();
       show('setup');
       void poll();
@@ -631,6 +644,10 @@ ipcMain.on('desktop:session-marker', (event) => {
   }
 });
 const handlers = {
+  'desktop:update-status': () => updater?.status() ?? { phase: 'idle' },
+  'desktop:update-start': () => updater?.start(),
+  'desktop:update-cancel': () => updater?.cancel(),
+  'desktop:update-restart': () => updater?.restart(webWindow.webContents.getURL()),
   'desktop:notify': (id) => notify(String(id)),
   'desktop:badge': (count) => {
     if (!Number.isInteger(count) || count !== inbox.waiting().length)
@@ -752,7 +769,50 @@ function showTray() {
   update();
 }
 
+function startUpdater() {
+  if (process.platform !== 'darwin' || !app.isPackaged || !buildInfo || updater) return;
+  updater = new DesktopUpdater({
+    build: buildInfo,
+    client: () => client,
+    directory: join(app.getPath('userData'), 'updates'),
+    onChange: (status) => {
+      if (
+        webWindow &&
+        !webWindow.isDestroyed() &&
+        webWindow.webContents.getURL().startsWith(client?.origin + '/')
+      )
+        webWindow.webContents.send('desktop:update', status);
+    },
+    install: async (staged, page, build) => {
+      await prepareInstall({
+        executable: app.getPath('exe'),
+        staged,
+        directory: app.getPath('userData'),
+        page,
+        build,
+      });
+      // Give the page time to paint the brief Installing state before the handoff.
+      setTimeout(() => app.quit(), 500);
+    },
+  });
+  void updater.check();
+}
 async function start() {
+  if (process.platform === 'darwin' && app.isPackaged) {
+    try {
+      handoff = readHandoff({
+        args: process.argv,
+        directory: app.getPath('userData'),
+        executable: app.getPath('exe'),
+        build: buildInfo,
+      });
+    } catch (error) {
+      console.error('[desktop update]', error);
+      app.quit();
+      return;
+    }
+  }
+  setInterval(() => void updater?.check(), 4 * 60 * 60 * 1000).unref();
   fixture = fixtureMode ? (await import('../scripts/fixture-runtime.mjs')).fixtureRuntime() : null;
   if (fixture) {
     Object.assign(state, fixture.state);
@@ -828,10 +888,11 @@ async function start() {
     event.preventDefault();
     quitting = true;
     generation++;
-    void worker.stop().finally(() => app.quit());
+    void Promise.all([worker.stop(), updater?.dispose()]).finally(() => app.quit());
   });
   if (saved.origin && saved.credentials) {
     client = new CoordinatorClient(saved.origin, saved);
+    startUpdater();
     state.origin = client.origin;
     state.roles = saved.roles;
     state.page = 'dashboard';
@@ -841,10 +902,14 @@ async function start() {
     } catch {
       // Offline at launch: the main window opens with the offline notice and recovers on its own.
     }
-    if (client.credentials) await dashboard();
+    if (client.credentials) {
+      // Open the restored page without tying startup acknowledgement to coordinator availability.
+      void dashboard(handoff ? returnPage(handoff.page, client.origin) : undefined);
+    }
     void poll();
   } else show('connect');
   update();
+  if (!(await acknowledgeStart(handoff))) app.quit();
 }
 app.whenReady().then(start);
 

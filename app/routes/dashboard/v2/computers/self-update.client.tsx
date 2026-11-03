@@ -1,6 +1,6 @@
 'use client';
 import { useState, type ReactNode } from 'react';
-import { Action, Banner, Group, Icon, Item, Steps, Term } from '@/components/ui';
+import { Action, Banner, Group, Icon, Item, Nav, Steps, Term } from '@/components/ui';
 import { relativeTime } from '../data/sidebar';
 import { getAuth } from '../../detail/shared';
 import { selfUpdateLog, startSelfUpdate } from '../data/self-update';
@@ -9,6 +9,7 @@ import {
   failedNotice,
   minutes,
   pageMeta,
+  sidebarRow,
   plannedSteps,
   runningNotice,
   short,
@@ -55,6 +56,7 @@ function ago(at: string) {
 /** deploy.local updating the coordinator to its own main: available, running or failed. */
 export function SelfUpdatePanel({ view, offline }: { view: SelfUpdateView; offline: boolean }) {
   const { status } = view;
+  const row = sidebarRow(view);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
   const [log, setLog] = useState<string | null>(null);
@@ -84,6 +86,21 @@ export function SelfUpdatePanel({ view, offline }: { view: SelfUpdateView; offli
           <h1 className="dl-title">deploy.local updates</h1>
           <span className="dl-meta">{pageMeta(view)}</span>
         </div>
+      </div>
+      <div className="ser-update-status">
+        <Nav
+          href="/dashboard/computers?updates=1"
+          lead={<Icon name={row.icon} size={14} className={row.iconClass} />}
+          end={
+            view.kind === 'available' ? (
+              <span className="dl-c">{status.ahead}</span>
+            ) : (
+              relativeTime(view.run.finishedAt || view.run.startedAt)
+            )
+          }
+        >
+          {row.label}
+        </Nav>
       </div>
       {error && <Banner kind="danger" title={error} />}
       {view.kind === 'available' ? (

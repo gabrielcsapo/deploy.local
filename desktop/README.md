@@ -70,6 +70,12 @@ deployDesktop.worker.status();
 deployDesktop.worker.setRoles({ takeTasks, runApps, serveModels, useScreen });
 deployDesktop.control.request(controlInboxItemId);
 deployDesktop.openExternal(webAddress);
+// Mac only:
+deployDesktop.update.status();
+deployDesktop.update.onChange(callback); // returns an unsubscribe function; callback receives status only
+deployDesktop.update.start();
+deployDesktop.update.cancel();
+deployDesktop.update.restart();
 ```
 
 `notify` only accepts existing decisions; `setBadge` must match the inbox. Role changes open a
@@ -131,7 +137,7 @@ This builds the worker and shell, copies `app/design-tokens.css` into desktop as
 **unsigned unpacked application for the current OS/architecture** under `desktop/dist/package-check/`.
 It uses the installed Electron distribution and a writable cache under `desktop/build/`.
 It never installs into `/Applications`, publishes, signs or notarizes. It extracts both preloads
-from the packaged `app.asar`, executes their capability audit, checks all six allowed calls and
+from the packaged `app.asar`, executes their capability audit, checks the six base calls and five Mac update methods and
 nested keys, rejects extra globals, checks that the copied tokens match, and confirms the worker
 is bundled. Run on each destination OS for cross-platform packaging acceptance.
 
@@ -156,3 +162,45 @@ is an Electron window built from the exact native Notification options, with the
 beside it. It verifies content, not OS notification-center appearance or delivery. The simulated
 Linux run uses the host OS's native frame. See that directory's `captures.md` for renderer URLs,
 board dimensions, pairing commands and any sandbox launch limitation.
+
+## Mac app updates
+
+Packaged Mac apps read `build/build-info.json` from their own app archive. The desktop build
+uses `computeBuildInfo`; `build-desktop-download.mjs` supplies that exact stamp to packaging
+through `DEPLOY_DESKTOP_BUILD_INFO`, so the published manifest and installed app agree.
+Unpackaged development apps do not download or replace Electron itself.
+
+On sign-in/launch and every four hours, main checks the connected coordinator's `/desktop/version`
+with its existing certificate pin. Only a different commit with a newer build time is offered.
+The archive comes from `/desktop?os=darwin&arch=<arch>&version=<version>`; redirects are refused.
+Downloads live in `userData/updates`, are cancellable, and must pass manifest size/SHA-256,
+`ditto -x -k`, and `codesign --verify --deep --strict` before Restart becomes available.
+Failures checking in the background retain the last known status. Retry fetches the manifest again.
+
+The status object has `phase` (`idle`, `available`, `downloading`, `checking`, `ready`, `installing`,
+`failed`), published `version`/`commit`, progress `bytes`/`total`/`percent`, and a failure `error`
+(`verification` or `network`). All four update IPC requests use the existing sender, main-frame
+and coordinator-origin checks. Only the Mac preload exposes `update`; `onChange` removes its
+listener when unsubscribed. No page receives filesystem paths or controls a download URL.
+
+Restart copies the verified app beside the installed bundle and verifies it again before quitting.
+A detached `/bin/sh` helper, copied out of ASAR into user data, waits for this PID to exit (up to
+120 seconds), renames the old bundle aside, then renames the candidate into place. Both renames
+are on the same volume. It runs `open -n` with an opaque handoff ID and the existing data directory.
+The new app validates its build and bundle against the private receipt, restores only a dashboard
+URL on its saved coordinator, and acknowledges startup. It then removes the old bundle. Startup
+and rollback claim the same directory, so a late startup cannot acknowledge over rollback.
+If launch fails or startup is not acknowledged within 60 seconds, the helper stops the new PID,
+restores the previous app and reopens the saved page. Recovery logs and receipts remain in
+`userData/updates/<id>.json*`. A failure to remove the old bundle keeps it and logs the failure.
+
+An unwritable installation (including a disk image) keeps the verified update Ready and logs the
+handoff error; no elevation or extra dialog is introduced. The previous app reopens after rollback
+with its normal update check. The approved boards do not define installation-error UI. Native
+LaunchServices, signing, filesystem permissions and first-window acceptance still need the Mac
+checks in the repository-root `captures.md`; filesystem helper tests use disposable fake launchers.
+
+For isolated manual update states, `scripts/update-fixture.mjs` serves manifest/archive responses
+on `127.0.0.1:5194` and proxies the remaining requests to a disposable coordinator on 5190–5193.
+Its JSON config names `manifest`, `archive` and `mode` (`normal`, `slow`, `corrupt`, `network`).
+It rereads the config on each request. It is excluded from packaged apps.

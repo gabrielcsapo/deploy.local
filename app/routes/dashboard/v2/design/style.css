@@ -2779,3 +2779,30 @@ button.dz-link-row:hover,
   background: color-mix(in srgb, var(--ds-accent) 12%, var(--ds-surface));
   color: var(--ds-accent);
 }
+
+/* App navigation remains independent of Design's folding panels. */
+.deploy-desktop-mac .dz-narrow-bar {
+  -webkit-app-region: drag;
+}
+.deploy-desktop-mac .dz-narrow-bar :is(button, a, input, select) {
+  -webkit-app-region: no-drag;
+}
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-rail-shell .dz-left-head {
+  padding-left: 32px;
+  min-height: 40px;
+}
+@media (max-width: 820px) {
+  .deploy-desktop-mac .dz {
+    grid-template-rows: 52px minmax(0, 1fr);
+  }
+  .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-rail-shell .dz-narrow-bar {
+    padding-left: 44px;
+  }
+  .dl-app .dz-narrow-page {
+    display: none;
+  }
+}
+
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-rail-shell .dz-restore {
+  left: 44px;
+}

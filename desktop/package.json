@@ -33,6 +33,7 @@
       "src/**",
       "assets/**",
       "build/shell-preload.cjs",
+      "build/build-info.json",
       "package.json"
     ],
     "extraResources": [

@@ -1,10 +1,23 @@
 'use client';
 import { Icon, type IconName } from '@/components/ui';
 import { useInbox, useResource } from '../data/hooks';
+import {
+  updateLabel,
+  type DesktopUpdateApi,
+  type DesktopUpdateStatus,
+} from '../data/desktop-update';
 import type { LiveSummary } from '../data/sidebar';
 
 /** The same app navigation on every wide work surface and collapsed page. */
-export function DesignRail({ pathname, onExpand }: { pathname: string; onExpand: () => void }) {
+export function DesignRail({
+  pathname,
+  onExpand,
+  update,
+}: {
+  pathname: string;
+  onExpand: () => void;
+  update?: { api?: DesktopUpdateApi; status: DesktopUpdateStatus };
+}) {
   const inbox = useInbox();
   const live = useResource<{ summary: LiveSummary }>('/api/v2/live', true);
   const user = useResource<{ username: string }>('/api/user');
@@ -21,6 +34,9 @@ export function DesignRail({ pathname, onExpand }: { pathname: string; onExpand:
         aria-current={on ? 'page' : undefined}
       >
         <Icon name={icon} size={18} />
+        <span className="dz-rail-tip" aria-hidden="true">
+          {label}
+        </span>
         {mark === 'dot' && <i className="dz-rail-dot" />}
         {typeof mark === 'number' && <span className="dz-rail-count">{mark}</span>}
       </a>
@@ -37,6 +53,9 @@ export function DesignRail({ pathname, onExpand }: { pathname: string; onExpand:
         title="New task"
       >
         <span className="dl-mark">d</span>
+        <span className="dz-rail-tip" aria-hidden="true">
+          New task
+        </span>
       </a>
       {place('/dashboard/projects', 'folder', 'Projects')}
       {place(
@@ -63,7 +82,24 @@ export function DesignRail({ pathname, onExpand }: { pathname: string; onExpand:
         onClick={onExpand}
       >
         <Icon name="sidebar" size={16} />
+        <span className="dz-rail-tip" aria-hidden="true">
+          Expand sidebar · ⌘\
+        </span>
       </button>
+      {update?.api && update.status.phase !== 'idle' && (
+        <button
+          type="button"
+          className="dz-rail-item"
+          onClick={onExpand}
+          aria-label={`deploy.local for Mac · ${updateLabel(update.status)}`}
+          title={`deploy.local for Mac · ${updateLabel(update.status)}`}
+        >
+          <Icon name="download" size={16} />
+          <span className="dz-rail-tip" aria-hidden="true">
+            {updateLabel(update.status)}
+          </span>
+        </button>
+      )}
       <a
         href="/dashboard/settings"
         className="dz-rail-who"
@@ -71,6 +107,9 @@ export function DesignRail({ pathname, onExpand }: { pathname: string; onExpand:
         title={`Settings${name ? ` · ${name}` : ''}`}
       >
         {name.slice(0, 1).toUpperCase() || '·'}
+        <span className="dz-rail-tip" aria-hidden="true">
+          Settings
+        </span>
       </a>
     </nav>
   );

@@ -9,6 +9,18 @@ const api = {
   control: { request: (itemId) => ipcRenderer.invoke('desktop:control', itemId) },
   openExternal: (url) => ipcRenderer.invoke('desktop:external', url),
 };
+if (process.platform === 'darwin')
+  api.update = {
+    status: () => ipcRenderer.invoke('desktop:update-status'),
+    start: () => ipcRenderer.invoke('desktop:update-start'),
+    cancel: () => ipcRenderer.invoke('desktop:update-cancel'),
+    restart: () => ipcRenderer.invoke('desktop:update-restart'),
+    onChange: (callback) => {
+      const listener = (_event, status) => callback(status);
+      ipcRenderer.on('desktop:update', listener);
+      return () => ipcRenderer.removeListener('desktop:update', listener);
+    },
+  };
 contextBridge.exposeInMainWorld('deployDesktop', api);
 
 // The web app uses a local marker for its signed-in UI. The real token never leaves main.

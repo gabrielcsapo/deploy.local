@@ -43,6 +43,11 @@ assert.ok(packages.length > 0, 'No unpacked application archive produced');
 for (const archive of packages) {
   const extract = (name) => asar.extractFile(archive, name).toString('utf8');
   const main = extract('src/main.mjs');
+  assert.deepEqual(
+    JSON.parse(extract('build/build-info.json')),
+    JSON.parse(await readFile(join(root, 'build/build-info.json'), 'utf8')),
+  );
+  assert.ok(extract('src/update-helper.sh').startsWith('#!/bin/sh'));
   assert.match(main, /contextIsolation: true/);
   assert.match(main, /sandbox: true/);
   console.log(

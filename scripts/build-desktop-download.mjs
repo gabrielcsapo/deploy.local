@@ -97,7 +97,11 @@ console.log('\n[3/4] Package the app');
 const signing = process.env.CSC_LINK || process.env.CSC_NAME;
 run('pnpm', ['package:mac'], {
   cwd: DESKTOP,
-  env: { ...process.env, ...(signing ? {} : { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }) },
+  env: {
+    ...process.env,
+    DEPLOY_DESKTOP_BUILD_INFO: JSON.stringify(build),
+    ...(signing ? {} : { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }),
+  },
 });
 const app = join(DESKTOP, `dist/mac-${arch}`, APP_NAME);
 if (!existsSync(app)) {

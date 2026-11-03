@@ -19,11 +19,15 @@ import {
 } from './v2/data/sidebar';
 import './v2-shell.css';
 import { DesignRail } from './v2/design/Rail';
-import { sidebarKind, sidebarCollapsed } from './v2/data/sidebar-preference';
+import {
+  sidebarCollapsed,
+  rememberSidebar,
+  sidebarPreferenceKey,
+} from './v2/data/sidebar-preference';
 import { FirstTask } from './v2/start/page.client';
 import { useInAppLinks } from './v2/data/links';
-import { useSelfUpdate } from './v2/data/self-update';
-import { selfUpdateView, sidebarRow } from './v2/computers/self-update-presentation';
+import { useDesktopUpdate } from './v2/data/desktop-update';
+import { DesktopUpdateRow } from './v2/DesktopUpdate';
 
 function useSidebarData() {
   return {
@@ -35,7 +39,7 @@ function useSidebarData() {
     computers: useResource<{ nodes: { id: string; name?: string; online: boolean }[] }>(
       '/api/nodes',
     ),
-    selfUpdate: useSelfUpdate(),
+    desktopUpdate: useDesktopUpdate(),
   };
 }
 
@@ -59,15 +63,16 @@ export function V2Sidebar({
   const summary = live.data?.summary;
   const username = user.data?.username || 'Account';
   const online = computers.data?.nodes.filter((computer) => computer.online).length;
-  const update = selfUpdateView(data.selfUpdate.status);
-  const updateRow = update && sidebarRow(update);
   return (
     <Sidebar
       onCollapse={onCollapse}
       brand={
         <>
-          <span className="dl-brand">
-            <span className="dl-mark">d</span>deploy.local
+          <span className="dl-brand" role="img" aria-label="deploy.local">
+            <span className="dl-mark" aria-hidden="true">
+              d
+            </span>
+            <span className="dl-wordmark">deploy.local</span>
           </span>
           <IconButton icon="search" label="Search (coming soon)" disabled />
         </>
@@ -127,23 +132,7 @@ export function V2Sidebar({
       }
       footer={
         <>
-          {update && updateRow && (
-            <div className="dl-side-update">
-              <Nav
-                href="/dashboard/computers?updates=1"
-                lead={<Icon name={updateRow.icon} size={14} className={updateRow.iconClass} />}
-                end={
-                  update.kind === 'available' ? (
-                    <span className="dl-c">{update.status.ahead}</span>
-                  ) : (
-                    relativeTime(update.run.finishedAt || update.run.startedAt)
-                  )
-                }
-              >
-                {updateRow.label}
-              </Nav>
-            </div>
-          )}
+          <DesktopUpdateRow {...data.desktopUpdate} />
           <a className="dl-side-foot" href="/dashboard/settings">
             <span className="dl-avatar">{username.charAt(0).toUpperCase()}</span>
             <span className="dl-who">
@@ -287,23 +276,21 @@ export function V2Layout() {
 function V2Shell() {
   const data = useSidebarData();
   const { pathname } = useLocation();
-  const [choices, setChoices] = useState<Record<string, boolean>>({});
-  const kind = sidebarKind(pathname);
+  const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
-    setChoices((current) =>
-      current[kind] === undefined ? { ...current, [kind]: sidebarCollapsed(kind) } : current,
-    );
-  }, [kind]);
-  const collapsed = choices[kind] ?? kind !== 'pages';
+    setCollapsed(sidebarCollapsed());
+    const changed = (event: StorageEvent) => {
+      if (event.key === sidebarPreferenceKey || event.key === null)
+        setCollapsed(sidebarCollapsed());
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, []);
   const toggleSidebar = useCallback(() => {
     const next = !collapsed;
-    setChoices((current) => ({ ...current, [kind]: next }));
-    try {
-      localStorage.setItem(`deploy.sidebar.${kind}`, String(next));
-    } catch {
-      // The choice still works when storage is unavailable.
-    }
-  }, [kind, collapsed]);
+    setCollapsed(next);
+    rememberSidebar(next);
+  }, [collapsed]);
   const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -348,7 +335,7 @@ function V2Shell() {
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
       />
       {collapsed ? (
-        <DesignRail pathname={pathname} onExpand={toggleSidebar} />
+        <DesignRail pathname={pathname} onExpand={toggleSidebar} update={data.desktopUpdate} />
       ) : (
         <V2Sidebar pathname={pathname} data={data} onCollapse={toggleSidebar} />
       )}

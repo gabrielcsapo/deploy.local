@@ -65,6 +65,7 @@ test('preload exposes exactly the contracted surface and forwards only arguments
     calls = [],
     listens = [];
   vm.runInNewContext(readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8'), {
+    process: { platform: 'darwin' },
     require: (name) => {
       assert.equal(name, 'electron');
       return {
@@ -90,6 +91,7 @@ test('preload exposes exactly the contracted surface and forwards only arguments
     'notify',
     'openExternal',
     'setBadge',
+    'update',
     'worker',
   ]);
   assert.deepEqual(Object.keys(surface.worker).sort(), ['setRoles', 'status']);
@@ -403,4 +405,44 @@ test('offline uses the coordinator computer name and preserves the running task 
     render({ page: 'offline', origin: 'https://deploy.local', coordinatorName: 'SER' }),
     /Your task/,
   );
+});
+
+test('Mac update subscription strips the IPC event and unsubscribes; other platforms have no updater', () => {
+  const source = readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8');
+  for (const platform of ['darwin', 'linux', 'win32']) {
+    let api;
+    const listeners = new Map();
+    vm.runInNewContext(source, {
+      process: { platform },
+      require: () => ({
+        contextBridge: {
+          exposeInMainWorld: (_name, value) => {
+            api = value;
+          },
+        },
+        ipcRenderer: {
+          sendSync: () => null,
+          invoke: () => Promise.resolve(),
+          on: (channel, listener) => listeners.set(channel, listener),
+          removeListener: (channel, listener) => {
+            assert.equal(listeners.get(channel), listener);
+            listeners.delete(channel);
+          },
+        },
+      }),
+    });
+    if (platform !== 'darwin') {
+      assert.equal(api.update, undefined);
+      continue;
+    }
+    let received;
+    const stop = api.update.onChange((...args) => {
+      received = args;
+    });
+    const status = { phase: 'ready' };
+    listeners.get('desktop:update')({ secret: true }, status);
+    assert.deepEqual(received, [status]);
+    stop();
+    assert.equal(listeners.has('desktop:update'), false);
+  }
 });

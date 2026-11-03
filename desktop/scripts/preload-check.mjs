@@ -15,6 +15,7 @@ export async function verifyPreloads(remote, local) {
   const ipcRenderer = {
     sendSync: () => null,
     on: (channel) => listens.push(channel),
+    removeListener: (channel) => assert.equal(channel, 'desktop:update'),
     invoke: (...args) => {
       calls.push(args);
       return Promise.resolve();
@@ -23,6 +24,7 @@ export async function verifyPreloads(remote, local) {
   vm.runInNewContext(
     remote,
     {
+      process: { platform: 'darwin' },
       require: (name) => {
         assert.equal(name, 'electron');
         return { contextBridge, ipcRenderer };
@@ -31,23 +33,36 @@ export async function verifyPreloads(remote, local) {
     { timeout: 1000 },
   );
   assert.deepEqual(exposures, ['deployDesktop']);
-  // The page receives the connection state and the window chrome, nothing else; it cannot send on those channels.
+  // Connection and chrome subscribe at load; update subscriptions are opt-in.
   assert.deepEqual(listens, ['desktop:connection', 'desktop:chrome']);
   assert.deepEqual(Object.keys(surface).sort(), [
     'control',
     'notify',
     'openExternal',
     'setBadge',
+    'update',
     'worker',
   ]);
   assert.deepEqual(Object.keys(surface.worker).sort(), ['setRoles', 'status']);
   assert.deepEqual(Object.keys(surface.control), ['request']);
+  assert.deepEqual(Object.keys(surface.update).sort(), [
+    'cancel',
+    'onChange',
+    'restart',
+    'start',
+    'status',
+  ]);
+  surface.update.onChange(() => {})();
   await surface.notify('decision');
   await surface.setBadge(3);
   await surface.worker.status();
   await surface.worker.setRoles({ takeTasks: true });
   await surface.control.request('decision');
   await surface.openExternal('https://example.com');
+  await surface.update.status();
+  await surface.update.start();
+  await surface.update.cancel();
+  await surface.update.restart();
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
     ['desktop:notify', 'decision'],
     ['desktop:badge', 3],
@@ -55,6 +70,10 @@ export async function verifyPreloads(remote, local) {
     ['desktop:worker-roles', { takeTasks: true }],
     ['desktop:control', 'decision'],
     ['desktop:external', 'https://example.com'],
+    ['desktop:update-status'],
+    ['desktop:update-start'],
+    ['desktop:update-cancel'],
+    ['desktop:update-restart'],
   ]);
   const globals = {};
   const window = {
@@ -84,5 +103,5 @@ export async function verifyPreloads(remote, local) {
   assert.deepEqual(exposures, ['deployDesktop']);
   assert.deepEqual(Object.keys(globals), []);
   assert.deepEqual(Object.keys(window), ['addEventListener']);
-  return 'Exactly six remote capabilities; no shell page API.';
+  return 'Six base remote capabilities and five Mac update methods; no shell page API.';
 }

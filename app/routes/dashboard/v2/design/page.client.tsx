@@ -860,14 +860,9 @@ export default function DesignPage() {
         )}
       </div>
       <div className="dz-narrow-bar">
-        <button
-          type="button"
-          className="dl-icon-btn"
-          aria-label="Show sidebar"
-          onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
-        >
-          <Icon name="menu" />
-        </button>
+        <a className="dl-icon-btn" aria-label="Back to deploy.local" href="/dashboard">
+          <Icon name="back" />
+        </a>
         <span className="dz-narrow-menu">
           <button
             type="button"

@@ -1,16 +1,16 @@
-export function sidebarKind(pathname: string) {
-  if (pathname === '/dashboard/design') return 'design';
-  if (/^\/dashboard\/tasks\/[^/]+\/changes\/?$/.test(pathname)) return 'changes';
-  if (/^\/dashboard\/projects\/[^/]+\/code(?:\/|$)/.test(pathname)) return 'code';
-  return 'pages';
-}
+export const sidebarPreferenceKey = 'deploy.sidebar.collapsed';
 
-export function sidebarCollapsed(kind: ReturnType<typeof sidebarKind>) {
+export function sidebarCollapsed() {
   try {
-    const saved = localStorage.getItem(`deploy.sidebar.${kind}`);
-    if (saved === 'true' || saved === 'false') return saved === 'true';
+    return localStorage.getItem(sidebarPreferenceKey) === 'true';
   } catch {
-    // Private browsing and server rendering still get the page's default.
+    return false;
   }
-  return kind !== 'pages';
+}
+export function rememberSidebar(collapsed: boolean) {
+  try {
+    localStorage.setItem(sidebarPreferenceKey, String(collapsed));
+  } catch {
+    // The choice still works when storage is unavailable.
+  }
 }
