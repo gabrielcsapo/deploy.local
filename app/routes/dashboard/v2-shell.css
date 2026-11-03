@@ -292,56 +292,87 @@
   padding: 0;
 }
 
-/* Mac app updates belong above the account, never in a browser sidebar. */
+/* Keep both navigation surfaces mounted to preserve the task list's scroll position. */
+.dl-app > .dl-side[hidden],
+.dz-rail[hidden] {
+  display: none;
+}
+
+/* Mac update details overlay the list, clipped to the sidebar at both window widths. */
+.dl-side:has(.dl-mac-update) {
+  position: relative;
+  overflow: hidden;
+}
 .dl-mac-update {
+  position: relative;
   flex: none;
   margin: 0 8px 8px;
-  padding: 10px 8px;
-  border-top: 1px solid var(--ds-line);
+}
+.dl-mac-update .update-trigger {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--ds-font);
+  text-align: left;
+  cursor: pointer;
+}
+.dl-mac-update .update-trigger:hover {
+  background: color-mix(in srgb, var(--ds-line) 60%, transparent);
+}
+.dl-mac-update .update-trigger.on {
+  background: var(--ds-selected);
+}
+/* Fade above the menu, then mask the list all the way through the 8 px gap. */
+.dl-mac-update-overlay {
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  bottom: 100%;
+  z-index: 20;
+  padding: 32px 8px 8px;
+  background: linear-gradient(to bottom, transparent, var(--ds-sidebar) 32px);
+  pointer-events: none;
+}
+.dl-mac-update-popover {
+  position: relative;
+  pointer-events: auto;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 12px;
+  gap: 12px;
+  overflow-wrap: anywhere;
   font-family: var(--ds-font);
   font-size: var(--ds-type-ui);
   line-height: 20px;
   color: var(--ds-text);
 }
-.dl-mac-update .update-action {
+.dl-mac-update-popover .update-product {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-items: flex-start;
-  width: 100%;
-  box-sizing: border-box;
-  border: 0;
-  border-radius: var(--ds-radius-control);
-  background: transparent;
-  color: var(--ds-text);
-  text-decoration: none;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
 }
-.dl-mac-update .update-action:hover {
-  background: var(--ds-hover);
+.dl-mac-update-popover p {
+  margin: 0;
+  color: var(--ds-secondary);
 }
-.dl-mac-update .update-title {
-  font-weight: 500;
+.dl-mac-update-popover .update-actions {
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
 }
-.dl-mac-update .update-meta {
-  font-size: var(--ds-type-meta);
-  line-height: 18px;
-  color: var(--ds-tertiary);
-}
-.dl-mac-update .update-line {
+.dl-mac-update-popover .update-status {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  margin-top: 4px;
 }
-.dl-mac-update progress {
+.dl-mac-update-popover progress {
   display: block;
   width: 100%;
   height: 3px;
-  margin: 10px 0 6px;
+  margin: 0;
   border: 0;
   border-radius: var(--ds-radius-full);
   overflow: hidden;
@@ -349,26 +380,32 @@
   accent-color: var(--ds-text);
   appearance: none;
 }
-.dl-mac-update progress::-webkit-progress-bar {
+.dl-mac-update-popover progress::-webkit-progress-bar {
   background: var(--ds-line);
 }
-.dl-mac-update progress::-webkit-progress-value {
+.dl-mac-update-popover progress::-webkit-progress-value {
   background: var(--ds-text);
 }
-.dl-mac-update progress::-moz-progress-bar {
+.dl-mac-update-popover progress::-moz-progress-bar {
   background: var(--ds-text);
 }
-.dl-mac-update p {
-  margin: 6px 0 8px;
-  color: var(--ds-secondary);
-  font-size: var(--ds-type-meta);
-  line-height: 18px;
-}
-.dl-mac-update .dl-btn {
-  min-height: 32px;
-}
-.dl-mac-update .installing {
+:is(.dl-mac-update, .dz-rail-update) .update-icon {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex: none;
+}
+:is(.dl-mac-update, .dz-rail-update) .update-state-mark {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  display: flex;
+  background: var(--ds-sidebar);
+  border-radius: var(--ds-radius-full);
+}
+.dz-rail-update .update-icon {
+  position: static;
+}
+.dz-rail-update .update-state-mark {
+  right: 2px;
+  top: 2px;
 }

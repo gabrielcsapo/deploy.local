@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps } from 'react';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import { Sidebar, Nav, Icon, IconButton, Glyph, Status } from '@/components/ui';
 import {
@@ -19,14 +19,10 @@ import {
 } from './v2/data/sidebar';
 import './v2-shell.css';
 import { DesignRail } from './v2/design/Rail';
-import {
-  sidebarCollapsed,
-  rememberSidebar,
-  sidebarPreferenceKey,
-} from './v2/data/sidebar-preference';
+import { sidebarCollapsed, sidebarPreferenceKey } from './v2/data/sidebar-preference';
 import { FirstTask } from './v2/start/page.client';
 import { useInAppLinks } from './v2/data/links';
-import { useDesktopUpdate } from './v2/data/desktop-update';
+import { changeDesktopUpdateNavigation, useDesktopUpdate } from './v2/data/desktop-update';
 import { DesktopUpdateRow } from './v2/DesktopUpdate';
 
 function useSidebarData() {
@@ -47,10 +43,17 @@ export function V2Sidebar({
   pathname,
   data,
   onCollapse,
+  hidden,
+  updateDetails,
 }: {
   pathname: string;
   data: ReturnType<typeof useSidebarData>;
   onCollapse?: () => void;
+  hidden?: boolean;
+  updateDetails?: Pick<
+    ComponentProps<typeof DesktopUpdateRow>,
+    'open' | 'onOpenChange' | 'popoverId' | 'returnFocusRef'
+  >;
 }) {
   const { inbox, workspace, live, user, computers } = data;
   const agents = data.agents.data?.agents ?? [];
@@ -65,6 +68,7 @@ export function V2Sidebar({
   const online = computers.data?.nodes.filter((computer) => computer.online).length;
   return (
     <Sidebar
+      hidden={hidden}
       onCollapse={onCollapse}
       brand={
         <>
@@ -132,7 +136,7 @@ export function V2Sidebar({
       }
       footer={
         <>
-          <DesktopUpdateRow {...data.desktopUpdate} />
+          <DesktopUpdateRow {...data.desktopUpdate} {...updateDetails} />
           <a className="dl-side-foot" href="/dashboard/settings">
             <span className="dl-avatar">{username.charAt(0).toUpperCase()}</span>
             <span className="dl-who">
@@ -276,21 +280,31 @@ export function V2Layout() {
 function V2Shell() {
   const data = useSidebarData();
   const { pathname } = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [navigation, setNavigation] = useState({ collapsed: false, updateOpen: false });
+  const { collapsed, updateOpen } = navigation;
+  const showRail = collapsed && !updateOpen;
+  const updatePopoverId = useId();
+  const railUpdateTrigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    setCollapsed(sidebarCollapsed());
+    setNavigation((state) => ({ ...state, collapsed: sidebarCollapsed() }));
     const changed = (event: StorageEvent) => {
       if (event.key === sidebarPreferenceKey || event.key === null)
-        setCollapsed(sidebarCollapsed());
+        setNavigation((state) => ({ ...state, collapsed: sidebarCollapsed() }));
     };
     window.addEventListener('storage', changed);
     return () => window.removeEventListener('storage', changed);
   }, []);
   const toggleSidebar = useCallback(() => {
-    const next = !collapsed;
-    setCollapsed(next);
-    rememberSidebar(next);
-  }, [collapsed]);
+    setNavigation(changeDesktopUpdateNavigation(navigation, 'toggle-sidebar'));
+  }, [navigation]);
+  const setUpdateOpen = useCallback((open: boolean) => {
+    setNavigation((state) =>
+      changeDesktopUpdateNavigation(state, open ? 'open-update' : 'close-update'),
+    );
+  }, []);
+  useEffect(() => {
+    if (data.desktopUpdate.status.phase === 'idle') setUpdateOpen(false);
+  }, [data.desktopUpdate.status.phase, setUpdateOpen]);
   const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -328,17 +342,34 @@ function V2Shell() {
   }, [toggleSidebar]);
   return (
     <div
-      className={`dl-app${collapsed ? ' dl-rail-shell' : ''}${pathname === '/dashboard/design' ? ' dl-design-shell' : ''}`}
+      className={`dl-app${showRail ? ' dl-rail-shell' : ''}${pathname === '/dashboard/design' ? ' dl-design-shell' : ''}`}
     >
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
       />
-      {collapsed ? (
-        <DesignRail pathname={pathname} onExpand={toggleSidebar} update={data.desktopUpdate} />
-      ) : (
-        <V2Sidebar pathname={pathname} data={data} onCollapse={toggleSidebar} />
-      )}
+      <DesignRail
+        hidden={!showRail}
+        pathname={pathname}
+        onExpand={toggleSidebar}
+        update={data.desktopUpdate}
+        onOpenUpdate={() => setUpdateOpen(true)}
+        updatePopoverId={updatePopoverId}
+        updateTriggerRef={railUpdateTrigger}
+      />
+      {/* Keep the list mounted so temporary expansion preserves its scroll position. */}
+      <V2Sidebar
+        hidden={showRail}
+        pathname={pathname}
+        data={data}
+        onCollapse={toggleSidebar}
+        updateDetails={{
+          open: updateOpen,
+          onOpenChange: setUpdateOpen,
+          popoverId: updatePopoverId,
+          returnFocusRef: collapsed ? railUpdateTrigger : undefined,
+        }}
+      />
       <dialog
         ref={drawer}
         className="dl-drawer"

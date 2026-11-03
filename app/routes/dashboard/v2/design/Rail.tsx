@@ -1,4 +1,5 @@
 'use client';
+import type { RefObject } from 'react';
 import { Icon, type IconName } from '@/components/ui';
 import { useInbox, useResource } from '../data/hooks';
 import {
@@ -7,16 +8,25 @@ import {
   type DesktopUpdateStatus,
 } from '../data/desktop-update';
 import type { LiveSummary } from '../data/sidebar';
+import { DesktopUpdateIcon } from '../DesktopUpdate';
 
 /** The same app navigation on every wide work surface and collapsed page. */
 export function DesignRail({
   pathname,
   onExpand,
   update,
+  hidden,
+  onOpenUpdate,
+  updatePopoverId,
+  updateTriggerRef,
 }: {
   pathname: string;
   onExpand: () => void;
   update?: { api?: DesktopUpdateApi; status: DesktopUpdateStatus };
+  hidden?: boolean;
+  onOpenUpdate: () => void;
+  updatePopoverId: string;
+  updateTriggerRef: RefObject<HTMLButtonElement | null>;
 }) {
   const inbox = useInbox();
   const live = useResource<{ summary: LiveSummary }>('/api/v2/live', true);
@@ -44,7 +54,7 @@ export function DesignRail({
   };
   const name = user.data?.username ?? '';
   return (
-    <nav className="dz-rail" aria-label="deploy.local">
+    <nav className="dz-rail" aria-label="deploy.local" hidden={hidden}>
       <span className="dz-rail-lights" aria-hidden="true" />
       <a
         href="/dashboard"
@@ -88,13 +98,17 @@ export function DesignRail({
       </button>
       {update?.api && update.status.phase !== 'idle' && (
         <button
+          ref={updateTriggerRef}
           type="button"
-          className="dz-rail-item"
-          onClick={onExpand}
+          className="dz-rail-item dz-rail-update"
+          onClick={onOpenUpdate}
+          aria-haspopup="dialog"
+          aria-expanded={false}
+          aria-controls={updatePopoverId}
           aria-label={`deploy.local for Mac · ${updateLabel(update.status)}`}
           title={`deploy.local for Mac · ${updateLabel(update.status)}`}
         >
-          <Icon name="download" size={16} />
+          <DesktopUpdateIcon status={update.status} rail />
           <span className="dz-rail-tip" aria-hidden="true">
             {updateLabel(update.status)}
           </span>

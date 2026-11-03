@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { rememberSidebar } from './sidebar-preference';
 
 export interface DesktopUpdateStatus {
   phase: 'idle' | 'available' | 'downloading' | 'checking' | 'ready' | 'installing' | 'failed';
@@ -50,7 +51,7 @@ export function updateLabel(status: DesktopUpdateStatus) {
     case 'available':
       return 'Update available';
     case 'downloading':
-      return `Downloading update · ${status.percent ?? 0}%`;
+      return `Updating · ${status.percent ?? 0}%`;
     case 'checking':
       return 'Checking download…';
     case 'ready':
@@ -58,10 +59,47 @@ export function updateLabel(status: DesktopUpdateStatus) {
     case 'installing':
       return 'Installing…';
     case 'failed':
-      return status.error === 'verification'
-        ? 'Download could not be verified'
-        : 'The download stopped.';
+      return 'Update failed';
     default:
       return '';
   }
+}
+
+export interface DesktopUpdateNavigation {
+  collapsed: boolean;
+  updateOpen: boolean;
+}
+
+/** Only an explicit sidebar toggle writes the preference, never update details. */
+export function changeDesktopUpdateNavigation(
+  state: DesktopUpdateNavigation,
+  action: 'open-update' | 'close-update' | 'toggle-sidebar',
+  savePreference = rememberSidebar,
+): DesktopUpdateNavigation {
+  if (action === 'open-update') return { ...state, updateOpen: true };
+  if (action === 'close-update') return { ...state, updateOpen: false };
+  if (state.collapsed && state.updateOpen) return { ...state, updateOpen: false };
+  const collapsed = !state.collapsed;
+  savePreference(collapsed);
+  return { collapsed, updateOpen: false };
+}
+
+/** The trigger is inside the boundary, so its own click can toggle details. */
+export function listenForUpdateDismissal(boundary: HTMLElement, close: () => void) {
+  const doc = boundary.ownerDocument;
+  const click = (event: MouseEvent) => {
+    if (!event.composedPath().includes(boundary)) close();
+  };
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    close();
+  };
+  doc.addEventListener('click', click);
+  doc.addEventListener('keydown', keydown);
+  return () => {
+    doc.removeEventListener('click', click);
+    doc.removeEventListener('keydown', keydown);
+  };
 }
