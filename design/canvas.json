@@ -759,7 +759,7 @@
       "y": 23864,
       "w": 390,
       "h": 844,
-      "title": "iPhone — Agent info: personality, access, and optional work"
+      "title": "iPhone — Agent details: avatar, purpose, routines and access"
     },
     "AgentMenuPhone.html": {
       "x": 12350,
@@ -788,16 +788,8 @@
       "x": 6690,
       "y": 29964,
       "w": 1440,
-      "h": 1040,
-      "title": "New agent: who do you want to talk to?",
-      "expand": "fill"
-    },
-    "NewAgentDraft.html": {
-      "x": 8210,
-      "y": 26484,
-      "w": 1440,
-      "h": 1200,
-      "title": "New agent, step 2: personality, access, and an optional schedule",
+      "h": 900,
+      "title": "New agent: a name and an avatar",
       "expand": "fill"
     },
     "KeeperPage.html": {
@@ -872,7 +864,7 @@
     },
     "RestorePhone.html": {
       "x": 18510,
-      "y": 25004,
+      "y": 25148,
       "w": 390,
       "h": 844,
       "title": "iPhone — restoring data, with undo"
@@ -1001,7 +993,7 @@
       "y": 29964,
       "w": 1440,
       "h": 1380,
-      "title": "Agent settings: personality, what it may use, and optional background work",
+      "title": "Agent details: what it learned, routines, access and approvals",
       "expand": "fill"
     },
     "AgentPage.html": {
@@ -1501,14 +1493,7 @@
       "y": 31464,
       "w": 390,
       "h": 844,
-      "title": "iPhone — New agent: who do you want to talk to?"
-    },
-    "NewAgentDraftPhone.html": {
-      "x": 12350,
-      "y": 31464,
-      "w": 390,
-      "h": 1120,
-      "title": "iPhone — New agent: review the draft, ready to edit"
+      "title": "iPhone — New agent: a name and an avatar"
     },
     "AgentHello.html": {
       "x": 13500,
@@ -1530,7 +1515,7 @@
       "y": 29964,
       "w": 1440,
       "h": 900,
-      "title": "Release notes writer: background history",
+      "title": "Release notes writer: routine history",
       "expand": "fill"
     },
     "AgentRunsPhone.html": {
@@ -1538,7 +1523,7 @@
       "y": 31104,
       "w": 390,
       "h": 844,
-      "title": "iPhone — Release notes writer: background history"
+      "title": "iPhone — Release notes writer: routine history"
     },
     "AgentsEmpty.html": {
       "x": 13500,
@@ -1547,21 +1532,6 @@
       "h": 1040,
       "title": "Before your first agent: make an agent to talk to",
       "expand": "fill"
-    },
-    "NewAgentDraftScheduled.html": {
-      "x": 15020,
-      "y": 31104,
-      "w": 1440,
-      "h": 1200,
-      "title": "New agent: optional daily schedule enabled",
-      "expand": "fill"
-    },
-    "NewAgentDraftScheduledPhone.html": {
-      "x": 18010,
-      "y": 31104,
-      "w": 390,
-      "h": 1240,
-      "title": "iPhone — New agent: optional daily schedule enabled"
     },
     "TaskMention.html": {
       "x": 16540,
@@ -1577,6 +1547,36 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Task chat: bring in one of your agents with @"
+    },
+    "AgentRoutine.html": {
+      "x": 15020,
+      "y": 32244,
+      "w": 1440,
+      "h": 900,
+      "title": "Add a routine: when to run and what to do",
+      "expand": "fill"
+    },
+    "AgentAvatarPicker.html": {
+      "x": 15020,
+      "y": 31104,
+      "w": 1440,
+      "h": 900,
+      "title": "Choose an avatar: 35 glyphs and ten colors",
+      "expand": "fill"
+    },
+    "AgentAvatarPickerPhone.html": {
+      "x": 12350,
+      "y": 31464,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Choose an avatar: 35 glyphs and ten colors"
+    },
+    "AgentRoutinePhone.html": {
+      "x": 18010,
+      "y": 31104,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Add a routine: when to run and what to do"
     }
   },
   "order": [
@@ -1690,8 +1690,8 @@
     "TuneWarden.html",
     "NewAgent.html",
     "AgentsEmpty.html",
-    "NewAgentDraft.html",
-    "NewAgentDraftScheduled.html",
+    "AgentRoutine.html",
+    "AgentAvatarPicker.html",
     "KeeperPage.html",
     "SettingsAgents.html",
     "RuleEdit.html",
@@ -1729,8 +1729,8 @@
     "WorkAgentsPhone.html",
     "WorkNoAgentsPhone.html",
     "NewAgentPhone.html",
-    "NewAgentDraftPhone.html",
-    "NewAgentDraftScheduledPhone.html",
+    "AgentAvatarPickerPhone.html",
+    "AgentRoutinePhone.html",
     "TaskMention.html",
     "TaskMentionPhone.html",
     "AgentPhone.html",
@@ -2258,14 +2258,14 @@
       "w": 420,
       "x": 6190,
       "y": 25004,
-      "text": "Tune an agent\nWeb app\niPhone: later"
+      "text": "Agent details\nWeb app · iPhone\nTap the name or avatar in the chat header."
     },
     "agents-2": {
       "fill": "purple",
       "w": 420,
       "x": 6190,
       "y": 26484,
-      "text": "A new agent\nWeb app · iPhone (phone creation proposed)"
+      "text": "A new agent\nOne step on web and iPhone: name and avatar. See the current proposal below."
     },
     "agents-3": {
       "fill": "purple",
@@ -2382,7 +2382,7 @@
     "agents-runs-title": {
       "x": 6690,
       "y": 29664,
-      "text": "Agents: conversations you make (design proposal)",
+      "text": "Agents: name it, then teach it in chat (design proposal)",
       "kind": "title1",
       "maxW": 6520
     },
@@ -2391,7 +2391,7 @@
       "y": 29964,
       "w": 420,
       "fill": "purple",
-      "text": "Chat-first agents\nWeb 1440 / 700 · iPhone 390\nProposal on design/chat-agents. No built-ins; the coordinator currently has Release notes writer."
+      "text": "Chat-first agents\nWeb 1440 / 700 · iPhone 390\nProposal on design/agents-like-grokbot, built on design/chat-agents (not yet approved). One saved fixture: Release notes writer."
     },
     "agents-6": {
       "x": 6190,
@@ -2405,7 +2405,7 @@
       "y": 31464,
       "w": 420,
       "fill": "green",
-      "text": "Approved 2026-10-29 and built on web and iPhone: “Running as Release notes writer · Job” under a run’s title while it runs, “Ran as Release notes writer · Job” once it finishes. It links to the agent’s Job; the first message stays one line."
+      "text": "Approved 2026-10-29 and built on web and iPhone: “Running as Release notes writer · Job” under a run’s title while it runs, “Ran as Release notes writer · Job” once it finishes. It links to the agent’s Job; the first message stays one line. In this new proposal, the existing Job link leads to the routine’s What to do in agent details; its shipped behavior is unchanged until this design is approved."
     },
     "agents-superseded": {
       "x": 5690,
@@ -2657,16 +2657,16 @@
       "x": 11410,
       "y": 32400,
       "w": 1330,
-      "h": 420,
+      "h": 940,
       "fill": "blue",
-      "text": "Make an agent, then talk to it — the same two steps on web and iPhone.\n• Choose a character or describe your own. Release notes writer, Code reviewer, Ops watcher and Researcher are templates, not installed agents. Selection fills the chosen character’s name and personality into the draft; the drawings use Release notes writer. Back preserves edits.\n• The draft has Name, one Personality and instructions text, What it may use (one Project or No project, Computers), and an approval summary. Change approvals expands the five Ask / Allowed / Never controls in place. New drafts default every action to Ask. Draft rules stay local; creation saves the agent, then saves its rules under its returned ID using the existing approvals API. Open chat only after both succeed. If saving rules fails, retain the created agent ID and draft choices for retry; never create a duplicate or silently discard choices.\n• Also run on its own is off initially. The Scheduled variants draw it on: a daily time is revealed, initially 08:00 on the coordinator’s clock (SER in the fixture). Off hides the time, preserves its value, and leaves chat available. Creating never starts a task; enabled schedules first run the next day, as today’s server does.\n• Create and start chatting opens AgentHello / AgentHelloPhone, an empty conversation with no invented messages or history. AgentPage / AgentPhone show the same agent later, after its owner allowed Start a task, enabled a daily schedule, and asked for a draft.\n• Phone fields scroll independently of the header and primary action. Resize above the keyboard, scroll the focused field into view, and keep the primary action reachable; respect safe areas. All phone targets are at least 44 px."
+      "text": "New agent is a name and an avatar; you teach it in the chat; details and routines live behind its name.\n• + in the web sidebar or the iPhone Agents header opens NewAgent / NewAgentPhone. Only avatar, Shuffle, color, Name and Create. No templates, generated draft, purpose, access, approvals or schedule in creation. Blank or whitespace-only names disable Create; trim on save. Creation failures keep the entered name and chosen avatar for retry.\n• Create opens AgentHello / AgentHelloPhone: a big avatar, name, “Tell <name> what you want it to do. It remembers.” and four suggested first messages. Tapping a suggestion fills the composer for editing; it sends only when you press Send. No invented greeting, task, routine or history. All five action rules initially Ask.\n• The name/avatar in the chat header opens AgentSettings / AgentInfoPhone. Edit the avatar, color and name; What it does reflects what it learned from your messages and can be edited. Save keeps these changes; closing without Save preserves the saved version. Phone editing is supported here, not deferred to a computer.\n• Routines are optional and initially empty: “No routines yet”, “Runs on its own” and Add a routine. AgentRoutine / AgentRoutinePhone draw that action: When to run and What to do. Adding a routine never runs it immediately. Existing routines use the same editor with their saved values and Save routine / Delete routine actions. History and Run now live in AgentRuns / AgentRunsPhone. The later chat/details fixtures show one daily routine and Start a task Allowed, set after creation.\n• Phone sheets scroll between the pinned header and action, resize above the keyboard, keep the focused field visible and respect safe areas. Touch targets are at least 44 px. The ten color choices wrap into two rows of five on iPhone; on web they form one row. The owner will render 1440/700/390 and commit; this branch contains design only."
     },
     "settings-phone-behavior": {
       "fill": "blue",
       "w": 420,
       "x": 19450,
       "y": 23864,
-      "text": "iPhone Settings · nothing that looks pressable is inert\n• Account is identity, with no link or chevron.\n• Notification settings and Paired devices are full-width rows with chevrons. They open the existing V2NotificationSettings and V2DevicesView sheets; these static boards specify those native destinations with data-destination.\n• What agents may do opens SettingsApprovalsPhone. Done dismisses it back to Settings. Each agent’s rules are plain, read-only action/value rows: Ask, Allowed or Never. No editable chips, switches or chevrons. Change these in Settings on a computer.\n• SettingsAgents and SettingsApprovalsPhone show the owner’s Release notes writer: Start a task Allowed, the other four actions Ask. The agent list comes from the coordinator; no built-ins. New-agent draft approvals are local editable choices; this Settings sheet remains read-only, with changes made on a computer.\n• Backups opens the existing restore sheet (RestorePhone); its copy stays “Restore to a copy”.\n• Appearance opens a menu: System (selected), Light, Dark. Choosing a value immediately applies and remembers this iPhone’s appearance preference; System follows iOS.\n• Screen use, removing data and secrets stay on a computer. This is a plain footnote under the groups.\n• The settings list scrolls above a full-width, centered destructive Sign out button at the bottom. Sign out uses the existing sign-out flow. No app implementation changes in this design pass."
+      "text": "iPhone Settings · nothing that looks pressable is inert\n• Account is identity, with no link or chevron.\n• Notification settings and Paired devices are full-width rows with chevrons. They open the existing V2NotificationSettings and V2DevicesView sheets; these static boards specify those native destinations with data-destination.\n• What agents may do opens SettingsApprovalsPhone. Done dismisses it back to Settings. Each agent’s rules are plain, read-only action/value rows: Ask, Allowed or Never. No editable chips, switches or chevrons. Change these in Settings on a computer.\n• SettingsAgents and SettingsApprovalsPhone show the owner’s Release notes writer: Start a task Allowed, the other four actions Ask. The agent list comes from the coordinator; no built-ins. Creation defaults every action to Ask without an approvals step. This Settings sheet remains read-only, with changes made on a computer. When opened from agent details, Done returns to those details; from Settings, it returns to Settings.\n• Backups opens the existing restore sheet (RestorePhone); its copy stays “Restore to a copy”.\n• Appearance opens a menu: System (selected), Light, Dark. Choosing a value immediately applies and remembers this iPhone’s appearance preference; System follows iOS.\n• Screen use, removing data and secrets stay on a computer. This is a plain footnote under the groups.\n• The settings list scrolls above a full-width, centered destructive Sign out button at the bottom. Sign out uses the existing sign-out flow. No app implementation changes in this design pass."
     },
     "chat-agents-model": {
       "x": 18560,
@@ -2674,7 +2674,7 @@
       "w": 1440,
       "h": 3200,
       "fill": "blue",
-      "text": "Agents are conversations first — proposal, design only\n• Agents are ones you make: each is someone you talk to, with optional work it does on its own. Never seed Scout, Warden, or any character template as an installed agent. The fixture has exactly one saved agent: Release notes writer. Ops watcher is a creation template, not another saved agent.\n• Open an agent to its conversation. An ordinary answer stays prose. Work requested there appears as a linked task card in that conversation; keep replies and decisions attributed to the same agent. A compact “Runs on its own: daily 08:00 · last run 2h ago” link opens AgentRuns / AgentRunsPhone. Run now belongs in history, not the chat’s primary action. Unknown or absent history must not read as a successful run; no runs yet means no last-run time.\n• Sidebar and Work rows contain glyph, name, last message and its time. No messages means “Say hello”, with no fabricated timestamp. Zero agents keeps + New agent and says “Make an agent to talk to”. Web sidebar hides under the existing menu below 820 px; the conversation and history link stay usable at 700 px.\n• Typing @ in any task composer opens the TaskMention / TaskMentionPhone picker above it, within the available viewport and above the keyboard. It lists only the owner’s saved, mention-enabled agents; filter by the typed name. Selecting a row inserts a stable agent reference displayed as @Name. It sends nothing until the owner sends the message. Arrow keys choose, Enter selects, Escape dismisses; touch rows are at least 44 px. Bring that agent into this task’s conversation, with its name on replies and its own approvals, not into a new scheduled run. If no agents exist offer New agent; if filtering finds none say “No matching agents”. A mention never expands the agent’s permitted resources.\n• Keep real fields: Name → name; Personality and instructions → one job string, not a separate personality or memory store. Project → the existing single projectId, with No project supported; Computers → computers; optional daily switch/time → schedule.enabled/time. Preserve apps and mention/disk trigger values when editing. Triggers are secondary under Other triggers in web settings. Permissions remain the five real Ask / Allowed / Never rules. Model choice remains the connected model/default, with no new model catalog.\n• Required server work, based on server/v2/agents.ts, agent-runs.ts and agent-instructions.ts: chat currently calls a model with no tools. Add an approval-aware bridge from a chat request to task creation, carry that request and conversation context into the task, and emit a task link/result in the originating conversation. Today’s run starter accepts only schedule or manual reasons and a generic job prompt. Keep background-run detail in history instead of replaying all run events into the primary chat.\n• Mention and disk booleans are stored, but no dispatch using those flags was found. Task mentions need structured recipient IDs, owner/scope checks, agent-context routing and attributed replies; disk-trigger execution would also need implementation before being promised as working. The disk control preserves the existing field, off in this proposal.\n• “What it may use” requires enforcement in the new chat/task tool path. Existing projectId chooses a checkout, computers selects the run worker, and apps are passed as instructions; these are not a general resource-access permission boundary. Keep the one-project UI; multiple project access would require a new server contract and is not proposed here.\n• Existing persisted messages and timestamps can supply chat previews; a list-summary API would be an optimization, not a missing storage feature. Existing CRUD, schedule, run history and approvals APIs can be reused. Update the draft and run prompts from standing-job language to the chosen character’s personality and purpose; no new personality field is required. The current run instructions also unconditionally prohibit merging, even though Merge has an Allowed rule; reconcile that with the action rules without enabling agent-started releases.\n• Static drawings only. The owner will render web at 1440 and 700 and iPhone at 390, review, and commit. No implementation is included."
+      "text": "Agents are conversations first — design proposal, not approved\n• New agent is a name and an avatar; you teach it in the chat; details and routines live behind its name. No built-in agents and no templates. The fixture has one saved agent, Release notes writer; the 35 picker glyphs are avatar choices, not saved agents.\n• Avatars are DiceBear Glyphs (@dicebear/core 10 + @dicebear/styles, bundled, drawn offline): one of 35 glyphs plus one color, never a random photo. One color draws the whole avatar: a tinted circle, the glyph and darker shoulders. An agent stores its glyph and color; a new agent starts from the glyph its name gives. Glyphs is CC BY 4.0 by Matt Houser (a remix of “Abstract Avatars for All Creative Profile Use”): credit him in Settings → About.\n• AvatarPicker boards show the state reached by tapping the large avatar in creation or details. All 35 glyphs show in the current color, the chosen one outlined. The current example is Release notes writer as glyph 28 in Violet everywhere: list, chat, task mention and approvals. Selection keeps the current color; a swatch keeps the current drawing; Shuffle picks a glyph/color pair. Done returns to the invoking surface, preserving the Name and all other edits. Cancel restores the prior avatar. The picker is shared by creation and details, not another creation step.\n• Ten colors: Violet #af61f2, Blue #76a7ff, Green #75c675, Amber #e8b130, Red #ff4d6f, Indigo #525fa3, Teal #2fb5a3, Orange #ffaa64, Pink #e66bb8, Gray #8c8c8c (Glyphs' own palette plus four). These are identity colors, never status indicators; status keeps its own icon and label.\n• Open an agent to its conversation. Ordinary answers stay prose. Requested work appears as an attributed linked task. Sidebar and Work rows show avatar, name, last message and time. An empty conversation says Say hello with no fabricated timestamp. No agents keeps the + and the invitation to make one. The web sidebar folds below 820 px; chat, details and dialogs remain usable at 700 px.\n• Details contain avatar/color, Name, editable What it does, Routines (“Runs on its own”), What it may use (project and computers), and an approvals summary with a link. What it does updates from explicit instructions in chat; it is not a generated pre-creation draft. New agents begin with no learned purpose and no routines. No per-agent connected-app setup: connections belong to the account and are managed in account settings. Project and computer access still applies to each agent.\n• TaskMention / TaskMentionPhone keep @ in the composer: only saved agents are offered, filtered by name. Select inserts a stable @Name reference; sending delivers it. Arrow keys, Enter and Escape work on web. No match says No matching agents; no agents offers New agent. The picker stays above the keyboard. Mentions do not expand resource access or bypass approvals.\n• Agents may message other saved agents: use the same identity and attributed-message model, surface the sender and recipient, keep their replies in the originating conversation, and apply each agent’s own access and approval rules. Do not seed a second agent merely to demonstrate this; no autonomous message loops or automatic routines implied by a mention.\n• Routines are separate saved work with their own When to run and What to do, not a single switch on the agent’s learned purpose. The daily fixture runs at 08:00 on SER’s clock. Absent history never reads as a successful run. Routine prompts, multiple routines, weekly recurrence, avatar persistence, learning from messages and agent-to-agent routing require implementation after approval; existing APIs are not assumed to already support this proposal. The weekly choice reveals a weekday before saving.\n• The current chat/task bridge still needs approval-aware task creation, structured mention recipients and enforced resource scope. Retain the five Ask / Allowed / Never actions and the connected model/default. Saved legacy apps/trigger values must survive an eventual migration; removing their controls is not permission to erase them. No implementation, merge, push or release is part of this branch."
     }
   },
   "starts": {}
