@@ -1481,6 +1481,27 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — review a question’s content before answering"
+    },
+    "WorkNoAgentsPhone.html": {
+      "x": 11410,
+      "y": 31464,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Work before the first agent"
+    },
+    "NewAgentPhone.html": {
+      "x": 11880,
+      "y": 31464,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — New agent: pick or describe the job"
+    },
+    "NewAgentDraftPhone.html": {
+      "x": 12350,
+      "y": 31464,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — New agent: review the draft, ready to edit"
     }
   },
   "order": [
@@ -1626,6 +1647,9 @@
     "AgentSettings.html",
     "AgentPage.html",
     "WorkAgentsPhone.html",
+    "WorkNoAgentsPhone.html",
+    "NewAgentPhone.html",
+    "NewAgentDraftPhone.html",
     "AgentPhone.html",
     "RunTaskPhone.html",
     "WorkErrorPhone.html",
@@ -2156,7 +2180,7 @@
       "w": 420,
       "x": 6190,
       "y": 26484,
-      "text": "A new agent\nWeb app\niPhone: later"
+      "text": "A new agent\nWeb app · iPhone (phone creation proposed)"
     },
     "agents-3": {
       "fill": "purple",
@@ -2543,6 +2567,14 @@
       "x": 26410,
       "y": 6664,
       "text": "QuestionDecision / QuestionDecisionPhone: the draft is the agent's latest reply in this decision's task, rendered as markdown above every answer action. Scroll the bordered preview to read the full supplied reply; Open the task opens that task's whole conversation. Show “Scroll to read more” only when the content is taller than its block: omit it on the web board where everything fits, keeping Open the task right-aligned, and keep it on the phone board where the content overflows. A design decision shows its boards. Empty and whitespace-only answers keep Answer disabled; entering text enables it. Web: 1440 and 700 px. iPhone sheet: 390 px. Asked 12m ago is an example relative time."
+    },
+    "new-agent-phone": {
+      "x": 11410,
+      "y": 32400,
+      "w": 1330,
+      "h": 420,
+      "fill": "blue",
+      "text": "iPhone makes agents with the same two steps as the web: pick or describe, then review the draft. Agents always come from the coordinator; none are built in.\n\n• Work keeps the Agents header and its 44 px New agent (+) control even when there are no agents. WorkNoAgentsPhone shows only the header and “No agents yet”, without a placeholder card. WorkEmptyTodayPhone keeps its existing decision and has the same entry point.\n• Templates are starting points for a new draft, not installed agents. Picking one opens step 2 with that template’s name and instructions. Continue drafts the description. Release notes writer is the example shown; Back preserves the description and draft edits.\n• The draft lets you rename the agent, edit its instructions, choose home-gym or No project, and choose Run now only or a daily run (08:00 initially, on SER’s clock). A daily run’s time is editable. Every action starts at Ask me; individual permissions stay in Approvals, as on the web.\n• Each sheet scrolls its fields separately from its header and primary action. When the keyboard opens, resize to the available height, keep Continue / Create agent above the keyboard, and scroll the focused field into view. Respect the bottom safe area when the keyboard closes.\n• Create agent saves to the coordinator, dismisses the sheet and opens the newly created agent using AgentPhone.html. Its conversation starts empty with no runs; creation itself does not press Run now. The existing AgentPhone board shows the same destination later during a run."
     }
   },
   "starts": {}

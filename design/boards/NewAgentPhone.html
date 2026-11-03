@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
+<meta name="design-board" content="width=390,height=844">
+<title>iPhone — New agent: pick or describe the job</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:var(--paper)}
+.dl-phone{height:min(844px,100dvh);background:var(--sidebar)}
+.dl-sheet{flex:1;min-height:0;margin-top:64px;display:flex;flex-direction:column;border-radius:var(--radius-dialog) var(--radius-dialog) 0 0;box-shadow:var(--shadow-lg);overflow:hidden}
+.sheet-grabber{flex:none;align-self:center;width:36px;height:5px;margin:8px 0 0;border-radius:var(--radius-full);background:var(--line-strong)}
+.dl-sheet .dl-ph-top{padding:0 8px 4px;border-bottom:1px solid var(--line)}
+.dl-sheet .dl-ph-body{overflow-y:auto;overscroll-behavior:contain;padding:16px 0;scroll-padding:16px}
+.sheet-intro{padding:0 20px 16px}
+.sheet-intro h1{margin:4px 0 6px;font-size:22px;line-height:28px;font-weight:600}
+.sheet-intro p{margin:0;font-size:13px;line-height:18px;color:var(--muted)}
+.dl-sheet .dl-ph-label{padding-top:16px}
+.dl-sheet .dl-ph-row{min-height:56px}
+.draft-fields{padding:0 20px;display:flex;flex-direction:column;gap:12px}
+.draft-fields .dl-field{height:44px;font-family:var(--font-sans);font-size:17px}
+.draft-fields .dl-textarea{min-height:112px;font-family:var(--font-sans);font-size:17px;line-height:24px;resize:vertical}
+.sheet-footer{flex:none;padding:12px 20px max(24px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
+.sheet-footer .dl-btn{box-sizing:border-box}
+</style>
+</head>
+<body>
+<div data-layer="phone" class="dl-phone">
+<section data-layer="sheet" class="dl-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+<div data-layer="sheet-grabber" class="sheet-grabber" aria-hidden="true"></div>
+<header data-layer="ph-top" class="dl-ph-top"><span data-layer="span" style="width:44px"></span><span data-layer="new-agent" id="sheet-title" class="dl-t">New agent</span><a data-layer="cancel-new-agent" href="WorkAgentsPhone.html" class="dl-ph-btn" aria-label="Cancel new agent"><svg data-layer="svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a></header>
+<div data-layer="ph-body" class="dl-ph-body">
+<div data-layer="sheet-intro" class="sheet-intro"><p data-layer="step-1-of">Step 1 of 2 · Pick or describe</p><h1 data-layer="what-should-this">What should this agent keep doing?</h1><p data-layer="an-agent-is">An agent is a standing job. It runs in the background and asks before it acts.</p></div>
+<div data-layer="start-from-a" class="dl-ph-label" style="padding-top:0">Start from a template</div>
+<div data-layer="ph-group" class="dl-ph-group"><a data-layer="ph-row" href="NewAgentDraftPhone.html" class="dl-ph-row"><span data-layer="t" class="dl-t"><span data-layer="dependency-watcher">Dependency watcher</span><span data-layer="checks-updates-proposes">Checks updates; proposes safe ones</span></span><span data-layer="chev" class="dl-chev"><svg data-layer="svg-2" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+<a data-layer="ph-row-2" href="NewAgentDraftPhone.html" class="dl-ph-row"><span data-layer="t-2" class="dl-t"><span data-layer="pull-request-reviewer">Pull request reviewer</span><span data-layer="reviews-pull-requests">Reviews pull requests for bugs and tests</span></span><span data-layer="chev-2" class="dl-chev"><svg data-layer="svg-3" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+<a data-layer="ph-row-3" href="NewAgentDraftPhone.html" class="dl-ph-row"><span data-layer="t-3" class="dl-t"><span data-layer="check-fixer">Check fixer</span><span data-layer="finds-failed-checks">Finds failed checks; proposes fixes</span></span><span data-layer="chev-3" class="dl-chev"><svg data-layer="svg-4" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+<a data-layer="ph-row-4" href="NewAgentDraftPhone.html" class="dl-ph-row"><span data-layer="t-4" class="dl-t"><span data-layer="issue-triager">Issue triager</span><span data-layer="sorts-issues-and">Sorts issues and suggests next steps</span></span><span data-layer="chev-4" class="dl-chev"><svg data-layer="svg-5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+<a data-layer="ph-row-5" href="NewAgentDraftPhone.html" class="dl-ph-row"><span data-layer="t-5" class="dl-t"><span data-layer="release-notes-writer">Release notes writer</span><span data-layer="drafts-notes-for">Drafts notes for what merged</span></span><span data-layer="chev-5" class="dl-chev"><svg data-layer="svg-6" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a></div>
+<div data-layer="draft-fields" class="draft-fields" style="padding-top:16px"><div data-layer="div"><label data-layer="describe-your-own" for="job" class="dl-field-label">Describe your own</label><textarea data-layer="draft-release-notes" id="job" class="dl-textarea" rows="3">Draft release notes for home-gym from what merged since the last run.</textarea></div><p data-layer="your-connected-model" class="dl-meta" style="margin:0;font-size:13px;line-height:18px">Your connected model drafts the name and instructions for you to review.</p></div>
+</div>
+<footer data-layer="sheet-footer" class="sheet-footer"><a data-layer="continue" href="NewAgentDraftPhone.html" class="dl-btn primary">Continue</a></footer>
+</section>
+</div>
+</body>
+</html>
