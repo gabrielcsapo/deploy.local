@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="design-board" content="width=820,height=960">
-<title>Mac app: the remembered rail, with room for the traffic lights</title>
+<title>Mac app: the rail temporarily expands for update details</title>
 <link rel="stylesheet" href="../ds/deploy-local/tokens.css">
 <link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
 <style>
@@ -37,46 +37,63 @@ body{background:var(--sidebar)}
 .mac-window .dl-composer-bar{flex-wrap:wrap}
 @media(max-width:820px){.mac-window .dl-col{padding-left:20px;padding-right:20px}.mac-window .dl-menu-btn{display:none}}
 
-body{margin:0;background:#fafafb}
-.rail{width:64px;flex:none;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:2px;padding-bottom:12px;background:var(--sidebar);border-right:1px solid var(--line);font-family:var(--font-sans)}
-.rail a,.rail .tog{position:relative;width:40px;height:40px;flex:none;border:0;padding:0;border-radius:12px;background:transparent;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);text-decoration:none;cursor:pointer}
-.rail a.on{background:color-mix(in srgb,var(--accent) 12%,var(--sidebar));color:var(--accent)}
-.rail a.mark{height:48px;margin-bottom:4px}
-.rail a.mark .dl-mark{width:26px;height:26px;border-radius:8px;font-size:13px}
-.rail .dot{position:absolute;right:8px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 2px var(--sidebar)}
-.rail .n{position:absolute;right:1px;top:2px;min-width:15px;height:15px;padding:0 4px;box-sizing:border-box;border-radius:8px;background:var(--danger);color:#fff;font:600 10px/15px var(--font-sans);text-align:center}
-.rail .sep{width:28px;height:1px;flex:none;background:var(--line);margin:4px 0}
-.rail .grow{flex:1}
-.rail .tog{background:var(--selection)}
-.rail .tip{position:absolute;left:48px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:#18181b;color:#fff;font:500 12px/16px var(--font-sans);white-space:nowrap;z-index:5;box-shadow:0 4px 12px rgba(0,0,0,.15)}
-.rail .tip kbd{font:inherit;color:#a1a1aa}
-.rail a.who{width:28px;height:28px;margin-top:6px;border-radius:50%;background:var(--line);font:600 12px var(--font-sans);color:var(--ink-soft)}
-
-
-.mac-window .rail{display:flex;width:64px;padding-top:52px;background:var(--sidebar)}
-.mac-window .rail .mark{height:40px}
-.mac-window .mac-head{padding-left:44px}
-.mac-window .mac-head .mac-lights{position:absolute;top:0;left:16px;height:52px;padding:0;z-index:2}
-
+/* The saved choice is the 64 px rail. This board draws the temporary open state. */
+.mac-window .dl-side{position:relative;overflow:hidden}
+.mac-update{position:relative;flex:none;margin:0 8px 8px}
+.mac-update .update-trigger{width:100%;margin:0;border:0;text-align:left;cursor:pointer}
+/* Fade the list above the popover; mask it through the gap to the update row. */
+.mac-update-overlay{position:absolute;left:-8px;right:-8px;bottom:100%;z-index:20;padding:32px 8px 8px;background:linear-gradient(to bottom,transparent,var(--sidebar) 32px);pointer-events:none}
+.mac-update-popover{position:relative;pointer-events:auto;width:auto;min-width:0;max-width:100%;padding:12px;gap:12px;overflow-wrap:anywhere;font:13px/20px var(--font-sans);color:var(--ink)}
+.mac-update-popover .update-product{display:flex;flex-direction:column;gap:4px}
+.mac-update-popover .update-status{display:flex;align-items:center;gap:8px}
+.update-trigger .update-icon{position:relative;display:flex;flex:none}
+.update-trigger .update-state-mark{position:absolute;right:-3px;top:-3px;display:flex;background:var(--sidebar);border-radius:var(--radius-full)}
 </style>
 </head>
 <body>
 <div data-layer="div" class="mac-stage" style="width:820px;height:960px;box-sizing:border-box;padding:40px;display:flex;flex-direction:column;align-items:center">
 <div data-layer="mac-window" class="mac-window" style="width:720px;height:820px">
-<div data-layer="app" class="dl-app"><nav data-layer="rail-deploy-local" class="rail mac-rail" aria-label="deploy.local">
-  <a data-layer="rail-new-task" href="Home.html" class="mark" aria-label="New task" title="New task  ⌘N"><span data-layer="rail-d" class="dl-mark">d</span></a>
-  <a data-layer="rail-projects" href="Projects.html" aria-label="Projects"><svg data-layer="rail-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a>
-  <a data-layer="rail-live" href="Live.html" aria-label="Live · 1 failing"><svg data-layer="rail-svg-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><i data-layer="rail-dot" class="dot"></i></a>
-  <a data-layer="rail-computers" href="Compute.html" aria-label="Computers"><svg data-layer="rail-svg-3" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 20h8M12 16v4"/></svg></a>
-  <a data-layer="rail-design" href="DesignCanvas.html" aria-label="Design"><svg data-layer="rail-svg-4" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></svg></a>
-  <span data-layer="rail-sep" class="sep"></span>
-  <a data-layer="rail-waiting-on-you" href="Inbox.html" aria-label="Waiting on you · 3"><svg data-layer="rail-svg-5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M12 7v6M12 17h.01"/></svg><span data-layer="rail-3" class="n">3</span></a>
+<div data-layer="app" class="dl-app"><nav data-layer="rail-deploy-local" class="dl-side mac-rail-temporary" aria-label="deploy.local">
+  <div data-layer="side-top" class="dl-side-top mac-drag"><span data-layer="mac-lights" class="mac-lights" aria-hidden="true"><span data-layer="span" style="background:#ff5f57"></span><span data-layer="span-2" style="background:#febc2e"></span><span data-layer="span-3" style="background:#28c840"></span></span><span data-layer="brand" class="dl-brand"><span data-layer="rail-d" class="dl-mark">d</span><span data-layer="deploy-local" class="dl-sr">deploy.local</span></span><button data-layer="search" type="button" class="dl-icon-btn" aria-label="Search"><svg data-layer="svg-10" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button><button data-layer="show-sidebar" type="button" class="dl-icon-btn" aria-label="Collapse sidebar" title="Collapse sidebar · ⌘\"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button></div>
+  <div data-layer="side-nav" class="dl-side-nav">
+  <a data-layer="rail-new-task" class="dl-nav on strong" href="Home.html" aria-label="New task" title="New task  ⌘N" aria-current="page"><span data-layer="lead-2" class="dl-lead"><svg data-layer="svg-11" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span><span data-layer="new-task-2" class="dl-t">New task</span><span data-layer="end-3" class="dl-end"><span data-layer="n" class="dl-kbd">⌘N</span></span></a>
+  <a data-layer="rail-projects" class="dl-nav" href="Projects.html" aria-label="Projects"><span data-layer="lead-3" class="dl-lead"><svg data-layer="rail-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span data-layer="projects" class="dl-t">Projects</span></a>
+  <a data-layer="rail-live" class="dl-nav" href="Live.html" aria-label="Live · 1 failing"><span data-layer="lead-4" class="dl-lead"><svg data-layer="rail-svg-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span><span data-layer="live" class="dl-t">Live</span><span data-layer="end-2" class="dl-end"><span data-layer="status" class="dl-status failed" style="color:var(--danger)"><i data-layer="rail-dot" class="dl-dot"></i>1 failing</span></span></a>
+  <a data-layer="rail-computers" class="dl-nav" href="Compute.html" aria-label="Computers"><span data-layer="lead-5" class="dl-lead"><svg data-layer="rail-svg-3" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span data-layer="computers" class="dl-t">Computers</span></a>
+  <a data-layer="rail-design" class="dl-nav" href="DesignCanvas.html" aria-label="Design"><span data-layer="lead-6" class="dl-lead"><svg data-layer="rail-svg-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></svg></span><span data-layer="design" class="dl-t">Design</span></a>
+  </div>
+  <span data-layer="rail-sep" class="sep" hidden></span>
+  <div data-layer="side-scroll" class="dl-side-scroll"><div data-layer="side-label" class="dl-side-label"><span data-layer="agents">Agents</span></div><a data-layer="nav" href="AgentPage.html" class="dl-nav"><span data-layer="lead" class="dl-lead"><span data-layer="r" class="dl-glyph">R</span></span><span data-layer="release-notes-writer" class="dl-t">Release notes writer</span></a><div data-layer="rail-waiting-on-you" class="dl-side-label"><span data-layer="waiting-on-you">Waiting on you</span><span data-layer="rail-3" class="dl-c">1</span></div>
+    <a data-layer="nav-14" href="Inbox.html" class="dl-nav"><span data-layer="lead-7" class="dl-lead"><svg data-layer="rail-svg-5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="dl-attn" role="img" aria-label="Needs you"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg></span><span data-layer="publish-the-release" class="dl-t">Publish the release notes?</span><span data-layer="4m" class="dl-end">4m</span></a>
+    <div data-layer="side-label-2" class="dl-side-label"><span data-layer="today">Today</span></div>
+    <a data-layer="nav-15" href="RunTask.html" class="dl-nav"><span data-layer="lead-8" class="dl-lead"><svg data-layer="running" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="dl-run" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span><span data-layer="release-notes-writer-2" class="dl-t">Release notes writer · run 2026-10-29</span><span data-layer="1m" class="dl-end">1m</span></a>
+    <a data-layer="nav-16" href="Task.html" class="dl-nav"><span data-layer="fix-the-sync" class="dl-t">Fix the sync migration</span><span data-layer="40m" class="dl-end">40m</span></a>
+    <a data-layer="nav-2" href="Task.html" class="dl-nav"><span data-layer="review-home-gym" class="dl-t">Review home-gym changes</span><span data-layer="52m" class="dl-end">52m</span></a>
+    <a data-layer="nav-3" href="Task.html" class="dl-nav"><span data-layer="check-ser-release" class="dl-t">Check SER release health</span><span data-layer="1h" class="dl-end">1h</span></a>
+    <a data-layer="nav-4" href="Task.html" class="dl-nav"><span data-layer="fix-bazzite-startup" class="dl-t">Fix bazzite startup</span><span data-layer="1h-2" class="dl-end">1h</span></a>
+    <a data-layer="nav-5" href="Task.html" class="dl-nav"><span data-layer="scout-review-the" class="dl-t">Scout: review the build</span><span data-layer="2h" class="dl-end">2h</span></a>
+    <a data-layer="nav-6" href="Task.html" class="dl-nav"><span data-layer="warden-check-app" class="dl-t">Warden: check app health</span><span data-layer="2h-2" class="dl-end">2h</span></a>
+    <a data-layer="nav-7" href="Task.html" class="dl-nav"><span data-layer="update-home-gym" class="dl-t">Update home-gym dependencies</span><span data-layer="3h" class="dl-end">3h</span></a>
+    <a data-layer="nav-8" href="Task.html" class="dl-nav"><span data-layer="review-ser-logs" class="dl-t">Review SER logs</span><span data-layer="3h-2" class="dl-end">3h</span></a>
+    <a data-layer="nav-9" href="Task.html" class="dl-nav"><span data-layer="fix-bazzite-reconnect" class="dl-t">Fix bazzite reconnect</span><span data-layer="4h" class="dl-end">4h</span></a>
+    <a data-layer="nav-10" href="Task.html" class="dl-nav"><span data-layer="check-home-gym" class="dl-t">Check home-gym deployment</span><span data-layer="4h-2" class="dl-end">4h</span></a>
+    <a data-layer="nav-11" href="Task.html" class="dl-nav"><span data-layer="review-scout-findings" class="dl-t">Review Scout findings</span><span data-layer="5h" class="dl-end">5h</span></a>
+    <a data-layer="nav-12" href="Task.html" class="dl-nav"><span data-layer="update-release-notes" class="dl-t">Update release notes</span><span data-layer="5h-2" class="dl-end">5h</span></a>
+    <a data-layer="nav-13" href="Task.html" class="dl-nav"><span data-layer="check-warden-recovery" class="dl-t">Check Warden recovery</span><span data-layer="6h" class="dl-end">6h</span></a>
   <span data-layer="rail-grow" class="grow"></span>
-  <button data-layer="show-sidebar" type="button" class="dl-icon-btn tog" aria-label="Expand sidebar"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-  <a data-layer="rail-mac-update" href="MacUpdateAvailable.html" aria-label="Update available for deploy.local for Mac" title="Update available · deploy.local for Mac · 9c41e7f"><svg data-layer="svg-9" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 17v4h14v-4"/></svg></a>
-  <a data-layer="rail-settings" href="Settings.html" class="who" aria-label="Settings · Gabriel">G</a>
+  </div>
+
+  <div data-layer="mac-update-anchor" class="mac-update mac-update-anchor">
+    <button data-layer="rail-mac-update" class="dl-nav on update-trigger mac-update-trigger" type="button" aria-label="Checking download for deploy.local for Mac" title="Checking download… · deploy.local for Mac" aria-haspopup="dialog" aria-expanded="true" aria-controls="update-popover"><span data-layer="update-icon" class="update-icon"><svg data-layer="svg-9" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 17v4h14v-4"/></svg><span data-layer="update-state-mark" class="update-state-mark"><svg data-layer="run" class="dl-run" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span></span><span data-layer="checking-download-2" class="dl-t">Checking download…</span></button>
+    <div data-layer="mac-update-overlay" class="mac-update-overlay">
+    <div data-layer="menu" class="dl-menu mac-update-popover" id="update-popover" role="dialog" aria-labelledby="update-heading">
+      <div data-layer="update-product" class="update-product"><span data-layer="deploy-local-for" id="update-heading" class="dl-strong">deploy.local for Mac</span><span data-layer="9c41e7f" class="dl-meta">9c41e7f</span></div><div data-layer="update-status" class="update-status" role="status"><svg data-layer="run-2" class="dl-run" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg><span data-layer="checking-download">Checking download…</span></div>
+    </div>
+    </div>
+  </div>
+  <a data-layer="rail-settings" href="Settings.html" class="dl-side-foot" aria-label="Settings · Gabriel"><span data-layer="g" class="dl-avatar">G</span><span data-layer="who" class="dl-who"><span data-layer="gabriel" class="dl-strong">Gabriel</span><span data-layer="2-computers-online" class="dl-meta">2 computers online</span></span></a>
 </nav><main data-layer="main" class="dl-main">
-<header data-layer="head" class="dl-head mac-drag mac-head"><span data-layer="mac-lights" class="mac-lights" aria-hidden="true"><span data-layer="span" style="background:#ff5f57"></span><span data-layer="span-2" style="background:#febc2e"></span><span data-layer="span-3" style="background:#28c840"></span></span><span data-layer="new-task" class="dl-t">New task</span><span data-layer="end" class="dl-end"><button data-layer="show-panel" type="button" class="dl-icon-btn" aria-label="Show panel"><svg data-layer="svg-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button></span></header>
+<header data-layer="head" class="dl-head mac-drag mac-head"><span data-layer="new-task" class="dl-t">New task</span><span data-layer="end" class="dl-end"><button data-layer="show-panel" type="button" class="dl-icon-btn" aria-label="Show panel"><svg data-layer="svg-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button></span></header>
 <div data-layer="scroll" class="dl-scroll" style="display:flex;flex-direction:column;justify-content:center">
   <div data-layer="col" class="dl-col" style="padding-bottom:64px;display:flex;flex-direction:column;gap:24px">
     <div data-layer="greeting" class="dl-greeting"><span data-layer="d" class="dl-mark" style="width:40px;height:40px;border-radius:12px;font-size:17px">d</span><h1 data-layer="what-should-we" class="dl-title">What should we build?</h1><span data-layer="agents-work-on" class="dl-soft">Agents work on your computers. You approve merges and releases.</span></div>
@@ -85,7 +102,7 @@ body{margin:0;background:#fafafb}
 </div>
 </main></div>
 </div>
-<div data-layer="mac-key" class="mac-key"><span data-layer="span-4"><i data-layer="i"></i>Drag region: moves the window; double-click zooms</span><span data-layer="no-title-bar">64 px rail, chosen once for every page. Lights reserve the first 92 px; rail items start below them.</span></div>
+<div data-layer="mac-key" class="mac-key"><span data-layer="span-4"><i data-layer="i"></i>64 px rail → press download → temporary 256 px sidebar (shown)</span><span data-layer="no-title-bar">Close with Escape, an outside click, the update row or Collapse: return to the rail and restore focus to its download icon. The saved sidebar choice stays collapsed; checking continues.</span></div>
 </div>
 </body>
 </html>
