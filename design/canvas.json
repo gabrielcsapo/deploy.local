@@ -847,6 +847,13 @@
       "h": 844,
       "title": "iPhone — the Settings tab"
     },
+    "SettingsApprovalsPhone.html": {
+      "x": 18980,
+      "y": 23864,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — agent approval rules (read-only sheet)"
+    },
     "Backups.html": {
       "x": 15310,
       "y": 25004,
@@ -1621,6 +1628,7 @@
     "SettingsAgentsNew.html",
     "Settings.html",
     "SettingsPhone.html",
+    "SettingsApprovalsPhone.html",
     "Backups.html",
     "RestoreData.html",
     "RestorePhone.html",
@@ -2575,6 +2583,13 @@
       "h": 420,
       "fill": "blue",
       "text": "iPhone makes agents with the same two steps as the web: pick or describe, then review the draft. Agents always come from the coordinator; none are built in.\n\n• Work keeps the Agents header and its 44 px New agent (+) control even when there are no agents. WorkNoAgentsPhone shows only the header and “No agents yet”, without a placeholder card. WorkEmptyTodayPhone keeps its existing decision and has the same entry point.\n• Templates are starting points for a new draft, not installed agents. Picking one opens step 2 with that template’s name and instructions. Continue drafts the description. Release notes writer is the example shown; Back preserves the description and draft edits.\n• The draft lets you rename the agent, edit its instructions, choose home-gym or No project, and choose Run now only or a daily run (08:00 initially, on SER’s clock). A daily run’s time is editable. Every action starts at Ask me; individual permissions stay in Approvals, as on the web.\n• Each sheet scrolls its fields separately from its header and primary action. When the keyboard opens, resize to the available height, keep Continue / Create agent above the keyboard, and scroll the focused field into view. Respect the bottom safe area when the keyboard closes.\n• Create agent saves to the coordinator, dismisses the sheet and opens the newly created agent using AgentPhone.html. Its conversation starts empty with no runs; creation itself does not press Run now. The existing AgentPhone board shows the same destination later during a run."
+    },
+    "settings-phone-behavior": {
+      "fill": "blue",
+      "w": 420,
+      "x": 19450,
+      "y": 23864,
+      "text": "iPhone Settings · nothing that looks pressable is inert\n• Account is identity, with no link or chevron.\n• Notification settings and Paired devices are full-width rows with chevrons. They open the existing V2NotificationSettings and V2DevicesView sheets; these static boards specify those native destinations with data-destination.\n• What agents may do opens SettingsApprovalsPhone. Done dismisses it back to Settings. Each agent’s rules are plain, read-only action/value rows: Ask, Allowed or Never. No editable chips, switches or chevrons. Change these in Settings on a computer.\n• SettingsAgents currently draws the no-agents state. This populated example uses the existing Scout, Warden and Keeper fixture from SettingsAgentsNew, with “Ask me” shortened to “Ask”. The agent list comes from the account; these are fixture names, not built-in agents.\n• Backups opens the existing restore sheet (RestorePhone); its copy stays “Restore to a copy”.\n• Appearance opens a menu: System (selected), Light, Dark. Choosing a value immediately applies and remembers this iPhone’s appearance preference; System follows iOS.\n• Screen use, removing data and secrets stay on a computer. This is a plain footnote under the groups.\n• The settings list scrolls above a full-width, centered destructive Sign out button at the bottom. Sign out uses the existing sign-out flow. No app implementation changes in this design pass."
     }
   },
   "starts": {}

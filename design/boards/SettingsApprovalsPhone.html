@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=390,height=844">
+<title>iPhone — what agents may do</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:var(--paper)}
+.approvals-phone{padding-top:54px;background:var(--selection)}
+.approvals-sheet{font-size:17px;line-height:24px;flex:1;min-height:0;display:flex;flex-direction:column;border-radius:var(--radius-dialog) var(--radius-dialog) 0 0;background:var(--paper);box-shadow:var(--shadow-lg)}
+.sheet-handle{flex:none;align-self:center;width:36px;height:5px;border-radius:var(--radius-full);background:var(--line-strong);margin:8px 0 4px}
+.sheet-header{display:flex;align-items:center;gap:8px;padding:0 16px 0 20px}
+.sheet-title{flex:1;margin:0;font-size:17px;line-height:22px;font-weight:600}
+.sheet-done{width:auto;min-width:44px;color:var(--accent)}
+.sheet-note{margin:0 20px 8px;font-size:13px;line-height:18px;color:var(--muted)}
+.approvals-scroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:24px}
+.agent-heading{margin:8px 32px 6px;font-size:17px;line-height:22px;font-weight:600}
+.approval-row{min-height:32px;padding:4px 16px;gap:8px}
+.approval-action{flex:1;min-width:0;font-size:17px;line-height:24px}
+.approval-value{flex:none;font-size:13px;line-height:18px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div data-layer="phone" class="dl-phone approvals-phone">
+<section data-layer="sheet" class="dl-sheet approvals-sheet" role="dialog" aria-modal="true" aria-labelledby="approvals-title" aria-describedby="approvals-note">
+<span data-layer="sheet-handle" class="sheet-handle" aria-hidden="true"></span>
+<header data-layer="sheet-header" class="sheet-header"><h1 data-layer="what-agents-may" id="approvals-title" class="sheet-title">What agents may do</h1><a data-layer="done" href="SettingsPhone.html" class="dl-ph-btn sheet-done">Done</a></header>
+<p data-layer="change-these-in" id="approvals-note" class="sheet-note">Change these in Settings on a computer.</p>
+<div data-layer="approvals-scroll" class="approvals-scroll">
+<section data-layer="section" aria-labelledby="scout-title">
+<h2 data-layer="scout" id="scout-title" class="agent-heading">Scout</h2>
+<div data-layer="ph-group" class="dl-ph-group">
+<div data-layer="ph-row" class="dl-ph-row approval-row"><span data-layer="start-a-task" class="approval-action">Start a task</span><span data-layer="allowed" class="approval-value">Allowed</span></div>
+<div data-layer="ph-row-2" class="dl-ph-row approval-row"><span data-layer="open-a-pull" class="approval-action">Open a pull request</span><span data-layer="allowed-2" class="approval-value">Allowed</span></div>
+<div data-layer="ph-row-3" class="dl-ph-row approval-row"><span data-layer="merge-a-pull" class="approval-action">Merge a pull request</span><span data-layer="ask" class="approval-value">Ask</span></div>
+<div data-layer="ph-row-4" class="dl-ph-row approval-row"><span data-layer="restart-an-app" class="approval-action">Restart an app</span><span data-layer="never" class="approval-value">Never</span></div>
+<div data-layer="ph-row-5" class="dl-ph-row approval-row"><span data-layer="roll-back-a" class="approval-action">Roll back a release</span><span data-layer="never-2" class="approval-value">Never</span></div>
+</div>
+</section>
+<section data-layer="section-2" aria-labelledby="warden-title">
+<h2 data-layer="warden" id="warden-title" class="agent-heading">Warden</h2>
+<div data-layer="ph-group-2" class="dl-ph-group">
+<div data-layer="ph-row-6" class="dl-ph-row approval-row"><span data-layer="start-a-task-2" class="approval-action">Start a task</span><span data-layer="never-3" class="approval-value">Never</span></div>
+<div data-layer="ph-row-7" class="dl-ph-row approval-row"><span data-layer="open-a-pull-2" class="approval-action">Open a pull request</span><span data-layer="never-4" class="approval-value">Never</span></div>
+<div data-layer="ph-row-8" class="dl-ph-row approval-row"><span data-layer="merge-a-pull-2" class="approval-action">Merge a pull request</span><span data-layer="never-5" class="approval-value">Never</span></div>
+<div data-layer="ph-row-9" class="dl-ph-row approval-row"><span data-layer="restart-an-app-2" class="approval-action">Restart an app</span><span data-layer="allowed-3" class="approval-value">Allowed</span></div>
+<div data-layer="ph-row-10" class="dl-ph-row approval-row"><span data-layer="roll-back-a-2" class="approval-action">Roll back a release</span><span data-layer="ask-2" class="approval-value">Ask</span></div>
+</div>
+</section>
+<section data-layer="section-3" aria-labelledby="keeper-title">
+<h2 data-layer="keeper" id="keeper-title" class="agent-heading">Keeper</h2>
+<div data-layer="ph-group-3" class="dl-ph-group">
+<div data-layer="ph-row-11" class="dl-ph-row approval-row"><span data-layer="start-a-task-3" class="approval-action">Start a task</span><span data-layer="ask-3" class="approval-value">Ask</span></div>
+<div data-layer="ph-row-12" class="dl-ph-row approval-row"><span data-layer="open-a-pull-3" class="approval-action">Open a pull request</span><span data-layer="ask-4" class="approval-value">Ask</span></div>
+<div data-layer="ph-row-13" class="dl-ph-row approval-row"><span data-layer="merge-a-pull-3" class="approval-action">Merge a pull request</span><span data-layer="ask-5" class="approval-value">Ask</span></div>
+<div data-layer="ph-row-14" class="dl-ph-row approval-row"><span data-layer="restart-an-app-3" class="approval-action">Restart an app</span><span data-layer="ask-6" class="approval-value">Ask</span></div>
+<div data-layer="ph-row-15" class="dl-ph-row approval-row"><span data-layer="roll-back-a-3" class="approval-action">Roll back a release</span><span data-layer="ask-7" class="approval-value">Ask</span></div>
+</div>
+</section>
+</div>
+</section>
+</div>
+</body>
+</html>
