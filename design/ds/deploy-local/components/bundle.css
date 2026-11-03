@@ -324,3 +324,17 @@ a.dl-item:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 /* Permission matrix: a table on wide screens, one group per agent below 900 px. */
 .dl-matrix-stack{display:none;flex-direction:column;gap:12px}
 @media (max-width:900px){.dl-matrix-table{display:none}.dl-matrix-stack{display:flex}}
+
+/* Saved agents share the same Glyphs identity and compact conversation rows. */
+.agent-avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;border-radius:var(--radius-full);overflow:hidden;vertical-align:middle}
+.agent-avatar svg{display:block;width:100%;height:100%}
+.agent-avatar.hero{width:88px;height:88px}.agent-avatar.large{width:64px;height:64px}
+.dl-nav .dl-lead:has(.agent-avatar){width:28px;flex:none}.dl-nav:has(.agent-avatar){gap:10px}
+.dl-nav.agent-list-row{height:56px;align-items:center}.agent-list-row .dl-t{display:flex;flex-direction:column}
+.agent-list-row .dl-t>span,.dl-ph-row:has(.agent-avatar) .dl-t>span,.dl-menu-item:has(.agent-avatar)>span>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-ph-row:has(.agent-avatar) .dl-t{min-width:0}.dl-ph-row:has(.agent-avatar) time{flex:none}
+.dl-phone .agent-avatar{width:32px;height:32px}.dl-phone .agent-avatar.hero{width:88px;height:88px}.dl-phone .agent-avatar.large{width:64px;height:64px}
+.dl-menu-item:has(.agent-avatar)>span:not(.agent-avatar){flex:1;min-width:0}.dl-menu-item:has(.agent-avatar)>time{flex:none}
+.agent-receipt{display:flex;align-items:center;gap:4px;min-height:32px;flex-wrap:wrap}
+.dl-phone .agent-receipt{min-height:44px;font-size:13px}
+.dl-btn:disabled,.dl-btn[aria-disabled="true"]{background:var(--surface);color:var(--muted);border-color:var(--line);box-shadow:none;cursor:not-allowed}

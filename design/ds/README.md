@@ -1,6 +1,6 @@
 # deploy.local
 
-deploy.local runs your apps and your coding agents on computers you own. This is the system every screen follows: the web dashboard, the Mac and iPhone apps, and the agents (Scout, Warden).
+deploy.local runs your apps and your coding agents on computers you own. This is the system every screen follows: the web dashboard, the Mac and iPhone apps, and the agents you create.
 
 Version 2 holds deploy.local to the restraint of [hob](https://github.com/FrigadeHQ/hob) (MIT): four type sizes, neutral greys, one near-black action, almost no chrome. deploy.local violet stays as the brand. Tokens started from `app/design-tokens.json` on main (`0d96f82`) and the rules in `docs/design-system.md`. **This is a proposal; the app still ships v1.**
 
@@ -48,9 +48,9 @@ Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settin
 - **Clients render the same events.** The server sends each conversation as typed events (decision card, work log, task link, answer, report). The web app, the desktop shell and the iPhone app render those events; none writes its own summary. A client may fold events, but never drops a decision card.
 - **A noun appears only once it exists.** Tabs and sections for pull requests, issues, apps and releases show up with the first one. A one-app project is its own app page.
 - **Teach a word where it first happens.** Task, pull request and release are explained once, in place, then never again.
-- **Shipping is yours to start.** A task never asks to ship; Ship… sits in the task header, its panel and its info sheet. Only agents acting on a running app (like Warden's rollback) bring a decision to you.
+- **Shipping is yours to start.** A task never asks to ship; Ship… sits in the task header, its panel and its info sheet. Only agents acting on a running app (like Ops watcher’s rollback) bring a decision to you.
 - **Previews are screenshots you ask for.** They come from where the app runs: a browser for web apps, Simulator for iPhone apps, the window for Mac apps. No preview runs unless you ask.
-- **Agents speak rarely.** One brief a day; otherwise only when something needs you or finished. Past days fold into one line.
+- **Agents answer in chat.** Routines report when confirmed work finishes or needs a decision. No background work runs until you save a routine. Past days fold into one line.
 
 ## Consuming this system on a Design canvas
 
