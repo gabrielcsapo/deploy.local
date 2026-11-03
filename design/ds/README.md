@@ -1,6 +1,6 @@
 # deploy.local
 
-deploy.local runs your apps and your coding agents on computers you own. This is the system every screen follows: the web dashboard, the Mac and iPhone apps, and the agents (Scout, Warden).
+deploy.local runs your apps and your coding agents on computers you own. This is the system every screen follows: the web dashboard, the Mac and iPhone apps, and the agents you create.
 
 Version 2 holds deploy.local to the restraint of [hob](https://github.com/FrigadeHQ/hob) (MIT): four type sizes, neutral greys, one near-black action, almost no chrome. deploy.local violet stays as the brand. Tokens started from `app/design-tokens.json` on main (`0d96f82`) and the rules in `docs/design-system.md`. **This is a proposal; the app still ships v1.**
 
@@ -28,7 +28,16 @@ Version 2 holds deploy.local to the restraint of [hob](https://github.com/Frigad
 - **Main pane:** a 48 px header (title, a muted subtitle, end-aligned icon actions). Conversations and the composer share a 768 px column. Pages (projects, computers, settings) use a 960 px column with a 22 px title.
 - **Right panel** (320 px, hairline left edge) for what an agent is tracking or a pull request's merge status. It folds away below 1180 px.
 - **Narrow windows:** below 900 px secondary lists fold; below 820 px the sidebar hides behind a menu button; below 600 px insets drop to 16 px and text steps up to 17.
-- **Phone:** large title, rounded groups of 17 px rows, a bottom tab bar (Work, Projects, Computers, Settings), 44 px targets.
+- **Phone:** large title, rounded groups of 17 px rows, a bottom tab bar (Work, Projects, Live, Computers, Settings), 44 px targets.
+
+## Lists
+
+- Content that is a list of settings, rules, steps, records or people uses labelled groups (`.dl-ph-label` + `.dl-ph-group`) and `.dl-ph-row` rows of at least 52 px, or 64 px with a second line. Use 16 px side margins and horizontal row padding, and about 20 px between groups. Phone primary text is 17 px; secondary text is 13 px. SettingsPhone retains its approved typography and spacing.
+- Use a 30 px `.dl-tile` (8 px radius) or an agent avatar when items differ in kind. A right-aligned `.dl-ph-value` is 15 px and muted, never 13 px ink-soft. Show a muted `.dl-chev` when a row opens something. Let long labels wrap rather than hiding meaningful words.
+- A group holds about 3–7 rows. Longer or repeated structures become **summary rows that open a detail**: one row per item with its summary, not every field of every item inline. Never stack a matrix (items × options) on a phone.
+- Explanations go in the group footnote (`.dl-ph-note`), not between rows. A row’s second line briefly describes that item; shared guidance belongs below the group.
+- Web uses the same rules with `.dl-group` / `.dl-item` at its sizes, composed inside `.dl-list`, with `.dl-list-note` for footnotes. No dense tables for settings-like content; tables are only for real tabular data.
+- Web and iOS must use the shared list components. Native `V2SettingsGroup` / `V2SettingsRow` already implement the Settings pattern; keep group spacing, row height, tiles, values, disclosure and footnotes in parity across clients.
 
 ## Components
 
@@ -40,7 +49,7 @@ Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settin
 - **Loading** (`.dl-skel`): skeleton rows in the real layout, never a page spinner. After 10 s, say what is slow.
 - **Error** (`.dl-banner.warning` / `.danger`, `.dl-field.invalid` + `.dl-field-error`): what happened, what deploy.local is already doing, and one thing you can do. Warning while it retries or works around it; danger when something failed. Raw errors belong in Logs.
 - **After a decision** (`.dl-approval.answered`): the card stays in the conversation as a dashed record with who answered, when and where. The work that follows reports back in the same conversation, and every answer is listed under Waiting on you, Answered.
-- **Permission matrix** (`.dl-matrix-table` + `.dl-matrix-stack`): actions down the side, one column per agent. Below 900 px it becomes one group per agent, so a new agent's column never scrolls out of view.
+- **Agent rules:** one summary row per agent opens its rules. Never show a permission matrix or stack every agent’s rules on a phone.
 - **An agent at the controls** (`.dl-control`): while an agent uses a screen, a dark bar stays on top with the agent, the app, the elapsed time, Pause and Stop. Screen use is asked per task, for one app at a time (`.dl-scope`).
 
 ## Build rules for v2
@@ -48,9 +57,9 @@ Button, Sidebar, Work log, Approval card, Messages, Composer, List group, Settin
 - **Clients render the same events.** The server sends each conversation as typed events (decision card, work log, task link, answer, report). The web app, the desktop shell and the iPhone app render those events; none writes its own summary. A client may fold events, but never drops a decision card.
 - **A noun appears only once it exists.** Tabs and sections for pull requests, issues, apps and releases show up with the first one. A one-app project is its own app page.
 - **Teach a word where it first happens.** Task, pull request and release are explained once, in place, then never again.
-- **Shipping is yours to start.** A task never asks to ship; Ship… sits in the task header, its panel and its info sheet. Only agents acting on a running app (like Warden's rollback) bring a decision to you.
+- **Shipping is yours to start.** A task never asks to ship; Ship… sits in the task header, its panel and its info sheet. Only agents acting on a running app (like Ops watcher’s rollback) bring a decision to you.
 - **Previews are screenshots you ask for.** They come from where the app runs: a browser for web apps, Simulator for iPhone apps, the window for Mac apps. No preview runs unless you ask.
-- **Agents speak rarely.** One brief a day; otherwise only when something needs you or finished. Past days fold into one line.
+- **Agents answer in chat.** Looks after items name what, where, when and what they bring. Scheduled work starts after confirmation. Within size, capacity and action rules, agents prepare pull requests or design reviews; features, larger work and archive ask first. Visible changes require approved design before code. Past days fold into one line.
 
 ## Consuming this system on a Design canvas
 
@@ -59,3 +68,13 @@ Load, after the canvas `support.js` line: `ds/deploy-local/tokens.css`, then `ds
 ## Not synced
 
 No font files (Hanken Grotesk loads from Google Fonts). The live React components in `@/components/ui` are not bundled; cards are static renditions.
+
+## Project care boards
+
+`.dl-care` composes the existing sections, groups, agent rows and approval cards. It wraps evidence and care lines instead of truncating them, keeps a 768 px reading column, and gives phone reviews a scrollable body with decisions in `.dl-care-footer`. Use existing color, spacing and touch-size tokens. Stage and proposal-kind labels are plain text.
+
+## Shared agent layouts
+
+AgentSettings / AgentInfoPhone and AgentCareDetails / AgentCareDetailsPhone use the same details layout: page on web, sheet on iPhone. In order: avatar with Change avatar, Shuffle and colors; Name; editable What it does; What it’s learned (lesson, source, edit disclosure and a group footnote); Looks after list; Stopped suggestions only when there are saved stopped suggestions; What it may use; Approvals summary; Delete. Stopped suggestions uses the existing group and row components, with the finding, project and “Allow this suggestion again”; omit the entire section when empty. Code reviewer has one; Release notes writer has none.
+
+AgentRoutine and AgentBeatProjects use the same item editor: dialog on web, sheet on iPhone. Fields are What, Where (All Active / All Active and Maintained / Chosen projects), When (Every week / Every day / On each change, day and time, On SER's clock), then Brings (A pull request / A design review / A question / A message), followed by Confirm item / Cancel. Chosen projects reveals a checklist with stage and access notes. Every day omits Day; On each change omits Day and Time. Confirmation saves without running immediately. Receipts offer an inline primary Confirm and Edit; the confirmed receipt reads “Confirmed · first check <day> <time> · Edit”.

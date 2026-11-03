@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
+<meta name="design-board" content="width=390,height=844">
+<title>iPhone — Looks after: Code quality and updates</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:var(--paper)}
+.dl-phone{height:min(844px,100dvh);background:var(--sidebar)}
+.dl-sheet{flex:1;min-height:0;margin-top:64px;display:flex;flex-direction:column;border-radius:var(--radius-dialog) var(--radius-dialog) 0 0;box-shadow:var(--shadow-lg);overflow:hidden}
+.sheet-grabber{flex:none;align-self:center;width:36px;height:5px;margin:8px 0 0;border-radius:var(--radius-full);background:var(--line-strong)}
+.dl-sheet .dl-ph-top{padding:0 8px 4px;border-bottom:1px solid var(--line)}
+.dl-sheet .dl-ph-body{overflow-y:auto;overscroll-behavior:contain;padding:16px 0;scroll-padding:16px}
+.sheet-intro{padding:0 20px 16px}
+.sheet-intro h1{margin:4px 0 6px;font-size:22px;line-height:28px;font-weight:600}
+.sheet-intro p{margin:0;font-size:13px;line-height:18px;color:var(--muted)}
+.dl-sheet .dl-ph-label{padding-top:16px}
+.dl-sheet .dl-ph-row{min-height:56px}
+.draft-fields{padding:0 20px;display:flex;flex-direction:column;gap:12px}
+.draft-fields .dl-field{height:44px;font-family:var(--font-sans);font-size:17px}
+.draft-fields .dl-textarea{min-height:112px;font-family:var(--font-sans);font-size:17px;line-height:24px;resize:vertical}
+.sheet-footer{flex:none;padding:12px 20px max(24px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
+.sheet-footer .dl-btn{box-sizing:border-box}
+.dl-phone .dl-item .dl-t > span{white-space:normal}.dl-phone .dl-section-sub,.dl-phone .dl-meta{font-size:13px;line-height:18px}
+.dl-ph-row .dl-t > span:first-child{font-size:17px;line-height:24px;font-weight:500}
+.dl-ph-row .dl-t > span + span{font-size:13px;line-height:18px}
+.dl-ph-row .dl-chev{color:var(--muted)}
+
+/* Board-local avatar studies, derived from the design-system hues. */
+.agent-avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;border-radius:var(--radius-full);overflow:hidden;vertical-align:middle}
+.agent-avatar svg{display:block;width:100%;height:100%}.agent-avatar.hero{width:88px;height:88px}.agent-avatar.large{width:64px;height:64px}
+.dl-nav .dl-lead:has(.agent-avatar){width:28px}.dl-nav:has(.agent-avatar){gap:10px}
+.agent-identity{display:flex;align-items:center;gap:10px;min-width:0;min-height:44px;color:var(--ink)}
+.agent-identity .dl-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avatar-edit{display:flex;flex-direction:column;align-items:center;gap:4px}.avatar-edit a{display:inline-flex;flex-direction:column;align-items:center;gap:8px;min-height:44px}.avatar-edit .dl-btn{min-height:44px}
+.avatar-colors{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:0;width:100%;max-width:360px;margin:4px auto}
+.color-choice{border:0;background:transparent;min-width:0;height:44px;padding:4px;display:flex;justify-content:center;align-items:center;cursor:pointer}
+.color-choice span{width:22px;height:22px;display:block;border-radius:50%;background:var(--swatch);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 18%,transparent)}
+.color-choice[aria-pressed="true"] span{outline:2px solid var(--ink);outline-offset:3px}
+.avatar-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.avatar-choice{display:flex;align-items:center;justify-content:center;min-height:76px;border:1px solid var(--line);border-radius:var(--radius-card);background:var(--paper)}.avatar-choice[aria-pressed="true"]{border:2px solid var(--ink)}
+.agent-modal-layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:color-mix(in srgb,var(--ink) 22%,transparent);box-sizing:border-box}
+.agent-modal{max-width:420px;max-height:calc(100dvh - 48px);overflow-y:auto;padding:24px;gap:20px}.agent-modal .dl-dialog-head h2{font-size:22px;line-height:28px}
+.agent-modal .dl-field{height:44px;font-size:15px}.agent-modal .dl-dialog-foot .dl-btn{min-width:88px;height:44px}
+.agent-form{display:flex;flex-direction:column;gap:8px}.agent-form label{font-size:13px;line-height:20px;font-weight:500}.agent-form .dl-field{height:44px}.agent-form .dl-textarea{font:inherit;line-height:24px;resize:vertical}
+.agent-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.agent-section-head .dl-btn{min-height:44px}
+.agent-details .dl-section{gap:8px}.agent-details .dl-setting{flex-wrap:wrap}.agent-details .dl-setting .dl-v{max-width:100%}
+.agent-greeting{gap:12px;padding:56px 0 28px}.agent-greeting h3{font-size:22px;line-height:28px}.agent-greeting p{font-size:15px;line-height:24px;max-width:440px}
+.first-messages{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:16px;max-width:620px}.first-message{border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);padding:10px 14px;min-height:44px;font:inherit;font-size:13px;line-height:20px;cursor:pointer;text-align:left}
+:where(button,a,input,textarea,select):focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.dl-phone .agent-avatar{width:32px;height:32px}.dl-phone .agent-avatar.hero{width:88px;height:88px}.dl-phone .agent-avatar.large{width:64px;height:64px}
+.dl-phone .avatar-colors{grid-template-columns:repeat(5,44px);justify-content:center;gap:0 10px;max-width:100%}
+.dl-phone .avatar-edit .dl-btn{width:auto}.dl-phone .agent-form .dl-field,.dl-phone .agent-form .dl-textarea{font-size:17px}
+.dl-phone .agent-greeting{padding:32px 20px 20px}.dl-phone .agent-greeting p{font-size:17px;line-height:24px}
+.dl-phone .first-messages{margin-top:12px;gap:8px;width:100%}.dl-phone .first-message{width:100%;font-size:15px;line-height:20px}
+.dl-phone .agent-section-head .dl-btn{width:auto;font-size:15px}.dl-phone .agent-form{padding:0 20px}.dl-phone .agent-form label{font-size:13px}
+.dl-phone .agent-identity{justify-content:center;gap:8px}.dl-phone .agent-identity .agent-avatar{width:28px;height:28px}.dl-phone .agent-identity span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:820px){.agent-modal-layer{padding:16px}.agent-modal{max-height:calc(100dvh - 32px)}}
+
+.dl-phone .dl-sheet{flex:none;margin-top:auto;height:540px;max-height:calc(100dvh - 64px)}.dl-sheet .dl-ph-body{display:flex;flex-direction:column;gap:8px}.dl-sheet .sheet-footer{padding-bottom:max(28px,env(safe-area-inset-bottom))}
+.dl-phone .dl-sheet{height:620px}
+</style>
+</head>
+<body><div data-layer="phone" class="dl-phone dl-care dl-list" id="edit">
+<section data-layer="sheet" class="dl-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+<div data-layer="sheet-grabber" class="sheet-grabber" aria-hidden="true"></div>
+<header data-layer="ph-top" class="dl-ph-top"><span data-layer="ph-btn" style="width:44px"></span><span data-layer="choose-projects" id="sheet-title" class="dl-t">Looks after</span><a data-layer="back" href="AgentBeatPhone.html" class="dl-ph-btn" aria-label="Cancel Looks after item"><svg data-layer="svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a></header>
+<div data-layer="ph-body" class="dl-ph-body"><div data-layer="ph-thread" class="agent-form"><label data-layer="what" for="routine-job">What</label><textarea data-layer="field" id="routine-job" class="dl-textarea" rows="4">Code quality and updates</textarea><label data-layer="where" class="dl-label" for="item-where">Where</label><select data-layer="field-2" class="dl-field" id="item-where"><option data-layer="all-active">All Active</option><option data-layer="all-active-and">All Active and Maintained</option><option data-layer="chosen-projects" value="chosen" selected>Chosen projects</option></select><div data-layer="ph-group" class="dl-ph-group" data-where="chosen"><label data-layer="setting" class="dl-ph-row"><span data-layer="home-gym-active" class="dl-t"><span data-layer="home-gym">home-gym</span><span data-layer="active-access-granted">Active · Access granted</span></span><input data-layer="look-after-home" type="checkbox" checked aria-label="Look after home-gym"></label><label data-layer="setting-2" class="dl-ph-row"><span data-layer="tally-active" class="dl-t"><span data-layer="tally">tally</span><span data-layer="active-access-granted-2">Active · Access granted</span></span><input data-layer="look-after-tally" type="checkbox" checked aria-label="Look after tally"></label><label data-layer="setting-3" class="dl-ph-row"><span data-layer="deploy-local-active" class="dl-t"><span data-layer="deploy-local">deploy.local</span><span data-layer="active-access-granted-3">Active · Access granted</span></span><input data-layer="look-after-deploy" type="checkbox" checked aria-label="Look after deploy.local"></label><label data-layer="setting-4" class="dl-ph-row"><span data-layer="recipes-active" class="dl-t"><span data-layer="recipes">recipes</span><span data-layer="active-needs-access">Active · Needs access</span></span><input data-layer="look-after-recipes" type="checkbox"  disabled aria-label="Look after recipes"></label><label data-layer="setting-5" class="dl-ph-row"><span data-layer="immich-maintained" class="dl-t"><span data-layer="immich">immich</span><span data-layer="maintained-access-grante">Maintained · Access granted</span></span><input data-layer="look-after-immich" type="checkbox"  aria-label="Look after immich"></label></div><p data-layer="recipes-needs-access" class="dl-ph-note">recipes needs access before this agent can check it. Choosing a project never grants access. <span data-layer="chosen-projects-done">Done projects are excluded.</span></p><label data-layer="when" for="routine-when">When</label><select data-layer="field-3" id="routine-when" class="dl-field"><option data-layer="every-week" value="week" selected>Every week</option><option data-layer="every-day" value="day">Every day</option><option data-layer="when-i-ask" value="change">On each change</option></select><label data-layer="weekday-label" for="routine-weekday">Day</label><select data-layer="weekday" id="routine-weekday" class="dl-field"><option data-layer="mondays" selected>Monday</option><option data-layer="tuesday">Tuesday</option><option data-layer="wednesday">Wednesday</option><option data-layer="thursday">Thursday</option><option data-layer="fridays">Friday</option><option data-layer="saturday">Saturday</option><option data-layer="sunday">Sunday</option></select><label data-layer="time-america-new" for="routine-time">Time</label><input data-layer="field-4" id="routine-time" type="time" value="08:40" class="dl-field"><p data-layer="on-ser-s" class="dl-meta" style="margin:0 0 16px">On SER's clock</p><label data-layer="brings" class="dl-label" for="item-brings">Brings</label><select data-layer="field-5" class="dl-field" id="item-brings"><option data-layer="a-pull-request" selected>A pull request</option><option data-layer="a-design-review">A design review</option><option data-layer="a-question">A question</option><option data-layer="a-message">A message</option></select><p data-layer="starts-after-you" class="dl-meta" style="margin:8px 0 0">Starts after you confirm. Visible fixes bring a design review before code. Above Small, it brings a question.</p></div></div>
+<footer data-layer="sheet-footer" class="sheet-footer"><div data-layer="actions" class="dl-actions"><a data-layer="save-projects" class="dl-btn primary" data-action="confirm-looks-after" href="AgentBeatPhone.html#confirmed">Confirm item</a><a data-layer="cancel" class="dl-btn secondary" href="AgentBeatPhone.html">Cancel</a></div></footer>
+</section>
+</div></body></html>
