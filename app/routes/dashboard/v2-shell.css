@@ -230,3 +230,9 @@
     display: none;
   }
 }
+
+/* The coordinator's own update, above the account: available, running or failed. */
+.dl-side-update {
+  flex: none;
+  padding: 0 8px 8px;
+}

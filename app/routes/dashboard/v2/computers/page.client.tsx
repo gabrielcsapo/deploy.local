@@ -28,6 +28,9 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { desktopMacDownload, useMacDownload } from '@/hooks/useDesktopDownload';
 import { computerRequest, useComputerData } from './data';
+import { useSelfUpdate } from '../data/self-update';
+import { selfUpdateView } from './self-update-presentation';
+import { SelfUpdatePanel } from './self-update.client';
 import './style.css';
 const base = '/dashboard/computers';
 const roleNames: Record<Role, string> = {
@@ -742,6 +745,8 @@ export default function Computers() {
   const [adding, setAdding] = useState(false);
   const updates =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('updates');
+  const selfUpdate = useSelfUpdate();
+  const ownUpdate = updates ? selfUpdateView(selfUpdate.status) : null;
   const computer = data?.computers.find((c) => c.id === key);
   const detail = !!key && !['models', 'add'].includes(key);
   const selected = key === 'models' ? `${base}/models` : key === 'add' ? `${base}/add` : base;
@@ -776,6 +781,8 @@ export default function Computers() {
           )}
           {key === 'models' ? (
             <Models />
+          ) : ownUpdate && !detail ? (
+            <SelfUpdatePanel view={ownUpdate} offline={selfUpdate.offline} />
           ) : !data ? (
             <Skeleton rows={3} />
           ) : detail ? (

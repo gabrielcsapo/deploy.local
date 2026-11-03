@@ -318,6 +318,41 @@ export type ProjectReleaseSettings = ProjectSettings & {
   verifyMigrations: boolean;
 };
 
+/** The coordinator updating itself to its own repository's main, outside its service. */
+export type SelfUpdateStep = {
+  id: 'prepare' | 'backup' | 'restart' | 'check';
+  state: 'waiting' | 'running' | 'done' | 'failed' | 'skipped';
+  detail?: string;
+  startedAt?: string;
+  finishedAt?: string;
+};
+export type SelfUpdateRun = {
+  id: string;
+  from: string;
+  to: string;
+  state: 'running' | 'done' | 'failed';
+  startedAt: string;
+  startedBy: string;
+  finishedAt?: string;
+  steps: SelfUpdateStep[];
+  error?: string;
+  /** Activation failed and the previous release is serving again. */
+  rolledBack?: boolean;
+};
+export type SelfUpdateChange = { sha: string; subject: string; date: string };
+export type SelfUpdateStatus =
+  | { supported: false; reason: string }
+  | {
+      supported: true;
+      computer: string;
+      running: string;
+      main: string;
+      ahead: number;
+      changes: SelfUpdateChange[];
+      run?: SelfUpdateRun;
+      estimateMs: number;
+    };
+
 export type ComputerUpdateOverview = Omit<ComputerUpdates, 'computers'> & {
   automaticReason?: string;
   coordinatorReason?: string;

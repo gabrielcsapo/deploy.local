@@ -1,0 +1,200 @@
+#!/usr/bin/env node
+// Updates the coordinator to a commit on its own main: prepare a new release, back up the
+// databases, then `deploy-update activate`. The server starts this as the deploy account in a
+// transient systemd unit, so restarting deploy-server.service does not stop it. Progress goes to
+// the run's JSON file, which the server reads; output goes to the run's log.
+import { spawn } from 'node:child_process';
+import {
+  appendFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const short = (sha) => sha.slice(0, 7);
+export function duration(ms) {
+  const seconds = Math.round(ms / 1000);
+  return seconds < 60
+    ? `${seconds} s`
+    : `${Math.floor(seconds / 60)} m ${String(seconds % 60).padStart(2, '0')} s`;
+}
+
+/** Reads `deploy-update prepare` output: which pnpm step ran last, and the test totals. */
+export function readPrepare(output) {
+  let command = '';
+  let pass = 0;
+  let failed = 0;
+  const files = new Set();
+  for (const line of output.split('\n')) {
+    const step = line.match(/^pnpm (install|typecheck|build|test)\b/);
+    if (step) command = step[1];
+    const total = line.match(/^ℹ (pass|fail) (\d+)/);
+    if (total?.[1] === 'pass') pass += Number(total[2]);
+    if (total?.[1] === 'fail') failed += Number(total[2]);
+    const where = line.match(
+      /^\s*test at (?:file:\/\/)?(?:.*?\/)?((?:server|app|packages|bin|shared|scripts)\/[^:\s]+):\d+/,
+    );
+    if (where) files.add(where[1]);
+  }
+  return { command, pass, failed, files: [...files] };
+}
+export function prepareDetail({ command, pass, failed, files }, ok) {
+  if (ok) return `install, typecheck, build, ${pass} tests passed`;
+  if (command === 'test' && failed)
+    return `${failed} of ${pass + failed} tests failed${files.length ? ` in ${files.slice(0, 2).join(', ')}` : ''}`;
+  return command ? `pnpm ${command} failed` : 'could not start the build';
+}
+
+function main(file) {
+  let run = JSON.parse(readFileSync(file, 'utf8'));
+  const { plan } = run;
+  const save = () => {
+    writeFileSync(`${file}.tmp`, JSON.stringify(run, null, 2), { mode: 0o644 });
+    renameSync(`${file}.tmp`, file);
+  };
+  const log = (text) => appendFileSync(plan.log, text);
+  const exec = (command, args, options = {}) =>
+    new Promise((resolve, reject) => {
+      log(`$ ${command} ${args.join(' ')}\n`);
+      let output = '';
+      const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+      const take = (chunk) => {
+        output += chunk;
+        log(chunk);
+      };
+      child.stdout.on('data', take);
+      child.stderr.on('data', take);
+      child.on('error', reject);
+      child.on('close', (code) =>
+        code === 0
+          ? resolve(output)
+          : reject(Object.assign(new Error(`${command} exited with ${code}`), { output })),
+      );
+    });
+  const step = (id) => run.steps.find((s) => s.id === id);
+  const begin = (id) => {
+    Object.assign(step(id), { state: 'running', startedAt: new Date().toISOString() });
+    save();
+    return Date.now();
+  };
+  const finish = (id, state, detail) => {
+    Object.assign(step(id), { state, detail, finishedAt: new Date().toISOString() });
+    save();
+  };
+  const end = (state, error) => {
+    for (const s of run.steps)
+      if (s.state === 'waiting') Object.assign(s, { state: 'skipped', detail: 'skipped' });
+    run = { ...run, state, error, finishedAt: new Date().toISOString() };
+    save();
+    let history = [];
+    try {
+      history = JSON.parse(readFileSync(plan.history, 'utf8'));
+    } catch {}
+    const { plan: _plan, ...summary } = run;
+    writeFileSync(plan.history, JSON.stringify([...history, summary].slice(-20), null, 2));
+  };
+
+  return (async () => {
+    log(`Updating ${short(run.from)} to ${short(run.to)} into ${plan.release}\n`);
+    let started = begin('prepare');
+    let output = '';
+    try {
+      if (existsSync(plan.release)) throw new Error(`${plan.release} already exists`);
+      // Copying the serving release keeps node_modules, so the install is quick.
+      await exec('cp', ['-a', realpathSync(plan.current), plan.release]);
+      await exec('git', [
+        '-C',
+        plan.release,
+        'fetch',
+        '--no-tags',
+        '--quiet',
+        plan.repository,
+        run.to,
+      ]);
+      await exec('git', ['-C', plan.release, 'checkout', '--quiet', '--detach', '--force', run.to]);
+      await exec('git', ['-C', plan.release, 'clean', '-fdq']);
+      rmSync(join(plan.release, 'dist'), { recursive: true, force: true });
+      output = await exec('deploy-update', ['prepare', plan.release]);
+      finish(
+        'prepare',
+        'done',
+        `${prepareDetail(readPrepare(output), true)} · ${duration(Date.now() - started)}`,
+      );
+    } catch (error) {
+      const detail = prepareDetail(readPrepare(error.output || output), false);
+      finish('prepare', 'failed', `${detail} · ${duration(Date.now() - started)}`);
+      return end(
+        'failed',
+        `The update to ${short(run.to)} stopped while preparing, before anything changed.`,
+      );
+    }
+
+    started = begin('backup');
+    try {
+      const { backup, DatabaseSync } = await import('node:sqlite');
+      const directory = join(plan.data, 'backups');
+      for (const [name, path] of [
+        ['deploy', join(plan.data, 'deploy.db')],
+        ['workspace', join(plan.data, 'workspace', 'workspace.db')],
+      ]) {
+        const database = new DatabaseSync(path, { readOnly: true });
+        try {
+          await backup(database, join(directory, `self-update-${short(run.to)}-${name}.db`));
+        } finally {
+          database.close();
+        }
+      }
+      // Keep the three most recent updates' backups; older ones are this updater's own.
+      const ours = readdirSync(directory)
+        .filter((name) => /^self-update-[0-9a-f]{7}-(deploy|workspace)\.db$/.test(name))
+        .map((name) => ({ name, time: statSync(join(directory, name)).mtimeMs }))
+        .sort((a, b) => b.time - a.time);
+      for (const { name } of ours.slice(6)) rmSync(join(directory, name));
+      finish('backup', 'done', `deploy.db and workspace.db · ${duration(Date.now() - started)}`);
+    } catch (error) {
+      log(`${error.stack || error}\n`);
+      finish('backup', 'failed', `${error.message} · ${duration(Date.now() - started)}`);
+      return end(
+        'failed',
+        `The update to ${short(run.to)} stopped while backing up, before anything changed.`,
+      );
+    }
+
+    begin('restart');
+    try {
+      await exec('deploy-update', ['activate', plan.release]);
+      finish('restart', 'done', `serving ${short(run.to)}`);
+      finish('check', 'done', 'healthy over HTTPS');
+      return end('done');
+    } catch (error) {
+      const text = error.output || error.message;
+      const rolledBack = /Update failed; restored /.test(text);
+      run.rolledBack = rolledBack;
+      finish(
+        'restart',
+        'failed',
+        rolledBack ? `did not come back healthy` : text.trim().split('\n').at(-1),
+      );
+      return end(
+        'failed',
+        rolledBack
+          ? `${short(run.to)} did not come back healthy, so ${plan.computer || 'the coordinator'} went back to ${short(run.from)}.`
+          : /needs attention/.test(text)
+            ? 'The update failed and going back to the previous release needs attention. Check the log.'
+            : `The update to ${short(run.to)} stopped before the restart.`,
+      );
+    }
+  })().catch((error) => {
+    log(`${error.stack || error}\n`);
+    end('failed', 'The updater stopped unexpectedly. Check the log.');
+    process.exitCode = 1;
+  });
+}
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) await main(process.argv[2]);

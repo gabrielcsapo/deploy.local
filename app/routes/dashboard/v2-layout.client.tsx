@@ -22,6 +22,8 @@ import { DesignRail } from './v2/design/Rail';
 import { sidebarKind, sidebarCollapsed } from './v2/data/sidebar-preference';
 import { FirstTask } from './v2/start/page.client';
 import { useInAppLinks } from './v2/data/links';
+import { useSelfUpdate } from './v2/data/self-update';
+import { selfUpdateView, sidebarRow } from './v2/computers/self-update-presentation';
 
 function useSidebarData() {
   return {
@@ -33,6 +35,7 @@ function useSidebarData() {
     computers: useResource<{ nodes: { id: string; name?: string; online: boolean }[] }>(
       '/api/nodes',
     ),
+    selfUpdate: useSelfUpdate(),
   };
 }
 
@@ -56,6 +59,8 @@ export function V2Sidebar({
   const summary = live.data?.summary;
   const username = user.data?.username || 'Account';
   const online = computers.data?.nodes.filter((computer) => computer.online).length;
+  const update = selfUpdateView(data.selfUpdate.status);
+  const updateRow = update && sidebarRow(update);
   return (
     <Sidebar
       onCollapse={onCollapse}
@@ -121,20 +126,39 @@ export function V2Sidebar({
         </>
       }
       footer={
-        <a className="dl-side-foot" href="/dashboard/settings">
-          <span className="dl-avatar">{username.charAt(0).toUpperCase()}</span>
-          <span className="dl-who">
-            <span className="dl-strong">{username}</span>
-            <span className="dl-meta">
-              {online === undefined
-                ? computers.loading
-                  ? ' '
-                  : 'Computers unavailable'
-                : `${online} ${online === 1 ? 'computer' : 'computers'} online`}
+        <>
+          {update && updateRow && (
+            <div className="dl-side-update">
+              <Nav
+                href="/dashboard/computers?updates=1"
+                lead={<Icon name={updateRow.icon} size={14} className={updateRow.iconClass} />}
+                end={
+                  update.kind === 'available' ? (
+                    <span className="dl-c">{update.status.ahead}</span>
+                  ) : (
+                    relativeTime(update.run.finishedAt || update.run.startedAt)
+                  )
+                }
+              >
+                {updateRow.label}
+              </Nav>
+            </div>
+          )}
+          <a className="dl-side-foot" href="/dashboard/settings">
+            <span className="dl-avatar">{username.charAt(0).toUpperCase()}</span>
+            <span className="dl-who">
+              <span className="dl-strong">{username}</span>
+              <span className="dl-meta">
+                {online === undefined
+                  ? computers.loading
+                    ? ' '
+                    : 'Computers unavailable'
+                  : `${online} ${online === 1 ? 'computer' : 'computers'} online`}
+              </span>
             </span>
-          </span>
-          <Icon name="settings" />
-        </a>
+            <Icon name="settings" />
+          </a>
+        </>
       }
     >
       <div className="dl-side-label">

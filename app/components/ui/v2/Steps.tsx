@@ -4,6 +4,8 @@ import { type ComponentState, type IconName, Icon, stateProps } from './shared';
 export type WorkStep = {
   text: ReactNode;
   icon?: IconName;
+  /** dl-run, dl-ok or dl-fail, to color the icon by its state. */
+  iconClass?: string;
   detail?: string;
   added?: number;
   removed?: number;
@@ -27,7 +29,11 @@ export function Steps({
       {steps.map((step, index) => (
         <li className="dl-step" key={index}>
           <span className="dl-i" aria-hidden={numbered || undefined}>
-            {numbered ? index + 1 : <Icon name={step.icon || 'file'} size={14} />}
+            {numbered ? (
+              index + 1
+            ) : (
+              <Icon name={step.icon || 'file'} size={14} className={step.iconClass} />
+            )}
           </span>
           <span className="dl-t">{step.text}</span>
           {step.detail && <span className="dl-x">{step.detail}</span>}
