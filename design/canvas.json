@@ -1392,6 +1392,30 @@
       "h": 900,
       "title": "Connections: every link between boards, always on, the selected board's lit",
       "expand": "fill"
+    },
+    "SelfUpdateAvailable.html": {
+      "x": 2020,
+      "y": 27684,
+      "w": 1440,
+      "h": 900,
+      "title": "deploy.local updating itself: main has changes SER is not running",
+      "expand": "fill"
+    },
+    "SelfUpdating.html": {
+      "x": 3560,
+      "y": 27684,
+      "w": 1440,
+      "h": 900,
+      "title": "deploy.local updating itself: SER preparing and restarting",
+      "expand": "fill"
+    },
+    "SelfUpdateFailed.html": {
+      "x": 5100,
+      "y": 27684,
+      "w": 1440,
+      "h": 900,
+      "title": "deploy.local updating itself: the update stopped and SER kept its version",
+      "expand": "fill"
     }
   },
   "order": [
@@ -1491,6 +1515,9 @@
     "Models.html",
     "AddComputerName.html",
     "AddComputer.html",
+    "SelfUpdateAvailable.html",
+    "SelfUpdating.html",
+    "SelfUpdateFailed.html",
     "SelfUpdate.html",
     "RemoveComputer.html",
     "Main.html",
@@ -2399,6 +2426,13 @@
       "w": 900,
       "fill": "blue",
       "text": "Connections: see how boards link without opening Prototype\n• Connections, the last button in the tool bar (⇧C, also in the zoom menu), draws every link between boards on the page as an arrow, in Edit, Prototype and Comments alike. It stays on until you turn it off, per person.\n• Arrows run board to board, one per pair, however many layers make that link. They're grey and thin so the boards stay readable.\n• Select a board and its arrows turn violet: the boards it leads to and the boards that lead to it. Selecting a layer lights only that layer's link.\n• Links to boards on other pages don't draw; the board's Connections section lists them under their page. Clicking a row goes to that board.\n• Repeated links, like the sidebar on every board, stay hidden; the eye on the Sidebar row draws them too.\n• Narrow windows show the same arrows; the Connections section sits in the bottom sheet."
+    },
+    "self-update": {
+      "fill": "orange",
+      "w": 440,
+      "x": 2020,
+      "y": 28624,
+      "text": "SER updates itself from its own main. The sidebar row shows only to administrators, only while main is ahead of what SER runs, while an update runs, or after one fails; it opens deploy.local updates. Update SER prepares a new release (install, typecheck, build, tests), backs up the databases, then restarts into it. If SER does not come back healthy it goes back to the previous release by itself and the page says so. After a successful update the row disappears and Computers shows the SelfUpdate board."
     }
   },
   "starts": {}
