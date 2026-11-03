@@ -62,6 +62,84 @@ private func body(_ request: URLRequest) -> [String: Any] {
 }
 
 @Suite(.serialized) struct V2Tests {
+    @Test func agentDraftPostsOnlyTheDescriptionAndDecodesTheEnvelope() async throws {
+        V2URLProtocol.state.reset(["POST /api/v2/agents/draft": [(200, #"{"draft":{"name":"Notes","job":"Summarize changes.\nAsk before publishing.","computers":["SER"],"apps":[],"futureField":true}}"#)]])
+        let draft = try await client().draftAgent(job: "Write release notes for home-gym")
+        #expect(draft.name == "Notes")
+        #expect(draft.job == "Summarize changes.\nAsk before publishing.")
+        #expect(draft.computers == ["SER"])
+        let request = try #require(V2URLProtocol.state.recorded().first)
+        #expect(Set(body(request).keys) == ["job"])
+        #expect(body(request)["job"] as? String == "Write release notes for home-gym")
+    }
+
+    @Test func createAgentSendsOnlyEditableFieldsAndDecodes201() async throws {
+        V2URLProtocol.state.reset(["POST /api/v2/agents": [(201, #"{"agent":\#(agentJSON)}"#)]])
+        let api = client()
+        for enabled in [false, true] {
+            let values = V2NewAgent(name: "Edited name", job: "Edited instructions\nAsk first", projectId: "p", schedule: .init(enabled: enabled, time: "19:30"))
+            let agent = try await api.createAgent(values)
+            #expect(agent.id == agentId && agent.projectId == "p")
+            #expect(agent.schedule?.enabled == false)
+            let request = try #require(V2URLProtocol.state.recorded().last)
+            let json = body(request)
+            #expect(Set(json.keys) == ["name", "job", "projectId", "schedule"])
+            #expect(json["name"] as? String == values.name && json["job"] as? String == values.job)
+            #expect(json["projectId"] as? String == "p")
+            let schedule = try #require(json["schedule"] as? [String: Any])
+            #expect(Set(schedule.keys) == ["enabled", "time"])
+            #expect(schedule["enabled"] as? Bool == enabled && schedule["time"] as? String == "19:30")
+        }
+        _ = try await api.createAgent(.init(name: "No project", job: "Check things", schedule: .init(enabled: false, time: "08:00")))
+        let request = try #require(V2URLProtocol.state.recorded().last)
+        #expect(Set(body(request).keys) == ["name", "job", "schedule"])
+    }
+
+    @Test func draftAndCreateErrorsPropagateAndDraftCanBeRetried() async throws {
+        V2URLProtocol.state.reset([
+            "POST /api/v2/agents/draft": [(502, #"{"error":"The model returned an invalid agent draft."}"#), (200, #"{"draft":{"name":"Notes","job":"Write notes","computers":[]}}"#)],
+            "POST /api/v2/agents": [(400, #"{"error":"Invalid project"}"#)]
+        ])
+        let api = client()
+        await #expect(throws: ClientError.self) { try await api.draftAgent(job: "Write notes") }
+        #expect(try await api.draftAgent(job: "Write notes").name == "Notes")
+        await #expect(throws: ClientError.self) {
+            try await api.createAgent(.init(name: "Notes", job: "Write notes", schedule: .init(enabled: false, time: "08:00")))
+        }
+        #expect(V2URLProtocol.state.recorded().count == 3)
+    }
+
+    @Test func malformedDraftsAndCreationResponsesAreRejected() async throws {
+        V2URLProtocol.state.reset([
+            "POST /api/v2/agents/draft": [(200, #"{"draft":{"name":"Notes","computers":[]}}"#)],
+            "POST /api/v2/agents": [(201, #"{"agent":{"name":"Notes"}}"#)]
+        ])
+        await #expect(throws: DecodingError.self) { try await client().draftAgent(job: "Write notes") }
+        await #expect(throws: DecodingError.self) {
+            try await client().createAgent(.init(name: "Notes", job: "Write notes", schedule: .init(enabled: false, time: "08:00")))
+        }
+    }
+
+    @Test @MainActor func creationRefreshesAgentsAndKeepsTheCreatedAgentIfRefreshFails() async throws {
+        for status in [200, 503] {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            V2URLProtocol.state.reset([
+                "POST /api/v2/agents": [(201, #"{"agent":\#(agentJSON)}"#)],
+                "GET /api/v2/agents": [(status, status == 200 ? #"{"agents":[{"id":"other","name":"Other"},\#(agentJSON)]}"# : #"{"error":"Unavailable"}"#)]
+            ])
+            let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
+            let created = try await store.createAgent(.init(name: "Notes", job: "Write notes", schedule: .init(enabled: false, time: "08:00")))
+            #expect(created.id == agentId)
+            #expect(store.snapshot.agents.filter { $0.id == agentId }.count == 1)
+            #expect(store.agentName(created.id) == "Release notes writer")
+            #expect(store.snapshot.agents.count == (status == 200 ? 2 : 1))
+            let restored = V2Store(connection: connection, client: client(), cacheDirectory: directory)
+            #expect(restored.snapshot.agents == store.snapshot.agents)
+            #expect(V2URLProtocol.state.recorded().map { "\($0.httpMethod!) \($0.url!.path)" } == ["POST /api/v2/agents", "GET /api/v2/agents"])
+        }
+    }
+
     @Test func agentsDecodeCoordinatorResponseAndOptionalFields() async throws {
         V2URLProtocol.state.reset(["GET /api/v2/agents": [(200, #"{"agents":[\#(agentJSON),{"id":"minimal","name":"Minimal"},{"id":"nullable","name":"Nullable","job":null,"projectId":null,"schedule":null}],"futureField":true}"#)]])
         let agents = try await client().agents()

@@ -192,6 +192,15 @@ public struct V2Snapshot: Codable, Sendable {
             await flushDrafts()
         } catch { if !Task.isCancelled { record(error) } }
     }
+    public func createAgent(_ values: V2NewAgent) async throws -> V2Agent {
+        let agent = try await client.createAgent(values)
+        // A refresh or cache failure after a successful POST must never invite a second creation.
+        if let agents = try? await client.agents() { snapshot.agents = agents }
+        snapshot.agents.removeAll { $0.id == agent.id }
+        snapshot.agents.append(agent)
+        try? persist()
+        return agent
+    }
     private func record(_ error: Error) {
         online = false
         if case ClientError.response(401, _) = error { needsAuthentication = true }

@@ -5,6 +5,7 @@ public struct V2Agent: Codable, Identifiable, Equatable, Sendable {
     public struct Schedule: Codable, Equatable, Sendable {
         public var enabled: Bool?
         public var time: String?
+        public init(enabled: Bool, time: String) { self.enabled = enabled; self.time = time }
     }
     public var id: String
     public var name: String
@@ -16,6 +17,25 @@ public struct V2Agent: Codable, Identifiable, Equatable, Sendable {
         guard schedule?.enabled == true else { return "Only when you press Run now" }
         guard let time = schedule?.time, !time.isEmpty else { return "Every morning" }
         return "Every morning at \(time)"
+    }
+}
+
+public struct V2AgentDraft: Decodable, Equatable, Sendable {
+    public var name: String
+    public var job: String
+    public var computers: [String]
+}
+
+/// Deliberately separate from the model's draft and the coordinator's saved agent.
+/// Creation sends only the fields edited by the phone.
+public struct V2NewAgent: Encodable, Sendable {
+    public var name: String
+    public var job: String
+    public var projectId: String?
+    public var schedule: V2Agent.Schedule
+
+    public init(name: String, job: String, projectId: String? = nil, schedule: V2Agent.Schedule) {
+        self.name = name; self.job = job; self.projectId = projectId; self.schedule = schedule
     }
 }
 
@@ -177,6 +197,17 @@ public actor V2Client {
         struct Response: Decodable, Sendable { let agents: [V2Agent] }
         let response: Response = try await client.request("/api/v2/agents")
         return response.agents
+    }
+    public func draftAgent(job: String) async throws -> V2AgentDraft {
+        struct Body: Encodable { let job: String }
+        struct Response: Decodable, Sendable { let draft: V2AgentDraft }
+        let response: Response = try await client.request("/api/v2/agents/draft", method: "POST", body: JSONEncoder().encode(Body(job: job)))
+        return response.draft
+    }
+    public func createAgent(_ agent: V2NewAgent) async throws -> V2Agent {
+        struct Response: Decodable, Sendable { let agent: V2Agent }
+        let response: Response = try await client.request("/api/v2/agents", method: "POST", body: JSONEncoder().encode(agent))
+        return response.agent
     }
     public func projects(fallback: [V2Project]) async throws -> [V2Project] {
         struct Response: Decodable, Sendable {

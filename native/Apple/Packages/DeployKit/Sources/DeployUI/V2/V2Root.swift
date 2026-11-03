@@ -49,6 +49,8 @@ struct V2Tabs: View {
     @State private var answered = false
     @State private var task: String?
     @State private var agent: String?
+    @State private var newAgent = false
+    @State private var createdAgent: String?
     @State private var app: String?
     @State private var decision: String?
     private var designDecision: Bool { decision.flatMap(V2DesignReview.project(of:)) != nil }
@@ -82,6 +84,11 @@ struct V2Tabs: View {
             }.padding(.top, 5).background(WorkspaceStyle.sidebar(scheme))
         }.background(WorkspaceStyle.canvas(scheme)).foregroundStyle(WorkspaceStyle.text(scheme)).tint(WorkspaceStyle.text(scheme))
             .sheet(isPresented: $compose) { V2ComposerSheet(store: store) }
+            .sheet(isPresented: $newAgent, onDismiss: {
+                if let createdAgent { agent = createdAgent; self.createdAgent = nil }
+            }) {
+                V2NewAgentSheet(store: store) { createdAgent = $0.id; newAgent = false }
+            }
             .sheet(isPresented: $inbox) { NavigationStack { V2InboxView(store: store, answered: $answered) } }
             .sheet(isPresented: Binding(get: { task != nil }, set: { if !$0 { task = nil } })) {
                 if let task { V2ConversationView(store: store, taskId: task) }
@@ -133,6 +140,7 @@ struct V2Tabs: View {
         switch board {
         case "SignInPhone": signIn = true
         case "ComposePhone": compose = true
+        case "NewAgentPhone", "NewAgentDraftPhone": newAgent = true
         case "TaskPhone": task = "sync"
         case "NewProductPhone", "TaskInfoPhone", "ShipPhone": task = "meal"
         case "AskPhone": task = "ask"
@@ -160,11 +168,23 @@ struct V2Tabs: View {
                     .background(WorkspaceStyle.warning(scheme).opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(WorkspaceStyle.warning(scheme).opacity(0.25)))
             }
-            if !store.snapshot.agents.isEmpty {
-                V2Group(title: "Agents") {
-                    ForEach(store.snapshot.agents) { item in
-                        if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
-                        Button { agent = item.id } label: { V2Row(title: item.name, subtitle: item.scheduleDescription, avatar: item.name) }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Agents").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                    Spacer()
+                    Button { newAgent = true } label: {
+                        Image(systemName: "plus").font(.system(size: 22)).frame(width: 44, height: 44)
+                    }.accessibilityLabel("New agent")
+                }.padding(.leading, 16).padding(.trailing, 4)
+                if store.snapshot.agents.isEmpty {
+                    Text("No agents yet").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                        .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 8)
+                } else {
+                    V2Group {
+                        ForEach(store.snapshot.agents) { item in
+                            if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
+                            Button { agent = item.id } label: { V2Row(title: item.name, subtitle: item.scheduleDescription, avatar: item.name) }
+                        }
                     }
                 }
             }
@@ -174,7 +194,7 @@ struct V2Tabs: View {
                     Spacer()
                     Button("Answered") { answered = true; inbox = true }.font(.system(size: 13))
                 }.padding(.horizontal, 12)
-                if store.waiting.isEmpty { V2Empty(title: "Nothing waiting", message: "Decisions from your agents appear here.") }
+                if store.waiting.isEmpty { V2Empty(title: "Nothing waiting", message: "Decisions from your tasks and agents appear here.") }
                 else {
                     V2Group {
                         ForEach(store.waiting, id: \.id) { item in
