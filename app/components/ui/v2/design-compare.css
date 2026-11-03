@@ -1,0 +1,97 @@
+.dl-design-compare {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+.dl-design-compare-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}
+.dl-design-compare-image {
+  position: relative;
+  max-width: 100%;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-canvas);
+  box-shadow: 0 0 0 1px var(--ds-line);
+}
+.dl-design-compare-after {
+  position: absolute;
+  inset: 0;
+}
+.dl-design-compare-label {
+  position: absolute;
+  top: 8px;
+  z-index: 5;
+  padding: 2px 6px;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-surface);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+  pointer-events: none;
+}
+.dl-design-compare-label.before {
+  left: 8px;
+}
+.dl-design-compare-label.after {
+  right: 8px;
+}
+.dl-design-compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.dl-design-compare-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ds-action);
+  box-shadow: 0 0 0 1px var(--ds-surface);
+}
+.dl-design-compare-handle > span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  box-shadow: var(--ds-shadow-sm);
+}
+.dl-design-compare-handle:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+.dl-design-compare-opacity {
+  width: 100%;
+  max-width: 320px;
+  font-size: var(--ds-type-meta);
+  color: var(--ds-secondary);
+}
+.dl-design-compare-opacity > span {
+  display: flex;
+  justify-content: space-between;
+}
+.dl-design-compare-opacity input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  accent-color: var(--ds-action);
+}

@@ -1378,7 +1378,9 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (!row || !item) fail('No such design review', 404);
     const context = row!.context;
     const canvas = await readCanvas(repo, context.commit);
+    const beforeCanvas = await readCanvas(repo, context.base);
     const pages = canvas ? sections(canvas) : [];
+    const beforePages = beforeCanvas ? sections(beforeCanvas) : [];
     const boards = [];
     for (const path of (context.paths as string[]).filter((entry) =>
       entry.startsWith('design/boards/'),
@@ -1386,12 +1388,12 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       const file = path.slice('design/boards/'.length);
       const before = (await readFile(repo, context.base, path))?.toString() ?? null;
       const after = (await readFile(repo, context.commit, path))?.toString() ?? null;
-      const placed = canvas?.boards[file];
-      const page = pages.find((section) => section.boards.includes(file));
+      const placed = canvas?.boards[file] ?? beforeCanvas?.boards[file];
+      const page = (after ? pages : beforePages).find((section) => section.boards.includes(file));
       const changes = before && after ? layerChanges(before, after) : [];
       const notes = await readFile(
         repo,
-        context.commit,
+        after ? context.commit : context.base,
         `design/notes/${file.replace(/\.html$/, '.md')}`,
       );
       boards.push({
@@ -1403,6 +1405,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         index: page ? page.boards.indexOf(file) + 1 : null,
         count: page?.boards.length ?? null,
         added: !before,
+        removed: !after,
         notes: notes ? notes.toString().slice(0, 2000) : null,
         lines: changes.slice(0, 12).map((change) => {
           const snippet = after ? layerSnippet(after, change.layer) : null;
