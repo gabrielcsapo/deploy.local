@@ -1,6 +1,7 @@
 'use client';
+import { SavedAgentAvatar } from '../agents/identity';
 import { useState } from 'react';
-import { Action, Approval, Banner, Dialog, Field, Glyph, Skeleton, Status } from '@/components/ui';
+import { Action, Approval, Banner, Dialog, Field, Skeleton, Status } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { useAgentName, useInbox } from '../data/hooks';
 import { formatTime } from '../data/time';
@@ -70,7 +71,7 @@ function Decision({ item }: { item: InboxItem }) {
       {closed ? (
         <article className="dl-approval answered">
           <div className="dl-approval-head">
-            <Glyph kind={item.from === 'warden' ? 'warden' : ''}>{name[0]}</Glyph>
+            <SavedAgentAvatar id={item.from} />
             <div className="dl-t">
               <h3 className="dl-approval-title">{item.title}</h3>
               <p className="dl-approval-text">{answerLabel(item)}</p>

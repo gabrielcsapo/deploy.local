@@ -33,6 +33,8 @@ import {
   type ComponentState,
 } from '@/components/ui';
 import './design-system.css';
+import { SettingsList, SettingsRow } from '@/components/ui/v2/SettingsList';
+import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
 import { DesignCompare } from '@/components/ui/v2/DesignCompare';
 
 function Section({
@@ -390,6 +392,21 @@ function Components({ state }: { state: ComponentState }) {
         Interactive examples use sample data. Use the state controls to inspect every family.
       </p>
       <div className="ds-grid ds-halves">
+        <Section title="Lists and agent identity">
+          <SettingsList title="Agents" note="One summary row opens the details.">
+            <SettingsRow
+              title="Release notes writer"
+              subtitle="Say hello"
+              lead={<AgentAvatar id="notes" />}
+              href="/dashboard/agents/new"
+            />
+            <SettingsRow
+              title="Start a task"
+              subtitle="Work on a branch inside its limits"
+              value="Ask"
+            />
+          </SettingsList>
+        </Section>
         <Section title="Sidebar and Nav">
           <div className="ds-sidebar-example">
             <Sidebar

@@ -70,6 +70,17 @@ function General() {
           </a>
         </Group>
       </section>
+      <section className="dl-section">
+        <h2 className="dl-section-title">Credits</h2>
+        <p className="dl-meta">
+          Avatars: DiceBear Glyphs by <a href="https://x.com/mattkhouser">Matt Houser</a>, a remix
+          of{' '}
+          <a href="https://www.figma.com/community/file/1249154526125777853">
+            Abstract Avatars for All Creative Profile Use
+          </a>
+          , licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+        </p>
+      </section>
     </>
   );
 }

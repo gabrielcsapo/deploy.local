@@ -17,7 +17,7 @@ struct V2InboxView: View {
                     V2Group(title: day) {
                         ForEach(store.answered.filter { dayLabel($0.answer?.at ?? $0.createdAt) == day }, id: \.id) { item in
                             VStack(alignment: .leading, spacing: 0) {
-                                V2Row(title: item.title, subtitle: answerLabel(item), trailing: V2Labels.outcome(item), avatar: V2Labels.agentName(item))
+                                V2Row(title: item.title, subtitle: answerLabel(item), trailing: V2Labels.outcome(item), identity: store.snapshot.agents.first { $0.id == item.from }?.identity ?? .from(id: item.from))
                                 Divider().padding(.leading, 52)
                             }
                         }
@@ -240,6 +240,10 @@ struct V2SettingsView: View {
                                 .frame(maxWidth: .infinity, minHeight: 56).contentShape(Rectangle())
                         }
                     }.padding(.top, 36)
+                    V2SettingsGroup(title: "Credits") {
+                        Text("Avatars: DiceBear Glyphs by Matt Houser, a remix of Abstract Avatars for All Creative Profile Use.").font(.system(size: 13)).padding(16)
+                        Link("CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!).font(.system(size: 13)).padding(.horizontal, 16).padding(.bottom, 16)
+                    }
                 }.padding(.horizontal, 16).padding(.bottom, 32)
             }
         }.scrollIndicators(.hidden).buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
@@ -250,6 +254,7 @@ struct V2SettingsView: View {
         .task {
             if V2Evidence.board == "RestorePhone" { backups = true }
             if V2Evidence.board == "SettingsApprovalsPhone" { approvals = true }
+            if V2Evidence.agentsBoard == .rules { approvals = true }
         }
         .task(id: store.snapshot.updatedAt) {
             // A failed read leaves the real names visible without guessing at permissions.

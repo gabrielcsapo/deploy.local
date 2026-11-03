@@ -7,12 +7,23 @@ import type {
   ApprovalSuggestion,
   AgentTracking,
   ConversationEvent,
+  LooksAfterItem,
+  AgentReceipt,
 } from '../../shared/v2/contracts.ts';
 import { db, id, list, now, remove, save, events } from '../workspace/store.ts';
 import { providerConnections } from '../workspace/provider-connections.ts';
 import { fail, syncInbox } from './inbox.ts';
 
 import { mapConversationEvent } from './events.ts';
+import {
+  migrateAgent,
+  validateAvatar,
+  validateItem,
+  nextItemAt,
+  agentChanged,
+  coordinatorTimezone,
+} from './agent-foundation.ts';
+import { randomAgentAvatar } from '../../shared/v2/agents.ts';
 import { agentRuns, holdScheduleUntilTomorrow, startAgentRun } from './agent-runs.ts';
 
 export const agentApprovalActions: AgentApprovalAction[] = [
@@ -56,6 +67,8 @@ function putRules(owner: string, rules: unknown) {
         const { id, agent, action, mode, projectId, limit } = rule;
         save('v2-approval', owner, { id, agent, action, mode, projectId, limit });
       }
+      for (const agentId of new Set(rules.map((rule) => rule.agent as string)))
+        agentChanged(owner, agentId);
       return rulesForOwner(owner);
     })
     .immediate();
@@ -117,6 +130,7 @@ export function agentTracking(owner: string, agentId: string): AgentTracking {
         id: task.id,
         title: task.title,
         at: task.createdAt,
+        ...(task.agentItemId ? { itemId: task.agentItemId } : {}),
         status: active(task.id)
           ? 'running'
           : list('run', owner).findLast((run) => run.taskId === task.id)?.status || task.status,
@@ -140,7 +154,41 @@ export function agentTracking(owner: string, agentId: string): AgentTracking {
 export const rollbackActor = 'warden';
 // No agent ships by default: you create each one, usually from a template on the new-agent page.
 export function agentsForOwner(owner: string): Agent[] {
-  return list('agent', owner);
+  const agents = list('agent', owner);
+  if (!agents.length) return [];
+  // Read chat, tasks and messages once for every agent, not once per agent.
+  const lastChat = new Map<string, any>();
+  for (const m of list('agent-message', owner))
+    if (['you', 'reply'].includes(m.event?.kind)) lastChat.set(m.agentId, m.event);
+  const taskAgent = new Map<string, string>();
+  for (const t of list('task', owner)) if (t.agentId) taskAgent.set(t.id, t.agentId);
+  const lastRunReply = new Map<string, any>();
+  for (const m of list('message', owner)) {
+    const agentId = taskAgent.get(m.taskId);
+    if (!agentId || m.role !== 'assistant' || typeof m.content !== 'string') continue;
+    const previous = lastRunReply.get(agentId);
+    if (!previous || previous.createdAt.localeCompare(m.createdAt) <= 0)
+      lastRunReply.set(agentId, m);
+  }
+  return agents.map((row) => {
+    const agent = migrateAgent(owner, row);
+    let last = lastChat.get(agent.id);
+    const runReply = lastRunReply.get(agent.id);
+    if (runReply && (!last || runReply.createdAt > last.at))
+      last = { kind: 'reply', paragraphs: [runReply.content], at: runReply.createdAt };
+    return {
+      ...agent,
+      looksAfter: agent.looksAfter?.map((item) => ({ ...item, nextAt: nextItemAt(item) })),
+      ...(last
+        ? {
+            lastMessage: {
+              text: last.kind === 'reply' ? last.paragraphs.join(' ') : last.text,
+              at: last.at,
+            },
+          }
+        : {}),
+    };
+  });
 }
 function agentForOwner(owner: string, agentId: string) {
   const agent = agentsForOwner(owner).find((row) => row.id === agentId);
@@ -157,7 +205,17 @@ function fields(body: any, previous?: Agent) {
   if (
     Object.keys(body).some(
       (key) =>
-        !['name', 'job', 'computers', 'schedule', 'triggers', 'apps', 'projectId'].includes(key),
+        ![
+          'name',
+          'job',
+          'computers',
+          'schedule',
+          'triggers',
+          'apps',
+          'projectId',
+          'avatar',
+          'looksAfter',
+        ].includes(key),
     )
   )
     fail('Only name, job, computers, apps, project, schedule and triggers can be changed');
@@ -198,22 +256,81 @@ function fields(body: any, previous?: Agent) {
     Object.keys(triggers).some((key) => !['mention', 'disk'].includes(key))
   )
     fail('Invalid triggers');
+  const avatar = validateAvatar(body.avatar ?? previous?.avatar ?? randomAgentAvatar());
+  if (
+    body.looksAfter !== undefined &&
+    (!Array.isArray(body.looksAfter) || body.looksAfter.length > 100)
+  )
+    fail('Invalid Looks after items');
+  const looksAfter: LooksAfterItem[] = (body.looksAfter ?? previous?.looksAfter ?? []).map(
+    (raw: any) => {
+      const item = validateItem(raw);
+      const old = previous?.looksAfter?.find((i) => i.id === item.id);
+      // A changed instruction must be confirmed again. Only the explicit confirm endpoint grants it.
+      const { confirmedAt: _at, nextAt: _next, ...definition } = item;
+      const { confirmedAt, nextAt: _oldNext, ...oldDefinition } = old ?? {};
+      return {
+        ...definition,
+        ...(confirmedAt && JSON.stringify(definition) === JSON.stringify(oldDefinition)
+          ? { confirmedAt }
+          : {}),
+      };
+    },
+  );
+  if (new Set(looksAfter.map((i) => i.id)).size !== looksAfter.length)
+    fail('Duplicate Looks after item');
+  const job = body.job ?? previous?.job ?? '';
+  if (typeof job !== 'string' || job.length > 12000) fail('Invalid instructions');
   return {
+    avatar,
+    looksAfter,
     apps,
     schedule,
     triggers,
     ...(projectId ? { projectId } : {}),
     name: text(body.name ?? previous?.name, 'Name', 80),
-    job: text(body.job ?? previous?.job, 'Instructions', 12000),
+    job: job.trim(),
     computers,
   };
 }
+function validateAgentProjects(
+  owner: string,
+  values: Agent | ReturnType<typeof fields>,
+  body: any,
+) {
+  const projects = new Set(list('project', owner).map((p) => p.id));
+  if (body.projectId && !projects.has(body.projectId)) fail('Project not found', 404);
+  for (const item of body.looksAfter ? (values.looksAfter ?? []) : [])
+    if (typeof item.where !== 'string' && item.where.projects.some((p) => !projects.has(p)))
+      fail('Item project not found', 404);
+}
+export function confirmAgentItem(owner: string, agentId: string, itemId: string) {
+  return db
+    .transaction(() => {
+      const agent = agentForOwner(owner, agentId);
+      const item = agent.looksAfter?.find((i) => i.id === itemId);
+      if (!item) fail('Looks after item not found', 404);
+      if (!item.confirmedAt) {
+        item.confirmedAt = now();
+        save('agent', owner, agent);
+        agentChanged(owner, agent.id);
+      }
+      return agentForOwner(owner, agent.id);
+    })
+    .immediate();
+}
 export function createAgent(owner: string, body: unknown): Agent {
   const values = fields(body);
+  validateAgentProjects(owner, values, body);
   return db
     .transaction(() => {
       const agent: Agent = { ...values, id: id(), createdBy: owner };
+      if ((body as any)?.schedule && !(body as any)?.looksAfter) {
+        agent.looksAfter = undefined;
+        Object.assign(agent, migrateAgent(owner, agent));
+      }
       save('agent', owner, agent);
+      agentChanged(owner, agent.id);
       holdScheduleUntilTomorrow(owner, agent);
       for (const action of agentApprovalActions)
         save('v2-approval', owner, { id: id(), agent: agent.id, action, mode: 'ask' });
@@ -224,6 +341,7 @@ export function createAgent(owner: string, body: unknown): Agent {
 export function deleteAgent(owner: string, agentId: string) {
   db.transaction(() => {
     remove('agent', owner, agentId);
+    agentChanged(owner, agentId);
     for (const rule of rulesForOwner(owner).filter((rule) => rule.agent === agentId))
       remove('v2-approval', owner, rule.id);
   }).immediate();
@@ -231,17 +349,25 @@ export function deleteAgent(owner: string, agentId: string) {
 export function patchAgent(owner: string, agentId: string, body: unknown): Agent {
   const previous = agentForOwner(owner, agentId);
   const { projectId: _previousProject, ...rest } = previous;
-  const agent = save('agent', owner, { ...rest, ...fields(body, previous) });
+  const values = fields(body, previous);
+  validateAgentProjects(owner, values, body);
+  const agent = save('agent', owner, { ...rest, ...values });
   if (
     agent.schedule?.enabled &&
     JSON.stringify(agent.schedule) !== JSON.stringify(previous.schedule)
   )
     holdScheduleUntilTomorrow(owner, agent);
+  agentChanged(owner, agentId);
   return agent;
 }
 
 /** Uses the same owner-scoped, encrypted compatible-provider connections as workers. No tools run. */
-async function complete(owner: string, system: string, prompt: string): Promise<string> {
+async function complete(
+  owner: string,
+  system: string,
+  prompt: string,
+  structured = false,
+): Promise<string> {
   const connection = list('provider-connection', owner).find(
     (row) => row.provider === 'compatible' && row.enabled && row.baseUrl && row.model,
   );
@@ -269,6 +395,7 @@ async function complete(owner: string, system: string, prompt: string): Promise<
           { role: 'system', content: system },
           { role: 'user', content: prompt },
         ],
+        ...(structured ? { response_format: { type: 'json_object' } } : {}),
         stream: false,
         max_tokens: 3000,
       }),
@@ -317,7 +444,9 @@ export async function draftAgent(owner: string, body: any) {
     job,
   );
   try {
-    return fields(JSON.parse(reply.replace(/^```(?:json)?\s*|\s*```$/g, '')));
+    const draft = JSON.parse(reply.replace(/^```(?:json)?\s*|\s*```$/g, ''));
+    text(draft.job, 'Instructions', 12000);
+    return fields(draft);
   } catch {
     fail('The model returned an invalid agent draft. Try describing the job again.', 502);
   }
@@ -357,6 +486,93 @@ export function agentConversation(owner: string, agentId: string): ConversationE
     a.at.localeCompare(b.at),
   );
 }
+export function agentTeachingPrompt(owner: string, agent: Agent) {
+  return `You are ${agent.name}. Current What it does: ${agent.job || '(not taught yet)'}. Current Looks after: ${JSON.stringify(agent.looksAfter)}.
+Return only JSON: {"reply": "plain prose", "job": null or "complete updated standing job", "item": null or {"what":"instruction", "where":"all-active" or "active-and-maintained" or {"projects":["project id"]}, "when":{"every":"week" or "day" or "change","day":0..6 (Sunday=0, required for week),"time":"HH:MM","timezone":"${coordinatorTimezone()}"},"brings":"pull-request" or "design-review" or "question" or "message"}}.
+Only explicit standing instructions update the job. A time/schedule or something to look after proposes an item, never confirms it. If the intent is uncertain, ask a clarifying question in reply and return null job and item. Do not infer learned preferences (a later feature). You have no tools; never claim to have run work or granted access. Explain proposed items start only after confirmation. Agents never ship.
+Available project identities (scope never grants access): ${JSON.stringify(
+    list('project', owner)
+      .filter((p) => !agent.projectId || p.id === agent.projectId)
+      .map((p) => ({ id: p.id, name: p.name })),
+  )}.`;
+}
+export function saveAgentReply(
+  owner: string,
+  agent: Agent,
+  content: string,
+  reply: string,
+  attachments: any[] = [],
+  model?: string,
+  operationId?: string,
+) {
+  const agentId = agent.id;
+  let extracted: { reply: string; job: string | null; item: LooksAfterItem | null };
+  try {
+    const raw = JSON.parse(reply);
+    if (
+      Object.keys(raw).some((k) => !['reply', 'job', 'item'].includes(k)) ||
+      (raw.job !== null &&
+        (typeof raw.job !== 'string' || !raw.job.trim() || raw.job.length > 12000))
+    )
+      throw new Error();
+    extracted = {
+      reply: text(raw.reply, 'Reply', 20000),
+      job: raw.job,
+      item:
+        raw.item === null ? null : validateItem({ ...raw.item, id: id(), confirmedAt: undefined }),
+    };
+  } catch {
+    fail(
+      'The model returned an invalid reply. Your instructions were not changed. Try again.',
+      502,
+    );
+  }
+  const at = now();
+  db.transaction(() => {
+    // Re-read after the model request so a concurrent settings edit is never overwritten.
+    if (
+      operationId &&
+      list('agent-message-operation', owner).some((r) => r.id === `${agentId}:${operationId}`)
+    )
+      return;
+    if (agentControl(owner, agentId).paused) fail('This agent is paused.', 409);
+    const current = agentForOwner(owner, agentId);
+    if (current.job !== agent.job) fail('Instructions changed while replying. Try again.', 409);
+    const receipts: AgentReceipt[] = [];
+    if (extracted.job !== null) {
+      current.job = extracted.job.trim();
+      receipts.push({ kind: 'job' });
+    }
+    if (extracted.item) {
+      if ((current.looksAfter?.length ?? 0) >= 100)
+        fail('An agent can have at most 100 Looks after items');
+      validateAgentProjects(
+        owner,
+        { ...current, looksAfter: [extracted.item] },
+        { looksAfter: true },
+      );
+      current.looksAfter = [...(current.looksAfter ?? []), extracted.item];
+      receipts.push({ kind: 'looks-after', itemId: extracted.item.id });
+    }
+    save('agent', owner, current);
+    for (const event of [
+      { kind: 'you', id: id(), at, text: content, attachments, model },
+      {
+        kind: 'reply',
+        id: id(),
+        at,
+        agent: agentId,
+        paragraphs: extracted.reply.split(/\n\s*\n/),
+        receipts,
+      },
+    ])
+      save('agent-message', owner, { id: event.id, agentId, event });
+    if (operationId) save('agent-message-operation', owner, { id: `${agentId}:${operationId}` });
+    agentChanged(owner, agentId);
+  }).immediate();
+  return { events: agentConversation(owner, agentId), tracking: agentTracking(owner, agentId) };
+}
+
 async function readBody(req: IncomingMessage) {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -376,6 +592,38 @@ async function readBody(req: IncomingMessage) {
 }
 export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
+  const itemMatch = path.match(/^\/agents\/([^/]+)\/items\/([^/]+)(\/confirm|\/runs|\/run)?$/);
+  if (itemMatch) {
+    const agent = agentForOwner(owner, decodeURIComponent(itemMatch[1]));
+    const itemId = decodeURIComponent(itemMatch[2]);
+    const item = agent.looksAfter?.find((i) => i.id === itemId);
+    if (!item) fail('Looks after item not found', 404);
+    let result: unknown;
+    if (req.method === 'POST' && itemMatch[3] === '/confirm') {
+      result = { agent: confirmAgentItem(owner, agent.id, itemId) };
+    } else if (req.method === 'POST' && itemMatch[3] === '/run') {
+      if (!item.confirmedAt) fail('Confirm this item before running it.', 409);
+      result = { task: startAgentRun(owner, agent, 'manual', item) };
+    } else if (req.method === 'GET' && itemMatch[3] === '/runs') {
+      result = {
+        runs: agentRuns(owner, agent.id, itemId)
+          .reverse()
+          .map((task) => ({
+            id: task.id,
+            title: task.title,
+            at: task.createdAt,
+            itemId,
+            status:
+              list('run', owner).findLast((run) => run.taskId === task.id)?.status ?? task.status,
+          })),
+      };
+    } else {
+      fail('Method not allowed', 405);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(result));
+    return true;
+  }
   const match = path.match(/^\/agents\/([^/]+)(\/(?:conversation|control|run))?$/);
   if (path !== '/agents' && path !== '/approvals' && !match) return false;
   const send = (value: unknown, status = 200) => {
@@ -393,7 +641,8 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
       });
     return send({ error: 'Method not allowed' }, 405);
   }
-  if (req.method === 'GET' && path === '/agents') return send({ agents: agentsForOwner(owner) });
+  if (req.method === 'GET' && path === '/agents')
+    return send({ agents: agentsForOwner(owner), timezone: coordinatorTimezone() });
   if (req.method === 'POST' && path === '/agents/draft')
     return send({ draft: await draftAgent(owner, await readBody(req)) });
   if (req.method === 'POST' && path === '/agents')
@@ -421,37 +670,8 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
         if (agentControl(owner, agentId).paused)
           fail('This agent is paused. Resume it before sending a message.', 409);
         const content = text((await readBody(req))?.text, 'Message', 12000);
-        const reply = await complete(
-          owner,
-          `You are ${agent.name}. ${agent.job}\nReply briefly. You have no tools in this conversation. Do not claim to have run tasks or changed anything. Agents never ship.`,
-          [
-            ...agentConversation(owner, agentId)
-              .filter((event) => event.kind === 'you' || event.kind === 'reply')
-              .slice(-20)
-              .map((event) =>
-                event.kind === 'you'
-                  ? `You: ${event.text}`
-                  : event.kind === 'reply'
-                    ? `${agent.name}: ${event.paragraphs.join('\n')}`
-                    : '',
-              ),
-            `You: ${content}`,
-          ]
-            .join('\n\n')
-            .slice(-40000),
-        );
-        const at = now();
-        db.transaction(() => {
-          for (const event of [
-            { kind: 'you', id: id(), at, text: content, attachments: [] },
-            { kind: 'reply', id: id(), at, agent: agentId, paragraphs: reply.split(/\n\s*\n/) },
-          ])
-            save('agent-message', owner, { id: event.id, agentId, event });
-        }).immediate();
-        return send({
-          events: agentConversation(owner, agentId),
-          tracking: agentTracking(owner, agentId),
-        });
+        const { sendAgentMessage } = await import('./attachments.ts');
+        return send(await sendAgentMessage(owner, agentId, { text: content }));
       }
     } else if (req.method === 'PATCH')
       return send({ agent: patchAgent(owner, agentId, await readBody(req)) });

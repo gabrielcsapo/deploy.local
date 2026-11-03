@@ -23,3 +23,47 @@ test('Calendar labels respect local midnight, year boundaries and daylight savin
   const spring = new Date(2026, 2, 9, 0, 1);
   assert.equal(formatTime(new Date(2026, 2, 8, 0, 1), 'day', spring), 'Yesterday');
 });
+
+test('List timestamps use calendar labels with compact local clock times', () => {
+  const listNow = new Date(2026, 9, 29, 18, 0);
+  assert.equal(formatTime(new Date(2026, 9, 29, 17, 59, 1), 'list', listNow), 'now');
+  assert.equal(formatTime(new Date(2026, 9, 29, 17, 59), 'list', listNow), '5:59');
+  assert.equal(formatTime(new Date(2026, 9, 29, 7, 2), 'list', listNow), '7:02');
+  assert.equal(formatTime(new Date(2026, 9, 29, 0, 2), 'list', listNow), '12:02');
+  assert.equal(formatTime(new Date(2026, 9, 28, 23, 59), 'list', listNow), 'Yesterday');
+  assert.equal(formatTime(new Date(2026, 9, 26), 'list', listNow), 'Mon');
+  assert.equal(formatTime(new Date(2026, 9, 23), 'list', listNow), 'Fri');
+  assert.equal(formatTime(new Date(2026, 9, 22), 'list', listNow), '22 Oct');
+  assert.equal(formatTime(new Date(2026, 9, 12), 'list', listNow), '12 Oct');
+  assert.equal(formatTime('invalid', 'list', listNow), 'Unavailable');
+  assert.equal(formatTime(undefined, 'list', listNow), 'Unavailable');
+  assert.equal(
+    formatTime(new Date(2026, 11, 31, 23, 58), 'list', new Date(2027, 0, 1, 0, 1)),
+    'Yesterday',
+  );
+});
+
+test('Weekly schedule summaries are plural; daily and change schedules retain their copy', async () => {
+  const { itemWhen, itemSummary } = await import('../../../../../shared/v2/agents.ts');
+  const item = {
+    id: 'weekly',
+    what: 'Draft release notes',
+    where: { projects: ['gym'] },
+    when: { every: 'week' as const, day: 5, time: '16:00', timezone: 'America/New_York' },
+    brings: 'message' as const,
+  };
+  assert.equal(itemWhen(item), 'Fridays 16:00');
+  assert.equal(
+    itemSummary(item, [{ id: 'gym', name: 'home-gym' }]),
+    'home-gym · Fridays 16:00 · brings a message',
+  );
+  assert.equal(
+    itemWhen({ ...item, when: { ...item.when, day: 1, time: '08:40' } }),
+    'Mondays 08:40',
+  );
+  assert.equal(
+    itemWhen({ ...item, when: { ...item.when, every: 'day', time: '08:00' } }),
+    'Every day 08:00',
+  );
+  assert.equal(itemWhen({ ...item, when: { ...item.when, every: 'change' } }), 'On each change');
+});

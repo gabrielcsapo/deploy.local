@@ -1,7 +1,9 @@
 'use client';
+import { formatTime } from './v2/data/time';
 import { useCallback, useEffect, useId, useRef, useState, type ComponentProps } from 'react';
 import { Outlet, useLocation } from 'react-flight-router/client';
-import { Sidebar, Nav, Icon, IconButton, Glyph, Status } from '@/components/ui';
+import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
+import { Sidebar, Nav, Icon, IconButton, Status } from '@/components/ui';
 import {
   AgentNamesProvider,
   CoordinatorNameProvider,
@@ -11,7 +13,6 @@ import {
 } from './v2/data/hooks';
 import {
   dayLabel,
-  relativeTime,
   taskState,
   type WorkspaceState,
   type SidebarAgent,
@@ -160,14 +161,25 @@ export function V2Sidebar({
           <Icon name="plus" size={14} />
         </a>
       </div>
+      {!agents.length && (
+        <a className="dl-nav dl-meta" href="/dashboard/agents/new">
+          Make an agent to talk to
+        </a>
+      )}
       {agents.map((agent) => (
         <Nav
           key={agent.id}
           href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}
           active={pathname === `/dashboard/agents/${encodeURIComponent(agent.id)}`}
-          lead={<Glyph>{agent.name.charAt(0)}</Glyph>}
+          lead={<AgentAvatar avatar={agent.avatar} id={agent.id} size={28} />}
+          end={
+            agent.lastMessage ? (
+              <span className="dl-meta">{formatTime(agent.lastMessage.at, 'list')}</span>
+            ) : undefined
+          }
         >
-          {agent.name}
+          <span className="dl-agent-name">{agent.name}</span>
+          <span className="dl-meta">{agent.lastMessage?.text || 'Say hello'}</span>
         </Nav>
       ))}
       <div className="dl-side-label">
@@ -189,7 +201,7 @@ export function V2Sidebar({
           key={item.id}
           href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}
           lead={<Icon name="attention" className="dl-attn" size={14} />}
-          end={relativeTime(item.createdAt)}
+          end={formatTime(item.createdAt, 'list')}
         >
           {item.title}
         </Nav>
@@ -251,7 +263,9 @@ export function V2Sidebar({
                       )
                     }
                     end={
-                      day === 'Today' ? relativeTime(task.updatedAt || task.createdAt) : undefined
+                      day === 'Today'
+                        ? formatTime(task.updatedAt || task.createdAt, 'list')
+                        : undefined
                     }
                   >
                     {task.title}

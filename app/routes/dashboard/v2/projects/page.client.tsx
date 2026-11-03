@@ -638,7 +638,7 @@ function WorkRow({ task, runs }: { task: Work; runs: WorkspaceState['runs'] }) {
       }
       end={
         <span className="dl-meta">
-          {formatTime(snapshot.data?.run?.updatedAt || task.updatedAt || task.createdAt, 'elapsed')}
+          {formatTime(snapshot.data?.run?.updatedAt || task.updatedAt || task.createdAt, 'list')}
         </span>
       }
       href={`/dashboard/tasks/${encodeURIComponent(task.id)}`}

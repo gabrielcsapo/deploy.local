@@ -234,19 +234,23 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(restored.drafts == [draft] && restored.composer == draft && restored.composers["new"] == draft)
     }
 
-    @Test @MainActor func agentDraftUsesRealNameAndId() async throws {
+    @Test @MainActor func agentDraftGoesToTheAgentsOwnChat() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         var responses = routes()
         responses["GET /api/v2/agents"] = [(200, #"{"agents":[\#(agentJSON)]}"#)]
+        responses["POST /api/v2/composer/agents/\(agentId)/messages"] = [(200, #"{"events":[]}"#)]
         V2URLProtocol.state.reset(responses)
         let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
         var draft = V2Draft(); draft.agent = agentId; draft.question = true; draft.text = "What merged?"
         #expect(await store.enqueue(draft))
         await store.refresh()
-        let request = try #require(V2URLProtocol.state.recorded().first { $0.httpMethod == "POST" && $0.url?.path == "/api/workspace/tasks" })
-        #expect(body(request)["title"] as? String == "Ask Release notes writer")
-        #expect(store.snapshot.agentTasks[agentId] == "t")
+        let requests = V2URLProtocol.state.recorded()
+        let request = try #require(requests.first { $0.httpMethod == "POST" && $0.url?.path == "/api/v2/composer/agents/\(agentId)/messages" })
+        #expect(body(request)["text"] as? String == "What merged?")
+        // A question to an agent is a message in its chat, never a new task.
+        #expect(!requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/workspace/tasks" })
+        #expect(store.snapshot.drafts.isEmpty)
     }
 
     @Test func answerUsesIPhoneAndReturnsWinnerAfterConflict() async throws {
@@ -458,4 +462,46 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(try JSONDecoder().decode(V2DesignReview.Board.self, from: Data(removed.utf8)).isRemoved)
     }
 
+}
+
+@Suite struct AgentFoundationTests {
+    @Test func olderAgentsHaveOptionalFoundationFieldsAndStableFallbackIdentity() throws {
+        let agent = try JSONDecoder().decode(V2Agent.self, from: Data(#"{"id":"legacy","name":"Notes","job":"Write notes"}"#.utf8))
+        #expect(agent.avatar == nil && agent.looksAfter == nil && agent.lastMessage == nil)
+        #expect(agent.identity == V2AgentAvatar.from(id: "legacy"))
+        #expect(V2AgentAvatar.glyphs.contains(agent.identity.glyph))
+        #expect(V2AgentAvatar.colors.contains(agent.identity.color))
+    }
+    @Test func looksAfterScopeRoundTripsAllThreeForms() throws {
+        let scopes: [V2LooksAfterItem.Scope] = [.allActive, .activeAndMaintained, .projects(["home-gym", "tally"])]
+        for scope in scopes {
+            let item = V2LooksAfterItem(what: "Draft notes", where: scope, when: .init(every: "week", day: 5, time: "16:00", timezone: "America/New_York"))
+            let decoded = try JSONDecoder().decode(V2LooksAfterItem.self, from: JSONEncoder().encode(item))
+            #expect(decoded == item)
+            #expect(decoded.confirmedAt == nil)
+            #expect(decoded.whenLabel == "Friday 16:00")
+        }
+    }
+    @Test func replyReceiptsDecodeWithoutBreakingOlderReplies() throws {
+        let old = try JSONDecoder().decode(ReplyEvent.self, from: Data(#"{"id":"r","at":"2026-11-03T12:00:00Z","agent":"a","paragraphs":["Hello"]}"#.utf8))
+        #expect(old.receipts == nil)
+        let taught = try JSONDecoder().decode(ReplyEvent.self, from: Data(#"{"id":"r","at":"2026-11-03T12:00:00Z","agent":"a","paragraphs":["Saved"],"receipts":[{"kind":"job"},{"kind":"looks-after","itemId":"weekly"}]}"#.utf8))
+        #expect(taught.receipts?.count == 2)
+        #expect(taught.receipts?.last?.itemId == "weekly")
+    }
+    @Test func newAgentOnlySendsNameAvatarAndEmptyJob() throws {
+        let avatar = V2AgentAvatar(glyph: "variant28", color: "#af61f2")
+        let data = try JSONEncoder().encode(V2NewAgent(name: "Notes", avatar: avatar))
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(Set(json.keys) == ["name", "job", "avatar"])
+        #expect(json["schedule"] == nil)
+        #expect((json["avatar"] as? [String: String])?["glyph"] == "variant28")
+    }
+    @Test func rulesPreserveProjectOverridesAndLimitsWhenEncoded() throws {
+        let data = Data(#"{"rules":[{"id":"r","agent":"a","action":"merge","mode":"never","projectId":"p","limit":"existing"}]}"#.utf8)
+        let decoded = try JSONDecoder().decode(V2Approvals.self, from: data)
+        let roundTrip = try JSONDecoder().decode(V2Approvals.self, from: JSONEncoder().encode(decoded))
+        #expect(roundTrip.rules == decoded.rules)
+        #expect(roundTrip.mode(agent: "a", action: .merge) == .ask)
+    }
 }

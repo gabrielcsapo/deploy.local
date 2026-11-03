@@ -12,17 +12,29 @@ import { createInboxStore } from './inbox-store';
 import { readResource } from './sidebar';
 import { agentName } from '../inbox/presentation';
 
+const AgentIdentities = createContext<
+  Record<string, import('../../../../../shared/v2/contracts').AgentAvatar | undefined>
+>({});
+export const useAgentIdentity = () => useContext(AgentIdentities);
 const AgentNames = createContext<Record<string, string>>({});
 /** The sidebar's agents, so decisions and replies show an agent's name instead of its id. */
 export function AgentNamesProvider({
   agents = [],
   children,
 }: {
-  agents?: { id: string; name: string }[];
+  agents?: {
+    id: string;
+    name: string;
+    avatar?: import('../../../../../shared/v2/contracts').AgentAvatar;
+  }[];
   children: ReactNode;
 }) {
   const names = Object.fromEntries(agents.map((agent) => [agent.id, agent.name]));
-  return <AgentNames.Provider value={names}>{children}</AgentNames.Provider>;
+  return (
+    <AgentIdentities.Provider value={Object.fromEntries(agents.map((a) => [a.id, a.avatar]))}>
+      <AgentNames.Provider value={names}>{children}</AgentNames.Provider>
+    </AgentIdentities.Provider>
+  );
 }
 export function useAgentName() {
   const names = useContext(AgentNames);
@@ -129,11 +141,18 @@ export function useResource<T>(path: string, optional = false) {
       void refresh();
     };
     void refresh();
+    const changed = () => {
+      controller?.abort();
+      clearTimeout(timer);
+      void refresh();
+    };
+    window.addEventListener('deploy:agents-changed', changed);
     window.addEventListener('storage', reset);
     return () => {
       controller?.abort();
       clearTimeout(timer);
       window.removeEventListener('storage', reset);
+      window.removeEventListener('deploy:agents-changed', changed);
     };
   }, [path, optional]);
   return state;

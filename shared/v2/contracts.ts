@@ -4,7 +4,14 @@ export type UserId = string;
 // One union for everything a conversation shows. Clients render these; agents never send free-form UI.
 export type ConversationEvent =
   | { kind: 'you'; id: string; at: string; text: string; attachments: Attachment[]; model?: string }
-  | { kind: 'reply'; id: string; at: string; agent: AgentId; paragraphs: string[] }
+  | {
+      kind: 'reply';
+      id: string;
+      at: string;
+      agent: AgentId;
+      paragraphs: string[];
+      receipts?: AgentReceipt[];
+    }
   | { kind: 'worklog'; id: string; at: string; summary: string; steps: WorkStep[]; live: boolean }
   | { kind: 'decision'; id: string; at: string; inboxItemId: string } // renders the InboxItem in place
   | { kind: 'task'; id: string; at: string; taskId: string } // "started a task" link card
@@ -299,7 +306,21 @@ export type AgentApprovalAction =
   | 'start-task'
   | 'open-pull-request';
 export type AgentApprovalRule = Omit<ApprovalRule, 'action'> & { action: AgentApprovalAction };
+export type AgentAvatar = { glyph: string; color: string };
+export type LooksAfterItem = {
+  id: string;
+  what: string;
+  where: 'all-active' | 'active-and-maintained' | { projects: string[] };
+  when: { every: 'week' | 'day' | 'change'; day?: number; time: string; timezone: string };
+  brings: 'pull-request' | 'design-review' | 'question' | 'message';
+  confirmedAt?: string;
+  nextAt?: string;
+};
+export type AgentReceipt = { kind: 'job' } | { kind: 'looks-after'; itemId: string };
 export type AgentConfiguration = Agent & {
+  avatar?: AgentAvatar;
+  looksAfter?: LooksAfterItem[];
+  lastMessage?: { text: string; at: string };
   schedule?: { enabled: boolean; time: string };
   triggers?: { mention: boolean; disk: boolean };
   apps?: string[];
@@ -312,7 +333,7 @@ export type AgentTracking = {
   watching: { id: string; title: string; projectId?: string }[];
   shipped: { id: string; title: string; at: string }[];
   /** Background runs, newest first, and what the last scheduled start did. */
-  runs?: { id: string; title: string; at: string; status: string }[];
+  runs?: { id: string; title: string; at: string; status: string; itemId?: string }[];
   schedule?: { day: string; result?: string; error?: string };
 };
 

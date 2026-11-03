@@ -1,0 +1,238 @@
+.dl-agent-avatar {
+  display: inline-flex;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--ds-surface);
+}
+.dl-agent-avatar svg {
+  width: 100%;
+  height: 100%;
+}
+.dl-agent-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dl-agent-avatar-edit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.dl-agent-avatar-choice {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+}
+.dl-agent-avatar-edit .dl-btn {
+  min-height: 44px;
+}
+.dl-agent-colors {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 0;
+  width: 100%;
+  max-width: 360px;
+  margin: 4px auto;
+}
+.dl-agent-colors button {
+  height: 44px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dl-agent-colors button span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--agent-color);
+}
+.dl-agent-colors button[aria-pressed='true'] span {
+  outline: 2px solid var(--ds-text);
+  outline-offset: 3px;
+}
+.dl-agent-glyphs {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.dl-agent-glyphs button {
+  background: none;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+}
+.dl-agent-glyphs button[aria-pressed='true'] {
+  border-color: var(--ds-text);
+}
+.dl-agent-hello {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 0;
+  text-align: center;
+}
+.dl-agent-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  width: 100%;
+  max-width: 620px;
+}
+.dl-agent-suggestions button {
+  white-space: normal;
+  text-align: center;
+  border-radius: var(--ds-radius-control);
+  min-height: 44px;
+  padding: 10px 14px;
+}
+.dl-agent-receipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-meta);
+  margin-top: 12px;
+}
+.dl-agent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dl-nav .dl-t {
+  min-width: 0;
+}
+.dl-nav .dl-t > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dl-agent-select {
+  width: 100%;
+  padding: 8px;
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  font: inherit;
+}
+.dl-agent-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.dl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dl-list-note {
+  margin: 0;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-meta);
+  line-height: 1.5;
+}
+.dl-list .dl-item {
+  min-height: 52px;
+  padding: 12px 16px;
+  width: 100%;
+  text-align: left;
+}
+.dl-list .dl-item:has(.dl-t > span + span) {
+  min-height: 64px;
+}
+.dl-list .dl-t > span {
+  white-space: normal;
+}
+.dl-list .dl-c {
+  color: var(--ds-tertiary);
+}
+@media (max-width: 600px) {
+  .dl-agent-glyphs {
+    grid-template-columns: repeat(7, 1fr);
+  }
+}
+
+.dl-composer {
+  position: relative;
+}
+.dl-agent-mentions {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  box-shadow: var(--ds-shadow-lg);
+  padding: 12px;
+  max-height: 360px;
+  overflow-y: auto;
+  z-index: 5;
+}
+.dl-agent-mentions .dl-item {
+  width: 100%;
+  min-height: 52px;
+  text-align: left;
+}
+.dl-agent-mentions [aria-selected='true'] {
+  background: var(--ds-selected);
+}
+.dl-agent-mentions .dl-t {
+  min-width: 0;
+}
+.dl-agent-mentions .dl-t > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-agent-new-dialog {
+  max-width: 420px;
+}
+.dl-agent-new-dialog .dl-dialog-head h2 {
+  font-size: var(--ds-type-title);
+}
+.dl-list .dl-item:has(.dl-agent-avatar) .dl-t {
+  min-width: 0;
+}
+.dl-list .dl-item:has(.dl-agent-avatar) .dl-t > span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dl-nav:has(.dl-agent-avatar) {
+  height: auto;
+  min-height: 52px;
+  gap: 10px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.dl-nav .dl-lead:has(.dl-agent-avatar) {
+  width: 28px;
+  flex: none;
+}
+
+.dl-list > .dl-group-head:has(.dl-section-title) {
+  padding: 0;
+  border: 0;
+  color: var(--ds-text);
+}

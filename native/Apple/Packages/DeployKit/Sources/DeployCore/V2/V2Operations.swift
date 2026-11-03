@@ -212,15 +212,41 @@ public enum V2Labels {
         if item.actions.first(where: { $0.id == answer.actionId })?.primary == true { return "Approved" }
         return "Answered"
     }
+    public static func elapsed(_ value: String, now: Date = Date()) -> String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = iso.date(from: value) ?? ISO8601DateFormatter().date(from: value) else { return "unknown" }
+        let seconds = max(0, Int(now.timeIntervalSince(date)))
+        if seconds < 60 { return "less than a minute" }
+        if seconds < 3600 { return "\(seconds / 60)m" }
+        if seconds < 86400 { return "\(seconds / 3600)h" }
+        return "\(seconds / 86400)d"
+    }
+    public static func historyDate(_ value: String, timezone: String, now: Date = Date()) -> String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = iso.date(from: value) ?? ISO8601DateFormatter().date(from: value) else { return "Unavailable" }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timezone) ?? .current
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.calendar = calendar; formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = days < 14 ? "EEEE, HH:mm" : "d MMM, HH:mm"
+        return (days >= 7 && days < 14 ? "Last " : "") + formatter.string(from: date)
+    }
     public static func shortDate(_ value: String, now: Date = Date(), calendar: Calendar = .current) -> String {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         guard let date = iso.date(from: value) ?? ISO8601DateFormatter().date(from: value) else { return "Unavailable" }
+        if abs(now.timeIntervalSince(date)) < 60 { return "now" }
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = calendar; formatter.timeZone = calendar.timeZone
-        if calendar.isDate(date, inSameDayAs: now) { formatter.dateFormat = "h:mm" }
-        else if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return "Yesterday" }
-        else { formatter.setLocalizedDateFormatFromTemplate("MMMd") }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
+        if days == 0 { formatter.dateFormat = "h:mm" }
+        else if days == 1 { return "Yesterday" }
+        else if (2..<7).contains(days) { formatter.dateFormat = "EEE" }
+        else { formatter.dateFormat = "d MMM" }
         return formatter.string(from: date)
     }
 }

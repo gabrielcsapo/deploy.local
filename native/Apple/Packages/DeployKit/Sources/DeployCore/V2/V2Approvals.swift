@@ -1,6 +1,6 @@
 import Foundation
 
-public enum V2ApprovalAction: String, Decodable, CaseIterable, Sendable {
+public enum V2ApprovalAction: String, Codable, CaseIterable, Sendable {
     case startTask = "start-task"
     case openPullRequest = "open-pull-request"
     case merge, restart, rollback
@@ -16,7 +16,7 @@ public enum V2ApprovalAction: String, Decodable, CaseIterable, Sendable {
     }
 }
 
-public enum V2ApprovalMode: String, Decodable, Sendable {
+public enum V2ApprovalMode: String, Codable, Sendable {
     case allow, ask, never
 
     public var label: String {
@@ -28,15 +28,24 @@ public enum V2ApprovalMode: String, Decodable, Sendable {
     }
 }
 
-public struct V2ApprovalRule: Decodable, Equatable, Sendable {
+public struct V2ApprovalRule: Codable, Equatable, Sendable {
+    public var id: String?
+    public var limit: String?
     public let agent: String
     public let action: V2ApprovalAction
-    public let mode: V2ApprovalMode
+    public var mode: V2ApprovalMode
     public let projectId: String?
 }
 
-public struct V2Approvals: Decodable, Sendable {
-    public let rules: [V2ApprovalRule]
+public struct V2Approvals: Codable, Sendable {
+    public var rules: [V2ApprovalRule]
+
+    public func summary(agent: String) -> String {
+        let allowed = V2ApprovalAction.allCases.filter { mode(agent: agent, action: $0) == .allow }
+        if allowed.isEmpty && V2ApprovalAction.allCases.allSatisfy({ mode(agent: agent, action: $0) == .ask }) { return "Asks before everything" }
+        if allowed == [.startTask] && V2ApprovalAction.allCases.filter({ $0 != .startTask }).allSatisfy({ mode(agent: agent, action: $0) == .ask }) { return "Starts tasks · asks before the rest" }
+        return V2ApprovalAction.allCases.map { "\($0.label): \(mode(agent: agent, action: $0).label)" }.joined(separator: " · ")
+    }
 
     /// The account-wide rule, matching the web's overview. A project override
     /// must never be displayed as permission for every project. Missing rules ask.
@@ -46,6 +55,15 @@ public struct V2Approvals: Decodable, Sendable {
 }
 
 extension V2Client {
+    public func saveApprovals(_ value: V2Approvals) async throws -> V2Approvals {
+        try await client.request("/api/v2/approvals", method: "PUT", body: JSONEncoder().encode(value))
+    }
+    public func setAgentRule(_ agent: String, action: V2ApprovalAction, mode: V2ApprovalMode) async throws -> V2Approvals {
+        var current = try await approvals()
+        if let index = current.rules.firstIndex(where: { $0.agent == agent && $0.action == action && $0.projectId == nil }) { current.rules[index].mode = mode }
+        else { current.rules.append(V2ApprovalRule(id: UUID().uuidString, agent: agent, action: action, mode: mode, projectId: nil)) }
+        return try await saveApprovals(current)
+    }
     public func approvals() async throws -> V2Approvals {
         try await client.request("/api/v2/approvals")
     }

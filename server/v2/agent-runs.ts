@@ -1,10 +1,15 @@
-import type { AgentConfiguration as Agent, InboxItem } from '../../shared/v2/contracts.ts';
-import { db, get, list, now, save } from '../workspace/store.ts';
+import type {
+  AgentConfiguration as Agent,
+  InboxItem,
+  LooksAfterItem,
+} from '../../shared/v2/contracts.ts';
+import { db, get, list, now, save, events } from '../workspace/store.ts';
 import { computers } from '../workspace/coordination.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { getComputers, getModels } from './computers.ts';
 import { createInboxItem, fail, registerInboxAction } from './inbox.ts';
 import { agentControl } from './phone-preferences.ts';
+import { migrateAgent, nextItemAt, itemProjects } from './agent-foundation.ts';
 import { localDay } from './agent-instructions.ts';
 import { approvalRule, isAllowed } from './releases.ts';
 
@@ -13,9 +18,9 @@ import { approvalRule, isAllowed } from './releases.ts';
 // when you press Run now; a scheduled start follows the agent's "Start a task" approval rule.
 export type AgentRunReason = 'schedule' | 'manual';
 
-export function agentRuns(owner: string, agentId: string) {
+export function agentRuns(owner: string, agentId: string, itemId?: string) {
   return list('task', owner)
-    .filter((task) => task.agentId === agentId)
+    .filter((task) => task.agentId === agentId && (!itemId || task.agentItemId === itemId))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
@@ -68,16 +73,32 @@ function modelFor(owner: string): { adapter?: string; model?: string } {
 }
 
 /** The task's first message. The agent's job reaches the run as instructions, not here. */
-export function runMessage(agent: Agent, reason: AgentRunReason, at = now()) {
+export function runMessage(
+  agent: Agent,
+  reason: AgentRunReason,
+  at = now(),
+  item?: LooksAfterItem,
+) {
   const day = localDay(new Date(at));
   return reason === 'schedule'
-    ? `Run your job now. Started at your scheduled time, ${agent.schedule?.time}, on ${day}.`
+    ? `Run your job now. Started at your scheduled time, ${item?.when.time ?? agent.schedule?.time}, on ${day}.`
     : `Run your job now. Started with Run now on ${day}.`;
 }
 
 /** Starts the run now. Callers have already decided it may start. */
-export function startAgentRun(owner: string, agent: Agent, reason: AgentRunReason) {
+export function startAgentRun(
+  owner: string,
+  agent: Agent,
+  reason: AgentRunReason,
+  item?: LooksAfterItem,
+) {
   if (agentControl(owner, agent.id).paused) fail(`${agent.name} is paused. Resume it first.`, 409);
+  if (
+    item &&
+    (agent.projectId || typeof item.where !== 'string') &&
+    !itemProjects(owner, agent, item).length
+  )
+    fail('This item has no projects within the agent’s access.', 409);
   const active = agentRuns(owner, agent.id).find((task) =>
     list('run', owner).some(
       (run) =>
@@ -90,29 +111,52 @@ export function startAgentRun(owner: string, agent: Agent, reason: AgentRunReaso
   const task = queueTask(owner, {
     title: `${agent.name} · ${reason === 'schedule' ? 'scheduled run' : 'run'} ${localDay(new Date(at))}`,
     workerId: workerFor(owner, agent, model.adapter),
-    prompt: runMessage(agent, reason, at),
-    ...(agent.projectId ? { projectId: agent.projectId } : {}),
+    prompt: item
+      ? `${item.what}\n\nWhere (within granted access): ${
+          itemProjects(owner, agent, item)
+            .map((p) => `${p.name} (${p.id})`)
+            .join(', ') || 'No accessible projects'
+        }.\nBring a ${item.brings.replaceAll('-', ' ')}.\n\n${runMessage(agent, reason, at, item)}`
+      : runMessage(agent, reason, at),
+    ...((item ? itemProjects(owner, agent, item)[0]?.id : agent.projectId)
+      ? { projectId: item ? itemProjects(owner, agent, item)[0]?.id : agent.projectId }
+      : {}),
     ...model,
   });
   // Tracking, the agent's conversation and Waiting on you all attribute work by agentId.
-  const tagged = save('task', owner, { ...get('task', owner, task.id), agentId: agent.id });
+  const tagged = save('task', owner, {
+    ...get('task', owner, task.id),
+    agentId: agent.id,
+    ...(item ? { agentItemId: item.id } : {}),
+  });
   for (const run of list('run', owner).filter((row) => row.taskId === task.id))
-    save('run', owner, { ...run, agentId: agent.id });
+    save('run', owner, { ...run, agentId: agent.id, ...(item ? { agentItemId: item.id } : {}) });
   return tagged;
 }
 
 /** A scheduled start: runs when "Start a task" is allowed, asks when it is Ask me, skips on Never. */
-export function scheduledAgentRun(owner: string, agent: Agent, day: string) {
+export function scheduledAgentRun(
+  owner: string,
+  agent: Agent,
+  day: string,
+  looksAfter?: LooksAfterItem,
+) {
   if (agentControl(owner, agent.id).paused) return { skipped: 'paused' as const };
+  if (
+    looksAfter &&
+    (agent.projectId || typeof looksAfter.where !== 'string') &&
+    !itemProjects(owner, agent, looksAfter).length
+  )
+    return { skipped: 'access' as const };
   if (approvalRule(owner, agent.id, 'start-task')?.mode === 'never')
     return { skipped: 'never' as const };
   if (isAllowed(owner, agent.id, 'start-task'))
-    return { task: startAgentRun(owner, agent, 'schedule') };
+    return { task: startAgentRun(owner, agent, 'schedule', looksAfter) };
   const item: InboxItem = {
-    id: `agent-run:${agent.id}:${day}`,
+    id: `agent-run:${agent.id}:${looksAfter?.id ?? 'legacy'}:${day}`,
     kind: 'other',
     title: `Let ${agent.name} run now?`,
-    text: `${agent.name}'s scheduled run (${agent.schedule?.time}) is ready to start a task: ${agent.job.split('\n')[0].slice(0, 200)}`,
+    text: `${agent.name}'s scheduled run (${looksAfter?.when.time ?? agent.schedule?.time}) is ready to start a task: ${(looksAfter?.what ?? agent.job).split('\n')[0].slice(0, 200)}`,
     from: agent.id,
     createdAt: now(),
     state: 'waiting',
@@ -121,14 +165,25 @@ export function scheduledAgentRun(owner: string, agent: Agent, day: string) {
       { id: 'dismiss', label: 'Skip today' },
     ],
   };
-  return { item: createInboxItem(owner, item, { agentId: agent.id }) };
+  return {
+    item: createInboxItem(owner, item, {
+      agentId: agent.id,
+      agentItemId: looksAfter?.id,
+      confirmedAt: looksAfter?.confirmedAt,
+    }),
+  };
 }
 
 registerInboxAction('other', (owner, _item, body, context) => {
   if (body.actionId !== 'run' || !context?.agentId) return;
   const agent = list('agent', owner).find((row) => row.id === context.agentId);
   if (!agent) fail('This agent was deleted.', 409);
-  startAgentRun(owner, agent, 'schedule');
+  const item = agent.looksAfter?.find((i: LooksAfterItem) => i.id === context.agentItemId);
+  if (context.agentItemId && (!item?.confirmedAt || item.confirmedAt !== context.confirmedAt))
+    fail('This item changed. Confirm it again first.', 409);
+  if (approvalRule(owner, agent.id, 'start-task')?.mode === 'never')
+    fail('This action is now forbidden.', 409);
+  startAgentRun(owner, agent, 'schedule', item);
 });
 
 /** A schedule saved after today's time waits for tomorrow instead of starting at once. */
@@ -141,35 +196,105 @@ function clock(at: Date) {
 }
 /** Starts each agent's run once a day, at or after its time on this coordinator's clock. */
 export function tickAgentSchedules(at = new Date()) {
-  const day = localDay(at);
-  const time = clock(at);
   for (const { owner } of db
     .prepare("SELECT DISTINCT owner FROM records WHERE kind='agent'")
-    .all() as { owner: string }[])
-    for (const agent of list('agent', owner) as Agent[]) {
-      if (!agent.schedule?.enabled || agent.schedule.time > time) continue;
-      const mark = list('v2-agent-schedule', owner).find((row) => row.id === agent.id);
-      if (mark?.day === day) continue;
-      // Marked first, so a failing start is reported once instead of retried every minute.
-      save('v2-agent-schedule', owner, { id: agent.id, day, at: at.toISOString() });
-      try {
-        const result = scheduledAgentRun(owner, agent, day);
-        save('v2-agent-schedule', owner, {
-          id: agent.id,
-          day,
-          at: at.toISOString(),
-          result: 'task' in result ? 'started' : 'item' in result ? 'asked' : result.skipped,
-        });
-      } catch (error: any) {
-        save('v2-agent-schedule', owner, {
-          id: agent.id,
-          day,
-          at: at.toISOString(),
-          result: 'failed',
-          error: String(error?.message || error),
-        });
+    .all() as { owner: string }[]) {
+    for (const row of list('agent', owner)) {
+      const agent = migrateAgent(owner, row);
+      for (const item of agent.looksAfter ?? []) {
+        if (!item.confirmedAt) continue;
+        const key = `${agent.id}:${item.id}`;
+        const mark = list('v2-agent-schedule', owner).find((m) => m.id === key);
+        // Migrated schedules retain today's mark so upgrading cannot run twice.
+        const legacy =
+          item.id === `legacy-${agent.id}`
+            ? list('v2-agent-schedule', owner).find((m) => m.id === agent.id)
+            : undefined;
+        const local = new Intl.DateTimeFormat('en-GB', {
+          timeZone: item.when.timezone,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hourCycle: 'h23',
+        }).formatToParts(at);
+        const part = (unit: string) => Number(local.find((p) => p.type === unit)?.value ?? 0);
+        const midnight = new Date(
+          at.getTime() -
+            ((part('hour') * 60 + part('minute')) * 60 + part('second')) * 1000 -
+            at.getMilliseconds() -
+            1,
+        );
+        const from = new Date(
+          Math.max(
+            Date.parse(item.confirmedAt),
+            Date.parse(mark?.at ?? legacy?.at ?? midnight.toISOString()),
+          ),
+        );
+        let due = nextItemAt(item, from);
+        let cursor = mark?.cursor ?? 0;
+        if (item.when.every === 'change') {
+          const projects = new Set(itemProjects(owner, agent, item).map((p) => p.id));
+          let changed = false;
+          for (;;) {
+            const page = events(owner, cursor);
+            for (const e of page) {
+              cursor = e.cursor;
+              const task = e.taskId
+                ? list('task', owner).find((t) => t.id === e.taskId)
+                : undefined;
+              if (
+                Date.parse(e.createdAt) > from.getTime() &&
+                [
+                  'project.updated',
+                  'repository.updated',
+                  'pull-request.updated',
+                  'release.completed',
+                  'task.committed',
+                  'task.merged',
+                ].includes(e.type) &&
+                projects.has(e.payload.projectId ?? task?.projectId ?? e.payload.id) &&
+                task?.agentItemId !== item.id
+              )
+                changed = true;
+            }
+            if (page.length < 1000) break;
+          }
+          if (!changed) {
+            save('v2-agent-schedule', owner, { ...mark, id: key, cursor, at: from.toISOString() });
+            continue;
+          }
+          due = at.toISOString();
+        }
+        if (!due || Date.parse(due) > at.getTime()) continue;
+        // Another item may still be working. Keep this occurrence due until it can start.
+        if (
+          agentRuns(owner, agent.id).some((task) =>
+            list('run', owner).some(
+              (run) =>
+                run.taskId === task.id &&
+                ['queued', 'starting', 'running', 'unknown'].includes(run.status),
+            ),
+          )
+        )
+          continue;
+        const stamp = { id: key, day: localDay(at), at: at.toISOString(), cursor };
+        save('v2-agent-schedule', owner, stamp);
+        try {
+          const result = scheduledAgentRun(owner, agent, due, item);
+          save('v2-agent-schedule', owner, {
+            ...stamp,
+            result: 'task' in result ? 'started' : 'item' in result ? 'asked' : result.skipped,
+          });
+        } catch (error: any) {
+          save('v2-agent-schedule', owner, {
+            ...stamp,
+            result: 'failed',
+            error: String(error?.message || error),
+          });
+        }
       }
     }
+  }
 }
 let scheduler: ReturnType<typeof setInterval> | undefined;
 export function startAgentScheduler() {

@@ -8,6 +8,7 @@ export type InboxAnswerRequest = {
 };
 export type InboxResponse = { items: InboxItem[] };
 export type V2Event = { cursor: number; taskId: string; runId: string | null; at: string } & (
+  | { type: 'agent'; agentId: string }
   | { type: 'inbox'; item: InboxItem }
   | { type: 'health'; app: AppHealth }
   | { type: 'release'; release: Release }

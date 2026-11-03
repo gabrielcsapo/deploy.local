@@ -12,6 +12,12 @@ public struct V2Agent: Codable, Identifiable, Equatable, Sendable {
     public var job: String?
     public var projectId: String?
     public var schedule: Schedule?
+    public var avatar: V2AgentAvatar?
+    public var looksAfter: [V2LooksAfterItem]?
+    public var computers: [String]?
+    public struct LastMessage: Codable, Equatable, Sendable { public var text: String; public var at: String }
+    public var lastMessage: LastMessage?
+    public var identity: V2AgentAvatar { avatar ?? .from(id: id) }
 
     public var scheduleDescription: String {
         guard schedule?.enabled == true else { return "Only when you press Run now" }
@@ -32,14 +38,16 @@ public struct V2NewAgent: Encodable, Sendable {
     public var name: String
     public var job: String
     public var projectId: String?
-    public var schedule: V2Agent.Schedule
+    public var schedule: V2Agent.Schedule?
+    public var avatar: V2AgentAvatar?
 
-    public init(name: String, job: String, projectId: String? = nil, schedule: V2Agent.Schedule) {
-        self.name = name; self.job = job; self.projectId = projectId; self.schedule = schedule
+    public init(name: String, job: String = "", projectId: String? = nil, schedule: V2Agent.Schedule? = nil, avatar: V2AgentAvatar? = nil) {
+        self.name = name; self.job = job; self.projectId = projectId; self.schedule = schedule; self.avatar = avatar
     }
 }
 
 public struct V2Project: Codable, Identifiable, Equatable, Sendable {
+    public var stage: String? = nil
     public var id: String
     public var name: String
     public var summary: String?
@@ -140,6 +148,7 @@ public struct V2Event: Codable, Equatable, Sendable {
     public var taskId: String?
     public var at: String
     public var type: String
+    public var agentId: String?
     public var item: InboxItem?
     public var app: AppHealth?
     public var event: ConversationEvent?

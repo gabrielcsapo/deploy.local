@@ -24,7 +24,17 @@ const server = createServer(async (req, res) => {
     for await (const chunk of req) raw += chunk;
     providerInput = JSON.parse(raw);
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ choices: [{ message: { content: 'I can see your marks.' } }] }));
+    res.end(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ reply: 'I can see your marks.', job: null, item: null }),
+            },
+          },
+        ],
+      }),
+    );
     return;
   }
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') }));
@@ -214,6 +224,7 @@ test('agent chat passes marked images to a compatible provider without changing 
   const body = await result.json();
   assert.equal(body.events[0].attachments[0].kind, 'screenshot');
   assert.equal(providerInput.model, 'vision2');
+  assert.equal(providerInput.response_format.type, 'json_object');
   const content = providerInput.messages.at(-1).content;
   assert.ok(
     content.some(

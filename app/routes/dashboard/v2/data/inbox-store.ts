@@ -53,6 +53,8 @@ export function createInboxStore(request: typeof fetch) {
       );
       if (signal.aborted) return;
       cursor = page.cursor;
+      if (page.events.some((event) => event.type === 'agent') && typeof window !== 'undefined')
+        window.dispatchEvent(new Event('deploy:agents-changed'));
       upsert(page.events.flatMap((event) => (event.type === 'inbox' ? [event.item] : [])));
       retryMs = 1000;
       timer = setTimeout(() => void poll(signal), page.events.length ? 0 : 100);

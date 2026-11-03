@@ -1,11 +1,11 @@
 'use client';
+import { SavedAgentAvatar } from '../agents/identity';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
 import {
   Action,
   Banner,
   Empty,
-  Glyph,
   Group,
   Head,
   IconButton,
@@ -122,11 +122,7 @@ export default function Inbox() {
                                 key={item.id}
                                 title={item.title}
                                 description={`${item.fromName || agentName(item.from)} asked · ${answerDetails(item)}`}
-                                lead={
-                                  <Glyph kind={item.from === 'warden' ? 'warden' : ''}>
-                                    {(item.fromName || agentName(item.from)).charAt(0)}
-                                  </Glyph>
-                                }
+                                lead={<SavedAgentAvatar id={item.from} />}
                                 href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}
                               >
                                 <Outcome item={item} />
