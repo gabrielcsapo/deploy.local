@@ -334,7 +334,8 @@ function copyPaths(
       if (entry) {
         const [mode, , oid] = entry.split('\t')[0].split(' ');
         git(['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`]);
-      } else git(['update-index', '--force-remove', '--', path]);
+        // update-index --force-remove needs a work tree; the project's repository may be bare.
+      } else git(['rm', '--cached', '--quiet', '--ignore-unmatch', '--', path]);
     }
     for (const write of input.writes ?? []) {
       const oid = git(['hash-object', '-w', '--stdin'], write.content);

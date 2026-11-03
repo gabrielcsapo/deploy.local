@@ -372,6 +372,55 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   assert.equal(await git(['rev-parse', 'main']), approved);
 });
 
+test('approving a design that removes a board works in a bare repository', async () => {
+  const { answerInbox } = await import('./inbox.ts');
+  const work = join(root, 'bare-source');
+  mkdirSync(join(work, 'design/boards'), { recursive: true });
+  const inWork = (args: string[]) => gitText(work, args);
+  await inWork(['init', '--initial-branch=main']);
+  await inWork(['config', 'user.name', 'Design Test']);
+  await inWork(['config', 'user.email', 'test@example.invalid']);
+  const canvas = (boards: string[]) =>
+    JSON.stringify({
+      title: 'Bare',
+      boards: Object.fromEntries(
+        boards.map((board) => [board, { x: 0, y: 0, w: 390, h: 844, title: board }]),
+      ),
+      order: boards,
+      notes: {},
+    });
+  writeFileSync(join(work, 'design/canvas.json'), canvas(['Keep.html', 'Old.html']));
+  writeFileSync(join(work, 'design/boards/Keep.html'), '<p data-layer="keep">Keep</p>');
+  writeFileSync(join(work, 'design/boards/Old.html'), '<p data-layer="old">Old</p>');
+  await inWork(['add', '.']);
+  await inWork(['commit', '-qm', 'Two boards']);
+  await inWork(['checkout', '-q', '-b', 'design/drop-old']);
+  await inWork(['rm', '-q', 'design/boards/Old.html']);
+  writeFileSync(join(work, 'design/canvas.json'), canvas(['Keep.html']));
+  await inWork(['commit', '-qam', 'Drop Old']);
+  await inWork(['checkout', '-q', 'main']);
+  const bare = join(root, 'bare.git');
+  await gitText(root, ['clone', '-q', '--bare', work, bare]);
+  save('project', 'alice', { id: 'bare-site', repositoryPath: bare, repositoryStatus: 'ready' });
+  const proposed = await fetch(`${origin}/api/v2/projects/bare-site/design/propose`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-owner': 'alice' },
+    body: JSON.stringify({ ref: 'design/drop-old' }),
+  });
+  const proposal = await proposed.json();
+  assert.equal(proposed.status, 201, JSON.stringify(proposal));
+  const { item } = proposal;
+  answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  const inBare = (args: string[]) => gitText(bare, args);
+  const files = await inBare(['ls-tree', '-r', '--name-only', 'main']);
+  assert.ok(files.includes('design/boards/Keep.html'));
+  assert.ok(!files.includes('design/boards/Old.html'));
+  assert.deepEqual(
+    Object.keys(JSON.parse(await inBare(['show', 'main:design/canvas.json'])).boards),
+    ['Keep.html'],
+  );
+});
+
 test('agents show where they work, comment and resolve through deploy_design', async () => {
   // Each action returns its own shape; the test reads them loosely.
   const designTool = (await import('./design.ts')).designTool as (
