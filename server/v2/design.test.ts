@@ -883,3 +883,36 @@ test('boards render with the deploy account’s Chromium when the service user h
     null,
   );
 });
+
+test('a newer commit withdraws the older request and tells clients, which replay events', async () => {
+  const stashed = (await git(['stash', 'push', '--include-untracked'])).includes('Saved');
+  await git(['checkout', '-b', 'design/withdraw-me', 'refs/heads/main']);
+  const propose = async (text: string) => {
+    writeFileSync(join(repo, 'design/boards/Welcome.html'), `<p data-layer="title">${text}</p>`);
+    await git(['commit', '-qam', text]);
+    await git(['checkout', 'main']);
+    const { item } = await (
+      await call('/propose', {
+        method: 'POST',
+        body: JSON.stringify({ ref: 'design/withdraw-me' }),
+      })
+    ).json();
+    await git(['checkout', 'design/withdraw-me']);
+    return item;
+  };
+  try {
+    const first = await propose('First');
+    await propose('Second');
+    const announced = (
+      db.prepare("SELECT payload FROM events WHERE owner='alice' AND type='v2.inbox'").all() as {
+        payload: string;
+      }[]
+    )
+      .map((row) => JSON.parse(row.payload).item)
+      .filter((item: any) => item.id === first.id);
+    assert.equal(announced.at(-1).state, 'withdrawn');
+  } finally {
+    await git(['checkout', 'main']);
+    if (stashed) await git(['stash', 'pop']);
+  }
+});

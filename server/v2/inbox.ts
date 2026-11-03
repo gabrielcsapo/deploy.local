@@ -58,7 +58,20 @@ export function mapInboxItem(
 }
 
 /** Persist projections so readers in different processes see the same inbox changes. */
+/**
+ * Design proposals replaced by a newer commit used to be withdrawn without an event, and clients
+ * that rebuild Waiting on you from events kept showing them. Announce those once.
+ */
+function announceWithdrawn(owner: string) {
+  if (list('v2-inbox-repair', owner).some((row) => row.id === 'withdrawn-events')) return;
+  for (const row of list('v2-inbox-native', owner))
+    if (row.item.state === 'withdrawn')
+      event(owner, row.item.projectId || '', null, 'v2.inbox', { item: row.item });
+  save('v2-inbox-repair', owner, { id: 'withdrawn-events' });
+}
+
 export function syncInbox(owner: string): InboxItem[] {
+  announceWithdrawn(owner);
   return db
     .transaction(() => {
       const answers = new Map(list('v2-inbox-answer', owner).map((r) => [r.id, r.answer]));

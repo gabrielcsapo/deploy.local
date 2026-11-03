@@ -18,7 +18,7 @@ import {
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
-import { get, id, list, now, save } from '../workspace/store.ts';
+import { event, get, id, list, now, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { readJson, sendJson } from './attachments.ts';
 import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.ts';
@@ -502,8 +502,12 @@ export function proposeDesign(owner: string, project: any, input: { ref?: string
   // A newer commit replaces the request for the same branch.
   const stale = `design:${project.id}:${branchKey(proposal.branch)}:`;
   for (const row of list('v2-inbox-native', owner))
-    if (row.id.startsWith(stale) && row.id !== item.id && row.item.state === 'waiting')
-      save('v2-inbox-native', owner, { ...row, item: { ...row.item, state: 'withdrawn' } });
+    if (row.id.startsWith(stale) && row.id !== item.id && row.item.state === 'waiting') {
+      const withdrawn = { ...row.item, state: 'withdrawn' as const };
+      save('v2-inbox-native', owner, { ...row, item: withdrawn });
+      // Clients rebuild Waiting on you from events, so they must hear about it.
+      event(owner, project.id, null, 'v2.inbox', { item: withdrawn });
+    }
   return createInboxItem(owner, item, { source: 'design', projectId: project.id, ...proposal });
 }
 
