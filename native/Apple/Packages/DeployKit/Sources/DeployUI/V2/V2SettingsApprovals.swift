@@ -21,7 +21,10 @@ struct V2SettingsApprovals: View {
                 }.padding(16)
             }.background(WorkspaceStyle.canvas(scheme)).navigationTitle("What agents may do").navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
                 .sheet(item: $selected, onDismiss: { Task { await load() } }) { V2AgentRules(store: store, agent: $0) }
-                .task { await load() }
+                .task {
+                    await load()
+                    if V2Evidence.agentsBoard == .rules { selected = store.snapshot.agents.first { $0.id == "release-notes-writer" } }
+                }
         }
     }
     private func summary(_ agent: V2Agent) -> String {

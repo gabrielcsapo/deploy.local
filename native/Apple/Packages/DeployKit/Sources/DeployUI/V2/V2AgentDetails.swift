@@ -146,7 +146,7 @@ struct V2AgentItemHistory: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         NavigationStack { ScrollView { V2SettingsGroup(list: true, title: item.what) {
-            if let runs { if runs.isEmpty { V2SettingsRow(list: true, title: "No runs yet", icon: "clock") { EmptyView() } }; ForEach(runs) { run in Button { store.selectedTaskId = run.id; dismiss() } label: { V2SettingsRow(list: true, title: run.title, subtitle: "\(run.status) · \(V2Labels.shortDate(run.at))", icon: "bubble.left") { V2SettingsChevron() } } } }
+            if let runs { if runs.isEmpty { V2SettingsRow(list: true, title: "No runs yet", icon: "clock") { EmptyView() } }; ForEach(runs) { run in Button { store.selectedTaskId = run.id; dismiss() } label: { V2SettingsRow(list: true, title: run.title, subtitle: "\(run.status) · \(V2Evidence.shortDate(run.at))", icon: "bubble.left") { V2SettingsChevron() } } } }
             if let error { Text(error).font(.system(size: 13)) }
                     Button("Run now") { Task { do { store.selectedTaskId = try await store.client.runAgentItem(agent, item: item.id); dismiss() } catch { self.error = coordinatorErrorDescription(error) } } }.disabled(item.confirmedAt == nil)
         }.padding(16) }.navigationTitle("History").toolbar { Button("Done") { dismiss() } }.task { do { runs = try await store.client.agentItemRuns(agent, item: item.id) } catch { self.error = coordinatorErrorDescription(error) } } }

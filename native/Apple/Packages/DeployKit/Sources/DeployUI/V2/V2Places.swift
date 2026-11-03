@@ -254,6 +254,7 @@ struct V2SettingsView: View {
         .task {
             if V2Evidence.board == "RestorePhone" { backups = true }
             if V2Evidence.board == "SettingsApprovalsPhone" { approvals = true }
+            if V2Evidence.agentsBoard == .rules { approvals = true }
         }
         .task(id: store.snapshot.updatedAt) {
             // A failed read leaves the real names visible without guessing at permissions.

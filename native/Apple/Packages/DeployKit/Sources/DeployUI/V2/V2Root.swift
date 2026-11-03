@@ -26,7 +26,7 @@ public struct DeployV2Root: View {
             guard let connection = workspace.connection else { self.store = nil; return }
             workspace.suspend()
             if V2Evidence.board == nil, let paired = V2PairingVault.load(), paired.connection != connection { V2PairingVault.clear() }
-            let next = V2Store(connection: connection)
+            let next = V2Store(connection: connection, cacheDirectory: V2Evidence.cacheDirectory)
             self.store = next
             await next.start()
         }.onChange(of: scenePhase) { _, phase in
@@ -122,6 +122,7 @@ struct V2Tabs: View {
             }
             .sheet(isPresented: $signIn) { V2SignIn(workspace: workspace, connected: paired) }
             .task {
+                guard V2Evidence.agentsBoard == nil else { return }
                 let route = UserDefaults.standard.dictionary(forKey: "deploy.v2.notificationRoute") as? [String: String] ?? [:]
                 decision = route["inboxItemId"]; app = route["appId"]
                 UserDefaults.standard.removeObject(forKey: "deploy.v2.notificationRoute")
@@ -139,6 +140,16 @@ struct V2Tabs: View {
     private func openEvidence() {
         guard !evidenceOpened, let board = V2Evidence.board else { return }
         evidenceOpened = true
+        if let board = V2Evidence.agentsBoard {
+            switch board {
+            case .workEmpty, .work: break
+            case .newBlank, .newAgent, .avatar: newAgent = true
+            case .approvals, .rules: tab = .settings
+            case .mention: task = "sync"
+            default: agent = board.agentID
+            }
+            return
+        }
         switch board {
         case "SignInPhone": signIn = true
         case "ComposePhone": compose = true
@@ -185,7 +196,7 @@ struct V2Tabs: View {
                     V2Group {
                         ForEach(store.snapshot.agents) { item in
                             if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
-                            Button { agent = item.id } label: { V2SettingsRow(title: item.name, subtitle: item.lastMessage?.text ?? "Say hello", identity: item.identity) { if let at = item.lastMessage?.at { Text(V2Labels.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) } } }
+                            Button { agent = item.id } label: { V2SettingsRow(title: item.name, subtitle: item.lastMessage?.text ?? "Say hello", identity: item.identity) { if let at = item.lastMessage?.at { Text(V2Evidence.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) } } }
                         }
                     }
                 }
@@ -200,18 +211,18 @@ struct V2Tabs: View {
                 else {
                     V2Group {
                         ForEach(store.waiting, id: \.id) { item in
-                            Button { decision = item.id } label: { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Labels.shortDate(item.createdAt), attention: true) }
+                            Button { decision = item.id } label: { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Evidence.shortDate(item.createdAt), attention: true) }
                             if item.id != store.waiting.last?.id { Divider().padding(.leading, 46) }
                         }
                     }.opacity(store.online ? 1 : 0.45)
                 }
             }
             if store.online {
-                if !store.today.isEmpty {
+                if !today.isEmpty {
                     V2Group(title: "Today") {
-                        ForEach(store.today) { item in
+                        ForEach(today) { item in
                             Button { task = item.id } label: { V2Row(title: item.title, subtitle: taskSubtitle(item), icon: item.status == "running" ? "arrow.trianglehead.2.clockwise.rotate.90" : "checkmark") }
-                            if item.id != store.today.last?.id { Divider().padding(.leading, 46) }
+                            if item.id != today.last?.id { Divider().padding(.leading, 46) }
                         }
                     }
                 }
@@ -231,6 +242,9 @@ struct V2Tabs: View {
         }.refreshable { await store.refresh() }
     }
     private var coordinator: String { store.snapshot.live?.computers.first(where: { $0.roles.contains(.coordinator) })?.name ?? "your coordinator" }
+    private var today: [V2Task] {
+        V2Evidence.agentsBoard == nil ? store.today : store.tasks.filter { V2Evidence.isToday($0.updatedAt) }.sorted { $0.updatedAt > $1.updatedAt }
+    }
     private func taskSubtitle(_ task: V2Task) -> String {
         let computer = store.snapshot.workspace?.workers.first { $0.id == task.workerId }?.name
         return [task.status.capitalized, computer].compactMap { $0 }.joined(separator: " · ")

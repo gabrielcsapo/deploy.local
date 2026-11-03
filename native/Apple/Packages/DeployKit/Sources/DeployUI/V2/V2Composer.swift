@@ -43,7 +43,7 @@ struct V2ComposerSheet: View {
                         let matches = store.snapshot.agents.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
                         ForEach(matches) { agent in Button {
                             if let range = draft.text.range(of: "@", options: .backwards) { draft.text = String(draft.text[..<range.lowerBound]) + "@" + agent.name + " " }; mentionClosed = true
-                        } label: { V2SettingsRow(title: agent.name, subtitle: agent.lastMessage?.text ?? "Say hello", identity: agent.identity) { if let at = agent.lastMessage?.at { Text(V2Labels.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) } } }
+                        } label: { V2SettingsRow(title: agent.name, subtitle: agent.lastMessage?.text ?? "Say hello", identity: agent.identity) { if let at = agent.lastMessage?.at { Text(V2Evidence.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) } } }
                         }
                         if matches.isEmpty { if store.snapshot.agents.isEmpty { Button("New agent") { newAgent = true }.font(.system(size: 13)).padding(16) } else { Text("No matching agents").font(.system(size: 13)).padding(16) } }
                     }
@@ -107,6 +107,9 @@ struct V2ComposerSheet: View {
                     case "ModelPhone": focused = false; models = true
                     default: break
                     }
+                    if V2Evidence.agentsBoard == .mention {
+                        draft.text = "@"; mentionClosed = false; focused = false
+                    }
                 }
                 .onChange(of: draft) { _, next in store.saveComposer(next, context: taskId ?? (askingAgent ? "agent:" + agent : "new")) }
                 .sheet(isPresented: $newAgent) { V2NewAgentSheet(store: store) { _ in newAgent = false } }
@@ -121,7 +124,7 @@ struct V2ComposerSheet: View {
                     if let data = image?.jpegData(compressionQuality: 0.85) { do { try save(data, name: "Photo.jpg") } catch { attachmentError = error.localizedDescription } }
                     camera = false
                 }.ignoresSafeArea() }
-        }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+        }.presentationDetents(V2Evidence.agentsBoard == .mention ? [.large] : [.medium, .large]).presentationDragIndicator(.visible)
     }
     private var modelName: String { draft.model ?? "Auto" }
     private var attachmentSheet: some View {

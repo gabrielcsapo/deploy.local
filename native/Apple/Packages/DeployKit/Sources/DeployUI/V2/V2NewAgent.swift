@@ -5,8 +5,8 @@ import DeployCore
 struct V2NewAgentSheet: View {
     @Bindable var store: V2Store
     var created: (V2Agent) -> Void
-    @State private var name = ""
-    @State private var avatar = V2AgentAvatar.random()
+    @State private var name = V2Evidence.newAgentName ?? ""
+    @State private var avatar = V2Evidence.newAgentAvatar ?? V2AgentAvatar.random()
     @State private var busy = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
@@ -40,6 +40,7 @@ struct V2AgentIdentity: View {
             Button("Shuffle") { avatar = .random() }.font(.system(size: 13)).frame(minHeight: 44)
             V2AgentColors(avatar: $avatar).frame(maxWidth: 260)
         }.frame(maxWidth: .infinity).sheet(isPresented: $choosing) { V2AgentAvatarPicker(avatar: $avatar) }
+            .task { if creating && V2Evidence.agentsBoard == .avatar { choosing = true } }
     }
 }
 struct V2AgentColors: View {

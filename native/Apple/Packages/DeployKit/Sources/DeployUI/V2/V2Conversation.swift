@@ -9,6 +9,8 @@ struct V2ConversationView: View {
     @State private var agentEvents: [ConversationEvent] = []
     @State private var suggestedText = ""
     @State private var editingItem: V2LooksAfterItem?
+    @State private var evidenceHistory: V2LooksAfterItem?
+    @State private var evidenceOpened = false
     @State private var receiptBusy = false
     @State private var detail: TaskDetail?
     @State private var diff: TaskDiff?
@@ -87,6 +89,7 @@ struct V2ConversationView: View {
                 }
                 .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "", askingAgent: agent != nil, initialText: suggestedText) }
                 .sheet(item: $editingItem) { item in if let savedAgent { V2LooksAfterEditor(store: store, agent: savedAgent, item: item) } }
+                .sheet(item: $evidenceHistory) { item in if let agent { V2AgentItemHistory(store: store, agent: agent, item: item) } }
                 .sheet(isPresented: $info) {
                     if let agent { V2AgentInfo(store: store, agent: agent).presentationDetents([.large]).presentationDragIndicator(.visible) }
                     else if let currentId { V2TaskInfo(store: store, taskId: currentId, detail: detail, diff: diff) { tab = $0 } }
@@ -103,6 +106,19 @@ struct V2ConversationView: View {
                 }
                 .task(id: currentId) {
                     await load()
+                    if let board = V2Evidence.agentsBoard {
+                        guard !evidenceOpened else { return }
+                        evidenceOpened = true
+                        switch board {
+                        case .info, .infoNew, .care: info = true
+                        case .menu: agentMenu = true
+                        case .routine, .projects: editingItem = savedAgent?.looksAfter?.first
+                        case .runs: evidenceHistory = savedAgent?.looksAfter?.first
+                        case .mention: compose = true
+                        default: break
+                        }
+                        return
+                    }
                     switch V2Evidence.board {
                     case "ChangesPhone": tab = "Changes"
                     case "AttachPhone", "AttachedPhone", "ModelPhone": compose = true
@@ -144,11 +160,11 @@ struct V2ConversationView: View {
                     VStack(alignment: .leading, spacing: 20) { ForEach(conversationEvents.filter { dayKey($0.v2Date) == day }, id: \.v2Id) { event in eventView(event) } }
                 }.font(.system(size: 13)).foregroundStyle(.secondary)
             }
-            if !conversationEvents.filter({ V2Store.isToday($0.v2Date) }).isEmpty {
+            if !conversationEvents.filter({ V2Evidence.isToday($0.v2Date) }).isEmpty {
                 Text("Today").font(.system(size: 13)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }
         }
-        ForEach(conversationEvents.filter { agent == nil || V2Store.isToday($0.v2Date) }, id: \.v2Id) { event in eventView(event) }
+        ForEach(conversationEvents.filter { agent == nil || V2Evidence.isToday($0.v2Date) }, id: \.v2Id) { event in eventView(event) }
         // An inbox decision can precede its conversation event. Never drop that decision.
         ForEach(contextDecisions, id: \.id) { item in decisionView(item) }
         if detail?.runs.contains(where: \.isActive) == true {
@@ -172,8 +188,8 @@ struct V2ConversationView: View {
         guard let currentId else { return [] }
         return store.snapshot.inbox.filter { $0.taskId == currentId && V2DesignReview.project(of: $0.id) != nil && $0.state != .withdrawn }
     }
-    private var olderDays: [String] { Array(Set(conversationEvents.filter { !V2Store.isToday($0.v2Date) }.map { dayKey($0.v2Date) })).sorted() }
-    private func dayKey(_ date: String) -> String { V2Labels.shortDate(date) }
+    private var olderDays: [String] { Array(Set(conversationEvents.filter { !V2Evidence.isToday($0.v2Date) }.map { dayKey($0.v2Date) })).sorted() }
+    private func dayKey(_ date: String) -> String { V2Evidence.shortDate(date) }
     @ViewBuilder private func eventView(_ event: ConversationEvent) -> some View {
         switch event {
         case .you(let value):
