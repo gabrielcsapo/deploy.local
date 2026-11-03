@@ -1046,21 +1046,24 @@
       "y": 45424,
       "w": 1280,
       "h": 960,
-      "title": "Mac app: no title bar, traffic lights in the sidebar"
+      "title": "Mac app: lights, mark, Search and Collapse fit in one row",
+      "expand": "fill"
     },
     "MacChromeNarrow.html": {
       "x": 1360,
       "y": 45424,
       "w": 820,
       "h": 960,
-      "title": "Narrow window: sidebar hidden, lights in the header"
+      "title": "Mac app: the remembered 64 px rail, with room for the lights",
+      "expand": "fill"
     },
     "MacChromeFull.html": {
       "x": 2260,
       "y": 45424,
       "w": 1440,
       "h": 900,
-      "title": "Full screen: no lights, no gutter for them"
+      "title": "Mac app in full screen: the same sidebar, no light gutter",
+      "expand": "fill"
     },
     "WelcomeNarrow.html": {
       "x": 9600,
@@ -1312,7 +1315,7 @@
       "y": 52200,
       "w": 1440,
       "h": 960,
-      "title": "The Design page keeps the app rail: the app’s places beside the canvas, window buttons on top",
+      "title": "Design in the Mac app: the same remembered rail, independent of Design panels",
       "expand": "fill"
     },
     "DesignRailPhone.html": {
@@ -1415,6 +1418,46 @@
       "w": 1440,
       "h": 900,
       "title": "deploy.local updating itself: the update stopped and SER kept its version",
+      "expand": "fill"
+    },
+    "MacUpdateAvailable.html": {
+      "x": 0,
+      "y": 46504,
+      "w": 1440,
+      "h": 960,
+      "title": "deploy.local for Mac: update available",
+      "expand": "fill"
+    },
+    "MacUpdateDownloading.html": {
+      "x": 1520,
+      "y": 46504,
+      "w": 1440,
+      "h": 960,
+      "title": "deploy.local for Mac: downloading with progress and Cancel",
+      "expand": "fill"
+    },
+    "MacUpdateReady.html": {
+      "x": 3040,
+      "y": 46504,
+      "w": 1440,
+      "h": 960,
+      "title": "deploy.local for Mac: verified and ready to restart",
+      "expand": "fill"
+    },
+    "MacUpdateInstalling.html": {
+      "x": 4560,
+      "y": 46504,
+      "w": 1440,
+      "h": 960,
+      "title": "deploy.local for Mac: installing and returning to the same page",
+      "expand": "fill"
+    },
+    "MacUpdateFailed.html": {
+      "x": 6080,
+      "y": 46504,
+      "w": 1440,
+      "h": 960,
+      "title": "deploy.local for Mac: verification failed, nothing changed",
       "expand": "fill"
     }
   },
@@ -1568,6 +1611,11 @@
     "MacChrome.html",
     "MacChromeNarrow.html",
     "MacChromeFull.html",
+    "MacUpdateAvailable.html",
+    "MacUpdateDownloading.html",
+    "MacUpdateReady.html",
+    "MacUpdateInstalling.html",
+    "MacUpdateFailed.html",
     "WelcomeNarrow.html",
     "DesignCanvas.html",
     "DesignBoard.html",
@@ -2333,14 +2381,14 @@
       "y": 45424,
       "w": 440,
       "fill": "orange",
-      "text": "Proposal. Electron titleBarStyle hiddenInset: the title bar goes away and the traffic lights sit in the sidebar’s top row, next to the brand.\n\n• The sidebar top row and each page header are drag regions; buttons and fields inside them stay clickable. Double-click zooms, as the Mac setting says.\n• When the window is too narrow for the sidebar, the lights move into the page header, before the menu button.\n• Full screen hides the lights, so the gutter for them goes too.\n• Only the desktop app gets this; the browser is unchanged."
+      "text": "Proposal. Electron titleBarStyle hiddenInset: the traffic lights live in the first 92 px of the 52 px top row.\n\n• Expanded: the 256 px sidebar shows only the d mark beside the lights, then Search and Collapse. Each control keeps a 32 px target; the brand name remains accessible. Full screen restores the wordmark and removes the light gutter.\n• Collapsed: one 64 px rail, also at 700 px. Its items start below the 52 px top row. The lights extend into reserved space beside it; the main header starts 44 px inside the main pane (108 px from the window edge). No mark or title sits under the lights.\n• One device preference across Projects, a task’s Changes, a project’s Code and Design. New devices start expanded. Page changes and resizing never change that preference. The expanded sidebar stays 256 px at 700; secondary content folds instead.\n• Drag empty top-row space; buttons, links and fields remain clickable. Double-click follows the Mac zoom setting. Design panels fold independently and never hide the app sidebar.\n• These boards show both saved choices. Native lights and their reserved space exist only in the Mac app."
     },
     "welcome-narrow-note": {
       "x": 9600,
       "y": 6240,
       "w": 420,
       "fill": "orange",
-      "text": "For approval. Below 820px the sidebar hides, and today the welcome page has no header, so nothing opens it. It gets the same menu button as every other page, top left, with no title. In the Mac app the traffic lights sit before it, as on the Mac app chrome boards."
+      "text": "For approval. In the browser, below 820px the welcome sidebar hides and the menu button opens it. In the Mac app, follow the Mac chrome boards instead: the saved expanded sidebar or rail stays on the left at 700px, with a dedicated top-row reserve for the traffic lights."
     },
     "section-design-canvas": {
       "x": 0,
@@ -2418,7 +2466,7 @@
       "y": 13104,
       "w": 1520,
       "fill": "blue",
-      "text": "The sidebar collapses to the rail, on every page\n• The rail is the one the Design page already has: d (New task), Projects, Live (a red dot while something fails), Computers, Design, then Waiting on you with its count, and your initial (Settings) at the foot. Hovering an icon names it.\n• Collapse sidebar sits at the top of the full sidebar, beside Search. On the rail, Expand sidebar sits just above your initial. ⌘\\ does both, everywhere.\n• Wide work surfaces open as the rail: Design, a task's Changes and Code. Every other page opens with the full sidebar.\n• Your choice is remembered on this device for that kind of page: collapse on Projects and list pages stay collapsed; expand on Design and Design keeps the sidebar. Opening a work surface never changes how list pages look.\n• Agents and the Today list live only in the full sidebar; on the rail they're one click away through Expand sidebar or ⌘K.\n• Below 820 px neither shows: the menu button opens the full sidebar over the page, as today."
+      "text": "One sidebar choice, remembered everywhere on this device\n• New devices start with the full 256 px sidebar. Collapse selects the 64 px rail on Projects, Changes, Code and Design alike. There are no page-kind defaults or separate memories.\n• Collapse sits beside Search; Expand sits above the account in the rail. ⌘\\ toggles the same preference everywhere. Page changes and resizing preserve it; both states fit at 700 px.\n• The rail keeps New task, Projects, Live, Computers, Design, Waiting on you and Settings on the left. Hover or keyboard focus names each icon. Agents and Today remain in the full sidebar, one Expand or ⌘K away.\n• MacChromeNarrow shows this same rail with a 52 px top strip for native lights and a clear header. Full screen removes that strip and its gutter.\n• DesignMac and DesignConnections show an owner who chose the rail. Hiding Design panels affects only those panels, never the app navigation."
     },
     "design-connections-how": {
       "x": 14580,
@@ -2432,7 +2480,15 @@
       "w": 440,
       "x": 2020,
       "y": 28624,
-      "text": "SER updates itself from its own main. The sidebar row shows only to administrators, only while main is ahead of what SER runs, while an update runs, or after one fails; it opens deploy.local updates. Update SER prepares a new release (install, typecheck, build, tests), backs up the databases, then restarts into it. If SER does not come back healthy it goes back to the previous release by itself and the page says so. After a successful update the row disappears and Computers shows the SelfUpdate board."
+      "text": "SER is released like any other app, by pushing to its repository. Its update status and recovery pages remain under Computers → deploy.local updates. There is no SER update entry in the sidebar, for administrators or anyone else. The former sidebar status layers now live within those pages. Preparing and activating a SER release still verifies the build, backs up the databases and restores the previous release if health checks fail. Mac app updates are separate and appear only inside the Mac app."
+    },
+    "mac-app-update": {
+      "x": 7600,
+      "y": 46504,
+      "w": 600,
+      "h": 960,
+      "fill": "blue",
+      "text": "deploy.local for Mac updates\n• Check GET /desktop/version on the coordinator this Mac app is connected to, on launch and every 4 hours. Use its version and short commit, and the darwin-arm64 target’s file, size and sha256. The commit and byte counts on these boards are example data.\n• Only the Mac app shows the update row, immediately above the account. It never appears in a browser and never describes SER updating itself. No row when the app is current; a failed background check must not claim it is current.\n• Update available starts downloading the published /desktop/ zip. Progress uses actual bytes and total size; Cancel stops and discards the partial download, leaving the installed app unchanged. Downloading 42% rounds 54 of 130 MB.\n• After download, show Checking download… in the same row. Check SHA-256 against the published value before anything changes; only then offer Restart to update. A mismatch leaves the old app untouched and offers Try again. Network errors use “The download stopped. Nothing was changed.” with Try again.\n• Restart to update is one press: remember the current page, show Installing… briefly, quit, replace the app in place and reopen on the same coordinator and page. Keep the old app until the new one opens successfully; restore it if installation or launch fails. Do not silently discard the previous app.\n• The collapsed rail shows an update glyph above the account with a named tooltip. Pressing it expands the shared sidebar so the owner can read the status and choose Download or Restart; it does not start either action by itself. The chosen expanded state is remembered everywhere.\n• The install handoff and restoring the same page require implementation verification after this design is approved; these are static review boards."
     }
   },
   "starts": {}

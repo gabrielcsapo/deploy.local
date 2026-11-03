@@ -6,7 +6,6 @@
 <title>Connections: every link between boards, always on, the selected board's lit</title>
 <link rel="stylesheet" href="../ds/deploy-local/tokens.css">
 <link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
 <style>
 body{margin:0;background:#fafafb}
 .fx a{text-decoration:none;color:inherit}
@@ -117,6 +116,18 @@ body{margin:0;background:#fafafb}
   .rp-top,.ps.board{display:none}
   .sheet-grab{display:block;width:36px;height:4px;border-radius:2px;background:var(--line-strong);margin:8px auto 6px}
 }
+
+/* This board shows the owner's saved collapsed choice, not a Design default. */
+.fx>.rail{background:var(--sidebar)}
+@media(max-width:820px){
+ .fx{flex-direction:row}
+ .fx>.rail{display:flex}
+ .fx>.nb{position:absolute;left:64px;right:0;top:0;z-index:9;box-sizing:border-box}
+ .fx>.cv{margin-top:48px}
+ .fx>.rp{left:72px}
+ .fx>.nb .sec{display:none}
+}
+
 </style>
 </head>
 <body>
