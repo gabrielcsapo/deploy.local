@@ -301,6 +301,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/v2/agents/page.js'),
           },
           {
+            id: 'v2-agents',
+            path: 'agents',
+            component: () => import('./routes/dashboard/v2/agents/page.js'),
+          },
+          {
             id: 'v2-agents-agent',
             path: 'agents/:agent',
             component: () => import('./routes/dashboard/v2/agents/page.js'),

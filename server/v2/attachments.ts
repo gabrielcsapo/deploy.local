@@ -221,10 +221,23 @@ export async function attachmentsApi(req: IncomingMessage, res: ServerResponse, 
 
 /** Agent chats use the existing compatible connection, with no tools or implicit task. */
 export async function sendAgentMessage(owner: string, agentId: string, body: any) {
-  const { agentsForOwner, agentConversation } = await import('./agents.ts');
+  const { agentsForOwner, agentConversation, agentTeachingPrompt, saveAgentReply } =
+    await import('./agents.ts');
   const { providerConnections } = await import('../workspace/provider-connections.ts');
   const agent = agentsForOwner(owner).find((item) => item.id === agentId);
   if (!agent) fail('Agent not found', 404);
+  const { agentControl } = await import('./phone-preferences.ts');
+  if (agentControl(owner, agentId).paused) fail('This agent is paused.', 409);
+  if (
+    body.operationId !== undefined &&
+    (typeof body.operationId !== 'string' || body.operationId.length > 200)
+  )
+    fail('Invalid operation id');
+  if (
+    body.operationId &&
+    list('agent-message-operation', owner).some((r) => r.id === `${agentId}:${body.operationId}`)
+  )
+    return { events: agentConversation(owner, agentId) };
   const attachments = ownedAttachments(owner, body.attachments || []);
   if (typeof body.text !== 'string' || !body.text.trim() || body.text.length > 12000)
     fail('Message required (maximum 12000 characters)');
@@ -271,10 +284,11 @@ export async function sendAgentMessage(owner: string, agentId: string, body: any
     },
     body: JSON.stringify({
       model: settings.model || provider.model,
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
-          content: `You are ${agent.name}. ${agent.job}\nReply briefly. You have no tools in this conversation. Never claim to run tasks or change anything. Agents never ship.`,
+          content: agentTeachingPrompt(owner, agent),
         },
         ...agentConversation(owner, agentId)
           .filter((e) => e.kind === 'you' || e.kind === 'reply')
@@ -319,13 +333,13 @@ export async function sendAgentMessage(owner: string, agentId: string, body: any
     fail('The model returned an invalid reply', 502);
   }
   if (typeof reply !== 'string' || !reply.trim()) fail('The model returned no reply', 502);
-  const at = new Date().toISOString();
-  db.transaction(() => {
-    for (const event of [
-      { kind: 'you', id: id(), at, text: body.text.trim(), attachments, model: settings.model },
-      { kind: 'reply', id: id(), at, agent: agentId, paragraphs: reply.split(/\n\s*\n/) },
-    ])
-      save('agent-message', owner, { id: event.id, agentId, event });
-  }).immediate();
-  return { events: agentConversation(owner, agentId) };
+  return saveAgentReply(
+    owner,
+    agent,
+    body.text.trim(),
+    reply,
+    attachments,
+    settings.model,
+    body.operationId,
+  );
 }

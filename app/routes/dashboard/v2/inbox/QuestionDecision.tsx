@@ -1,8 +1,9 @@
 'use client';
+import { SavedAgentAvatar } from '../agents/identity';
 import { useEffect, useId, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Action, Glyph } from '@/components/ui';
+import { Action } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { questionActions, askedTime } from './presentation';
 import './question.css';
@@ -42,7 +43,7 @@ export function QuestionDecision({
   return (
     <section className="dl-question-decision" aria-labelledby={`${id}-name`}>
       <header className="dl-decision-header">
-        <Glyph kind={item.from === 'warden' ? 'warden' : ''}>{name[0]}</Glyph>
+        <SavedAgentAvatar id={item.from} />
         <div className="dl-decision-identity">
           <h2 id={`${id}-name`} className="dl-decision-name">
             {name}

@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { AgentAvatar } from './AgentAvatar';
+import type { AgentConfiguration } from '../../../../shared/v2/contracts';
 import { Icon, IconButton, type ComponentState } from './shared';
 import { Dialog } from './Dialog';
 import { useLocation } from 'react-flight-router/client';
@@ -23,6 +25,7 @@ export function Composer({
   onModel,
   onVoice,
   footer,
+  suggestedText,
 }: ComponentState & {
   project?: string;
   computer?: string;
@@ -32,11 +35,32 @@ export function Composer({
   onModel?: () => void;
   onVoice?: () => void;
   footer?: ReactNode;
+  suggestedText?: { text: string; nonce: number };
 }) {
   const id = useId();
   const location = useLocation();
   const picker = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
+  useEffect(() => {
+    if (suggestedText) setText(suggestedText.text);
+  }, [suggestedText]);
+  const [agents, setAgents] = useState<AgentConfiguration[]>([]);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionClosed, setMentionClosed] = useState(false);
+  const mentionQuery = !mentionClosed && text.match(/(?:^|\s)@([^@\n]*)$/)?.[1];
+  const matches =
+    typeof mentionQuery === 'string'
+      ? agents.filter((a) => a.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+      : [];
+  function chooseMention(agent: AgentConfiguration) {
+    setText(text.replace(/@[^@\n]*$/, `@${agent.name} `));
+    setMentionClosed(true);
+  }
+  useEffect(() => {
+    mediaRequest('/agents')
+      .then((v) => setAgents(v.agents))
+      .catch(() => {});
+  }, []);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [menu, setMenu] = useState<'attach' | 'model' | 'screenshot' | 'project' | null>(null);
   const [models, setModels] = useState<ComputerModels | null>(null);
@@ -190,13 +214,75 @@ export function Composer({
             ))}
           </div>
         )}
+        {typeof mentionQuery === 'string' && (
+          <div
+            className="dl-agent-mentions"
+            role="listbox"
+            aria-label="Bring an agent into this task"
+          >
+            <p className="dl-meta">Bring an agent into this task</p>
+            {matches.map((agent, index) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected={index === mentionIndex}
+                key={agent.id}
+                className="dl-item"
+                onClick={() => chooseMention(agent)}
+              >
+                <AgentAvatar id={agent.id} avatar={agent.avatar} />
+                <span className="dl-t">
+                  <span className="dl-agent-name">{agent.name}</span>
+                  <span>{agent.lastMessage?.text || 'Say hello'}</span>
+                </span>
+                {agent.lastMessage && (
+                  <span className="dl-meta">
+                    {new Date(agent.lastMessage.at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
+              </button>
+            ))}
+            {!matches.length && (
+              <p className="dl-meta">
+                {agents.length ? (
+                  'No matching agents'
+                ) : (
+                  <a href="/dashboard/agents/new">New agent</a>
+                )}
+              </p>
+            )}
+            <p className="dl-meta">Select a name, then send your message.</p>
+          </div>
+        )}
         <label htmlFor={id} className="dl-sr">
           Message
         </label>
         <input
           id={id}
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            setMentionClosed(false);
+            setMentionIndex(0);
+          }}
+          onKeyDown={(event) => {
+            if (typeof mentionQuery !== 'string') return;
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setMentionClosed(true);
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              setMentionIndex((i) =>
+                Math.max(0, Math.min(matches.length - 1, i + (event.key === 'ArrowDown' ? 1 : -1))),
+              );
+            } else if (event.key === 'Enter' && matches[mentionIndex]) {
+              event.preventDefault();
+              chooseMention(matches[mentionIndex]);
+            }
+          }}
           disabled={busy}
           placeholder="Ask, build, or follow up…"
         />

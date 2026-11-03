@@ -19,7 +19,7 @@ struct V2QuestionDecision: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                V2Avatar(name: V2Labels.agentName(item), size: 32)
+                AgentAvatar(glyph: (store.snapshot.agents.first { $0.id == item.from }?.identity ?? .from(id: item.from)).glyph, color: (store.snapshot.agents.first { $0.id == item.from }?.identity ?? .from(id: item.from)).color, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(V2Labels.agentName(item)).font(.system(size: 17, weight: .semibold))
                     Text([projectName, V2Labels.askedTime(item.createdAt)].compactMap { $0 }.joined(separator: " · "))

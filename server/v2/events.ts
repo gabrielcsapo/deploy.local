@@ -163,7 +163,10 @@ export async function waitForV2Events(
     const result: V2Event[] = [];
     for (const row of rows) {
       const base = { cursor: row.cursor, taskId: row.taskId, runId: row.runId, at: row.createdAt };
-      if (row.type === 'v2.inbox') result.push({ ...base, type: 'inbox', item: row.payload.item });
+      if (row.type === 'agent.changed')
+        result.push({ ...base, type: 'agent', agentId: row.payload.agentId });
+      else if (row.type === 'v2.inbox')
+        result.push({ ...base, type: 'inbox', item: row.payload.item });
       else if (row.type === 'v2.health')
         result.push({ ...base, type: 'health', app: row.payload.app });
       else if (row.type === 'v2.release')

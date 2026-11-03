@@ -1,4 +1,5 @@
 'use client';
+import { SavedAgentAvatar } from '../agents/identity';
 import { Glyph, Icon, WorkLog } from '@/components/ui';
 import type { ConversationEvent, Release, Screenshot } from '../../../../../shared/v2/contracts';
 import { InboxDecision } from '../inbox/InboxDecision';
@@ -73,11 +74,7 @@ export function ConversationItem({
         <div className="dl-reply" aria-label={`${agentName(event.agent)} replied`}>
           {resources.showAuthors && (
             <div className="dl-chat-author">
-              <Glyph
-                kind={event.agent === 'warden' ? 'warden' : event.agent === 'scout' ? '' : 'plain'}
-              >
-                {agentName(event.agent)[0]}
-              </Glyph>
+              <SavedAgentAvatar id={event.agent} />
               {agentName(event.agent)} <span className="dl-meta">· {formatTime(event.at)}</span>
             </div>
           )}

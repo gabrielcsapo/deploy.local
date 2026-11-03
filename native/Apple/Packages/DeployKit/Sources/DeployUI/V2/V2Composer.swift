@@ -15,6 +15,9 @@ struct V2ComposerSheet: View {
     var taskId: String? = nil
     var agent = ""
     var askingAgent = false
+    var initialText = ""
+    @State private var mentionClosed = false
+    @State private var newAgent = false
     @State private var draft = V2Draft()
     @State private var attachments: [V2PickedFile] = []
     @State private var attachmentMenu = false
@@ -28,11 +31,25 @@ struct V2ComposerSheet: View {
     @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+    private var mentionQuery: String? {
+        guard !mentionClosed, let range = draft.text.range(of: "@", options: .backwards) else { return nil }
+        return String(draft.text[range.upperBound...])
+    }
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
+                if let query = mentionQuery {
+                    V2SettingsGroup(title: "Bring an agent into this task", note: "Select a name, then send your message.") {
+                        let matches = store.snapshot.agents.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
+                        ForEach(matches) { agent in Button {
+                            if let range = draft.text.range(of: "@", options: .backwards) { draft.text = String(draft.text[..<range.lowerBound]) + "@" + agent.name + " " }; mentionClosed = true
+                        } label: { V2SettingsRow(title: agent.name, subtitle: agent.lastMessage?.text ?? "Say hello", identity: agent.identity) { if let at = agent.lastMessage?.at { Text(V2Labels.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) } } }
+                        }
+                        if matches.isEmpty { if store.snapshot.agents.isEmpty { Button("New agent") { newAgent = true }.font(.system(size: 13)).padding(16) } else { Text("No matching agents").font(.system(size: 13)).padding(16) } }
+                    }
+                }
                 TextField("Ask, build, or follow up…", text: $draft.text, axis: .vertical)
-                    .font(.system(size: 17)).lineLimit(4...10).focused($focused).accessibilityIdentifier("v2-composer")
+                    .font(.system(size: 17)).lineLimit(4...10).focused($focused).accessibilityIdentifier("v2-composer").onChange(of: draft.text) { old, new in if new.filter({ $0 == "@" }).count > old.filter({ $0 == "@" }).count { mentionClosed = false } }
                 if !attachments.isEmpty {
                     ScrollView(.horizontal) {
                         HStack {
@@ -50,7 +67,7 @@ struct V2ComposerSheet: View {
                     }
                     Text("Files are saved on this iPhone. This coordinator does not support sending attachments yet.").font(.system(size: 13)).foregroundStyle(.secondary)
                 }
-                if taskId == nil {
+                if taskId == nil && !askingAgent {
                     HStack {
                         Menu {
                             Button("No project") { draft.projectId = nil }
@@ -81,7 +98,7 @@ struct V2ComposerSheet: View {
                 .onAppear {
                     draft = store.composer(taskId: taskId, agent: askingAgent ? agent : nil)
                     draft.taskId = taskId ?? draft.taskId; draft.agent = agent
-                    if askingAgent { draft.question = true }
+                    if askingAgent { draft.question = true; if !initialText.isEmpty { draft.text = initialText } }
                     if let worker = store.snapshot.workspace?.workers.first(where: { $0.id == draft.workerId && $0.status == "online" }) ?? store.snapshot.workspace?.workers.first(where: { $0.status == "online" && $0.capabilities.contains(draft.adapter) }) { draft.workerId = worker.id }
                     loadAttachments(); focused = true
                     switch V2Evidence.board {
@@ -92,6 +109,7 @@ struct V2ComposerSheet: View {
                     }
                 }
                 .onChange(of: draft) { _, next in store.saveComposer(next, context: taskId ?? (askingAgent ? "agent:" + agent : "new")) }
+                .sheet(isPresented: $newAgent) { V2NewAgentSheet(store: store) { _ in newAgent = false } }
                 .sheet(isPresented: $attachmentMenu) { attachmentSheet.presentationDetents([.medium]) }
                 .sheet(isPresented: $models) { modelSheet.presentationDetents([.medium, .large]) }
                 .photosPicker(isPresented: $photos, selection: $photo, matching: .images)

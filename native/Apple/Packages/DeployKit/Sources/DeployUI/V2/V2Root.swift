@@ -179,13 +179,13 @@ struct V2Tabs: View {
                     }.accessibilityLabel("New agent")
                 }.padding(.leading, 16).padding(.trailing, 4)
                 if store.snapshot.agents.isEmpty {
-                    Text("No agents yet").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                    Text("Give it a name. Teach it in the chat.").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                         .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 8)
                 } else {
                     V2Group {
                         ForEach(store.snapshot.agents) { item in
                             if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
-                            Button { agent = item.id } label: { V2Row(title: item.name, subtitle: item.scheduleDescription, avatar: item.name) }
+                            Button { agent = item.id } label: { V2SettingsRow(title: item.name, subtitle: item.lastMessage?.text ?? "Say hello", identity: item.identity) { if let at = item.lastMessage?.at { Text(V2Labels.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) } } }
                         }
                     }
                 }

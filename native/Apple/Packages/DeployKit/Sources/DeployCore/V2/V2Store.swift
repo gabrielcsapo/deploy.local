@@ -207,6 +207,11 @@ public struct V2Snapshot: Codable, Sendable {
         connectionError = coordinatorErrorDescription(error)
         self.error = connectionError
     }
+    public func updateAgent(_ value: V2Agent) {
+        snapshot.agents.removeAll { $0.id == value.id }
+        snapshot.agents.append(value)
+        try? persist()
+    }
     public func answer(_ item: InboxItem, action: InboxAction, note: String? = nil) async {
         guard online, !busy else { return }
         busy = true
@@ -236,6 +241,13 @@ public struct V2Snapshot: Codable, Sendable {
         while var draft = snapshot.drafts.first {
             if draft.rejected { return }
             do {
+                if draft.question && !draft.agent.isEmpty {
+                    _ = try await client.sendAgent(draft.agent, text: draft.text, operationId: draft.id, model: draft.model)
+                    snapshot.drafts.removeFirst()
+                    try persist()
+                    await refresh()
+                    continue
+                }
                 if draft.taskId == nil {
                     let title = draft.question && !draft.agent.isEmpty ? "Ask \(agentName(draft.agent))" : String(draft.text.prefix(120))
                     let task = try await client.createTask(operationId: draft.createOperationId, title: title, projectId: draft.projectId, workerId: draft.workerId)

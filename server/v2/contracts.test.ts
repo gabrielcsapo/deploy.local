@@ -48,7 +48,14 @@ const conversation: ConversationEvent[] = [
     attachments: [attachment],
     model: 'local',
   },
-  { kind: 'reply', id: '2', at: 'now', agent: 'scout', paragraphs: ['Done'] },
+  {
+    kind: 'reply',
+    id: '2',
+    at: 'now',
+    agent: 'scout',
+    paragraphs: ['Done'],
+    receipts: [{ kind: 'job' }, { kind: 'looks-after', itemId: 'weekly' }],
+  },
   {
     kind: 'worklog',
     id: '3',

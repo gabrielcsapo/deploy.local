@@ -560,11 +560,17 @@ public struct YouEvent: Codable, Equatable, Sendable {
     }
 }
 
+public struct V2AgentReceipt: Codable, Equatable, Sendable {
+    public var kind: String
+    public var itemId: String?
+}
+
 public struct ReplyEvent: Codable, Equatable, Sendable {
     public var id: String
     public var at: String
     public var agent: AgentId
     public var paragraphs: [String]
+    public var receipts: [V2AgentReceipt]?
 
     public init(id: String, at: String, agent: AgentId, paragraphs: [String]) {
         self.id = id

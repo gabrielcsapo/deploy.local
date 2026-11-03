@@ -424,3 +424,36 @@ test('notification preferences API preserves owner isolation and validates mutat
   );
   assert.equal((await request(owner, '/notifications', 'POST', {})).status, 405);
 });
+
+test('chat-first creation and explicit item confirmation preserve identity and owner scope', async () => {
+  const owner = randomUUID();
+  const avatar = { glyph: 'variant28', color: '#af61f2' };
+  const created = await request(owner, '/agents', 'POST', { name: '  Notes  ', avatar });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.agent.name, 'Notes');
+  assert.equal(created.body.agent.job, '');
+  assert.deepEqual(created.body.agent.looksAfter, []);
+  const path = `/agents/${created.body.agent.id}`;
+  const draft = {
+    id: 'weekly',
+    what: 'Draft notes',
+    where: 'all-active',
+    when: { every: 'week', day: 5, time: '16:00', timezone: 'America/New_York' },
+    brings: 'message',
+  };
+  const patched = await request(owner, path, 'PATCH', { looksAfter: [draft] });
+  assert.deepEqual(patched.body.agent.avatar, avatar);
+  assert.equal(patched.body.agent.looksAfter[0].confirmedAt, undefined);
+  assert.equal((await request(owner, `${path}/items/weekly/run`, 'POST')).status, 409);
+  assert.equal((await request(randomUUID(), `${path}/items/weekly/confirm`, 'POST')).status, 404);
+  const confirmed = await request(owner, `${path}/items/weekly/confirm`, 'POST');
+  assert.equal(confirmed.status, 200);
+  assert.ok(confirmed.body.agent.looksAfter[0].confirmedAt);
+  assert.deepEqual((await request(owner, `${path}/items/weekly/runs`)).body.runs, []);
+  assert.equal(list('task', owner).length, 0);
+  assert.equal((await request(owner, '/agents', 'POST', { name: ' ' })).status, 400);
+  assert.equal(
+    (await request(owner, path, 'PATCH', { avatar: { ...avatar, glyph: 'variant36' } })).status,
+    400,
+  );
+});

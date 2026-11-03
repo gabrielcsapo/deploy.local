@@ -7,7 +7,10 @@ export type SidebarTask = {
 };
 export type SidebarRun = { taskId: string; status: string; updatedAt?: string; createdAt: string };
 export type WorkspaceState = { tasks: SidebarTask[]; runs: SidebarRun[] };
-export type SidebarAgent = { id: string; name: string };
+export type SidebarAgent = Pick<
+  import('../../../../../shared/v2/contracts').AgentConfiguration,
+  'id' | 'name' | 'avatar' | 'lastMessage'
+>;
 export type LiveSummary = { running: number; failing: number };
 
 export async function readResource<T>(

@@ -43,12 +43,13 @@ struct V2Row: View {
     var state: HealthState? = nil
     var attention = false
     var avatar: String? = nil
+    var identity: V2AgentAvatar? = nil
     var chevron = false
     var compact = false
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 12) {
-            if let avatar { V2Avatar(name: avatar, size: compact ? 32 : 26) }
+            if let identity { AgentAvatar(glyph: identity.glyph, color: identity.color, size: 30) } else if let avatar { V2Avatar(name: avatar, size: compact ? 32 : 26) }
             else { Image(systemName: attention ? "exclamationmark.circle" : icon).foregroundStyle(attention ? WorkspaceStyle.warning(scheme) : WorkspaceStyle.secondary(scheme)).frame(width: 20) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 17)).foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(2)
@@ -67,7 +68,9 @@ struct V2Row: View {
 }
 /// The roomier Settings board has its own spacing, without changing other lists.
 struct V2SettingsGroup<Content: View>: View {
+    var list = false
     var title: String? = nil
+    var note: String? = nil
     @ViewBuilder var content: Content
     @Environment(\.colorScheme) private var scheme
     var body: some View {
@@ -78,20 +81,23 @@ struct V2SettingsGroup<Content: View>: View {
                     .padding(.horizontal, 16).accessibilityAddTraits(.isHeader)
             }
             V2Group { content }
-        }.padding(.top, title == nil ? 0 : 28)
+            if let note { Text(note).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, 16) }
+        }.padding(.top, title == nil ? 0 : list ? 20 : 28)
     }
 }
 
 struct V2SettingsRow<Accessory: View>: View {
+    var list = false
     let title: String
     var subtitle: String? = nil
     var icon = "square.grid.2x2"
     var avatar: String? = nil
+    var identity: V2AgentAvatar? = nil
     @ViewBuilder var accessory: Accessory
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 14) {
-            if let avatar {
+            if let identity { AgentAvatar(glyph: identity.glyph, color: identity.color) } else if let avatar {
                 Text(String(avatar.prefix(1)).uppercased()).font(.system(size: 17, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .background(WorkspaceStyle.selected(scheme), in: RoundedRectangle(cornerRadius: 12))
@@ -103,17 +109,17 @@ struct V2SettingsRow<Accessory: View>: View {
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: avatar == nil ? 16 : 17, weight: avatar == nil ? .medium : .semibold))
+                Text(title).font(.system(size: list || identity != nil || avatar != nil ? 17 : 16, weight: avatar == nil ? .medium : .semibold))
                     .frame(minHeight: 22, alignment: .leading)
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                         .frame(minHeight: 18, alignment: .leading)
                 }
-            }.lineLimit(1).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+            }.lineLimit(list && identity == nil ? nil : 1).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
             accessory
         }.foregroundStyle(WorkspaceStyle.text(scheme))
             .padding(.horizontal, 16).padding(.vertical, avatar == nil ? 10 : 12)
-            .frame(minHeight: avatar == nil ? 56 : 72).contentShape(Rectangle())
+            .frame(minHeight: list ? (subtitle == nil ? 52 : 64) : (avatar == nil ? 56 : 72)).contentShape(Rectangle())
     }
 }
 

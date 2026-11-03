@@ -6,6 +6,10 @@ struct V2ConversationView: View {
     @Bindable var store: V2Store
     var taskId: String?
     var agent: String? = nil
+    @State private var agentEvents: [ConversationEvent] = []
+    @State private var suggestedText = ""
+    @State private var editingItem: V2LooksAfterItem?
+    @State private var receiptBusy = false
     @State private var detail: TaskDetail?
     @State private var diff: TaskDiff?
     @State private var tab = "Chat"
@@ -21,7 +25,8 @@ struct V2ConversationView: View {
     @State private var designBoards: [String: Int] = [:]
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
-    private var currentId: String? { taskId ?? agent.flatMap { store.snapshot.agentTasks[$0] } }
+    private var currentId: String? { taskId }
+    private var savedAgent: V2Agent? { store.snapshot.agents.first { $0.id == agent } }
     private var project: V2Project? { store.snapshot.projects.first { $0.id == store.tasks.first { $0.id == currentId }?.projectId } }
     private var title: String { agent.map { store.agentName($0) } ?? detail?.task.title ?? store.tasks.first { $0.id == taskId }?.title ?? "Conversation" }
     var body: some View {
@@ -60,7 +65,7 @@ struct V2ConversationView: View {
                         Button { info = true } label: {
                             VStack(spacing: 3) {
                                 Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
-                                if agent != nil { Text("\(store.tasks.filter { $0.id == currentId && $0.status == "running" }.count) tasks running ›").font(.system(size: 12)).foregroundStyle(.secondary) }
+                                if let savedAgent { AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color, size: 26) }
                                 else if let project {
                                     Text("\(project.name)\(designs.contains { $0.state == .waiting } ? " · design waiting" : "") ›").font(.system(size: 12)).foregroundStyle(.secondary)
                                 }
@@ -80,7 +85,8 @@ struct V2ConversationView: View {
                         }
                     }
                 }
-                .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "", askingAgent: agent != nil) }
+                .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "", askingAgent: agent != nil, initialText: suggestedText) }
+                .sheet(item: $editingItem) { item in if let savedAgent { V2LooksAfterEditor(store: store, agent: savedAgent, item: item) } }
                 .sheet(isPresented: $info) {
                     if let agent { V2AgentInfo(store: store, agent: agent).presentationDetents([.large]).presentationDragIndicator(.visible) }
                     else if let currentId { V2TaskInfo(store: store, taskId: currentId, detail: detail, diff: diff) { tab = $0 } }
@@ -110,6 +116,7 @@ struct V2ConversationView: View {
         }
     }
     private var conversationEvents: [ConversationEvent] {
+        if agent != nil { return agentEvents.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) } }
         guard let id = currentId else { return [] }
         var events = store.conversation(id)
         // Old coordinators expose message snapshots; adapt only explicit user/assistant roles.
@@ -121,6 +128,16 @@ struct V2ConversationView: View {
         return events.sorted { $0.v2Date < $1.v2Date }.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) }
     }
     @ViewBuilder private var conversation: some View {
+        if let savedAgent, agentEvents.isEmpty {
+            VStack(spacing: 16) {
+                AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color, size: 88)
+                Text(savedAgent.name).font(.system(size: 22, weight: .semibold))
+                Text("Tell \(savedAgent.name) what you want it to do. It remembers.").font(.system(size: 17)).multilineTextAlignment(.center)
+                ForEach(["Draft release notes for what merged each week", "Watch my apps and tell me when something fails", "Review my open pull requests", "Research a question for me"], id: \.self) { text in
+                    Button(text) { suggestedText = text; compose = true }.font(.system(size: 15)).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).buttonStyle(.bordered)
+                }
+            }.padding(.vertical, 32).frame(maxWidth: .infinity)
+        }
         if agent != nil {
             ForEach(olderDays, id: \.self) { day in
                 DisclosureGroup(day) {
@@ -162,7 +179,20 @@ struct V2ConversationView: View {
         case .you(let value):
             HStack { Spacer(minLength: 48); Text(value.text).font(.system(size: 17)).padding(14).background(WorkspaceStyle.selected(scheme), in: RoundedRectangle(cornerRadius: 18)) }
         case .reply(let value):
+            if let savedAgent { HStack { AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color); Text(savedAgent.name).font(.system(size: 13)).lineLimit(1) } }
             VStack(alignment: .leading, spacing: 14) { ForEach(Array(value.paragraphs.enumerated()), id: \.offset) { _, paragraph in Text(.init(paragraph)).font(.system(size: 17)).lineSpacing(5).textSelection(.enabled) } }
+            ForEach(Array((value.receipts ?? []).enumerated()), id: \.offset) { _, receipt in
+                if receipt.kind == "job" { HStack { Text("Saved to What it does ·"); Button("Edit") { info = true } }.font(.system(size: 13)).foregroundStyle(.secondary) }
+                else if let item = savedAgent?.looksAfter?.first(where: { $0.id == receipt.itemId }) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.confirmedAt == nil ? "Now looks after: \(item.what) · \(item.summary(projects: store.snapshot.projects))" : "Confirmed · first check \(item.whenLabel)")
+                        HStack {
+                            if item.confirmedAt == nil { Button("Confirm") { confirm(item) }.buttonStyle(.borderedProminent).tint(WorkspaceStyle.text(scheme)).disabled(receiptBusy) }
+                            Button("Edit") { editingItem = item }
+                        }
+                    }.font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+            }
         case .worklog(let value):
             DisclosureGroup(value.summary) {
                 VStack(alignment: .leading, spacing: 10) { ForEach(Array(value.steps.enumerated()), id: \.offset) { _, step in Label(step.text, systemImage: step.icon == .terminal ? "terminal" : "doc").font(.system(size: 13)) } }
@@ -192,30 +222,18 @@ struct V2ConversationView: View {
             ForEach(Array(diff.checks.enumerated()), id: \.offset) { _, check in Text(check.prettyText).font(.system(size: 13, design: .monospaced)).textSelection(.enabled) }
         } else { V2Empty(title: "No checks yet", message: "Check results appear here when they run.") }
     }
+    private func confirm(_ item: V2LooksAfterItem) {
+        guard let agent, !receiptBusy else { return }; receiptBusy = true
+        Task { defer { receiptBusy = false }; do { store.updateAgent(try await store.client.confirmAgentItem(agent, item: item.id)) } catch { self.error = coordinatorErrorDescription(error) } }
+    }
     private func load() async {
+        if let agent {
+            do { agentEvents = try await store.client.agentConversation(agent).events; error = nil } catch { self.error = coordinatorErrorDescription(error) }
+            return
+        }
         guard let id = currentId, store.online else { return }
         do { detail = try await store.client.task(id); diff = try await store.client.diff(id); error = nil }
         catch { self.error = coordinatorErrorDescription(error) }
-    }
-}
-struct V2AgentInfo: View {
-    @Bindable var store: V2Store
-    let agent: String
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(spacing: 12) { V2Avatar(name: store.agentName(agent)); VStack(alignment: .leading, spacing: 4) { Text(store.agentName(agent)).font(.system(size: 22, weight: .semibold)); Text(store.snapshot.agents.first { $0.id == agent }?.job ?? "").font(.system(size: 13)).foregroundStyle(.secondary) } }
-                V2Group(title: "Doing now") {
-                    ForEach(store.tasks.filter { $0.id == store.snapshot.agentTasks[agent] && ["running", "checking"].contains($0.status) }) { task in V2Row(title: task.title, subtitle: store.snapshot.workspace?.workers.first { $0.id == task.workerId }?.name, icon: "arrow.trianglehead.2.clockwise.rotate.90") }
-                }
-                V2Group(title: "Watching") { ForEach(store.waiting.filter { $0.from == agent }, id: \.id) { item in V2Row(title: item.title, subtitle: "Waiting for your answer", attention: true) } }
-                V2Group(title: "About \(store.agentName(agent))") {
-                    V2Row(title: "Models", subtitle: "Defaults live in Computers › Models", icon: "cpu")
-                    V2Row(title: "May do", subtitle: "View approval rules on a computer", icon: "shield")
-                }
-                Text("Tune, schedules and learned preferences are available on a computer.").font(.system(size: 13)).foregroundStyle(.secondary)
-            }.padding(16).padding(.top, 20)
-        }
     }
 }
 #endif

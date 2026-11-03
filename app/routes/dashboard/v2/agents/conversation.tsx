@@ -1,319 +1,181 @@
 'use client';
 import { useEffect, useState } from 'react';
-import {
-  Action,
-  Banner,
-  Composer,
-  Empty,
-  Field,
-  Glyph,
-  Icon,
-  Item,
-  Seg,
-  Skeleton,
-} from '@/components/ui';
+import { Action, Banner, Composer, Skeleton } from '@/components/ui';
+import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
 import type {
   AgentConfiguration as Agent,
   AgentTracking,
   ConversationEvent,
+  LooksAfterItem,
 } from '../../../../../shared/v2/contracts';
-import { useInbox } from '../data/hooks';
+import { agentSuggestions, itemSummary, itemWhen } from '../../../../../shared/v2/agents';
 import { ConversationItem } from '../conversation/Conversation';
 import { formatTime } from '../data/time';
+import { LooksAfterEditor, LooksAfterList } from './item';
 import { request } from './shared';
-
-export function AgentConversation({ agent }: { agent: Agent }) {
+import { useResource } from '../data/hooks';
+export function AgentConversation({
+  agent,
+  onChanged,
+}: {
+  agent: Agent;
+  onChanged: (agent: Agent) => void;
+}) {
+  const projects =
+    useResource<{ projects: import('../../../../../shared/v2/contracts').Project[] }>(
+      '/api/v2/projects',
+    ).data?.projects ?? [];
   const [tracking, setTracking] = useState<AgentTracking | null>(null);
   const [events, setEvents] = useState<ConversationEvent[] | null>(null);
   const [error, setError] = useState('');
-  const [pending, setPending] = useState(false);
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('everything');
-  const [composerKey, setComposerKey] = useState(0);
-  const inbox = useInbox();
-  const [starting, setStarting] = useState(false);
-  const path = `/agents/${encodeURIComponent(agent.id)}/conversation`;
-  async function runNow() {
-    setStarting(true);
-    setError('');
-    try {
-      const { task } = await request(`/agents/${encodeURIComponent(agent.id)}/run`, 'POST');
-      window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`);
-    } catch (failure: any) {
-      setError(failure.message);
-      setStarting(false);
-    }
-  }
-  // One run at a time: the server refuses a second, so the button says so before you press it.
-  const busyRun = !!tracking?.runs?.some((run) => run.status === 'running');
-  const schedule = agent.schedule?.enabled
-    ? `Every morning at ${agent.schedule.time}`
-    : 'Only when you press Run now';
-  const lastStart = tracking?.schedule
-    ? {
-        started: 'Started its task',
-        asked: 'Asked you first, in Waiting on you',
-        paused: 'Skipped while paused',
-        never: 'Skipped: Start a task is set to Never',
-        failed: `Could not start: ${tracking.schedule.error || 'unknown error'}`,
-      }[tracking.schedule.result || ''] || 'Waiting for the next scheduled time'
-    : undefined;
+  const [edit, setEdit] = useState<LooksAfterItem | null>(null);
+  const [suggestion, setSuggestion] = useState<{ text: string; nonce: number }>();
+  const [busy, setBusy] = useState(false);
+  const path = `/agents/${encodeURIComponent(agent.id)}`;
   useEffect(() => {
     let active = true;
     const refresh = () =>
-      request(path)
+      request(`${path}/conversation`)
         .then((body) => {
           if (active) {
             setEvents(body.events);
-            setTracking(body.tracking || null);
-            setError('');
+            setTracking(body.tracking);
           }
         })
-        .catch((failure) => {
-          if (active) setError(failure.message);
+        .catch((e) => {
+          if (active) setError(e.message);
         });
     void refresh();
-    const timer = setInterval(() => void refresh(), 10000);
+    window.addEventListener('deploy:agents-changed', refresh);
+    window.addEventListener('deploy:conversation-changed', refresh);
     return () => {
       active = false;
-      clearInterval(timer);
+      window.removeEventListener('deploy:agents-changed', refresh);
+      window.removeEventListener('deploy:conversation-changed', refresh);
     };
   }, [path]);
-  async function send(text: string) {
-    setPending(true);
+  async function confirm(item: LooksAfterItem) {
+    setBusy(true);
     setError('');
     try {
-      setEvents((await request(path, 'POST', { text })).events);
-      setComposerKey((value) => value + 1);
-    } catch (failure: any) {
-      setError(failure.message);
+      onChanged(
+        (await request(`${path}/items/${encodeURIComponent(item.id)}/confirm`, 'POST')).agent,
+      );
+    } catch (e: any) {
+      setError(e.message);
     } finally {
-      setPending(false);
+      setBusy(false);
     }
   }
-  const waiting = inbox.items.filter((item) => item.from === agent.id && item.state === 'waiting');
-  const visible = (events || []).filter(
-    (event) =>
-      event.kind === 'decision' ||
-      ((filter !== 'tasks' || event.kind === 'task') &&
-        filter !== 'decisions' &&
-        (!query || JSON.stringify(event).toLowerCase().includes(query.toLowerCase()))),
-  );
-  const groups = Map.groupBy(visible, (event) => formatTime(event.at, 'day'));
-  const latestDay = [...groups.keys()].at(-1);
+  const groups = Map.groupBy(events ?? [], (e) => formatTime(e.at, 'day'));
+  function render(event: ConversationEvent) {
+    return (
+      <div key={event.id}>
+        {event.kind === 'reply' && (
+          <div className="dl-agent-decision-author">
+            <AgentAvatar id={agent.id} avatar={agent.avatar} />
+            <span>{agent.name}</span>
+          </div>
+        )}
+        <ConversationItem event={event} resources={{ tasks: tracking?.running }} />
+        {event.kind === 'reply' &&
+          event.receipts?.map((receipt, i) =>
+            receipt.kind === 'job' ? (
+              <div className="dl-agent-receipt" key={i}>
+                Saved to What it does ·{' '}
+                <a className="dl-link" href={`/dashboard${path}/tune`}>
+                  Edit
+                </a>
+              </div>
+            ) : (
+              (() => {
+                const item = agent.looksAfter?.find((v) => v.id === receipt.itemId);
+                return item ? (
+                  <div className="dl-agent-receipt" key={i}>
+                    {item.confirmedAt
+                      ? `Confirmed · first check ${itemWhen(item)}`
+                      : `Now looks after: ${item.what.split('\n')[0]} · ${itemSummary(item, projects)}`}{' '}
+                    ·{' '}
+                    {!item.confirmedAt && (
+                      <>
+                        <Action
+                          variant="primary"
+                          disabled={busy}
+                          onClick={() => void confirm(item)}
+                        >
+                          Confirm
+                        </Action>{' '}
+                        ·{' '}
+                      </>
+                    )}
+                    <Action variant="quiet" onClick={() => setEdit(item)}>
+                      Edit
+                    </Action>
+                  </div>
+                ) : null;
+              })()
+            ),
+          )}
+      </div>
+    );
+  }
   return (
     <div className="dl-agent-chat-layout">
       <div className="dl-agent-chat-main">
         <div className="dl-scroll">
           <div className="dl-agent-chat">
-            {error && <Banner kind="danger" title={error} />}
-            {events && new Set(events.map((event) => event.at.slice(0, 10))).size > 1 && (
-              <div className="dl-agent-search">
-                <Field
-                  label="Search this conversation"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-                <Seg
-                  label="Conversation filter"
-                  value={filter}
-                  onChange={setFilter}
-                  options={[
-                    { label: 'Everything', value: 'everything' },
-                    { label: 'Decisions', value: 'decisions' },
-                    { label: 'Tasks', value: 'tasks' },
-                  ]}
-                />
+            {error && <Banner kind="danger" title={error} />}{' '}
+            {!events && !error && <Skeleton rows={4} />}{' '}
+            {events?.length === 0 && (
+              <div className="dl-agent-hello">
+                <AgentAvatar id={agent.id} avatar={agent.avatar} size={88} />
+                <h1 className="dl-title">{agent.name}</h1>
+                <p>Tell {agent.name} what you want it to do. It remembers.</p>
+                <div className="dl-agent-suggestions">
+                  {agentSuggestions.map((text) => (
+                    <Action key={text} onClick={() => setSuggestion({ text, nonce: Date.now() })}>
+                      {text}
+                    </Action>
+                  ))}
+                </div>
               </div>
             )}
-            {!events && !error && <Skeleton rows={4} label="Loading conversation" />}
-            {events?.length === 0 && (
-              <Empty title={`Ask ${agent.name}`}>Replies and decisions will appear here.</Empty>
-            )}
-            {[...groups].map(([day, items]) =>
-              day === latestDay ||
-              query ||
-              filter !== 'everything' ||
-              items.some(
-                (event) =>
-                  event.kind === 'decision' &&
-                  waiting.some((item) => item.id === event.inboxItemId),
-              ) ? (
-                <section key={day} className="dl-agent-day">
-                  <p className="dl-meta">{day}</p>
-                  {items.map((event) => (
-                    <div key={event.id}>
-                      {event.kind === 'decision' && (
-                        <div className="dl-agent-decision-author">
-                          <Glyph
-                            kind={
-                              agent.id === 'warden' ? 'warden' : agent.id === 'scout' ? '' : 'plain'
-                            }
-                          >
-                            {agent.name[0]}
-                          </Glyph>
-                          <span>{agent.name}</span>
-                          <span className="dl-meta">{formatTime(event.at)}</span>
-                        </div>
-                      )}
-                      <ConversationItem event={event} resources={{ tasks: tracking?.running }} />
-                    </div>
-                  ))}
+            {[...groups].map(([day, items], index) =>
+              index === groups.size - 1 ? (
+                <section className="dl-agent-day" key={day}>
+                  {items.map(render)}
                 </section>
               ) : (
-                <details key={day} className="dl-group dl-agent-history">
+                <details key={day} className="dl-agent-history">
                   <summary>
                     {day} · {items.length} updates
                   </summary>
-                  <div className="dl-agent-day">
-                    {items.map((event) => (
-                      <div key={event.id}>
-                        {event.kind === 'decision' && (
-                          <div className="dl-agent-decision-author">
-                            <Glyph
-                              kind={
-                                agent.id === 'warden'
-                                  ? 'warden'
-                                  : agent.id === 'scout'
-                                    ? ''
-                                    : 'plain'
-                              }
-                            >
-                              {agent.name[0]}
-                            </Glyph>
-                            <span>{agent.name}</span>
-                            <span className="dl-meta">{formatTime(event.at)}</span>
-                          </div>
-                        )}
-                        <ConversationItem event={event} resources={{ tasks: tracking?.running }} />
-                      </div>
-                    ))}
-                  </div>
+                  <div className="dl-agent-day">{items.map(render)}</div>
                 </details>
               ),
             )}
           </div>
         </div>
         <div className="dl-agent-composer">
-          <Composer
-            key={composerKey}
-            project={agent.name}
-            computer={agent.computers.join(', ') || 'Any computer'}
-            model="Connected model"
-            loading={pending}
-            onSend={(text) => void send(text)}
-          />
+          <Composer project={agent.name} suggestedText={suggestion} />
         </div>
       </div>
-      <aside className="dl-agent-tracking">
-        <h2 className="dl-section-title">Tracking</h2>
-        <section>
-          <h3 className="dl-meta">Background runs</h3>
-          <Item
-            lead={<Icon name="clock" />}
-            title={schedule}
-            description={
-              tracking?.schedule
-                ? `Last scheduled ${formatTime(`${tracking.schedule.day}T12:00:00`, 'day')} · ${lastStart}`
-                : 'Each run is a task: its own folder, questions in Waiting on you, and a report.'
-            }
-          />
-          {tracking?.runs?.slice(0, 5).map((run) => (
-            <Item
-              key={run.id}
-              lead={
-                run.status === 'running' ? (
-                  <Icon name="running" className="dl-spin" />
-                ) : (
-                  <Icon name={run.status === 'failed' ? 'attention' : 'check'} />
-                )
-              }
-              title={run.title}
-              description={`${runState(
-                run.status,
-                tracking.running.find((task) => task.id === run.id)?.computer,
-              )} · ${formatTime(run.at)}`}
-              href={`/dashboard/tasks/${encodeURIComponent(run.id)}`}
-            />
-          ))}
-          <Action loading={starting} disabled={busyRun} onClick={() => void runNow()}>
-            Run now
-          </Action>
-          {busyRun && (
-            <p className="dl-meta">One run at a time. Run now is back when this one finishes.</p>
-          )}
-        </section>
-        <a className="dl-item" href="/dashboard/inbox">
-          <span className="dl-t">
-            <span>
-              {waiting.length} of {agent.name}’s questions
-            </span>
-            <span>In Waiting on you</span>
-          </span>
-        </a>
-        <section>
-          <h3 className="dl-meta">Running</h3>
-          {tracking?.running.map((task) => (
-            <Item
-              key={task.id}
-              lead={<Icon name="running" className="dl-spin" />}
-              title={task.title}
-              description={[task.computer, formatTime(task.at, 'elapsed')]
-                .filter(Boolean)
-                .join(' · ')}
-              href={`/dashboard/tasks/${encodeURIComponent(task.id)}`}
-            />
-          ))}
-          {!tracking?.running.length && (
-            <p className="dl-meta">{tracking ? 'No running tasks' : 'Unavailable'}</p>
-          )}
-        </section>
-        <section>
-          <h3 className="dl-meta">Watching</h3>
-          {tracking?.watching.map((issue) => (
-            <Item
-              key={issue.id}
-              lead={<Icon name="file" />}
-              title={issue.title}
-              href={
-                issue.projectId
-                  ? `/dashboard/projects/${encodeURIComponent(issue.projectId)}/issues`
-                  : undefined
-              }
-            />
-          ))}
-          {!tracking?.watching.length && (
-            <p className="dl-meta">{tracking ? 'No watched issues' : 'Unavailable'}</p>
-          )}
-        </section>
-        <section>
-          <h3 className="dl-meta">Shipped this week</h3>
-          <Item
-            lead={<Icon name="merge" />}
-            title={tracking ? `${tracking.shipped.length} pull requests` : 'Unavailable'}
-            description={
-              tracking?.shipped[0]
-                ? `Last: ${[...tracking.shipped].sort((a, b) => b.at.localeCompare(a.at))[0].title}`
-                : undefined
-            }
-          />
-        </section>
-        <a className="dl-link" href={`/dashboard/agents/${encodeURIComponent(agent.id)}/tune`}>
-          Tune {agent.name}
-        </a>
-      </aside>
+      {!!agent.looksAfter?.length && (
+        <aside className="dl-agent-tracking">
+          <LooksAfterList agent={agent} onSaved={onChanged} />
+          <a className="dl-link" href={`/dashboard${path}/tune`}>
+            Agent details
+          </a>
+        </aside>
+      )}
+      {edit && (
+        <LooksAfterEditor
+          agent={agent}
+          item={edit}
+          onSaved={onChanged}
+          onClose={() => setEdit(null)}
+        />
+      )}
     </div>
-  );
-}
-function runState(status: string, computer?: string) {
-  return (
-    {
-      running: computer ? `Running on ${computer}` : 'Running',
-      succeeded: 'Finished',
-      failed: 'Failed',
-      interrupted: 'Stopped',
-      cancelled: 'Stopped',
-      timed_out: 'Timed out',
-    }[status] || status
   );
 }
