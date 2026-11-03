@@ -819,3 +819,25 @@ test('a review of a canvas note says so in words and gives its lines before and 
   ]);
   assert.equal(review.notes[0].changed, 2);
 });
+
+test('boards render with the deploy account’s Chromium when the service user has none', async () => {
+  const { boardBrowser } = await import('./design.ts');
+  const root = '/root/.cache/ms-playwright/chromium-1234/chrome-linux/chrome';
+  const user = '/home/deploy/.cache/ms-playwright/chromium-1234/chrome-linux/chrome';
+  assert.equal(
+    boardBrowser(root, '/home/deploy', (p) => p === root),
+    root,
+  );
+  assert.equal(
+    boardBrowser(root, '/home/deploy', (p) => p === user),
+    user,
+  );
+  assert.equal(
+    boardBrowser(root, '/home/deploy', () => false),
+    null,
+  );
+  assert.equal(
+    boardBrowser(root, undefined, () => false),
+    null,
+  );
+});

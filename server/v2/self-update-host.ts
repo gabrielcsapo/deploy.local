@@ -65,3 +65,15 @@ export function changesSince(path: string, running: string) {
     });
   return { main, ahead, changes };
 }
+
+/** A login account's home directory, from /etc/passwd. */
+export function homeOf(user: string, passwd = '/etc/passwd') {
+  try {
+    const line = readFileSync(passwd, 'utf8')
+      .split('\n')
+      .find((entry) => entry.startsWith(`${user}:`));
+    return line?.split(':')[5] || undefined;
+  } catch {
+    return undefined;
+  }
+}

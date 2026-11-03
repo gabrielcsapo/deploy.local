@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { homeOf, readReleaseConfig } from './self-update-host.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -597,6 +598,25 @@ const renders = new Map<string, Buffer>();
 const renderLimit = 64;
 
 /** Render one board at a commit to PNG with headless Chromium on this computer. */
+/**
+ * The Chromium to draw boards with. The service may run as root while `pnpm audit:visual:install`
+ * ran as the deploy account, so when root has no copy, use the same build from that account.
+ */
+export function boardBrowser(
+  path: string,
+  home = (() => {
+    const config = readReleaseConfig();
+    return config ? homeOf(config.user) : undefined;
+  })(),
+  exists: (path: string) => boolean = existsSync,
+) {
+  if (exists(path)) return path;
+  const at = path.indexOf('/.cache/ms-playwright/');
+  if (!home || at < 0) return null;
+  const candidate = home + path.slice(at);
+  return exists(candidate) ? candidate : null;
+}
+
 export async function renderBoard(repo: string, commit: string, board: string, width: number) {
   const key = `${commit}:${board}:${width}`;
   const cached = renders.get(key);
@@ -613,10 +633,10 @@ export async function renderBoard(repo: string, commit: string, board: string, w
     page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
   }
   const { chromium } = await import('playwright');
-  const { existsSync } = await import('node:fs');
-  if (!existsSync(chromium.executablePath()))
+  const executablePath = boardBrowser(chromium.executablePath());
+  if (!executablePath)
     fail('Rendering boards needs Chromium on the coordinator: run pnpm audit:visual:install', 503);
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath });
   try {
     const context = await browser.newContext({
       viewport: { width, height: placed.h },
