@@ -98,7 +98,8 @@ public struct V2LiveDetail: Codable, Equatable, Sendable {
 }
 public struct V2Event: Codable, Equatable, Sendable {
     public var cursor: Int
-    public var taskId: String
+    /// Null for events that belong to no task, like a background job's work log.
+    public var taskId: String?
     public var at: String
     public var type: String
     public var item: InboxItem?

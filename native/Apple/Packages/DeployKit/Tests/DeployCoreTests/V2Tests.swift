@@ -189,6 +189,13 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(store.answered == [item])
         #expect(store.snapshot.cursor == 3)
     }
+    @Test func eventPagesDecodeEventsWithoutATask() throws {
+        // A background job's work log has no task; one such event must not fail the whole page.
+        let json = #"{"events":[{"cursor":131,"taskId":null,"runId":null,"at":"2026-10-17T04:54:44.526Z","type":"job"},{"cursor":132,"taskId":"t","at":"now","type":"job"}],"cursor":132,"supportsWait":true}"#
+        let page = try JSONDecoder().decode(V2EventPage.self, from: Data(json.utf8))
+        #expect(page.events.map(\.taskId) == [nil, "t"])
+        #expect(page.cursor == 132)
+    }
     @Test @MainActor func unauthorizedStopsRefreshAndKeepsSavedDraft() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
