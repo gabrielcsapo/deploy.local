@@ -11,7 +11,7 @@ public struct V2Draft: Codable, Identifiable, Equatable, Sendable {
     public var workerId = "local"
     public var model: String?
     public var adapter = "codex"
-    public var agent = "scout"
+    public var agent = ""
     public var question = false
     public var rejected = false
     public init() {}
@@ -21,6 +21,7 @@ public struct V2Snapshot: Codable, Sendable {
     public var live: V2Live?
     public var workspace: V2Workspace?
     public var projects: [V2Project] = []
+    public var agents: [V2Agent] = []
     public var computers: [V2Computer] = []
     public var account: V2Account?
     public var events: [V2Event] = []
@@ -31,6 +32,29 @@ public struct V2Snapshot: Codable, Sendable {
     public var composers: [String: V2Draft] = [:]
     public var agentTasks: [String: String] = [:]
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case inbox, live, workspace, projects, agents, computers, account, events, cursor, updatedAt
+        case drafts, composer, composers, agentTasks
+    }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        inbox = try values.decode([InboxItem].self, forKey: .inbox)
+        live = try values.decodeIfPresent(V2Live.self, forKey: .live)
+        workspace = try values.decodeIfPresent(V2Workspace.self, forKey: .workspace)
+        projects = try values.decode([V2Project].self, forKey: .projects)
+        // Existing on-device snapshots predate the agents list; keep their drafts intact.
+        agents = try values.decodeIfPresent([V2Agent].self, forKey: .agents) ?? []
+        computers = try values.decode([V2Computer].self, forKey: .computers)
+        account = try values.decodeIfPresent(V2Account.self, forKey: .account)
+        events = try values.decode([V2Event].self, forKey: .events)
+        cursor = try values.decode(Int.self, forKey: .cursor)
+        updatedAt = try values.decodeIfPresent(Date.self, forKey: .updatedAt)
+        drafts = try values.decode([V2Draft].self, forKey: .drafts)
+        composer = try values.decode(V2Draft.self, forKey: .composer)
+        composers = try values.decode([String: V2Draft].self, forKey: .composers)
+        agentTasks = try values.decode([String: String].self, forKey: .agentTasks)
+    }
 }
 
 @Observable @MainActor public final class V2Store {
@@ -70,6 +94,7 @@ public struct V2Snapshot: Codable, Sendable {
     public var waiting: [InboxItem] { snapshot.inbox.filter { $0.state == .waiting }.sorted { $0.createdAt > $1.createdAt } }
     public var answered: [InboxItem] { snapshot.inbox.filter { $0.state == .answered }.sorted { ($0.answer?.at ?? $0.createdAt) > ($1.answer?.at ?? $1.createdAt) } }
     public var tasks: [V2Task] { snapshot.workspace?.tasks ?? [] }
+    public func agentName(_ id: String) -> String { snapshot.agents.first { $0.id == id }?.name ?? "An agent" }
     public var today: [V2Task] {
         tasks.filter { !snapshot.agentTasks.values.contains($0.id) && Self.isToday($0.updatedAt) }.sorted { $0.updatedAt > $1.updatedAt }
     }
@@ -150,9 +175,11 @@ public struct V2Snapshot: Codable, Sendable {
             async let waiting = client.inbox()
             async let answered = client.inbox(state: "answered")
             async let live = client.live()
+            async let agents = try? client.agents()
             let next = try await (workspace, waiting, answered, live)
             guard !Task.isCancelled else { return }
             snapshot.workspace = next.0; snapshot.inbox = next.1 + next.2; snapshot.live = next.3
+            if let agents = await agents { snapshot.agents = agents }
             snapshot.updatedAt = Date(); online = true; needsAuthentication = false
             if error == connectionError { error = nil }; connectionError = nil
             do { snapshot.projects = try await client.projects(fallback: next.0.projects); projectsError = nil }
@@ -201,11 +228,11 @@ public struct V2Snapshot: Codable, Sendable {
             if draft.rejected { return }
             do {
                 if draft.taskId == nil {
-                    let title = draft.question ? "Ask \(draft.agent.capitalized)" : String(draft.text.prefix(120))
+                    let title = draft.question && !draft.agent.isEmpty ? "Ask \(agentName(draft.agent))" : String(draft.text.prefix(120))
                     let task = try await client.createTask(operationId: draft.createOperationId, title: title, projectId: draft.projectId, workerId: draft.workerId)
                     draft.taskId = task.id; draft.revision = task.revision
                     snapshot.drafts[0] = draft
-                    if draft.question { snapshot.agentTasks[draft.agent] = task.id }
+                    if draft.question && !draft.agent.isEmpty { snapshot.agentTasks[draft.agent] = task.id }
                     try persist()
                 }
                 guard let taskId = draft.taskId else { return }

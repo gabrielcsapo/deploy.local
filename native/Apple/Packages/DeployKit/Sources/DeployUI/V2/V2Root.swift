@@ -160,11 +160,12 @@ struct V2Tabs: View {
                     .background(WorkspaceStyle.warning(scheme).opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(WorkspaceStyle.warning(scheme).opacity(0.25)))
             }
-            if store.online {
+            if !store.snapshot.agents.isEmpty {
                 V2Group(title: "Agents") {
-                    Button { agent = "scout" } label: { V2Row(title: "Scout", subtitle: "Working on \(store.tasks.filter { ["running", "checking"].contains($0.status) }.count) tasks", avatar: "Scout") }
-                    Divider().padding(.leading, 52)
-                    Button { agent = "warden" } label: { V2Row(title: "Warden", subtitle: liveSummary, avatar: "Warden") }
+                    ForEach(store.snapshot.agents) { item in
+                        if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
+                        Button { agent = item.id } label: { V2Row(title: item.name, subtitle: item.scheduleDescription, avatar: item.name) }
+                    }
                 }
             }
             VStack(alignment: .leading, spacing: 8) {
@@ -208,7 +209,6 @@ struct V2Tabs: View {
         }.refreshable { await store.refresh() }
     }
     private var coordinator: String { store.snapshot.live?.computers.first(where: { $0.roles.contains(.coordinator) })?.name ?? "your coordinator" }
-    private var liveSummary: String { store.snapshot.live.map { "Watching \($0.summary.running) apps · \($0.summary.failing) failing" } ?? "Health unavailable" }
     private func taskSubtitle(_ task: V2Task) -> String {
         let computer = store.snapshot.workspace?.workers.first { $0.id == task.workerId }?.name
         return [task.status.capitalized, computer].compactMap { $0 }.joined(separator: " · ")

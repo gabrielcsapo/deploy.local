@@ -23,7 +23,7 @@ struct V2ConversationView: View {
     @Environment(\.colorScheme) private var scheme
     private var currentId: String? { taskId ?? agent.flatMap { store.snapshot.agentTasks[$0] } }
     private var project: V2Project? { store.snapshot.projects.first { $0.id == store.tasks.first { $0.id == currentId }?.projectId } }
-    private var title: String { agent?.capitalized ?? detail?.task.title ?? store.tasks.first { $0.id == taskId }?.title ?? "Conversation" }
+    private var title: String { agent.map { store.agentName($0) } ?? detail?.task.title ?? store.tasks.first { $0.id == taskId }?.title ?? "Conversation" }
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -60,7 +60,7 @@ struct V2ConversationView: View {
                         Button { info = true } label: {
                             VStack(spacing: 3) {
                                 Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
-                                if agent != nil { Text("\(store.tasks.filter { $0.status == "running" }.count) tasks running ›").font(.system(size: 12)).foregroundStyle(.secondary) }
+                                if agent != nil { Text("\(store.tasks.filter { $0.id == currentId && $0.status == "running" }.count) tasks running ›").font(.system(size: 12)).foregroundStyle(.secondary) }
                                 else if let project {
                                     Text("\(project.name)\(designs.contains { $0.state == .waiting } ? " · design waiting" : "") ›").font(.system(size: 12)).foregroundStyle(.secondary)
                                 }
@@ -80,13 +80,13 @@ struct V2ConversationView: View {
                         }
                     }
                 }
-                .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "scout", askingAgent: agent != nil) }
+                .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "", askingAgent: agent != nil) }
                 .sheet(isPresented: $info) {
                     if let agent { V2AgentInfo(store: store, agent: agent).presentationDetents([.large]).presentationDragIndicator(.visible) }
                     else if let currentId { V2TaskInfo(store: store, taskId: currentId, detail: detail, diff: diff) { tab = $0 } }
                 }
                 .sheet(isPresented: $ship) { if let project, let currentId { V2ShipSheet(store: store, project: project, taskId: currentId) } }
-                .sheet(isPresented: $agentMenu) { V2AgentMenu(store: store, agent: agent ?? "scout", taskURL: currentId.flatMap { URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment($0)) }, search: { showSearch = true }, info: { info = true }) }
+                .sheet(isPresented: $agentMenu) { V2AgentMenu(store: store, agent: agent ?? "", taskURL: currentId.flatMap { URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment($0)) }, search: { showSearch = true }, info: { info = true }) }
                 .sheet(isPresented: Binding(get: { releaseId != nil }, set: { if !$0 { releaseId = nil } })) { if let releaseId { NavigationStack { V2ReleaseDetail(store: store, releaseId: releaseId).toolbar { Button("Done") { self.releaseId = nil } } } } }
                 .task(id: designs.map(\.id)) {
                     for item in designs where designBoards[item.id] == nil {
@@ -116,7 +116,7 @@ struct V2ConversationView: View {
         let known = Set(events.map(\.v2Id))
         for message in detail?.messages ?? [] where !known.contains(message.id) && message.isProgress != true {
             if message.role == "user" { events.append(.you(YouEvent(id: message.id, at: message.createdAt, text: message.content, attachments: []))) }
-            else if message.role == "assistant" { events.append(.reply(ReplyEvent(id: message.id, at: message.createdAt, agent: agent ?? "scout", paragraphs: message.content.components(separatedBy: "\n\n")))) }
+            else if message.role == "assistant" { events.append(.reply(ReplyEvent(id: message.id, at: message.createdAt, agent: agent ?? "", paragraphs: message.content.components(separatedBy: "\n\n")))) }
         }
         return events.sorted { $0.v2Date < $1.v2Date }.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) }
     }
@@ -134,12 +134,9 @@ struct V2ConversationView: View {
         ForEach(conversationEvents.filter { agent == nil || V2Store.isToday($0.v2Date) }, id: \.v2Id) { event in eventView(event) }
         // An inbox decision can precede its conversation event. Never drop that decision.
         ForEach(contextDecisions, id: \.id) { item in decisionView(item) }
-        if conversationEvents.isEmpty && contextDecisions.isEmpty {
-            V2Empty(title: "Ask \(agent?.capitalized ?? "Scout")", message: "Ask a question or describe what you want to change.")
-        }
         if detail?.runs.contains(where: \.isActive) == true {
-            Label("Working · \(detail?.runs.last?.adapter.capitalized ?? "Scout")", systemImage: "arrow.trianglehead.2.clockwise.rotate.90").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.active(scheme))
-            Text("You’ll hear back when the task is ready, or sooner if Scout needs you. Nothing ships without your merge.").font(.system(size: 13)).foregroundStyle(.secondary)
+            Label("Working · \(detail?.runs.last?.adapter.capitalized ?? "Agent")", systemImage: "arrow.trianglehead.2.clockwise.rotate.90").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.active(scheme))
+            Text("You’ll hear back when the task is ready, or sooner if your input is needed. Nothing ships without your merge.").font(.system(size: 13)).foregroundStyle(.secondary)
         }
     }
     private var contextDecisions: [InboxItem] {
@@ -207,12 +204,12 @@ struct V2AgentInfo: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                HStack(spacing: 12) { V2Avatar(name: agent); VStack(alignment: .leading, spacing: 4) { Text(agent.capitalized).font(.system(size: 22, weight: .semibold)); Text(agent == "warden" ? "Watches running apps" : "Helps with your tasks").font(.system(size: 13)).foregroundStyle(.secondary) } }
+                HStack(spacing: 12) { V2Avatar(name: store.agentName(agent)); VStack(alignment: .leading, spacing: 4) { Text(store.agentName(agent)).font(.system(size: 22, weight: .semibold)); Text(store.snapshot.agents.first { $0.id == agent }?.job ?? "").font(.system(size: 13)).foregroundStyle(.secondary) } }
                 V2Group(title: "Doing now") {
-                    ForEach(store.tasks.filter { ["running", "checking"].contains($0.status) }) { task in V2Row(title: task.title, subtitle: store.snapshot.workspace?.workers.first { $0.id == task.workerId }?.name, icon: "arrow.trianglehead.2.clockwise.rotate.90") }
+                    ForEach(store.tasks.filter { $0.id == store.snapshot.agentTasks[agent] && ["running", "checking"].contains($0.status) }) { task in V2Row(title: task.title, subtitle: store.snapshot.workspace?.workers.first { $0.id == task.workerId }?.name, icon: "arrow.trianglehead.2.clockwise.rotate.90") }
                 }
                 V2Group(title: "Watching") { ForEach(store.waiting.filter { $0.from == agent }, id: \.id) { item in V2Row(title: item.title, subtitle: "Waiting for your answer", attention: true) } }
-                V2Group(title: "About \(agent.capitalized)") {
+                V2Group(title: "About \(store.agentName(agent))") {
                     V2Row(title: "Models", subtitle: "Defaults live in Computers › Models", icon: "cpu")
                     V2Row(title: "May do", subtitle: "View approval rules on a computer", icon: "shield")
                 }

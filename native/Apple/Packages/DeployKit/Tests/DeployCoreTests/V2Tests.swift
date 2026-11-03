@@ -38,8 +38,11 @@ private func client() -> V2Client {
 private let answeredJSON = #"{"id":"rollback:home-gym","kind":"rollback","title":"Roll back home-gym?","text":"38% failing","from":"warden","createdAt":"2026-10-27T14:14:00Z","actions":[{"id":"rollback","label":"Roll back","primary":true}],"state":"answered","answer":{"actionId":"rollback","by":"gabriel","on":"web","at":"2026-10-27T14:15:00Z"}}"#
 private let taskJSON = #"{"id":"t","title":"Fix sync","status":"ready","revision":0,"workspacePath":"/fixture","baseRevision":"abc","createdAt":"2026-10-27T14:14:00Z","updatedAt":"2026-10-27T14:14:00Z"}"#
 private let runJSON = #"{"id":"r","taskId":"t","adapter":"codex","status":"queued","createdAt":"2026-10-27T14:14:00Z","updatedAt":"2026-10-27T14:14:00Z"}"#
+private let agentId = "d5eb96ea-63bb-43df-91fb-63dc741ac621"
+private let agentJSON = #"{"id":"d5eb96ea-63bb-43df-91fb-63dc741ac621","name":"Release notes writer","job":"Summarize what was merged…","projectId":"p","schedule":{"enabled":false,"time":"08:00","futureOption":true},"triggers":{"mention":true,"disk":false},"apps":[],"computers":[],"createdBy":"gabriel","futureField":{"nested":true}}"#
 private func routes() -> [String: [(Int, String)]] {
     ["GET /api/workspace/state": [(200, #"{"cursor":0,"projects":[],"tasks":[],"workers":[]}"#)],
+     "GET /api/v2/agents": [(200, #"{"agents":[]}"#)],
      "GET /api/v2/inbox?state=waiting": [(200, #"{"items":[]}"#)],
      "GET /api/v2/inbox?state=answered": [(200, #"{"items":[]}"#)],
      "GET /api/v2/live": [(200, #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"2026-10-27T14:14:00Z"},"computers":[]}"#)],
@@ -59,6 +62,105 @@ private func body(_ request: URLRequest) -> [String: Any] {
 }
 
 @Suite(.serialized) struct V2Tests {
+    @Test func agentsDecodeCoordinatorResponseAndOptionalFields() async throws {
+        V2URLProtocol.state.reset(["GET /api/v2/agents": [(200, #"{"agents":[\#(agentJSON),{"id":"minimal","name":"Minimal"},{"id":"nullable","name":"Nullable","job":null,"projectId":null,"schedule":null}],"futureField":true}"#)]])
+        let agents = try await client().agents()
+        #expect(agents.map(\.id) == [agentId, "minimal", "nullable"])
+        #expect(agents[0].name == "Release notes writer")
+        #expect(agents[0].job == "Summarize what was merged…")
+        #expect(agents[0].projectId == "p")
+        #expect(agents[0].schedule?.enabled == false)
+        #expect(agents[0].schedule?.time == "08:00")
+        #expect(agents[1].job == nil && agents[1].projectId == nil && agents[1].schedule == nil)
+        #expect(agents[2].schedule == nil)
+    }
+
+    @Test func agentScheduleUsesWebWordingAndToleratesMissingDetails() throws {
+        for (schedule, expected) in [
+            (#"null"#, "Only when you press Run now"),
+            (#"{}"#, "Only when you press Run now"),
+            (#"{"enabled":false,"time":"08:00"}"#, "Only when you press Run now"),
+            (#"{"enabled":true,"time":"08:00"}"#, "Every morning at 08:00"),
+            (#"{"enabled":true,"time":"19:30"}"#, "Every morning at 19:30"),
+            (#"{"enabled":true}"#, "Every morning"),
+            (#"{"enabled":true,"time":null}"#, "Every morning")
+        ] {
+            let json = #"{"id":"a","name":"Agent","schedule":\#(schedule)}"#
+            let agent = try JSONDecoder().decode(V2Agent.self, from: Data(json.utf8))
+            #expect(agent.scheduleDescription == expected)
+        }
+    }
+
+    @Test func agentControlsUseTheCoordinatorId() async throws {
+        let path = "/api/v2/agents/\(agentId)/control"
+        V2URLProtocol.state.reset([
+            "GET " + path: [(200, #"{"paused":false,"mutedUntil":null}"#)],
+            "PATCH " + path: [(200, #"{"paused":true,"mutedUntil":null}"#)]
+        ])
+        let api = client()
+        #expect(try await api.agentControl(agentId).paused == false)
+        #expect(try await api.changeAgentControl(agentId, paused: true, muteMinutes: 60).paused)
+        let requests = V2URLProtocol.state.recorded()
+        #expect(requests.map { $0.url?.path } == [path, path])
+        #expect(body(requests[1])["paused"] as? Bool == true)
+        #expect(body(requests[1])["muteMinutes"] as? Int == 60)
+    }
+
+    @Test @MainActor func agentsPersistAndRefreshFailuresKeepLastListWithoutFailingRefresh() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var responses = routes()
+        responses["GET /api/v2/agents"] = [
+            (200, #"{"agents":[\#(agentJSON)]}"#),
+            (503, #"{"error":"Unavailable"}"#),
+            (200, #"{"agents":[{"id":"missing-name"}]}"#),
+            (401, #"{"error":"Unavailable"}"#),
+            (-1, ""),
+            (200, #"{"agents":[]}"#)
+        ]
+        V2URLProtocol.state.reset(responses)
+        let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
+        await store.refresh()
+        #expect(store.snapshot.agents.map(\.id) == [agentId])
+        #expect(store.agentName(agentId) == "Release notes writer")
+        #expect(store.agentName("scout") == "An agent")
+        let restored = V2Store(connection: connection, client: client(), cacheDirectory: directory)
+        #expect(restored.snapshot.agents == store.snapshot.agents)
+        for _ in 0..<4 {
+            await restored.refresh()
+            #expect(restored.online && !restored.needsAuthentication && restored.error == nil)
+            #expect(restored.snapshot.agents == store.snapshot.agents)
+        }
+        await restored.refresh()
+        #expect(restored.online && restored.snapshot.agents.isEmpty)
+    }
+
+    @Test func snapshotsWithoutAgentsKeepSavedDrafts() throws {
+        var snapshot = V2Snapshot()
+        var draft = V2Draft(); draft.text = "Keep my draft"
+        snapshot.drafts = [draft]; snapshot.composer = draft; snapshot.composers["new"] = draft
+        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)) as? [String: Any])
+        json.removeValue(forKey: "agents")
+        let restored = try JSONDecoder().decode(V2Snapshot.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(restored.agents.isEmpty)
+        #expect(restored.drafts == [draft] && restored.composer == draft && restored.composers["new"] == draft)
+    }
+
+    @Test @MainActor func agentDraftUsesRealNameAndId() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var responses = routes()
+        responses["GET /api/v2/agents"] = [(200, #"{"agents":[\#(agentJSON)]}"#)]
+        V2URLProtocol.state.reset(responses)
+        let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
+        var draft = V2Draft(); draft.agent = agentId; draft.question = true; draft.text = "What merged?"
+        #expect(await store.enqueue(draft))
+        await store.refresh()
+        let request = try #require(V2URLProtocol.state.recorded().first { $0.httpMethod == "POST" && $0.url?.path == "/api/workspace/tasks" })
+        #expect(body(request)["title"] as? String == "Ask Release notes writer")
+        #expect(store.snapshot.agentTasks[agentId] == "t")
+    }
+
     @Test func answerUsesIPhoneAndReturnsWinnerAfterConflict() async throws {
         V2URLProtocol.state.reset([
             "POST /api/v2/inbox/rollback:home-gym/answer": [(409, #"{"error":"Already answered"}"#)],
@@ -213,7 +315,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
         V2URLProtocol.state.reset([
             "GET /api/v2/notifications": [(200, preferences)],
             "PATCH /api/v2/notifications": [(200, preferences)],
-            "PATCH /api/v2/agents/warden/control": [(200, #"{"paused":true,"mutedUntil":null}"#)],
+            "PATCH /api/v2/agents/\(agentId)/control": [(200, #"{"paused":true,"mutedUntil":null}"#)],
             "GET /api/v2/devices": [(200, #"{"devices":[{"id":"phone","name":"iPhone","createdAt":"2026-10-28T00:00:00Z"}]}"#)],
             "DELETE /api/v2/devices/phone": [(200, #"{"removed":true}"#)]
         ])
@@ -221,7 +323,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
         let settings = try await api.notificationPreferences()
         #expect(settings.quietHours)
         #expect(try await api.saveNotificationPreferences(settings) == settings)
-        #expect(try await api.changeAgentControl("warden", paused: true, muteMinutes: 60).paused)
+        #expect(try await api.changeAgentControl(agentId, paused: true, muteMinutes: 60).paused)
         #expect(try await api.pairedDevices().first?.name == "iPhone")
         try await api.revokeDevice("phone")
         let requests = V2URLProtocol.state.recorded()

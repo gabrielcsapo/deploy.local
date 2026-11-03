@@ -75,11 +75,10 @@ struct V2AgentMenu: View {
                 Section {
                     Button("Mute for 1 hour", systemImage: "bell.slash") { change(muteMinutes: 60) }.disabled(busy || control == nil)
                     if let until = control?.mutedUntil { Text("Muted until \(V2Labels.shortDate(until))").font(.caption); Button("Unmute") { change(muteMinutes: 0) }.disabled(busy) }
-                    Label("Tune \(agent.capitalized)", systemImage: "slider.horizontal.3").foregroundStyle(.secondary)
-                    Button(control?.paused == true ? "Resume \(agent.capitalized)" : "Pause \(agent.capitalized)", systemImage: "pause") { change(paused: !(control?.paused ?? false)) }.disabled(busy || control == nil)
-                } footer: { Text("Pause stops new agent work. Tune is available in agent settings on a computer.") }
+                    Button(control?.paused == true ? "Resume \(store.agentName(agent))" : "Pause \(store.agentName(agent))", systemImage: "pause") { change(paused: !(control?.paused ?? false)) }.disabled(busy || control == nil)
+                } footer: { Text("Pause stops new agent work.") }
                 if let error { Text(error).foregroundStyle(.red) }
-            }.task { do { control = try await store.client.agentControl(agent) } catch { self.error = error.localizedDescription } }.navigationTitle(agent.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
+            }.task { do { control = try await store.client.agentControl(agent) } catch { self.error = error.localizedDescription } }.navigationTitle(store.agentName(agent)).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
         }.presentationDetents([.medium, .large])
     }
     private func change(paused: Bool? = nil, muteMinutes: Int? = nil) {

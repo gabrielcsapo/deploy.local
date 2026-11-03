@@ -109,11 +109,11 @@ struct V2ReleaseDetail: View {
                     V2ReleaseContents(store: store, release: release)
                     if release.state == .failed {
                         Text("Variables are changed on a computer, in the project's settings.").font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button("Ask Scout to fix it") {
-                            var draft = store.composer(taskId: nil, agent: "scout")
-                            draft.agent = "scout"; draft.question = true; draft.projectId = release.projectId
+                        Button("Ask for a fix") {
+                            var draft = store.composer(taskId: nil)
+                            draft.agent = ""; draft.question = false; draft.projectId = release.projectId
                             draft.text = "Help me fix release \(release.id) for \(release.projectId). " + (release.steps.first { $0.state == .failed }?.detail ?? "The release failed.")
-                            store.saveComposer(draft, context: "agent:scout"); ask = true
+                            store.saveComposer(draft, context: "new"); ask = true
                         }.buttonStyle(V2ActionStyle(primary: true))
                     }
                 }
@@ -122,7 +122,7 @@ struct V2ReleaseDetail: View {
             }.padding(16)
         }.navigationTitle("Release \(releaseId.prefix(7))").navigationBarTitleDisplayMode(.inline)
             .task { await load() }.refreshable { await load() }
-            .sheet(isPresented: $ask) { V2ComposerSheet(store: store, agent: "scout", askingAgent: true) }
+            .sheet(isPresented: $ask) { V2ComposerSheet(store: store) }
     }
     private func status(_ release: Release) -> String {
         if release.state == .running { return (release.steps.first { $0.state == .running }?.name.rawValue.capitalized ?? "Preparing") + " · " + String(release.id.prefix(7)) }
@@ -177,7 +177,7 @@ struct V2ShipSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("The whole project moves together. Warden watches the release after it activates.").font(.system(size: 15)).foregroundStyle(.secondary)
+                    Text("The whole project moves together. Health is monitored after the release activates.").font(.system(size: 15)).foregroundStyle(.secondary)
                     V2Group {
                         ForEach(project.apps ?? []) { app in V2Row(title: app.name, subtitle: app.kind == .worker ? "Worker" : "Web app") }
                         V2Row(title: "Runs on", subtitle: "Uses the project's configured computers", icon: "desktopcomputer")
@@ -187,7 +187,7 @@ struct V2ShipSheet: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Prepare the release", systemImage: "shippingbox")
                         Label("Verify it on a copy, then switch", systemImage: "checkmark.shield")
-                        Label("Warden watches for 10 minutes", systemImage: "waveform.path.ecg")
+                        Label("Monitor health for 10 minutes", systemImage: "waveform.path.ecg")
                     }.font(.system(size: 13)).foregroundStyle(.secondary)
                     if project.apps?.isEmpty != false { Text("This project has no configured apps to release. Set up its app on a computer first.").font(.system(size: 13)) }
                     if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }

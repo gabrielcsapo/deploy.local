@@ -13,7 +13,7 @@ struct V2PickedFile: Codable, Identifiable {
 struct V2ComposerSheet: View {
     @Bindable var store: V2Store
     var taskId: String? = nil
-    var agent = "scout"
+    var agent = ""
     var askingAgent = false
     @State private var draft = V2Draft()
     @State private var attachments: [V2PickedFile] = []
@@ -67,7 +67,7 @@ struct V2ComposerSheet: View {
                 }
                 HStack(spacing: 8) {
                     Button { focused = false; attachmentMenu = true } label: { Image(systemName: "plus").frame(width: 44, height: 44) }.accessibilityLabel("Add attachment")
-                    Text(taskId == nil ? (draft.question ? "To \(agent.capitalized) · ask a question" : "To Scout · it will start a task") : "This conversation").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(taskId == nil ? (draft.question ? (agent.isEmpty ? "Ask a question" : "To \(store.agentName(agent)) · ask a question") : "It will start a task") : "This conversation").font(.system(size: 12)).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                     Button { focused = false; models = true } label: { HStack(spacing: 3) { Text(modelName); Image(systemName: "chevron.down").font(.system(size: 8)) }.font(.system(size: 13)).frame(minHeight: 44) }
                     Button { send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)) }

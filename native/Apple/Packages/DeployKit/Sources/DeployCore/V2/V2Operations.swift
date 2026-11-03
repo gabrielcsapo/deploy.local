@@ -189,7 +189,7 @@ public struct V2DesignSummary: Equatable, Sendable {
 public enum V2Labels {
     public static func agentName(_ item: InboxItem) -> String {
         if let name = item.fromName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
-        return item.from == "scout" ? "Scout" : item.from == "warden" ? "Warden" : "An agent"
+        return "An agent"
     }
     public static func questionOptions(_ item: InboxItem) -> [InboxAction] {
         let options = item.actions.filter { !["answer", "dismiss"].contains($0.id) }

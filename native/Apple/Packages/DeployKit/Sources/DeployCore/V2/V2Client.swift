@@ -1,6 +1,24 @@
 import Foundation
 import CryptoKit
 
+public struct V2Agent: Codable, Identifiable, Equatable, Sendable {
+    public struct Schedule: Codable, Equatable, Sendable {
+        public var enabled: Bool?
+        public var time: String?
+    }
+    public var id: String
+    public var name: String
+    public var job: String?
+    public var projectId: String?
+    public var schedule: Schedule?
+
+    public var scheduleDescription: String {
+        guard schedule?.enabled == true else { return "Only when you press Run now" }
+        guard let time = schedule?.time, !time.isEmpty else { return "Every morning" }
+        return "Every morning at \(time)"
+    }
+}
+
 public struct V2Project: Codable, Identifiable, Equatable, Sendable {
     public var id: String
     public var name: String
@@ -155,6 +173,11 @@ public actor V2Client {
     public func live() async throws -> V2Live { try await client.request("/api/v2/live") }
     public func liveApp(_ id: String) async throws -> V2LiveDetail { try await client.request("/api/v2/live/\(Self.segment(id))") }
     public func workspace() async throws -> V2Workspace { try await client.request("/api/workspace/state") }
+    public func agents() async throws -> [V2Agent] {
+        struct Response: Decodable, Sendable { let agents: [V2Agent] }
+        let response: Response = try await client.request("/api/v2/agents")
+        return response.agents
+    }
     public func projects(fallback: [V2Project]) async throws -> [V2Project] {
         struct Response: Decodable, Sendable {
             let projects: [V2Project]

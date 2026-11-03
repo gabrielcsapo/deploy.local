@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import DeployCore
 
-@Test func questionContentDecodesWithNamesAndLegacyFallbacks() throws {
+@Test func questionContentDecodesNamesWithoutInventingLegacyAgents() throws {
     let json = ##"{"id":"question:q","kind":"question","title":"Publish?","text":"Publish?","from":"custom-id","fromName":"Release notes writer","projectName":"home-gym","taskId":"task","createdAt":"2026-11-03T12:00:00Z","context":{"text":"# Draft\n\n- Ready","messageId":"message","createdAt":"2026-11-03T11:59:00Z"},"actions":[],"state":"waiting"}"##
     var item = try JSONDecoder().decode(InboxItem.self, from: Data(json.utf8))
     #expect(item.context?.text == "# Draft\n\n- Ready")
@@ -13,9 +13,11 @@ import Foundation
     item.fromName = nil
     #expect(V2Labels.agentName(item) == "An agent")
     item.from = "scout"
-    #expect(V2Labels.agentName(item) == "Scout")
+    #expect(V2Labels.agentName(item) == "An agent")
     item.from = "warden"
     item.fromName = "  "
+    #expect(V2Labels.agentName(item) == "An agent")
+    item.fromName = "Warden"
     #expect(V2Labels.agentName(item) == "Warden")
     var legacy = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
     for key in ["context", "fromName", "projectName"] { legacy.removeValue(forKey: key) }
