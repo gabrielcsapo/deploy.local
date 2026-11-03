@@ -65,6 +65,67 @@ struct V2Row: View {
             .frame(minHeight: compact ? 44 : 56).contentShape(Rectangle())
     }
 }
+/// The roomier Settings board has its own spacing, without changing other lists.
+struct V2SettingsGroup<Content: View>: View {
+    var title: String? = nil
+    @ViewBuilder var content: Content
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let title {
+                Text(title).font(.system(size: 13)).frame(minHeight: 18)
+                    .foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                    .padding(.horizontal, 16).accessibilityAddTraits(.isHeader)
+            }
+            V2Group { content }
+        }.padding(.top, title == nil ? 0 : 28)
+    }
+}
+
+struct V2SettingsRow<Accessory: View>: View {
+    let title: String
+    var subtitle: String? = nil
+    var icon = "square.grid.2x2"
+    var avatar: String? = nil
+    @ViewBuilder var accessory: Accessory
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        HStack(spacing: 14) {
+            if let avatar {
+                Text(String(avatar.prefix(1)).uppercased()).font(.system(size: 17, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .background(WorkspaceStyle.selected(scheme), in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: icon).font(.system(size: 18))
+                    .frame(width: 30, height: 30)
+                    .background(WorkspaceStyle.line(scheme).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: avatar == nil ? 16 : 17, weight: avatar == nil ? .medium : .semibold))
+                    .frame(minHeight: 22, alignment: .leading)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                        .frame(minHeight: 18, alignment: .leading)
+                }
+            }.lineLimit(1).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+            accessory
+        }.foregroundStyle(WorkspaceStyle.text(scheme))
+            .padding(.horizontal, 16).padding(.vertical, avatar == nil ? 10 : 12)
+            .frame(minHeight: avatar == nil ? 56 : 72).contentShape(Rectangle())
+    }
+}
+
+struct V2SettingsChevron: View {
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        Image(systemName: "chevron.right").font(.system(size: 13))
+            .frame(width: 16, height: 16)
+            .foregroundStyle(WorkspaceStyle.tertiary(scheme)).accessibilityHidden(true)
+    }
+}
+
 struct V2Avatar: View {
     let name: String
     var size: CGFloat = 26

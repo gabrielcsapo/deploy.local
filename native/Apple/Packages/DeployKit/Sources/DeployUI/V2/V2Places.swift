@@ -167,41 +167,55 @@ struct V2SettingsView: View {
     @State private var notifications = false
     @State private var devices = false
     @State private var approvals = false
+    @State private var approvalRules: V2Approvals?
     @AppStorage(V2Appearance.defaultsKey) private var appearance = V2Appearance.system
     @Environment(\.colorScheme) private var scheme
-    private var agentNames: String {
-        store.snapshot.agents.isEmpty ? "No agents" : store.snapshot.agents.map(\.name).joined(separator: ", ")
+    private var agentSummary: String {
+        let agents = store.snapshot.agents
+        guard !agents.isEmpty else { return "No agents" }
+        let names = agents.map(\.name).joined(separator: ", ")
+        guard let approvalRules else { return names }
+        // Include project overrides: an allowed override must not read as "all ask first".
+        let ids = Set(agents.map(\.id))
+        let allAsk = approvalRules.rules.filter { ids.contains($0.agent) }.allSatisfy { $0.mode == .ask }
+        return allAsk ? "\(names) · all ask first" : names
+    }
+    private var accountName: String { store.snapshot.account?.username ?? store.connection.username }
+    private var coordinatorName: String {
+        store.snapshot.live?.computers.first(where: { $0.roles.contains(.coordinator) })?.name
+            ?? store.snapshot.computers.first(where: { $0.kind == "coordinator" })?.name
+            ?? "your coordinator"
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Settings").font(.system(size: 28, weight: .bold)).tracking(-0.56)
-                .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 8)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    V2Group {
-                        V2Row(title: store.snapshot.account?.username ?? store.connection.username,
-                              subtitle: "Signed in on this iPhone",
-                              avatar: store.snapshot.account?.username ?? store.connection.username, compact: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Settings").font(.system(size: 28, weight: .bold)).tracking(-0.56)
+                    .frame(minHeight: 34)
+                    // The board leaves a 44 pt navigation area below the system safe area.
+                    .padding(.horizontal, 20).padding(.top, 52).padding(.bottom, 16)
+                    .accessibilityAddTraits(.isHeader)
+                VStack(alignment: .leading, spacing: 0) {
+                    V2SettingsGroup {
+                        V2SettingsRow(title: accountName,
+                                      subtitle: "Signed in on this iPhone · \(coordinatorName)",
+                                      avatar: accountName) { EmptyView() }
                     }
-                    V2NotificationControls(store: store, compact: true).padding(.top, 4)
-                    V2Group {
-                        Button { notifications = true } label: {
-                            V2Row(title: "Notification settings", icon: "bell", chevron: true, compact: true)
-                        }
-                        Divider()
+                    V2NotificationControls(store: store, openSettings: { notifications = true })
+                    V2SettingsGroup(title: "Devices") {
                         Button { devices = true } label: {
-                            V2Row(title: "Paired devices", icon: "iphone", chevron: true, compact: true)
+                            V2SettingsRow(title: "Paired devices", subtitle: "Phones and computers signed in as you", icon: "iphone") { V2SettingsChevron() }
                         }
                     }
-                    V2Group {
+                    V2SettingsGroup(title: "Agents and data") {
                         Button { approvals = true } label: {
-                            V2Row(title: "What agents may do", subtitle: agentNames, icon: "shield", chevron: true, compact: true)
+                            V2SettingsRow(title: "What agents may do", subtitle: agentSummary, icon: "shield") { V2SettingsChevron() }
                         }
                         Divider()
                         Button { backups = true } label: {
-                            V2Row(title: "Backups", subtitle: "Restore to a copy", icon: "arrow.down.to.line", chevron: true, compact: true)
+                            V2SettingsRow(title: "Backups", subtitle: "Restore an app to a copy", icon: "arrow.down.to.line") { V2SettingsChevron() }
                         }
-                        Divider()
+                    }
+                    V2SettingsGroup(title: "Display") {
                         Menu {
                             Picker("Appearance", selection: $appearance) {
                                 ForEach(V2Appearance.allCases, id: \.self) { choice in
@@ -209,27 +223,26 @@ struct V2SettingsView: View {
                                 }
                             }
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "slider.horizontal.3").foregroundStyle(WorkspaceStyle.secondary(scheme)).frame(width: 20)
-                                Text("Appearance")
-                                Spacer(minLength: 4)
-                                Text(appearance.label)
-                                Image(systemName: "chevron.up.chevron.down").font(.system(size: 11))
-                            }.font(.system(size: 17)).padding(.horizontal, 16).frame(minHeight: 44).contentShape(Rectangle())
+                            V2SettingsRow(title: "Appearance", icon: "slider.horizontal.3") {
+                                HStack(spacing: 6) {
+                                    Text(appearance.label).font(.system(size: 16))
+                                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 11))
+                                }.foregroundStyle(WorkspaceStyle.tertiary(scheme)).frame(minHeight: 44)
+                            }
                         }.accessibilityLabel("Appearance").accessibilityValue(appearance.label)
                     }
                     Text("Screen use, removing data and secrets stay on a computer.")
-                        .font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                        .padding(.horizontal, 16).padding(.top, 2)
-                }.padding(.horizontal, 16).padding(.bottom, 8)
-            }.scrollIndicators(.hidden)
-            V2Group {
-                Button(role: .destructive, action: signOut) {
-                    Text("Sign out").font(.system(size: 17)).foregroundStyle(WorkspaceStyle.danger(scheme))
-                        .frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
-                }
-            }.padding(.horizontal, 16).padding(.vertical, 8)
-        }.buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
+                        .font(.system(size: 13)).lineSpacing(2).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                        .padding(.horizontal, 16).padding(.top, 12)
+                    V2SettingsGroup {
+                        Button(role: .destructive, action: signOut) {
+                            Text("Sign out").font(.system(size: 16, weight: .medium)).foregroundStyle(WorkspaceStyle.danger(scheme))
+                                .frame(maxWidth: .infinity, minHeight: 56).contentShape(Rectangle())
+                        }
+                    }.padding(.top, 36)
+                }.padding(.horizontal, 16).padding(.bottom, 32)
+            }
+        }.scrollIndicators(.hidden).buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
         .sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
         .sheet(isPresented: $notifications) { V2NotificationSettings(store: store) }
         .sheet(isPresented: $devices) { V2DevicesView(store: store) }
@@ -237,6 +250,10 @@ struct V2SettingsView: View {
         .task {
             if V2Evidence.board == "RestorePhone" { backups = true }
             if V2Evidence.board == "SettingsApprovalsPhone" { approvals = true }
+        }
+        .task(id: store.snapshot.updatedAt) {
+            // A failed read leaves the real names visible without guessing at permissions.
+            approvalRules = try? await store.client.approvals()
         }
     }
     private func signOut() {
