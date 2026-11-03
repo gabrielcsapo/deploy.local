@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-inbox-producers-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { db, list } = await import('../workspace/store.ts');
+const { db, list, save } = await import('../workspace/store.ts');
 const { createInboxItem, registerInboxAction, answerInbox, syncInbox, withdrawInboxItems } =
   await import('./inbox.ts');
 after(() => {
@@ -100,4 +100,112 @@ test('menu bar provenance is additive and validated separately from the desktop 
   });
   assert.equal(item.answer?.surface, 'menu-bar');
   assert.equal(item.answer?.on, 'desktop');
+});
+
+test('questions include only the latest non-progress task reply and owner-scoped names', () => {
+  const who = 'question-reader';
+  const createdAt = '2026-11-03T12:00:00.000Z';
+  save('task', who, { id: 'task', projectId: 'project', status: 'running' });
+  save('project', who, { id: 'project', name: 'home-gym' });
+  save('agent', who, { id: 'custom-id', name: 'Release notes writer' });
+  save('run', who, { id: 'run', taskId: 'task', agentId: 'custom-id' });
+  save('question', who, {
+    id: 'draft',
+    taskId: 'task',
+    runId: 'run',
+    question: 'Publish?',
+    options: ['Do not publish'],
+    status: 'pending',
+    createdAt,
+  });
+  const message = {
+    id: 'draft-message',
+    taskId: 'task',
+    role: 'assistant',
+    content: '# Draft\n\n- Ready',
+    createdAt,
+  };
+  save('message', who, message);
+  // Insertion order is not message order. Ignore progress, user, tool and other task replies.
+  save('message', who, {
+    ...message,
+    id: 'older',
+    content: 'Old',
+    createdAt: '2026-11-02T12:00:00.000Z',
+  });
+  for (const [id, changes] of Object.entries({
+    progress: { isProgress: true },
+    user: { role: 'user' },
+    tool: { role: 'tool' },
+    other: { taskId: 'other' },
+    blank: { content: '  ' },
+  }))
+    save('message', who, { ...message, id, createdAt: '2026-11-03T12:01:00.000Z', ...changes });
+  save('message', 'another-owner', {
+    ...message,
+    id: 'private',
+    content: 'Private',
+    createdAt: '2026-11-04T12:00:00.000Z',
+  });
+  save('agent', 'another-owner', { id: 'custom-id', name: 'Private agent' });
+  const item = syncInbox(who)[0];
+  assert.equal(item.fromName, 'Release notes writer');
+  assert.equal(item.projectName, 'home-gym');
+  assert.deepEqual(item.context, { text: message.content, messageId: message.id, createdAt });
+  assert.equal(item.actions[0].primary, true);
+  const eventsBefore = db
+    .prepare("SELECT payload FROM events WHERE owner=? AND type='v2.inbox' ORDER BY cursor")
+    .all(who) as { payload: string }[];
+  assert.deepEqual(JSON.parse(eventsBefore.at(-1)!.payload).item.context, item.context);
+  syncInbox(who);
+  assert.equal(
+    (
+      db.prepare("SELECT count(*) AS n FROM events WHERE owner=? AND type='v2.inbox'").get(who) as {
+        n: number;
+      }
+    ).n,
+    eventsBefore.length,
+  );
+  save('message', who, {
+    ...message,
+    id: 'revised',
+    content: '**Revised**',
+    createdAt: '2026-11-03T12:02:00.000Z',
+  });
+  assert.equal(syncInbox(who)[0].context?.text, '**Revised**');
+});
+
+test('missing replies and non-question decisions have null context; names never fall back to ids', () => {
+  const who = 'empty-question';
+  const createdAt = '2026-11-03T12:00:00.000Z';
+  save('task', who, { id: 'task', status: 'running' });
+  for (const agentId of ['scout', 'warden', 'deleted-agent']) {
+    save('run', who, { id: agentId, taskId: 'task', agentId });
+    save('question', who, {
+      id: agentId,
+      taskId: 'task',
+      runId: agentId,
+      question: 'Continue?',
+      options: [],
+      status: 'pending',
+      createdAt,
+    });
+  }
+  const items = syncInbox(who);
+  assert.deepEqual(
+    new Set(items.map((item) => item.fromName)),
+    new Set(['Scout', 'Warden', 'An agent']),
+  );
+  assert(items.every((item) => item.context === null && item.projectName === undefined));
+  createInboxItem(who, { ...decision('no-task'), kind: 'question' }, {});
+  createInboxItem(who, { ...decision('not-question'), taskId: 'task' }, {});
+  save('message', who, {
+    id: 'reply',
+    taskId: 'task',
+    role: 'assistant',
+    content: 'Draft',
+    createdAt,
+  });
+  assert.equal(syncInbox(who).find((item) => item.id === 'no-task')!.context, null);
+  assert.equal(syncInbox(who).find((item) => item.id === 'not-question')!.context, null);
 });

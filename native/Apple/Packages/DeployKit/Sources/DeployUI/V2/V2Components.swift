@@ -59,12 +59,13 @@ struct V2Row: View {
 }
 struct V2Avatar: View {
     let name: String
+    var size: CGFloat = 26
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         Text(String(name.prefix(1)).uppercased()).font(.system(size: 12, weight: .semibold))
             .foregroundStyle(name.lowercased() == "warden" ? WorkspaceStyle.success(scheme) : WorkspaceStyle.accent(scheme))
-            .frame(width: 26, height: 26)
-            .background(name.lowercased() == "warden" ? WorkspaceStyle.success(scheme).opacity(0.1) : WorkspaceStyle.accentSoft(scheme), in: RoundedRectangle(cornerRadius: 6))
+            .frame(width: size, height: size)
+            .background(name.lowercased() == "warden" ? WorkspaceStyle.success(scheme).opacity(0.1) : WorkspaceStyle.accentSoft(scheme), in: RoundedRectangle(cornerRadius: size > 26 ? 8 : 6))
     }
 }
 struct V2Status: View {
@@ -100,40 +101,48 @@ struct V2ActionStyle: ButtonStyle {
 struct V2Decision: View {
     let item: InboxItem
     @Bindable var store: V2Store
+    var inSheet = false
     @State private var confirmation: InboxAction?
     @State private var note = ""
     @Environment(\.colorScheme) private var scheme
     private var current: InboxItem { store.snapshot.inbox.first { $0.id == item.id } ?? item }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: current.state == .waiting ? "exclamationmark.circle" : "checkmark.circle")
-                    .foregroundStyle(current.state == .waiting ? WorkspaceStyle.warning(scheme) : WorkspaceStyle.success(scheme))
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(current.title).font(.system(size: 17, weight: .medium))
-                    Text(current.text).font(.system(size: 15)).foregroundStyle(WorkspaceStyle.secondary(scheme))
+            if current.kind == .question && current.state == .waiting {
+                V2QuestionDecision(item: current, store: store, note: $note) { action in
+                    if action.confirm != nil { confirmation = action }
+                    else { respond(action) }
                 }
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: current.state == .waiting ? "exclamationmark.circle" : "checkmark.circle")
+                        .foregroundStyle(current.state == .waiting ? WorkspaceStyle.warning(scheme) : WorkspaceStyle.success(scheme))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(current.title).font(.system(size: 17, weight: .medium))
+                        Text(current.text).font(.system(size: 15)).foregroundStyle(WorkspaceStyle.secondary(scheme))
+                    }
+                }
+                if let answer = current.answer {
+                    Text("\(V2Labels.outcome(current)) · \(answer.by) · \(source(answer.on)) · \(formatted(answer.at))")
+                        .font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                    if let note = answer.note { Text(note).font(.system(size: 15)) }
+                    if current.kind == .rollback, let project = current.projectId, V2Labels.outcome(current) == "Approved" { V2ProjectRollback(store: store, project: project) }
+                } else if current.state == .waiting {
+                    if current.actions.contains(where: { $0.id == "answer" }) {
+                        TextField("Your answer", text: $note, axis: .vertical).textFieldStyle(.roundedBorder)
+                    }
+                    ForEach(current.actions, id: \.id) { action in
+                        Button(action.label) {
+                            if action.confirm != nil { confirmation = action }
+                            else { respond(action) }
+                        }.buttonStyle(V2ActionStyle(primary: action.primary == true))
+                            .disabled(!store.online || store.busy || (action.id == "answer" && note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                    }
+                } else { Text(current.state.rawValue.capitalized).font(.system(size: 13)).foregroundStyle(.secondary) }
             }
-            if let answer = current.answer {
-                Text("\(V2Labels.outcome(current)) · \(answer.by) · \(source(answer.on)) · \(formatted(answer.at))")
-                    .font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                if let note = answer.note { Text(note).font(.system(size: 15)) }
-                if current.kind == .rollback, let project = current.projectId, V2Labels.outcome(current) == "Approved" { V2ProjectRollback(store: store, project: project) }
-            } else if current.state == .waiting {
-                if current.actions.contains(where: { $0.id == "answer" }) {
-                    TextField("Your answer", text: $note, axis: .vertical).textFieldStyle(.roundedBorder)
-                }
-                ForEach(current.actions, id: \.id) { action in
-                    Button(action.label) {
-                        if action.confirm != nil { confirmation = action }
-                        else { respond(action) }
-                    }.buttonStyle(V2ActionStyle(primary: action.primary == true))
-                        .disabled(!store.online || store.busy || (action.id == "answer" && note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-                }
-            } else { Text(current.state.rawValue.capitalized).font(.system(size: 13)).foregroundStyle(.secondary) }
             if store.online, let error = store.error { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
-        }.padding(16).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.edge(scheme), style: StrokeStyle(lineWidth: 1, dash: current.answer == nil ? [] : [4, 3])))
+        }.padding(inSheet ? 0 : 16).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.edge(scheme), style: StrokeStyle(lineWidth: inSheet ? 0 : 1, dash: current.answer == nil ? [] : [4, 3])))
             .confirmationDialog(confirmation?.confirm ?? "Confirm", isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }), titleVisibility: .visible) {
                 if let action = confirmation { Button(action.label) { respond(action) } }
                 Button("Cancel", role: .cancel) { confirmation = nil }

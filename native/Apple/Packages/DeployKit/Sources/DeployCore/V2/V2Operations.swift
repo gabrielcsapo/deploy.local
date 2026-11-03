@@ -185,6 +185,24 @@ public struct V2DesignSummary: Equatable, Sendable {
 }
 
 public enum V2Labels {
+    public static func agentName(_ item: InboxItem) -> String {
+        if let name = item.fromName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
+        return item.from == "scout" ? "Scout" : item.from == "warden" ? "Warden" : "An agent"
+    }
+    public static func questionOptions(_ item: InboxItem) -> [InboxAction] {
+        let options = item.actions.filter { !["answer", "dismiss"].contains($0.id) }
+        return options.filter { $0.primary == true } + options.filter { $0.primary != true }
+    }
+    public static func askedTime(_ value: String, now: Date = Date()) -> String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = iso.date(from: value) ?? ISO8601DateFormatter().date(from: value) else { return "Asked · time unavailable" }
+        let minutes = max(0, Int(now.timeIntervalSince(date) / 60))
+        if minutes < 1 { return "Asked just now" }
+        let amount = minutes < 60 ? "\(minutes)m" : minutes < 1440 ? "\(minutes / 60)h" : "\(minutes / 1440)d"
+        return "Asked \(amount) ago"
+    }
+
     public static func outcome(_ item: InboxItem) -> String {
         guard let answer = item.answer else { return item.state.rawValue.capitalized }
         if ["dismiss", "skip", "deny", "not-now"].contains(answer.actionId) { return "Not now" }

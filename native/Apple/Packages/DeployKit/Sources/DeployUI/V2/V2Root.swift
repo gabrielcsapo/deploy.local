@@ -94,7 +94,15 @@ struct V2Tabs: View {
             }
             .sheet(isPresented: Binding(get: { decision != nil && !designDecision }, set: { if !$0 { decision = nil } })) {
                 if let item = store.snapshot.inbox.first(where: { $0.id == decision }) {
-                    NavigationStack { ScrollView { V2Decision(item: item, store: store).padding(16) }.navigationTitle(item.from.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { decision = nil } } }
+                    if item.kind == .question {
+                        NavigationStack {
+                            ScrollView { V2Decision(item: item, store: store, inSheet: true).padding(16) }
+                                .background(WorkspaceStyle.surface(scheme))
+                                .toolbar(.hidden, for: .navigationBar)
+                        }.presentationDetents([.large]).presentationDragIndicator(.visible)
+                    } else {
+                        NavigationStack { ScrollView { V2Decision(item: item, store: store).padding(16) }.navigationTitle(V2Labels.agentName(item)).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { decision = nil } } }
+                    }
                 }
             }
             // A design review is a page of its own, full screen: its boards, Before and After.
@@ -169,19 +177,20 @@ struct V2Tabs: View {
                 else {
                     V2Group {
                         ForEach(store.waiting, id: \.id) { item in
-                            Button { decision = item.id } label: { V2Row(title: item.title, subtitle: "\(item.from.capitalized) · \(item.text)", attention: true) }
+                            Button { decision = item.id } label: { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Labels.shortDate(item.createdAt), attention: true) }
                             if item.id != store.waiting.last?.id { Divider().padding(.leading, 46) }
                         }
                     }.opacity(store.online ? 1 : 0.45)
                 }
             }
             if store.online {
-                V2Group(title: "Today") {
-                    ForEach(store.today) { item in
-                        Button { task = item.id } label: { V2Row(title: item.title, subtitle: taskSubtitle(item), icon: item.status == "running" ? "arrow.trianglehead.2.clockwise.rotate.90" : "checkmark") }
-                        if item.id != store.today.last?.id { Divider().padding(.leading, 46) }
+                if !store.today.isEmpty {
+                    V2Group(title: "Today") {
+                        ForEach(store.today) { item in
+                            Button { task = item.id } label: { V2Row(title: item.title, subtitle: taskSubtitle(item), icon: item.status == "running" ? "arrow.trianglehead.2.clockwise.rotate.90" : "checkmark") }
+                            if item.id != store.today.last?.id { Divider().padding(.leading, 46) }
+                        }
                     }
-                    if store.today.isEmpty { V2Empty(title: "What would you like to do?", message: "Ask a question or describe a change.").padding(.horizontal, 16) }
                 }
             } else {
                 Text("You can read these, but answers need \(coordinator). Anything you write is sent when it’s back.").font(.system(size: 13)).foregroundStyle(.secondary)

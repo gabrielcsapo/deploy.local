@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { answerDetails } from './presentation.ts';
+import { agentName, answerDetails, askedTime, questionActions } from './presentation.ts';
 import type { InboxItem } from '../../../../../shared/v2/contracts.ts';
 const now = new Date(2026, 9, 28, 16);
 const item = (
@@ -16,6 +16,32 @@ const item = (
   actions: [],
   state: 'answered',
   answer: { actionId: 'rollback', by: 'gabriel', on, at },
+});
+
+test('question options put primary first without moving answer and dismiss into options', () => {
+  const question = {
+    ...item('web'),
+    actions: [
+      { id: 'answer', label: 'Answer' },
+      { id: 'secondary', label: 'Other' },
+      { id: 'dismiss', label: 'Dismiss' },
+      { id: 'primary', label: 'Recommended', primary: true },
+    ],
+  };
+  const result = questionActions(question);
+  assert.deepEqual(
+    result.options.map((action) => action.id),
+    ['primary', 'secondary'],
+  );
+  assert.equal(result.answer?.id, 'answer');
+  assert.equal(result.dismiss?.id, 'dismiss');
+  assert.equal(question.actions[0].id, 'answer');
+  assert.equal(askedTime(new Date(now.getTime() - 12 * 60000).toISOString(), now), 'Asked 12m ago');
+  assert.equal(askedTime(now.toISOString(), now), 'Asked just now');
+  assert.equal(askedTime('invalid', now), 'Asked · time unavailable');
+  assert.equal(agentName('scout'), 'Scout');
+  assert.equal(agentName('warden'), 'Warden');
+  assert.equal(agentName('deleted-agent-id'), 'An agent');
 });
 test('answer provenance uses short local clocks and the real client', () => {
   for (const [on, platform] of [

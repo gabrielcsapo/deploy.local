@@ -32,7 +32,10 @@ export type InboxItem = {
   title: string; // "Roll back home-gym?"
   text: string; // one or two sentences of why
   from: AgentId;
+  fromName?: string;
+  context?: { text: string; messageId: string; createdAt: string } | null;
   projectId?: string;
+  projectName?: string;
   taskId?: string;
   createdAt: string;
   actions: { id: string; label: string; primary?: boolean; confirm?: string }[];

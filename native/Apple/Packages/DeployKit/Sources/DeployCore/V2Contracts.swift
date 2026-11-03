@@ -154,12 +154,27 @@ public struct InboxOutcome: Codable, Equatable, Sendable {
     }
 }
 
+public struct InboxContext: Codable, Equatable, Sendable {
+    public var text: String
+    public var messageId: String
+    public var createdAt: String
+
+    public init(text: String, messageId: String, createdAt: String) {
+        self.text = text
+        self.messageId = messageId
+        self.createdAt = createdAt
+    }
+}
+
 public struct InboxItem: Codable, Equatable, Sendable {
     public var id: String
     public var kind: InboxKind
     public var title: String
     public var text: String
     public var from: AgentId
+    public var fromName: String?
+    public var context: InboxContext?
+    public var projectName: String?
     public var projectId: String?
     public var taskId: String?
     public var createdAt: String
@@ -168,12 +183,15 @@ public struct InboxItem: Codable, Equatable, Sendable {
     public var answer: InboxAnswer?
     public var outcome: InboxOutcome?
 
-    public init(id: String, kind: InboxKind, title: String, text: String, from: AgentId, projectId: String? = nil, taskId: String? = nil, createdAt: String, actions: [InboxAction], state: InboxState, answer: InboxAnswer? = nil, outcome: InboxOutcome? = nil) {
+    public init(id: String, kind: InboxKind, title: String, text: String, from: AgentId, fromName: String? = nil, context: InboxContext? = nil, projectName: String? = nil, projectId: String? = nil, taskId: String? = nil, createdAt: String, actions: [InboxAction], state: InboxState, answer: InboxAnswer? = nil, outcome: InboxOutcome? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
         self.text = text
         self.from = from
+        self.fromName = fromName
+        self.context = context
+        self.projectName = projectName
         self.projectId = projectId
         self.taskId = taskId
         self.createdAt = createdAt

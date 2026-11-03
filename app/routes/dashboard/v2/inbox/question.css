@@ -1,0 +1,181 @@
+.dl-decision-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dl-decision-identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dl-decision-name {
+  margin: 0;
+  font-size: var(--ds-type-body);
+  line-height: 24px;
+  font-weight: 600;
+}
+.dl-decision-question {
+  margin: 0 0 16px;
+  font-size: var(--ds-type-body);
+  line-height: 24px;
+  font-weight: 500;
+}
+.dl-decision-preview {
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-canvas);
+  overflow: hidden;
+}
+.dl-decision-draft {
+  box-sizing: border-box;
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+.dl-decision-draft h3 {
+  font: inherit;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.dl-decision-draft ul {
+  margin: 0 0 16px;
+  padding-left: 22px;
+}
+.dl-decision-draft li + li {
+  margin-top: 6px;
+}
+.dl-decision-task {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-top: 1px solid var(--ds-line);
+  font-size: var(--ds-type-ui);
+}
+.dl-decision-task a {
+  color: var(--ds-accent);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.dl-decision-task span {
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-meta);
+}
+.dl-decision-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.dl-decision-answer {
+  margin-top: 16px;
+}
+.dl-decision-answer textarea {
+  display: block;
+  min-height: 64px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.dl-decision-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.dl-decision-footer button:disabled {
+  color: var(--ds-tertiary);
+  background: var(--ds-canvas);
+  border-color: var(--ds-line);
+  cursor: default;
+}
+.dl-question-decision :focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 3px;
+}
+
+.dl-decision-column {
+  width: 100%;
+  max-width: 768px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+}
+.dl-question-decision {
+  padding: 24px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-dialog);
+  background: var(--ds-surface);
+}
+@media (max-width: 820px) {
+  .dl-decision-column {
+    padding: 20px 24px 40px;
+  }
+}
+@media (max-width: 600px) {
+  .dl-decision-column {
+    padding: 16px;
+  }
+  .dl-question-decision {
+    padding: 16px;
+  }
+  .dl-decision-options {
+    flex-direction: column;
+  }
+  .dl-decision-options .dl-btn {
+    height: 44px;
+  }
+  .dl-decision-question {
+    font-size: var(--ds-type-phoneBody);
+  }
+}
+
+.dl-decision-header > .dl-glyph {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.dl-decision-task a {
+  margin-left: auto;
+}
+.dl-decision-task:only-child {
+  border-top: 0;
+}
+.dl-decision-draft :is(h1, h2, h3, h4, h5, h6) {
+  font: inherit;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.dl-decision-draft p {
+  margin: 0 0 16px;
+}
+.dl-decision-draft > div > :last-child {
+  margin-bottom: 0;
+}
+.dl-decision-draft :is(img, video) {
+  max-width: 100%;
+}
+.dl-decision-draft pre {
+  white-space: pre-wrap;
+}
+.dl-decision-draft table {
+  display: block;
+  overflow-x: auto;
+}
+.dl-decision-answer textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--ds-text);
+  background: var(--ds-canvas);
+}
+.dl-decision-footer > :last-child {
+  margin-left: auto;
+}

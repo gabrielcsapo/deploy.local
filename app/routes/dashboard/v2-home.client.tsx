@@ -1,6 +1,6 @@
 'use client';
 import type { ReactNode } from 'react';
-import { Head, IconButton, Composer, Icon } from '@/components/ui';
+import { Head, IconButton, Composer } from '@/components/ui';
 export default function Home({ banner }: { banner?: ReactNode }) {
   return (
     <>
@@ -28,22 +28,8 @@ export default function Home({ banner }: { banner?: ReactNode }) {
           <div className="dl-home-composer">
             <Composer />
           </div>
-          <div className="dl-starters">
-            {[
-              'Add a self-release pipeline with rollback',
-              'Show checks on merged pull requests',
-              'Launch the bazzite app one way, not two',
-            ].map((text) => (
-              <a key={text} href="/dashboard/agents/scout" className="dl-starter">
-                <Icon name="bulb" />
-                <span>{text}</span>
-                <span className="dl-end">Scout</span>
-              </a>
-            ))}
-          </div>
         </div>
       </div>
-      <span className="dl-fixture-note">Design preview · sample data</span>
     </>
   );
 }

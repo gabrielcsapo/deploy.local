@@ -167,7 +167,7 @@ for (const mode of ['ask', 'allow', 'never'] as const) {
       const item = items[0];
       assert.equal(item.id, `rollback:${project.id}:${second.id}`);
       assert.equal(item.title, 'Roll back home-gym?');
-      assert.equal('context' in item, false);
+      assert.equal(item.context, null);
       const live = await getLive(owner);
       const worker = live.computers.flatMap((c) => c.apps).find((a) => a.appId === body.appId)!;
       assert.equal(worker.release, second.id);
@@ -201,7 +201,7 @@ for (const mode of ['ask', 'allow', 'never'] as const) {
     assert(events.events.some((e) => e.type === 'health'));
     assert(events.events.some((e) => e.type === 'release'));
     if (mode !== 'never') assert(events.events.some((e) => e.type === 'rollback'));
-    assert(events.events.every((e) => !JSON.stringify(e).includes('"context"')));
+    assert(events.events.every((e) => e.type !== 'inbox' || e.item.context == null));
   });
 }
 

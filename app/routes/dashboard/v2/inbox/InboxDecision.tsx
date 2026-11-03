@@ -5,6 +5,7 @@ import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { useAgentName, useInbox } from '../data/hooks';
 import { formatTime } from '../data/time';
 
+import { QuestionDecision } from './QuestionDecision';
 import { answerDetails, answerLabel } from './presentation';
 export { agentName, answerDetails, answerLabel } from './presentation';
 
@@ -63,12 +64,13 @@ function Decision({ item }: { item: InboxItem }) {
     }
   }
   const closed = item.state !== 'waiting';
+  const name = item.fromName || agentName(item.from);
   return (
     <div className="dl-inbox-decision" id={`decision-${item.id}`}>
       {closed ? (
         <article className="dl-approval answered">
           <div className="dl-approval-head">
-            <Glyph kind={item.from === 'warden' ? 'warden' : ''}>{agentName(item.from)[0]}</Glyph>
+            <Glyph kind={item.from === 'warden' ? 'warden' : ''}>{name[0]}</Glyph>
             <div className="dl-t">
               <h3 className="dl-approval-title">{item.title}</h3>
               <p className="dl-approval-text">{answerLabel(item)}</p>
@@ -83,6 +85,15 @@ function Decision({ item }: { item: InboxItem }) {
                 : 'Withdrawn'}
           </div>
         </article>
+      ) : item.kind === 'question' ? (
+        <QuestionDecision
+          item={item}
+          name={name}
+          note={note}
+          setNote={setNote}
+          pending={pending}
+          choose={(action) => (action.confirm ? setConfirmation(action) : void submit(action.id))}
+        />
       ) : (
         <Approval
           title={item.title}
@@ -94,7 +105,7 @@ function Decision({ item }: { item: InboxItem }) {
                   <br />
                 </>
               )}
-              {agentName(item.from)} asked · {formatTime(item.createdAt)}
+              {name} asked · {formatTime(item.createdAt)}
             </>
           }
           actions={

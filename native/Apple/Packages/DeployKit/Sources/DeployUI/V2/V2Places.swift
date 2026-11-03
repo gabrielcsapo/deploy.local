@@ -17,7 +17,7 @@ struct V2InboxView: View {
                     V2Group(title: day) {
                         ForEach(store.answered.filter { dayLabel($0.answer?.at ?? $0.createdAt) == day }, id: \.id) { item in
                             VStack(alignment: .leading, spacing: 0) {
-                                V2Row(title: item.title, subtitle: answerLabel(item), trailing: V2Labels.outcome(item), avatar: item.from)
+                                V2Row(title: item.title, subtitle: answerLabel(item), trailing: V2Labels.outcome(item), avatar: V2Labels.agentName(item))
                                 Divider().padding(.leading, 52)
                             }
                         }

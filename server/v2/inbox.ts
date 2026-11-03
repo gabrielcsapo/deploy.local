@@ -64,8 +64,47 @@ export function syncInbox(owner: string): InboxItem[] {
       const answers = new Map(list('v2-inbox-answer', owner).map((r) => [r.id, r.answer]));
       const previous = new Map(list('v2-inbox', owner).map((r) => [r.id, r]));
       const runs = new Map(list('run', owner).map((r) => [r.id, r]));
+      const agents = new Map(list('agent', owner).map((r) => [r.id, r.name]));
+      const projects = new Map(list('project', owner).map((r) => [r.id, r.name]));
+      const questions = list('question', owner);
+      const native = list('v2-inbox-native', owner);
+      const questionTasks = new Set(
+        [
+          ...questions.map((r) => r.taskId),
+          ...native.filter((r) => r.item.kind === 'question').map((r) => r.item.taskId),
+        ].filter(Boolean),
+      );
+      const replies = new Map<string, NonNullable<InboxItem['context']>>();
+      for (const message of questionTasks.size ? list('message', owner) : []) {
+        if (
+          !questionTasks.has(message.taskId) ||
+          message.role !== 'assistant' ||
+          message.isProgress ||
+          typeof message.content !== 'string' ||
+          !message.content.trim()
+        )
+          continue;
+        const previous = replies.get(message.taskId);
+        if (!previous || message.createdAt >= previous.createdAt)
+          replies.set(message.taskId, {
+            text: message.content,
+            messageId: message.id,
+            createdAt: message.createdAt,
+          });
+      }
+      const present = (item: InboxItem): InboxItem => ({
+        ...item,
+        fromName:
+          agents.get(item.from) ||
+          (item.from === 'scout' ? 'Scout' : item.from === 'warden' ? 'Warden' : 'An agent'),
+        ...(item.projectId && projects.has(item.projectId)
+          ? { projectName: projects.get(item.projectId) }
+          : {}),
+        context:
+          item.kind === 'question' && item.taskId ? (replies.get(item.taskId) ?? null) : null,
+      });
       const taskIds = new Set([
-        ...list('question', owner).map((r) => r.taskId),
+        ...questions.map((r) => r.taskId),
         ...list('interactive-request', owner).map((r) => r.taskId),
       ]);
       const items: InboxItem[] = [];
@@ -77,12 +116,8 @@ export function syncInbox(owner: string): InboxItem[] {
         ];
         for (const [kind, rows] of sources) {
           for (const row of rows) {
-            const item = mapInboxItem(
-              kind,
-              row,
-              task,
-              runs.get(row.runId),
-              answers.get(kind + ':' + row.id),
+            const item = present(
+              mapInboxItem(kind, row, task, runs.get(row.runId), answers.get(kind + ':' + row.id)),
             );
             if (JSON.stringify(previous.get(item.id)) !== JSON.stringify(item)) {
               save('v2-inbox', owner, item);
@@ -92,7 +127,7 @@ export function syncInbox(owner: string): InboxItem[] {
           }
         }
       }
-      items.push(...list('v2-inbox-native', owner).map((row) => row.item));
+      items.push(...native.map((row) => present(row.item)));
       return items.sort(
         (a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id),
       );
