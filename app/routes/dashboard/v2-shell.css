@@ -128,6 +128,8 @@
 /* The app rail: the app's places beside Design, with the Mac app's window buttons on top. */
 .dz-rail {
   width: 64px;
+  height: 100%;
+  align-self: stretch;
   box-sizing: border-box;
   flex: none;
   display: flex;
@@ -138,6 +140,9 @@
   padding-bottom: var(--ds-space-3);
   border-right: 1px solid var(--ds-line);
   background: var(--ds-sidebar);
+}
+.dz-rail > .dl-grow {
+  flex: 1;
 }
 .dz-rail-lights {
   height: 0;
