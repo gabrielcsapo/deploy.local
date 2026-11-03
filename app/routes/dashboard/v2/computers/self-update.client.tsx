@@ -91,7 +91,8 @@ export function SelfUpdatePanel({ view, offline }: { view: SelfUpdateView; offli
           <Icon name="update" />
           <span>
             main has {changeCount(status.ahead)} {status.computer} is not running yet. Updating
-            takes about {minutes(status.estimateMs)}; tasks keep running.
+            takes about {minutes(status.estimateMs)}. Tasks on other computers keep running; a task
+            running on {status.computer} stops when it restarts.
           </span>
           <span className="dl-end">
             <Action variant="primary" loading={starting} onClick={start}>
