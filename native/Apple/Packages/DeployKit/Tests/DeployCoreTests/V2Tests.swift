@@ -249,4 +249,23 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(try JSONDecoder().decode(V2DesignReview.self, from: Data(older.utf8)).changedNotes.isEmpty)
     }
 
+    @Test func comparisonMovesLeftToRevealAfterAndClampsAtTheEdges() {
+        #expect(V2DesignComparison.after(at: 0, width: 192) == 100)
+        #expect(V2DesignComparison.after(at: 96, width: 192) == 50)
+        #expect(V2DesignComparison.after(at: 192, width: 192) == 0)
+        #expect(V2DesignComparison.after(at: -20, width: 192) == 100)
+        #expect(V2DesignComparison.after(at: 220, width: 192) == 0)
+        #expect(V2DesignComparison.after(at: 0, width: 0) == 50)
+        #expect(V2DesignComparison.percent(101) == 100)
+        #expect(V2DesignComparison.percent(-1) == 0)
+    }
+
+    @Test func removedBoardFlagIsCompatibleWithOlderCoordinators() throws {
+        let board = #"{"file":"Phone.html","title":"Phone","w":390,"h":844,"added":false,"lines":[]}"#
+        let older = try JSONDecoder().decode(V2DesignReview.Board.self, from: Data(board.utf8))
+        #expect(!older.isRemoved)
+        let removed = board.replacingOccurrences(of: #""added":false"#, with: #""added":false,"removed":true"#)
+        #expect(try JSONDecoder().decode(V2DesignReview.Board.self, from: Data(removed.utf8)).isRemoved)
+    }
+
 }

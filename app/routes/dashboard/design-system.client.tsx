@@ -33,6 +33,7 @@ import {
   type ComponentState,
 } from '@/components/ui';
 import './design-system.css';
+import { DesignCompare } from '@/components/ui/v2/DesignCompare';
 
 function Section({
   title,
@@ -487,6 +488,20 @@ function Components({ state }: { state: ComponentState }) {
               ]}
             />
           </div>
+        </Section>
+        <Section title="Design comparison">
+          <DesignCompare
+            before={
+              <div className="dl-banner" style={{ width: 280, height: 180 }}>
+                Before · main
+              </div>
+            }
+            after={
+              <div className="dl-banner" style={{ width: 280, height: 180 }}>
+                After · this branch
+              </div>
+            }
+          />
         </Section>
         <Section title="Approval · answered">
           <Approval

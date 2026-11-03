@@ -135,6 +135,8 @@ public struct V2DesignReview: Decodable, Sendable {
         public let index: Int?
         public let count: Int?
         public let added: Bool
+        public let removed: Bool?
+        public var isRemoved: Bool { removed ?? false }
         public let notes: String?
         public let lines: [String]
         public var id: String { file }

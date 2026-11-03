@@ -27,34 +27,16 @@ struct V2DesignReviewView: View {
                 Text(current.title).font(.system(size: 22, weight: .semibold)).tracking(-0.3)
                 if let review {
                     Text(source(review)).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.secondary(scheme))
-                    Picker("Version", selection: $after) {
-                        Text("Before").tag(false)
-                        Text("After").tag(true)
-                    }.pickerStyle(.segmented).frame(width: 150).frame(maxWidth: .infinity)
-                    TabView(selection: $page) {
-                        ForEach(Array(review.boards.enumerated()), id: \.element.id) { index, board in
+                    ForEach(Array(review.boards.enumerated()), id: \.element.id) { index, board in
+                        if board.added || board.isRemoved {
                             Button { viewing = index } label: {
-                                V2BoardImage(store: store, project: project ?? "", board: board.file,
-                                             commit: after || board.added ? review.after : review.before,
-                                             width: board.isPhone ? 390 : 720)
-                            }.buttonStyle(.plain).tag(index)
-                                .accessibilityLabel("\(board.name), \(after ? "After" : "Before"). Opens the board.")
+                                V2SingleBoardRow(store: store, project: project ?? "", board: board, review: review)
+                            }.buttonStyle(.plain)
+                        } else {
+                            V2BoardComparison(store: store, project: project ?? "", board: board,
+                                              review: review, width: board.isPhone ? 390 : 700,
+                                              open: { viewing = index })
                         }
-                        // Canvas notes follow the boards, as their text.
-                        ForEach(Array(review.changedNotes.enumerated()), id: \.element.id) { offset, note in
-                            V2NoteText(lines: after ? note.after : note.before, after: after)
-                                .tag(review.boards.count + offset)
-                        }
-                    }.tabViewStyle(.page(indexDisplayMode: .never))
-                        .frame(height: page < review.boards.count ? 300 : 340)
-                        // A board sits in a frame; a note shows on its own, in its colour.
-                        .padding(page < review.boards.count ? 10 : 0)
-                        .background(page < review.boards.count ? WorkspaceStyle.sidebar(scheme) : .clear, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(page < review.boards.count ? WorkspaceStyle.line(scheme) : .clear))
-                    if review.boards.indices.contains(page) {
-                        let board = review.boards[page]
-                        Text("\(board.name) · \(after ? "After" : "Before") · \(board.isPhone ? "phone" : "narrow")")
-                            .font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).frame(maxWidth: .infinity)
                         if !board.lines.isEmpty {
                             Text("What changes").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, 12)
                             VStack(alignment: .leading, spacing: 8) {
@@ -64,17 +46,29 @@ struct V2DesignReviewView: View {
                             }.padding(12).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
                                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
                         }
-                    } else if review.changedNotes.indices.contains(page - review.boards.count) {
-                        let note = review.changedNotes[page - review.boards.count]
-                        Text("\(note.title) · \(after ? "After" : "Before") · note")
-                            .font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).frame(maxWidth: .infinity)
-                        Text("What changes").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, 12)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(note.after == nil ? "The note is removed" : "\(note.changed) of \(note.total) lines rewritten; the marked lines are new")
-                                .font(.system(size: 15)).frame(maxWidth: .infinity, alignment: .leading)
-                            if review.boards.isEmpty { Text("No board changes").font(.system(size: 15)) }
-                        }.padding(12).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
+                    }
+                    if !review.changedNotes.isEmpty {
+                        Picker("Version", selection: $after) {
+                            Text("Before").tag(false)
+                            Text("After").tag(true)
+                        }.pickerStyle(.segmented).frame(width: 150).frame(maxWidth: .infinity)
+                        TabView(selection: $page) {
+                            ForEach(Array(review.changedNotes.enumerated()), id: \.element.id) { offset, note in
+                                V2NoteText(lines: after ? note.after : note.before, after: after).tag(offset)
+                            }
+                        }.tabViewStyle(.page(indexDisplayMode: .never)).frame(height: 340)
+                        if review.changedNotes.indices.contains(page) {
+                            let note = review.changedNotes[page]
+                            Text("\(note.title) · \(after ? "After" : "Before") · note")
+                                .font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).frame(maxWidth: .infinity)
+                            Text("What changes").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, 12)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(note.after == nil ? "The note is removed" : "\(note.changed) of \(note.total) lines rewritten; the marked lines are new")
+                                    .font(.system(size: 15)).frame(maxWidth: .infinity, alignment: .leading)
+                                if review.boards.isEmpty { Text("No board changes").font(.system(size: 15)) }
+                            }.padding(12).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
+                        }
                     }
                 } else if let error {
                     Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme))
@@ -127,7 +121,7 @@ struct V2DesignReviewView: View {
             review.boards.isEmpty && !review.changedNotes.isEmpty ? nil : count(review.boards.count, "board"),
             review.changedNotes.isEmpty ? nil : count(review.changedNotes.count, "note"),
         ].compactMap { $0 }.joined(separator: " · ")
-        return review.task.map { "From the task “\($0)” · \(what)" } ?? "From \(review.branch) · \(what)"
+        return review.task.map { "\($0) · \(what)" } ?? "\(review.branch) · \(what)"
     }
     private func send(_ id: String, note: String? = nil) {
         guard let action = current.actions.first(where: { $0.id == id }) else { return }
@@ -185,22 +179,19 @@ struct V2DesignBoardView: View {
 
     var body: some View {
         let board = review.boards[index]
-        let shown = width ?? (board.isPhone ? 390 : 720)
+        let shown = width ?? (board.isPhone ? 390 : 700)
         VStack(spacing: 14) {
             Picker("Width", selection: Binding(get: { shown }, set: { width = $0 })) {
                 Text("Phone 390").tag(390)
-                Text("Web 720").tag(720)
+                Text("Web 700").tag(700)
                 Text("Web 1440").tag(1440)
             }.pickerStyle(.segmented).frame(width: 250)
             TabView(selection: $index) {
                 ForEach(Array(review.boards.enumerated()), id: \.element.id) { offset, item in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
-                            V2BoardImage(store: store, project: project, board: item.file, commit: review.after, width: shown)
-                                .frame(height: 420)
-                                .padding(10)
-                                .background(WorkspaceStyle.sidebar(scheme), in: RoundedRectangle(cornerRadius: 12))
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
+                            V2BoardComparison(store: store, project: project, board: item, review: review,
+                                              width: width ?? (item.isPhone ? 390 : 700), height: 420)
                             if let notes = item.notes {
                                 Text("Notes").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).padding(.horizontal, 12)
                                 Text(notes).font(.system(size: 15)).padding(12).frame(maxWidth: .infinity, alignment: .leading)
@@ -239,7 +230,7 @@ struct V2DesignBoardView: View {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 1) {
                     // The board's name, and which layout of it is showing.
-                    Text(board.isPhone || shown != 720 ? board.name : "\(board.name), narrow").font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                    Text(board.isPhone || shown != 700 ? board.name : "\(board.name), narrow").font(.system(size: 17, weight: .semibold)).lineLimit(1)
                     if let page = board.page, let at = board.index, let count = board.count {
                         Text("\(page) · \(at) of \(count)").font(.system(size: 12)).foregroundStyle(WorkspaceStyle.secondary(scheme))
                     }
@@ -277,8 +268,11 @@ struct V2BoardImage: View {
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
             .task(id: "\(commit)/\(board)/\(width)") {
                 image = nil; failed = false
-                do { image = UIImage(data: try await store.client.designImage(project: project, board: board, commit: commit, width: width)) ; failed = image == nil }
-                catch { failed = true }
+                do {
+                    let data = try await store.client.designImage(project: project, board: board, commit: commit, width: width)
+                    try Task.checkCancellation()
+                    image = UIImage(data: data); failed = image == nil
+                } catch { if !Task.isCancelled { failed = true } }
             }
     }
 }
@@ -288,6 +282,7 @@ struct V2BoardImage: View {
 /// A design waiting in a task's chat or in Waiting on you: each changed board, Before and After,
 /// its changes, and the decision. Tapping a board opens the full review.
 struct V2DesignCard: View {
+    @AppStorage(V2DesignComparison.modeKey) private var comparisonMode = "slider"
     @Bindable var store: V2Store
     let item: InboxItem
     @State private var review: V2DesignReview?
@@ -311,25 +306,27 @@ struct V2DesignCard: View {
                         Text("\(page + 1) of \(review.boards.count)").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                     }
                     Spacer()
-                    Picker("Version", selection: $after) { Text("Before").tag(false); Text("After").tag(true) }
-                        .pickerStyle(.segmented).frame(width: 130)
                 }
                 TabView(selection: $page) {
                     ForEach(Array(review.boards.enumerated()), id: \.element.id) { index, item in
-                        Button { open = true } label: {
-                            V2BoardImage(store: store, project: project ?? "", board: item.file,
-                                         commit: after || item.added ? review.after : review.before,
-                                         width: item.isPhone ? 390 : 720)
-                        }.buttonStyle(.plain).tag(index)
+                        V2BoardComparison(store: store, project: project ?? "", board: item, review: review,
+                                          width: item.isPhone ? 390 : 700, caption: false, open: { open = true })
+                            .tag(index)
                     }
-                }.tabViewStyle(.page(indexDisplayMode: .never)).frame(height: 260)
-                    .padding(8).background(WorkspaceStyle.sidebar(scheme), in: RoundedRectangle(cornerRadius: 10))
+                }.tabViewStyle(.page(indexDisplayMode: .never)).frame(height: comparisonMode == "onion" && !board.added && !board.isRemoved ? 370 : 300)
                 if !board.lines.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(board.lines.prefix(4), id: \.self) { line in
                             Text("• \(line)").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.secondary(scheme))
                         }
                     }
+                }
+            } else if let review, !review.changedNotes.isEmpty {
+                Picker("Version", selection: $after) { Text("Before").tag(false); Text("After").tag(true) }
+                    .pickerStyle(.segmented).frame(width: 150)
+                ForEach(review.changedNotes) { note in
+                    Text(note.title).font(.system(size: 15, weight: .semibold))
+                    V2NoteText(lines: after ? note.after : note.before, after: after).frame(height: 240)
                 }
             } else { ProgressView().frame(maxWidth: .infinity, minHeight: 120) }
             if let answer = current.answer {

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Action, Icon } from '@/components/ui';
+import { DesignCompare } from '@/components/ui/v2/DesignCompare';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { request, useData } from '../projects/data';
 import { authenticatedFetch } from '../data/hooks';
@@ -31,11 +32,14 @@ export function useTaskDesign(projectId: string | undefined, taskId: string) {
   const canvas = useData<{ canvas: Canvas | null }>(
     api && changes.data ? `${api}?ref=${changes.data.commit}` : undefined,
   );
+  const beforeCanvas = useData<{ canvas: Canvas | null }>(
+    api && changes.data ? `${api}?ref=${changes.data.base}` : undefined,
+  );
   const proposals = useData<{ proposals: InboxItem[] }>(
     api ? `${api}/proposals?v=${version}` : undefined,
   );
   const boards = (changes.data?.files ?? [])
-    .filter((file) => file.path.startsWith('design/boards/') && file.status !== 'removed')
+    .filter((file) => file.path.startsWith('design/boards/'))
     .map((file) => file.path.slice('design/boards/'.length));
   const proposal = proposals.data?.proposals.find(
     (item) => item.taskId === taskId && item.state !== 'withdrawn',
@@ -44,6 +48,7 @@ export function useTaskDesign(projectId: string | undefined, taskId: string) {
     api,
     changes: changes.data,
     canvas: canvas.data?.canvas ?? null,
+    beforeCanvas: beforeCanvas.data?.canvas ?? null,
     boards,
     proposal,
     refresh: () => setVersion((n) => n + 1),
@@ -65,7 +70,7 @@ function useChangeLines(design: { api: string; changes?: Changes }, board: strin
   const [doc, setDoc] = useState<Document | null>(null);
   const url =
     board && design.changes
-      ? `${design.api}/files/${design.changes.commit}/boards/${encodeURIComponent(board)}`
+      ? `${design.api}/files/${design.changes.files.find((file) => file.path === `design/boards/${board}`)?.status === 'removed' ? design.changes.base : design.changes.commit}/boards/${encodeURIComponent(board)}`
       : '';
   useEffect(() => {
     let live = true;
@@ -102,6 +107,7 @@ export function BoardFrame({
         width={w}
         height={h}
         loading="lazy"
+        tabIndex={-1}
         style={{ transform: `scale(${scale})` }}
       />
     </div>
@@ -256,15 +262,6 @@ export function DesignReview({
   const [selected, setSelected] = useState('');
   const [width, setWidth] = useState(0);
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
-  // Side by side, or stacked below 820 px like the stylesheet.
-  const [stacked, setStacked] = useState(false);
-  useEffect(() => {
-    const narrow = window.matchMedia('(max-width: 820px)');
-    const update = () => setStacked(narrow.matches);
-    update();
-    narrow.addEventListener('change', update);
-    return () => narrow.removeEventListener('change', update);
-  }, []);
   useEffect(() => {
     if (!stage) return;
     const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
@@ -272,14 +269,17 @@ export function DesignReview({
     return () => observer.disconnect();
   }, [stage]);
   const board = design.boards.includes(selected) ? selected : design.boards[0];
-  const placed = board ? design.canvas?.boards[board] : undefined;
+  const placed = board
+    ? (design.canvas?.boards[board] ?? design.beforeCanvas?.boards[board])
+    : undefined;
   const [chosenWidth, setLayoutWidth] = useState(0);
   const layoutWidth =
     placed && widthsOf(placed).includes(chosenWidth) ? chosenWidth : (placed?.w ?? 1440);
   const changes = design.changes;
   const lines = useChangeLines(design, board);
   if (!changes) return <div className="dzr-empty">Loading the design…</div>;
-  const column = stacked ? Math.max(160, width) : (width - 16) / 2;
+  const column = Math.max(1, Math.min(width, 720));
+  const status = changes.files.find((file) => file.path === `design/boards/${board}`)?.status;
   return (
     <div className="dzr">
       <aside className="dzr-boards" aria-label="Changed boards">
@@ -309,24 +309,36 @@ export function DesignReview({
           <div className="dzr-head">
             <b>{boardName(board)}</b>
             <span className="dl-meta">design/boards/{board}</span>
-            <WidthSwitch widths={widthsOf(placed)} value={layoutWidth} onChange={setLayoutWidth} />
           </div>
         )}
-        <div className="dzr-compare" ref={setStage}>
+        <div className="dzr-visual" ref={setStage}>
           {placed && board ? (
-            (['Before', 'After'] as const).map((label) => (
-              <figure key={label}>
-                <figcaption>
-                  {label} <span>{label === 'Before' ? 'main' : 'this task'}</span>
-                </figcaption>
+            <DesignCompare
+              added={status === 'added'}
+              removed={status === 'removed'}
+              before={
                 <BoardFrame
-                  src={`${design.api}/files/${label === 'Before' ? changes.base : changes.commit}/boards/${encodeURIComponent(board)}`}
+                  src={`${design.api}/files/${changes.base}/boards/${encodeURIComponent(board)}`}
                   width={Math.min(column, layoutWidth)}
                   w={layoutWidth}
                   h={placed.h}
                 />
-              </figure>
-            ))
+              }
+              after={
+                <BoardFrame
+                  src={`${design.api}/files/${changes.commit}/boards/${encodeURIComponent(board)}`}
+                  width={Math.min(column, layoutWidth)}
+                  w={layoutWidth}
+                  h={placed.h}
+                />
+              }
+            >
+              <WidthSwitch
+                widths={widthsOf(placed)}
+                value={layoutWidth}
+                onChange={setLayoutWidth}
+              />
+            </DesignCompare>
           ) : (
             <p className="dzr-empty">This task changed design files but no boards on the canvas.</p>
           )}
@@ -360,7 +372,9 @@ export function DesignCard({
   design: TaskDesign;
 }) {
   const board = design.boards[0];
-  const placed = board ? design.canvas?.boards[board] : undefined;
+  const placed = board
+    ? (design.canvas?.boards[board] ?? design.beforeCanvas?.boards[board])
+    : undefined;
   const lines = useChangeLines(design, board);
   const [layoutWidth, setLayoutWidth] = useState(0);
   if (!design.changes || !board || !placed) return null;
@@ -378,21 +392,30 @@ export function DesignCard({
         <span className="dl-grow" />
         <WidthSwitch widths={widths} value={shown} onChange={setLayoutWidth} />
       </header>
-      <div className="dzr-pair">
-        {(['Before', 'After'] as const).map((label) => (
-          <figure key={label}>
-            <BoardFrame
-              src={`${design.api}/files/${label === 'Before' ? design.changes!.base : design.changes!.commit}/boards/${encodeURIComponent(board)}`}
-              width={isPhone(placed) ? 150 : 200}
-              w={shown}
-              h={placed.h}
-            />
-            <figcaption>
-              {label} · {label === 'Before' ? 'main' : 'this task'}
-            </figcaption>
-          </figure>
-        ))}
-      </div>
+      <DesignCompare
+        added={design.changes.files.some(
+          (file) => file.path === `design/boards/${board}` && file.status === 'added',
+        )}
+        removed={design.changes.files.some(
+          (file) => file.path === `design/boards/${board}` && file.status === 'removed',
+        )}
+        before={
+          <BoardFrame
+            src={`${design.api}/files/${design.changes.base}/boards/${encodeURIComponent(board)}`}
+            width={isPhone(placed) ? 150 : 200}
+            w={shown}
+            h={placed.h}
+          />
+        }
+        after={
+          <BoardFrame
+            src={`${design.api}/files/${design.changes.commit}/boards/${encodeURIComponent(board)}`}
+            width={isPhone(placed) ? 150 : 200}
+            w={shown}
+            h={placed.h}
+          />
+        }
+      />
       {(lines.length > 0 || design.boards.length > 1) && (
         <ul>
           {lines.slice(0, 4).map((line) => (

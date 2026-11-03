@@ -820,6 +820,48 @@ test('a review of a canvas note says so in words and gives its lines before and 
   assert.equal(review.notes[0].changed, 2);
 });
 
+test('review identifies new and removed boards and preserves the removed board dimensions', async () => {
+  // Earlier tests leave edits in the working tree; set them aside for this branch.
+  const stashed = (await git(['stash', 'push', '--include-untracked'])).includes('Saved');
+  await git(['checkout', '-b', 'design/compare-states', 'refs/heads/main']);
+  const canvas = JSON.parse(await git(['show', 'refs/heads/main:design/canvas.json']));
+  canvas.boards['NewPhone.html'] = { x: 0, y: 0, w: 390, h: 844, title: 'New phone' };
+  delete canvas.boards['Welcome.html'];
+  canvas.order = ['NewPhone.html'];
+  writeFileSync(join(repo, 'design/canvas.json'), JSON.stringify(canvas));
+  rmSync(join(repo, 'design/boards/Welcome.html'));
+  writeFileSync(
+    join(repo, 'design/boards/NewPhone.html'),
+    '<html><body><p data-layer="new">New phone</p></body></html>',
+  );
+  await git(['add', 'design']);
+  await git(['commit', '-m', 'Replace a board']);
+  // The coordinator's main is the checked-out branch.
+  await git(['checkout', 'main']);
+  try {
+    const response = await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({ ref: 'design/compare-states' }),
+    });
+    assert.equal(response.status, 201);
+    const { item } = await response.json();
+    const review = await (await call(`/review?item=${encodeURIComponent(item.id)}`)).json();
+    const added = review.boards.find((board: any) => board.file === 'NewPhone.html');
+    const removed = review.boards.find((board: any) => board.file === 'Welcome.html');
+    assert.equal(added.added, true);
+    assert.equal(added.removed, false);
+    assert.equal(added.w, 390);
+    assert.equal(removed.added, false);
+    assert.equal(removed.removed, true);
+    assert.equal(removed.w, 1440);
+    assert.equal(removed.h, 900);
+    assert.equal(removed.title, 'Welcome');
+  } finally {
+    await git(['checkout', 'main']);
+    if (stashed) await git(['stash', 'pop']);
+  }
+});
+
 test('boards render with the deploy account’s Chromium when the service user has none', async () => {
   const { boardBrowser } = await import('./design.ts');
   const root = '/root/.cache/ms-playwright/chromium-1234/chrome-linux/chrome';

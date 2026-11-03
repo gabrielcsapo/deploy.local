@@ -8,6 +8,7 @@ import { useData } from '../projects/data';
 import { boardName } from './model';
 import { BoardFrame, WidthSwitch, widthsOf } from './Review';
 import './review.css';
+import { DesignCompare } from '@/components/ui/v2/DesignCompare';
 
 type Review = {
   branch: string;
@@ -18,6 +19,7 @@ type Review = {
     w: number;
     h: number;
     added: boolean;
+    removed?: boolean;
     lines: string[];
   }[];
   notes: (NoteChange & { page: string | null })[];
@@ -41,14 +43,6 @@ export function DesignItemReview({ item }: { item: InboxItem }) {
   const [chosenWidth, setChosenWidth] = useState(0);
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
-  const [stacked, setStacked] = useState(false);
-  useEffect(() => {
-    const narrow = window.matchMedia('(max-width: 820px)');
-    const update = () => setStacked(narrow.matches);
-    update();
-    narrow.addEventListener('change', update);
-    return () => narrow.removeEventListener('change', update);
-  }, []);
   useEffect(() => {
     if (!stage) return;
     const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
@@ -70,7 +64,7 @@ export function DesignItemReview({ item }: { item: InboxItem }) {
   const note = current?.kind === 'note' ? notes.find((n) => n.id === current.id) : null;
   const layoutWidth =
     board && widthsOf(board).includes(chosenWidth) ? chosenWidth : (board?.w ?? 1440);
-  const column = stacked ? Math.max(160, width) : (width - 16) / 2;
+  const column = Math.max(1, Math.min(width, 720));
   const waiting = item.state === 'waiting';
   const lines = board
     ? board.lines
@@ -164,11 +158,6 @@ export function DesignItemReview({ item }: { item: InboxItem }) {
               <div className="dzr-head">
                 <b>{boardName(board.file)}</b>
                 <span className="dl-meta">design/boards/{board.file}</span>
-                <WidthSwitch
-                  widths={widthsOf(board)}
-                  value={layoutWidth}
-                  onChange={setChosenWidth}
-                />
               </div>
             )}
             {note && (
@@ -179,24 +168,46 @@ export function DesignItemReview({ item }: { item: InboxItem }) {
                 </span>
               </div>
             )}
-            <div className="dzr-compare" ref={setStage}>
-              {(['Before', 'After'] as const).map((label) => (
-                <figure key={label}>
-                  {board ? (
+            <div className={board ? 'dzr-visual' : undefined} ref={setStage}>
+              {board ? (
+                <DesignCompare
+                  added={board.added}
+                  removed={board.removed}
+                  before={
                     <BoardFrame
-                      src={`${api}/files/${label === 'Before' ? data.before : data.after}/boards/${encodeURIComponent(board.file)}`}
+                      src={`${api}/files/${data.before}/boards/${encodeURIComponent(board.file)}`}
                       width={Math.min(column, layoutWidth)}
                       w={layoutWidth}
                       h={board.h}
                     />
-                  ) : note ? (
-                    <NoteText note={note} after={label === 'After'} />
-                  ) : null}
-                  <figcaption>
-                    {label} <span>· {label === 'Before' ? 'main' : 'this branch'}</span>
-                  </figcaption>
-                </figure>
-              ))}
+                  }
+                  after={
+                    <BoardFrame
+                      src={`${api}/files/${data.after}/boards/${encodeURIComponent(board.file)}`}
+                      width={Math.min(column, layoutWidth)}
+                      w={layoutWidth}
+                      h={board.h}
+                    />
+                  }
+                >
+                  <WidthSwitch
+                    widths={widthsOf(board)}
+                    value={layoutWidth}
+                    onChange={setChosenWidth}
+                  />
+                </DesignCompare>
+              ) : note ? (
+                <div className="dzr-compare">
+                  {(['Before', 'After'] as const).map((label) => (
+                    <figure key={label}>
+                      <NoteText note={note} after={label === 'After'} />
+                      <figcaption>
+                        {label} <span>· {label === 'Before' ? 'main' : 'this branch'}</span>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ) : null}
             </div>
             {lines.length > 0 && (
               <section className="dzr-what">
