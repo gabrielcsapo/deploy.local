@@ -35,6 +35,8 @@ const ROOT = process.cwd();
 const CLI_DIR = resolve(ROOT, 'dist/cli');
 const CACHE_DIR = resolve(ROOT, '.deploy-data/node-cache');
 const SEA_CONFIG = resolve(ROOT, 'sea-config.json');
+// Node's own macOS entitlements (allow-jit etc), for signing without Apple's codesign.
+const NODE_ENTITLEMENTS = resolve(ROOT, 'scripts/node-entitlements.plist');
 
 // Keep the standalone CLI runtime on the same supported major/minor as the
 // server, CI, package engine contract, and suitcase image.
@@ -250,6 +252,10 @@ function step4_injectAndSign() {
   console.log('\n[4/5] Injecting SEA blob into binaries...');
   const blobPath = resolve(CLI_DIR, 'sea-prep.blob');
   const canCodesign = hasCommand('codesign');
+  // On Linux (SER) rcodesign makes the same ad hoc signature, so a Mac can run the build.
+  const rcodesign = canCodesign
+    ? null
+    : process.env.RCODESIGN || (hasCommand('rcodesign') ? 'rcodesign' : null);
 
   for (const target of TARGETS) {
     const { os, arch } = target;
@@ -280,7 +286,7 @@ function step4_injectAndSign() {
           cwd: ROOT,
         });
         run(`codesign --remove-signature ${outputPath}`);
-      } else {
+      } else if (!rcodesign) {
         console.warn(`  WARN: codesign not available, macOS binary may not run correctly`);
       }
     }
@@ -301,6 +307,9 @@ function step4_injectAndSign() {
       if (entitlementsPath && existsSync(entitlementsPath)) {
         rmSync(entitlementsPath, { force: true });
       }
+    }
+    if (os === 'darwin' && rcodesign) {
+      run(`${rcodesign} sign --entitlements-xml-file ${NODE_ENTITLEMENTS} ${outputPath}`);
     }
   }
 }

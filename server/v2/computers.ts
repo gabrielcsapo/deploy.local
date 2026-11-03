@@ -48,7 +48,8 @@ export function mergeComputers(input: {
       const info = facts(node.capabilities);
       const supportedRoles: Role[] = [
         ...(node.id === 'coordinator' ? ['coordinator' as const] : []),
-        'run-apps',
+        // A tasks-only computer runs its agent just to update itself and says apps are off.
+        ...(info.runApps === 0 ? [] : ['run-apps' as const]),
         ...(Array.isArray(info.models) ? ['serve-models' as const] : []),
       ];
       return {

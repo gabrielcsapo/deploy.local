@@ -7,15 +7,17 @@ import { spawn } from 'node:child_process';
 import {
   appendFileSync,
   existsSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const short = (sha) => sha.slice(0, 7);
@@ -50,6 +52,26 @@ export function prepareDetail({ command, pass, failed, files }, ok) {
   if (command === 'test' && failed)
     return `${failed} of ${pass + failed} tests failed${files.length ? ` in ${files.slice(0, 2).join(', ')}` : ''}`;
   return command ? `pnpm ${command} failed` : 'could not start the build';
+}
+
+/** Swaps the new worker builds into <data>/cli, keeping the last ones as cli.previous. */
+export function publishWorkers(data, commit, log = () => {}) {
+  const next = join(data, 'cli.next');
+  try {
+    if (JSON.parse(readFileSync(join(next, 'build-info.json'), 'utf8')).commit !== commit) return;
+  } catch {
+    return;
+  }
+  const current = join(data, 'cli');
+  const previous = join(data, 'cli.previous');
+  try {
+    rmSync(previous, { recursive: true, force: true });
+    if (existsSync(current)) renameSync(current, previous);
+    renameSync(next, current);
+    log(`Published worker builds for ${short(commit)}.\n`);
+  } catch (error) {
+    log(`Publishing worker builds failed: ${error.message}\n`);
+  }
 }
 
 function main(file) {
@@ -136,6 +158,38 @@ function main(file) {
       );
     }
 
+    // Other computers follow SER: build their worker from the same commit, outside the verified
+    // release, and publish it once SER serves that commit. A failure here only means they wait.
+    const workers = join(plan.data, 'cli.next');
+    try {
+      const scratch = join(dirname(plan.history), 'cli-build');
+      const cache = join(dirname(plan.history), 'node-cache');
+      rmSync(scratch, { recursive: true, force: true });
+      rmSync(workers, { recursive: true, force: true });
+      await exec('cp', ['-a', plan.release, scratch]);
+      rmSync(join(scratch, '.deploy-release.json'), { force: true });
+      rmSync(join(scratch, 'dist', 'cli'), { recursive: true, force: true });
+      mkdirSync(cache, { recursive: true });
+      mkdirSync(join(scratch, '.deploy-data'), { recursive: true });
+      rmSync(join(scratch, '.deploy-data', 'node-cache'), { recursive: true, force: true });
+      symlinkSync(cache, join(scratch, '.deploy-data', 'node-cache'));
+      // rcodesign (in ~/.local/bin) signs the macOS builds so Macs can run them.
+      await exec(process.execPath, ['scripts/build-cli.mjs'], {
+        cwd: scratch,
+        env: {
+          ...process.env,
+          PATH: `${join(process.env.HOME || '', '.local/bin')}:${dirname(process.execPath)}:${process.env.PATH}`,
+        },
+      });
+      await exec('mv', [join(scratch, 'dist', 'cli'), workers]);
+      rmSync(scratch, { recursive: true, force: true });
+    } catch (error) {
+      log(
+        `Worker builds for other computers failed; they keep their version.\n${error.stack || error}\n`,
+      );
+      rmSync(workers, { recursive: true, force: true });
+    }
+
     started = begin('backup');
     try {
       const { backup, DatabaseSync } = await import('node:sqlite');
@@ -171,6 +225,7 @@ function main(file) {
     try {
       await exec('deploy-update', ['activate', plan.release]);
       finish('restart', 'done', `serving ${short(run.to)}`);
+      publishWorkers(plan.data, run.to, log);
       finish('check', 'done', 'healthy over HTTPS');
       return end('done');
     } catch (error) {

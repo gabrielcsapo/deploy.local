@@ -17,8 +17,9 @@ import type { SelfUpdateRun } from '../../shared/v2/contracts.ts';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'self-update-data-'));
 const { changesSince, estimate, findSourceRepository, settleRun } =
   await import('./self-update.ts');
-// @ts-expect-error The runner is plain JavaScript so it can run without a build.
-const { readPrepare, prepareDetail } = await import('../../scripts/self-update.mjs');
+// The runner is plain JavaScript so it can run without a build.
+const runner = '../../scripts/self-update.mjs';
+const { readPrepare, prepareDetail, publishWorkers } = await import(runner);
 
 const git = (cwd: string, ...args: string[]) => {
   const result = spawnSync('git', args, {
@@ -237,5 +238,30 @@ test('a failed activation that went back says so', () => {
   assert.equal(
     result.error,
     `${repo.main.slice(0, 7)} did not come back healthy, so SER went back to ${repo.running.slice(0, 7)}.`,
+  );
+});
+
+test('worker builds publish only when they were built from the commit SER now serves', () => {
+  const data = mkdtempSync(join(tmpdir(), 'self-update-cli-'));
+  const write = (dir: string, commit: string) => {
+    mkdirSync(join(data, dir), { recursive: true });
+    writeFileSync(join(data, dir, 'build-info.json'), JSON.stringify({ commit }));
+  };
+  write('cli', 'old');
+  write('cli.next', 'other');
+  publishWorkers(data, 'new');
+  assert.equal(
+    JSON.parse(readFileSync(join(data, 'cli', 'build-info.json'), 'utf8')).commit,
+    'old',
+  );
+  write('cli.next', 'new');
+  publishWorkers(data, 'new');
+  assert.equal(
+    JSON.parse(readFileSync(join(data, 'cli', 'build-info.json'), 'utf8')).commit,
+    'new',
+  );
+  assert.equal(
+    JSON.parse(readFileSync(join(data, 'cli.previous', 'build-info.json'), 'utf8')).commit,
+    'old',
   );
 });

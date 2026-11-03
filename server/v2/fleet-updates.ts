@@ -3,6 +3,7 @@ import { db, list, save } from '../workspace/store.ts';
 import { enqueueAgentJob, getAgentJob, getNodes, completeAgentJob, isAdmin } from '../store.ts';
 import { readCliManifest } from '../cli-download.ts';
 import { currentProjectReleases } from './releases.ts';
+import { readReleaseConfig, runningRevision } from './self-update-host.ts';
 import {
   releaseComputerUpdate,
   updateReservation,
@@ -24,7 +25,10 @@ export function setAutomaticUpdates(owner: string, value: unknown) {
 export function updateAttempts() {
   return list('v2-update-attempt', 'system');
 }
-export function fleetTarget(owner: string) {
+export function fleetTarget(
+  owner: string,
+  manifest = readCliManifest(),
+): { id: string; version: string } | undefined {
   const record = currentProjectReleases(owner).find((row) =>
     row.release.apps.some((app) => app.appId === 'deploy.local'),
   );
@@ -32,14 +36,23 @@ export function fleetTarget(owner: string) {
   const runtime = record?.plan?.runtime as
     | { kind?: string; version?: string; id?: string }
     | undefined;
-  if (record?.release.state !== 'live' || runtime?.kind !== 'coordinator-self-release') return;
-  const receipt = list('v2-coordinator-activation', 'system').find((row) => row.id === runtime.id);
-  if (receipt?.state !== 'activated' || receipt.version !== runtime.version) return;
-  return { release: record.release, version: runtime.version! };
+  if (record?.release.state === 'live' && runtime?.kind === 'coordinator-self-release') {
+    const receipt = list('v2-coordinator-activation', 'system').find(
+      (row) => row.id === runtime.id,
+    );
+    if (receipt?.state === 'activated' && receipt.version === runtime.version)
+      return { id: record.release.id, version: runtime.version! };
+  }
+  // The coordinator updating itself from main: computers follow once the worker builds it
+  // published were built from the very commit it now serves.
+  const config = readReleaseConfig();
+  const running = config ? runningRevision(config) : undefined;
+  if (running && manifest?.commit === running)
+    return { id: `self-update-${running}`, version: manifest.version };
 }
 export function produceComputerUpdates(owner: string, manifest = readCliManifest()) {
   if (!automaticUpdates()) return;
-  const target = fleetTarget(owner);
+  const target = fleetTarget(owner, manifest);
   if (!target || !manifest || manifest.version !== target.version) return;
   for (const node of getNodes()) {
     const capabilities = JSON.parse(node.capabilities || '{}');
@@ -54,7 +67,7 @@ export function produceComputerUpdates(owner: string, manifest = readCliManifest
       continue;
     const build = manifest.targets[`${node.platform}-${node.architecture}`];
     if (!build || !['darwin', 'linux'].includes(node.platform || '')) continue;
-    const id = `${node.id}:${target.release.id}`;
+    const id = `${node.id}:${target.id}`;
     if (updateAttempts().some((row) => row.id === id)) continue;
     const jobId = `update_${randomUUID()}`;
     // Persist intent first. Recovery reuses this exact job id if enqueue was interrupted.
@@ -62,7 +75,7 @@ export function produceComputerUpdates(owner: string, manifest = readCliManifest
       id,
       nodeId: node.id,
       jobId,
-      releaseId: target.release.id,
+      releaseId: target.id,
       targetVersion: target.version,
       previousVersion: node.agentVersion,
       sha256: build.sha256,

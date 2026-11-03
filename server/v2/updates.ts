@@ -16,13 +16,20 @@ import { join } from 'node:path';
 import { deployDataDirectory } from '../data-directory.ts';
 import { COORDINATOR_UNAVAILABLE } from './self-release-runtime.ts';
 import { currentProjectReleases } from './releases.ts';
+import {
+  changesSince,
+  findSourceRepository,
+  readReleaseConfig,
+  runningRevision,
+} from './self-update-host.ts';
+import { list } from '../workspace/store.ts';
 
 export const UPDATE_INTERVAL_MS = 10 * 60_000;
 export function updateState(
   computer: Computer,
   release?: Release,
+  targetVersion = release?.apps.find((app) => app.appId === 'deploy.local')?.to,
 ): ComputerUpdates['computers'][number] {
-  const targetVersion = release?.apps.find((app) => app.appId === 'deploy.local')?.to;
   const base = { id: computer.id, version: computer.version, targetVersion };
   if (!targetVersion || !computer.version)
     return { ...base, state: 'unavailable', reason: 'Version information is unavailable.' };
@@ -56,15 +63,27 @@ export function getUpdates(owner: string, computers: Computer[]): ComputerUpdate
     source &&
     existsSync(join(source, 'coordinator-build.json')) &&
     existsSync(join(deployDataDirectory(), 'coordinator-updates', 'switch.sock'));
+  // A coordinator set up with deploy-update updates itself from main (Computers, deploy.local updates).
+  const releaseConfig = readReleaseConfig();
+  const selfUpdating = !!releaseConfig;
+  const coordinatorRevision = releaseConfig ? runningRevision(releaseConfig) : undefined;
+  const ownSource = coordinatorRevision
+    ? findSourceRepository(
+        list('project', owner).map((p) => ({ name: p.name, path: p.repositoryPath })),
+        coordinatorRevision,
+      )
+    : undefined;
+  const coordinatorAhead =
+    ownSource && coordinatorRevision ? changesSince(ownSource.path, coordinatorRevision).ahead : 0;
   return {
     currentVersion: computers.find((c) => c.roles.includes('coordinator'))?.version,
     latestRelease,
     projectId: record?.release.projectId,
     automatic: automaticUpdates(),
     automaticReason: target ? undefined : UPDATE_UNAVAILABLE,
-    coordinatorReason: capable ? undefined : COORDINATOR_UNAVAILABLE,
+    coordinatorReason: capable || selfUpdating ? undefined : COORDINATOR_UNAVAILABLE,
     computers: computers.map((computer) => {
-      const base = updateState(computer, latestRelease);
+      const base = updateState(computer, latestRelease, target?.version);
       const attempt = updateAttempts()
         .filter((row) => row.nodeId === computer.id)
         .at(-1);
@@ -83,6 +102,13 @@ export function getUpdates(owner: string, computers: Computer[]): ComputerUpdate
             Date.now() - (job.claimedAt || job.createdAt) > 180_000
               ? 'Startup confirmation is overdue. New tasks remain paused until this computer reports its installed version.'
               : 'Checking the replacement after restart. New tasks are paused.',
+        };
+      if (computer.roles.includes('coordinator') && selfUpdating)
+        return {
+          ...base,
+          version: coordinatorRevision?.slice(0, 7) || base.version,
+          state: coordinatorAhead ? 'ready' : 'current',
+          reason: 'Updates itself from main',
         };
       if (computer.roles.includes('coordinator'))
         return { ...base, reason: capable ? base.reason : COORDINATOR_UNAVAILABLE };

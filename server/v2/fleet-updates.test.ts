@@ -168,3 +168,29 @@ test('a repeated startup report finishes recovery across the two durable databas
   assert.equal(updateReservation(id), undefined);
   assert.equal(fleet.updateAttempts().find((row) => row.nodeId === id)?.state, 'complete');
 });
+
+test('computers follow the coordinator updating itself once its worker builds match what it serves', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const host = mkdtempSync(join(tmpdir(), 'fleet-self-'));
+  mkdirSync(join(host, 'current'));
+  writeFileSync(
+    join(host, 'current', '.deploy-release.json'),
+    JSON.stringify({ revision: 'abc123' }),
+  );
+  writeFileSync(join(host, 'release.json'), JSON.stringify({ current: join(host, 'current') }));
+  process.env.DEPLOY_RELEASE_CONFIG = join(host, 'release.json');
+  try {
+    assert.deepEqual(
+      fleet.fleetTarget('other', { ...manifest, commit: 'abc123', version: 'v-abc' }),
+      {
+        id: 'self-update-abc123',
+        version: 'v-abc',
+      },
+    );
+    // Builds from another commit are not what the coordinator serves.
+    assert.equal(fleet.fleetTarget('other', { ...manifest, commit: 'other' }), undefined);
+  } finally {
+    delete process.env.DEPLOY_RELEASE_CONFIG;
+    rmSync(host, { recursive: true, force: true });
+  }
+});

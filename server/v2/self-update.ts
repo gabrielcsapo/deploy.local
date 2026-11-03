@@ -16,37 +16,28 @@ import {
 import { dirname, join } from 'node:path';
 import { userInfo } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type {
-  SelfUpdateChange,
-  SelfUpdateRun,
-  SelfUpdateStatus,
-} from '../../shared/v2/contracts.ts';
+import type { SelfUpdateRun, SelfUpdateStatus } from '../../shared/v2/contracts.ts';
 import { isAdmin } from '../store.ts';
 import { list } from '../workspace/store.ts';
-import { gitSync } from '../workspace/repository-git.ts';
+import {
+  changesSince,
+  findSourceRepository,
+  readReleaseConfig,
+  runningRevision,
+  type ReleaseConfig,
+} from './self-update-host.ts';
 import { fail } from './inbox.ts';
 import { getComputers } from './computers.ts';
 
-/** Written once by `scripts/linux-release.mjs install`; its absence means this host has no deploy-update. */
-export type ReleaseConfig = {
-  user: string;
-  uid: number;
-  releases: string;
-  current: string;
-  data: string;
-  node: string;
-};
-const configPath = () => process.env.DEPLOY_RELEASE_CONFIG || '/etc/deploy-local-release.json';
+export {
+  changesSince,
+  findSourceRepository,
+  readReleaseConfig,
+  runningRevision,
+} from './self-update-host.ts';
 const DEFAULT_ESTIMATE_MS = 6 * 60_000;
 const STARTUP_GRACE_MS = 20_000;
 
-export function readReleaseConfig(path = configPath()): ReleaseConfig | null {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    return null;
-  }
-}
 const stateDirectory = (config: ReleaseConfig) => join(dirname(config.current), 'self-update');
 const stateFile = (config: ReleaseConfig) => join(stateDirectory(config), 'current.json');
 const readJson = <T>(path: string): T | undefined => {
@@ -56,47 +47,6 @@ const readJson = <T>(path: string): T | undefined => {
     return undefined;
   }
 };
-export function runningRevision(config: ReleaseConfig) {
-  return readJson<{ revision?: string }>(join(config.current, '.deploy-release.json'))?.revision;
-}
-
-/** The project whose main contains what this coordinator runs; deploy.local hosts its own source. */
-export function findSourceRepository(
-  repositories: { name: string; path: string }[],
-  running: string,
-) {
-  const candidates = repositories
-    .filter(({ path }) => path && existsSync(path))
-    .sort((a, b) => Number(b.name === 'deploy.local') - Number(a.name === 'deploy.local'));
-  return candidates.find(
-    ({ path }) =>
-      gitSync(path, ['merge-base', '--is-ancestor', running, 'refs/heads/main']) !== null,
-  );
-}
-export function changesSince(path: string, running: string) {
-  const main = gitSync(path, ['rev-parse', '--verify', 'refs/heads/main^{commit}']) || '';
-  const ahead = Number(
-    gitSync(path, ['rev-list', '--first-parent', '--count', `${running}..${main}`]) || 0,
-  );
-  const changes: SelfUpdateChange[] = (
-    gitSync(path, [
-      'log',
-      '--first-parent',
-      '-n',
-      '50',
-      '--format=%H%x00%s%x00%cI',
-      `${running}..${main}`,
-    ]) || ''
-  )
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      const [sha, subject, date] = line.split('\0');
-      return { sha, subject, date };
-    });
-  return { main, ahead, changes };
-}
-
 const unitName = (id: string) => `deploy-self-update-${id.slice(0, 8)}`;
 function unitActive(id: string) {
   return spawnSync('systemctl', ['is-active', '--quiet', unitName(id)]).status === 0;

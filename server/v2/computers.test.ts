@@ -225,3 +225,17 @@ test('HTTP list/detail and models use envelopes, agent writes are refused', asyn
   });
   assert.equal(rejected.status, 403);
 });
+
+test('a computer whose agent reports apps off does not offer Run apps', () => {
+  const [mac] = mergeComputers({
+    nodes: [{ id: 'node_mac', name: 'MacBook Pro', online: true, capabilities: '{"runApps":0}' }],
+    workers: [],
+    apps: [],
+    runs: [],
+    jobs: [],
+    tasks: [],
+    settings: [],
+  });
+  assert.equal(mac.supportedRoles.includes('run-apps'), false);
+  assert.equal(mac.roles.includes('run-apps'), false);
+});
