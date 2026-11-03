@@ -10,4 +10,5 @@ export function superviseWorker(input: {
   install?: typeof installWorkerBuild;
   download?: (request: any) => Promise<Buffer>;
   signal?: AbortSignal;
+  onUpdated?: (receipt: any) => void;
 }): Promise<void>;

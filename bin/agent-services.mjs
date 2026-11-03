@@ -1,11 +1,100 @@
-import { existsSync, writeFileSync, rmSync, realpathSync, accessSync, constants } from 'node:fs';
+import {
+  existsSync,
+  writeFileSync,
+  rmSync,
+  realpathSync,
+  accessSync,
+  constants,
+  statSync,
+  linkSync,
+  renameSync,
+} from 'node:fs';
 import { dirname, join, resolve, delimiter } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { agentConfigPath } from './agent-enrollment.mjs';
-import { agentUser, ownUserFile, userDirectory } from './agent-user.mjs';
+import { agentUser, ownUserFile, taskWorkerUser, userDirectory } from './agent-user.mjs';
 
+/**
+ * `agent` is the supervised execution agent service. It runs whenever any role does, because it
+ * is what reports `selfUpdate` and receives update jobs; `apps` says whether it may run app jobs.
+ */
 export function servicePlan(roles) {
-  return { agent: roles?.deploy ?? true, worker: roles?.tasks ?? false };
+  const apps = roles?.deploy ?? true,
+    worker = roles?.tasks ?? false;
+  return { agent: apps || worker, worker, apps };
+}
+/** With Deploy apps off, the agent only keeps this computer's own build current. */
+export function assertAgentJobAllowed(job, roles) {
+  if (roles?.deploy === false && job?.type !== 'self-update')
+    throw new Error('Deploy apps is off on this computer.');
+}
+export function isFile(path) {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+const executableNames = [
+  { executable: 'deploy-worker', supervisor: 'deploy-worker-supervisor' },
+  // Older Linux installs. On macOS `worker` is the task worker's state directory.
+  { executable: 'worker', supervisor: 'worker-supervisor' },
+];
+/**
+ * The coordinator's worker build beside agent.json, and the supervisor's hard link to it.
+ * A directory is never an executable: new installs use names that cannot clash with workerRoot.
+ */
+export function workerExecutablePaths(agentDir, fileExists = isFile) {
+  const [current, legacy] = executableNames.map((names) => ({
+    executable: join(agentDir, names.executable),
+    supervisor: join(agentDir, names.supervisor),
+  }));
+  return !fileExists(current.executable) && fileExists(legacy.executable) ? legacy : current;
+}
+/** The worker build a supervisor link runs, or null when this process is not a supervisor. */
+export function supervisedExecutable(execPath, agentDir, fileExists = isFile) {
+  for (const names of executableNames)
+    if (resolve(execPath) === join(agentDir, names.supervisor)) {
+      const executable = join(agentDir, names.executable);
+      return fileExists(executable) ? executable : null;
+    }
+  return null;
+}
+/**
+ * The execution agent runs the immutable supervisor inode; the task worker runs the swappable
+ * build so a restart after an update picks up the new one. `self` runs this deploy command.
+ */
+export function serviceProgramArguments({ agentDir, self, fileExists = isFile }) {
+  const { executable, supervisor } = workerExecutablePaths(agentDir, fileExists);
+  const worker = fileExists(executable) ? [executable] : self;
+  return { agent: fileExists(supervisor) ? [supervisor] : worker, worker };
+}
+/** Point the supervisor at the current build. Only call while (re)installing the agent service. */
+export function linkWorkerSupervisor(agentDir) {
+  const { executable, supervisor } = workerExecutablePaths(agentDir);
+  if (!isFile(executable)) return null;
+  if (existsSync(supervisor) && statSync(supervisor).ino === statSync(executable).ino)
+    return supervisor;
+  const staged = `${supervisor}.link-${process.pid}`;
+  rmSync(staged, { force: true });
+  linkSync(executable, staged);
+  renameSync(staged, supervisor);
+  return supervisor;
+}
+/** A Mac that ran apps kept its build at `<agentDir>/worker`, where task state now lives. */
+export function moveClashingWorker(agentDir, root) {
+  const [current, legacy] = executableNames;
+  const from = (name) => join(agentDir, name);
+  if (resolve(root) !== from(legacy.executable) || !isFile(from(legacy.executable))) return false;
+  if (existsSync(from(current.executable)))
+    throw new Error(`${from(current.executable)} already exists; remove it and retry.`);
+  for (const [name, next] of [
+    [`${legacy.executable}.previous`, `${current.executable}.previous`],
+    [legacy.supervisor, current.supervisor],
+    [legacy.executable, current.executable],
+  ])
+    if (isFile(from(name)) && !existsSync(from(next))) renameSync(from(name), from(next));
+  return true;
 }
 export function workerRoot(platform = process.platform, home = agentUser().home) {
   return join(
@@ -113,16 +202,16 @@ export function workerServiceFile(user = agentUser(), platform = process.platfor
     ? join(user.home, 'Library/LaunchAgents/sh.deploy.worker.plist')
     : join(user.home, '.config/systemd/user/deploy-local-worker.service');
 }
-function userSystemctl(args, user = agentUser()) {
+function userSystemctl(args, user = agentUser(), run = spawnSync) {
   const environment = [
     `XDG_RUNTIME_DIR=/run/user/${user.uid}`,
     `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${user.uid}/bus`,
   ];
   return user.name
-    ? spawnSync('sudo', ['-u', user.name, 'env', ...environment, 'systemctl', '--user', ...args], {
+    ? run('sudo', ['-u', user.name, 'env', ...environment, 'systemctl', '--user', ...args], {
         encoding: 'utf8',
       })
-    : spawnSync('systemctl', ['--user', ...args], { encoding: 'utf8' });
+    : run('systemctl', ['--user', ...args], { encoding: 'utf8' });
 }
 function checked(result, action) {
   if (result.status !== 0)
@@ -181,6 +270,24 @@ export function installWorkerService(programArguments) {
     );
     checked(userSystemctl(['restart', 'deploy-local-worker.service'], user), 'User worker restart');
   }
+}
+/** After a confirmed update, restart the task worker so it runs the new build too. */
+export function restartWorkerService({
+  platform = process.platform,
+  user = taskWorkerUser(),
+  exists = existsSync,
+  run = spawnSync,
+} = {}) {
+  if (!exists(workerServiceFile(user, platform))) return false;
+  checked(
+    platform === 'darwin'
+      ? run('launchctl', ['kickstart', '-k', `gui/${user.uid}/sh.deploy.worker`], {
+          encoding: 'utf8',
+        })
+      : userSystemctl(['restart', 'deploy-local-worker.service'], user, run),
+    'Task worker restart',
+  );
+  return true;
 }
 export function installedServices() {
   const agentFile =

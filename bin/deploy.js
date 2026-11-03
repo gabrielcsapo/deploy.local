@@ -9,7 +9,16 @@ import { getDeployManifestName, getIgnorePatterns, listBundleFiles } from './bun
 import { agentUser } from './agent-user.mjs';
 import {
   servicePlan,
+  assertAgentJobAllowed,
+  isFile,
+  workerExecutablePaths,
+  supervisedExecutable,
+  serviceProgramArguments,
+  linkWorkerSupervisor,
+  moveClashingWorker,
+  workerRoot,
   installWorkerService,
+  restartWorkerService,
   installedServices,
   uninstallServices,
   systemdQuote,
@@ -45,7 +54,6 @@ import { createInterface } from 'node:readline';
 import { arch, cpus, homedir, networkInterfaces, platform, totalmem } from 'node:os';
 import {
   chmodSync,
-  linkSync,
   createReadStream,
   createWriteStream,
   existsSync,
@@ -950,11 +958,13 @@ function xmlEscape(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-function agentProgramArguments() {
-  const supervisor = resolve(agentConfigPath(), '..', 'worker-supervisor');
-  if (existsSync(supervisor)) return [supervisor];
-  const worker = resolve(agentConfigPath(), '..', 'worker');
-  if (existsSync(worker)) return [worker];
+function programArguments() {
+  return serviceProgramArguments({
+    agentDir: dirname(agentConfigPath()),
+    self: selfProgramArguments(),
+  });
+}
+function selfProgramArguments() {
   const executable = resolve(process.execPath);
   // A regular Node invocation is `node /path/to/deploy.js ...`, while a
   // single-executable application is `/path/to/deploy ...`. In a SEA,
@@ -969,11 +979,10 @@ function agentProgramArguments() {
 }
 
 function installExecutionAgentService() {
-  const worker = resolve(agentConfigPath(), '..', 'worker');
-  const supervisor = resolve(agentConfigPath(), '..', 'worker-supervisor');
   // Keep the service executor on an immutable inode, independent of every future worker swap.
-  if (existsSync(worker) && !existsSync(supervisor)) linkSync(worker, supervisor);
-  const args = [...agentProgramArguments(), 'agent', 'run'];
+  // Reinstalling restarts the service, so this is the one safe moment to move it to the current build.
+  linkWorkerSupervisor(dirname(agentConfigPath()));
+  const args = [...programArguments().agent, 'agent', 'run'];
   if (platform() === 'darwin') {
     const label = 'sh.deploy.agent';
     const uid = process.getuid?.();
@@ -1055,6 +1064,8 @@ function installExecutionAgentService() {
   }
   mkdirSync('/var/lib/deploy.local/data', { recursive: true });
   const unitPath = '/etc/systemd/system/deploy-local-agent.service';
+  // Lets the root agent restart the login user's task worker after an update.
+  const taskUser = agentUser().uid;
   const command = args.map((arg) => systemdQuote(arg, true)).join(' ');
   writeFileSync(
     unitPath,
@@ -1071,7 +1082,7 @@ Restart=always
 RestartSec=5
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 Environment=DEPLOY_DATA_DIR=/var/lib/deploy.local/data
-Environment=${systemdQuote(`DEPLOY_AGENT_CONFIG=${agentConfigPath()}`)}
+Environment=${systemdQuote(`DEPLOY_AGENT_CONFIG=${agentConfigPath()}`)}${taskUser > 0 ? `\nEnvironment=DEPLOY_TASK_WORKER_UID=${taskUser}` : ''}
 
 [Install]
 WantedBy=multi-user.target
@@ -1095,15 +1106,39 @@ function installRoleServices(config) {
     throw new Error(
       'Task workers require a normal login user; run sudo from that login when deployments are enabled.',
     );
-  if (plan.agent) installExecutionAgentService();
-  if (plan.worker) installWorkerService(agentProgramArguments());
+  // A Mac that ran apps kept its build where the task worker's state directory goes.
+  if (plan.worker) moveClashingWorker(dirname(agentConfigPath()), workerRoot());
+  let agent = plan.agent;
+  if (agent && !plan.apps && platform() === 'linux' && process.getuid?.() !== 0) {
+    // The execution agent is a system service on Linux; without it the task worker still runs.
+    agent = false;
+    console.log(
+      'Automatic updates need the execution agent. Run sudo deploy agent install from this login to add it.',
+    );
+  }
+  if (agent) installExecutionAgentService();
+  if (plan.worker) installWorkerService(programArguments().worker);
   return plan;
+}
+/** Services run the coordinator's worker build, which can update itself in place later. */
+async function ensureWorkerBuild(serverUrl, agentDir) {
+  const { executable } = workerExecutablePaths(agentDir);
+  if (isFile(executable)) return null;
+  mkdirSync(agentDir, { recursive: true });
+  try {
+    return await downloadWorkerBuild(serverUrl, executable);
+  } catch (error) {
+    console.log(
+      `Could not download the coordinator's worker build (${error.message}). Services will run this deploy command and cannot update themselves.`,
+    );
+    return null;
+  }
 }
 function connectionSummary(config, services = installedServices()) {
   const plan = servicePlan(config.roles);
   const state = (enabled, service, label) =>
     !enabled ? 'off' : service?.running ? `${label} running` : `${label} not running`;
-  return `This ${platform() === 'darwin' ? 'Mac' : 'computer'} is connected to ${new URL(config.coordinatorUrl).host} as ${config.name}: Coding tasks (${state(plan.worker, services.worker, 'task worker')}), Deploy apps (${state(plan.agent, services.agent, 'execution agent')})${!plan.agent && !plan.worker ? '. No background services requested; nothing installed.' : ''}`;
+  return `This ${platform() === 'darwin' ? 'Mac' : 'computer'} is connected to ${new URL(config.coordinatorUrl).host} as ${config.name}: Coding tasks (${state(plan.worker, services.worker, 'task worker')}), Deploy apps (${state(plan.apps, services.agent, 'execution agent')})${!plan.agent && !plan.worker ? '. No background services requested; nothing installed.' : ''}`;
 }
 async function cmdAgentJoin(serverUrl, requestedName) {
   if (!['darwin', 'linux'].includes(platform()))
@@ -1117,7 +1152,7 @@ async function cmdAgentJoin(serverUrl, requestedName) {
       ? userAgentConfigPath(process.env.SUDO_UID ? {} : process.env, user.home)
       : agentConfigPath());
   // The service runs a worker build from the coordinator, so it can update in place later.
-  const workerPath = resolve(dirname(configPath), 'worker');
+  const { executable: workerPath } = workerExecutablePaths(dirname(configPath));
   mkdirSync(dirname(workerPath), { recursive: true });
   enableLocalTlsTrust(serverUrl);
   const installedWorker = await downloadWorkerBuild(serverUrl, workerPath);
@@ -1154,6 +1189,8 @@ async function coordinatorRoles(config) {
   return body.roles;
 }
 async function cmdAgentInstall() {
+  if (platform() === 'darwin' && process.getuid?.() === 0)
+    throw new Error('Do not use sudo on macOS. Run deploy agent install from your normal login.');
   const config = readAgentConfig();
   if (!config) throw new Error(`Agent is not enrolled (${agentConfigPath()} not found)`);
   const roles = await coordinatorRoles(config);
@@ -1161,6 +1198,8 @@ async function cmdAgentInstall() {
     config.roles = roles;
     writeFileSync(agentConfigPath(), JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
   }
+  if (servicePlan(config.roles).agent)
+    await ensureWorkerBuild(config.coordinatorUrl, dirname(agentConfigPath()));
   installRoleServices(config);
   console.log(connectionSummary(config));
 }
@@ -1204,6 +1243,7 @@ async function sendAgentHeartbeat(config) {
       capabilities: {
         ...agentCapabilities(),
         selfUpdate: process.env.DEPLOY_WORKER_CHILD && process.connected ? 1 : undefined,
+        runApps: servicePlan(config.roles).apps ? undefined : 0,
       },
       updateReport: workerUpdateReceipt(resolve(agentConfigPath(), '..', 'data')),
     }),
@@ -1911,6 +1951,10 @@ async function executeAgentRecreate(config, job) {
 async function processAgentJob(config, job) {
   try {
     let result;
+    // The saved roles can be older than the coordinator's; check before refusing.
+    if (config.roles?.deploy === false && job.type !== 'self-update')
+      config.roles = (await coordinatorRoles(config).catch(() => null)) || config.roles;
+    assertAgentJobAllowed(job, config.roles);
     if (job.type === 'self-update') {
       if (!process.env.DEPLOY_WORKER_CHILD || !process.send)
         throw new Error('This worker has no restart supervisor.');
@@ -2158,13 +2202,8 @@ async function cmdAgentRun() {
   process.env.DEPLOY_DATA_DIR ||= resolve(agentConfigPath(), '..', 'data');
   mkdirSync(process.env.DEPLOY_DATA_DIR, { recursive: true });
   enableLocalTlsTrust(config.coordinatorUrl);
-  const executable = resolve(agentConfigPath(), '..', 'worker');
-  if (
-    !process.env.DEPLOY_WORKER_CHILD &&
-    resolve(process.execPath) === resolve(agentConfigPath(), '..', 'worker-supervisor') &&
-    existsSync(executable) &&
-    ['darwin', 'linux'].includes(platform())
-  ) {
+  const executable = supervisedExecutable(process.execPath, dirname(agentConfigPath()));
+  if (!process.env.DEPLOY_WORKER_CHILD && executable && ['darwin', 'linux'].includes(platform())) {
     const controller = new AbortController();
     for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => controller.abort());
     await superviseWorker({
@@ -2172,13 +2211,17 @@ async function cmdAgentRun() {
       root: process.env.DEPLOY_DATA_DIR,
       version: BUILD_INFO.version,
       signal: controller.signal,
+      onUpdated: () => restartWorkerService(),
     });
     return;
   }
   if (process.env.DEPLOY_WORKER_CHILD && process.connected)
     process.once('disconnect', () => process.exit(1));
-  await restoreAgentRelays();
-  await discoverAgentRelays();
+  const runApps = servicePlan(config.roles).apps;
+  if (runApps) {
+    await restoreAgentRelays();
+    await discoverAgentRelays();
+  }
   enableLocalTlsTrust(config.coordinatorUrl);
   let reportedError = '';
   const heartbeat = async () => {
@@ -2201,14 +2244,17 @@ async function cmdAgentRun() {
   await heartbeat();
   const heartbeatTimer = setInterval(heartbeat, 10_000);
   heartbeatTimer.unref();
-  const execClaimTimer = setInterval(
-    () =>
-      void claimAgentExecSessionFromCoordinator(config).catch((err) => {
-        console.error(`Agent terminal poll failed: ${err.message || err}`);
-      }),
-    500,
-  );
-  execClaimTimer.unref();
+  // App terminals need app containers; with Deploy apps off there are none to open.
+  if (runApps) {
+    const execClaimTimer = setInterval(
+      () =>
+        void claimAgentExecSessionFromCoordinator(config).catch((err) => {
+          console.error(`Agent terminal poll failed: ${err.message || err}`);
+        }),
+      500,
+    );
+    execClaimTimer.unref();
+  }
   while (true) {
     try {
       const job = workerUpdatePending() ? null : await claimAgentJobFromCoordinator(config);
@@ -2261,7 +2307,9 @@ async function cmdAgentStatus(json = false) {
   if (
     !config ||
     Object.entries(services).some(
-      ([name, state]) => (plan[name] || state.installed) && !state.running,
+      // Without Deploy apps the agent only adds automatic updates; it is not required.
+      ([name, state]) =>
+        ((name === 'agent' ? plan.apps : plan[name]) || state.installed) && !state.running,
     )
   )
     process.exitCode = 1;
