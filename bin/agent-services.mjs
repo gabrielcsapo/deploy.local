@@ -8,6 +8,10 @@ import {
   statSync,
   linkSync,
   renameSync,
+  copyFileSync,
+  chmodSync,
+  mkdirSync,
+  readdirSync,
 } from 'node:fs';
 import { dirname, join, resolve, delimiter } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -40,39 +44,149 @@ const executableNames = [
   // Older Linux installs. On macOS `worker` is the task worker's state directory.
   { executable: 'worker', supervisor: 'worker-supervisor' },
 ];
+export const WORKER_APP_ID = 'local.deploy.worker';
 /**
- * The coordinator's worker build beside agent.json, and the supervisor's hard link to it.
- * A directory is never an executable: new installs use names that cannot clash with workerRoot.
+ * macOS Local Network privacy blocks bare executables that launchd starts, so on a Mac the
+ * worker build lives in an app bundle. DEPLOY_WORKER_APP moves it (tests, other volumes).
  */
-export function workerExecutablePaths(agentDir, fileExists = isFile) {
+export function workerAppPath(env = process.env, home = agentUser().home) {
+  return env.DEPLOY_WORKER_APP
+    ? resolve(env.DEPLOY_WORKER_APP)
+    : join(home, 'Applications/deploy.local Worker.app');
+}
+/**
+ * The coordinator's worker build, the supervisor's copy of it and where an update keeps the
+ * build it replaced. A directory is never an executable: new Linux installs use names that
+ * cannot clash with workerRoot, and older ones keep their regular-file `worker`.
+ */
+export function workerExecutablePaths(
+  agentDir,
+  {
+    fileExists = isFile,
+    platform = process.platform,
+    app = platform === 'darwin' ? workerAppPath() : null,
+  } = {},
+) {
+  if (platform === 'darwin') {
+    const macos = join(app, 'Contents/MacOS');
+    return {
+      app,
+      executable: join(macos, 'deploy-worker'),
+      supervisor: join(macos, 'deploy-worker-supervisor'),
+      // Outside the bundle: an old main executable in Contents/MacOS fails the bundle's seal.
+      previous: join(agentDir, 'deploy-worker-app.previous'),
+    };
+  }
   const [current, legacy] = executableNames.map((names) => ({
+    app: null,
     executable: join(agentDir, names.executable),
     supervisor: join(agentDir, names.supervisor),
+    previous: join(agentDir, `${names.executable}.previous`),
   }));
   return !fileExists(current.executable) && fileExists(legacy.executable) ? legacy : current;
 }
-/** The worker build a supervisor link runs, or null when this process is not a supervisor. */
-export function supervisedExecutable(execPath, agentDir, fileExists = isFile) {
-  for (const names of executableNames)
-    if (resolve(execPath) === join(agentDir, names.supervisor)) {
-      const executable = join(agentDir, names.executable);
-      return fileExists(executable) ? executable : null;
-    }
+function samePath(left, right) {
+  if (resolve(left) === resolve(right)) return true;
+  try {
+    return realpathSync(left) === realpathSync(right);
+  } catch {
+    return false;
+  }
+}
+/** The worker build a supervisor runs, or null when this process is not a supervisor. */
+export function supervisedExecutable(execPath, agentDir, options = {}) {
+  const { fileExists = isFile, platform = process.platform } = options;
+  const pairs = executableNames.map((names) => ({
+    supervisor: join(agentDir, names.supervisor),
+    executable: join(agentDir, names.executable),
+  }));
+  if (platform === 'darwin') pairs.unshift(workerExecutablePaths(agentDir, options));
+  for (const { supervisor, executable } of pairs)
+    if (samePath(execPath, supervisor)) return fileExists(executable) ? executable : null;
   return null;
 }
 /**
- * The execution agent runs the immutable supervisor inode; the task worker runs the swappable
- * build so a restart after an update picks up the new one. `self` runs this deploy command.
+ * The execution agent runs the supervisor, which is never replaced while it runs; the task
+ * worker runs the swappable build so a restart after an update picks up the new one. `self`
+ * runs this deploy command.
  */
-export function serviceProgramArguments({ agentDir, self, fileExists = isFile }) {
-  const { executable, supervisor } = workerExecutablePaths(agentDir, fileExists);
+export function serviceProgramArguments({ agentDir, self, ...options }) {
+  const fileExists = options.fileExists ?? isFile;
+  const { executable, supervisor } = workerExecutablePaths(agentDir, options);
   const worker = fileExists(executable) ? [executable] : self;
   return { agent: fileExists(supervisor) ? [supervisor] : worker, worker };
 }
-/** Point the supervisor at the current build. Only call while (re)installing the agent service. */
-export function linkWorkerSupervisor(agentDir) {
-  const { executable, supervisor } = workerExecutablePaths(agentDir);
+const xmlText = (value) =>
+  String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+export function workerAppInfoPlist() {
+  const entries = {
+    CFBundleIdentifier: WORKER_APP_ID,
+    CFBundleExecutable: 'deploy-worker',
+    CFBundlePackageType: 'APPL',
+    CFBundleName: 'deploy.local Worker',
+    CFBundleDisplayName: 'deploy.local Worker',
+    LSMinimumSystemVersion: '14.0',
+    NSLocalNetworkUsageDescription:
+      'deploy.local Worker connects to your deploy.local coordinator on this network to run coding tasks and build jobs.',
+  };
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+${Object.entries(entries)
+  .map(([key, value]) => `<key>${key}</key><string>${xmlText(value)}</string>`)
+  .join('\n')}
+<key>LSUIElement</key><true/>
+</dict></plist>
+`;
+}
+/**
+ * Seal the worker app so macOS lets it reach the coordinator. The supervisor is a separate
+ * copy signed with the app's identifier first; then the bundle is re-signed and verified.
+ * Call after anything in Contents/MacOS changes. `signSupervisor: false` leaves a running
+ * supervisor alone; `ifNeeded` only seals a bundle that fails verification.
+ */
+export function sealWorkerBundle(
+  app,
+  { run = spawnSync, signSupervisor = true, ifNeeded = false } = {},
+) {
+  const codesign = (args, action) =>
+    checked(run('codesign', args, { encoding: 'utf8' }), `Worker app ${action}`);
+  const verify = ['--verify', '--strict', '--deep', app];
+  if (ifNeeded && run('codesign', verify, { encoding: 'utf8' }).status === 0) return false;
+  const macos = join(app, 'Contents/MacOS'),
+    plist = join(app, 'Contents/Info.plist'),
+    supervisor = join(macos, 'deploy-worker-supervisor');
+  mkdirSync(macos, { recursive: true });
+  if (!existsSync(plist)) writeFileSync(plist, workerAppInfoPlist());
+  // An interrupted install can leave its staged copy behind, which the seal would reject.
+  for (const name of readdirSync(macos))
+    if (/^deploy-worker(-supervisor)?\.stage-\d+$/.test(name)) rmSync(join(macos, name));
+  if (signSupervisor && isFile(supervisor))
+    codesign(
+      ['--force', '--sign', '-', '--identifier', WORKER_APP_ID, supervisor],
+      'supervisor signing',
+    );
+  codesign(['--force', '--sign', '-', app], 'signing');
+  codesign(verify, 'verification');
+  return true;
+}
+/**
+ * Give the supervisor the current build. Only call while (re)installing the agent service,
+ * which restarts it. On Linux a hard link; on macOS a signed copy inside the sealed app.
+ */
+export function linkWorkerSupervisor(agentDir, options = {}) {
+  const platform = options.platform ?? process.platform;
+  const { app, executable, supervisor } = workerExecutablePaths(agentDir, options);
   if (!isFile(executable)) return null;
+  if (platform === 'darwin') {
+    const staged = `${supervisor}.stage-${process.pid}`;
+    rmSync(staged, { force: true });
+    copyFileSync(executable, staged);
+    chmodSync(staged, 0o755);
+    renameSync(staged, supervisor);
+    sealWorkerBundle(app, { run: options.run });
+    return supervisor;
+  }
   if (existsSync(supervisor) && statSync(supervisor).ino === statSync(executable).ino)
     return supervisor;
   const staged = `${supervisor}.link-${process.pid}`;
@@ -80,6 +194,18 @@ export function linkWorkerSupervisor(agentDir) {
   linkSync(executable, staged);
   renameSync(staged, supervisor);
   return supervisor;
+}
+/** Once the Mac's worker app is in place, the bare builds an earlier install left are unused. */
+export function removeBareWorkers(agentDir) {
+  const names = ['deploy-worker', 'deploy-worker-supervisor', 'deploy-worker.previous'];
+  // `<agentDir>/worker` is the task state directory unless an old install put a build there.
+  if (isFile(join(agentDir, 'worker')))
+    names.push('worker', 'worker-supervisor', 'worker.previous');
+  return names.filter((name) => {
+    if (!isFile(join(agentDir, name))) return false;
+    rmSync(join(agentDir, name));
+    return true;
+  });
 }
 /** A Mac that ran apps kept its build at `<agentDir>/worker`, where task state now lives. */
 export function moveClashingWorker(agentDir, root) {

@@ -15,6 +15,8 @@ import {
   supervisedExecutable,
   serviceProgramArguments,
   linkWorkerSupervisor,
+  sealWorkerBundle,
+  removeBareWorkers,
   moveClashingWorker,
   workerRoot,
   installWorkerService,
@@ -1015,7 +1017,11 @@ function installExecutionAgentService() {
   <dict>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>DEPLOY_DATA_DIR</key><string>${xmlEscape(agentDataDir)}</string>
-    <key>DEPLOY_AGENT_CONFIG</key><string>${xmlEscape(agentConfigPath())}</string>
+    <key>DEPLOY_AGENT_CONFIG</key><string>${xmlEscape(agentConfigPath())}</string>${
+      process.env.DEPLOY_WORKER_APP
+        ? `\n    <key>DEPLOY_WORKER_APP</key><string>${xmlEscape(resolve(process.env.DEPLOY_WORKER_APP))}</string>`
+        : ''
+    }
   </dict>
   <key>StandardOutPath</key><string>${xmlEscape(resolve(logDir, 'agent.log'))}</string>
   <key>StandardErrorPath</key><string>${xmlEscape(resolve(logDir, 'agent.err.log'))}</string>
@@ -1106,8 +1112,14 @@ function installRoleServices(config) {
     throw new Error(
       'Task workers require a normal login user; run sudo from that login when deployments are enabled.',
     );
+  const agentDir = dirname(agentConfigPath());
+  // On a Mac the services run the worker app; bare builds from an earlier install are unused.
+  if (workerExecutablePaths(agentDir).app && isFile(workerExecutablePaths(agentDir).executable)) {
+    const removed = removeBareWorkers(agentDir);
+    if (removed.length) console.log(`Removed unused worker builds: ${removed.join(', ')}`);
+  }
   // A Mac that ran apps kept its build where the task worker's state directory goes.
-  if (plan.worker) moveClashingWorker(dirname(agentConfigPath()), workerRoot());
+  if (plan.worker) moveClashingWorker(agentDir, workerRoot());
   let agent = plan.agent;
   if (agent && !plan.apps && platform() === 'linux' && process.getuid?.() !== 0) {
     // The execution agent is a system service on Linux; without it the task worker still runs.
@@ -1120,13 +1132,20 @@ function installRoleServices(config) {
   if (plan.worker) installWorkerService(programArguments().worker);
   return plan;
 }
+/** Download the coordinator's worker build; on a Mac into the worker app, which is then sealed. */
+async function downloadWorker(serverUrl, agentDir) {
+  const { app, executable, previous } = workerExecutablePaths(agentDir);
+  mkdirSync(agentDir, { recursive: true });
+  mkdirSync(dirname(executable), { recursive: true });
+  const installed = await downloadWorkerBuild(serverUrl, executable, undefined, previous);
+  if (app) sealWorkerBundle(app);
+  return installed;
+}
 /** Services run the coordinator's worker build, which can update itself in place later. */
 async function ensureWorkerBuild(serverUrl, agentDir) {
-  const { executable } = workerExecutablePaths(agentDir);
-  if (isFile(executable)) return null;
-  mkdirSync(agentDir, { recursive: true });
+  if (isFile(workerExecutablePaths(agentDir).executable)) return null;
   try {
-    return await downloadWorkerBuild(serverUrl, executable);
+    return await downloadWorker(serverUrl, agentDir);
   } catch (error) {
     console.log(
       `Could not download the coordinator's worker build (${error.message}). Services will run this deploy command and cannot update themselves.`,
@@ -1152,10 +1171,8 @@ async function cmdAgentJoin(serverUrl, requestedName) {
       ? userAgentConfigPath(process.env.SUDO_UID ? {} : process.env, user.home)
       : agentConfigPath());
   // The service runs a worker build from the coordinator, so it can update in place later.
-  const { executable: workerPath } = workerExecutablePaths(dirname(configPath));
-  mkdirSync(dirname(workerPath), { recursive: true });
   enableLocalTlsTrust(serverUrl);
-  const installedWorker = await downloadWorkerBuild(serverUrl, workerPath);
+  const installedWorker = await downloadWorker(serverUrl, dirname(configPath));
   // The installer's --join passes the code in the environment, keeping it out of the process list.
   const code = process.env.DEPLOY_JOIN_CODE?.trim() || (await prompt('Enrollment code: ', true));
   const enrolled = await joinAgent({
@@ -2202,12 +2219,29 @@ async function cmdAgentRun() {
   process.env.DEPLOY_DATA_DIR ||= resolve(agentConfigPath(), '..', 'data');
   mkdirSync(process.env.DEPLOY_DATA_DIR, { recursive: true });
   enableLocalTlsTrust(config.coordinatorUrl);
-  const executable = supervisedExecutable(process.execPath, dirname(agentConfigPath()));
+  const agentDir = dirname(agentConfigPath());
+  const executable = supervisedExecutable(process.execPath, agentDir);
   if (!process.env.DEPLOY_WORKER_CHILD && executable && ['darwin', 'linux'].includes(platform())) {
+    const paths = workerExecutablePaths(agentDir);
+    const installed = executable === paths.executable;
+    // A Mac's worker app must stay sealed to reach the coordinator. The running supervisor is
+    // signed at install and never re-signed here.
+    const seal =
+      installed && paths.app
+        ? () => sealWorkerBundle(paths.app, { signSupervisor: false })
+        : undefined;
+    if (seal)
+      try {
+        sealWorkerBundle(paths.app, { signSupervisor: false, ifNeeded: true });
+      } catch (error) {
+        console.error(error.message || error);
+      }
     const controller = new AbortController();
     for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => controller.abort());
     await superviseWorker({
       executable,
+      previous: installed ? paths.previous : undefined,
+      afterInstall: seal,
       root: process.env.DEPLOY_DATA_DIR,
       version: BUILD_INFO.version,
       signal: controller.signal,

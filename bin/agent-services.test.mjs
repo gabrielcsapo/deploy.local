@@ -7,6 +7,10 @@ import {
   supervisedExecutable,
   serviceProgramArguments,
   linkWorkerSupervisor,
+  sealWorkerBundle,
+  removeBareWorkers,
+  workerAppPath,
+  workerAppInfoPlist,
   moveClashingWorker,
   restartWorkerService,
   workerRoot,
@@ -23,7 +27,11 @@ import {
   readFileSync,
   statSync,
   existsSync,
+  symlinkSync,
+  readdirSync,
 } from 'node:fs';
+import { installWorkerBuild } from './worker-update.mjs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -66,6 +74,7 @@ function agentDirectory(files = [], directories = []) {
   for (const name of files) writeFileSync(join(dir, name), name, { mode: 0o755 });
   return dir;
 }
+const linux = { platform: 'linux' };
 test('worker executable uses a name that never clashes with the task state directory', () => {
   const cases = [
     [[], [], 'deploy-worker'],
@@ -77,38 +86,43 @@ test('worker executable uses a name that never clashes with the task state direc
   for (const [files, directories, expected] of cases) {
     const dir = agentDirectory(files, directories);
     try {
-      assert.deepEqual(workerExecutablePaths(dir), {
+      assert.deepEqual(workerExecutablePaths(dir, linux), {
+        app: null,
         executable: join(dir, expected),
         supervisor: join(dir, `${expected}-supervisor`),
+        previous: join(dir, `${expected}.previous`),
       });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }
 });
-test('only a supervisor link with a worker build beside it supervises', () => {
+test('on Linux only a supervisor link with a worker build beside it supervises', () => {
   const dir = agentDirectory(['deploy-worker', 'deploy-worker-supervisor'], ['worker']);
   try {
     assert.equal(
-      supervisedExecutable(join(dir, 'deploy-worker-supervisor'), dir),
+      supervisedExecutable(join(dir, 'deploy-worker-supervisor'), dir, linux),
       join(dir, 'deploy-worker'),
     );
     writeFileSync(join(dir, 'worker-supervisor'), '');
-    assert.equal(supervisedExecutable(join(dir, 'worker-supervisor'), dir), null);
-    assert.equal(supervisedExecutable(join(dir, 'deploy-worker'), dir), null);
-    assert.equal(supervisedExecutable('/usr/local/bin/deploy', dir), null);
+    assert.equal(supervisedExecutable(join(dir, 'worker-supervisor'), dir, linux), null);
+    assert.equal(supervisedExecutable(join(dir, 'deploy-worker'), dir, linux), null);
+    assert.equal(supervisedExecutable('/usr/local/bin/deploy', dir, linux), null);
     rmSync(join(dir, 'worker'), { recursive: true });
     writeFileSync(join(dir, 'worker'), '');
-    assert.equal(supervisedExecutable(join(dir, 'worker-supervisor'), dir), join(dir, 'worker'));
+    assert.equal(
+      supervisedExecutable(join(dir, 'worker-supervisor'), dir, linux),
+      join(dir, 'worker'),
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test('the task worker service runs the swappable build, the agent runs the supervisor', () => {
+test('on Linux the task worker service runs the swappable build, the agent the supervisor', () => {
   const self = ['/opt/homebrew/bin/node', '/repo/bin/deploy.js'];
   const dir = agentDirectory(['deploy-worker', 'deploy-worker-supervisor'], ['worker']);
   try {
-    const args = serviceProgramArguments({ agentDir: dir, self });
+    const args = serviceProgramArguments({ agentDir: dir, self, ...linux });
     assert.deepEqual(args, {
       agent: [join(dir, 'deploy-worker-supervisor')],
       worker: [join(dir, 'deploy-worker')],
@@ -120,12 +134,12 @@ test('the task worker service runs the swappable build, the agent runs the super
     );
     assert.doesNotMatch(plist, /supervisor/);
     rmSync(join(dir, 'deploy-worker-supervisor'));
-    assert.deepEqual(serviceProgramArguments({ agentDir: dir, self }), {
+    assert.deepEqual(serviceProgramArguments({ agentDir: dir, self, ...linux }), {
       agent: [join(dir, 'deploy-worker')],
       worker: [join(dir, 'deploy-worker')],
     });
     rmSync(join(dir, 'deploy-worker'));
-    assert.deepEqual(serviceProgramArguments({ agentDir: dir, self }), {
+    assert.deepEqual(serviceProgramArguments({ agentDir: dir, self, ...linux }), {
       agent: self,
       worker: self,
     });
@@ -133,22 +147,22 @@ test('the task worker service runs the swappable build, the agent runs the super
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test('installing links the supervisor to the current build without touching it otherwise', () => {
+test('on Linux installing links the supervisor to the current build without touching it otherwise', () => {
   const dir = agentDirectory(['deploy-worker'], ['worker']);
   try {
     const executable = join(dir, 'deploy-worker');
-    const supervisor = linkWorkerSupervisor(dir);
+    const supervisor = linkWorkerSupervisor(dir, linux);
     assert.equal(supervisor, join(dir, 'deploy-worker-supervisor'));
     assert.equal(statSync(supervisor).ino, statSync(executable).ino);
     // An update swaps in a new inode; the next install moves the supervisor to it.
     rmSync(executable);
     writeFileSync(executable, 'new', { mode: 0o755 });
     assert.notEqual(statSync(supervisor).ino, statSync(executable).ino);
-    linkWorkerSupervisor(dir);
+    linkWorkerSupervisor(dir, linux);
     assert.equal(statSync(supervisor).ino, statSync(executable).ino);
     assert.equal(readFileSync(supervisor, 'utf8'), 'new');
     const empty = agentDirectory([], ['worker']);
-    assert.equal(linkWorkerSupervisor(empty), null);
+    assert.equal(linkWorkerSupervisor(empty, linux), null);
     rmSync(empty, { recursive: true, force: true });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -171,6 +185,205 @@ test('a Mac build at the task state path moves to the new name; elsewhere it sta
     assert.equal(moveClashingWorker(dir, join(dir, 'worker')), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+function macLayout() {
+  const home = mkdtempSync(join(tmpdir(), 'mac-worker-'));
+  const agentDir = join(home, 'Library/Application Support/deploy.local');
+  const app = join(home, 'Applications/deploy.local Worker.app');
+  const macos = join(app, 'Contents/MacOS');
+  mkdirSync(join(agentDir, 'worker'), { recursive: true });
+  mkdirSync(macos, { recursive: true });
+  return { home, agentDir, app, macos, mac: { platform: 'darwin', app } };
+}
+test('a Mac keeps the worker in its app bundle, which an environment variable can move', () => {
+  assert.equal(workerAppPath({}, '/Users/a'), '/Users/a/Applications/deploy.local Worker.app');
+  assert.equal(workerAppPath({ DEPLOY_WORKER_APP: '/tmp/W.app' }, '/Users/a'), '/tmp/W.app');
+  const { home, agentDir, app, macos, mac } = macLayout();
+  try {
+    // Bare builds from the previous install are never chosen on a Mac.
+    for (const name of ['deploy-worker', 'deploy-worker-supervisor', 'worker-supervisor'])
+      writeFileSync(join(agentDir, name), name);
+    assert.deepEqual(workerExecutablePaths(agentDir, mac), {
+      app,
+      executable: join(macos, 'deploy-worker'),
+      supervisor: join(macos, 'deploy-worker-supervisor'),
+      previous: join(agentDir, 'deploy-worker-app.previous'),
+    });
+    const self = ['/usr/local/bin/deploy'];
+    assert.deepEqual(serviceProgramArguments({ agentDir, self, ...mac }), {
+      agent: self,
+      worker: self,
+    });
+    writeFileSync(join(macos, 'deploy-worker'), 'build', { mode: 0o755 });
+    writeFileSync(join(macos, 'deploy-worker-supervisor'), 'build', { mode: 0o755 });
+    assert.deepEqual(serviceProgramArguments({ agentDir, self, ...mac }), {
+      agent: [join(macos, 'deploy-worker-supervisor')],
+      worker: [join(macos, 'deploy-worker')],
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+test('the app bundle supervisor supervises the bundle build', () => {
+  const { home, agentDir, app, macos, mac } = macLayout();
+  try {
+    const supervisor = join(macos, 'deploy-worker-supervisor');
+    writeFileSync(supervisor, '');
+    assert.equal(supervisedExecutable(supervisor, agentDir, mac), null);
+    writeFileSync(join(macos, 'deploy-worker'), '');
+    assert.equal(supervisedExecutable(supervisor, agentDir, mac), join(macos, 'deploy-worker'));
+    // launchd may name the bundle through a link; the real path still matches.
+    symlinkSync(app, join(home, 'Linked.app'));
+    assert.equal(
+      supervisedExecutable(
+        join(home, 'Linked.app/Contents/MacOS/deploy-worker-supervisor'),
+        agentDir,
+        mac,
+      ),
+      join(macos, 'deploy-worker'),
+    );
+    assert.equal(supervisedExecutable(join(macos, 'deploy-worker'), agentDir, mac), null);
+    assert.equal(supervisedExecutable('/usr/local/bin/deploy', agentDir, mac), null);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+function recorder(status = () => 0) {
+  const calls = [];
+  const run = (command, args) => {
+    calls.push([command, ...args]);
+    return { status: status(args), stderr: 'refused' };
+  };
+  return { calls, run };
+}
+test('sealing signs the supervisor with the app identifier, then the bundle, then verifies', () => {
+  const { home, app, macos } = macLayout();
+  try {
+    const supervisor = join(macos, 'deploy-worker-supervisor');
+    writeFileSync(join(macos, 'deploy-worker'), 'build');
+    writeFileSync(supervisor, 'build');
+    writeFileSync(join(macos, 'deploy-worker.stage-123'), 'partial');
+    const { calls, run } = recorder();
+    assert.equal(sealWorkerBundle(app, { run }), true);
+    assert.deepEqual(calls, [
+      ['codesign', '--force', '--sign', '-', '--identifier', 'local.deploy.worker', supervisor],
+      ['codesign', '--force', '--sign', '-', app],
+      ['codesign', '--verify', '--strict', '--deep', app],
+    ]);
+    assert.ok(!existsSync(join(macos, 'deploy-worker.stage-123')));
+    const plist = readFileSync(join(app, 'Contents/Info.plist'), 'utf8');
+    assert.equal(plist, workerAppInfoPlist());
+    for (const expected of [
+      '<key>CFBundleIdentifier</key><string>local.deploy.worker</string>',
+      '<key>CFBundleExecutable</key><string>deploy-worker</string>',
+      '<key>CFBundlePackageType</key><string>APPL</string>',
+      '<key>LSUIElement</key><true/>',
+      '<key>LSMinimumSystemVersion</key><string>14.0</string>',
+      '<key>CFBundleName</key><string>deploy.local Worker</string>',
+      '<key>CFBundleDisplayName</key><string>deploy.local Worker</string>',
+      '<key>NSLocalNetworkUsageDescription</key><string>deploy.local Worker connects to your deploy.local coordinator on this network to run coding tasks and build jobs.</string>',
+    ])
+      assert.ok(plist.includes(expected), expected);
+    if (process.platform === 'darwin')
+      assert.equal(spawnSync('plutil', ['-lint', join(app, 'Contents/Info.plist')]).status, 0);
+    // An existing Info.plist is kept; a running supervisor is not re-signed.
+    writeFileSync(join(app, 'Contents/Info.plist'), 'custom');
+    calls.length = 0;
+    sealWorkerBundle(app, { run, signSupervisor: false });
+    assert.equal(readFileSync(join(app, 'Contents/Info.plist'), 'utf8'), 'custom');
+    assert.deepEqual(calls, [
+      ['codesign', '--force', '--sign', '-', app],
+      ['codesign', '--verify', '--strict', '--deep', app],
+    ]);
+    // ifNeeded leaves a bundle that already verifies alone.
+    calls.length = 0;
+    assert.equal(sealWorkerBundle(app, { run, ifNeeded: true }), false);
+    assert.deepEqual(calls, [['codesign', '--verify', '--strict', '--deep', app]]);
+    const failing = recorder((args) => (args[0] === '--verify' ? 1 : 0));
+    assert.throws(
+      () => sealWorkerBundle(app, { run: failing.run }),
+      /Worker app verification failed\. refused/,
+    );
+    assert.equal(failing.calls.length, 3);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+test('on a Mac installing gives the supervisor a signed copy, never a hard link', () => {
+  const { home, agentDir, app, macos, mac } = macLayout();
+  try {
+    const { calls, run } = recorder();
+    assert.equal(linkWorkerSupervisor(agentDir, { ...mac, run }), null);
+    assert.deepEqual(calls, []);
+    const executable = join(macos, 'deploy-worker'),
+      supervisor = join(macos, 'deploy-worker-supervisor');
+    writeFileSync(executable, 'build-1', { mode: 0o755 });
+    writeFileSync(supervisor, 'stale');
+    assert.equal(linkWorkerSupervisor(agentDir, { ...mac, run }), supervisor);
+    assert.equal(readFileSync(supervisor, 'utf8'), 'build-1');
+    assert.notEqual(statSync(supervisor).ino, statSync(executable).ino);
+    assert.equal(statSync(supervisor).mode & 0o777, 0o755);
+    assert.deepEqual(
+      calls.map((call) => call.slice(1, -1).join(' ')),
+      [
+        '--force --sign - --identifier local.deploy.worker',
+        '--force --sign -',
+        '--verify --strict --deep',
+      ],
+    );
+    assert.deepEqual(
+      calls.map((call) => call.at(-1)),
+      [supervisor, app, app],
+    );
+    assert.deepEqual(readdirSync(macos).sort(), ['deploy-worker', 'deploy-worker-supervisor']);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+test('a Mac install removes the bare builds the previous install left beside agent.json', () => {
+  const { home, agentDir } = macLayout();
+  try {
+    for (const name of ['deploy-worker', 'deploy-worker-supervisor', 'deploy-worker.previous'])
+      writeFileSync(join(agentDir, name), name);
+    writeFileSync(join(agentDir, 'agent.json'), '{}');
+    assert.deepEqual(removeBareWorkers(agentDir), [
+      'deploy-worker',
+      'deploy-worker-supervisor',
+      'deploy-worker.previous',
+    ]);
+    // The task state directory and everything else stay.
+    assert.deepEqual(readdirSync(agentDir).sort(), ['agent.json', 'worker']);
+    rmSync(join(agentDir, 'worker'), { recursive: true });
+    writeFileSync(join(agentDir, 'worker'), 'old build');
+    writeFileSync(join(agentDir, 'worker-supervisor'), 'old build');
+    assert.deepEqual(removeBareWorkers(agentDir), ['worker', 'worker-supervisor']);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+test('an update keeps the replaced build outside the app bundle', () => {
+  const { home, agentDir, macos } = macLayout();
+  try {
+    const path = join(macos, 'deploy-worker'),
+      previous = join(agentDir, 'deploy-worker-app.previous');
+    writeFileSync(path, 'old', { mode: 0o755 });
+    const bytes = Buffer.from('new');
+    installWorkerBuild({
+      path,
+      bytes,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      size: bytes.length,
+      version: '2',
+      previous,
+      platform: 'linux',
+      probe: () => {},
+    });
+    assert.equal(readFileSync(path, 'utf8'), 'new');
+    assert.equal(readFileSync(previous, 'utf8'), 'old');
+    assert.deepEqual(readdirSync(macos), ['deploy-worker']);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
   }
 });
 test('after an update the task worker service restarts on the new build', () => {

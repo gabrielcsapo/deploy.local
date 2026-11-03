@@ -53,6 +53,12 @@ export async function superviseWorker({
   signal,
   // Runs once the replacement passed its sustained startup check, e.g. to restart the task worker.
   onUpdated = () => {},
+  // Where the replaced build waits for a rollback (outside a macOS app bundle's seal).
+  previous = `${executable}.previous`,
+  // Runs after a new build is swapped in or the previous one restored, before any child starts:
+  // macOS re-seals the worker app here. Sealing rewrites the signature bytes, so `previousDigest`
+  // is always taken from the sealed build an update replaces, and `previous` keeps those bytes.
+  afterInstall = () => {},
 }) {
   let child,
     stopping = false,
@@ -62,15 +68,18 @@ export async function superviseWorker({
   let receipt = workerUpdateReceipt(root);
   function restore(reason) {
     if (digest(executable) !== receipt.previousDigest) {
-      if (
-        !existsSync(`${executable}.previous`) ||
-        digest(`${executable}.previous`) !== receipt.previousDigest
-      )
+      if (!existsSync(previous) || digest(previous) !== receipt.previousDigest)
         throw new Error('Previous worker build is missing; automatic recovery stopped.');
-      renameSync(`${executable}.previous`, executable);
+      renameSync(previous, executable);
     }
     receipt = { ...receipt, state: 'failed', version: receipt.previousVersion, error: reason };
+    // Record the rollback before sealing: the seal changes the bytes the digest check compares.
     persist(root, receipt);
+    try {
+      afterInstall(executable);
+    } catch (error) {
+      console.error(`Restored the previous worker build, but ${error.message || error}`);
+    }
   }
   // Never infer success from the installed filename after an executor interruption.
   if (receipt && ['staging', 'starting'].includes(receipt.state))
@@ -156,7 +165,9 @@ export async function superviseWorker({
             sha256: request.sha256,
             size: request.size,
             version: request.targetVersion,
+            previous,
           });
+          afterInstall(executable);
           receipt.state = 'starting';
           persist(root, receipt);
           child.kill('SIGTERM');

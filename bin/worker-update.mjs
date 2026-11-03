@@ -20,6 +20,8 @@ export function installWorkerBuild({
   sha256,
   size,
   version,
+  // Where the replaced build is kept for rollback; it must be on the same volume as `path`.
+  previous = `${path}.previous`,
   platform = process.platform,
   probe = probeWorker,
 }) {
@@ -32,15 +34,16 @@ export function installWorkerBuild({
   if (!['darwin', 'linux'].includes(platform))
     throw new Error('Windows computers use the desktop app.');
   const syncDirectory = () => {
-    const directory = openSync(dirname(path), 'r');
-    try {
-      fsyncSync(directory);
-    } finally {
-      closeSync(directory);
+    for (const folder of new Set([dirname(path), dirname(previous)])) {
+      const directory = openSync(folder, 'r');
+      try {
+        fsyncSync(directory);
+      } finally {
+        closeSync(directory);
+      }
     }
   };
   const staged = `${path}.stage-${process.pid}`;
-  const previous = `${path}.previous`;
   let swapped = false;
   const hadPrevious = existsSync(path);
   try {
@@ -88,7 +91,7 @@ function probeWorker(path, version) {
   if (info.version !== version)
     throw new Error('The worker build does not match the coordinator release.');
 }
-export async function downloadWorkerBuild(serverUrl, path, expectedVersion) {
+export async function downloadWorkerBuild(serverUrl, path, expectedVersion, previous) {
   const response = await fetch(`${serverUrl}/cli/version`);
   if (!response.ok) throw new Error('The coordinator worker manifest is unavailable.');
   const manifest = await response.json();
@@ -106,5 +109,6 @@ export async function downloadWorkerBuild(serverUrl, path, expectedVersion) {
     sha256: target.sha256,
     size: target.size,
     version: manifest.version,
+    previous,
   });
 }

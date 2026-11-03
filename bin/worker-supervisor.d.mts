@@ -11,4 +11,6 @@ export function superviseWorker(input: {
   download?: (request: any) => Promise<Buffer>;
   signal?: AbortSignal;
   onUpdated?: (receipt: any) => void;
+  previous?: string;
+  afterInstall?: (executable: string) => void;
 }): Promise<void>;
