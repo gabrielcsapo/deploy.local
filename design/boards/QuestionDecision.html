@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=1000">
+<title>Waiting on you — review a question’s content before answering</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:var(--paper)}
+.decision-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.decision-identity{min-width:0;display:flex;flex-direction:column;gap:2px}
+.decision-name{margin:0;font-size:15px;line-height:24px;font-weight:600}
+.decision-question{margin:0 0 16px;font-size:15px;line-height:24px;font-weight:500}
+.decision-preview{border:1px solid var(--line);border-radius:var(--radius-card);background:var(--paper);overflow:hidden}
+.decision-draft{box-sizing:border-box;max-height:420px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:16px;overflow-wrap:anywhere}
+.decision-draft h3{font:inherit;font-weight:600;margin:0 0 12px}
+.decision-draft ul{margin:0 0 16px;padding-left:22px}
+.decision-draft li+li{margin-top:6px}
+.decision-task{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-height:44px;padding:0 16px;border-top:1px solid var(--line);font-size:13px}
+.decision-task a{color:var(--accent);display:inline-flex;align-items:center;min-height:44px}
+.decision-task span{color:var(--muted);font-size:12px}
+.decision-options{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.decision-answer{margin-top:16px}
+.decision-answer textarea{display:block;min-height:64px;padding:10px 12px;resize:vertical}
+.decision-footer{display:flex;justify-content:space-between;gap:12px;margin-top:12px}
+.decision-footer button:disabled{color:var(--muted);background:var(--paper);border-color:var(--line);cursor:default}
+.decision-content :focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+.decision-column{width:100%;max-width:768px;box-sizing:border-box;margin:0 auto;padding:28px 32px 48px}
+.decision-content{padding:24px;border:1px solid var(--line);border-radius:var(--radius-dialog);background:var(--surface)}
+@media(max-width:820px){.decision-column{padding:20px 24px 40px}}
+@media(max-width:600px){.decision-column{padding:16px}.decision-content{padding:16px}.decision-options{flex-direction:column}.decision-options .dl-btn{height:44px}.decision-question{font-size:17px}}
+
+</style>
+</head>
+<body>
+<div data-layer="app" class="dl-app"><nav data-layer="deploy-local" class="dl-side" aria-label="deploy.local">
+  <div data-layer="side-top" class="dl-side-top"><span data-layer="brand" class="dl-brand"><span data-layer="d" class="dl-mark">d</span>deploy.local</span><button data-layer="search" type="button" class="dl-icon-btn" aria-label="Search"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button></div>
+  <div data-layer="side-nav" class="dl-side-nav">
+    <a data-layer="nav" href="Home.html" class="dl-nav strong"><span data-layer="lead" class="dl-lead"><svg data-layer="svg-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span><span data-layer="new-task" class="dl-t">New task</span><span data-layer="end" class="dl-end"><span data-layer="n" class="dl-kbd">⌘N</span></span></a>
+    <a data-layer="nav-2" href="Projects.html" class="dl-nav"><span data-layer="lead-2" class="dl-lead"><svg data-layer="svg-3" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span data-layer="projects" class="dl-t">Projects</span></a>
+    <a data-layer="nav-3" href="Live.html" class="dl-nav"><span data-layer="lead-3" class="dl-lead"><svg data-layer="svg-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span><span data-layer="live" class="dl-t">Live</span><span data-layer="end-2" class="dl-end"><span data-layer="7-running" class="dl-c">7 running</span></span></a>
+    <a data-layer="nav-4" href="Compute.html" class="dl-nav"><span data-layer="lead-4" class="dl-lead"><svg data-layer="svg-5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span data-layer="computers" class="dl-t">Computers</span></a>
+    <a data-layer="nav-16" href="Design.html" class="dl-nav"><span data-layer="lead-11" class="dl-lead"><svg data-layer="svg-11" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></svg></span><span data-layer="design" class="dl-t">Design</span></a>
+  </div>
+  <div data-layer="side-scroll" class="dl-side-scroll">
+    <div data-layer="side-label" class="dl-side-label"><span data-layer="agents">Agents</span><a data-layer="new-agent" href="NewAgent.html" class="dl-icon-btn sm" aria-label="New agent"><svg data-layer="svg-6" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a></div>
+    <a data-layer="nav-5" href="Main.html" class="dl-nav"><span data-layer="lead-5" class="dl-lead"><span data-layer="s" class="dl-glyph">S</span></span><span data-layer="scout" class="dl-t">Scout</span></a>
+    <a data-layer="nav-6" href="Warden.html" class="dl-nav"><span data-layer="lead-6" class="dl-lead"><span data-layer="w" class="dl-glyph warden">W</span></span><span data-layer="warden" class="dl-t">Warden</span></a>
+    
+    <div data-layer="side-label-2" class="dl-side-label"><span data-layer="span"><a data-layer="waiting-on-you" href="Inbox.html">Waiting on you</a></span><span data-layer="2" class="dl-c">2</span></div>
+    <a data-layer="nav-7" href="Review.html" class="dl-nav"><span data-layer="lead-7" class="dl-lead"><svg data-layer="needs-you" class="dl-attn" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Needs you"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg></span><span data-layer="merge-pr-18" class="dl-t">Merge PR #18</span><span data-layer="4m" class="dl-end">4m</span></a><a data-layer="nav-8" href="QuestionDecision.html" class="dl-nav on" aria-current="page"><span data-layer="lead-8" class="dl-lead"><svg data-layer="needs-you-2" class="dl-attn" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Needs you"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg></span><span data-layer="release-notes-decision" class="dl-t">Release notes</span><span data-layer="12m" class="dl-end">12m</span></a>
+    <div data-layer="side-label-3" class="dl-side-label"><span data-layer="today">Today</span><button data-layer="new" type="button" class="dl-icon-btn sm" aria-label="New"><svg data-layer="svg-7" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <a data-layer="nav-9" href="Task.html" class="dl-nav"><span data-layer="lead-9" class="dl-lead"><svg data-layer="running" class="dl-run" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span><span data-layer="self-release-pipeline" class="dl-t">Self-release pipeline</span><span data-layer="12m-2" class="dl-end">12m</span></a><a data-layer="nav-10" href="TaskStalled.html" class="dl-nav"><span data-layer="lead-10" class="dl-lead"><svg data-layer="running-2" class="dl-run" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span><span data-layer="fix-the-sync" class="dl-t">Fix the sync migration</span><span data-layer="3m" class="dl-end">3m</span></a><a data-layer="nav-11" href="TaskChanges.html" class="dl-nav"><span data-layer="show-checks-on" class="dl-t">Show checks on merged PRs</span><span data-layer="40m" class="dl-end">40m</span></a><a data-layer="nav-12" href="#" class="dl-nav"><span data-layer="rename-workouts-started" class="dl-t">Rename workouts.started safely</span><span data-layer="2h" class="dl-end">2h</span></a>
+    <div data-layer="side-label-4" class="dl-side-label"><span data-layer="yesterday">Yesterday</span></div><a data-layer="nav-13" href="#" class="dl-nav"><span data-layer="update-from-main" class="dl-t">Update from main after conflicts</span></a><a data-layer="nav-14" href="#" class="dl-nav"><span data-layer="keep-leading-zeros" class="dl-t">Keep leading zeros in SSH keys</span></a><a data-layer="nav-15" href="#" class="dl-nav"><span data-layer="queue-runs-per" class="dl-t">Queue runs per computer</span></a>
+  </div>
+  <a data-layer="side-foot" href="Settings.html" class="dl-side-foot"><span data-layer="g" class="dl-avatar">G</span><span data-layer="who" class="dl-who"><span data-layer="gabriel" class="dl-strong">Gabriel</span><span data-layer="3-computers-online" class="dl-meta">3 computers online</span></span><span data-layer="icon-btn" class="dl-icon-btn" aria-hidden="true"><svg data-layer="svg-8" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span></a>
+</nav><main data-layer="main" class="dl-main">
+<header data-layer="head" class="dl-head"><button data-layer="show-sidebar" type="button" class="dl-icon-btn dl-menu-btn" aria-label="Show sidebar"><svg data-layer="svg-9" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><span data-layer="waiting-on-you-2" class="dl-t">Waiting on you</span><span data-layer="end-3" class="dl-end"><button data-layer="search-2" type="button" class="dl-icon-btn" aria-label="Search"><svg data-layer="svg-10" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button></span></header>
+<div data-layer="scroll" class="dl-scroll"><div data-layer="decision-column" class="decision-column">
+<section data-layer="question-decision" class="decision-content" aria-labelledby="agent-name">
+<header data-layer="decision-header" class="decision-header">
+  <span data-layer="release-notes-writer-glyph" class="dl-glyph lg" aria-hidden="true">R</span>
+  <div data-layer="decision-identity" class="decision-identity">
+    <h1 data-layer="release-notes-writer" id="agent-name" class="decision-name">Release notes writer</h1>
+    <span data-layer="project-and-asked-time" class="dl-meta">home-gym · Asked 12m ago</span>
+  </div>
+</header>
+<h2 data-layer="publish-question" class="decision-question">I drafted the release notes below. Should I publish them anywhere?</h2>
+<div data-layer="decision-preview" class="decision-preview">
+  <article data-layer="draft-release-notes" class="decision-draft dl-reply" tabindex="0" aria-labelledby="draft-title">
+    <h3 data-layer="draft-release-notes-2" id="draft-title">Draft release notes — October 29, 2026</h3>
+    <ul data-layer="ul">
+      <li data-layer="launched-the-home">Launched the Home Gym iOS app and sync backend.</li>
+      <li data-layer="added-secure-device">Added secure device-owned credentials, one-time pairing codes, QR pairing, device management, and revocation.</li>
+      <li data-layer="removed-shared-secret">Removed shared-secret authentication.</li>
+      <li data-layer="improved-workout-logging">Improved workout logging and accessibility.</li>
+      <li data-layer="verified-with-23">Verified with 23 iOS unit tests, 3 UI tests, 18 server tests, and TypeScript checks.</li>
+      <li data-layer="deployed-successfully-to">Deployed successfully to <code data-layer="https-home-gym">https://home-gym.local</code> on October 24.</li>
+    </ul>
+    <p data-layer="checked-merged-pull">Checked: merged pull requests, Git history, tags, pipelines, and deployments.</p>
+    <p data-layer="nothing-was-published">Nothing was published. I recommend publishing this draft only after you specify or approve a destination.</p>
+  </article>
+  <div data-layer="draft-navigation" class="decision-task"><a data-layer="open-the-task" href="Task.html">Open the task</a></div>
+</div>
+<div data-layer="decision-options" class="decision-options" role="group" aria-label="Choose an answer">
+  <button data-layer="do-not-publish" type="button" class="dl-btn primary">Do not publish</button>
+  <button data-layer="project-pr-comment" type="button" class="dl-btn secondary">Project pull request comment</button>
+  <button data-layer="project-issue" type="button" class="dl-btn secondary">Project issue</button>
+</div>
+<!-- Board interaction only: blank or whitespace-only answers stay disabled. -->
+<form data-layer="free-text-answer" class="decision-answer" onsubmit="return false">
+  <label data-layer="your-answer" class="dl-field-label" for="decision-answer">Your answer</label>
+  <textarea data-layer="answer-text" id="decision-answer" class="dl-field" rows="2" oninput="this.form.querySelector('[data-layer=answer]').disabled = !this.value.trim()"></textarea>
+  <div data-layer="decision-footer" class="decision-footer">
+    <button data-layer="dismiss" type="button" class="dl-btn quiet">Dismiss</button>
+    <button data-layer="answer" type="submit" class="dl-btn secondary" disabled>Answer</button>
+  </div>
+</form>
+</section></div></div></main></div>
+</body>
+</html>

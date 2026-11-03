@@ -1459,6 +1459,28 @@
       "h": 960,
       "title": "deploy.local for Mac: verification failed, nothing changed",
       "expand": "fill"
+    },
+    "QuestionDecision.html": {
+      "x": 24730,
+      "y": 6364,
+      "w": 1440,
+      "h": 1000,
+      "title": "Waiting on you — review a question’s content before answering",
+      "expand": "fill"
+    },
+    "WorkEmptyTodayPhone.html": {
+      "x": 28870,
+      "y": 6364,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Work: nothing today; release-notes decision names its agent"
+    },
+    "QuestionDecisionPhone.html": {
+      "x": 28400,
+      "y": 6364,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — review a question’s content before answering"
     }
   },
   "order": [
@@ -1654,7 +1676,10 @@
     "PullRequestsEmpty.html",
     "PullRequest.html",
     "ProjectsRail.html",
-    "DesignConnections.html"
+    "DesignConnections.html",
+    "QuestionDecision.html",
+    "QuestionDecisionPhone.html",
+    "WorkEmptyTodayPhone.html"
   ],
   "notes": {
     "intro": {
@@ -2504,6 +2529,20 @@
       "w": 1800,
       "h": 460,
       "text": "Comparison behavior for implementation after approval\n• Align Before and After at the same origin, viewport width and scale. Slider shows Before left of the divider and After right. The web board draws a drag at 60% After; the phone review draws 50% After.\n• Drag the 44 px handle with one finger on iPhone or the pointer on web. Keep the drag captured until release; a swipe outside the handle scrolls the review. Arrow keys and VoiceOver adjustments move the handle in 1% steps; Home/End reach the edges. Expose an adjustable slider named Compare, with value text such as “50% After”. Moving left reveals more After.\n• Onion skin places After over opaque Before at the same size. The chat board draws 40% After. The opacity control below the image runs from 0% Before to 100% After, with the same keyboard and VoiceOver support.\n• Start in Slider. Remember the person’s Slider / Onion skin choice across review, chat and boards on this device; do not reset it when switching boards.\n• New boards show only After with a New board tag, and no compare controls. Removed boards show only Before with a Removed tag, and no compare controls. Neither changes the saved mode.\n• Text-only and note-only changes retain the existing line-by-line note review (DesignReviewNote and DesignReviewNotePhone); no image comparison controls.\n• These are static design drawings; gestures and saved preferences are specified here, not implemented in these boards."
+    },
+    "decision-content": {
+      "fill": "purple",
+      "w": 420,
+      "x": 26410,
+      "y": 6364,
+      "text": "A decision shows what it is about: an agent's question shows the reply it refers to (the agent's latest message in the task), a merge shows its diff, a release what ships. Names, never IDs. Nothing that looks pressable is inert: no sample suggestions, no empty-state cards that repeat the composer. An empty Today has no section header. Waiting rows show the agent’s name and reply preview, never its ID."
+    },
+    "question-decision-behavior": {
+      "fill": "yellow",
+      "w": 420,
+      "x": 26410,
+      "y": 6664,
+      "text": "QuestionDecision / QuestionDecisionPhone: the draft is the agent's latest reply in this decision's task, rendered as markdown above every answer action. Scroll the bordered preview to read the full supplied reply; Open the task opens that task's whole conversation. Show “Scroll to read more” only when the content is taller than its block: omit it on the web board where everything fits, keeping Open the task right-aligned, and keep it on the phone board where the content overflows. A design decision shows its boards. Empty and whitespace-only answers keep Answer disabled; entering text enables it. Web: 1440 and 700 px. iPhone sheet: 390 px. Asked 12m ago is an example relative time."
     }
   },
   "starts": {}

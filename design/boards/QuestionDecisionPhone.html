@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=390,height=844">
+<title>iPhone — review a question’s content before answering</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+
+.decision-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.decision-identity{min-width:0;display:flex;flex-direction:column;gap:2px}
+.decision-name{margin:0;font-size:15px;line-height:24px;font-weight:600}
+.decision-question{margin:0 0 16px;font-size:15px;line-height:24px;font-weight:500}
+.decision-preview{border:1px solid var(--line);border-radius:var(--radius-card);background:var(--paper);overflow:hidden}
+.decision-draft{box-sizing:border-box;max-height:420px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:16px;overflow-wrap:anywhere}
+.decision-draft h3{font:inherit;font-weight:600;margin:0 0 12px}
+.decision-draft ul{margin:0 0 16px;padding-left:22px}
+.decision-draft li+li{margin-top:6px}
+.decision-task{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 16px;border-top:1px solid var(--line);font-size:13px}
+.decision-task a{color:var(--accent);display:inline-flex;align-items:center;min-height:44px}
+.decision-task span{color:var(--muted);font-size:12px}
+.decision-options{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.decision-answer{margin-top:16px}
+.decision-answer textarea{display:block;min-height:64px;padding:10px 12px;resize:vertical}
+.decision-footer{display:flex;justify-content:space-between;gap:12px;margin-top:12px}
+.decision-footer button:disabled{color:var(--muted);background:var(--paper);border-color:var(--line);cursor:default}
+.decision-content :focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+body{margin:0;background:var(--paper)}
+.question-phone{position:relative}
+.decision-scrim{position:absolute;inset:0;background:rgba(20,18,26,.32);display:flex;align-items:flex-end}
+.decision-sheet{box-sizing:border-box;width:100%;height:788px;overflow-y:auto;border-radius:var(--radius-dialog) var(--radius-dialog) 0 0;background:var(--surface);padding:8px 16px 20px}
+.sheet-handle{width:36px;height:5px;border-radius:var(--radius-full);background:var(--line-strong);margin:0 auto 12px}
+.decision-sheet .decision-header{margin-bottom:12px;min-height:42px}
+.decision-sheet .decision-name{font-size:17px;line-height:22px}
+.decision-sheet .dl-meta{font-size:13px;line-height:18px}
+.decision-sheet .decision-question{font-size:17px;line-height:24px;margin-bottom:12px}
+.decision-sheet .decision-draft{height:196px;padding:12px;font-size:17px;line-height:26px}
+.decision-sheet .decision-task{padding:0 12px}
+.decision-sheet .decision-task span{font-size:13px}
+.decision-sheet .decision-options{flex-direction:column;gap:6px;margin-top:8px}
+.decision-sheet .decision-answer{margin-top:12px}
+.decision-sheet .dl-field-label{line-height:18px}
+.decision-sheet textarea{height:44px;min-height:44px;font-size:17px;line-height:22px;resize:none}
+.decision-sheet .decision-footer{margin-top:8px}
+.decision-sheet .decision-footer .dl-btn{width:auto;min-width:88px}
+</style>
+</head>
+<body>
+<div data-layer="phone" class="dl-phone question-phone">
+  <div data-layer="inbox-background" aria-hidden="true" inert>
+    <div data-layer="ph-top" class="dl-ph-top"><span data-layer="waiting-on-you" class="dl-t">Waiting on you</span></div>
+    <div data-layer="ph-group" class="dl-ph-group"><div data-layer="ph-row" class="dl-ph-row"><span data-layer="r" class="dl-glyph lg">R</span><span data-layer="t" class="dl-t"><span data-layer="release-notes">Release notes</span><span data-layer="home-gym">Release notes writer · I drafted the release notes below…</span></span></div></div>
+  </div>
+  <div data-layer="decision-scrim" class="decision-scrim">
+    <section data-layer="question-sheet" class="dl-sheet decision-sheet decision-content" role="dialog" aria-modal="true" aria-labelledby="agent-name">
+      <div data-layer="sheet-handle" class="sheet-handle" aria-hidden="true"></div>
+<header data-layer="decision-header" class="decision-header">
+  <span data-layer="release-notes-writer-glyph" class="dl-glyph lg" aria-hidden="true">R</span>
+  <div data-layer="decision-identity" class="decision-identity">
+    <h1 data-layer="release-notes-writer" id="agent-name" class="decision-name">Release notes writer</h1>
+    <span data-layer="project-and-asked-time" class="dl-meta">home-gym · Asked 12m ago</span>
+  </div>
+</header>
+<h2 data-layer="publish-question" class="decision-question">I drafted the release notes below. Should I publish them anywhere?</h2>
+<div data-layer="decision-preview" class="decision-preview">
+  <article data-layer="draft-release-notes" class="decision-draft dl-reply" tabindex="0" aria-labelledby="draft-title">
+    <h3 data-layer="draft-release-notes-2" id="draft-title">Draft release notes — October 29, 2026</h3>
+    <ul data-layer="ul">
+      <li data-layer="launched-the-home">Launched the Home Gym iOS app and sync backend.</li>
+      <li data-layer="added-secure-device">Added secure device-owned credentials, one-time pairing codes, QR pairing, device management, and revocation.</li>
+      <li data-layer="removed-shared-secret">Removed shared-secret authentication.</li>
+      <li data-layer="improved-workout-logging">Improved workout logging and accessibility.</li>
+      <li data-layer="verified-with-23">Verified with 23 iOS unit tests, 3 UI tests, 18 server tests, and TypeScript checks.</li>
+      <li data-layer="deployed-successfully-to">Deployed successfully to <code data-layer="https-home-gym">https://home-gym.local</code> on October 24.</li>
+    </ul>
+    <p data-layer="checked-merged-pull">Checked: merged pull requests, Git history, tags, pipelines, and deployments.</p>
+    <p data-layer="nothing-was-published">Nothing was published. I recommend publishing this draft only after you specify or approve a destination.</p>
+  </article>
+  <div data-layer="draft-navigation" class="decision-task"><span data-layer="scroll-to-read">Scroll to read more</span><a data-layer="open-the-task" href="TaskPhone.html">Open the task</a></div>
+</div>
+<div data-layer="decision-options" class="decision-options" role="group" aria-label="Choose an answer">
+  <button data-layer="do-not-publish" type="button" class="dl-btn primary">Do not publish</button>
+  <button data-layer="project-pr-comment" type="button" class="dl-btn secondary">Project pull request comment</button>
+  <button data-layer="project-issue" type="button" class="dl-btn secondary">Project issue</button>
+</div>
+<!-- Board interaction only: blank or whitespace-only answers stay disabled. -->
+<form data-layer="free-text-answer" class="decision-answer" onsubmit="return false">
+  <label data-layer="your-answer" class="dl-field-label" for="decision-answer">Your answer</label>
+  <textarea data-layer="answer-text" id="decision-answer" class="dl-field" rows="2" oninput="this.form.querySelector('[data-layer=answer]').disabled = !this.value.trim()"></textarea>
+  <div data-layer="decision-footer" class="decision-footer">
+    <button data-layer="dismiss" type="button" class="dl-btn quiet">Dismiss</button>
+    <button data-layer="answer" type="submit" class="dl-btn secondary" disabled>Answer</button>
+  </div>
+</form>
+    </section>
+  </div>
+</div>
+</body>
+</html>
