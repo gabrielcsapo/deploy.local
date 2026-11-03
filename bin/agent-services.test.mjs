@@ -2,13 +2,28 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   servicePlan,
+  assertAgentJobAllowed,
+  workerExecutablePaths,
+  supervisedExecutable,
+  serviceProgramArguments,
+  linkWorkerSupervisor,
+  moveClashingWorker,
+  restartWorkerService,
   workerRoot,
   servicePath,
   workerPlist,
   workerUnit,
   workerServiceFile,
 } from './agent-services.mjs';
-import { mkdtempSync, writeFileSync, rmSync, readFileSync, statSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  statSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -16,14 +31,209 @@ import { loadWorkerConfig, enableWorkerTlsTrust } from './worker-runtime.mjs';
 import { joinAgent, readAgentConfig } from './agent-enrollment.mjs';
 
 const roles = { deploy: false, tasks: false, computer: false, browser: false };
-test('all role combinations install only the requested execution and task services', () => {
+test('every role combination installs the agent for apps or updates, and the task worker for tasks', () => {
   for (let mask = 0; mask < 16; mask++) {
     const selected = Object.fromEntries(
       Object.keys(roles).map((role, index) => [role, !!(mask & (1 << index))]),
     );
-    assert.deepEqual(servicePlan(selected), { agent: selected.deploy, worker: selected.tasks });
+    assert.deepEqual(servicePlan(selected), {
+      agent: selected.deploy || selected.tasks,
+      worker: selected.tasks,
+      apps: selected.deploy,
+    });
   }
-  assert.deepEqual(servicePlan(undefined), { agent: true, worker: false });
+  assert.deepEqual(servicePlan({ ...roles, tasks: true }), {
+    agent: true,
+    worker: true,
+    apps: false,
+  });
+  assert.deepEqual(servicePlan(undefined), { agent: true, worker: false, apps: true });
+});
+test('with Deploy apps off the agent refuses every job except its own update', () => {
+  const tasksOnly = { ...roles, tasks: true };
+  for (const type of ['deploy', 'project-release', 'restart', 'logs', 'backup', 'delete', 'x'])
+    assert.throws(
+      () => assertAgentJobAllowed({ type }, tasksOnly),
+      /^Error: Deploy apps is off on this computer\.$/,
+    );
+  assert.doesNotThrow(() => assertAgentJobAllowed({ type: 'self-update' }, tasksOnly));
+  for (const allowed of [{ ...roles, deploy: true }, undefined])
+    assert.doesNotThrow(() => assertAgentJobAllowed({ type: 'deploy' }, allowed));
+});
+function agentDirectory(files = [], directories = []) {
+  const dir = mkdtempSync(join(tmpdir(), 'agent-dir-'));
+  for (const name of directories) mkdirSync(join(dir, name));
+  for (const name of files) writeFileSync(join(dir, name), name, { mode: 0o755 });
+  return dir;
+}
+test('worker executable uses a name that never clashes with the task state directory', () => {
+  const cases = [
+    [[], [], 'deploy-worker'],
+    [['worker'], [], 'worker'], // older Linux install
+    [[], ['worker'], 'deploy-worker'], // macOS task worker state, never an executable
+    [['deploy-worker', 'worker'], [], 'deploy-worker'],
+    [['deploy-worker'], ['worker'], 'deploy-worker'],
+  ];
+  for (const [files, directories, expected] of cases) {
+    const dir = agentDirectory(files, directories);
+    try {
+      assert.deepEqual(workerExecutablePaths(dir), {
+        executable: join(dir, expected),
+        supervisor: join(dir, `${expected}-supervisor`),
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+test('only a supervisor link with a worker build beside it supervises', () => {
+  const dir = agentDirectory(['deploy-worker', 'deploy-worker-supervisor'], ['worker']);
+  try {
+    assert.equal(
+      supervisedExecutable(join(dir, 'deploy-worker-supervisor'), dir),
+      join(dir, 'deploy-worker'),
+    );
+    writeFileSync(join(dir, 'worker-supervisor'), '');
+    assert.equal(supervisedExecutable(join(dir, 'worker-supervisor'), dir), null);
+    assert.equal(supervisedExecutable(join(dir, 'deploy-worker'), dir), null);
+    assert.equal(supervisedExecutable('/usr/local/bin/deploy', dir), null);
+    rmSync(join(dir, 'worker'), { recursive: true });
+    writeFileSync(join(dir, 'worker'), '');
+    assert.equal(supervisedExecutable(join(dir, 'worker-supervisor'), dir), join(dir, 'worker'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+test('the task worker service runs the swappable build, the agent runs the supervisor', () => {
+  const self = ['/opt/homebrew/bin/node', '/repo/bin/deploy.js'];
+  const dir = agentDirectory(['deploy-worker', 'deploy-worker-supervisor'], ['worker']);
+  try {
+    const args = serviceProgramArguments({ agentDir: dir, self });
+    assert.deepEqual(args, {
+      agent: [join(dir, 'deploy-worker-supervisor')],
+      worker: [join(dir, 'deploy-worker')],
+    });
+    const plist = workerPlist({ ...options, args: [...args.worker, 'worker', 'run'] });
+    assert.match(
+      plist,
+      /<key>ProgramArguments<\/key><array><string>[^<]*\/deploy-worker<\/string><string>worker<\/string><string>run<\/string><\/array>/,
+    );
+    assert.doesNotMatch(plist, /supervisor/);
+    rmSync(join(dir, 'deploy-worker-supervisor'));
+    assert.deepEqual(serviceProgramArguments({ agentDir: dir, self }), {
+      agent: [join(dir, 'deploy-worker')],
+      worker: [join(dir, 'deploy-worker')],
+    });
+    rmSync(join(dir, 'deploy-worker'));
+    assert.deepEqual(serviceProgramArguments({ agentDir: dir, self }), {
+      agent: self,
+      worker: self,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+test('installing links the supervisor to the current build without touching it otherwise', () => {
+  const dir = agentDirectory(['deploy-worker'], ['worker']);
+  try {
+    const executable = join(dir, 'deploy-worker');
+    const supervisor = linkWorkerSupervisor(dir);
+    assert.equal(supervisor, join(dir, 'deploy-worker-supervisor'));
+    assert.equal(statSync(supervisor).ino, statSync(executable).ino);
+    // An update swaps in a new inode; the next install moves the supervisor to it.
+    rmSync(executable);
+    writeFileSync(executable, 'new', { mode: 0o755 });
+    assert.notEqual(statSync(supervisor).ino, statSync(executable).ino);
+    linkWorkerSupervisor(dir);
+    assert.equal(statSync(supervisor).ino, statSync(executable).ino);
+    assert.equal(readFileSync(supervisor, 'utf8'), 'new');
+    const empty = agentDirectory([], ['worker']);
+    assert.equal(linkWorkerSupervisor(empty), null);
+    rmSync(empty, { recursive: true, force: true });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+test('a Mac build at the task state path moves to the new name; elsewhere it stays', () => {
+  const dir = agentDirectory(['worker', 'worker-supervisor', 'worker.previous']);
+  try {
+    assert.equal(moveClashingWorker(dir, join(dir, 'elsewhere/worker')), false);
+    assert.ok(existsSync(join(dir, 'worker')));
+    assert.equal(moveClashingWorker(dir, join(dir, 'worker')), true);
+    for (const [name, content] of [
+      ['deploy-worker', 'worker'],
+      ['deploy-worker-supervisor', 'worker-supervisor'],
+      ['deploy-worker.previous', 'worker.previous'],
+    ])
+      assert.equal(readFileSync(join(dir, name), 'utf8'), content);
+    assert.ok(!existsSync(join(dir, 'worker')));
+    mkdirSync(join(dir, 'worker'));
+    assert.equal(moveClashingWorker(dir, join(dir, 'worker')), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+test('after an update the task worker service restarts on the new build', () => {
+  const calls = [];
+  const run = (command, args) => {
+    calls.push([command, ...args]);
+    return { status: 0 };
+  };
+  const exists = () => true;
+  assert.equal(
+    restartWorkerService({ platform: 'darwin', user: { uid: 501, home: '/Users/a' }, exists, run }),
+    true,
+  );
+  assert.equal(
+    restartWorkerService({ platform: 'linux', user: { uid: 1000, home: '/home/a' }, exists, run }),
+    true,
+  );
+  // The Linux execution agent is a root system service; it restarts the login user's unit.
+  restartWorkerService({
+    platform: 'linux',
+    user: { uid: 1000, name: 'a', home: '/home/a' },
+    exists,
+    run,
+  });
+  assert.deepEqual(calls, [
+    ['launchctl', 'kickstart', '-k', 'gui/501/sh.deploy.worker'],
+    ['systemctl', '--user', 'restart', 'deploy-local-worker.service'],
+    [
+      'sudo',
+      '-u',
+      'a',
+      'env',
+      'XDG_RUNTIME_DIR=/run/user/1000',
+      'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus',
+      'systemctl',
+      '--user',
+      'restart',
+      'deploy-local-worker.service',
+    ],
+  ]);
+  calls.length = 0;
+  const checked = [];
+  assert.equal(
+    restartWorkerService({
+      platform: 'darwin',
+      user: { uid: 501, home: '/Users/a' },
+      exists: (file) => (checked.push(file), false),
+      run,
+    }),
+    false,
+  );
+  assert.deepEqual(checked, ['/Users/a/Library/LaunchAgents/sh.deploy.worker.plist']);
+  assert.deepEqual(calls, []);
+  assert.throws(
+    () =>
+      restartWorkerService({
+        platform: 'darwin',
+        user: { uid: 501, home: '/Users/a' },
+        exists,
+        run: () => ({ status: 1, stderr: 'no such service' }),
+      }),
+    /Task worker restart failed\. no such service/,
+  );
 });
 const root = '/Users/A & B/worker',
   configPath = '/Users/A & B/agent.json';
@@ -160,7 +370,7 @@ test('legacy enrollments remain execution-only and worker trust is inherited by 
       request: async () =>
         new Response(JSON.stringify({ name: 'Mac', nodeId: 'fixture', secret: 'private' })),
     });
-    assert.deepEqual(servicePlan(config.roles), { agent: true, worker: false });
+    assert.deepEqual(servicePlan(config.roles), { agent: true, worker: false, apps: true });
     assert.throws(() => loadWorkerConfig(file), /No task-worker credential/);
     const env = {};
     enableWorkerTlsTrust(directory, env);

@@ -51,6 +51,8 @@ export async function superviseWorker({
     return Buffer.from(await response.arrayBuffer());
   },
   signal,
+  // Runs once the replacement passed its sustained startup check, e.g. to restart the task worker.
+  onUpdated = () => {},
 }) {
   let child,
     stopping = false,
@@ -121,6 +123,11 @@ export async function superviseWorker({
                 confirmedAt: Date.now(),
               };
               persist(root, receipt);
+              try {
+                onUpdated(receipt);
+              } catch (error) {
+                console.error(`Worker updated, but ${error.message || error}`);
+              }
             }, stableMs);
           }
         }
