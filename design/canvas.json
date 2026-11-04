@@ -136,7 +136,7 @@
       "y": 6420,
       "w": 1440,
       "h": 900,
-      "title": "New project: deploy.local reads the repository and proposes its apps",
+      "title": "New project from a remote: deploy.local hosts it and keeps the remote in sync",
       "expand": "fill"
     },
     "OneAppProject.html": {
@@ -678,8 +678,8 @@
       "x": 16920,
       "y": 17764,
       "w": 1440,
-      "h": 1160,
-      "title": "Project settings: variables, secrets, repository and releases",
+      "h": 1380,
+      "title": "Project settings: variables, secrets, repository, remote sync and releases",
       "expand": "fill"
     },
     "SecretEdit.html": {
@@ -861,7 +861,7 @@
       "x": 500,
       "y": 38284,
       "w": 1440,
-      "h": 1420,
+      "h": 1380,
       "title": "Docs: Get started, in the same words as the app"
     },
     "DocsArticle.html": {
@@ -2163,6 +2163,22 @@
       "h": 1240,
       "title": "One request: who sent it and, for a server error, what was sent and what came back",
       "expand": "fill"
+    },
+    "NewProjectHosted.html": {
+      "x": 12640,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "New project with no remote: hosted only on deploy.local",
+      "expand": "fill"
+    },
+    "ProjectEmpty.html": {
+      "x": 14160,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "A new hosted project: describe it, or push code you have",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2453,7 +2469,9 @@
     "DesignReviewGridPhone.html",
     "DesignReviewDecidePhone.html",
     "AppRequests.html",
-    "AppRequest.html"
+    "AppRequest.html",
+    "NewProjectHosted.html",
+    "ProjectEmpty.html"
   ],
   "notes": {
     "intro": {
