@@ -15,6 +15,7 @@ import { WidthSwitch } from './Review';
 import {
   conflictCount,
   conflictLine,
+  missingSummary,
   nextUnseen,
   openPins,
   reviewCounts,
@@ -124,7 +125,10 @@ export function DesignItemReview({
   const waiting =
     (inbox.items.find((entry) => entry.id === item.id) ?? data?.item ?? item).state === 'waiting';
   const loading = !data || !images.ready || (Boolean(board) && !preview);
-  const disabled = loading || checking || busy || Boolean(error) || Boolean(images.error);
+  // A conflict's Close and Ask to update wait only for the conflict check, not for previews.
+  const disabled = data?.stale
+    ? checking || busy || Boolean(error)
+    : loading || checking || busy || Boolean(error) || Boolean(images.error);
   const seenCount = boards.filter((entry) => entry.seen).length;
   const activeBoards =
     data?.round && data.round > 1 ? boards.filter((entry) => entry.changedSinceReview) : boards;
@@ -512,7 +516,7 @@ export function DesignItemReview({
                 <p className="dl-review-summary">{data.summary}</p>
               ) : (
                 <p className="dl-meta dl-review-summary-missing">
-                  No summary. Ask {data.proposer.name} to add one
+                  {missingSummary(data.proposer)}
                 </p>
               ))}
             {data && (

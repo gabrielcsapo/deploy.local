@@ -38,6 +38,8 @@ final class V2ReviewState {
     var project: String { review?.projectId ?? review.flatMap { V2DesignReview.project(of: $0.item.id) } ?? "" }
     var decisionsReady: Bool {
         guard let review, review.pins != nil, review.stale != nil, review.item.state == .waiting else { return false }
+        // A conflict's Close and Ask to update wait only for the conflict check, not for previews.
+        if review.stale == true { return !loading && !checking && !saving }
         return !loading && !checking && !saving && loadingKeys.isEmpty && failed.isEmpty && review.boards.allSatisfy { preview($0) != nil }
     }
     var obscured: Bool { grid || design || conflict || asking || pinSheet }

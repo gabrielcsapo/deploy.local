@@ -93,4 +93,8 @@ struct V2DesignReviewTests {
         #expect(V2ReviewModel.conflictCount(["A.html", "B.html", "note:x"]) == "2 screens and 1 note conflict with main")
         #expect(V2ReviewModel.conflictCount(["note:x", "note:y"]) == "2 notes conflict with main")
     }
+    @Test func missingSummaryAsksTheProposerOrTellsYou() {
+        #expect(V2ReviewProposer(id: "a1", name: "Release notes writer").missingSummary == "No summary. Ask Release notes writer to add one")
+        #expect(V2ReviewProposer(id: nil, name: "You").missingSummary == "No summary. Add one when you propose again.")
+    }
 }

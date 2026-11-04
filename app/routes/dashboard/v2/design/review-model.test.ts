@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   conflictCount,
   conflictLine,
+  missingSummary,
   initialDesignProject,
   nextUnseen,
   openPins,
@@ -126,5 +127,16 @@ test('a conflict names two items in words and counts three or more', () => {
   assert.equal(
     conflictLine(many, name, { id: null, name: 'You', avatar: null }),
     'Main changed them after this was proposed. Update them with main and propose again.',
+  );
+});
+
+test('a missing summary asks the proposer, or tells you when it is yours', () => {
+  assert.equal(
+    missingSummary({ id: 'a1', name: 'Release notes writer', avatar: null }),
+    'No summary. Ask Release notes writer to add one',
+  );
+  assert.equal(
+    missingSummary({ id: null, name: 'You', avatar: null }),
+    'No summary. Add one when you propose again.',
   );
 });

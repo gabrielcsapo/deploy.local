@@ -133,7 +133,7 @@ struct V2DesignReviewView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text((review.round ?? 1) > 1 ? "Since your last review" : review.title ?? review.item.title)
                         .font(.system(size: coverHeadingSize, weight: .bold)).tracking(-0.6).lineLimit(2).truncationMode(.tail)
-                    Text(review.summary ?? "No summary. Ask \(review.proposer?.name ?? V2Labels.agentName(review.item)) to add one")
+                    Text(review.summary ?? review.proposer?.missingSummary ?? "No summary. Ask \(V2Labels.agentName(review.item)) to add one")
                         .font(.body).foregroundStyle(WorkspaceStyle.secondary(scheme)).fixedSize(horizontal: false, vertical: true)
                     if (review.round ?? 1) > 1 { pinList(review, replies: true) }
                     else {

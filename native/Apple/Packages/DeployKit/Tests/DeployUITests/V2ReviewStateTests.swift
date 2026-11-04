@@ -65,5 +65,14 @@ private let reviewJSON = "{\"item\":\(waiting),\"branch\":\"b\",\"before\":\"a\"
         #expect(model.decisionsReady)
         #expect(ReviewTransport.state.count() == 1)
     }
+    @Test func conflictDecisionsWaitOnlyForTheConflictCheck() throws {
+        let board = #"{"file":"Agent.html","title":"Agent","w":1440,"h":900,"added":false,"lines":[]}"#
+        for stale in [true, false] {
+            let model = V2ReviewState()
+            model.review = try JSONDecoder().decode(V2DesignReview.self, from: Data("{\"item\":\(waiting),\"branch\":\"b\",\"before\":\"a\",\"after\":\"c\",\"boards\":[\(board)],\"pins\":[],\"stale\":\(stale)}".utf8))
+            model.loading = false
+            #expect(model.decisionsReady == stale)
+        }
+    }
 }
 #endif
