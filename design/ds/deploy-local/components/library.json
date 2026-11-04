@@ -691,6 +691,14 @@
       "description": "A line icon at 1.75 stroke: 16 px in the UI, 14 px in steps, 18 px on cards.",
       "props": [],
       "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10\"/></svg>"
+    },
+    {
+      "id": "design-review",
+      "name": "Design review",
+      "group": "Review",
+      "description": "Contact sheet with real screen proportions, seen state and pin counts; a single-screen viewer with comparison, changed-area outlines and a pin tray. Loading disables decisions. Stale proposals offer Close and Ask to update only.",
+      "props": [],
+      "html": "<div class=\"dl-list dl-review\"><div class=\"dl-review-grid\"><a class=\"dl-review-tile\" href=\"DesignReviewViewer.html\"><figure><div class=\"dl-review-skeleton\" aria-hidden=\"true\"></div><figcaption>Agent details<span class=\"dl-review-tile-meta\"><span class=\"dl-review-seen\">✓ Seen</span><span>2 pins</span></span></figcaption></figure></a></div><footer class=\"dl-review-footer\"><span class=\"dl-meta\">You’ve looked at 4 of 22</span><button class=\"dl-btn primary\">Ask for 3 changes</button><button class=\"dl-btn secondary\">Approve design</button></footer></div>"
     }
   ]
 }
