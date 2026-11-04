@@ -5,19 +5,17 @@ import {
   Action,
   Banner,
   Composer,
-  Dialog,
   Field,
   Glyph,
   Group,
   Head,
   IconButton,
-  Icon,
   Item,
 } from '@/components/ui';
 import { api } from '../../../v2-public/client';
 import { PasskeyOffer } from './account.client';
 import './start.css';
-import type { RepositoryPreview } from '../../../../../server/v2/start';
+import { NewProjectDialog } from '../projects/new-project.client';
 import { shouldShowFirstTask } from './first-task';
 import { useCoordinatorName } from '../data/hooks';
 
@@ -71,41 +69,6 @@ export function FirstTask() {
   ) : null;
 }
 function NewProject() {
-  const coordinator = useCoordinatorName();
-  const [mode, setMode] = useState('repository');
-  const [source, setSource] = useState('');
-  const [preview, setPreview] = useState<RepositoryPreview>();
-  const [inspecting, setInspecting] = useState(false);
-  async function inspect() {
-    setInspecting(true);
-    setError('');
-    try {
-      setPreview(await api('/api/v2/start/inspect', { sourcePath: source }));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not inspect the repository.');
-    } finally {
-      setInspecting(false);
-    }
-  }
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  async function create(form: HTMLFormElement) {
-    setBusy(true);
-    setError('');
-    try {
-      const fields = Object.fromEntries(new FormData(form));
-      const project = await api('/api/workspace/projects', {
-        ...fields,
-        operationId: crypto.randomUUID(),
-      });
-      await api('/api/v2/auth/account', { welcomed: true });
-      window.location.assign(`/dashboard/projects/${encodeURIComponent(project.id)}`);
-    } catch (error) {
-      setError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <>
       <Head title="Projects" />
@@ -113,118 +76,14 @@ function NewProject() {
         <h1 className="dl-title">Projects</h1>
         <p className="dl-soft">Repositories, and apps installed from Discover</p>
       </div>
-      <Dialog
-        className="v2-new-project-dialog"
+      <NewProjectDialog
         open
-        title="New project"
         onClose={() => window.location.assign('/dashboard/start')}
-      >
-        <form
-          className="v2-start-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void create(event.currentTarget);
-          }}
-        >
-          <div className="v2-start-tabs">
-            {[
-              ['repository', 'From a repository'],
-              ['folder', 'From a folder'],
-              ['empty', 'Empty'],
-            ].map(([value, label]) => (
-              <Action
-                key={value}
-                disabled={inspecting}
-                aria-pressed={mode === value}
-                onClick={() => {
-                  setMode(value);
-                  setPreview(undefined);
-                  setSource('');
-                }}
-              >
-                {label}
-              </Action>
-            ))}
-          </div>
-          <Field label="Project name" name="name" required />
-          {mode !== 'empty' && (
-            <Field
-              label={mode === 'folder' ? `Folder on ${coordinator}` : 'Repository'}
-              disabled={inspecting}
-              name="sourcePath"
-              value={source}
-              onChange={(event) => {
-                setSource(event.target.value);
-                setPreview(undefined);
-              }}
-              placeholder={
-                mode === 'folder' ? '/srv/projects/home-gym' : 'git@github.com:gabriel/home-gym.git'
-              }
-              required
-            />
-          )}
-          <p className="dl-meta">
-            {mode === 'folder'
-              ? `Use a folder on ${coordinator}. Your browser cannot read folders on another computer.`
-              : `Read with the SSH key on ${coordinator}. Nothing runs until you create the project.`}
-          </p>
-          {mode !== 'empty' && (
-            <>
-              <Action
-                disabled={!source || inspecting}
-                loading={inspecting}
-                onClick={() => void inspect()}
-              >
-                Inspect repository
-              </Action>
-              {preview && (
-                <section>
-                  <h2 className="dl-section-title">Found in the repository</h2>
-                  <Group>
-                    {preview.found.map((item, index) => (
-                      <Item
-                        key={`${item.name}:${index}`}
-                        title={item.name}
-                        description={item.detail}
-                        lead={
-                          <Glyph kind="plain">
-                            <Icon name="folder" size={12} />
-                          </Glyph>
-                        }
-                        end="Found"
-                      />
-                    ))}
-                  </Group>
-                  {!preview.found.length && (
-                    <p className="dl-meta">
-                      No app configuration found. A task can write deploy.yaml for you.
-                    </p>
-                  )}
-                </section>
-              )}
-            </>
-          )}
-          <div className="v2-start-columns">
-            <Field label="Runs on" value={preview?.runsOn || 'Choose when you ship'} readOnly />
-            <Field
-              label="Address"
-              value={preview?.address || 'Set in deploy.yaml before shipping'}
-              readOnly
-            />
-          </div>
-          <p className="dl-soft">
-            A task can write deploy.yaml after the repository is ready. You review it before
-            shipping.
-          </p>
-          {error && <Banner kind="danger" title={error} />}
-          <div className="v2-start-tabs">
-            <Action onClick={() => window.location.assign('/dashboard/start')}>Cancel</Action>
-            <Action variant="primary" type="submit" loading={busy} disabled={inspecting}>
-              Create project
-            </Action>
-          </div>
-        </form>
-      </Dialog>
+        onCreated={async (project) => {
+          await api('/api/v2/auth/account', { welcomed: true });
+          window.location.assign(`/dashboard/projects/${encodeURIComponent(project.id)}`);
+        }}
+      />
     </>
   );
 }

@@ -29,13 +29,18 @@ import {
 } from './interactive.ts';
 import { transcribe, transcriptionAvailable } from './transcription.ts';
 import { pipelineStart, pipelineRead, pipelineCancel } from './pipelines.ts';
-import { collaborationRead, collaborationCommand } from './project-collaboration.ts';
+import {
+  collaborationRead,
+  collaborationCommand,
+  openRemotePull,
+} from './project-collaboration.ts';
 import { queueTask, taskWorkspaceCommand } from './task-workspace.ts';
 import { repositorySetup } from './repository-setup.ts';
 import {
   queueProject,
   updateProjectSettings,
   updateProjectControlPolicy,
+  addProjectRemote,
   repositoryCommand,
   repositoryInfo,
   repositoryRead,
@@ -617,6 +622,9 @@ export async function workspaceApi(
         );
         return send(result, ['merge', 'retry-merge'].includes(collaborationRoute[4]) ? 202 : 200);
       }
+      const remotePullRoute = path.match(/^\/projects\/([^/]+)\/repository\/remote-pull$/);
+      if (remotePullRoute)
+        return send(await openRemotePull(owner, remotePullRoute[1], body, signature));
       const updateRoute = path.match(/^\/tasks\/([^/]+)\/update-base$/);
       if (updateRoute) return send(await updateBase(owner, updateRoute[1], body));
       const publishRoute = path.match(/^\/tasks\/([^/]+)\/publish$/);
@@ -641,6 +649,8 @@ export async function workspaceApi(
           );
           if (repositoryRoute)
             return repositoryCommand(owner, repositoryRoute[1], repositoryRoute[2]);
+          const remoteRoute = path.match(/^\/projects\/([^/]+)\/repository\/remote$/);
+          if (remoteRoute) return addProjectRemote(owner, remoteRoute[1], body);
           if (path === '/tasks') return queueTask(owner, body);
           const shellRoute = path.match(/^\/tasks\/([^/]+)\/shell$/);
           if (shellRoute)

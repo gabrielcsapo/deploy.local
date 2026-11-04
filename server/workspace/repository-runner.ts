@@ -7,13 +7,23 @@ import { mkdir, rename, rm, access, writeFile, readFile } from 'node:fs/promises
 import { resolve } from 'node:path';
 import { root, db, get, save, now } from './store.ts';
 import { gitText as runGitText } from './repository-git.ts';
-import { repositorySource } from './repositories.ts';
+import { repositorySource, requestSync } from './repositories.ts';
+import { queuePushTrigger } from './pipeline-triggers.ts';
 
 const exists = async (path: string) =>
   access(path).then(
     () => true,
     () => false,
   );
+/** The sync result to keep: `changedAt` says since when it has read this way. */
+function syncState(project: any, state: string) {
+  const at = now();
+  return {
+    state,
+    at,
+    changedAt: project.sync?.state === state ? project.sync.changedAt : at,
+  };
+}
 export class RepositoryRunner {
   private active?: { owner: string; operationId: string; controller: AbortController };
   private stopping = false;
@@ -77,6 +87,8 @@ export class RepositoryRunner {
           this.gitText(cwd, args, { ...options, signal: controller.signal }),
         );
         this.finish(owner, operation, 'succeeded');
+        // Merges here push to the remote.
+        requestSync(owner, operation.projectId);
         return;
       }
       if (operation.kind === 'workspace') {
@@ -87,7 +99,9 @@ export class RepositoryRunner {
       const project = get('project', owner, operation.projectId);
       if (project.repositoryOperationId !== operation.id)
         throw new Error('Repository operation was superseded');
+      let sync: string | undefined;
       if (operation.kind === 'prepare') await this.prepare(project, stageRoot, controller.signal);
+      else if (operation.kind === 'sync') sync = await this.sync(owner, project, controller.signal);
       else {
         const source = repositorySource(project.sourcePath);
         if (!source.location) throw new Error('Repository has no upstream source');
@@ -118,7 +132,8 @@ export class RepositoryRunner {
           ...current,
           repositoryStatus: 'ready',
           defaultBranch,
-          head,
+          head: sync ? current.head : head,
+          ...(sync && { head, sync: syncState(current, sync) }),
           updatedAt: now(),
         });
         this.finish(owner, operation, 'succeeded');
@@ -217,6 +232,14 @@ export class RepositoryRunner {
           updatedAt: now(),
         });
     }
+    if (operation.kind === 'sync' && status !== 'succeeded') {
+      const project = get('project', owner, operation.projectId);
+      save('project', owner, {
+        ...project,
+        sync: { ...syncState(project, 'failed'), error: error || null },
+        updatedAt: now(),
+      });
+    }
     if (operation.kind === 'prepare' && status !== 'succeeded') {
       const project = get('project', owner, operation.projectId);
       if (project.repositoryOperationId === operation.id)
@@ -226,6 +249,57 @@ export class RepositoryRunner {
           updatedAt: now(),
         });
     }
+  }
+  /**
+   * Bring the remote's commits in and push this copy's main out. Whichever side is ahead moves
+   * the other forward; when main changed on both sides nothing moves and sync pauses.
+   */
+  private async sync(owner: string, project: any, signal: AbortSignal) {
+    const source = repositorySource(project.sourcePath);
+    if (!source.location) throw new Error('Repository has no upstream source');
+    const repo = project.repositoryPath;
+    const branch = project.defaultBranch || 'main';
+    await this.gitText(
+      repo,
+      [
+        'fetch',
+        '--atomic',
+        '--no-tags',
+        '--no-write-fetch-head',
+        '--prune',
+        source.location,
+        '+refs/heads/*:refs/remotes/upstream/*',
+      ],
+      { signal, timeout: 600000 },
+    );
+    const local = await this.gitText(repo, ['rev-parse', '--verify', `refs/heads/${branch}`]);
+    const remote = await this.gitText(
+      repo,
+      ['rev-parse', '--verify', '--quiet', `refs/remotes/upstream/${branch}`],
+      { allowStatus: [1] },
+    );
+    // Unrelated histories have no merge base, so they read as changed on both sides.
+    const contains = async (ancestor: string, descendant: string) =>
+      (await this.gitText(repo, ['merge-base', ancestor, descendant], {
+        allowStatus: [1],
+      })) === ancestor;
+    if (remote === local) return 'in-sync';
+    if (!remote || (await contains(remote, local))) {
+      await this.gitText(
+        repo,
+        ['push', '--no-verify', source.location, `refs/heads/${branch}:refs/heads/${branch}`],
+        { signal, timeout: 600000 },
+      );
+      return 'in-sync';
+    }
+    if (await contains(local, remote)) {
+      // Only a fast-forward, and only if main has not moved since it was read.
+      await this.gitText(repo, ['update-ref', `refs/heads/${branch}`, remote, local], { signal });
+      // Commits that arrive from the remote run the same pipelines as a push here.
+      queuePushTrigger(owner, project.id, `refs/heads/${branch}`, remote);
+      return 'in-sync';
+    }
+    return 'paused';
   }
   private async prepare(project: any, stageRoot: string, signal: AbortSignal) {
     if (await exists(project.repositoryPath)) {

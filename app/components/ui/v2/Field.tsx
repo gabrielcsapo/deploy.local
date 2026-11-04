@@ -1,5 +1,5 @@
 'use client';
-import { useId, type InputHTMLAttributes } from 'react';
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import type { ComponentState } from './shared';
 export function Field({
   label,
@@ -8,7 +8,7 @@ export function Field({
   disabled,
   loading,
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & ComponentState & { label: string; error?: string }) {
+}: InputHTMLAttributes<HTMLInputElement> & ComponentState & { label: ReactNode; error?: string }) {
   const generated = useId();
   const inputId = id || generated;
   return (

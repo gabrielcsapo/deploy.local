@@ -529,6 +529,44 @@ export async function collaborationCommand(
 
 // The receipt and branch update share a Git transaction. A retry after a process crash
 // can distinguish a completed merge from a branch that moved independently.
+/**
+ * When sync paused because main changed here and on the remote, a pull request brings the
+ * remote's main in. Merging it makes a merge commit, so the next sync can push main out.
+ */
+export async function openRemotePull(
+  owner: string,
+  projectId: string,
+  input: any,
+  signature: string,
+) {
+  const project = requireRepository(owner, projectId);
+  if (project.sync?.state !== 'paused')
+    throw Object.assign(new Error('Sync is not paused'), { status: 409 });
+  const target = project.defaultBranch || 'main';
+  const remote = await resolveCommit(project.repositoryPath, `refs/remotes/upstream/${target}`);
+  const source = `sync/remote-${target}`;
+  await gitText(project.repositoryPath, ['update-ref', `refs/heads/${source}`, remote]);
+  const open = list('pull-request', owner).find(
+    (pull) =>
+      pull.projectId === projectId && pull.sourceBranch === source && pull.status === 'open',
+  );
+  if (open) return open;
+  return collaborationCommand(
+    owner,
+    projectId,
+    'pulls',
+    undefined,
+    undefined,
+    {
+      operationId: input.operationId,
+      title: `Merge ${target} from the remote`,
+      body: `Sync paused because ${target} changed here and on the remote. Merging this brings the remote's commits into ${target}, and sync continues.`,
+      sourceBranch: source,
+      targetBranch: target,
+    },
+    signature,
+  );
+}
 export async function executePullMerge(owner: string, operation: any, runGit: typeof gitText) {
   const pull = get('pull-request', owner, operation.pullId);
   if (pull.mergeOperationId !== operation.id) throw new Error('Merge operation was superseded');

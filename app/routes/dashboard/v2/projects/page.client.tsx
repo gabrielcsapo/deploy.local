@@ -26,6 +26,8 @@ import { ProjectLogs } from './logs.client';
 import { AppRequest, AppRequests } from './requests.client';
 import { formatRequestClock, type RequestDetail } from './requests';
 import './projects.css';
+import { NewProjectDialog } from './new-project.client';
+import { ProjectStart } from './project-start.client';
 import { formatTime } from '../data/time';
 import { remembered, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
@@ -33,7 +35,16 @@ import type { TaskPull } from '../tasks/types';
 import { parsePatch } from '../tasks/api';
 import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
 
-function Header({ title, subtitle }: { title: ReactNode; subtitle?: string }) {
+function Header({
+  title,
+  subtitle,
+  newTask = true,
+}: {
+  title: ReactNode;
+  subtitle?: string;
+  /** A project with no code yet asks what to build in place, so it has no header button. */
+  newTask?: boolean;
+}) {
   return (
     <Head
       title={title}
@@ -47,7 +58,7 @@ function Header({ title, subtitle }: { title: ReactNode; subtitle?: string }) {
         />
       }
       actions={
-        subtitle === 'Project' ? (
+        subtitle === 'Project' && newTask ? (
           <a className="dl-btn primary" href="/dashboard">
             New task
           </a>
@@ -123,25 +134,6 @@ function ProjectList() {
   const projects = useData<{ projects: Project[] }>('/api/v2/projects');
   const live = useData<LiveResponse>('/api/v2/live');
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [source, setSource] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  async function create() {
-    setBusy(true);
-    setError('');
-    try {
-      const project = await request('/api/workspace/projects', {
-        method: 'POST',
-        body: JSON.stringify({ name, sourcePath: source, operationId: crypto.randomUUID() }),
-      });
-      window.location.assign(projectPath(project.id));
-    } catch (error) {
-      setError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <>
       <Header title="Projects" />
@@ -201,38 +193,11 @@ function ProjectList() {
           </Group>
         </div>
       </div>
-      <Dialog
+      <NewProjectDialog
         open={open}
-        onClose={() => {
-          if (!busy) setOpen(false);
-        }}
-        title="New project"
-        actions={
-          <>
-            <Action disabled={busy} onClick={() => setOpen(false)}>
-              Cancel
-            </Action>
-            <Action
-              variant="primary"
-              disabled={!name || !source}
-              loading={busy}
-              onClick={() => void create()}
-            >
-              Create project
-            </Action>
-          </>
-        }
-      >
-        <div className="v2-project-form">
-          <Field label="Name" value={name} onChange={(event) => setName(event.target.value)} />
-          <Field
-            label="Repository URL or folder"
-            value={source}
-            onChange={(event) => setSource(event.target.value)}
-          />
-          {error && <Banner title={error} />}
-        </div>
-      </Dialog>
+        onClose={() => setOpen(false)}
+        onCreated={(project) => window.location.assign(projectPath(project.id))}
+      />
     </>
   );
 }
@@ -328,6 +293,13 @@ function ProjectPage({
       ? `/api/v2/apps/${projectSegment(requestsApp!.name)}/requests/${encodeURIComponent(requestId)}`
       : undefined,
   );
+  const starting =
+    !section &&
+    !selectedApp &&
+    !appList &&
+    !!data?.repository?.empty &&
+    !data.tasks.length &&
+    !project?.apps.length;
   const single =
     project?.apps.length === 1 &&
     !data?.tasks.length &&
@@ -379,6 +351,7 @@ function ProjectPage({
               ? `${selectedApp.kind === 'worker' ? 'Worker' : 'Web app'} in ${project?.name}`
               : 'Project'
         }
+        newTask={!starting}
       />
       <div className="dl-scroll">
         <div
@@ -475,6 +448,8 @@ function ProjectPage({
                     </Group>
                     <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
                   </>
+                ) : starting ? (
+                  <ProjectStart project={project} overview={data} />
                 ) : single ? (
                   <>
                     <AppOverview
@@ -652,9 +627,10 @@ function ProjectPage({
 }
 
 function WorkRow({ task, runs }: { task: Work; runs: WorkspaceState['runs'] }) {
-  const snapshot = useData<{ computer?: string; run?: { status: string; updatedAt: string } }>(
-    `/api/v2/tasks/${encodeURIComponent(task.id)}`,
-  );
+  const snapshot = useData<{
+    computer?: string;
+    run?: { status: string; updatedAt: string };
+  }>(`/api/v2/tasks/${encodeURIComponent(task.id)}`);
   const diff = useData<{ patch?: string; status?: string }>(
     `/api/workspace/tasks/${encodeURIComponent(task.id)}/diff`,
   );

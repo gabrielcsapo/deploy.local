@@ -56,6 +56,87 @@ export function repositorySource(input: unknown) {
     syncPolicy: 'manual-fetch',
   };
 }
+/**
+ * A source given now. Remotes sync both ways; folders, and remotes from before two-way sync
+ * (stored as `manual-fetch`), only fetch, so they never push.
+ */
+function newSource(input: unknown) {
+  const source = repositorySource(input);
+  return source.kind === 'remote' ? { ...source, syncPolicy: 'both-ways' } : source;
+}
+export const syncsBothWays = (project: any) => project.source?.syncPolicy === 'both-ways';
+const SYNC_INTERVAL = 5 * 60 * 1000;
+/** Queue a sync (both ways) or a fetch (fetch only) as the repository's current operation. */
+function queueSync(owner: string, project: any) {
+  const operation = save('repository-operation', owner, {
+    id: id(),
+    projectId: project.id,
+    kind: syncsBothWays(project) ? 'sync' : 'fetch',
+    status: 'queued',
+    createdAt: now(),
+    updatedAt: now(),
+  });
+  save('project', owner, {
+    ...project,
+    repositoryOperationId: operation.id,
+    updatedAt: now(),
+  });
+  return operation;
+}
+const busy = (owner: string, project: any) => {
+  const current = project.repositoryOperationId
+    ? get('repository-operation', owner, project.repositoryOperationId)
+    : null;
+  return !!current && ['queued', 'running'].includes(current.status);
+};
+/** Give a repository that lives only on deploy.local a remote, and sync with it. */
+export function addProjectRemote(owner: string, projectId: string, input: any) {
+  const project = requireRepository(owner, projectId);
+  if (project.sourcePath)
+    throw Object.assign(new Error('This repository already has a remote'), {
+      status: 409,
+    });
+  if (busy(owner, project))
+    throw Object.assign(new Error('Repository already has an active operation'), { status: 409 });
+  const source = newSource(input.sourcePath);
+  if (!source.location) throw new Error('Remote required');
+  const updated = save('project', owner, {
+    ...project,
+    sourcePath: source.location,
+    source,
+    sync: null,
+    updatedAt: now(),
+  });
+  queueSync(owner, updated);
+  event(owner, '', null, 'project.updated', { projectId });
+  return get('project', owner, projectId);
+}
+/** Ask for a sync soon, as after a merge to main. */
+export function requestSync(owner: string, projectId: string) {
+  const project = get('project', owner, projectId);
+  if (syncsBothWays(project))
+    save('project', owner, {
+      ...project,
+      syncRequestedAt: now(),
+      updatedAt: now(),
+    });
+}
+/**
+ * Queue a sync for each two-way repository that is free and due: every five minutes, and soon
+ * after a merge asks for one. Fetch-only repositories sync only when someone asks.
+ */
+export function queueDueSyncs(at = Date.now()) {
+  for (const row of db
+    .prepare("SELECT owner,data FROM records WHERE kind='project'")
+    .all() as any[]) {
+    const project = JSON.parse(row.data);
+    if (!syncsBothWays(project) || project.repositoryStatus !== 'ready') continue;
+    if (busy(row.owner, project)) continue;
+    const last = Date.parse(project.sync?.at || '') || 0;
+    const requested = Date.parse(project.syncRequestedAt || '') || 0;
+    if (at - last >= SYNC_INTERVAL || requested > last) queueSync(row.owner, project);
+  }
+}
 export function queueProject(owner: string, input: any) {
   const name = String(input.name || '').trim();
   if (!name || name.length > 120) throw new Error('Project name required');
@@ -68,7 +149,7 @@ export function queueProject(owner: string, input: any) {
   const description = input.description == null ? '' : input.description;
   if (typeof description !== 'string' || description.length > 240 || hasControls(description))
     throw new Error('Description must contain at most 240 characters without control characters');
-  const source = repositorySource(input.sourcePath);
+  const source = newSource(input.sourcePath);
   const projectId = id(),
     operationId = id();
   const project = save('project', owner, {
@@ -192,7 +273,7 @@ export function repositoryCommand(owner: string, projectId: string, action: stri
     requireRepository(owner, projectId);
     if (!project.sourcePath) throw new Error('This hosted repository has no upstream source');
   }
-  const kind = action === 'retry' ? current.kind : 'fetch';
+  const kind = action === 'retry' ? current.kind : syncsBothWays(project) ? 'sync' : 'fetch';
   // Validate legacy sources before handing them to a Git subprocess.
   repositorySource(project.sourcePath);
   const operation = save('repository-operation', owner, {
@@ -260,6 +341,7 @@ export function repositoryClonePath(owner: string, project: { id: string; name: 
     ? `/${address}.git`
     : `/api/workspace/git/${project.id}/${repositoryFolderName(project.name)}.git`;
 }
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 export async function repositoryInfo(owner: string, projectId: string) {
   const project = get('project', owner, projectId);
   const service = db.prepare('SELECT heartbeat FROM worker WHERE id=?').get('repositories') as any;
@@ -275,8 +357,9 @@ export async function repositoryInfo(owner: string, projectId: string) {
     serviceOnline: !!service && Date.now() - Date.parse(service.heartbeat) < 10000,
   };
   if (base.status !== 'ready') return base;
-  const [head, refs] = await Promise.all([
+  const [head, tree, refs] = await Promise.all([
     gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD']),
+    gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD^{tree}']),
     gitText(project.repositoryPath, [
       'for-each-ref',
       '--format=%(refname)%00%(objectname)',
@@ -288,6 +371,9 @@ export async function repositoryInfo(owner: string, projectId: string) {
   return {
     ...base,
     head,
+    // A new hosted repository starts with one empty commit; it is empty until code arrives.
+    empty: tree === EMPTY_TREE,
+    sync: project.sync ?? null,
     deployment: await repositoryDeployment(project.repositoryPath, refs),
     defaultBranch:
       project.defaultBranch ||

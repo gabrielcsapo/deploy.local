@@ -27,6 +27,7 @@ const {
   repositoryCommand,
   repositoryAtAddress,
   updateProjectSettings,
+  queueDueSyncs,
 } = await import('./repositories.ts');
 const { repositoryFolderName } = await import('../../shared/repository-address.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
@@ -440,4 +441,109 @@ test('repositories get short addresses that pages and other repositories cannot 
   const reused = queueProject(owner, { name: 'Home Gym' });
   assert.equal(repositoryAtAddress(owner, 'home-gym')?.id, reused.id);
   assert.equal(repositoryAtAddress(owner, 'missing'), null);
+});
+
+test('a hosted repository starts empty and syncs both ways with a remote, pausing when main changed on both sides', async () => {
+  const created = await post('/projects', { name: 'Recipes' });
+  assert.equal(created.body.source.kind, 'hosted');
+  const info = (await ready(created.body.id)).body;
+  assert.equal(info.empty, true);
+  assert.equal(info.sync, null);
+  const id = created.body.id;
+  const repo = created.body.repositoryPath;
+  const remote = join(data, 'recipes-remote.git');
+  git(data, ['init', '--bare', '--initial-branch=main', remote]);
+  // Folders only fetch, so make this local remote stand in for a two-way one.
+  const added = await post(`/projects/${id}/repository/remote`, {
+    sourcePath: remote,
+  });
+  assert.equal(added.body.source.syncPolicy, 'manual-fetch');
+  assert.equal(
+    (await post(`/projects/${id}/repository/remote`, { sourcePath: remote })).status,
+    409,
+  );
+  await until(
+    () => read(`/projects/${id}/repository`),
+    (r) => r.body.operation?.kind === 'fetch' && r.body.operation.status === 'succeeded',
+  );
+  assert.equal(git(remote, ['for-each-ref']), '', 'fetch only never pushes');
+  save('project', 'alice', {
+    ...get('project', 'alice', id),
+    source: { ...added.body.source, kind: 'remote', syncPolicy: 'both-ways' },
+  });
+  const sync = async () => {
+    const operation = (await post(`/projects/${id}/repository/fetch`)).body;
+    assert.equal(operation.kind, 'sync');
+    return (
+      await until(
+        () => read(`/projects/${id}/repository`),
+        (r) =>
+          r.body.operation?.id === operation.id &&
+          r.body.operation.status !== 'queued' &&
+          r.body.operation.status !== 'running',
+      )
+    ).body;
+  };
+  // An empty remote receives main.
+  let state = await sync();
+  assert.equal(state.sync.state, 'in-sync');
+  assert.equal(git(remote, ['rev-parse', 'main']), git(repo, ['rev-parse', 'main']));
+  // Commits pushed to the remote arrive.
+  const clone = join(data, 'recipes-clone');
+  git(data, ['clone', remote, clone]);
+  git(clone, ['config', 'user.name', 'Test']);
+  git(clone, ['config', 'user.email', 'test@example.invalid']);
+  writeFileSync(join(clone, 'README.md'), 'from the remote\n');
+  git(clone, ['add', '.']);
+  git(clone, ['commit', '-m', 'From the remote']);
+  git(clone, ['push', 'origin', 'main']);
+  state = await sync();
+  assert.equal(state.sync.state, 'in-sync');
+  assert.equal(state.empty, false);
+  assert.equal(git(repo, ['rev-parse', 'main']), git(clone, ['rev-parse', 'HEAD']));
+  // Both sides move: nothing is pushed or overwritten.
+  writeFileSync(join(clone, 'README.md'), 'remote again\n');
+  git(clone, ['commit', '-am', 'Remote again']);
+  git(clone, ['push', 'origin', 'main']);
+  const here = join(data, 'recipes-here');
+  git(data, ['clone', repo, here]);
+  git(here, ['config', 'user.name', 'Test']);
+  git(here, ['config', 'user.email', 'test@example.invalid']);
+  writeFileSync(join(here, 'NOTES.md'), 'here\n');
+  git(here, ['add', '.']);
+  git(here, ['commit', '-m', 'Here']);
+  git(here, ['push', 'origin', 'main']);
+  const [localMain, remoteMain] = [
+    git(repo, ['rev-parse', 'main']),
+    git(remote, ['rev-parse', 'main']),
+  ];
+  state = await sync();
+  assert.equal(state.sync.state, 'paused');
+  assert.equal(git(repo, ['rev-parse', 'main']), localMain);
+  assert.equal(git(remote, ['rev-parse', 'main']), remoteMain);
+  // Two-way repositories are due every five minutes, or after a merge asks.
+  const paused = get('project', 'alice', id);
+  queueDueSyncs(Date.parse(paused.sync.at) + 1000);
+  assert.equal(get('project', 'alice', id).repositoryOperationId, paused.repositoryOperationId);
+  queueDueSyncs(Date.parse(paused.sync.at) + 5 * 60 * 1000);
+  const due = get('project', 'alice', id).repositoryOperationId;
+  assert.notEqual(due, paused.repositoryOperationId);
+  assert.equal(get('repository-operation', 'alice', due).kind, 'sync');
+});
+
+test('remotes given with a new project sync both ways; earlier remotes and folders only fetch', () => {
+  const owner = 'sync-policy';
+  const remote = queueProject(owner, {
+    name: 'Remote',
+    sourcePath: 'git@example.invalid:x/y.git',
+  });
+  assert.equal(remote.source.syncPolicy, 'both-ways');
+  repositoryCommand(owner, remote.id, 'cancel');
+  const folder = queueProject(owner, {
+    name: 'Folder',
+    sourcePath: join(data, 'nowhere'),
+  });
+  assert.equal(folder.source.syncPolicy, 'manual-fetch');
+  repositoryCommand(owner, folder.id, 'cancel');
+  assert.equal(repositorySource('git@example.invalid:x/y.git').syncPolicy, 'manual-fetch');
 });

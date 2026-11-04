@@ -22,6 +22,7 @@ import { request, useData, type Overview } from './data';
 import { useSearchParams } from 'react-flight-router/client';
 import { formatTime } from '../data/time';
 import { projectPath, projectSegment } from './routing';
+import { RepositorySettings } from './repository-settings.client';
 
 export function ProjectConfiguration({
   project,
@@ -200,25 +201,7 @@ export function ProjectConfiguration({
           </Group>
         )}
       </section>
-      {overview.repository && (
-        <section className="dl-section">
-          <h2 className="dl-section-title">Repository</h2>
-          <Group>
-            <Setting label="Source">
-              <code>
-                {overview.repository.source?.location ||
-                  overview.repository.source?.url ||
-                  overview.repository.source?.path ||
-                  'Hosted repository'}
-              </code>
-            </Setting>
-            <Setting label="Releases from">
-              {overview.repository.defaultBranch || 'Unavailable'}
-            </Setting>
-            <Setting label="Deploy file">deploy.yaml</Setting>
-          </Group>
-        </section>
-      )}
+      {overview.repository && <RepositorySettings project={project} />}
       <section className="dl-section">
         <h2 className="dl-section-title">Releases</h2>
         <p className="dl-section-sub">

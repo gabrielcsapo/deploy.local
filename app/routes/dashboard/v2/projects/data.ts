@@ -49,8 +49,18 @@ export type Overview = {
     defaultBranch?: string;
     head?: string;
     status: string;
-    source?: { url?: string; path?: string; location?: string };
+    source?: {
+      url?: string;
+      path?: string;
+      location?: string;
+      kind?: string;
+      syncPolicy?: string;
+    };
     clonePath?: string;
+    /** No code on the default branch yet. */
+    empty?: boolean;
+    sync?: { state: string; at: string; changedAt: string; error?: string | null } | null;
+    operation?: { id: string; kind: string; status: string; error?: string | null } | null;
   };
   repositoryError: boolean;
   tasks: Work[];
