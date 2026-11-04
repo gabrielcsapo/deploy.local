@@ -2179,6 +2179,22 @@
       "h": 900,
       "title": "A new hosted project: describe it, or push code you have",
       "expand": "fill"
+    },
+    "AddRemote.html": {
+      "x": 15680,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "Add a remote to a hosted project",
+      "expand": "fill"
+    },
+    "RepositorySync.html": {
+      "x": 17200,
+      "y": 6420,
+      "w": 1440,
+      "h": 1560,
+      "title": "Repository sync states: no remote, paused, fetch only",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2471,7 +2487,9 @@
     "AppRequests.html",
     "AppRequest.html",
     "NewProjectHosted.html",
-    "ProjectEmpty.html"
+    "ProjectEmpty.html",
+    "AddRemote.html",
+    "RepositorySync.html"
   ],
   "notes": {
     "intro": {
