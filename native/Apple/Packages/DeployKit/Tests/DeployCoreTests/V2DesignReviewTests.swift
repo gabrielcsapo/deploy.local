@@ -88,4 +88,9 @@ struct V2DesignReviewTests {
         #expect(board.defaultWidth == 390)
         #expect(board.previewWidths == [390])
     }
+    @Test func conflictCountSeparatesScreensAndNotes() {
+        #expect(V2ReviewModel.conflictCount(["Agent.html"]) == "1 screen conflicts with main")
+        #expect(V2ReviewModel.conflictCount(["A.html", "B.html", "note:x"]) == "2 screens and 1 note conflict with main")
+        #expect(V2ReviewModel.conflictCount(["note:x", "note:y"]) == "2 notes conflict with main")
+    }
 }

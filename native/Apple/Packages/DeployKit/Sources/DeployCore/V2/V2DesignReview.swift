@@ -165,7 +165,7 @@ public struct V2ReviewSummary: Decodable, Identifiable, Sendable {
     public var stale: Bool
     public var conflicts: [String]
     public var inboxSubtitle: String {
-        stale ? "\(V2ReviewModel.count(conflicts.count, "screen")) conflict with main" : "Design · \(V2ReviewModel.count(counts.screens, "screen")) · \(proposer.name)"
+        stale ? V2ReviewModel.conflictCount(conflicts) : "Design · \(V2ReviewModel.count(counts.screens, "screen")) · \(proposer.name)"
     }
 }
 public struct V2DesignProject: Decodable, Identifiable, Sendable {
@@ -201,6 +201,12 @@ public enum V2ReviewModel {
         return "\(minutes / 1440) d ago"
     }
     public static func count(_ value: Int, _ noun: String) -> String { "\(value) \(noun)\(value == 1 ? "" : "s")" }
+    /// "22 screens and 4 notes conflict with main": conflicts list notes as `note:<id>`.
+    public static func conflictCount(_ conflicts: [String]) -> String {
+        let notes = conflicts.filter { $0.hasPrefix("note:") }.count, screens = conflicts.count - notes
+        let parts = [screens > 0 ? count(screens, "screen") : nil, notes > 0 ? count(notes, "note") : nil].compactMap { $0 }
+        return "\(parts.joined(separator: " and ")) conflict\(conflicts.count == 1 ? "s" : "") with main"
+    }
     public static func canvasBoards(_ review: V2DesignReview) -> [V2DesignReview.Board] {
         var remaining = review.boards
         var ordered: [V2DesignReview.Board] = []

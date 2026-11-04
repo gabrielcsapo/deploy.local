@@ -7,7 +7,7 @@ import { useInbox } from '../data/hooks';
 import { useData } from '../projects/data';
 import { getAuth } from '../../detail/shared';
 import { ago } from './ItemReview';
-import { initialDesignProject, reviewCounts, reviewHref, counted } from './review-model';
+import { conflictCount, initialDesignProject, reviewCounts, reviewHref } from './review-model';
 import './review.css';
 export type DesignProject = {
   id: string;
@@ -110,7 +110,7 @@ export function ToReview({
                       </span>
                       <span className="dl-review-proposal-meta">
                         {proposal.stale
-                          ? `${counted(proposal.conflicts.length, 'screen')} conflict${proposal.conflicts.length === 1 ? 's' : ''} with main`
+                          ? conflictCount(proposal.conflicts)
                           : reviewCounts(proposal.counts)}
                       </span>
                     </>
