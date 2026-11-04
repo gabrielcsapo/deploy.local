@@ -323,6 +323,22 @@ test('dotted project paths preserve resource identity, query strings and route s
     'Logs',
     'Settings',
   ]);
+  // A one-app project is its own app page: a web app's requests are a project tab.
+  assert.deepEqual(
+    projectTabs({ code: true, pulls: 0, issues: 0, apps: 1, releases: 2, requests: true }),
+    ['Overview', 'Code', 'Releases', 'Requests', 'Logs', 'Settings'],
+  );
+  assert.equal(
+    projectTabs({
+      code: false,
+      pulls: 0,
+      issues: 0,
+      apps: 2,
+      releases: 0,
+      requests: true,
+    }).includes('Requests'),
+    false,
+  );
 });
 
 test('project logs filter membership before returning existing stream endpoints', async () => {

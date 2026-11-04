@@ -91,10 +91,12 @@ export default function Projects() {
       key={parts[2]}
       projectKey={parts[2]}
       section={parts[3] || ''}
-      appKey={parts[4]}
+      appKey={parts[3] === 'apps' ? parts[4] : undefined}
       appSettings={parts[5] === 'settings'}
       appRequests={parts[5] === 'requests'}
-      requestId={parts[5] === 'requests' ? parts[6] : undefined}
+      requestId={
+        parts[3] === 'requests' ? parts[4] : parts[5] === 'requests' ? parts[6] : undefined
+      }
       search={search}
     />
   ) : (
@@ -311,12 +313,19 @@ function ProjectPage({
     ? project?.apps.find((app) => app.id === appKey || app.name === appKey)
     : undefined;
   const appBase = selectedApp ? `${base}/apps/${projectSegment(selectedApp.name)}` : '';
+  // A one-app project is its own app page, so its requests live at the project's /requests.
+  const requestsApp =
+    selectedApp ??
+    (section === 'requests' && project?.apps.length === 1 ? project.apps[0] : undefined);
+  const requestsBase = selectedApp ? `${appBase}/requests` : `${base}/requests`;
+  const showRequests =
+    !!requestsApp && (appRequests || section === 'requests') && requestsApp.kind !== 'worker';
   const liveAddress = live.data?.computers
     .flatMap((computer) => computer.apps)
-    .find((app) => app.appId === selectedApp?.name)?.address;
+    .find((app) => app.appId === requestsApp?.name)?.address;
   const requestDetail = useData<RequestDetail>(
-    selectedApp && requestId
-      ? `/api/v2/apps/${projectSegment(selectedApp.name)}/requests/${encodeURIComponent(requestId)}`
+    showRequests && requestId
+      ? `/api/v2/apps/${projectSegment(requestsApp!.name)}/requests/${encodeURIComponent(requestId)}`
       : undefined,
   );
   const single =
@@ -344,11 +353,11 @@ function ProjectPage({
     <>
       <Header
         title={
-          (selectedApp && requestId && (
+          (showRequests && requestId && (
             <nav className="v2-crumbs" aria-label="Breadcrumb">
-              <a href={appBase}>{selectedApp.name}</a>
+              <a href={selectedApp ? appBase : base}>{requestsApp!.name}</a>
               <Icon name="chevron" size={14} />
-              <a href={`${appBase}/requests`}>Requests</a>
+              <a href={requestsBase}>Requests</a>
               <Icon name="chevron" size={14} />
               <span className="dl-truncate" aria-current="page">
                 {requestDetail.data ? formatRequestClock(requestDetail.data.request.at) : 'Request'}
@@ -364,7 +373,7 @@ function ProjectPage({
           ''
         }
         subtitle={
-          selectedApp && requestId
+          showRequests && requestId
             ? undefined
             : selectedApp
               ? `${selectedApp.kind === 'worker' ? 'Worker' : 'Web app'} in ${project?.name}`
@@ -373,7 +382,7 @@ function ProjectPage({
       />
       <div className="dl-scroll">
         <div
-          className={`dl-page ${appRequests ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
+          className={`dl-page ${showRequests ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
         >
           {overview.error && (
             <Banner
@@ -382,12 +391,12 @@ function ProjectPage({
             />
           )}
           {!data && !overview.error && <Skeleton rows={4} />}
-          {project && data && selectedApp && requestId ? (
+          {project && data && showRequests && requestId ? (
             <AppRequest
-              app={selectedApp.name}
+              app={requestsApp!.name}
               detail={requestDetail}
-              base={`${appBase}/requests`}
-              logs={`${base}/logs?app=${encodeURIComponent(selectedApp.name)}`}
+              base={requestsBase}
+              logs={`${base}/logs?app=${encodeURIComponent(requestsApp!.name)}`}
             />
           ) : (
             project &&
@@ -440,12 +449,8 @@ function ProjectPage({
                   <ProjectConfiguration project={project} overview={data} />
                 ) : section === 'logs' ? (
                   <ProjectLogs project={project} selected={params.get('app') || ''} />
-                ) : selectedApp && appRequests && selectedApp.kind !== 'worker' ? (
-                  <AppRequests
-                    app={selectedApp.name}
-                    address={liveAddress}
-                    base={`${appBase}/requests`}
-                  />
+                ) : showRequests ? (
+                  <AppRequests app={requestsApp!.name} address={liveAddress} base={requestsBase} />
                 ) : selectedApp ? (
                   <AppOverview
                     project={project}
