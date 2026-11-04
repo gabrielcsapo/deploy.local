@@ -2147,6 +2147,22 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — pager: Welcome web screen at 1:1"
+    },
+    "AppRequests.html": {
+      "x": 19960,
+      "y": 15384,
+      "w": 1440,
+      "h": 1700,
+      "title": "A web app’s requests: volume, errors, slow paths and every request",
+      "expand": "fill"
+    },
+    "AppRequest.html": {
+      "x": 21480,
+      "y": 15384,
+      "w": 1440,
+      "h": 1240,
+      "title": "One request: who sent it and, for a server error, what was sent and what came back",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2435,7 +2451,9 @@
     "DesignReviewWebPhone.html",
     "DesignReviewPinPhone.html",
     "DesignReviewGridPhone.html",
-    "DesignReviewDecidePhone.html"
+    "DesignReviewDecidePhone.html",
+    "AppRequests.html",
+    "AppRequest.html"
   ],
   "notes": {
     "intro": {
@@ -3573,6 +3591,13 @@
       "h": 1500,
       "fill": "blue",
       "text": "DesignReviewWebPhone.html\n“Welcome: ask first”, Welcome · 1 of 2. The real Welcome.html snapshot stays at native 1440 × 900, cropped 1:1 around “Input above the quick actions”, with real surrounding content. Outline 1 follows the input; outline 2 marks the side gutters off-crop. Pager chrome matches DesignReviewViewerPhone.\nThe 72 px overview shows the whole screen and the current crop rectangle. Tap it to fit the screen; double-tap the stage toggles fit ↔ 1:1. Pinch and pan inspect the screen. The quiet 1440 chip has no menu for Welcome’s sole width; multiple widths open a menu.\nOne bar below the stage says “1 of 2 · Input above the quick actions”. Chevrons pan to each change in turn; disable at the ends. Use the proposer’s per-change words when supplied, otherwise the changed element’s own words, never raw diff lines or attribute changes.\nPress and hold shows Before in place at the same crop and zoom, as in DesignReviewHoldPhone; release restores After. No Slider, Onion skin, drag handle or persistent Before/After chips over the screen. Keep Show changes, Pin, All screens, Seen · pins and progress in the toolbar.\nNew web boards, such as Welcome narrow, open the same way at 1:1, After only, centred on the top of the screen, with overview and width chip but no change bar, comparison gesture or Show changes. Static fixture; gestures and navigation are specified here for implementation after approval."
+    },
+    "app-requests": {
+      "fill": "yellow",
+      "w": 420,
+      "x": 19960,
+      "y": 15184,
+      "text": "Requests\nWeb app\niPhone: later\n\nOnly web apps (an app with an address) get the Requests tab; workers keep Overview and Settings. Numbers come from the 1-minute rollups; the list reads request_logs (90 days). Bodies are saved for server errors only (14 days, at most 30 a minute per app). Rows in the summaries open the list filtered to that path; a list row opens the request."
     }
   },
   "starts": {}
