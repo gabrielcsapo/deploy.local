@@ -3597,7 +3597,7 @@
       "w": 420,
       "x": 19960,
       "y": 15184,
-      "text": "Requests\nWeb app\niPhone: later\n\nOnly web apps (an app with an address) get the Requests tab; workers keep Overview and Settings. Numbers come from the 1-minute rollups; the list reads request_logs (90 days). Bodies are saved for server errors only (14 days, at most 30 a minute per app). Rows in the summaries open the list filtered to that path; a list row opens the request."
+      "text": "Requests\nWeb app\niPhone: later\n\nOnly web apps (an app with an address) get the Requests tab; workers keep Overview and Settings. Numbers come from the 1-minute rollups; the list reads request_logs (90 days). Bodies are saved for server errors only (14 days, at most 30 a minute per app). Rows in the summaries open the list filtered to that path; a list row opens the request.\n\nIn a one-app project the app is the project page, so Requests is a project tab after Releases (OneAppProject). It opens the same page as AppRequests under the project’s tabs. Workers never get it.\n\nStates the boards do not draw: a server error with nothing saved (over 30 a minute, or older than 14 days) shows What was sent with “Not saved. deploy.local saves up to 30 server errors a minute for each app and keeps them for 14 days.” and no What came back. A range with no requests reads “No requests in 24 hours” in Slowest paths and the list, and “No server errors” in Most server errors. Logs opens the app’s logs; they cannot jump to a time yet."
     }
   },
   "starts": {}
