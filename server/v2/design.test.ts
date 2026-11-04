@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { Readable } from 'node:stream';
 const root = mkdtempSync(join(tmpdir(), 'v2-design-'));
 process.env.DEPLOY_DATA_DIR = root;
 const store = await import('../store.ts');
@@ -15,12 +16,45 @@ const { askPrompt, componentPrompt } = await import('./design.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'alice') }));
 });
-server.listen(0, '127.0.0.1');
-await once(server, 'listening');
-const origin = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}`;
+const inProcess = process.env.DEPLOY_TEST_NO_LISTEN === '1';
+if (!inProcess) {
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+}
+const origin = inProcess
+  ? 'http://test.invalid'
+  : `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}`;
+// Exercise the same HTTP route handlers when the runner cannot bind a loopback socket.
+const fetch = inProcess
+  ? async (input: string, init: RequestInit = {}): Promise<Response> => {
+      const url = new URL(input);
+      const headers = Object.fromEntries(new Headers(init.headers));
+      const req = Object.assign(Readable.from(init.body ? [Buffer.from(String(init.body))] : []), {
+        url: url.pathname + url.search,
+        method: init.method ?? 'GET',
+        headers,
+      }) as unknown as import('node:http').IncomingMessage;
+      let status = 200;
+      let responseHeaders: Record<string, string> = {};
+      let bytes: Buffer = Buffer.alloc(0);
+      const res = {
+        writeHead(code: number, head: Record<string, string>) {
+          status = code;
+          responseHeaders = head;
+        },
+        end(body: string | Buffer = '') {
+          bytes = Buffer.from(body);
+        },
+      } as unknown as import('node:http').ServerResponse;
+      await v2Api(req, res, () => ({ username: headers['x-test-owner'] ?? 'alice' }));
+      return new Response(new Uint8Array(bytes), { status, headers: responseHeaders });
+    }
+  : globalThis.fetch;
 after(async () => {
-  server.closeAllConnections();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (!inProcess) {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
   db.close();
   store._resetDb();
   rmSync(root, { recursive: true, force: true });
@@ -196,6 +230,8 @@ test('asking an agent checks the layer and gives it the element and the rules', 
 });
 
 test('boards render to PNG at a commit when Chromium is installed', async (t) => {
+  if (process.env.DEPLOY_TEST_NO_BROWSER === '1')
+    return t.skip('Browser execution disabled for this test run');
   const { chromium } = await import('playwright');
   if (!existsSync(chromium.executablePath())) return t.skip('Chromium is not installed');
   const png = await call(`/render?board=Welcome.html&width=700&ref=${main}`);
@@ -325,10 +361,10 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   assert.equal(proposed.status, 201);
   const { item } = await proposed.json();
   assert.equal(item.kind, 'other');
-  assert.match(item.title, /^Approve the .+ design\?$/);
+  assert.equal(item.title, 'welcome title');
   assert.deepEqual(
     item.actions.map((action: any) => action.id),
-    ['approve', 'changes'],
+    ['approve', 'changes', 'update'],
   );
   const listed = (await (await call('/proposals')).json()).proposals[0];
   assert.equal(listed.id, item.id);
@@ -366,6 +402,7 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
     await call('/propose', { method: 'POST', body: JSON.stringify({ task: 'ab12cd34-0000' }) })
   ).json();
   assert.equal(forTask.item.taskId, 'ab12cd34-0000');
+  save('run', 'alice', { id: 'design-feedback-run', taskId: 'ab12cd34-0000', status: 'running' });
   answerInbox('alice', forTask.item.id, { actionId: 'changes', on: 'web', note: 'Too big now' });
   const notes = await (await call('/comments?board=Welcome.html')).json();
   assert.ok(notes.comments.some((comment: any) => comment.text === 'Too big now'));
@@ -765,7 +802,7 @@ test('approving stops when main rewrote the same lines of a board since the bran
   const later = await propose(second.branch);
   assert.throws(
     () => answerInbox('alice', later.id, { actionId: 'approve', on: 'web' }),
-    /changed boards\/Welcome.html since .* on the same lines/,
+    /conflict with main/,
   );
 });
 
@@ -964,4 +1001,528 @@ test('a newer commit withdraws the older request and tells clients, which replay
     await git(['checkout', 'main']);
     if (stashed) await git(['stash', 'pop']);
   }
+});
+
+/** Each review scenario owns its repository so main can advance without contaminating others. */
+async function reviewFixture(name: string) {
+  const path = join(root, name);
+  mkdirSync(join(path, 'design/boards'), { recursive: true });
+  const run = (args: string[]) => gitText(path, args);
+  await run(['init', '--initial-branch=main']);
+  await run(['config', 'user.name', 'Review Test']);
+  await run(['config', 'user.email', 'review@example.invalid']);
+  const canvas = {
+    boards: {
+      'Alpha.html': { x: 100, y: 100, w: 1440, h: 900, title: 'Agent details' },
+      'Beta.html': { x: 1700, y: 100, w: 390, h: 844, title: 'Meet your agent on iPhone' },
+      'Removed.html': { x: 3400, y: 100, w: 1440, h: 900, title: 'Old screen' },
+      'Other.html': { x: 0, y: 2200, w: 1440, h: 900, title: 'Other screen' },
+    },
+    order: ['Beta.html', 'Removed.html', 'Alpha.html', 'Other.html'],
+    notes: {
+      'section-agents': { x: 0, y: 0, text: 'Agents and trust' },
+      'section-other': { x: 0, y: 2000, text: 'Other page' },
+    },
+  };
+  writeFileSync(join(path, 'design/canvas.json'), JSON.stringify(canvas));
+  for (const file of Object.keys(canvas.boards))
+    writeFileSync(join(path, 'design/boards', file), '<h1 data-layer="title">Before</h1>');
+  await run(['add', '.']);
+  await run(['commit', '-qm', 'Base']);
+  const base = await run(['rev-parse', 'HEAD']);
+  const project = { id: name, name, repositoryPath: path, repositoryStatus: 'ready' };
+  save('project', 'alice', project);
+  await run(['checkout', '-qb', 'design/review']);
+  writeFileSync(
+    join(path, 'design/boards/Alpha.html'),
+    '<h1 data-layer="title" style="font-size:22px">Sources for preferences</h1>',
+  );
+  writeFileSync(
+    join(path, 'design/boards/Beta.html'),
+    '<h1 data-layer="title">Suggestions wrap</h1>',
+  );
+  await run(['commit', '-qam', 'Proposed']);
+  const callReview = (suffix: string, body?: object, method = 'POST') =>
+    fetch(
+      `${origin}/api/v2/projects/${name}/design${suffix}`,
+      body
+        ? {
+            method,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          }
+        : {},
+    );
+  const propose = async (extra: object = {}) => {
+    const checkedOut = await run(['branch', '--show-current']);
+    await run(['checkout', '-q', 'main']);
+    const response = await callReview('/propose', {
+      ref: 'design/review',
+      title: 'Agents you make yourself',
+      ...extra,
+    });
+    await run(['checkout', '-q', checkedOut]);
+    assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+    return (await response.json()).item;
+  };
+  const read = async (item: { id: string }) =>
+    await (await callReview(`/review?item=${encodeURIComponent(item.id)}`)).json();
+  const commit = async (message: string) => {
+    await run(['add', '-A']);
+    await run(['commit', '-qm', message]);
+    return run(['rev-parse', 'HEAD']);
+  };
+  return { path, run, base, canvas, project, call: callReview, propose, read, commit };
+}
+
+test('review stores proposer summary and plain title, returns actual attribution and legacy null summaries', async () => {
+  const f = await reviewFixture('review-summary');
+  const item = await f.propose({
+    summary:
+      'Keep the source beside each preference. Let suggestions wrap so they can be read in full.',
+  });
+  const review = await f.read(item);
+  assert.equal(item.title, 'Agents you make yourself');
+  assert.equal(
+    review.summary,
+    'Keep the source beside each preference. Let suggestions wrap so they can be read in full.',
+  );
+  assert.equal(review.proposer.name, 'You');
+  const row = (await import('../workspace/store.ts')).get('v2-inbox-native', 'alice', item.id);
+  assert.equal(row.context.summary, review.summary);
+  const landing = await (
+    await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`)
+  ).json();
+  assert.equal(landing.proposals.length, 1);
+  assert.equal(landing.proposals[0].title, item.title);
+  assert.deepEqual(landing.proposals[0].counts, { screens: 2, changed: 2, new: 0, removed: 0 });
+  const other = await reviewFixture('review-legacy');
+  assert.equal((await other.read(await other.propose())).summary, null);
+  assert.equal(
+    (await f.call('/propose', { ref: 'design/review', summary: 'x'.repeat(4001) })).status,
+    400,
+  );
+});
+
+test('review groups by actual canvas page and board order, interleaving changed, new and removed screens', async () => {
+  const f = await reviewFixture('review-order');
+  const canvas: any = f.canvas;
+  delete canvas.boards['Removed.html'];
+  canvas.boards['New.html'] = { x: 400, y: 100, w: 390, h: 844, title: 'Choose an avatar' };
+  canvas.order = ['Beta.html', 'New.html', 'Alpha.html', 'Other.html'];
+  writeFileSync(join(f.path, 'design/canvas.json'), JSON.stringify(canvas));
+  rmSync(join(f.path, 'design/boards/Removed.html'));
+  writeFileSync(join(f.path, 'design/boards/New.html'), '<p data-layer="new">New</p>');
+  writeFileSync(join(f.path, 'design/boards/Other.html'), '<p data-layer="other">Other</p>');
+  await f.commit('New, removed and another page');
+  const review = await f.read(await f.propose());
+  assert.deepEqual(
+    review.boards.map((b: any) => [b.file, b.status]),
+    [
+      ['Beta.html', 'changed'],
+      ['New.html', 'new'],
+      ['Removed.html', 'removed'],
+      ['Alpha.html', 'changed'],
+      ['Other.html', 'changed'],
+    ],
+  );
+  assert.deepEqual(
+    review.groups.map((g: any) => [g.title, g.boards.length]),
+    [
+      ['Agents and trust', 4],
+      ['Other page', 1],
+    ],
+  );
+  assert.equal(review.boards[2].w, 1440);
+  assert.deepEqual(review.counts, { screens: 5, changed: 3, new: 1, removed: 1 });
+});
+
+test('per-width preview boxes use native coordinates and change words never expose raw diffs', async () => {
+  const f = await reviewFixture('review-boxes');
+  const review = await f.read(
+    await f.propose({
+      changeWords: { 'Alpha.html': { title: 'Keep the source beside the preference' } },
+    }),
+  );
+  const alpha = review.boards.find((b: any) => b.file === 'Alpha.html');
+  const beta = review.boards.find((b: any) => b.file === 'Beta.html');
+  assert.deepEqual(alpha.lines, ['Keep the source beside the preference']);
+  assert.deepEqual(beta.lines, ['Suggestions wrap']);
+  assert.doesNotMatch(
+    JSON.stringify([alpha.changes, beta.changes]),
+    /font-size|Text |Class | added| removed|→/,
+  );
+  const { reviewPreview } = await import('./design.ts');
+  for (const width of [1440, 700]) {
+    const before = { x: width / 4, y: 100, w: 200, h: 40 },
+      after = { x: width / 4, y: 108, w: 240, h: 60 };
+    const preview = await reviewPreview(
+      f.path,
+      f.project.id,
+      alpha,
+      width,
+      async (_repo, revision) => ({
+        png: Buffer.alloc(0),
+        boxes: { title: revision === review.before ? before : after },
+      }),
+    );
+    assert.deepEqual(preview.areas, [{ layer: 'title', words: alpha.lines[0], before, after }]);
+    assert.equal(preview.width, width);
+    assert.equal(preview.crop.x, after.x - 48);
+    assert.equal(preview.crop.w, after.w + 96);
+    assert.match(preview.after!, new RegExp(`width=${width}`));
+  }
+});
+
+test('preview payload merges changed regions for all clients and suppresses screen containers', async () => {
+  const f = await reviewFixture('review-merged-areas');
+  const review = await f.read(await f.propose());
+  const board = review.boards.find((b: any) => b.file === 'Alpha.html');
+  const { reviewPreview } = await import('./design.ts');
+  for (const width of [390, 700, 1440]) {
+    const boxes = {
+      root: { x: 0, y: 0, w: width, h: board.h * 0.8 },
+      first: { x: 10, y: 500, w: 50, h: 40 },
+      last: { x: 110, y: 500, w: 50, h: 40 },
+      child: { x: 20, y: 510, w: 20, h: 10 },
+      bridge: { x: 68, y: 500, w: 34, h: 40 },
+      separate: { x: 10, y: 600, w: 100, h: 30 },
+    };
+    const changes = Object.keys(boxes).map((layer) => ({ layer, words: `Words for ${layer}` }));
+    const render = async (_repo: string, revision: string) => ({
+      png: Buffer.alloc(0),
+      boxes: Object.fromEntries(
+        Object.entries(boxes).map(([layer, rect]) => [
+          layer,
+          { ...rect, y: rect.y + (revision === board.before || layer === 'root' ? 0 : 12) },
+        ]),
+      ),
+    });
+    const preview = await reviewPreview(f.path, f.project.id, { ...board, changes }, width, render);
+    assert.deepEqual(preview.areas, [
+      {
+        layer: 'first',
+        words: 'Words for first',
+        before: { x: 10, y: 500, w: 150, h: 40 },
+        after: { x: 10, y: 512, w: 150, h: 40 },
+      },
+      {
+        layer: 'separate',
+        words: 'Words for separate',
+        before: boxes.separate,
+        after: { ...boxes.separate, y: 612 },
+      },
+    ]);
+    assert.equal(preview.crop.y, 512 - 48);
+    // A sole container must have neither an outline nor per-area words.
+    const rootOnly = await reviewPreview(
+      f.path,
+      f.project.id,
+      { ...board, changes: [changes[0]] },
+      width,
+      render,
+    );
+    assert.deepEqual(rootOnly.areas, []);
+    assert.equal(rootOnly.crop.y, 0);
+  }
+  const { reviewAreas } = await import('../../shared/v2/design-review.ts');
+  const rect = { x: 10, y: 20, w: 50, h: 40 };
+  assert.deepEqual(
+    reviewAreas(
+      [
+        { layer: 'removed', words: 'Replace the control' },
+        { layer: 'added', words: 'New control' },
+        { layer: 'hidden', words: 'Hidden text' },
+      ],
+      { removed: rect },
+      { added: rect },
+      390,
+      844,
+    ),
+    [{ layer: 'removed', words: 'Replace the control', before: rect, after: rect }],
+  );
+  assert.equal(
+    reviewAreas(
+      [
+        { layer: 'a', words: 'First' },
+        { layer: 'b', words: 'Separate' },
+      ],
+      {},
+      { a: rect, b: { ...rect, x: 69 } },
+      390,
+      844,
+    ).length,
+    2,
+  );
+});
+
+test('unrelated main screens update automatically; overlapping edits block both decisions atomically', async () => {
+  const f = await reviewFixture('review-stale');
+  const item = await f.propose();
+  assert.equal((await f.read(item)).stale, false);
+  await f.run(['checkout', '-q', 'main']);
+  writeFileSync(join(f.path, 'design/boards/Other.html'), '<p>Changed elsewhere</p>');
+  await f.commit('Other screen on main');
+  let review = await f.read(item);
+  assert.equal(review.stale, false);
+  assert.ok(review.updatedWithMainAt);
+  const { answerInbox } = await import('./inbox.ts');
+  writeFileSync(
+    join(f.path, 'design/boards/Alpha.html'),
+    '<h1 data-layer="title">Main rewrote this screen</h1>',
+  );
+  const main = await f.commit('Same screen');
+  // No fresh GET is needed for the server to refuse a decision against stale data.
+  for (const actionId of ['approve', 'changes'])
+    assert.throws(
+      () => answerInbox('alice', item.id, { actionId, on: 'web', note: 'Please adjust' }),
+      /conflict with main/,
+    );
+  assert.equal(await f.run(['rev-parse', 'main']), main);
+  review = await f.read(item);
+  assert.deepEqual(review.conflicts, ['Alpha.html']);
+  assert.equal(review.stale, true);
+  answerInbox('alice', item.id, { actionId: 'update', on: 'web' });
+  const feedback = (await import('../workspace/store.ts')).get(
+    'design-review-feedback',
+    'alice',
+    item.id,
+  );
+  assert.match(feedback.content, /rebase design\/review onto main.*propose again/);
+  assert.equal((await f.read(item)).item.state, 'answered');
+});
+
+test('pins persist as board comments, edits retain positions, deletion never reuses numbers, and asking sends every open pin once', async () => {
+  const f = await reviewFixture('review-pins');
+  const item = await f.propose();
+  const first = await f.read(item);
+  const pin = (board: string, text: string) =>
+    f.call('/review/pins', {
+      item: item.id,
+      board,
+      width: board === 'Beta.html' ? 390 : 1440,
+      revision: first.after,
+      x: 110,
+      y: 220,
+      text,
+    });
+  await pin('Alpha.html', 'Keep the name visible.');
+  await pin('Beta.html', 'Wrap this suggestion.');
+  let review = await f.read(item);
+  assert.deepEqual(
+    review.pins.map((p: any) => p.number),
+    [1, 2],
+  );
+  const comments = await (await f.call('/comments')).json();
+  assert.equal(comments.comments.length, 2);
+  assert.deepEqual(comments.comments[0].position, {
+    width: 1440,
+    revision: first.after,
+    x: 110,
+    y: 220,
+    noteId: null,
+  });
+  await f.call(
+    '/review/pins',
+    { item: item.id, id: review.pins[0].id, text: 'Keep the name visible while scrolling.' },
+    'PATCH',
+  );
+  await f.call('/review/pins', { item: item.id, id: review.pins[1].id }, 'DELETE');
+  await pin('Beta.html', 'Let it wrap to two lines.');
+  review = await f.read(item);
+  assert.deepEqual(
+    review.pins.map((p: any) => p.number),
+    [1, 3],
+  );
+  assert.equal(review.pins[0].x, 110);
+  assert.equal(
+    (
+      await f.call('/review/pins', {
+        item: item.id,
+        board: 'Alpha.html',
+        revision: first.after,
+        width: 1440,
+        x: -1,
+        y: 0,
+        text: 'No',
+      })
+    ).status,
+    400,
+  );
+  const taskId = 'review-pin-task';
+  save('task', 'alice', { id: taskId, projectId: f.project.id, revision: 1 });
+  save('run', 'alice', { id: 'review-pin-run', taskId, status: 'running' });
+  const store = await import('../workspace/store.ts');
+  const row = store.get('v2-inbox-native', 'alice', item.id);
+  save('v2-inbox-native', 'alice', { ...row, context: { ...row.context, taskId } });
+  const { answerInbox } = await import('./inbox.ts');
+  const answer = answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
+  assert.equal(answer.answer?.actionId, 'changes');
+  const message = store.get('queued-message', 'alice', taskId).content;
+  assert.match(message, /Pin 1.*Alpha.html/);
+  assert.match(message, /Pin 3.*Beta.html/);
+  assert.match(message, /Keep the name visible while scrolling/);
+  assert.match(message, /Let it wrap to two lines/);
+  assert.throws(
+    () => answerInbox('alice', item.id, { actionId: 'changes', on: 'web' }),
+    /already resolved/,
+  );
+  assert.equal(store.get('queued-message', 'alice', taskId).content, message);
+});
+
+test('seen state is owner/revision/screen scoped and round two retains only unchanged seen screens and original pins', async () => {
+  const f = await reviewFixture('review-round-two');
+  const item = await f.propose();
+  const initial = await f.read(item);
+  for (const board of initial.boards) {
+    const response = await f.call('/review/seen', {
+      item: item.id,
+      board: board.file,
+      revision: initial.after,
+    });
+    assert.equal(response.status, 200);
+  }
+  assert.ok((await f.read(item)).boards.every((board: any) => board.seen));
+  assert.equal(
+    (await f.call('/review/seen', { item: item.id, board: 'Alpha.html', revision: f.base })).status,
+    409,
+  );
+  assert.equal(
+    (
+      await fetch(
+        `${origin}/api/v2/projects/${f.project.id}/design/review?item=${encodeURIComponent(item.id)}`,
+        { headers: { 'x-test-owner': 'mallory' } },
+      )
+    ).status,
+    404,
+  );
+  await f.call('/review/pins', {
+    item: item.id,
+    board: 'Alpha.html',
+    revision: initial.after,
+    width: 1440,
+    x: 60,
+    y: 100,
+    text: 'Explain the source.',
+  });
+  const { answerInbox } = await import('./inbox.ts');
+  answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
+  const pin = (await f.read(item)).pins[0];
+  save('task', 'alice', { id: 'review-resolve-task', projectId: f.project.id });
+  const { designTool } = await import('./design.ts');
+  designTool(
+    { owner: 'alice', taskId: 'review-resolve-task' },
+    { action: 'resolve', commentId: pin.id, reply: 'Added the source and date.' },
+  );
+  writeFileSync(
+    join(f.path, 'design/boards/Alpha.html'),
+    '<h1 data-layer="title">You told me on Tuesday</h1>',
+  );
+  await f.commit('Address source pin');
+  const next = await f.propose({ summary: 'Added the source and date. Suggestions still wrap.' });
+  const round = await f.read(next);
+  assert.equal(round.round, 2);
+  assert.equal(round.before, initial.after);
+  assert.equal(round.previousItemId, item.id);
+  assert.deepEqual(
+    round.boards.filter((b: any) => b.changedSinceReview).map((b: any) => b.file),
+    ['Alpha.html'],
+  );
+  assert.deepEqual(
+    round.boards.filter((b: any) => b.seen).map((b: any) => b.file),
+    ['Beta.html'],
+  );
+  assert.equal(round.pins[0].text, 'Explain the source.');
+  assert.equal(round.pins[0].reply, 'Added the source and date.');
+  assert.equal(round.pins[0].resolved, true);
+  assert.equal(round.pins[0].revision, initial.after);
+  await f.call('/review/seen', { item: next.id, board: 'Alpha.html', revision: round.after });
+  assert.equal((await f.read(next)).pins[0].resolved, true, 'looking does not change resolution');
+  await f.call('/review/pins', { item: next.id, id: pin.id, resolved: false }, 'PATCH');
+  assert.equal((await f.read(next)).pins[0].resolved, false);
+  answerInbox('alice', next.id, { actionId: 'approve', on: 'web' });
+  assert.equal((await f.read(next)).pins[0].text, 'Explain the source.', 'approval keeps comments');
+});
+
+test('deploy_design propose accepts summary/title and attributes the saved agent and avatar', async () => {
+  const f = await reviewFixture('review-tool');
+  const taskId = 'f00dface-0000';
+  await f.run(['branch', 'task/f00dface', 'HEAD']);
+  await f.run(['checkout', '-q', 'main']);
+  const avatar = { glyph: 'variant28', color: 'af61f2' };
+  save('agent', 'alice', { id: 'review-agent', name: 'Release notes writer', avatar });
+  save('task', 'alice', {
+    id: taskId,
+    projectId: f.project.id,
+    agentId: 'review-agent',
+    title: 'Update agent details',
+    baseRevision: f.base,
+  });
+  const { designTool } = await import('./design.ts');
+  const result = designTool(
+    { owner: 'alice', taskId },
+    {
+      action: 'propose',
+      title: 'Agents you make yourself',
+      summary: 'Keep sources beside preferences. Let suggestions wrap.',
+    },
+  );
+  const review = await f.read((result as { item: { id: string } }).item);
+  assert.equal(review.summary, 'Keep sources beside preferences. Let suggestions wrap.');
+  assert.deepEqual(review.proposer, { id: 'review-agent', name: 'Release notes writer', avatar });
+  assert.equal(review.item.from, 'review-agent');
+});
+
+test('round two sends only still-open requests and keeps addressed requests with their replies', async () => {
+  const f = await reviewFixture('review-addressed');
+  const item = await f.propose();
+  const initial = await f.read(item);
+  for (const [board, text, width] of [
+    ['Alpha.html', 'Add a source.', 1440],
+    ['Beta.html', 'Keep the name.', 390],
+  ]) {
+    assert.equal(
+      (
+        await f.call('/review/pins', {
+          item: item.id,
+          board,
+          text,
+          width,
+          revision: initial.after,
+          x: 40,
+          y: 50,
+        })
+      ).status,
+      200,
+    );
+  }
+  const { answerInbox } = await import('./inbox.ts');
+  answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
+  const pins = (await f.read(item)).pins;
+  save('task', 'alice', { id: 'addressed-task', projectId: f.project.id });
+  const { designTool } = await import('./design.ts');
+  designTool(
+    { owner: 'alice', taskId: 'addressed-task' },
+    {
+      action: 'resolve',
+      commentId: pins[0].id,
+      reply: 'The source is now next to the preference.',
+    },
+  );
+  writeFileSync(
+    join(f.path, 'design/boards/Alpha.html'),
+    '<h1 data-layer="title">The source and date</h1>',
+  );
+  await f.commit('Added the source');
+  const next = await f.propose();
+  answerInbox('alice', next.id, { actionId: 'changes', on: 'web' });
+  const feedback = (await import('../workspace/store.ts')).get(
+    'design-review-feedback',
+    'alice',
+    next.id,
+  );
+  assert.deepEqual(feedback.pins, [pins[1].id]);
+  assert.doesNotMatch(feedback.content, /Add a source/);
+  assert.match(feedback.content, /Keep the name/);
+  assert.equal((await f.read(next)).pins[0].reply, 'The source is now next to the preference.');
 });

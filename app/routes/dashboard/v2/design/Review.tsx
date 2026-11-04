@@ -1,19 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Action, Icon } from '@/components/ui';
-import { DesignCompare } from '@/components/ui/v2/DesignCompare';
+import { useState } from 'react';
+import { Icon } from '@/components/ui';
+import { DesignItemReview } from './ItemReview';
+import { reviewHref, counted } from './review-model';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
-import { request, useData } from '../projects/data';
-import { authenticatedFetch } from '../data/hooks';
-import {
-  boardDocument,
-  boardName,
-  describeChange,
-  isPhone,
-  nameOf,
-  type Canvas,
-  type LayerChange,
-} from './model';
+import { useData } from '../projects/data';
+import { type Canvas, type LayerChange } from './model';
 import './review.css';
 
 type Changes = {
@@ -65,25 +57,6 @@ export function designStatus(design: TaskDesign) {
   return `${count} · waiting for your approval`;
 }
 
-/** What changed on one board, one line per layer, named as Layers names them. */
-function useChangeLines(design: { api: string; changes?: Changes }, board: string | undefined) {
-  const [doc, setDoc] = useState<Document | null>(null);
-  const url =
-    board && design.changes
-      ? `${design.api}/files/${design.changes.files.find((file) => file.path === `design/boards/${board}`)?.status === 'removed' ? design.changes.base : design.changes.commit}/boards/${encodeURIComponent(board)}`
-      : '';
-  useEffect(() => {
-    let live = true;
-    setDoc(null);
-    if (url) void boardDocument(url, authenticatedFetch).then((value) => live && setDoc(value));
-    return () => {
-      live = false;
-    };
-  }, [url]);
-  const file = design.changes?.files.find((entry) => entry.path === `design/boards/${board}`);
-  return (file?.layers ?? []).map((layer) => describeChange(layer, nameOf(doc, layer.layer)));
-}
-
 /** A board as it is at a commit, scaled to fit a width. */
 export function BoardFrame({
   src,
@@ -114,8 +87,8 @@ export function BoardFrame({
   );
 }
 
-/** The widths a board is reviewed at: web boards at 1440, 700 and 390, phone boards at their own. */
-export const widthsOf = (board: { w: number }) => (board.w <= 500 ? [board.w] : [1440, 700, 390]);
+/** The widths a board is reviewed at: web boards at 1440 and 700, phone boards at their own. */
+export const widthsOf = (board: { w: number }) => (board.w <= 500 ? [board.w] : [1440, 700]);
 
 export function WidthSwitch({
   widths,
@@ -148,108 +121,7 @@ export function WidthSwitch({
   );
 }
 
-function useDecision(design: TaskDesign, taskId: string) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const decide = async (actionId: 'approve' | 'changes', note?: string) => {
-    setBusy(true);
-    setError('');
-    try {
-      let item = design.proposal;
-      if (!item || item.state !== 'waiting')
-        item = (
-          await request<{ item: InboxItem }>(`${design.api}/propose`, {
-            method: 'POST',
-            body: JSON.stringify({ task: taskId }),
-          })
-        ).item;
-      await request(`/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
-        method: 'POST',
-        body: JSON.stringify({ actionId, on: 'web', ...(note ? { note } : {}) }),
-      });
-      design.refresh();
-    } catch (failure) {
-      setError((failure as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { busy, error, decide };
-}
-
-function outcome(item: InboxItem | undefined) {
-  if (item?.state !== 'answered') return null;
-  return item.answer?.actionId === 'approve'
-    ? 'Approved. This is now the design on main.'
-    : 'Changes asked.';
-}
-
-function Decision({
-  design,
-  taskId,
-  projectId,
-  explain,
-}: {
-  design: TaskDesign;
-  taskId: string;
-  projectId: string;
-  /** Say what approving does, beside the buttons. */
-  explain?: boolean;
-}) {
-  const { busy, error, decide } = useDecision(design, taskId);
-  const [asking, setAsking] = useState(false);
-  const [note, setNote] = useState('');
-  const done = outcome(design.proposal);
-  const open = `/dashboard/design?project=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}${design.boards[0] ? `&board=${encodeURIComponent(design.boards[0])}` : ''}`;
-  return (
-    <div className="dzr-decision">
-      {done ? (
-        <span className="dzr-outcome">
-          <Icon name="check" size={14} />
-          {done}
-        </span>
-      ) : asking ? (
-        <form
-          className="dzr-note"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void decide('changes', note.trim());
-          }}
-        >
-          <textarea
-            value={note}
-            rows={2}
-            autoFocus
-            placeholder="What should change?"
-            onChange={(event) => setNote(event.target.value)}
-          />
-          <div className="dzr-actions">
-            <Action type="submit" variant="primary" disabled={!note.trim()} loading={busy}>
-              Send
-            </Action>
-            <Action onClick={() => setAsking(false)}>Cancel</Action>
-          </div>
-        </form>
-      ) : (
-        <div className="dzr-actions">
-          <Action variant="primary" loading={busy} onClick={() => void decide('approve')}>
-            Approve design
-          </Action>
-          <Action onClick={() => setAsking(true)}>Ask for changes</Action>
-          <a className="dl-btn quiet" href={open}>
-            Open in Design
-          </a>
-          {explain && (
-            <span className="dzr-explain">Approving puts these design changes on main.</span>
-          )}
-        </div>
-      )}
-      {error && <p className="dzr-error">{error}</p>}
-    </div>
-  );
-}
-
-/** The task's Design tab: each changed board before (main) and after (this task), then the decision. */
+/** Every entry point opens the same review, with the same pins and decision checks. */
 export function DesignReview({
   projectId,
   taskId,
@@ -259,176 +131,34 @@ export function DesignReview({
   taskId: string;
   design: TaskDesign;
 }) {
-  const [selected, setSelected] = useState('');
-  const [width, setWidth] = useState(0);
-  const [stage, setStage] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!stage) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-    observer.observe(stage);
-    return () => observer.disconnect();
-  }, [stage]);
-  const board = design.boards.includes(selected) ? selected : design.boards[0];
-  const placed = board
-    ? (design.canvas?.boards[board] ?? design.beforeCanvas?.boards[board])
-    : undefined;
-  const [chosenWidth, setLayoutWidth] = useState(0);
-  const layoutWidth =
-    placed && widthsOf(placed).includes(chosenWidth) ? chosenWidth : (placed?.w ?? 1440);
-  const changes = design.changes;
-  const lines = useChangeLines(design, board);
-  if (!changes) return <div className="dzr-empty">Loading the design…</div>;
-  const column = Math.max(1, Math.min(width, 720));
-  const status = changes.files.find((file) => file.path === `design/boards/${board}`)?.status;
+  if (design.proposal)
+    return <DesignItemReview key={design.proposal.id} item={design.proposal} embedded />;
   return (
-    <div className="dzr">
-      <aside className="dzr-boards" aria-label="Changed boards">
-        <div className="dzr-label">Changed boards · {design.boards.length}</div>
-        {design.boards.map((file) => (
-          <button
-            key={file}
-            type="button"
-            className={file === board ? 'on' : ''}
-            aria-current={file === board}
-            onClick={() => setSelected(file)}
-          >
-            <Icon name="frame" size={13} />
-            <span className="dzr-t">{boardName(file)}</span>
-          </button>
-        ))}
-        {changes.files
-          .filter((file) => !file.path.startsWith('design/boards/'))
-          .map((file) => (
-            <span key={file.path} className="dzr-other">
-              {file.path.replace(/^design\//, '')} · {file.status}
-            </span>
-          ))}
-      </aside>
-      <div className="dzr-main">
-        {placed && board && (
-          <div className="dzr-head">
-            <b>{boardName(board)}</b>
-            <span className="dl-meta">design/boards/{board}</span>
-          </div>
-        )}
-        <div className="dzr-visual" ref={setStage}>
-          {placed && board ? (
-            <DesignCompare
-              added={status === 'added'}
-              removed={status === 'removed'}
-              before={
-                <BoardFrame
-                  src={`${design.api}/files/${changes.base}/boards/${encodeURIComponent(board)}`}
-                  width={Math.min(column, layoutWidth)}
-                  w={layoutWidth}
-                  h={placed.h}
-                />
-              }
-              after={
-                <BoardFrame
-                  src={`${design.api}/files/${changes.commit}/boards/${encodeURIComponent(board)}`}
-                  width={Math.min(column, layoutWidth)}
-                  w={layoutWidth}
-                  h={placed.h}
-                />
-              }
-            >
-              <WidthSwitch
-                widths={widthsOf(placed)}
-                value={layoutWidth}
-                onChange={setLayoutWidth}
-              />
-            </DesignCompare>
-          ) : (
-            <p className="dzr-empty">This task changed design files but no boards on the canvas.</p>
-          )}
-        </div>
-        {lines.length > 0 && (
-          <section className="dzr-what">
-            <h3>What changes</h3>
-            <ul>
-              {lines.slice(0, 12).map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </div>
-      <div className="dzr-bar">
-        <Decision design={design} taskId={taskId} projectId={projectId} explain />
-      </div>
+    <div className="dzr-empty">
+      <a
+        className="dl-btn secondary"
+        href={`/dashboard/design?project=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`}
+      >
+        Open in Design
+      </a>
     </div>
   );
 }
 
-/** The decision in the task's chat, under the agent's reply. */
-export function DesignCard({
-  projectId,
-  taskId,
-  design,
-}: {
-  projectId: string;
-  taskId: string;
-  design: TaskDesign;
-}) {
-  const board = design.boards[0];
-  const placed = board
-    ? (design.canvas?.boards[board] ?? design.beforeCanvas?.boards[board])
-    : undefined;
-  const lines = useChangeLines(design, board);
-  const [layoutWidth, setLayoutWidth] = useState(0);
-  if (!design.changes || !board || !placed) return null;
-  const widths = widthsOf(placed).slice(0, 2);
-  const shown = widths.includes(layoutWidth) ? layoutWidth : widths[0];
+/** The chat card opens the proposal; decisions happen after the preview and conflict checks. */
+export function DesignCard({ design }: { projectId: string; taskId: string; design: TaskDesign }) {
+  const item = design.proposal;
+  if (!item) return null;
   return (
-    <section className="dzr-card" aria-label="Design change">
+    <section className="dzr-card" aria-label="Design review">
       <header>
         <Icon name="layers" size={14} />
-        <b>{boardName(board)}</b>
-        <span className="dl-meta">
-          design/boards/{board}
-          {design.boards.length > 1 ? ` · 1 of ${design.boards.length} boards` : ''}
-        </span>
-        <span className="dl-grow" />
-        <WidthSwitch widths={widths} value={shown} onChange={setLayoutWidth} />
+        <b>{item.title}</b>
       </header>
-      <DesignCompare
-        added={design.changes.files.some(
-          (file) => file.path === `design/boards/${board}` && file.status === 'added',
-        )}
-        removed={design.changes.files.some(
-          (file) => file.path === `design/boards/${board}` && file.status === 'removed',
-        )}
-        before={
-          <BoardFrame
-            src={`${design.api}/files/${design.changes.base}/boards/${encodeURIComponent(board)}`}
-            width={isPhone(placed) ? 150 : 200}
-            w={shown}
-            h={placed.h}
-          />
-        }
-        after={
-          <BoardFrame
-            src={`${design.api}/files/${design.changes.commit}/boards/${encodeURIComponent(board)}`}
-            width={isPhone(placed) ? 150 : 200}
-            w={shown}
-            h={placed.h}
-          />
-        }
-      />
-      {(lines.length > 0 || design.boards.length > 1) && (
-        <ul>
-          {lines.slice(0, 4).map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-          {design.boards.length > 1 && (
-            <li className="dzr-also">
-              Also changed: {design.boards.slice(1, 5).map(boardName).join(', ')}
-            </li>
-          )}
-        </ul>
-      )}
-      <Decision design={design} taskId={taskId} projectId={projectId} />
+      <p className="dl-meta">Design · {counted(design.boards.length, 'screen')}</p>
+      <a className="dl-btn primary" href={reviewHref(item.id)}>
+        Review
+      </a>
     </section>
   );
 }

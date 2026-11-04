@@ -53,6 +53,8 @@ import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from '.
 import { Play } from './Play';
 import { PickSheet } from './Pickers';
 import './style.css';
+import { ToReview } from './ToReview';
+import { reviewHref } from './review-model';
 
 const noTokens: Tokens = { colors: [], textStyles: [] };
 
@@ -66,6 +68,32 @@ function remember(values: Record<string, string | null>) {
 }
 
 export default function DesignPage() {
+  const [params, setParams] = useSearchParams();
+  const canvasProject =
+    params.get('view') === 'canvas' ||
+    params.has('board') ||
+    params.has('ref') ||
+    params.has('task')
+      ? params.get('project')
+      : null;
+  const openProject = useCallback(
+    (id: string) => {
+      setParams(new URLSearchParams({ project: id, view: 'canvas' }));
+    },
+    [setParams],
+  );
+  return canvasProject ? (
+    <DesignCanvasPage key={canvasProject} initialProject={canvasProject} />
+  ) : (
+    <ToReview
+      projectId={params.get('project') ?? undefined}
+      alwaysList={params.get('view') === 'review'}
+      openProject={openProject}
+    />
+  );
+}
+
+function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [params] = useSearchParams();
   const inbox = useInbox();
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
@@ -73,14 +101,21 @@ export default function DesignPage() {
   const [owner, setOwner] = useState('');
   useEffect(() => setOwner(getAuth()?.username ?? ''), []);
   const projects = useData<{ projects: Project[] }>('/api/v2/projects');
-  const [projectId, setProjectId] = useState(params.get('project') ?? '');
-  const project =
-    projects.data?.projects.find((item) => item.id === projectId) ?? projects.data?.projects[0];
+  const [projectId, setProjectId] = useState(initialProject);
+  const project = projects.data?.projects.find((item) => item.id === projectId);
   const [ref, setRef] = useState(params.get('ref') ?? 'HEAD');
   const designPath = project
     ? `/api/v2/projects/${encodeURIComponent(project.id)}/design?ref=${encodeURIComponent(ref)}`
     : undefined;
   const design = useData<Design>(designPath);
+  useEffect(() => {
+    if (!project || !design.data?.canvas || !Object.keys(design.data.canvas.boards).length) return;
+    try {
+      localStorage.setItem(`deploy.design.lastProject.${owner}`, project.id);
+    } catch {
+      /* Storage is optional. */
+    }
+  }, [owner, project, design.data?.canvas]);
   // An agent's design branch, shown over yours: Mine, Overlay (its version, changes outlined), Agent's.
   const [taskId, setTaskId] = useState(params.get('task') ?? '');
   const [mode, setMode] = useState<OverlayMode>('overlay');
@@ -202,7 +237,13 @@ export default function DesignPage() {
     };
   }, [projectApi]);
   const proposals = useData<{
-    proposals: { id: string; state: string; boards: string[]; branch?: string | null }[];
+    proposals: {
+      id: string;
+      title: string;
+      state: string;
+      boards: string[];
+      branch?: string | null;
+    }[];
   }>(project ? `${projectApi}/proposals?v=${poll}` : undefined);
   const [proposing, setProposing] = useState(false);
   // In review only while the waiting request is for the branch as it is now; new edits since
@@ -936,6 +977,11 @@ export default function DesignPage() {
         project={project}
         onProject={(id) => {
           setProjectId(id);
+          try {
+            localStorage.setItem(`deploy.design.lastProject.${owner}`, id);
+          } catch {
+            /* Storage is optional. */
+          }
           setRef('HEAD');
           setSelection(null);
           remember({ project: id, ref: null, board: null, layer: null, page: null });
@@ -976,6 +1022,32 @@ export default function DesignPage() {
         }
       />
       <div className="dz-stage">
+        {(proposals.data?.proposals.filter((entry) => entry.state === 'waiting').length ?? 0) >
+          0 && (
+          <div className="dl-design-waiting-banner">
+            <span>
+              {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length} design
+              {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
+                ? ''
+                : 's'}{' '}
+              waiting on you
+              {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
+                ? ` · ${proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.title}`
+                : ''}
+            </span>
+            <a
+              href={
+                proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
+                  ? reviewHref(
+                      proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.id,
+                    )
+                  : `/dashboard/design?project=${encodeURIComponent(projectId)}&view=review`
+              }
+            >
+              Review
+            </a>
+          </div>
+        )}
         {empty ? (
           <Empty title="No projects yet">
             Add a project with a design/ folder to see its boards here.
@@ -1329,6 +1401,11 @@ export default function DesignPage() {
         project={project}
         onProject={(id) => {
           setProjectId(id);
+          try {
+            localStorage.setItem(`deploy.design.lastProject.${owner}`, id);
+          } catch {
+            /* Storage is optional. */
+          }
           setRef('HEAD');
           setSelection(null);
           remember({ project: id, ref: null, board: null, layer: null, page: null });

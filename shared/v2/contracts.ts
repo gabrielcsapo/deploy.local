@@ -307,6 +307,85 @@ export type AgentApprovalAction =
   | 'open-pull-request';
 export type AgentApprovalRule = Omit<ApprovalRule, 'action'> & { action: AgentApprovalAction };
 export type AgentAvatar = { glyph: string; color: string };
+
+/** Design review coordinates are CSS pixels in the named native viewport, never tile pixels. */
+export type DesignRect = { x: number; y: number; w: number; h: number };
+export type DesignReviewChange = { layer: string; words: string };
+export type DesignReviewPreview = {
+  width: number;
+  height: number;
+  before: string | null;
+  after: string | null;
+  areas: (DesignReviewChange & { before: DesignRect | null; after: DesignRect | null })[];
+  crop: DesignRect;
+};
+export type DesignReviewPin = {
+  id: string;
+  number: number;
+  board: string;
+  noteId: string | null;
+  width: number;
+  revision: string;
+  x: number;
+  y: number;
+  text: string;
+  author: string;
+  resolved: boolean;
+  reply: string | null;
+  createdAt: string;
+};
+export type DesignReviewScreen = {
+  file: string;
+  title: string;
+  w: number;
+  h: number;
+  widths: number[];
+  page: string | null;
+  pageId: string | null;
+  index: number | null;
+  count: number | null;
+  notes: string | null;
+  added: boolean;
+  removed: boolean;
+  status: 'changed' | 'new' | 'removed';
+  before: string;
+  after: string;
+  changes: DesignReviewChange[];
+  /** Compatibility with older clients: plain element words, never diff descriptions. */
+  lines: string[];
+  seen: boolean;
+  changedSinceReview: boolean;
+  conflict: boolean;
+  /** Present with GET review?previews=all; otherwise load /review/preview per viewport. */
+  previews?: Record<number, DesignReviewPreview>;
+};
+export type DesignReviewSummary = {
+  id: string;
+  title: string;
+  summary: string | null;
+  projectId: string;
+  project: string;
+  branch: string;
+  proposer: { id: string | null; name: string; avatar: AgentAvatar | null };
+  createdAt: string;
+  counts: { screens: number; changed: number; new: number; removed: number };
+  stale: boolean;
+  conflicts: string[];
+};
+export type DesignReview = DesignReviewSummary & {
+  item: InboxItem;
+  task: string | null;
+  before: string;
+  after: string;
+  main: string;
+  updatedWithMainAt: string | null;
+  round: number;
+  previousItemId: string | null;
+  boards: DesignReviewScreen[];
+  groups: { id: string | null; title: string | null; boards: string[] }[];
+  notes: (import('./design').NoteChange & { page: string | null })[];
+  pins: DesignReviewPin[];
+};
 export type LooksAfterItem = {
   id: string;
   what: string;
