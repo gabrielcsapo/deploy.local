@@ -99,7 +99,7 @@ async function loadPreview(
   urls: string[],
 ): Promise<Preview> {
   const preview = await request<DesignReviewPreview>(
-    `${api}/review/preview?item=${encodeURIComponent(item)}&board=${encodeURIComponent(board)}&width=${width}`,
+    `${api}/review/preview?item=${encodeURIComponent(item)}&board=${encodeURIComponent(board)}&width=${width}&scale=${Math.min(2, Math.max(1, window.devicePixelRatio || 1))}`,
     { signal },
   );
   const image = async (src: string | null) => {

@@ -1087,32 +1087,45 @@ export function boardBrowser(
   return exists(candidate) ? candidate : null;
 }
 
+/** Pixel density affects only the PNG; layout and review geometry stay in CSS pixels. */
+export function previewScale(url: URL): number {
+  const scale = Number(url.searchParams.get('scale') ?? 1);
+  if (!Number.isFinite(scale) || scale < 1 || scale > 3) fail('Scale must be 1 to 3');
+  return scale;
+}
+
 export async function renderBoard(
   repo: string,
   commit: string,
   board: string,
   width: number,
   height?: number,
+  scale = 1,
 ) {
-  return (await renderBoardLayout(repo, commit, board, width, height)).png;
+  return (await renderBoardLayout(repo, commit, board, width, height, scale)).png;
 }
 
-async function renderBoardLayout(
+export async function renderBoardLayout(
   repo: string,
   commit: string,
   board: string,
   width: number,
   height?: number,
+  scale = 1,
+  draw: typeof drawBoard = drawBoard,
 ): Promise<BoardRender> {
-  const key = `${repo}:${commit}:${board}:${width}:${height ?? 'board'}`;
+  const key = `${repo}:${commit}:${board}:${width}:${height ?? 'board'}:${scale}`;
   const cached = renders.get(key);
   if (cached) return cached;
   const pending = rendering.get(key);
   if (pending) return pending;
-  const job = drawBoard(repo, commit, board, width, height);
+  const job = draw(repo, commit, board, width, height, scale);
   rendering.set(key, job);
   try {
-    return await job;
+    const rendered = await job;
+    renders.set(key, rendered);
+    if (renders.size > renderLimit) renders.delete(renders.keys().next().value!);
+    return rendered;
   } finally {
     rendering.delete(key);
   }
@@ -1124,10 +1137,8 @@ async function drawBoard(
   board: string,
   width: number,
   height?: number,
+  scale = 1,
 ): Promise<BoardRender> {
-  const key = `${repo}:${commit}:${board}:${width}:${height ?? 'board'}`;
-  const cached = renders.get(key);
-  if (cached) return cached;
   const canvas = await readCanvas(repo, commit);
   const placed = canvas?.boards[board];
   if (!placed) fail(`${board} is not on the canvas at this commit`, 404);
@@ -1147,6 +1158,7 @@ async function drawBoard(
   try {
     const context = await browser.newContext({
       viewport: { width, height: height ?? placed.h },
+      deviceScaleFactor: scale,
       javaScriptEnabled: false,
     });
     await context.route('**/*', (route) =>
@@ -1185,8 +1197,6 @@ async function drawBoard(
       return { boxes, textBoxes };
     });
     const png = await tab.screenshot();
-    renders.set(key, { png, boxes, textBoxes });
-    if (renders.size > renderLimit) renders.delete(renders.keys().next().value!);
     return { png, boxes, textBoxes };
   } finally {
     await browser.close();
@@ -1200,12 +1210,17 @@ export async function reviewPreview(
   board: DesignReviewScreen,
   width: number,
   render: typeof renderBoardLayout = renderBoardLayout,
+  scale = 1,
 ): Promise<DesignReviewPreview> {
-  const before = board.added ? null : await render(repo, board.before, board.file, width, board.h);
-  const after = board.removed ? null : await render(repo, board.after, board.file, width, board.h);
+  const before = board.added
+    ? null
+    : await render(repo, board.before, board.file, width, board.h, scale);
+  const after = board.removed
+    ? null
+    : await render(repo, board.after, board.file, width, board.h, scale);
   const areas = reviewAreas(board.changes, before?.boxes ?? {}, after?.boxes ?? {}, width, board.h);
   const url = (revision: string) =>
-    `/api/v2/projects/${encodeURIComponent(projectId)}/design/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}`;
+    `/api/v2/projects/${encodeURIComponent(projectId)}/design/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}&scale=${scale}`;
   return {
     width,
     height: board.h,
@@ -1611,7 +1626,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       : undefined;
     if (height !== undefined && (!Number.isInteger(height) || height < 64 || height > 20000))
       fail('Height must be 64 to 20000');
-    const png = await renderBoard(repo, commit, board, width, height);
+    const png = await renderBoard(repo, commit, board, width, height, previewScale(url));
     res.writeHead(200, {
       'Content-Type': 'image/png',
       'Content-Length': png.length,
@@ -1996,7 +2011,10 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const board = boards.find((entry) => entry.file === url.searchParams.get('board'));
     const width = Number(url.searchParams.get('width'));
     if (!board || !board.widths.includes(width)) fail('Name a screen and one of its widths');
-    return sendJson(res, await reviewPreview(repo, project.id, board!, width));
+    return sendJson(
+      res,
+      await reviewPreview(repo, project.id, board!, width, undefined, previewScale(url)),
+    );
   }
 
   if (sub === '/review/seen' && req.method === 'POST') {

@@ -48,7 +48,7 @@ struct V2ConversationView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         if tab == "Chat" { conversation }
                         else if tab == "Changes" { changes }
-                        else if tab == "Design" { ForEach(designs, id: \.id) { item in V2DesignCard(store: store, item: item) } }
+                        else if tab == "Design" { ForEach(designs, id: \.id) { item in V2DesignReviewEntry(store: store, item: item) } }
                         else { checks }
                         if let error { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)

@@ -102,15 +102,11 @@ extension V2Client {
     }
     /// A project's design in design/: how many boards it has and how many designs wait on you. Nil without one.
     public func designSummary(project: String) async throws -> V2DesignSummary? {
-        struct Design: Decodable, Sendable { struct Canvas: Decodable, Sendable { let boards: [String: JSONValue] }; let canvas: Canvas? }
-        struct Proposals: Decodable, Sendable { struct Proposal: Decodable, Sendable { let state: String }; let proposals: [Proposal] }
-        let base = "/api/v2/projects/\(Self.segment(project))/design"
-        let design: Design
-        do { design = try await client.request(base) }
-        catch ClientError.response(let status, _) where [404, 409, 422].contains(status) { return nil }
-        guard let canvas = design.canvas, !canvas.boards.isEmpty else { return nil }
-        let proposals: Proposals? = try? await client.request("\(base)/proposals")
-        return V2DesignSummary(boards: canvas.boards.count, waiting: proposals?.proposals.filter { $0.state == "waiting" }.count ?? 0)
+        async let projects = designProjects()
+        async let proposals = designReviews(project: project)
+        let (designs, waiting) = try await (projects, proposals)
+        guard let design = designs.first(where: { $0.id == project }) else { return nil }
+        return V2DesignSummary(boards: design.boards, waiting: waiting.count)
     }
     /// One design review: the request, Before and After, and each changed board.
     public func designReview(project: String, item: String) async throws -> V2DesignReview {
@@ -125,64 +121,14 @@ extension V2Client {
     }
 }
 
-public struct V2DesignReview: Decodable, Sendable {
-    public struct Board: Decodable, Sendable, Identifiable {
-        public let file: String
-        public let title: String
-        public let w: Int
-        public let h: Int
-        public let page: String?
-        public let index: Int?
-        public let count: Int?
-        public let added: Bool
-        public let removed: Bool?
-        public var isRemoved: Bool { removed ?? false }
-        public let notes: String?
-        public let lines: [String]
-        public var id: String { file }
-        public var name: String { file.replacingOccurrences(of: ".html", with: "") }
-        public var isPhone: Bool { w <= 500 }
-    }
-    /// A canvas note the branch rewrote, line by line: what went in Before, what is new in After.
-    public struct Note: Decodable, Sendable, Identifiable {
-        public struct Line: Decodable, Sendable, Hashable {
-            public let text: String
-            public let gone: Bool?
-            public let added: Bool?
-            public var marked: Bool { (gone ?? false) || (added ?? false) }
-        }
-        public let id: String
-        public let title: String
-        public let page: String?
-        public let before: [Line]?
-        public let after: [Line]?
-        public let changed: Int
-        public let total: Int
-    }
-    public let item: InboxItem
-    public let task: String?
-    public let branch: String
-    public let before: String
-    public let after: String
-    public let boards: [Board]
-    let notes: [Note]?
-    /// Older coordinators send no notes.
-    public var changedNotes: [Note] { notes ?? [] }
-    /// A design review's inbox ID names its project: design:<project>:<branch>:<commit>.
-    public static func project(of itemId: String) -> String? {
-        let parts = itemId.split(separator: ":", omittingEmptySubsequences: false)
-        return parts.count >= 4 && parts[0] == "design" ? String(parts[1]) : nil
-    }
-}
-
 public struct V2DesignSummary: Equatable, Sendable {
     public let boards: Int
     public let waiting: Int
     public init(boards: Int, waiting: Int) { self.boards = boards; self.waiting = waiting }
-    /// "1 to review · 168 boards", as the project screen says it.
+    /// Waiting proposals take precedence over the canvas count.
     public var subtitle: String {
         let boards = "\(self.boards) board\(self.boards == 1 ? "" : "s")"
-        return waiting > 0 ? "\(waiting) to review · \(boards)" : boards
+        return waiting > 0 ? "\(waiting) waiting on you" : boards
     }
 }
 

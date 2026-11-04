@@ -115,11 +115,10 @@ struct V2Tabs: View {
                 }
             }
             // A design review is a page of its own, full screen: its boards, Before and After.
-            .fullScreenCover(isPresented: Binding(get: { designDecision }, set: { if !$0 { decision = nil } })) {
-                if let item = store.snapshot.inbox.first(where: { $0.id == decision }) {
-                    NavigationStack { V2DesignReviewView(store: store, item: item) }
-                }
-            }
+            .designReview(item: Binding(
+                get: { designDecision ? store.snapshot.inbox.first { $0.id == decision } : nil },
+                set: { decision = $0?.id }
+            ), store: store)
             .sheet(isPresented: $signIn) { V2SignIn(workspace: workspace, connected: paired) }
             .task {
                 guard V2Evidence.agentsBoard == nil else { return }
@@ -211,7 +210,10 @@ struct V2Tabs: View {
                 else {
                     V2Group {
                         ForEach(store.waiting, id: \.id) { item in
-                            Button { decision = item.id } label: { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Evidence.shortDate(item.createdAt), attention: true) }
+                            Button { decision = item.id } label: {
+                                if V2DesignReview.project(of: item.id) != nil { V2DesignWaitingRow(store: store, item: item) }
+                                else { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Evidence.shortDate(item.createdAt), attention: true) }
+                            }
                             if item.id != store.waiting.last?.id { Divider().padding(.leading, 46) }
                         }
                     }.opacity(store.online ? 1 : 0.45)

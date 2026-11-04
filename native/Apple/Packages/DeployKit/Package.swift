@@ -14,6 +14,7 @@ let package = Package(
     targets: [
         .target(name: "DeployCore"),
         .target(name: "DeployUI", dependencies: ["DeployCore", .product(name: "MarkdownUI", package: "swift-markdown-ui")]),
-        .testTarget(name: "DeployCoreTests", dependencies: ["DeployCore"])
+        .testTarget(name: "DeployCoreTests", dependencies: ["DeployCore"]),
+        .testTarget(name: "DeployUITests", dependencies: ["DeployUI", "DeployCore"])
     ]
 )

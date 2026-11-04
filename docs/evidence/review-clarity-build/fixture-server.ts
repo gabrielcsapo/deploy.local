@@ -41,6 +41,7 @@ const call = async (path: string, body: unknown) => {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url!, 'http://127.0.0.1:5190');
   const path = url.pathname;
+  res.on('finish', () => console.log(res.statusCode, req.method, path));
   const send = (value: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(value));
@@ -51,7 +52,7 @@ const server = createServer(async (req, res) => {
       res.on('close', () => clearTimeout(timer));
       return;
     }
-    if (path === '/api/user') return send({ username: 'Gabriel' });
+    if (path === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
     if (path === '/api/v2/auth/account')
       return send({
         username: 'Gabriel',
@@ -61,8 +62,21 @@ const server = createServer(async (req, res) => {
       });
     if (path === '/api/nodes')
       return send({ nodes: [{ id: 'coordinator', name: 'SER', online: true }] });
+    if (path === '/api/workspace/state')
+      return send({
+        version: 1,
+        cursor: 0,
+        projects: [{ id: 'deploy-local', name: 'deploy.local', apps: [] }],
+        workers: [],
+        tasks: [],
+        runs: [],
+        adapters: [],
+      });
     if (path === '/api/v2/live')
-      return send({ summary: { running: 0, failing: 0 }, computers: [] });
+      return send({
+        summary: { running: 0, failing: 0, warning: 0, checkedAt: new Date().toISOString() },
+        computers: [],
+      });
     if (path.startsWith('/api/v2/')) {
       const before = res.writableEnded;
       await v2Api(req, res, owner as never);

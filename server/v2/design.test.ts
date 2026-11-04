@@ -235,11 +235,20 @@ test('boards render to PNG at a commit when Chromium is installed', async (t) =>
   const { chromium } = await import('playwright');
   if (!existsSync(chromium.executablePath())) return t.skip('Chromium is not installed');
   const png = await call(`/render?board=Welcome.html&width=700&ref=${main}`);
-  assert.equal(png.status, 200);
+  assert.equal(png.status, 200, png.ok ? 'Expected a PNG response' : await png.clone().text());
   assert.equal(png.headers.get('content-type'), 'image/png');
   const bytes = Buffer.from(await png.arrayBuffer());
   assert.equal(bytes.subarray(1, 4).toString(), 'PNG');
   assert.equal(bytes.readUInt32BE(16), 700);
+  for (const scale of [2, 3]) {
+    const response = await call(
+      `/render?board=Welcome.html&width=700&height=900&ref=${main}&scale=${scale}`,
+    );
+    assert.equal(response.status, 200);
+    const scaled = Buffer.from(await response.arrayBuffer());
+    assert.equal(scaled.readUInt32BE(16), 700 * scale);
+    assert.equal(scaled.readUInt32BE(20), 900 * scale);
+  }
   assert.equal((await call('/render?board=Missing.html')).status, 404);
 });
 
@@ -1525,4 +1534,79 @@ test('round two sends only still-open requests and keeps addressed requests with
   assert.doesNotMatch(feedback.content, /Add a source/);
   assert.match(feedback.content, /Keep the name/);
   assert.equal((await f.read(next)).pins[0].reply, 'The source is now next to the preference.');
+});
+
+test('review preview density defaults to 1, preserves CSS geometry and separates render caches', async () => {
+  const f = await reviewFixture('review-density');
+  const item = await f.propose();
+  const review = await f.read(item);
+  const board = review.boards.find((b: any) => b.file === 'Alpha.html');
+  const { reviewPreview, renderBoardLayout, previewScale } = await import('./design.ts');
+  assert.equal(previewScale(new URL('https://test.invalid')), 1);
+  const calls: number[] = [];
+  const draw = async (
+    _repo: string,
+    _commit: string,
+    _board: string,
+    width: number,
+    height = 900,
+    scale = 1,
+  ) => {
+    calls.push(scale);
+    return {
+      png: Buffer.from(`${width * scale}x${height * scale}`),
+      boxes: { title: { x: 30, y: 40, w: 240, h: 60 } },
+    };
+  };
+  const render: typeof renderBoardLayout = (repo, commit, file, width, height, scale) =>
+    renderBoardLayout(repo, commit, file, width, height, scale, draw);
+  const baseline = await reviewPreview(f.path, f.project.id, board, 1440, render);
+  assert.match(baseline.after!, /scale=1$/);
+  const defaultResponse = await f.call(
+    `/review/preview?item=${encodeURIComponent(item.id)}&board=Alpha.html&width=1440`,
+  );
+  assert.equal(defaultResponse.status, 200);
+  assert.deepEqual(await defaultResponse.json(), baseline);
+  for (const scale of [1, 2, 3, 1.5]) {
+    const previews = await Promise.all(
+      [0, 1].map(() => reviewPreview(f.path, f.project.id, board, 1440, render, scale)),
+    );
+    for (const preview of previews) {
+      assert.deepEqual(preview.areas, baseline.areas);
+      assert.deepEqual(preview.crop, baseline.crop);
+      assert.equal(preview.width, 1440);
+      assert.equal(preview.height, 900);
+      assert.equal(new URL(preview.after!, origin).searchParams.get('scale'), String(scale));
+      assert.equal(new URL(preview.before!, origin).searchParams.get('scale'), String(scale));
+    }
+    const png = (await render(f.path, board.after, board.file, 1440, 900, scale)).png;
+    assert.equal(png.toString(), `${1440 * scale}x${900 * scale}`);
+    assert.equal(
+      calls.filter((value) => value === scale).length,
+      2,
+      'one render per revision and density, including concurrent requests',
+    );
+    // Exercise the actual HTTP handlers against those cached renders without a browser/socket.
+    const response = await f.call(
+      `/review/preview?item=${encodeURIComponent(item.id)}&board=Alpha.html&width=1440&scale=${scale}`,
+    );
+    assert.equal(response.status, 200);
+    const metadata = await response.json();
+    assert.deepEqual(metadata, previews[0]);
+    const image = await fetch(new URL(metadata.after!, origin).href);
+    assert.equal(image.status, 200);
+    assert.equal(await image.text(), `${1440 * scale}x${900 * scale}`);
+  }
+  for (const scale of ['0', '4', '-1', 'NaN', 'Infinity', '']) {
+    const response = await f.call(
+      `/review/preview?item=${encodeURIComponent(item.id)}&board=Alpha.html&width=1440&scale=${scale}`,
+    );
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /Scale must be 1 to 3/);
+    assert.equal(
+      (await f.call(`/render?ref=${board.after}&board=Alpha.html&width=1440&scale=${scale}`))
+        .status,
+      400,
+    );
+  }
 });

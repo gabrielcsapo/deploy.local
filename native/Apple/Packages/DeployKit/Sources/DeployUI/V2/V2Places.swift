@@ -5,6 +5,7 @@ import DeployCore
 struct V2InboxView: View {
     @Bindable var store: V2Store
     @Binding var answered: Bool
+    @State private var reviewItem: InboxItem?
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         V2Page(title: "Waiting on you") {
@@ -26,11 +27,12 @@ struct V2InboxView: View {
                 if store.answered.isEmpty { V2Empty(title: "No answered decisions", message: "Answers from every device appear here.") }
             } else {
                 ForEach(store.waiting, id: \.id) { item in
-                    if V2DesignReview.project(of: item.id) != nil { V2DesignCard(store: store, item: item) }
+                    if V2DesignReview.project(of: item.id) != nil { Button { reviewItem = item } label: { V2DesignWaitingRow(store: store, item: item) }.buttonStyle(.plain) }
                     else { V2Decision(item: item, store: store) }
                 }
             }
         }.navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
+            .designReview(item: $reviewItem, store: store)
     }
     private var days: [String] { store.answered.map { dayLabel($0.answer?.at ?? $0.createdAt) }.reduce(into: []) { if !$0.contains($1) { $0.append($1) } } }
     private func dayLabel(_ value: String) -> String {
