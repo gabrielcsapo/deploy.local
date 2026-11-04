@@ -74,8 +74,22 @@
       "h": 844,
       "title": "iPhone — sign in by scanning a code"
     },
+    "SignInPasswordPhone.html": {
+      "x": 14790,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — sign in with a password"
+    },
+    "SignInTrustPhone.html": {
+      "x": 15260,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — check SER's certificate before sending a password"
+    },
     "SignIn.html": {
-      "x": 14950,
+      "x": 15890,
       "y": 3000,
       "w": 1440,
       "h": 900,
@@ -781,7 +795,7 @@
       "x": 18510,
       "y": 23864,
       "w": 390,
-      "h": 1204,
+      "h": 1284,
       "title": "iPhone — the Settings tab: roomy groups, every row works"
     },
     "SettingsApprovalsPhone.html": {
@@ -809,7 +823,7 @@
     },
     "RestorePhone.html": {
       "x": 18510,
-      "y": 25148,
+      "y": 25228,
       "w": 390,
       "h": 844,
       "title": "iPhone — restoring data, with undo"
@@ -2066,6 +2080,8 @@
     "InstallSer.html",
     "RecoverWeb.html",
     "SignInPhone.html",
+    "SignInPasswordPhone.html",
+    "SignInTrustPhone.html",
     "SignIn.html",
     "CliLogin.html",
     "Setup.html",
@@ -3301,6 +3317,27 @@
       "w": 420,
       "fill": "purple",
       "text": "It learns\nAnswer → lesson (explicit) or Learning proposal (inferred) → What it’s learned → project knowledge as a PR.\nWeb 1440 / 700 · iPhone 390"
+    },
+    "sign-in-password-phone": {
+      "x": 14790,
+      "y": 3868,
+      "w": 390,
+      "h": 220,
+      "text": "Password sign-in · iPhone\nOpens from Sign in with a password on SignInPhone. Address is editable; login stays in this iPhone's Keychain. Sign in checks SER's certificate in the app before sending the password. No Safari or certificate profile is needed."
+    },
+    "sign-in-trust-phone": {
+      "x": 15260,
+      "y": 3868,
+      "w": 390,
+      "h": 220,
+      "text": "Check SER's certificate · iPhone\nShown before the password is sent. They match saves trust for this app and address, then signs in; Cancel returns without sending it. Skip when the certificate is already trusted by iOS (profile installed with full trust) or checked in this app."
+    },
+    "settings-phone-certificate": {
+      "x": 18980,
+      "y": 24748,
+      "w": 390,
+      "h": 200,
+      "text": "SER's certificate · iPhone Settings\nThe account group records a manual check: Checked by you on November 3, 2026. Forget removes this app's saved certificate trust for deploy.local; the next password sign-in checks again unless iOS already trusts it. Other apps are unaffected."
     }
   },
   "starts": {}

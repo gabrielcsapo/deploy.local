@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="design-board" content="width=390,height=844">
+<title>iPhone — check SER's certificate before sending a password</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:var(--paper)}
+.dl-phone{background:var(--sidebar)}
+.dl-sheet{margin-top:64px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--paper);border-radius:var(--radius-dialog) var(--radius-dialog) 0 0}
+.sheet-grabber{flex:none;align-self:center;width:36px;height:5px;margin:8px 0;border-radius:var(--radius-full);background:var(--line-strong)}
+.dl-sheet .dl-ph-top{padding:0 8px 4px}
+.dl-ph-body{overflow-y:auto;padding-bottom:20px}
+.sheet-title{margin:12px 32px 0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.02em}
+.sheet-footer{flex:none;padding:16px 16px 32px;display:flex;flex-direction:column;gap:12px}
+.sheet-footer .dl-ph-note{margin:0 16px}
+.trust-copy{margin:16px 32px 0;font-size:17px;line-height:24px;color:var(--ink-soft)}
+.trust-copy .dl-code-inline{font-size:13px;white-space:nowrap}
+.fingerprint{font-family:var(--font-mono);font-size:13px;line-height:22px;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<div data-layer="phone" class="dl-phone dl-list">
+<section data-layer="sheet" class="dl-sheet" role="dialog" aria-modal="true" aria-labelledby="trust-title">
+<div data-layer="sheet-grabber" class="sheet-grabber" aria-hidden="true"></div>
+<header data-layer="ph-top" class="dl-ph-top"><span data-layer="span" style="width:44px"></span><span data-layer="t" class="dl-t"></span><span data-layer="span-2" style="width:44px"></span></header>
+<div data-layer="ph-body" class="dl-ph-body">
+<h1 data-layer="trust-ser-s" id="trust-title" class="sheet-title">Trust SER's certificate?</h1>
+<p data-layer="ser-signs-its" class="trust-copy">SER signs its own certificate. Check that these characters match the ones on SER's screen, or run <code data-layer="deploy-status-fingerprin" class="dl-code-inline">deploy status --fingerprint</code> on SER.</p>
+<div data-layer="ser-s-certificate" class="dl-ph-label" id="fingerprint-label">SER's certificate</div>
+<div data-layer="ph-group" class="dl-ph-group" role="group" aria-labelledby="fingerprint-label"><div data-layer="ph-row" class="dl-ph-row"><code data-layer="4f-a2-19" class="fingerprint">4F:A2:19:C7:0B:E3 · 88:D1:5E:42:9C:07</code></div></div>
+<p data-layer="your-password-has" class="dl-ph-note">Your password has not been sent. It is sent only after you choose They match.</p>
+</div>
+<footer data-layer="sheet-footer" class="sheet-footer">
+<button data-layer="they-match" class="dl-btn primary" type="button" data-action="trust-certificate-and-sign-in">They match</button>
+<a data-layer="cancel" class="dl-btn secondary" href="SignInPasswordPhone.html">Cancel</a>
+<p data-layer="trusted-in-this" class="dl-ph-note">Trusted in this app for deploy.local only. Your iPhone's other apps are not affected.</p>
+</footer>
+</section>
+</div>
+</body>
+</html>
