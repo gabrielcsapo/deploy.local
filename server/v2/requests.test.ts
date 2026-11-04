@@ -11,7 +11,7 @@ const { saveDeployment, registerUser, authenticate, getSqlite, _resetDb } =
   await import('../store.ts');
 const { db, save } = await import('../workspace/store.ts');
 const { writeCapture } = await import('../capture.ts');
-const { describeBrowser, errorReason } = await import('./requests.ts');
+const { describeBrowser, errorReason, normalizePath, pathFilter } = await import('./requests.ts');
 const { v2Api } = await import('./api.ts');
 const owner = 'gabriel';
 const token = registerUser(owner, 'test-password').token!;
@@ -148,6 +148,7 @@ test('the summary counts requests, server errors and slow paths for the range', 
   assert.deepEqual(summary.slowest[0], {
     method: 'GET',
     path: '/api/workouts/export',
+    filter: '/api/workouts/export',
     count: 8,
     p95: 15_000,
     noAnswer: 4,
@@ -156,6 +157,7 @@ test('the summary counts requests, server errors and slow paths for the range', 
     {
       method: 'GET',
       path: '/api/workouts/export',
+      filter: '/api/workouts/export',
       count: 4,
       status: 502,
       reason: 'no answer in 15 s',
@@ -237,4 +239,18 @@ test('browsers and error reasons read plainly', () => {
     errorReason({ status: 500, duration: 80 }, capture('Error: boom\n  at x')),
     'Error: boom',
   );
+});
+
+test('paths fold their IDs so one route is one row', () => {
+  assert.equal(
+    normalizePath('/api/forma/assets/464cf044-d6eb-4cff-93b1-47fbb925f3c3'),
+    '/api/forma/assets/:id',
+  );
+  assert.equal(normalizePath('/api/plans/42/edit'), '/api/plans/:id/edit');
+  assert.equal(normalizePath('/blob/3f9a1c2b7d8e4f60aa11'), '/blob/:id');
+  assert.equal(normalizePath('/assets/app-3f9a.js'), '/assets/app-3f9a.js');
+  assert.equal(normalizePath('/api/workouts/export'), '/api/workouts/export');
+  assert.equal(pathFilter('/api/plans/:id/edit'), '/api/plans/');
+  assert.equal(pathFilter('/'), '/');
+  assert.equal(errorReason({ status: 502, duration: 15_600 }, null), 'no answer in 15 s');
 });

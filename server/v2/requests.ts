@@ -27,6 +27,28 @@ const PAGE_SIZE = 50;
 // The edge answers 502 once an app stays silent this long (PROXY_RESPONSE_TIMEOUT_MS).
 const NO_ANSWER_MS = 15_000;
 const SLOW_MS = 1000;
+const PATH_ROWS = 200_000;
+
+/** A path with its IDs (numbers, UUIDs, long hex or tokens) folded to :id. */
+export function normalizePath(path: string) {
+  return path
+    .split('/')
+    .map((segment) =>
+      /^\d+$/.test(segment) ||
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
+      /^[0-9a-f]{16,}$/i.test(segment) ||
+      (segment.length >= 24 && /^[A-Za-z0-9_-]+$/.test(segment) && /\d/.test(segment))
+        ? ':id'
+        : segment,
+    )
+    .join('/');
+}
+
+/** What the list filters on for a grouped path: everything before its first :id. */
+export function pathFilter(path: string) {
+  const at = path.indexOf(':id');
+  return at === -1 ? path : path.slice(0, at);
+}
 
 export type RequestRow = {
   id: number;
@@ -58,7 +80,8 @@ function releasesOf(owner: string, name: string) {
     .map((release) => {
       const activate = release.steps.find((step) => step.name === 'activate');
       const at = Date.parse(activate?.endedAt || activate?.startedAt || '');
-      return { id: release.id, label: release.source.commit?.slice(0, 7) || release.id, at };
+      // A release without a commit has only an internal ID, which means nothing on this page.
+      return { id: release.id, label: release.source.commit?.slice(0, 7) ?? null, at };
     })
     .filter((release) => Number.isFinite(release.at))
     .sort((left, right) => left.at - right.at);
@@ -70,7 +93,7 @@ export function errorReason(
   capture: CaptureRecord | null,
 ): string | null {
   if (capture?.failureReason === 'timeout' || (row.status === 502 && row.duration >= NO_ANSWER_MS))
-    return `no answer in ${Math.round(row.duration / 1000)} s`;
+    return `no answer in ${Math.floor(row.duration / 1000)} s`;
   if (capture?.failureReason === 'refused') return 'the app refused the connection';
   if (capture?.failureReason === 'error') return 'the connection to the app failed';
   const body = capture?.response?.body?.trim();
@@ -216,44 +239,80 @@ export async function requestSummary(
         .get(name, cause.at - HOUR, cause.at) as { errors: number }
     ).errors === 0;
 
-  const slowest = db
+  // Paths group with their IDs folded to :id, so /assets/<uuid> is one path, not hundreds.
+  // The busiest apps are bounded to their latest rows so the tab stays fast.
+  const rows = db
     .prepare(
-      `WITH r AS (
-         SELECT method, path, duration, status,
-           ROW_NUMBER() OVER (PARTITION BY method, path ORDER BY duration) AS rn,
-           COUNT(*) OVER (PARTITION BY method, path) AS n
-         FROM request_logs WHERE deployment_name = ? AND timestamp >= ? AND timestamp <= ?
-       )
-       SELECT method, path, n AS count,
-         max(CASE WHEN rn = min(n, CAST(n * 0.95 AS INTEGER) + 1) THEN duration END) AS p95,
-         sum(CASE WHEN status = 502 AND duration >= ? THEN 1 ELSE 0 END) AS noAnswer
-       FROM r GROUP BY method, path ORDER BY p95 DESC, count DESC LIMIT 3`,
+      `SELECT method, path, duration, status, capture_id AS captureId FROM request_logs
+       WHERE deployment_name = ? AND timestamp >= ? AND timestamp <= ?
+       ORDER BY timestamp DESC LIMIT ?`,
     )
-    .all(name, from, to, NO_ANSWER_MS) as {
+    .all(name, from, to, PATH_ROWS) as {
     method: string;
     path: string;
-    count: number;
-    p95: number;
-    noAnswer: number;
+    duration: number;
+    status: number;
+    captureId: string | null;
   }[];
-
-  const errorPaths = db
-    .prepare(
-      `SELECT method, path, count(*) AS count FROM request_logs
-       WHERE deployment_name = ? AND timestamp >= ? AND timestamp <= ? AND status >= 500
-       GROUP BY method, path ORDER BY count DESC LIMIT 3`,
-    )
-    .all(name, from, to) as { method: string; path: string; count: number }[];
-  const commonStatus = db.prepare(
-    `SELECT status, count(*) AS n FROM request_logs
-     WHERE deployment_name = ? AND timestamp >= ? AND timestamp <= ? AND method = ? AND path = ? AND status >= 500
-     GROUP BY status ORDER BY n DESC LIMIT 1`,
-  );
-  const latest = db.prepare(
-    `SELECT status, duration, capture_id AS captureId FROM request_logs
-     WHERE deployment_name = ? AND timestamp >= ? AND timestamp <= ? AND method = ? AND path = ? AND status = ?
-     ORDER BY capture_id IS NULL, timestamp DESC LIMIT 1`,
-  );
+  const groups = new Map<
+    string,
+    {
+      method: string;
+      path: string;
+      durations: number[];
+      noAnswer: number;
+      errors: Map<number, { count: number; latest: (typeof rows)[number] }>;
+    }
+  >();
+  for (const row of rows) {
+    const path = normalizePath(row.path);
+    const key = `${row.method} ${path}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { method: row.method, path, durations: [], noAnswer: 0, errors: new Map() };
+      groups.set(key, group);
+    }
+    group.durations.push(row.duration);
+    if (row.status === 502 && row.duration >= NO_ANSWER_MS) group.noAnswer++;
+    if (row.status >= 500) {
+      const error = group.errors.get(row.status);
+      // Rows arrive newest first: keep the newest one that saved what was sent.
+      if (!error) group.errors.set(row.status, { count: 1, latest: row });
+      else {
+        error.count++;
+        if (!error.latest.captureId && row.captureId) error.latest = row;
+      }
+    }
+  }
+  const slowest = [...groups.values()]
+    .map((group) => {
+      const sorted = group.durations.sort((left, right) => left - right);
+      return {
+        method: group.method,
+        path: group.path,
+        filter: pathFilter(group.path),
+        count: sorted.length,
+        p95: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))],
+        noAnswer: group.noAnswer,
+      };
+    })
+    .sort((left, right) => right.p95 - left.p95 || right.count - left.count)
+    .slice(0, 3);
+  const errorPaths = [...groups.values()]
+    .map((group) => {
+      const statuses = [...group.errors.entries()].sort(
+        (left, right) => right[1].count - left[1].count,
+      );
+      return {
+        group,
+        count: statuses.reduce((sum, [, error]) => sum + error.count, 0),
+        status: statuses[0]?.[0] ?? 0,
+        latest: statuses[0]?.[1].latest,
+      };
+    })
+    .filter((entry) => entry.count > 0)
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 3);
 
   return {
     range,
@@ -273,21 +332,20 @@ export async function requestSummary(
     peak: peak && peak.count ? { perMinute: peak.count, at: peak.at } : null,
     releases: inRange,
     firstServerError: first
-      ? { at: first.at, ...(cause && cleanBefore ? { release: cause.label } : {}) }
+      ? { at: first.at, ...(cause?.label && cleanBefore ? { release: cause.label } : {}) }
       : null,
     slowest,
     errorPaths: await Promise.all(
-      errorPaths.map(async (group) => {
-        const { status } = commonStatus.get(name, from, to, group.method, group.path) as {
-          status: number;
+      errorPaths.map(async ({ group, count, status, latest }) => {
+        const capture = latest?.captureId ? await readCapture(name, latest.captureId) : null;
+        return {
+          method: group.method,
+          path: group.path,
+          filter: pathFilter(group.path),
+          count,
+          status,
+          reason: latest ? errorReason(latest, capture) : null,
         };
-        const row = latest.get(name, from, to, group.method, group.path, status) as {
-          status: number;
-          duration: number;
-          captureId: string | null;
-        };
-        const capture = row.captureId ? await readCapture(name, row.captureId) : null;
-        return { ...group, status, reason: errorReason(row, capture) };
       }),
     ),
   };

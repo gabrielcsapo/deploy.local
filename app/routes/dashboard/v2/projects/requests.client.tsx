@@ -89,7 +89,7 @@ function Chart({ summary }: { summary: RequestSummary }) {
             d={`M${((release.at - summary.from) / span) * 800} 0V140`}
             className="v2-requests-release"
           >
-            <title>{release.label}</title>
+            <title>{release.label ?? 'A release'}</title>
           </path>
         ))}
         <path d={line((point) => point.perMinute)} className="v2-requests-line" />
@@ -222,7 +222,7 @@ export function AppRequests({
                       entry.noAnswer ? ` · ${formatCount(entry.noAnswer)} got no answer` : ''
                     }`}
                     end={formatDuration(entry.p95)}
-                    href={link({ path: entry.path })}
+                    href={link({ path: entry.filter })}
                   />
                 ))}
                 {!data.slowest.length && <Item title={`No requests in ${rangeWords(range)}`} />}
@@ -242,7 +242,7 @@ export function AppRequests({
                     }
                     description={`${entry.status}${entry.reason ? ` · ${entry.reason}` : ''}`}
                     end={formatCount(entry.count)}
-                    href={link({ path: entry.path, show: 'server' })}
+                    href={link({ path: entry.filter, show: 'server' })}
                   />
                 ))}
                 {!data.errorPaths.length && <Item title="No server errors" />}
@@ -364,7 +364,7 @@ export function AppRequest({
     );
   if (!detail.data) return <Skeleton rows={4} />;
   const { request, capture, path } = detail.data;
-  const seconds = Math.round(request.duration / 1000);
+  const seconds = Math.floor(request.duration / 1000);
   const failure =
     request.failure === 'timeout'
       ? {
