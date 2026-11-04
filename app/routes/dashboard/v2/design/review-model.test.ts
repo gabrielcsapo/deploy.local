@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  conflictCount,
+  conflictLine,
   initialDesignProject,
   nextUnseen,
   openPins,
@@ -103,5 +105,26 @@ test('a changed crop expands to whole neighbouring text and inputs instead of sl
       ],
     ),
     { x: 252, y: 52, w: 348, h: 227 },
+  );
+});
+
+test('a conflict names two items in words and counts three or more', () => {
+  const name = (file: string) => (file === 'note:gutters' ? 'Gutters' : file.replace('.html', ''));
+  const agent = { id: 'a1', name: 'Release notes writer', avatar: null };
+  assert.equal(conflictCount(['Agent.html']), '1 screen conflicts with main');
+  assert.equal(conflictCount(['Agent.html', 'note:gutters']), '1 screen and 1 note conflict with main');
+  assert.equal(
+    conflictLine(['Agent.html', 'note:gutters'], name, agent),
+    'Main changed Agent and Gutters. Ask Release notes writer to update these screens.',
+  );
+  const many = ['A.html', 'B.html', 'C.html', 'note:x', 'note:y'];
+  assert.equal(conflictCount(many), '3 screens and 2 notes conflict with main');
+  assert.equal(
+    conflictLine(many, name, agent),
+    'Main changed them after this was proposed. Ask Release notes writer to update them.',
+  );
+  assert.equal(
+    conflictLine(many, name, { id: null, name: 'You', avatar: null }),
+    'Main changed them after this was proposed. Update them with main and propose again.',
   );
 });

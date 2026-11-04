@@ -153,7 +153,7 @@ struct V2DesignReviewView: View {
             }
             VStack(spacing: 6) {
                 if review.stale == true {
-                    Button("\(V2ReviewModel.count(review.conflicts?.count ?? 0, "screen")) conflict with main") { model.conflict = true }.buttonStyle(V2ReviewActionStyle(primary: false))
+                    Button(V2ReviewModel.conflictCount(review.conflicts ?? [])) { model.conflict = true }.buttonStyle(V2ReviewActionStyle(primary: false))
                 } else {
                     Button((review.round ?? 1) > 1 ? "Review \(V2ReviewModel.count(screens.count, "changed screen"))" : "Start review") {
                         model.page = pages.dropFirst().first ?? .decide
@@ -293,7 +293,7 @@ struct V2DesignReviewView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("\(V2ReviewModel.count(review?.conflicts?.count ?? 0, "screen")) conflict with main").font(.title2.bold())
+                    Text(V2ReviewModel.conflictCount(review?.conflicts ?? [])).font(.title2.bold())
                     ForEach(review?.boards.filter { $0.conflict == true } ?? []) { board in
                         HStack { V2ReviewCrop(preview: model.preview(board), showChanges: true).frame(width: 100, height: 100); Text(board.name); Spacer(); Text("Conflict").font(.footnote) }
                     }

@@ -2,6 +2,30 @@ import type { DesignReview, DesignReviewSummary } from '../../../../../shared/v2
 export { nextUnseen, reviewCrop } from '../../../../../shared/v2/design-review';
 export const counted = (count: number, noun: 'pin' | 'change' | 'screen') =>
   `${count} ${noun}${count === 1 ? '' : 's'}`;
+/** "22 screens and 4 notes conflict with main": conflicts list notes as `note:<id>`. */
+export function conflictCount(conflicts: string[]) {
+  const notes = conflicts.filter((file) => file.startsWith('note:')).length;
+  const screens = conflicts.length - notes;
+  const parts = [
+    screens && counted(screens, 'screen'),
+    notes && `${notes} note${notes === 1 ? '' : 's'}`,
+  ].filter(Boolean);
+  return `${parts.join(' and ')} conflict${conflicts.length === 1 ? 's' : ''} with main`;
+}
+/** Names at most two conflicts in words; with more, the Conflict tiles name them. */
+export function conflictLine(
+  conflicts: string[],
+  name: (file: string) => string,
+  proposer: DesignReview['proposer'],
+) {
+  const changed =
+    conflicts.length <= 2
+      ? `Main changed ${conflicts.map(name).join(' and ')}.`
+      : 'Main changed them after this was proposed.';
+  const yours = proposer.id === null && proposer.name === 'You';
+  if (yours) return `${changed} Update them with main and propose again.`;
+  return `${changed} Ask ${proposer.name} to update ${conflicts.length <= 2 ? 'these screens' : 'them'}.`;
+}
 export const reviewHref = (id: string) => `/dashboard/inbox?item=${encodeURIComponent(id)}`;
 export function reviewCounts(counts: DesignReviewSummary['counts']) {
   return [

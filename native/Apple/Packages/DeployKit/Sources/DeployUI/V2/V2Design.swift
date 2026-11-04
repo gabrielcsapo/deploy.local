@@ -128,7 +128,7 @@ struct V2DesignLanding: View {
                                             VStack(alignment: .leading, spacing: 6) {
                                                 Text(proposal.title).font(.body).foregroundStyle(WorkspaceStyle.text(scheme)).fixedSize(horizontal: false, vertical: true)
                                                 Text("\(proposal.proposer.name) · \(V2ReviewModel.age(proposal.createdAt))").font(.footnote).foregroundStyle(.secondary)
-                                                Text(proposal.stale ? "\(V2ReviewModel.count(proposal.conflicts.count, "screen")) conflict with main" : proposal.counts.label(includeRemoved: false))
+                                                Text(proposal.stale ? V2ReviewModel.conflictCount(proposal.conflicts) : proposal.counts.label(includeRemoved: false))
                                                     .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                                             }.frame(maxWidth: .infinity, alignment: .leading)
                                             V2SettingsChevron()

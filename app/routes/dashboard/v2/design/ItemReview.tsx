@@ -12,7 +12,14 @@ import type { NoteChange } from '../../../../../shared/v2/design';
 import { useInbox } from '../data/hooks';
 import { request } from '../projects/data';
 import { WidthSwitch } from './Review';
-import { nextUnseen, openPins, reviewCounts, counted } from './review-model';
+import {
+  conflictCount,
+  conflictLine,
+  nextUnseen,
+  openPins,
+  reviewCounts,
+  counted,
+} from './review-model';
 import { previewKey, ReviewCrop, useReviewPreviews, type Preview } from './ReviewPreviews';
 import './review.css';
 
@@ -541,16 +548,17 @@ export function DesignItemReview({
           </div>
           {data?.stale ? (
             <section className="dl-review-notice">
-              <h2>
-                {data.conflicts.length} screen{data.conflicts.length === 1 ? '' : 's'} conflict
-                {data.conflicts.length === 1 ? 's' : ''} with main
-              </h2>
+              <h2>{conflictCount(data.conflicts)}</h2>
               <p>
-                Main changed{' '}
-                {data.conflicts
-                  .map((file) => boards.find((entry) => entry.file === file)?.title ?? file)
-                  .join(' and ')}
-                . Ask {data.proposer.name} to update these screens.
+                {conflictLine(
+                  data.conflicts,
+                  (file) =>
+                    file.startsWith('note:')
+                      ? (data.notes.find((entry) => `note:${entry.id}` === file)?.title ??
+                        'a canvas note')
+                      : (boards.find((entry) => entry.file === file)?.title ?? file),
+                  data.proposer,
+                )}
               </p>
               {tiles(boards.filter((entry) => entry.conflict))}
             </section>
