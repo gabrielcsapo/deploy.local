@@ -191,14 +191,36 @@ function requestsRoute(path, url, send) {
       releases: [{ id: 'r1', label: '9c3e1fa', at: today(13, 58) }],
       firstServerError: { at: today(13, 58), release: '9c3e1fa' },
       slowest: [
-        { method: 'GET', path: '/api/workouts/export', count: 212, p95: 15000, noAnswer: 41 },
-        { method: 'POST', path: '/api/workouts', count: 1380, p95: 640, noAnswer: 0 },
-        { method: 'GET', path: '/api/stats/weekly', count: 2104, p95: 520, noAnswer: 0 },
+        {
+          method: 'GET',
+          path: '/api/workouts/export',
+          filter: '/api/workouts/export',
+          count: 212,
+          p95: 15000,
+          noAnswer: 41,
+        },
+        {
+          method: 'POST',
+          path: '/api/workouts',
+          filter: '/api/workouts',
+          count: 1380,
+          p95: 640,
+          noAnswer: 0,
+        },
+        {
+          method: 'GET',
+          path: '/api/stats/weekly',
+          filter: '/api/stats/weekly',
+          count: 2104,
+          p95: 520,
+          noAnswer: 0,
+        },
       ],
       errorPaths: [
         {
           method: 'GET',
           path: '/api/workouts/export',
+          filter: '/api/workouts/export',
           count: 41,
           status: 502,
           reason: 'no answer in 15 s',
@@ -206,11 +228,19 @@ function requestsRoute(path, url, send) {
         {
           method: 'POST',
           path: '/api/sessions',
+          filter: '/api/sessions',
           count: 22,
           status: 500,
           reason: 'duplicate key in sessions_pkey',
         },
-        { method: 'GET', path: '/api/plans/:id', count: 11, status: 503, reason: null },
+        {
+          method: 'GET',
+          path: '/api/plans/:id',
+          filter: '/api/plans/',
+          count: 11,
+          status: 503,
+          reason: null,
+        },
       ],
     });
   else if (match[2])

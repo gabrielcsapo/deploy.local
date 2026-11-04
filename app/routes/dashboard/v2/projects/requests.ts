@@ -33,12 +33,20 @@ export type RequestSummary = {
     points: { at: number; perMinute: number; serverErrorsPerMinute: number }[];
   };
   peak: { perMinute: number; at: number } | null;
-  releases: { id: string; label: string; at: number }[];
+  releases: { id: string; label: string | null; at: number }[];
   firstServerError: { at: number; release?: string } | null;
-  slowest: { method: string; path: string; count: number; p95: number; noAnswer: number }[];
+  slowest: {
+    method: string;
+    path: string;
+    filter: string;
+    count: number;
+    p95: number;
+    noAnswer: number;
+  }[];
   errorPaths: {
     method: string;
     path: string;
+    filter: string;
     count: number;
     status: number;
     reason: string | null;
