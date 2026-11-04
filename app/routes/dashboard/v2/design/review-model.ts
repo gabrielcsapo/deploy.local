@@ -2,6 +2,13 @@ import type { DesignReview, DesignReviewSummary } from '../../../../../shared/v2
 export { nextUnseen, reviewCrop } from '../../../../../shared/v2/design-review';
 export const counted = (count: number, noun: 'pin' | 'change' | 'screen') =>
   `${count} ${noun}${count === 1 ? '' : 's'}`;
+/** You proposed it yourself: the server names a proposer with no agent or task "You". */
+export const proposedByYou = (proposer: DesignReview['proposer']) =>
+  proposer.id === null && proposer.name === 'You';
+export const missingSummary = (proposer: DesignReview['proposer']) =>
+  proposedByYou(proposer)
+    ? 'No summary. Add one when you propose again.'
+    : `No summary. Ask ${proposer.name} to add one`;
 /** "22 screens and 4 notes conflict with main": conflicts list notes as `note:<id>`. */
 export function conflictCount(conflicts: string[]) {
   const notes = conflicts.filter((file) => file.startsWith('note:')).length;
@@ -22,8 +29,7 @@ export function conflictLine(
     conflicts.length <= 2
       ? `Main changed ${conflicts.map(name).join(' and ')}.`
       : 'Main changed them after this was proposed.';
-  const yours = proposer.id === null && proposer.name === 'You';
-  if (yours) return `${changed} Update them with main and propose again.`;
+  if (proposedByYou(proposer)) return `${changed} Update them with main and propose again.`;
   return `${changed} Ask ${proposer.name} to update ${conflicts.length <= 2 ? 'these screens' : 'them'}.`;
 }
 export const reviewHref = (id: string) => `/dashboard/inbox?item=${encodeURIComponent(id)}`;

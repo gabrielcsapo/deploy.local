@@ -135,6 +135,9 @@ public struct V2ReviewProposer: Decodable, Sendable {
     public var id: String?
     public var name: String
     public var avatar: V2AgentAvatar?
+    /// The server names a proposer with no agent or task "You".
+    public var isYou: Bool { id == nil && name == "You" }
+    public var missingSummary: String { isYou ? "No summary. Add one when you propose again." : "No summary. Ask \(name) to add one" }
 }
 public struct V2ReviewCounts: Decodable, Sendable {
     public var screens: Int
