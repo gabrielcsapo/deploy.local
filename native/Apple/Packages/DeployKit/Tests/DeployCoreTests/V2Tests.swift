@@ -424,11 +424,62 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(requests.last?.httpMethod == "DELETE")
     }
 
+    @Test func designReviewRequestsShareAuthenticationAndEncodeCoordinates() async throws {
+        let prefix = "/api/v2/projects/p/design/review"
+        let preview = #"{"width":390,"height":844,"before":null,"after":"/preview.png","areas":[],"crop":{"x":0,"y":0,"w":390,"h":400}}"#
+        V2URLProtocol.state.reset([
+            "GET \(prefix)/preview?item=design%3Ap%3Ab%3Ac&board=Hello%20Phone%2Ehtml&width=390&scale=3.0": [(200, preview)],
+            "GET /preview.png": [(200, "image-bytes")],
+            "POST \(prefix)/seen": [(200, #"{"seen":true}"#)],
+            "POST \(prefix)/pins": [(200, #"{"pins":[]}"#)],
+            "PATCH \(prefix)/pins": [(200, #"{"pins":[]}"#)],
+            "DELETE \(prefix)/pins": [(200, #"{"pins":[]}"#)],
+            "POST /api/v2/inbox/design:p:b:c/answer": [(200, #"{"item":\#(answeredJSON)}"#)]
+        ])
+        let api = client()
+        let metadata = try await api.reviewPreview(project: "p", item: "design:p:b:c", board: "Hello Phone.html", width: 390, scale: 4)
+        #expect(metadata.width == 390)
+        #expect(try await api.reviewImage("/preview.png") == Data("image-bytes".utf8))
+        try await api.reviewSeen(project: "p", item: "design:p:b:c", board: "Hello Phone.html", revision: "after")
+        let draft = V2ReviewPinDraft(item: "design:p:b:c", board: "Hello Phone.html", width: 390, revision: "screen-before", x: 132.5, y: 740, text: "Keep the name")
+        _ = try await api.addReviewPin(project: "p", draft: draft)
+        _ = try await api.editReviewPin(project: "p", item: draft.item, id: "pin", resolved: false)
+        _ = try await api.deleteReviewPin(project: "p", item: draft.item, id: "pin")
+        _ = try await api.answer(draft.item, action: "changes")
+        let requests = V2URLProtocol.state.recorded()
+        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "X-Deploy-Username") == "gabriel" && $0.value(forHTTPHeaderField: "X-Deploy-Token") == "private-token" })
+        #expect(body(requests[2])["revision"] as? String == "after")
+        #expect(body(requests[3])["x"] as? Double == 132.5)
+        #expect(body(requests[3])["revision"] as? String == "screen-before")
+        #expect(body(requests[4])["resolved"] as? Bool == false)
+        #expect(body(requests[6])["on"] as? String == "iphone")
+        do {
+            _ = try await api.reviewImage("https://elsewhere.invalid/preview.png")
+            Issue.record("A preview must remain on the paired origin")
+        } catch ClientError.invalidOrigin { }
+        #expect(V2URLProtocol.state.recorded().count == requests.count)
+    }
+
+    @Test func designLandingUsesProjectScopedReviewsAndUsableDesigns() async throws {
+        let proposal = #"{"id":"design:p:b:c","title":"Agents you make yourself","summary":null,"projectId":"p","project":"deploy.local","branch":"b","proposer":{"id":"designer","name":"Designer","avatar":null},"createdAt":"2026-11-04T12:00:00Z","counts":{"screens":22,"changed":9,"new":12,"removed":1},"stale":false,"conflicts":[]}"#
+        V2URLProtocol.state.reset([
+            "GET /api/v2/design/reviews?project=p": [(200, #"{"proposals":[\#(proposal)]}"#)],
+            "GET /api/v2/design/projects": [(200, #"{"projects":[{"id":"empty","name":"Empty","boards":0},{"id":"p","name":"deploy.local","description":"Agents and computers","boards":168}]}"#)]
+        ])
+        let api = client()
+        let projects = try await api.designProjects()
+        #expect(projects.map(\.id) == ["p"])
+        let reviews = try await api.designReviews(project: "p")
+        #expect(reviews.first?.inboxSubtitle == "Design · 22 screens · Designer")
+        #expect(reviews.first?.counts.label(includeRemoved: false) == "22 screens · 9 changed · 12 new")
+        #expect(try await api.designSummary(project: "p")?.subtitle == "1 waiting on you")
+    }
+
     @Test func designReviewsNameTheirProjectAndTheDesignRowSaysWhatWaits() {
         #expect(V2DesignReview.project(of: "design:67d679c5:design~welcome-edits:0a1b2c3d4e5f") == "67d679c5")
         #expect(V2DesignReview.project(of: "release:abc") == nil)
         #expect(V2DesignReview.project(of: "design:x") == nil)
-        #expect(V2DesignSummary(boards: 168, waiting: 1).subtitle == "1 to review · 168 boards")
+        #expect(V2DesignSummary(boards: 168, waiting: 1).subtitle == "1 waiting on you")
         #expect(V2DesignSummary(boards: 1, waiting: 0).subtitle == "1 board")
     }
 

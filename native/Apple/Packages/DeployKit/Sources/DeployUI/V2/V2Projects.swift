@@ -36,7 +36,7 @@ struct V2ProjectSection: View {
             // On iPhone, Design opens inside Projects so the tab bar stays; on iPad it fills the
             // screen and the page's own rail holds the app's places.
             .navigationDestination(isPresented: Binding(get: { openDesign && width == .compact }, set: { if !$0 { openDesign = false } })) {
-                V2DesignView(connection: store.connection, projectId: project.id).toolbar(.hidden, for: .navigationBar)
+                V2DesignLanding(store: store, projectId: project.id)
             }
             .fullScreenCover(isPresented: Binding(get: { openDesign && width != .compact }, set: { if !$0 { openDesign = false } })) {
                 V2DesignView(connection: store.connection, projectId: project.id)

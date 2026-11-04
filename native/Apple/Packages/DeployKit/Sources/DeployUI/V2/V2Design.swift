@@ -100,3 +100,108 @@ struct V2DesignWebView: UIViewRepresentable {
     }
 }
 #endif
+
+#if os(iOS)
+/// The project-scoped Design entry. Empty queues keep the same project's canvas.
+struct V2DesignLanding: View {
+    @Bindable var store: V2Store
+    let projectId: String?
+    @State private var proposals: [V2ReviewSummary]?
+    @State private var projects: [V2DesignProject] = []
+    @State private var selected: InboxItem?
+    @State private var canvas: String?
+    @State private var error: String?
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        Group {
+            if proposals?.isEmpty == true, let projectId {
+                V2DesignView(connection: store.connection, projectId: projectId).toolbar(.hidden, for: .navigationBar)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("To review").font(.largeTitle.bold())
+                        V2Group(title: "Waiting on you") {
+                            if let proposals {
+                                ForEach(proposals) { proposal in
+                                    Button { Task { await open(proposal) } } label: {
+                                        HStack(spacing: 12) {
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                Text(proposal.title).font(.body).foregroundStyle(WorkspaceStyle.text(scheme)).fixedSize(horizontal: false, vertical: true)
+                                                Text("\(proposal.proposer.name) · \(V2ReviewModel.age(proposal.createdAt))").font(.footnote).foregroundStyle(.secondary)
+                                                Text(proposal.stale ? "\(V2ReviewModel.count(proposal.conflicts.count, "screen")) conflict with main" : proposal.counts.label(includeRemoved: false))
+                                                    .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                                            }.frame(maxWidth: .infinity, alignment: .leading)
+                                            V2SettingsChevron()
+                                        }.padding(16)
+                                    }.buttonStyle(.plain)
+                                    if proposal.id != proposals.last?.id { Divider().padding(.leading, 16) }
+                                }
+                            } else {
+                                V2Row(title: "Loading designs…", subtitle: " ").redacted(reason: .placeholder)
+                            }
+                        }
+                        if !projects.isEmpty {
+                            V2Group(title: "Projects with a design") {
+                                ForEach(projects) { project in
+                                    Button { canvas = project.id } label: { V2Row(title: project.name, subtitle: project.description) }
+                                }
+                            }
+                        }
+                        if let error { Text(error).font(.footnote).foregroundStyle(WorkspaceStyle.danger(scheme)) }
+                    }.padding(16)
+                }.background(WorkspaceStyle.canvas(scheme)).navigationTitle("Design").navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .designReview(item: $selected, store: store)
+        .fullScreenCover(isPresented: Binding(get: { canvas != nil }, set: { if !$0 { canvas = nil } })) {
+            if let canvas { V2DesignView(connection: store.connection, projectId: canvas) }
+        }
+        .task(id: projectId) { await load() }
+        .onChange(of: store.snapshot.cursor) { _, _ in Task { await load() } }
+    }
+    private func load() async {
+        do {
+            proposals = try await store.client.designReviews(project: projectId)
+            projects = try await store.client.designProjects()
+            error = nil
+        } catch { self.error = coordinatorErrorDescription(error) }
+    }
+    private func open(_ proposal: V2ReviewSummary) async {
+        do { selected = try await store.client.designReview(project: proposal.projectId, item: proposal.id).item }
+        catch { self.error = coordinatorErrorDescription(error) }
+    }
+}
+
+/// Plain title and authoritative review metadata in Work and Waiting on you.
+struct V2DesignWaitingRow: View {
+    @Bindable var store: V2Store
+    let item: InboxItem
+    @State private var summary: V2ReviewSummary?
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.circle").foregroundStyle(WorkspaceStyle.warning(scheme)).frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary?.title ?? item.title).font(.body).foregroundStyle(WorkspaceStyle.text(scheme))
+                Text(summary?.inboxSubtitle ?? "Design · \(V2Labels.agentName(item))").font(.footnote).foregroundStyle(.secondary)
+            }.fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+        }.multilineTextAlignment(.leading).padding(.horizontal, 14).padding(.vertical, 12).frame(minHeight: 64).contentShape(Rectangle())
+            .task(id: store.snapshot.cursor) {
+                guard let project = item.projectId ?? V2DesignReview.project(of: item.id) else { return }
+                summary = try? await store.client.designReviews(project: project).first { $0.id == item.id }
+            }
+    }
+}
+#endif
+
+#if os(iOS)
+struct V2DesignReviewEntry: View {
+    @Bindable var store: V2Store
+    let item: InboxItem
+    @State private var open = false
+    var body: some View {
+        Button { open = true } label: { V2DesignWaitingRow(store: store, item: item) }.buttonStyle(.plain)
+            .designReview(item: Binding(get: { open ? item : nil }, set: { open = $0 != nil }), store: store)
+    }
+}
+#endif

@@ -18,16 +18,29 @@ import {
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
-import { event, get, id, list, now, save } from '../workspace/store.ts';
+import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { readJson, sendJson } from './attachments.ts';
 import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.ts';
 import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
-import { startRun } from '../workspace/service.ts';
-import type { InboxItem } from '../../shared/v2/contracts.ts';
+import { queueMessage, queuedMessage } from '../workspace/queued-message.ts';
+import {
+  reviewAreas,
+  reviewCrop,
+  reviewWidths,
+  screenName,
+} from '../../shared/v2/design-review.ts';
+import type {
+  DesignRect,
+  DesignReview,
+  DesignReviewPin,
+  DesignReviewPreview,
+  DesignReviewScreen,
+  DesignReviewSummary,
+  InboxItem,
+} from '../../shared/v2/contracts.ts';
 import {
   changeSummary,
-  describeChange,
   layerLabel,
   markChanges,
   markColors,
@@ -465,8 +478,418 @@ function canvasAt(repo: string, commit: string): Canvas | null {
   }
 }
 
-export function proposeDesign(owner: string, project: any, input: { ref?: string; task?: string }) {
+function optionalWords(value: unknown, max: number): string | null {
+  if (value == null) return null;
+  if (typeof value !== 'string' || value.trim().length > max) fail(`Use at most ${max} characters`);
+  return value.trim() || null;
+}
+
+function validateChangeWords(value: unknown): Record<string, Record<string, string>> {
+  if (value == null) return {};
+  if (typeof value !== 'object' || Array.isArray(value))
+    fail('changeWords must name boards and layers');
+  const result: Record<string, Record<string, string>> = {};
+  for (const [board, layers] of Object.entries(value)) {
+    if (!boardPattern.test(board) || !layers || typeof layers !== 'object' || Array.isArray(layers))
+      fail('changeWords must name boards and layers');
+    result[board] = {};
+    for (const [layer, words] of Object.entries(layers)) {
+      if (!layerPattern.test(layer)) fail('Invalid layer');
+      const text = optionalWords(words, 500);
+      if (text) result[board][layer] = text;
+    }
+  }
+  return result;
+}
+
+function proposalProposer(owner: string, taskId: string | null): DesignReviewSummary['proposer'] {
+  const task = taskId ? list('task', owner).find((entry) => entry.id === taskId) : null;
+  const run = taskId
+    ? list('run', owner)
+        .filter((entry) => entry.taskId === taskId)
+        .at(-1)
+    : null;
+  const agentId = task?.agentId ?? run?.agentId;
+  const agent = agentId ? list('agent', owner).find((entry) => entry.id === agentId) : null;
+  return {
+    id: agent?.id ?? null,
+    name: agent?.name ?? (task ? task.title : 'You'),
+    avatar: agent?.avatar ?? null,
+  };
+}
+
+function reviewRow(owner: string, projectId: string, itemId: unknown) {
+  const row = list('v2-inbox-native', owner).find(
+    (entry) =>
+      entry.id === itemId &&
+      entry.context?.source === 'design' &&
+      entry.context.projectId === projectId,
+  );
+  if (!row) fail('No such design review', 404);
+  if (!row.item.actions.some((action: { id: string }) => action.id === 'update')) {
+    row.item.actions.push({ id: 'update', label: 'Ask to update' });
+    save('v2-inbox-native', owner, row);
+  }
+  return row;
+}
+
+/** Compare proposal edits with main by screen, not by main's commit ID. No repository writes. */
+export function reviewMain(repo: string, context: any) {
+  const main = gitSync(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${context.main}^{commit}`,
+  ]);
+  if (!main) fail('Main could not be checked. Try again.', 409);
+  const diff = gitSync(repo, [
+    'diff',
+    '--name-only',
+    '--no-renames',
+    context.base,
+    main,
+    '--',
+    'design/',
+  ]);
+  if (diff === null) fail('Main could not be checked. Try again.', 409);
+  const changed = diff.split('\n');
+  const conflicts = (context.paths as string[])
+    .filter(
+      (path) =>
+        path !== 'design/canvas.json' &&
+        changed.includes(path) &&
+        gitSync(repo, ['rev-parse', '--verify', '--quiet', `${main}:${path}`]) !==
+          gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.commit}:${path}`]),
+    )
+    .map((path) => path.replace(/^design\/boards\//, '').replace(/^design\//, ''));
+  // Canvas changes merge field by field. Only conflicting edits to the same note/placement block review.
+  if (changed.includes('design/canvas.json') && context.paths.includes('design/canvas.json')) {
+    const base = canvasAt(repo, context.base),
+      target = canvasAt(repo, main),
+      from = canvasAt(repo, context.commit);
+    for (const field of ['boards', 'notes'] as const) {
+      for (const key of new Set([
+        ...Object.keys(base?.[field] ?? {}),
+        ...Object.keys(from?.[field] ?? {}),
+      ])) {
+        const a = JSON.stringify(base?.[field]?.[key]),
+          b = JSON.stringify(target?.[field]?.[key]),
+          c = JSON.stringify(from?.[field]?.[key]);
+        if (a !== b && a !== c && b !== c) conflicts.push(field === 'boards' ? key : `note:${key}`);
+      }
+    }
+  }
+  return { main: main!, conflicts: [...new Set(conflicts)], updated: changed.some(Boolean) };
+}
+
+function reviewLineage(owner: string, context: any): string[] {
+  const result: string[] = [];
+  let previous = context.previousItemId;
+  while (previous && !result.includes(previous)) {
+    result.push(previous);
+    previous = list('v2-inbox-native', owner).find((row) => row.id === previous)?.context
+      .previousItemId;
+  }
+  return result;
+}
+
+function reviewPins(owner: string, context: any): DesignReviewPin[] {
+  const lineage = new Set([
+    designItemId(context.projectId, context.branch, context.commit),
+    ...reviewLineage(owner, context),
+  ]);
+  return list('design-comment', owner)
+    .filter(
+      (row) =>
+        row.projectId === context.projectId &&
+        lineage.has(row.reviewItemId) &&
+        row.position &&
+        !row.deletedAt,
+    )
+    .map((row) => ({
+      id: row.id,
+      number: row.number,
+      board: row.board,
+      noteId: row.position.noteId ?? null,
+      width: row.position.width,
+      revision: row.position.revision,
+      x: row.position.x,
+      y: row.position.y,
+      text: row.text,
+      author: row.author,
+      resolved: Boolean(row.resolved),
+      reply: row.reply ?? null,
+      createdAt: row.createdAt,
+    }))
+    .sort((a, b) => a.number - b.number);
+}
+
+/** A cheap summary: no Chromium or screenshot work on the landing page. */
+function reviewSummary(owner: string, project: any, row: any): DesignReviewSummary {
+  const { context, item } = row;
+  const repo = project.repositoryPath;
+  const status = reviewMain(repo, context);
+  const paths = (context.paths as string[]).filter((path) => path.startsWith('design/boards/'));
+  const counts = { screens: paths.length, changed: 0, new: 0, removed: 0 };
+  for (const path of paths) {
+    const before = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.base}:${path}`]);
+    const after = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.commit}:${path}`]);
+    counts[!before ? 'new' : !after ? 'removed' : 'changed']++;
+  }
+  return {
+    id: item.id,
+    title: item.title,
+    summary: context.summary ?? null,
+    projectId: project.id,
+    project: project.name ?? project.id,
+    branch: context.branch,
+    createdAt: item.createdAt,
+    proposer: context.proposer ?? proposalProposer(owner, context.taskId),
+    counts,
+    stale: status.conflicts.length > 0,
+    conflicts: status.conflicts,
+  };
+}
+
+// Preview requests follow the metadata read. Reuse immutable screen metadata instead of
+// repeating every git read for each thumbnail/width. Progress and main checks are never cached.
+const reviewScreens = new Map<string, DesignReviewScreen[]>();
+const reviewScreenKey = (repo: string, row: any) =>
+  `${repo}:${row.id}:${row.context.base}:${row.context.previousCommit ?? ''}`;
+
+export function designReview(owner: string, project: any, row: any): DesignReview {
+  const { context, item } = row;
+  const repo = project.repositoryPath;
+  const status = reviewMain(repo, context);
+  const comparison = context.previousCommit ?? context.base;
+  const canvas = canvasAt(repo, context.commit),
+    beforeCanvas = canvasAt(repo, comparison);
+  const originalCanvas = canvasAt(repo, context.base);
+  const pages = canvas ? sections(canvas) : [];
+  const oldPages = originalCanvas ? sections(originalCanvas) : [];
+  // Insert removed boards at their old position relative to surviving neighbours.
+  const order = [...(canvas?.order ?? Object.keys(canvas?.boards ?? {}))];
+  const oldOrder = originalCanvas?.order ?? Object.keys(originalCanvas?.boards ?? {});
+  for (let index = oldOrder.length - 1; index >= 0; index--) {
+    const file = oldOrder[index];
+    if (order.includes(file)) continue;
+    const next = oldOrder.slice(index + 1).find((entry) => order.includes(entry));
+    order.splice(next ? order.indexOf(next) : order.length, 0, file);
+  }
+  const lineage = reviewLineage(owner, context);
+  const previousPaths = lineage.flatMap(
+    (id) => reviewRow(owner, project.id, id).context.paths as string[],
+  );
+  const paths = [...new Set([...(context.paths as string[]), ...previousPaths])].filter((path) =>
+    path.startsWith('design/boards/'),
+  );
+  const seen = list('design-review-seen', owner);
+  const boards: DesignReviewScreen[] = paths.map((path) => {
+    const file = path.slice('design/boards/'.length);
+    const was = showFile(repo, comparison, path),
+      after = showFile(repo, context.commit, path);
+    const original = showFile(repo, context.base, path);
+    const changedSinceReview =
+      !context.previousCommit ||
+      was !== after ||
+      gitSync(repo, ['diff', '--name-only', comparison, context.commit, '--', 'design/ds/']) !== '';
+    const before = context.previousCommit && !changedSinceReview ? original : was;
+    const placed =
+      canvas?.boards[file] ?? beforeCanvas?.boards[file] ?? originalCanvas?.boards[file];
+    const page =
+      pages.find((entry) => entry.boards.includes(file)) ??
+      oldPages.find((entry) => entry.boards.includes(file));
+    const changes =
+      before && after
+        ? layerChanges(before, after).map((change) => ({
+            layer: change.layer,
+            words:
+              context.changeWords?.[file]?.[change.layer] ??
+              layerLabel(
+                change.layer,
+                (
+                  layerSnippet(change.change === 'removed' ? before : after, change.layer) ?? ''
+                ).replace(/<[^>]+>/g, ' '),
+              ),
+          }))
+        : [];
+    return {
+      file,
+      title: placed?.title ?? screenName(file),
+      w: placed?.w ?? 1440,
+      h: Math.max(placed?.h ?? 900, beforeCanvas?.boards[file]?.h ?? 0),
+      widths: reviewWidths(placed?.w ?? 1440),
+      page: page?.title ?? null,
+      pageId: page?.id ?? null,
+      index: page ? page.boards.indexOf(file) + 1 : null,
+      count: page?.boards.length ?? null,
+      notes:
+        showFile(
+          repo,
+          after ? context.commit : comparison,
+          `design/notes/${file.replace(/\.html$/, '.md')}`,
+        ).slice(0, 2000) || null,
+      added: !before,
+      removed: !after,
+      status: !before ? 'new' : !after ? 'removed' : 'changed',
+      before: context.previousCommit && !changedSinceReview ? context.base : comparison,
+      after: context.commit,
+      changes,
+      lines: changes.map((change) => change.words),
+      changedSinceReview,
+      seen: seen.some(
+        (entry) =>
+          entry.board === file &&
+          (entry.itemId === item.id ||
+            (!changedSinceReview &&
+              lineage.includes(entry.itemId) &&
+              showFile(repo, entry.revision, path) === after)),
+      ),
+      conflict: status.conflicts.includes(file),
+    };
+  });
+  const pageOrder = [...new Set([...pages.map((p) => p.id), ...oldPages.map((p) => p.id)])];
+  boards.sort(
+    (a, b) =>
+      pageOrder.indexOf(a.pageId ?? '') - pageOrder.indexOf(b.pageId ?? '') ||
+      order.indexOf(a.file) - order.indexOf(b.file),
+  );
+  const groups: DesignReview['groups'] = [];
+  for (const board of boards) {
+    let group = groups.find((entry) => entry.id === board.pageId);
+    if (!group) {
+      group = { id: board.pageId, title: board.page, boards: [] };
+      groups.push(group);
+    }
+    group.boards.push(board.file);
+  }
+  const notes = noteChanges(beforeCanvas, canvas).map((change) => {
+    const note = canvas?.notes?.[change.id];
+    return { ...change, page: note ? (sectionAt(pages, note)?.title ?? null) : null };
+  });
+  const screenKey = reviewScreenKey(repo, row);
+  reviewScreens.set(screenKey, boards);
+  if (reviewScreens.size > 128) reviewScreens.delete(reviewScreens.keys().next().value!);
+  const mainTime = status.updated
+    ? gitSync(repo, ['show', '-s', '--format=%cI', status.main])
+    : null;
+  return {
+    ...reviewSummary(owner, project, row),
+    item,
+    task: context.taskId
+      ? (list('task', owner).find((entry) => entry.id === context.taskId)?.title ?? null)
+      : null,
+    before: comparison,
+    after: context.commit,
+    main: status.main,
+    updatedWithMainAt: mainTime,
+    round: context.round ?? 1,
+    previousItemId: context.previousItemId ?? null,
+    boards,
+    groups,
+    notes,
+    pins: reviewPins(owner, context),
+  };
+}
+
+function mutateReviewPin(owner: string, project: any, method: string, body: any) {
+  return db
+    .transaction(() => {
+      const row = reviewRow(owner, project.id, body?.item);
+      if (row.item.state !== 'waiting') fail('This review is no longer waiting', 409);
+      const review = designReview(owner, project, row);
+      if (method !== 'POST') {
+        const pin = review.pins.find((pin) => pin.id === body?.id);
+        if (!pin) fail('No such pin', 404);
+        const saved = get('design-comment', owner, pin!.id);
+        const text = body.text === undefined ? saved.text : optionalWords(body.text, 4000);
+        if (!text) fail('A pin needs text');
+        if (body.resolved !== undefined && typeof body.resolved !== 'boolean')
+          fail('Invalid resolved state');
+        save('design-comment', owner, {
+          ...saved,
+          text,
+          resolved: body.resolved ?? saved.resolved,
+          resolvedAt: body.resolved === undefined ? saved.resolvedAt : body.resolved ? now() : null,
+          ...(method === 'DELETE' ? { deletedAt: now() } : {}),
+          updatedAt: now(),
+        });
+      } else {
+        const text = optionalWords(body.text, 4000);
+        const board = review.boards.find((entry) => entry.file === body.board);
+        const note = body.noteId && review.notes.find((entry) => entry.id === body.noteId);
+        const revision = body.revision;
+        const allowedRevisions = board
+          ? [board.before, board.after]
+          : [review.before, review.after];
+        if (!text || (!board && !note) || !allowedRevisions.includes(revision))
+          fail('Name the screen or note and revision for this pin');
+        const width = Number(body.width),
+          x = Number(body.x),
+          y = Number(body.y);
+        if (
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(width) ||
+          x < 0 ||
+          y < 0 ||
+          !(board ? board.widths : [1440, 700, 390]).includes(width) ||
+          x > width ||
+          y > (board?.h ?? 100000)
+        )
+          fail('Invalid pin coordinates');
+        const existing = list('design-comment', owner).filter(
+          (entry) =>
+            entry.projectId === project.id &&
+            [row.id, ...reviewLineage(owner, row.context)].includes(entry.reviewItemId),
+        );
+        save('design-comment', owner, {
+          id: id(),
+          projectId: project.id,
+          reviewItemId: row.id,
+          board: board?.file ?? 'canvas.json',
+          layer: null,
+          text,
+          author: owner,
+          commit: revision,
+          number: Math.max(0, ...existing.map((entry) => entry.number ?? 0)) + 1,
+          position: { width, revision, x, y, noteId: note ? note.id : null },
+          resolved: false,
+          createdAt: now(),
+        });
+      }
+      return { pins: reviewPins(owner, row.context) };
+    })
+    .immediate();
+}
+
+export function proposeDesign(
+  owner: string,
+  project: any,
+  input: {
+    ref?: string;
+    task?: string;
+    title?: string;
+    summary?: string;
+    changeWords?: Record<string, Record<string, string>>;
+  },
+) {
+  const title = optionalWords(input.title, 200);
+  const summary = optionalWords(input.summary, 4000);
+  const changeWords = validateChangeWords(input.changeWords);
   const proposal = proposalFor(owner, project, input);
+  const history = list('v2-inbox-native', owner)
+    .filter(
+      (row) =>
+        row.context?.projectId === project.id &&
+        row.context?.branch === proposal.branch &&
+        row.item.state === 'answered' &&
+        ['changes', 'update'].includes(row.item.answer?.actionId),
+    )
+    .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at));
+  const previous = history[0];
+  const proposer = proposalProposer(owner, proposal.taskId);
+
   const boards = proposal.paths
     .filter((path) => path.startsWith('design/boards/'))
     .map((path) => path.slice('design/boards/'.length).replace(/\.html$/, ''));
@@ -488,9 +911,9 @@ export function proposeDesign(owner: string, project: any, input: { ref?: string
   const item: InboxItem = {
     id: designItemId(project.id, proposal.branch, proposal.commit),
     kind: 'other',
-    title: `Approve the ${boards.length === 1 ? boards[0] : proposal.name} design?`,
+    title: title ?? previous?.item.title ?? screenName(proposal.name.replaceAll('-', ' ')),
     text: changeSummary(proposal.branch, { boards, notes, marks, others }),
-    from: 'scout',
+    from: proposer.id ?? owner,
     projectId: project.id,
     ...(proposal.taskId ? { taskId: proposal.taskId } : {}),
     createdAt: now(),
@@ -498,6 +921,7 @@ export function proposeDesign(owner: string, project: any, input: { ref?: string
     actions: [
       { id: 'approve', label: 'Approve design', primary: true },
       { id: 'changes', label: 'Ask for changes' },
+      { id: 'update', label: 'Ask to update' },
     ],
   };
   // A newer commit replaces the request for the same branch.
@@ -509,22 +933,32 @@ export function proposeDesign(owner: string, project: any, input: { ref?: string
       // Clients rebuild Waiting on you from events, so they must hear about it.
       event(owner, project.id, null, 'v2.inbox', { item: withdrawn });
     }
-  return createInboxItem(owner, item, { source: 'design', projectId: project.id, ...proposal });
+  return createInboxItem(owner, item, {
+    source: 'design',
+    projectId: project.id,
+    ...proposal,
+    summary,
+    changeWords,
+    proposer,
+    previousItemId: previous?.id ?? null,
+    previousCommit: previous?.context.commit ?? null,
+    round: (previous?.context.round ?? 0) + 1,
+  });
 }
 
-// Approving puts the proposal's design files on main; asking for changes records the note on
-// the first changed board and, for an agent's task, sends it to the agent.
+// Approving keeps the existing merge path. Asking sends all unresolved pins and general
+// feedback in the inbox answer transaction, while keeping the board comments in history.
 registerInboxSource('design', (owner, item, body, context) => {
   const project = requireRepository(owner, context.projectId);
   const repo = project.repositoryPath as string;
+  const status = reviewMain(repo, context);
+  if (body.actionId !== 'update' && status.conflicts.length)
+    fail('These screens conflict with main. Ask to update before deciding.', 409);
+  if (body.actionId === 'update' && !status.conflicts.length)
+    fail('This proposal has no conflicts with main. Refresh the review.', 409);
   if (body.actionId === 'approve') {
-    const target = gitSync(repo, [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      `refs/heads/${context.main}^{commit}`,
-    ]);
-    if (!target) fail(`${context.main} has no commits`, 409);
+    // Use exactly the commit checked above; update-ref below rejects a concurrent main move.
+    const target = status.main;
     const commit = copyPaths(repo, {
       target,
       from: context.commit,
@@ -552,14 +986,29 @@ registerInboxSource('design', (owner, item, body, context) => {
     queuePushTrigger(owner, project.id, `refs/heads/${context.main}`, commit);
     return;
   }
-  if (body.actionId !== 'changes') return;
+  if (!['changes', 'update'].includes(body.actionId)) return;
+  const pins = reviewPins(owner, context).filter((pin) => !pin.resolved);
   const note = String(body.note ?? '').trim();
-  const board = (context.paths as string[]).find((path) => path.startsWith('design/boards/'));
-  if (board && note)
+  const content =
+    body.actionId === 'update'
+      ? `Please rebase ${context.branch} onto ${context.main}, update the conflicting screens (${status.conflicts.join(', ')}), and propose again with a summary.`
+      : [
+          note,
+          ...pins.map(
+            (pin) =>
+              `Pin ${pin.number} · ${pin.board}${pin.noteId ? ` · note ${pin.noteId}` : ''} · ${pin.width}px · ${pin.revision} · (${pin.x}, ${pin.y})\n${pin.text}`,
+          ),
+        ]
+          .filter(Boolean)
+          .join('\n\n');
+  if (!content) fail('Add a pin or describe what should change');
+  if (note)
     save('design-comment', owner, {
       id: id(),
       projectId: project.id,
-      board: board.slice('design/boards/'.length),
+      board:
+        context.paths.find((path: string) => path.startsWith('design/boards/'))?.slice(14) ??
+        'canvas.json',
       layer: null,
       text: note,
       commit: context.commit,
@@ -567,14 +1016,22 @@ registerInboxSource('design', (owner, item, body, context) => {
       resolved: false,
       createdAt: now(),
     });
-  if (context.taskId && note) {
-    try {
-      const task = get('task', owner, context.taskId);
-      startRun(owner, task.id, { revision: task.revision, content: note });
-    } catch {
-      // A busy agent still gets the note as a comment on the board.
-    }
+  // The inbox answer transaction makes sending all unresolved pins exactly once per round.
+  if (context.taskId) {
+    const queued = queuedMessage(owner, context.taskId);
+    if (queued?.status === 'queued') {
+      save('queued-message', owner, { ...queued, content: `${queued.content}\n\n${content}` });
+      event(owner, context.taskId, null, 'message.queued', { status: 'queued' });
+    } else queueMessage(owner, context.taskId, { content });
   }
+  save('design-review-feedback', owner, {
+    id: item.id,
+    projectId: project.id,
+    taskId: context.taskId,
+    content,
+    pins: pins.map((pin) => pin.id),
+    createdAt: now(),
+  });
 });
 
 function presentComment(row: any) {
@@ -589,17 +1046,25 @@ function presentComment(row: any) {
     resolved: Boolean(row.resolved),
     createdAt: row.createdAt,
     resolvedAt: row.resolvedAt ?? null,
+    position: row.position ?? null,
+    number: row.number ?? null,
+    reply: row.reply ?? null,
   };
 }
 
 function comments(owner: string, projectId: string, board?: string | null) {
   return list('design-comment', owner)
-    .filter((row: any) => row.projectId === projectId && (!board || row.board === board))
+    .filter(
+      (row: any) =>
+        row.projectId === projectId && !row.deletedAt && (!board || row.board === board),
+    )
     .map(presentComment);
 }
 
 // Renders are keyed by commit, so a cached one never goes stale.
-const renders = new Map<string, Buffer>();
+type BoardRender = { png: Buffer; boxes: Record<string, DesignRect>; textBoxes?: DesignRect[] };
+const renders = new Map<string, BoardRender>();
+const rendering = new Map<string, Promise<BoardRender>>();
 const renderLimit = 64;
 
 /** Render one board at a commit to PNG with headless Chromium on this computer. */
@@ -622,10 +1087,58 @@ export function boardBrowser(
   return exists(candidate) ? candidate : null;
 }
 
-export async function renderBoard(repo: string, commit: string, board: string, width: number) {
-  const key = `${commit}:${board}:${width}`;
+/** Pixel density affects only the PNG; layout and review geometry stay in CSS pixels. */
+export function previewScale(url: URL): number {
+  const scale = Number(url.searchParams.get('scale') ?? 1);
+  if (!Number.isFinite(scale) || scale < 1 || scale > 3) fail('Scale must be 1 to 3');
+  return scale;
+}
+
+export async function renderBoard(
+  repo: string,
+  commit: string,
+  board: string,
+  width: number,
+  height?: number,
+  scale = 1,
+) {
+  return (await renderBoardLayout(repo, commit, board, width, height, scale)).png;
+}
+
+export async function renderBoardLayout(
+  repo: string,
+  commit: string,
+  board: string,
+  width: number,
+  height?: number,
+  scale = 1,
+  draw: typeof drawBoard = drawBoard,
+): Promise<BoardRender> {
+  const key = `${repo}:${commit}:${board}:${width}:${height ?? 'board'}:${scale}`;
   const cached = renders.get(key);
   if (cached) return cached;
+  const pending = rendering.get(key);
+  if (pending) return pending;
+  const job = draw(repo, commit, board, width, height, scale);
+  rendering.set(key, job);
+  try {
+    const rendered = await job;
+    renders.set(key, rendered);
+    if (renders.size > renderLimit) renders.delete(renders.keys().next().value!);
+    return rendered;
+  } finally {
+    rendering.delete(key);
+  }
+}
+
+async function drawBoard(
+  repo: string,
+  commit: string,
+  board: string,
+  width: number,
+  height?: number,
+  scale = 1,
+): Promise<BoardRender> {
   const canvas = await readCanvas(repo, commit);
   const placed = canvas?.boards[board];
   if (!placed) fail(`${board} is not on the canvas at this commit`, 404);
@@ -644,7 +1157,8 @@ export async function renderBoard(repo: string, commit: string, board: string, w
   const browser = await chromium.launch({ executablePath });
   try {
     const context = await browser.newContext({
-      viewport: { width, height: placed.h },
+      viewport: { width, height: height ?? placed.h },
+      deviceScaleFactor: scale,
       javaScriptEnabled: false,
     });
     await context.route('**/*', (route) =>
@@ -654,13 +1168,72 @@ export async function renderBoard(repo: string, commit: string, board: string, w
     );
     const tab = await context.newPage();
     await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
+    await tab.evaluate(() => document.fonts.ready);
+    const { boxes, textBoxes } = await tab.evaluate(() => {
+      const boxes: Record<string, { x: number; y: number; w: number; h: number }> = {};
+      const textBoxes = [];
+      for (const element of document.querySelectorAll<HTMLElement>('[data-layer]')) {
+        const rect = element.getBoundingClientRect();
+        if (
+          !rect.width ||
+          !rect.height ||
+          rect.right <= 0 ||
+          rect.bottom <= 0 ||
+          rect.x >= innerWidth ||
+          rect.y >= innerHeight ||
+          getComputedStyle(element).visibility === 'hidden'
+        )
+          continue;
+        const box = { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
+        boxes[element.dataset.layer!] = box;
+        if (
+          ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName) ||
+          Array.from(element.childNodes).some(
+            (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
+          )
+        )
+          textBoxes.push(box);
+      }
+      return { boxes, textBoxes };
+    });
     const png = await tab.screenshot();
-    renders.set(key, png);
-    if (renders.size > renderLimit) renders.delete(renders.keys().next().value!);
-    return png;
+    return { png, boxes, textBoxes };
   } finally {
     await browser.close();
   }
+}
+
+/** Progressive review payload; the screenshot and rectangles come from the same render. */
+export async function reviewPreview(
+  repo: string,
+  projectId: string,
+  board: DesignReviewScreen,
+  width: number,
+  render: typeof renderBoardLayout = renderBoardLayout,
+  scale = 1,
+): Promise<DesignReviewPreview> {
+  const before = board.added
+    ? null
+    : await render(repo, board.before, board.file, width, board.h, scale);
+  const after = board.removed
+    ? null
+    : await render(repo, board.after, board.file, width, board.h, scale);
+  const areas = reviewAreas(board.changes, before?.boxes ?? {}, after?.boxes ?? {}, width, board.h);
+  const url = (revision: string) =>
+    `/api/v2/projects/${encodeURIComponent(projectId)}/design/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}&scale=${scale}`;
+  return {
+    width,
+    height: board.h,
+    before: before ? url(board.before) : null,
+    after: after ? url(board.after) : null,
+    areas,
+    crop: reviewCrop(
+      width,
+      board.h,
+      areas.flatMap((area) => (area.after || area.before ? [area.after ?? area.before!] : [])),
+      after?.textBoxes,
+    ),
+  };
 }
 
 /** What an agent asked about a layer needs to know: the request, the element, and the rules. */
@@ -812,12 +1385,24 @@ export function designTool(scope: { owner: string; taskId: string }, args: any) 
       if (row.projectId !== project.id) fail('Not found', 404);
       return {
         comment: presentComment(
-          save('design-comment', scope.owner, { ...row, resolved: true, resolvedAt: now() }),
+          save('design-comment', scope.owner, {
+            ...row,
+            resolved: args.resolved !== false,
+            resolvedAt: args.resolved === false ? null : now(),
+            reply: optionalWords(args.reply, 1000) ?? row.reply ?? null,
+          }),
         ),
       };
     }
     case 'propose':
-      return { item: proposeDesign(scope.owner, project, { task: task.id }) };
+      return {
+        item: proposeDesign(scope.owner, project, {
+          task: task.id,
+          title: args.title,
+          summary: args.summary,
+          changeWords: args.changeWords,
+        }),
+      };
     default:
       fail('action must be presence, comments, comment, resolve or propose');
   }
@@ -825,6 +1410,19 @@ export function designTool(scope: { owner: string; taskId: string }, args: any) 
 
 export async function designApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const url = new URL(req.url!, 'http://localhost');
+  if (url.pathname === '/api/v2/design/reviews' && req.method === 'GET') {
+    const projectId = url.searchParams.get('project');
+    const proposals = list('v2-inbox-native', owner)
+      .filter(
+        (row) =>
+          row.context?.source === 'design' &&
+          row.item.state === 'waiting' &&
+          (!projectId || row.context.projectId === projectId),
+      )
+      .map((row) => reviewSummary(owner, requireRepository(owner, row.context.projectId), row))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return sendJson(res, { proposals });
+  }
   // Every project and how many boards its design has on main, for the project picker.
   if (url.pathname === '/api/v2/design/projects' && req.method === 'GET') {
     const projects = list('project', owner).filter((row: any) => row.repositoryPath);
@@ -832,11 +1430,19 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       projects.map(async (row: any) => {
         let boards = 0;
         try {
-          boards = Object.keys((await readCanvas(row.repositoryPath, 'HEAD'))?.boards ?? {}).length;
+          boards = Object.keys(
+            (await readCanvas(row.repositoryPath, `refs/heads/${mainBranch(row.repositoryPath)}`))
+              ?.boards ?? {},
+          ).length;
         } catch {
           // A canvas that is not valid JSON counts as no design.
         }
-        return { id: row.id, name: row.name, boards };
+        return {
+          id: row.id,
+          name: row.name ?? row.id,
+          description: row.description ?? null,
+          boards,
+        };
       }),
     );
     return sendJson(res, { projects: designs });
@@ -1015,7 +1621,12 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
     const width = Number(url.searchParams.get('width') ?? 1440);
     if (!Number.isInteger(width) || width < 320 || width > 2560) fail('Width must be 320 to 2560');
-    const png = await renderBoard(repo, commit, board, width);
+    const height = url.searchParams.has('height')
+      ? Number(url.searchParams.get('height'))
+      : undefined;
+    if (height !== undefined && (!Number.isInteger(height) || height < 64 || height > 20000))
+      fail('Height must be 64 to 20000');
+    const png = await renderBoard(repo, commit, board, width, height, previewScale(url));
     res.writeHead(200, {
       'Content-Type': 'image/png',
       'Content-Length': png.length,
@@ -1363,7 +1974,15 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const body = await readJson(req);
     return sendJson(
       res,
-      { item: proposeDesign(owner, project, { ref: body?.ref, task: body?.task }) },
+      {
+        item: proposeDesign(owner, project, {
+          ref: body?.ref,
+          task: body?.task,
+          title: body?.title,
+          summary: body?.summary,
+          changeWords: body?.changeWords,
+        }),
+      },
       201,
     );
   }
@@ -1372,76 +1991,52 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   if (sub === '/presence' && req.method === 'GET')
     return sendJson(res, { agents: livePresence(owner, project.id) });
 
-  // Open design reviews of this project, newest first.
-  // One design review, as the apps show it: the request, Before and After, and per changed board
-  // its page, size, notes and the changes in a line each.
   if (sub === '/review' && req.method === 'GET') {
-    const id = String(url.searchParams.get('item') ?? '');
-    if (!id.startsWith(`design:${project.id}:`)) fail('Name a design review of this project', 404);
-    const row = list('v2-inbox-native', owner).find((entry: any) => entry.id === id);
-    const item = syncInbox(owner).find((entry) => entry.id === id);
-    if (!row || !item) fail('No such design review', 404);
-    const context = row!.context;
-    const canvas = await readCanvas(repo, context.commit);
-    const beforeCanvas = await readCanvas(repo, context.base);
-    const pages = canvas ? sections(canvas) : [];
-    const beforePages = beforeCanvas ? sections(beforeCanvas) : [];
-    const boards = [];
-    for (const path of (context.paths as string[]).filter((entry) =>
-      entry.startsWith('design/boards/'),
-    )) {
-      const file = path.slice('design/boards/'.length);
-      const before = (await readFile(repo, context.base, path))?.toString() ?? null;
-      const after = (await readFile(repo, context.commit, path))?.toString() ?? null;
-      const placed = canvas?.boards[file] ?? beforeCanvas?.boards[file];
-      const page = (after ? pages : beforePages).find((section) => section.boards.includes(file));
-      const changes = before && after ? layerChanges(before, after) : [];
-      const notes = await readFile(
-        repo,
-        after ? context.commit : context.base,
-        `design/notes/${file.replace(/\.html$/, '.md')}`,
-      );
-      boards.push({
-        file,
-        title: placed?.title ?? file.replace(/\.html$/, ''),
-        w: placed?.w ?? 1440,
-        h: placed?.h ?? 900,
-        page: page?.title ?? null,
-        index: page ? page.boards.indexOf(file) + 1 : null,
-        count: page?.boards.length ?? null,
-        added: !before,
-        removed: !after,
-        notes: notes ? notes.toString().slice(0, 2000) : null,
-        lines: changes.slice(0, 12).map((change) => {
-          const snippet = after ? layerSnippet(after, change.layer) : null;
-          const own = snippet ? snippet.replace(/<[^>]+>/g, ' ') : '';
-          return describeChange(change, layerLabel(change.layer, own));
-        }),
-      });
+    const row = reviewRow(owner, project.id, url.searchParams.get('item'));
+    const review = designReview(owner, project, row);
+    if (url.searchParams.get('previews') === 'all') {
+      for (const board of review.boards) {
+        board.previews = {};
+        for (const width of board.widths)
+          board.previews[width] = await reviewPreview(repo, project.id, board, width);
+      }
     }
-    let task: string | null = null;
-    try {
-      task = context.taskId ? String(get('task', owner, context.taskId).title) : null;
-    } catch {
-      // A removed task leaves the review without its name.
-    }
-    // Canvas notes the branch rewrote, line by line, each with the page it sits on.
-    const notes = (context.paths as string[]).includes('design/canvas.json')
-      ? noteChanges(await readCanvas(repo, context.base), canvas).map((change) => {
-          const note = canvas?.notes?.[change.id];
-          const page = note ? sectionAt(pages, note)?.title : null;
-          return { ...change, page: change.id.startsWith('section-') ? null : (page ?? null) };
-        })
-      : [];
-    return sendJson(res, {
-      item,
-      task,
-      branch: context.branch,
-      before: context.base,
-      after: context.commit,
-      boards,
-      notes,
+    return sendJson(res, review);
+  }
+
+  if (sub === '/review/preview' && req.method === 'GET') {
+    const row = reviewRow(owner, project.id, url.searchParams.get('item'));
+    const boards =
+      reviewScreens.get(reviewScreenKey(repo, row)) ?? designReview(owner, project, row).boards;
+    const board = boards.find((entry) => entry.file === url.searchParams.get('board'));
+    const width = Number(url.searchParams.get('width'));
+    if (!board || !board.widths.includes(width)) fail('Name a screen and one of its widths');
+    return sendJson(
+      res,
+      await reviewPreview(repo, project.id, board!, width, undefined, previewScale(url)),
+    );
+  }
+
+  if (sub === '/review/seen' && req.method === 'POST') {
+    const body = await readJson(req);
+    const row = reviewRow(owner, project.id, body?.item);
+    const review = designReview(owner, project, row);
+    const board = review.boards.find((entry) => entry.file === body?.board);
+    if (!board || body?.revision !== review.after)
+      fail('Name a screen at this proposal revision', 409);
+    save('design-review-seen', owner, {
+      id: `${row.id}:${board!.file}`,
+      itemId: row.id,
+      board: board!.file,
+      revision: review.after,
+      seenAt: now(),
     });
+    return sendJson(res, { seen: true });
+  }
+
+  if (sub === '/review/pins' && ['POST', 'PATCH', 'DELETE'].includes(req.method!)) {
+    const body = await readJson(req);
+    return sendJson(res, mutateReviewPin(owner, project, req.method!, body));
   }
 
   if (sub === '/proposals' && req.method === 'GET') {
@@ -1457,6 +2052,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .map((item) => ({
         ...item,
+        ...reviewSummary(owner, project, { item, context: contexts.get(item.id) }),
         branch: contexts.get(item.id)?.branch ?? null,
         boards: ((contexts.get(item.id)?.paths ?? []) as string[])
           .filter((path) => path.startsWith('design/boards/'))

@@ -66,6 +66,18 @@ function Decision({ item }: { item: InboxItem }) {
   }
   const closed = item.state !== 'waiting';
   const name = item.fromName || agentName(item.from);
+  if (item.id.startsWith('design:') && !closed)
+    return (
+      <article className="dl-approval">
+        <div className="dl-approval-head">
+          <SavedAgentAvatar id={item.from} />
+          <h3 className="dl-approval-title">{item.title}</h3>
+        </div>
+        <a className="dl-btn primary" href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}>
+          Review
+        </a>
+      </article>
+    );
   return (
     <div className="dl-inbox-decision" id={`decision-${item.id}`}>
       {closed ? (
