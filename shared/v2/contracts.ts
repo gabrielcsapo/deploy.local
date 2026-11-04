@@ -316,6 +316,7 @@ export type LooksAfterItem = {
   confirmedAt?: string;
   nextAt?: string;
 };
+// Replies saved before Looks after receipts replaced job receipts may still hold { kind: 'job' }; it is not shown.
 export type AgentReceipt = { kind: 'job' } | { kind: 'looks-after'; itemId: string };
 export type AgentConfiguration = Agent & {
   avatar?: AgentAvatar;

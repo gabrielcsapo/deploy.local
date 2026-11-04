@@ -239,8 +239,7 @@ struct V2ConversationView: View {
                 }
             }
             ForEach(Array((value.receipts ?? []).enumerated()), id: \.offset) { _, receipt in
-                if receipt.kind == "job" { HStack { Text("Saved to What it does ·"); Button("Edit") { info = true } }.font(.system(size: 13)).foregroundStyle(.secondary) }
-                else if let item = savedAgent?.looksAfter?.first(where: { $0.id == receipt.itemId }) {
+                if receipt.kind == "looks-after", let item = savedAgent?.looksAfter?.first(where: { $0.id == receipt.itemId }) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.confirmedAt == nil ? "Now looks after: \(item.what) · \(item.summary(projects: store.snapshot.projects))" : "Confirmed · first check \(item.whenLabel)")
                         HStack {

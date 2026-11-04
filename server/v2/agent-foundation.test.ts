@@ -107,7 +107,7 @@ test('teaching is atomic, receipts are stored, uncertain and invalid replies can
   assert.equal(updated.looksAfter?.length, 1);
   assert.equal(updated.looksAfter?.[0].confirmedAt, undefined);
   const reply = agentConversation(owner, agent.id).find((e) => e.kind === 'reply');
-  assert.equal(reply?.kind === 'reply' && reply.receipts?.length, 2);
+  assert.deepEqual(reply?.kind === 'reply' && reply.receipts?.map((r) => r.kind), ['looks-after']);
   saveAgentReply(
     owner,
     agent,

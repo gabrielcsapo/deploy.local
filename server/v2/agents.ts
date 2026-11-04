@@ -539,10 +539,8 @@ export function saveAgentReply(
     const current = agentForOwner(owner, agentId);
     if (current.job !== agent.job) fail('Instructions changed while replying. Try again.', 409);
     const receipts: AgentReceipt[] = [];
-    if (extracted.job !== null) {
-      current.job = extracted.job.trim();
-      receipts.push({ kind: 'job' });
-    }
+    // A changed job is saved quietly; only a new Looks after item gets a receipt to confirm.
+    if (extracted.job !== null) current.job = extracted.job.trim();
     if (extracted.item) {
       if ((current.looksAfter?.length ?? 0) >= 100)
         fail('An agent can have at most 100 Looks after items');

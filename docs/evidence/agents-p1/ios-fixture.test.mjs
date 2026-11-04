@@ -70,7 +70,7 @@ test('hello, taught, beat and item/history scenarios preserve phase-1 content', 
   const taught = (await request('/api/v2/agents/release-notes-writer/conversation')).data.events;
   assert.deepEqual(
     taught[1].receipts.map((receipt) => receipt.kind),
-    ['job', 'looks-after'],
+    ['looks-after'],
   );
   const itemPath = '/api/v2/agents/release-notes-writer/items/draft-release-notes';
   assert.equal(

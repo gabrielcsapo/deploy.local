@@ -124,7 +124,7 @@ const taught = [
       'I’ll draft the week’s home-gym changes in warm, plain language, grouped into features and fixes. I’ll ask before publishing.',
       'I’ve saved those instructions. For Fridays, I suggest 16:00 on SER’s clock; review and confirm the Looks after item before it starts.',
     ],
-    [{ kind: 'job' }, { kind: 'looks-after', itemId: releaseItem.id }],
+    [{ kind: 'looks-after', itemId: releaseItem.id }],
   ),
 ];
 const beat = [

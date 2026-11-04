@@ -114,41 +114,34 @@ export function AgentConversation({
         )}
         {event.kind === 'reply' &&
           event.receipts?.map((receipt, i) =>
-            receipt.kind === 'job' ? (
-              <div className="dl-agent-receipt" key={i}>
-                Saved to What it does ·{' '}
-                <a className="dl-link" href={`/dashboard${path}/tune`}>
-                  Edit
-                </a>
-              </div>
-            ) : (
-              (() => {
-                const item = agent.looksAfter?.find((v) => v.id === receipt.itemId);
-                return item ? (
-                  <div className="dl-agent-receipt" key={i}>
-                    {item.confirmedAt
-                      ? `Confirmed · first check ${item.when.every === 'week' ? `${weekDays[item.when.day ?? 1]} ${item.when.time}` : itemWhen(item)}`
-                      : `Now looks after: ${item.what.split('\n')[0]} · ${itemSummary(item, projects)}`}{' '}
-                    ·{' '}
-                    {!item.confirmedAt && (
-                      <>
-                        <Action
-                          variant="primary"
-                          disabled={busy}
-                          onClick={() => void confirm(item)}
-                        >
-                          Confirm
-                        </Action>{' '}
-                        ·{' '}
-                      </>
-                    )}
-                    <button type="button" className="dl-link" onClick={() => setEdit(item)}>
-                      Edit
-                    </button>
-                  </div>
-                ) : null;
-              })()
-            ),
+            receipt.kind !== 'looks-after'
+              ? null
+              : (() => {
+                  const item = agent.looksAfter?.find((v) => v.id === receipt.itemId);
+                  return item ? (
+                    <div className="dl-agent-receipt" key={i}>
+                      {item.confirmedAt
+                        ? `Confirmed · first check ${item.when.every === 'week' ? `${weekDays[item.when.day ?? 1]} ${item.when.time}` : itemWhen(item)}`
+                        : `Now looks after: ${item.what.split('\n')[0]} · ${itemSummary(item, projects)}`}{' '}
+                      ·{' '}
+                      {!item.confirmedAt && (
+                        <>
+                          <Action
+                            variant="primary"
+                            disabled={busy}
+                            onClick={() => void confirm(item)}
+                          >
+                            Confirm
+                          </Action>{' '}
+                          ·{' '}
+                        </>
+                      )}
+                      <button type="button" className="dl-link" onClick={() => setEdit(item)}>
+                        Edit
+                      </button>
+                    </div>
+                  ) : null;
+                })(),
           )}
       </div>
     );
