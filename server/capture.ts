@@ -135,6 +135,32 @@ export interface CaptureRecord {
   } | null;
 }
 
+// Headers that carry credentials are saved as "hidden": a capture is shown in the dashboard and
+// sits on disk for 14 days, and neither should hold someone's session or token.
+const SECRET_HEADER =
+  /^(cookie|set-cookie|authorization|proxy-authorization)$|token|secret|api-key|password/i;
+
+export function hideSecrets(
+  headers: Record<string, string | string[] | undefined>,
+): Record<string, string | string[] | undefined> {
+  return Object.fromEntries(
+    Object.entries(headers).map(([name, value]) => [
+      name,
+      value !== undefined && SECRET_HEADER.test(name) ? 'hidden' : value,
+    ]),
+  );
+}
+
+function withSecretsHidden(record: CaptureRecord): CaptureRecord {
+  return {
+    ...record,
+    request: { ...record.request, headers: hideSecrets(record.request.headers ?? {}) },
+    response: record.response
+      ? { ...record.response, headers: hideSecrets(record.response.headers ?? {}) }
+      : null,
+  };
+}
+
 const rateState = new Map<string, { windowStart: number; count: number }>();
 
 /**
@@ -164,9 +190,11 @@ export function writeCapture(record: CaptureRecord): void {
       mkdirSync(dir, { recursive: true });
       ensuredDirs.add(dir);
     }
-    void writeFile(join(dir, `${record.id}.json`), JSON.stringify(record)).catch((err) => {
-      console.error('[capture] write failed:', err);
-    });
+    void writeFile(join(dir, `${record.id}.json`), JSON.stringify(withSecretsHidden(record))).catch(
+      (err) => {
+        console.error('[capture] write failed:', err);
+      },
+    );
   } catch (err) {
     console.error('[capture] write failed:', err);
   }
@@ -181,7 +209,8 @@ export async function readCapture(
   if (!SAFE_ID.test(id)) return null;
   const file = join(captureRoot(), sanitizeName(deploymentName), `${id}.json`);
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as CaptureRecord;
+    // Captures written before secrets were hidden still hold them on disk until they age out.
+    return withSecretsHidden(JSON.parse(await readFile(file, 'utf8')) as CaptureRecord);
   } catch {
     return null;
   }

@@ -14,6 +14,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { answerInbox, fail, syncInbox } from './inbox.ts';
 import { tasksApi } from './tasks.ts';
 import { liveApi } from './live.ts';
+import { requestsApi } from './requests.ts';
 import { pushApi } from './push.ts';
 import { waitForV2Events } from './events.ts';
 
@@ -47,6 +48,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (await settingsApi(req, res, auth.username)) return;
     if (await agentsApi(req, res, auth.username)) return;
     if (await releasesApi(req, res, auth.username)) return;
+    if (await requestsApi(req, res, auth.username)) return;
     if (req.method === 'GET' && path === '/inbox') {
       const state = url.searchParams.get('state') ?? 'waiting';
       if (!['waiting', 'answered'].includes(state)) fail('State must be waiting or answered');

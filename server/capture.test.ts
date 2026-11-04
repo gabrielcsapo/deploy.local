@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { mkdtempSync } from 'node:fs';
-import { utimes, readdir } from 'node:fs/promises';
+import { utimes, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -93,6 +93,37 @@ describe('capture files', () => {
     assert.ok(loaded);
     assert.strictEqual(loaded!.status, 500);
     assert.strictEqual(loaded!.response!.body, 'boom');
+  });
+
+  test('cookies, authorization and tokens are hidden on disk and when read back', async () => {
+    const id = beginCapture('secret-app')!;
+    const record = makeRecord('secret-app', id);
+    record.request.headers = {
+      'content-type': 'application/json',
+      cookie: 'session=abc',
+      authorization: 'Bearer xyz',
+      'x-deploy-token': 't0k3n',
+    } as typeof record.request.headers;
+    record.response.headers = {
+      'set-cookie': 'session=def',
+    } as unknown as typeof record.response.headers;
+    writeCapture(record);
+    await sleep(50);
+    const file = join(process.env.DEPLOY_DATA_DIR!, 'captures', 'secret-app', `${id}.json`);
+    const raw = await readFile(file, 'utf8');
+    assert.ok(!/abc|xyz|t0k3n|def/.test(raw), raw);
+    const read = await readCapture('secret-app', id);
+    assert.deepStrictEqual(read!.request.headers, {
+      'content-type': 'application/json',
+      cookie: 'hidden',
+      authorization: 'hidden',
+      'x-deploy-token': 'hidden',
+    });
+    assert.deepStrictEqual(read!.response!.headers, { 'set-cookie': 'hidden' });
+
+    // A capture saved before secrets were hidden is hidden when read.
+    await writeFile(file, JSON.stringify({ ...record, id }));
+    assert.strictEqual((await readCapture('secret-app', id))!.request.headers.cookie, 'hidden');
   });
 
   test('readCapture rejects unsafe ids', async () => {

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useLocation, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
@@ -23,6 +23,8 @@ import { AppOverview, Health, ReleaseList } from './app.client';
 import { ProjectCode, ProjectIssues } from './code.client';
 import { ProjectConfiguration } from './settings.client';
 import { ProjectLogs } from './logs.client';
+import { AppRequest, AppRequests } from './requests.client';
+import { formatRequestClock, type RequestDetail } from './requests';
 import './projects.css';
 import { formatTime } from '../data/time';
 import { remembered, useInbox, useResource } from '../data/hooks';
@@ -31,7 +33,7 @@ import type { TaskPull } from '../tasks/types';
 import { parsePatch } from '../tasks/api';
 import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
 
-function Header({ title, subtitle }: { title: string; subtitle?: string }) {
+function Header({ title, subtitle }: { title: ReactNode; subtitle?: string }) {
   return (
     <Head
       title={title}
@@ -91,6 +93,8 @@ export default function Projects() {
       section={parts[3] || ''}
       appKey={parts[4]}
       appSettings={parts[5] === 'settings'}
+      appRequests={parts[5] === 'requests'}
+      requestId={parts[5] === 'requests' ? parts[6] : undefined}
       search={search}
     />
   ) : (
@@ -235,12 +239,16 @@ function ProjectPage({
   section,
   appKey,
   appSettings,
+  appRequests,
+  requestId,
   search,
 }: {
   projectKey: string;
   section: string;
   appKey?: string;
   appSettings: boolean;
+  appRequests: boolean;
+  requestId?: string;
   search: string;
 }) {
   const overview = useData<Overview>(`/api/v2/projects/${projectSegment(projectKey)}/overview`);
@@ -302,6 +310,15 @@ function ProjectPage({
   const selectedApp = appKey
     ? project?.apps.find((app) => app.id === appKey || app.name === appKey)
     : undefined;
+  const appBase = selectedApp ? `${base}/apps/${projectSegment(selectedApp.name)}` : '';
+  const liveAddress = live.data?.computers
+    .flatMap((computer) => computer.apps)
+    .find((app) => app.appId === selectedApp?.name)?.address;
+  const requestDetail = useData<RequestDetail>(
+    selectedApp && requestId
+      ? `/api/v2/apps/${projectSegment(selectedApp.name)}/requests/${encodeURIComponent(requestId)}`
+      : undefined,
+  );
   const single =
     project?.apps.length === 1 &&
     !data?.tasks.length &&
@@ -327,6 +344,17 @@ function ProjectPage({
     <>
       <Header
         title={
+          (selectedApp && requestId && (
+            <nav className="v2-crumbs" aria-label="Breadcrumb">
+              <a href={appBase}>{selectedApp.name}</a>
+              <Icon name="chevron" size={14} />
+              <a href={`${appBase}/requests`}>Requests</a>
+              <Icon name="chevron" size={14} />
+              <span className="dl-truncate" aria-current="page">
+                {requestDetail.data ? formatRequestClock(requestDetail.data.request.at) : 'Request'}
+              </span>
+            </nav>
+          )) ||
           selectedApp?.name ||
           project?.name ||
           // Until the project loads, its name from the project list, never its ID.
@@ -336,13 +364,17 @@ function ProjectPage({
           ''
         }
         subtitle={
-          selectedApp
-            ? `${selectedApp.kind === 'worker' ? 'Worker' : 'Web app'} in ${project?.name}`
-            : 'Project'
+          selectedApp && requestId
+            ? undefined
+            : selectedApp
+              ? `${selectedApp.kind === 'worker' ? 'Worker' : 'Web app'} in ${project?.name}`
+              : 'Project'
         }
       />
       <div className="dl-scroll">
-        <div className="dl-page wide v2-project-page v2-project-detail">
+        <div
+          className={`dl-page ${appRequests ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
+        >
           {overview.error && (
             <Banner
               title={overview.error}
@@ -350,211 +382,230 @@ function ProjectPage({
             />
           )}
           {!data && !overview.error && <Skeleton rows={4} />}
-          {project && data && (
-            <>
-              <Tabs
-                value={
-                  selectedApp
-                    ? `${base}/apps/${projectSegment(selectedApp.name)}${appSettings ? '/settings' : ''}`
-                    : appList
-                      ? `${base}?tab=apps`
-                      : section
-                        ? `${base}/${section}`
-                        : base
-                }
-                items={
-                  selectedApp
-                    ? [
-                        {
-                          label: 'Overview',
-                          href: `${base}/apps/${projectSegment(selectedApp.name)}`,
-                        },
-                        {
-                          label: 'Settings',
-                          href: `${base}/apps/${projectSegment(selectedApp.name)}/settings`,
-                        },
-                      ]
-                    : projectTabItems(base, data, releases.length)
-                }
-              />
-              {selectedApp && (
-                <a className="dl-meta" href={base}>
-                  ← {project.name}
-                </a>
-              )}
-              {history.error && (
-                <Banner
-                  title="Release history is unavailable"
-                  action={<Action onClick={history.refresh}>Retry</Action>}
+          {project && data && selectedApp && requestId ? (
+            <AppRequest
+              app={selectedApp.name}
+              detail={requestDetail}
+              base={`${appBase}/requests`}
+              logs={`${base}/logs?app=${encodeURIComponent(selectedApp.name)}`}
+            />
+          ) : (
+            project &&
+            data && (
+              <>
+                <Tabs
+                  value={
+                    selectedApp
+                      ? `${appBase}${appSettings ? '/settings' : appRequests ? '/requests' : ''}`
+                      : appList
+                        ? `${base}?tab=apps`
+                        : section
+                          ? `${base}/${section}`
+                          : base
+                  }
+                  items={
+                    selectedApp
+                      ? [
+                          {
+                            label: 'Overview',
+                            href: `${base}/apps/${projectSegment(selectedApp.name)}`,
+                          },
+                          ...(selectedApp.kind === 'worker'
+                            ? []
+                            : [{ label: 'Requests', href: `${appBase}/requests` }]),
+                          {
+                            label: 'Settings',
+                            href: `${base}/apps/${projectSegment(selectedApp.name)}/settings`,
+                          },
+                        ]
+                      : projectTabItems(base, data, releases.length)
+                  }
                 />
-              )}
-              {section === 'code' ? (
-                <ProjectCode overview={data} />
-              ) : section === 'issues' ? (
-                <ProjectIssues overview={data} refresh={overview.refresh} />
-              ) : section === 'settings' ? (
-                <ProjectConfiguration project={project} overview={data} />
-              ) : section === 'logs' ? (
-                <ProjectLogs project={project} selected={params.get('app') || ''} />
-              ) : selectedApp ? (
-                <AppOverview
-                  project={project}
-                  app={selectedApp}
-                  overview={data}
-                  releases={releases}
-                  settings={appSettings}
-                />
-              ) : section === 'apps' ? (
-                <Empty title="App not found">This app does not belong to this project.</Empty>
-              ) : appList ? (
-                <>
-                  <Group title="Apps">
-                    {project.apps.map((app) => (
-                      <Item
-                        key={app.id}
-                        title={app.name}
-                        description={app.kind === 'worker' ? 'Worker' : 'Web app'}
-                        href={`${base}/apps/${projectSegment(app.name)}`}
-                      />
-                    ))}
-                  </Group>
-                  <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
-                </>
-              ) : single ? (
-                <>
+                {selectedApp && (
+                  <a className="dl-meta" href={base}>
+                    ← {project.name}
+                  </a>
+                )}
+                {history.error && (
+                  <Banner
+                    title="Release history is unavailable"
+                    action={<Action onClick={history.refresh}>Retry</Action>}
+                  />
+                )}
+                {section === 'code' ? (
+                  <ProjectCode overview={data} />
+                ) : section === 'issues' ? (
+                  <ProjectIssues overview={data} refresh={overview.refresh} />
+                ) : section === 'settings' ? (
+                  <ProjectConfiguration project={project} overview={data} />
+                ) : section === 'logs' ? (
+                  <ProjectLogs project={project} selected={params.get('app') || ''} />
+                ) : selectedApp && appRequests && selectedApp.kind !== 'worker' ? (
+                  <AppRequests
+                    app={selectedApp.name}
+                    address={liveAddress}
+                    base={`${appBase}/requests`}
+                  />
+                ) : selectedApp ? (
                   <AppOverview
                     project={project}
-                    app={project.apps[0]}
+                    app={selectedApp}
                     overview={data}
                     releases={releases}
+                    settings={appSettings}
                   />
-                  <p className="dl-meta">
-                    Pull requests and issues get their own tabs once there are some. Add a second
-                    app and an Apps tab appears.
-                  </p>
-                  <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
-                </>
-              ) : (
-                <>
-                  <div className="dl-stats">
-                    <div className="dl-stat">
-                      <span className="dl-meta">Open work</span>
-                      <span className="dl-v">
-                        {data.tasks.filter((task) => task.status !== 'completed').length}
-                      </span>
-                      <span className="dl-meta">
-                        {running} running ·{' '}
-                        {inbox.loading
-                          ? 'Loading decisions…'
-                          : inbox.error
-                            ? 'Decisions unavailable'
-                            : `${waiting.length} waiting on you`}
-                      </span>
-                    </div>
-                    <div className="dl-stat">
-                      <span className="dl-meta">Pull requests</span>
-                      <span className="dl-v">
-                        {data.pulls.filter((pull) => pull.state === 'open').length}
-                      </span>
-                      <span className="dl-meta">
-                        {readyPull
-                          ? `#${readyPull.number} ready to merge`
-                          : pulls.error
-                            ? 'Review status unavailable'
-                            : 'None ready to merge'}
-                      </span>
-                    </div>
-                    <div className="dl-stat">
-                      <span className="dl-meta">Shipped this week</span>
-                      <span className="dl-v">
-                        {
-                          releases.filter(
-                            (release) =>
-                              ['live', 'superseded'].includes(release.state) &&
-                              Date.parse(release.steps[0]?.startedAt || '') >
-                                Date.now() - 7 * 86400000,
-                          ).length
-                        }
-                      </span>
-                      <span className="dl-meta">
-                        {latest ? `Last ${formatTime(latest)}` : 'No releases yet'}
-                      </span>
-                    </div>
-                  </div>
-                  {runningApps.length > 0 && (
-                    <section className="dl-section">
-                      <h2 className="dl-section-title">Running</h2>
-                      <p className="dl-section-sub">
-                        {runningSubtitle(
-                          runningApps.map(({ app }) => app),
-                          repositoryName(data.repository?.source),
-                        )}
-                      </p>
-                      <Group>
-                        {runningApps.map(({ app, computer }) => (
-                          <Item
-                            key={app.appId}
-                            title={app.name}
-                            lead={
-                              <Glyph kind="plain">
-                                <svg
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.75"
-                                  aria-hidden="true"
-                                >
-                                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                                </svg>
-                              </Glyph>
-                            }
-                            description={`${app.kind === 'worker' ? 'Worker' : 'Web app'} · ${appAddress(app)} · ${computer}`}
-                            end={<Health app={app} />}
-                            href={`/dashboard/live/${projectSegment(app.appId)}`}
-                          >
-                            <span className="dl-c dl-mono dl-hide-narrow">
-                              {releaseLabel(app.release, app.source)}
-                            </span>
-                          </Item>
-                        ))}
-                      </Group>
-                    </section>
-                  )}
-                  <div className="dl-cols">
-                    <section className="dl-section">
-                      <h2 className="dl-section-title">Work</h2>
-                      {waiting.length > 0 && (
-                        <p className="dl-section-sub">
-                          {waiting.length} {waiting.length === 1 ? 'decision' : 'decisions'} for
-                          this project {waiting.length === 1 ? 'is' : 'are'} in{' '}
-                          <a href="/dashboard/inbox">Waiting on you</a>.
-                        </p>
-                      )}
-                      <Group>
-                        {data.tasks.map((task) => (
-                          <WorkRow key={task.id} task={task} runs={workspace.data?.runs || []} />
-                        ))}
-                        {!data.tasks.length && (
-                          <Item
-                            title="No work yet"
-                            description="Start a new task for this project."
-                          />
-                        )}
-                      </Group>
-                    </section>
-                    <ReleaseList project={project} releases={releases} />
-                  </div>
-                  {project.apps.length < 2 && (
+                ) : section === 'apps' ? (
+                  <Empty title="App not found">This app does not belong to this project.</Empty>
+                ) : appList ? (
+                  <>
+                    <Group title="Apps">
+                      {project.apps.map((app) => (
+                        <Item
+                          key={app.id}
+                          title={app.name}
+                          description={app.kind === 'worker' ? 'Worker' : 'Web app'}
+                          href={`${base}/apps/${projectSegment(app.name)}`}
+                        />
+                      ))}
+                    </Group>
                     <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
-                  )}
-                </>
-              )}
-            </>
+                  </>
+                ) : single ? (
+                  <>
+                    <AppOverview
+                      project={project}
+                      app={project.apps[0]}
+                      overview={data}
+                      releases={releases}
+                    />
+                    <p className="dl-meta">
+                      Pull requests and issues get their own tabs once there are some. Add a second
+                      app and an Apps tab appears.
+                    </p>
+                    <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                  </>
+                ) : (
+                  <>
+                    <div className="dl-stats">
+                      <div className="dl-stat">
+                        <span className="dl-meta">Open work</span>
+                        <span className="dl-v">
+                          {data.tasks.filter((task) => task.status !== 'completed').length}
+                        </span>
+                        <span className="dl-meta">
+                          {running} running ·{' '}
+                          {inbox.loading
+                            ? 'Loading decisions…'
+                            : inbox.error
+                              ? 'Decisions unavailable'
+                              : `${waiting.length} waiting on you`}
+                        </span>
+                      </div>
+                      <div className="dl-stat">
+                        <span className="dl-meta">Pull requests</span>
+                        <span className="dl-v">
+                          {data.pulls.filter((pull) => pull.state === 'open').length}
+                        </span>
+                        <span className="dl-meta">
+                          {readyPull
+                            ? `#${readyPull.number} ready to merge`
+                            : pulls.error
+                              ? 'Review status unavailable'
+                              : 'None ready to merge'}
+                        </span>
+                      </div>
+                      <div className="dl-stat">
+                        <span className="dl-meta">Shipped this week</span>
+                        <span className="dl-v">
+                          {
+                            releases.filter(
+                              (release) =>
+                                ['live', 'superseded'].includes(release.state) &&
+                                Date.parse(release.steps[0]?.startedAt || '') >
+                                  Date.now() - 7 * 86400000,
+                            ).length
+                          }
+                        </span>
+                        <span className="dl-meta">
+                          {latest ? `Last ${formatTime(latest)}` : 'No releases yet'}
+                        </span>
+                      </div>
+                    </div>
+                    {runningApps.length > 0 && (
+                      <section className="dl-section">
+                        <h2 className="dl-section-title">Running</h2>
+                        <p className="dl-section-sub">
+                          {runningSubtitle(
+                            runningApps.map(({ app }) => app),
+                            repositoryName(data.repository?.source),
+                          )}
+                        </p>
+                        <Group>
+                          {runningApps.map(({ app, computer }) => (
+                            <Item
+                              key={app.appId}
+                              title={app.name}
+                              lead={
+                                <Glyph kind="plain">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.75"
+                                    aria-hidden="true"
+                                  >
+                                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                                  </svg>
+                                </Glyph>
+                              }
+                              description={`${app.kind === 'worker' ? 'Worker' : 'Web app'} · ${appAddress(app)} · ${computer}`}
+                              end={<Health app={app} />}
+                              href={`/dashboard/live/${projectSegment(app.appId)}`}
+                            >
+                              <span className="dl-c dl-mono dl-hide-narrow">
+                                {releaseLabel(app.release, app.source)}
+                              </span>
+                            </Item>
+                          ))}
+                        </Group>
+                      </section>
+                    )}
+                    <div className="dl-cols">
+                      <section className="dl-section">
+                        <h2 className="dl-section-title">Work</h2>
+                        {waiting.length > 0 && (
+                          <p className="dl-section-sub">
+                            {waiting.length} {waiting.length === 1 ? 'decision' : 'decisions'} for
+                            this project {waiting.length === 1 ? 'is' : 'are'} in{' '}
+                            <a href="/dashboard/inbox">Waiting on you</a>.
+                          </p>
+                        )}
+                        <Group>
+                          {data.tasks.map((task) => (
+                            <WorkRow key={task.id} task={task} runs={workspace.data?.runs || []} />
+                          ))}
+                          {!data.tasks.length && (
+                            <Item
+                              title="No work yet"
+                              description="Start a new task for this project."
+                            />
+                          )}
+                        </Group>
+                      </section>
+                      <ReleaseList project={project} releases={releases} />
+                    </div>
+                    {project.apps.length < 2 && (
+                      <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                    )}
+                  </>
+                )}
+              </>
+            )
           )}
         </div>
       </div>

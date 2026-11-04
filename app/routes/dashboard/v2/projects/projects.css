@@ -138,3 +138,123 @@
 .v2-release-count {
   width: 64px;
 }
+
+.v2-requests-head {
+  align-items: center;
+  margin-top: 8px;
+}
+.v2-requests-stats {
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+}
+.v2-requests-bad {
+  color: var(--ds-danger);
+}
+.v2-requests-chart {
+  gap: 8px;
+}
+.v2-requests-chart svg {
+  display: block;
+}
+.v2-requests-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.v2-requests-legend .dl-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.v2-requests-key {
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  background: var(--ds-secondary);
+}
+.v2-requests-key.error {
+  background: var(--ds-danger);
+}
+.v2-requests-peak {
+  margin-left: auto;
+}
+.v2-requests-grid {
+  stroke: var(--ds-line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.v2-requests-release {
+  stroke: var(--ds-edge);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+.v2-requests-line {
+  fill: none;
+  stroke: var(--ds-secondary);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.v2-requests-line.error {
+  stroke: var(--ds-danger);
+}
+.v2-requests-ticks {
+  display: flex;
+  justify-content: space-between;
+}
+.v2-requests-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.v2-requests-filters .dl-field {
+  flex: 1 1 240px;
+  width: auto;
+}
+.v2-requests-table .v2-requests-wide {
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.v2-requests-table .v2-requests-num {
+  text-align: right;
+}
+.v2-requests-pages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.v2-requests-pages .dl-end {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.v2-request-title {
+  font-family: var(--ds-font-mono);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.v2-request-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.v2-request-page {
+  padding-top: 24px;
+}
+.v2-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.v2-crumbs > a,
+.v2-crumbs > svg {
+  color: var(--ds-tertiary);
+  flex: none;
+  font-weight: 400;
+}

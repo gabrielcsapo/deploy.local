@@ -256,6 +256,16 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
+            id: 'v2-projects-p-apps-app-requests',
+            path: 'projects/:p/apps/:app/requests',
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
+          },
+          {
+            id: 'v2-projects-p-apps-app-request',
+            path: 'projects/:p/apps/:app/requests/:id',
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
+          },
+          {
             id: 'v2-projects-p-releases',
             path: 'projects/:p/releases',
             component: () => import('./routes/dashboard/v2/releases/page.js'),
