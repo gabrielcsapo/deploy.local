@@ -1,11 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Action, Banner, Dialog, Field, Glyph, Group, Icon, Item } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import type { RepositoryPreview } from '../../../../../server/v2/start';
 import { repositoryAddress } from '../../../../../shared/repository-address';
 import { useCoordinatorName } from '../data/hooks';
 import { request } from './data';
+
+// The host never changes while a page is open, so there is nothing to subscribe to.
+const subscribeToNothing = () => () => {};
+
+/** The address bar's host, or nothing on the server, which has no window to read it from. */
+function useBrowserHost() {
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => window.location.host,
+    () => '',
+  );
+}
 
 /**
  * New project: a name, and a remote to keep in sync if there is one. Every project is hosted on
@@ -21,6 +33,7 @@ export function NewProjectDialog({
   onCreated: (project: Project) => void | Promise<void>;
 }) {
   const coordinator = useCoordinatorName();
+  const host = useBrowserHost();
   const [name, setName] = useState('');
   const [source, setSource] = useState('');
   const [preview, setPreview] = useState<RepositoryPreview>();
@@ -103,11 +116,11 @@ export function NewProjectDialog({
             required
             onChange={(event) => setName(event.target.value)}
           />
-          {address && (
+          {address && host && (
             <p className="dl-meta v2-field-help">
               Hosted on deploy.local at{' '}
               <span className="dl-mono">
-                {window.location.host}/{address}.git
+                {host}/{address}.git
               </span>
             </p>
           )}
