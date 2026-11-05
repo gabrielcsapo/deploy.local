@@ -154,12 +154,17 @@ export async function waitForV2Events(
 ): Promise<V2EventsResponse> {
   const deadline = Date.now() + Math.min(10_000, Math.max(0, waitMs));
   let cursor = after;
+  let fresh = false;
+  let runs: Map<string, any> | undefined;
   for (;;) {
     signal.throwIfAborted();
-    await getLive(owner);
-    syncInbox(owner);
+    // Refresh live state and the inbox once per wait, not once per page while draining a backlog.
+    if (!fresh) {
+      await getLive(owner);
+      syncInbox(owner);
+      fresh = true;
+    }
     const rows = events(owner, cursor);
-    const runs = new Map(list('run', owner).map((run) => [run.id, run]));
     const result: V2Event[] = [];
     for (const row of rows) {
       const base = { cursor: row.cursor, taskId: row.taskId, runId: row.runId, at: row.createdAt };
@@ -174,6 +179,7 @@ export async function waitForV2Events(
       else if (row.type === 'v2.rollback')
         result.push({ ...base, type: 'rollback', rollback: row.payload.rollback });
       else {
+        runs ??= new Map(list('run', owner).map((run) => [run.id, run]));
         const event = mapConversationEvent(row, runs.get(row.runId));
         if (event) result.push({ ...base, type: 'conversation', event });
       }
@@ -184,5 +190,7 @@ export async function waitForV2Events(
     // Drain full pages before sleeping; ignored events must not strand mapped events behind them.
     if (rows.length === 1000) continue;
     await delay(Math.min(50, deadline - Date.now()), undefined, { signal });
+    fresh = false;
+    runs = undefined;
   }
 }

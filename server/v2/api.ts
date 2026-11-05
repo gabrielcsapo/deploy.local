@@ -17,6 +17,7 @@ import { liveApi } from './live.ts';
 import { requestsApi } from './requests.ts';
 import { pushApi } from './push.ts';
 import { waitForV2Events } from './events.ts';
+import { cursor as latestCursor } from '../workspace/store.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
 
@@ -55,6 +56,9 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
       return send({ items: syncInbox(auth.username).filter((item) => item.state === state) });
     }
     if (req.method === 'GET' && path === '/events') {
+      // A client that has just loaded a snapshot starts at the newest event instead of replaying history.
+      if (url.searchParams.get('after') === 'latest')
+        return send({ events: [], cursor: latestCursor(auth.username), supportsWait: true });
       const after = Number(url.searchParams.get('after') ?? 0);
       const waitMs = Number(url.searchParams.get('waitMs') ?? 0);
       if (!Number.isSafeInteger(after) || after < 0 || !Number.isSafeInteger(waitMs) || waitMs < 0)

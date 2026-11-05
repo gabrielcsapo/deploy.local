@@ -411,6 +411,14 @@ test('conversation mapping preserves message, decision and work item identities'
   assert.equal(malformed?.kind === 'worklog' && malformed.summary, 'command execution');
 });
 
+test('after=latest starts a client at the newest event without replaying history', async () => {
+  const s = fixture();
+  ask(s);
+  const all = await request(s, '/events?after=0');
+  const latest = await request(s, '/events?after=latest');
+  assert.deepEqual(latest.body, { events: [], cursor: all.body.cursor, supportsWait: true });
+});
+
 test('long-poll wakes for cross-process events and replays stable cursors', async () => {
   const s = fixture(),
     q = ask(s);

@@ -104,8 +104,9 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [projectId, setProjectId] = useState(initialProject);
   const project = projects.data?.projects.find((item) => item.id === projectId);
   const [ref, setRef] = useState(params.get('ref') ?? 'HEAD');
-  const designPath = project
-    ? `/api/v2/projects/${encodeURIComponent(project.id)}/design?ref=${encodeURIComponent(ref)}`
+  // The design loads from the id in the address, alongside the project list rather than after it.
+  const designPath = projectId
+    ? `/api/v2/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(ref)}`
     : undefined;
   const design = useData<Design>(designPath);
   useEffect(() => {
@@ -120,7 +121,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [taskId, setTaskId] = useState(params.get('task') ?? '');
   const [mode, setMode] = useState<OverlayMode>('overlay');
   const [poll, setPoll] = useState(0);
-  const projectApi = project ? `/api/v2/projects/${encodeURIComponent(project.id)}/design` : '';
+  const projectApi = projectId ? `/api/v2/projects/${encodeURIComponent(projectId)}/design` : '';
   const agentDesign = useData<Design>(
     project && taskId ? `${projectApi}?task=${encodeURIComponent(taskId)}&v=${poll}` : undefined,
   );
@@ -129,7 +130,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
       ? `${projectApi}/changes?task=${encodeURIComponent(taskId)}&v=${poll}`
       : undefined,
   );
-  const { asks } = useAsks(project?.id, poll);
+  const { asks } = useAsks(projectId, poll);
   const ask = asks.find((item) => item.id === taskId);
   useEffect(() => {
     if (!taskId) return;
@@ -171,8 +172,8 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     setBoardSrc(new Map());
   }, [shown]);
   const filesAt = (commit: string) =>
-    `/api/v2/projects/${encodeURIComponent(project!.id)}/design/files/${commit}`;
-  const base = project && shown && frameCommit ? filesAt(frameCommit) : null;
+    `/api/v2/projects/${encodeURIComponent(projectId)}/design/files/${commit}`;
+  const base = projectId && shown && frameCommit ? filesAt(frameCommit) : null;
   const agentBoards = useMemo(
     () =>
       new Set(
@@ -218,7 +219,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   }, [owner]);
   const [tab, setTab] = useState<'edit' | 'prototype' | 'comments'>('edit');
   const [commentFocus, setCommentFocus] = useState(0);
-  const { comments, refresh: refreshComments } = useComments(project?.id);
+  const { comments, refresh: refreshComments } = useComments(projectId);
   const [asking, setAsking] = useState(false);
   // Agents working on this design right now: a light poll of the coordinator's presence.
   const [agents, setAgents] = useState<AgentPresence[]>([]);
@@ -266,7 +267,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     () => (tokensData.data ? readTokens(tokensData.data) : noTokens),
     [tokensData.data],
   );
-  const changes = useChanges(project?.id, ref, design.data?.commit);
+  const changes = useChanges(projectId, ref, design.data?.commit);
   const changed = useMemo(
     () =>
       new Set(
