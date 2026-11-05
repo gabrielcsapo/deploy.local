@@ -37,7 +37,9 @@ test('one feed serves multiple hook subscribers, consumes cursor and aborts on u
     paths.push(String(url));
     if (String(url).includes('state=waiting')) return json({ items: [item] });
     if (String(url).includes('state=answered')) return json({ items: [] });
-    if (String(url).includes('after=0&'))
+    if (String(url).includes('after=latest'))
+      return json({ events: [], cursor: 7, supportsWait: true });
+    if (String(url).includes('after=7&'))
       return json({ events: [{ type: 'inbox', item: answered }], cursor: 42, supportsWait: true });
     eventSignal = init?.signal;
     return pending(init?.signal);
@@ -48,6 +50,8 @@ test('one feed serves multiple hook subscribers, consumes cursor and aborts on u
   await tick();
   assert.deepEqual(store.getSnapshot().items, [answered]);
   assert.equal(paths.filter((path) => path.includes('state=waiting')).length, 1);
+  // The feed starts at the newest event, never replaying history from 0.
+  assert.ok(!paths.some((path) => path.includes('after=0&')));
   assert.ok(paths.includes('/api/v2/events?after=42&waitMs=10000'));
   off();
   assert.equal(eventSignal?.aborted, false);
@@ -59,6 +63,7 @@ for (const status of [200, 409])
   test(`answer ${status} publishes the stored answer to every subscriber and sends web provenance`, async () => {
     let sent: RequestInit | undefined;
     const store = createInboxStore(async (url, init) => {
+      if (String(url).includes('after=latest')) return json({ events: [], cursor: 0 });
       if (init?.method === 'POST') {
         sent = init;
         assert.equal(url, '/api/v2/inbox/question%3Areleases/answer');
@@ -87,6 +92,7 @@ for (const status of [200, 409])
 test('snapshot answer survives stale waiting events; expired decisions leave the waiting list', async () => {
   const expired = { ...item, id: 'expired', state: 'expired' };
   const store = createInboxStore(async (url, init) => {
+    if (String(url).includes('after=latest')) return json({ events: [], cursor: 0 });
     if (String(url).includes('state=waiting')) return json({ items: [{ ...item, id: 'expired' }] });
     if (String(url).includes('state=answered')) return json({ items: [answered] });
     if (String(url).includes('after=0&'))
@@ -112,6 +118,7 @@ test('snapshot answer survives stale waiting events; expired decisions leave the
 test('failed answers preserve waiting and HTTP 409 without an item is not success', async () => {
   let status = 503;
   const store = createInboxStore(async (url, init) => {
+    if (String(url).includes('after=latest')) return json({ events: [], cursor: 0 });
     if (init?.method === 'POST') return json({ error: 'Unavailable' }, status);
     if (String(url).includes('state='))
       return json({ items: String(url).includes('state=waiting') ? [item] : [] });
@@ -130,6 +137,7 @@ test('account reset clears private data and ignores late responses from the old 
   let finish: ((response: Response) => void) | undefined;
   let reset = false;
   const store = createInboxStore(async (url, init) => {
+    if (String(url).includes('after=latest')) return json({ events: [], cursor: 0 });
     if (String(url).includes('state='))
       return json({ items: !reset && String(url).includes('state=waiting') ? [item] : [] });
     if (!reset)

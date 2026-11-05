@@ -33,12 +33,17 @@ export function groupProjects(
 
 export async function projectsForOwner(owner: string): Promise<Project[]> {
   const projects = list('project', owner).map(({ id, name }) => ({ id, name }));
-  const links = [];
-  for (const project of projects) {
-    const repository = await repositoryInfo(owner, project.id);
-    if ('deployment' in repository && repository.deployment.application)
-      links.push({ projectId: project.id, application: repository.deployment.application });
-  }
+  // Read every repository at once; one at a time made the list wait on each in turn.
+  const links = (
+    await Promise.all(
+      projects.map(async (project) => {
+        const repository = await repositoryInfo(owner, project.id);
+        return 'deployment' in repository && repository.deployment.application
+          ? [{ projectId: project.id, application: repository.deployment.application }]
+          : [];
+      }),
+    )
+  ).flat();
   const apps = getDeployments(owner).map((app) => {
     const revision = app.activeSpecDigest
       ? getApplicationSpecRevision(app.name, app.activeSpecDigest)

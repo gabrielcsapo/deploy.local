@@ -46,7 +46,13 @@ export function createInboxStore(request: typeof fetch) {
   }
   async function poll(signal: AbortSignal, bootstrap = false) {
     try {
-      if (bootstrap) await refresh(signal);
+      if (bootstrap) {
+        // Take the newest position before the snapshot, so nothing between them is missed and
+        // the history the snapshot already holds is not replayed.
+        if (!cursor)
+          cursor = (await read<V2EventsResponse>('/api/v2/events?after=latest', signal)).cursor;
+        await refresh(signal);
+      }
       const page = await read<V2EventsResponse>(
         `/api/v2/events?after=${cursor}&waitMs=10000`,
         signal,
