@@ -27,7 +27,7 @@ import {
 } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
-import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
+import { gitEnvironment, gitSync, gitText, repositoryGit } from '../workspace/repository-git.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { readJson, sendJson } from './attachments.ts';
@@ -544,7 +544,32 @@ function reviewRow(owner: string, projectId: string, itemId: unknown) {
   return row;
 }
 
-/** Compare proposal edits with main by screen, not by main's commit ID. No repository writes. */
+function canvasConflicts(base: Canvas | null, target: Canvas | null, from: Canvas | null) {
+  const conflicts: string[] = [];
+  // Canvas changes merge field by field. Only conflicting edits to the same note/placement block review.
+  for (const field of ['boards', 'notes'] as const) {
+    for (const key of new Set([
+      ...Object.keys(base?.[field] ?? {}),
+      ...Object.keys(from?.[field] ?? {}),
+    ])) {
+      const a = JSON.stringify(base?.[field]?.[key]),
+        b = JSON.stringify(target?.[field]?.[key]),
+        c = JSON.stringify(from?.[field]?.[key]);
+      if (a !== b && a !== c && b !== c) conflicts.push(field === 'boards' ? key : `note:${key}`);
+    }
+  }
+  return conflicts;
+}
+
+const conflictPaths = (paths: string[], changed: string[]) =>
+  paths.filter((path) => path !== 'design/canvas.json' && changed.includes(path));
+const conflictName = (path: string) =>
+  path.replace(/^design\/boards\//, '').replace(/^design\//, '');
+const reviewBoardPaths = (context: any) =>
+  (context.paths as string[]).filter((path) => path.startsWith('design/boards/'));
+
+/** Compare proposal edits with main by screen, not by main's commit ID. No repository writes.
+ * Synchronous because an inbox decision rechecks this immediately before merging. */
 export function reviewMain(repo: string, context: any) {
   const main = gitSync(repo, [
     'rev-parse',
@@ -564,31 +589,18 @@ export function reviewMain(repo: string, context: any) {
   ]);
   if (diff === null) fail('Main could not be checked. Try again.', 409);
   const changed = diff.split('\n');
-  const conflicts = (context.paths as string[])
+  const conflicts = conflictPaths(context.paths, changed)
     .filter(
       (path) =>
-        path !== 'design/canvas.json' &&
-        changed.includes(path) &&
         gitSync(repo, ['rev-parse', '--verify', '--quiet', `${main}:${path}`]) !==
-          gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.commit}:${path}`]),
+        gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.commit}:${path}`]),
     )
-    .map((path) => path.replace(/^design\/boards\//, '').replace(/^design\//, ''));
-  // Canvas changes merge field by field. Only conflicting edits to the same note/placement block review.
+    .map(conflictName);
   if (changed.includes('design/canvas.json') && context.paths.includes('design/canvas.json')) {
     const base = canvasAt(repo, context.base),
       target = canvasAt(repo, main),
       from = canvasAt(repo, context.commit);
-    for (const field of ['boards', 'notes'] as const) {
-      for (const key of new Set([
-        ...Object.keys(base?.[field] ?? {}),
-        ...Object.keys(from?.[field] ?? {}),
-      ])) {
-        const a = JSON.stringify(base?.[field]?.[key]),
-          b = JSON.stringify(target?.[field]?.[key]),
-          c = JSON.stringify(from?.[field]?.[key]);
-        if (a !== b && a !== c && b !== c) conflicts.push(field === 'boards' ? key : `note:${key}`);
-      }
-    }
+    conflicts.push(...canvasConflicts(base, target, from));
   }
   return { main: main!, conflicts: [...new Set(conflicts)], updated: changed.some(Boolean) };
 }
@@ -638,14 +650,33 @@ function reviewPins(owner: string, context: any): DesignReviewPin[] {
 
 /** A cheap summary: no Chromium or screenshot work on the landing page. */
 function reviewSummary(owner: string, project: any, row: any): DesignReviewSummary {
-  const { context, item } = row;
+  const { context } = row;
   const repo = project.repositoryPath;
   const status = reviewMain(repo, context);
-  const paths = (context.paths as string[]).filter((path) => path.startsWith('design/boards/'));
-  const counts = { screens: paths.length, changed: 0, new: 0, removed: 0 };
-  for (const path of paths) {
+  const boards = reviewBoardPaths(context).map((path) => {
     const before = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.base}:${path}`]);
     const after = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.commit}:${path}`]);
+    return { before, after };
+  });
+  return buildReviewSummary(
+    project,
+    row,
+    context.proposer ?? proposalProposer(owner, context.taskId),
+    status.conflicts,
+    boards,
+  );
+}
+
+function buildReviewSummary(
+  project: any,
+  row: any,
+  proposer: DesignReviewSummary['proposer'],
+  conflicts: string[],
+  boards: { before: string | null; after: string | null }[],
+): DesignReviewSummary {
+  const { context, item } = row;
+  const counts = { screens: boards.length, changed: 0, new: 0, removed: 0 };
+  for (const { before, after } of boards) {
     counts[!before ? 'new' : !after ? 'removed' : 'changed']++;
   }
   return {
@@ -656,11 +687,89 @@ function reviewSummary(owner: string, project: any, row: any): DesignReviewSumma
     project: project.name ?? project.id,
     branch: context.branch,
     createdAt: item.createdAt,
-    proposer: context.proposer ?? proposalProposer(owner, context.taskId),
+    proposer,
     counts,
-    stale: status.conflicts.length > 0,
-    conflicts: status.conflicts,
+    stale: conflicts.length > 0,
+    conflicts,
   };
+}
+
+async function reviewGit(repo: string, args: string[]) {
+  try {
+    return await gitText(repo, args, { limit: 4 * 1024 * 1024 });
+  } catch {
+    return null;
+  }
+}
+
+async function reviewTree(repo: string, commit: string) {
+  const tree = new Map<string, string>();
+  const text = await reviewGit(repo, ['ls-tree', '-r', '-z', commit, '--', 'design/']);
+  for (const entry of (text ?? '').split('\0')) {
+    const tab = entry.indexOf('\t');
+    if (tab < 0) continue;
+    const [, , sha] = entry.slice(0, tab).split(' ');
+    tree.set(entry.slice(tab + 1), sha);
+  }
+  return tree;
+}
+
+async function reviewCanvas(repo: string, commit: string): Promise<Canvas | null> {
+  try {
+    return JSON.parse((await reviewGit(repo, ['show', `${commit}:design/canvas.json`])) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+// The landing list awaits Git so waiting proposals do not block the server's event loop.
+async function reviewSummaryAsync(owner: string, project: any, row: any) {
+  const { context } = row;
+  const repo = project.repositoryPath;
+  const main = await reviewGit(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${context.main}^{commit}`,
+  ]);
+  if (!main) fail('Main could not be checked. Try again.', 409);
+  const diff = await reviewGit(repo, [
+    'diff',
+    '--name-only',
+    '--no-renames',
+    context.base,
+    main,
+    '--',
+    'design/',
+  ]);
+  if (diff === null) fail('Main could not be checked. Try again.', 409);
+  const changed = diff.split('\n');
+  const [baseTree, fromTree, mainTree] = await Promise.all([
+    reviewTree(repo, context.base),
+    reviewTree(repo, context.commit),
+    reviewTree(repo, main!),
+  ]);
+  const conflicts = conflictPaths(context.paths, changed)
+    .filter((path) => mainTree.get(path) !== fromTree.get(path))
+    .map(conflictName);
+  if (changed.includes('design/canvas.json') && context.paths.includes('design/canvas.json')) {
+    const [base, target, from] = await Promise.all([
+      reviewCanvas(repo, context.base),
+      reviewCanvas(repo, main!),
+      reviewCanvas(repo, context.commit),
+    ]);
+    conflicts.push(...canvasConflicts(base, target, from));
+  }
+  return buildReviewSummary(
+    project,
+    row,
+    context.proposer ?? proposalProposer(owner, context.taskId),
+    [...new Set(conflicts)],
+    reviewBoardPaths(context).map((path) => ({
+      before: baseTree.get(path) ?? null,
+      after: fromTree.get(path) ?? null,
+    })),
+  );
 }
 
 // Preview requests follow the metadata read. Reuse immutable screen metadata instead of
@@ -1542,15 +1651,18 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   const url = new URL(req.url!, 'http://localhost');
   if (url.pathname === '/api/v2/design/reviews' && req.method === 'GET') {
     const projectId = url.searchParams.get('project');
-    const proposals = list('v2-inbox-native', owner)
-      .filter(
-        (row) =>
-          row.context?.source === 'design' &&
-          row.item.state === 'waiting' &&
-          (!projectId || row.context.projectId === projectId),
-      )
-      .map((row) => reviewSummary(owner, requireRepository(owner, row.context.projectId), row))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const rows = list('v2-inbox-native', owner).filter(
+      (row) =>
+        row.context?.source === 'design' &&
+        row.item.state === 'waiting' &&
+        (!projectId || row.context.projectId === projectId),
+    );
+    const proposals: DesignReviewSummary[] = [];
+    for (const row of rows)
+      proposals.push(
+        await reviewSummaryAsync(owner, requireRepository(owner, row.context.projectId), row),
+      );
+    proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return sendJson(res, { proposals });
   }
   // Every project and how many boards its design has on main, for the project picker.

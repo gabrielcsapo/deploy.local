@@ -1148,6 +1148,111 @@ test('review groups by actual canvas page and board order, interleaving changed,
   assert.deepEqual(review.counts, { screens: 5, changed: 3, new: 1, removed: 1 });
 });
 
+async function assertReviewSummary(
+  f: Awaited<ReturnType<typeof reviewFixture>>,
+  item: { id: string },
+) {
+  const response = await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`);
+  assert.equal(response.status, 200);
+  const { proposals } = await response.json();
+  assert.equal(proposals.length, 1);
+  const review = await f.read(item);
+  assert.deepEqual(
+    proposals[0],
+    Object.fromEntries(Object.keys(proposals[0]).map((key) => [key, review[key]])),
+  );
+  return proposals[0];
+}
+
+test('review list agrees with the full review for changed, new and removed boards and conflicts', async () => {
+  const f = await reviewFixture('review-list-boards');
+  rmSync(join(f.path, 'design/boards/Removed.html'));
+  writeFileSync(join(f.path, 'design/boards/New screen.html'), '<p>New screen</p>');
+  await f.commit('Add and remove screens');
+  const item = await f.propose();
+  let summary = await assertReviewSummary(f, item);
+  const counts = { screens: 4, changed: 2, new: 1, removed: 1 };
+  assert.deepEqual(summary.counts, counts);
+  assert.equal(summary.stale, false);
+  assert.deepEqual(summary.conflicts, []);
+
+  await f.run(['checkout', '-q', 'main']);
+  writeFileSync(join(f.path, 'design/boards/Alpha.html'), '<p>Main changed this screen</p>');
+  writeFileSync(join(f.path, 'design/boards/New screen.html'), '<p>Main added this screen</p>');
+  await f.commit('Conflicting screens on main');
+  summary = await assertReviewSummary(f, item);
+  assert.deepEqual(summary.counts, counts);
+  assert.equal(summary.stale, true);
+  assert.deepEqual(summary.conflicts, ['Alpha.html', 'New screen.html']);
+
+  writeFileSync(join(f.path, 'design/boards/New screen.html'), '<p>New screen</p>');
+  await f.commit('Same new screen on main');
+  summary = await assertReviewSummary(f, item);
+  assert.deepEqual(summary.conflicts, ['Alpha.html']);
+});
+
+test('review list agrees with the full review for canvas placement and note conflicts', async () => {
+  const f = await reviewFixture('review-list-canvas');
+  const proposed = structuredClone(f.canvas);
+  proposed.boards['Alpha.html'].x = 200;
+  proposed.notes['section-agents'].text = 'Proposed section';
+  writeFileSync(join(f.path, 'design/canvas.json'), JSON.stringify(proposed));
+  await f.commit('Move a board and edit a note');
+  const item = await f.propose();
+  assert.equal((await assertReviewSummary(f, item)).stale, false);
+
+  await f.run(['checkout', '-q', 'main']);
+  const target = structuredClone(f.canvas);
+  target.boards['Other.html'].x = 200;
+  target.notes['section-other'].text = 'Unrelated section';
+  writeFileSync(join(f.path, 'design/canvas.json'), JSON.stringify(target));
+  await f.commit('Unrelated canvas changes on main');
+  assert.equal((await assertReviewSummary(f, item)).stale, false);
+
+  target.boards['Alpha.html'].x = 300;
+  target.notes['section-agents'].text = 'Main section';
+  writeFileSync(join(f.path, 'design/canvas.json'), JSON.stringify(target));
+  await f.commit('Conflicting canvas changes on main');
+  let summary = await assertReviewSummary(f, item);
+  assert.deepEqual(summary.counts, { screens: 2, changed: 2, new: 0, removed: 0 });
+  assert.equal(summary.stale, true);
+  assert.deepEqual(summary.conflicts, ['Alpha.html', 'note:section-agents']);
+
+  writeFileSync(join(f.path, 'design/canvas.json'), 'invalid JSON');
+  await f.commit('Invalid canvas on main');
+  summary = await assertReviewSummary(f, item);
+  assert.deepEqual(summary.conflicts, ['Alpha.html', 'note:section-agents']);
+  rmSync(join(f.path, 'design/canvas.json'));
+  await f.commit('Missing canvas on main');
+  summary = await assertReviewSummary(f, item);
+  assert.deepEqual(summary.conflicts, ['Alpha.html', 'note:section-agents']);
+});
+
+test('review list preserves missing commit and main check failure behavior', async () => {
+  const f = await reviewFixture('review-list-failures');
+  const item = await f.propose();
+  const { get } = await import('../workspace/store.ts');
+  const row = get('v2-inbox-native', 'alice', item.id);
+  const context = { ...row.context };
+  row.context.commit = '0'.repeat(40);
+  save('v2-inbox-native', 'alice', row);
+  const summary = await assertReviewSummary(f, item);
+  assert.deepEqual(summary.counts, { screens: 2, changed: 0, new: 0, removed: 2 });
+  assert.equal(summary.stale, false);
+
+  for (const change of [{ main: 'missing-main' }, { base: '0'.repeat(40) }]) {
+    row.context = { ...context, ...change };
+    save('v2-inbox-native', 'alice', row);
+    const landing = await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`);
+    const review = await f.call(`/review?item=${encodeURIComponent(item.id)}`);
+    assert.equal(landing.status, 409);
+    assert.equal(review.status, 409);
+    const error = await landing.json();
+    assert.deepEqual(error, await review.json());
+    assert.match(JSON.stringify(error), /Main could not be checked\. Try again\./);
+  }
+});
+
 test('per-width preview boxes use native coordinates and change words never expose raw diffs', async () => {
   const f = await reviewFixture('review-boxes');
   const review = await f.read(
