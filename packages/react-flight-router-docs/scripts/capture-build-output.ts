@@ -14,11 +14,11 @@ function captureBuildOutput(): string | null {
   try {
     // Build the library first
     console.log("Building react-flight-router library...");
-    execSync("pnpm build:lib", { cwd: rootDir, stdio: "pipe" });
+    execSync("node scripts/flight-router.mjs", { cwd: rootDir, stdio: "pipe" });
 
     // Run the example build and capture output (no color for clean text)
     console.log("Running example app build...");
-    const output = execSync("npx react-flight-router build", {
+    const output = execSync("node ../react-flight-router/dist/bin/react-flight-router.js build", {
       cwd: exampleDir,
       stdio: "pipe",
       env: { ...process.env, NO_COLOR: "1" },

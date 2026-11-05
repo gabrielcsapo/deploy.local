@@ -120,11 +120,11 @@ async function captureRuntimeOutput(): Promise<CapturedOutput | null> {
   try {
     // Build the library first
     console.log("Building react-flight-router library...");
-    execSync("pnpm build:lib", { cwd: rootDir, stdio: "pipe" });
+    execSync("node scripts/flight-router.mjs", { cwd: rootDir, stdio: "pipe" });
 
     // Build the example app
     console.log("Building example app...");
-    execSync("npx react-flight-router build", { cwd: exampleDir, stdio: "pipe" });
+    execSync("node ../react-flight-router/dist/bin/react-flight-router.js build", { cwd: exampleDir, stdio: "pipe" });
 
     // Start the production server with debug logging and NO_COLOR
     console.log("Starting production server with FLIGHT_DEBUG=1...");

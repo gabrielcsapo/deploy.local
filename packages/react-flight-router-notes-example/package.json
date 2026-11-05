@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "react-flight-router build",
+    "dev": "node ../../scripts/flight-router.mjs && vite",
+    "build": "node ../../scripts/flight-router.mjs && node ../react-flight-router/dist/bin/react-flight-router.js build",
     "start": "node dist/server.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "node ../../scripts/flight-router.mjs && playwright test"
   },
   "dependencies": {
     "@hono/node-server": "catalog:",

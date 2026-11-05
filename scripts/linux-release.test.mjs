@@ -202,7 +202,11 @@ test('verification rejects artifact tampering, tracked edits and a stale revisio
   const git = (args) => execFileSync('git', ['-C', release, ...args], { encoding: 'utf8' }).trim();
   git(['init', '--quiet']);
   writeFileSync(join(release, 'source.txt'), 'source');
-  git(['add', 'source.txt']);
+  writeFileSync(
+    join(release, 'package.json'),
+    JSON.stringify({ dependencies: { 'react-flight-router': 'workspace:*' } }),
+  );
+  git(['add', 'source.txt', 'package.json']);
   git([
     '-c',
     'user.name=Release Test',
@@ -216,6 +220,11 @@ test('verification rejects artifact tampering, tracked edits and a stale revisio
   mkdirSync(join(release, 'dist'));
   for (const name of ['supervisor.js', 'server.js', 'edge.js'])
     writeFileSync(join(release, 'dist', name), name);
+  const routerDist = join(release, 'packages/react-flight-router/dist');
+  for (const name of ['index.js', 'server/index.js', 'client/index.js', 'router/index.js']) {
+    mkdirSync(join(routerDist, name, '..'), { recursive: true });
+    writeFileSync(join(routerDist, name), name);
+  }
   const manifest = {
     revision: git(['rev-parse', 'HEAD']),
     typecheck: 'passed',
@@ -227,6 +236,15 @@ test('verification rejects artifact tampering, tracked edits and a stale revisio
     writeFileSync(join(release, '.deploy-release.json'), JSON.stringify(value));
   save(manifest);
   assert.equal(verifyRelease(release).revision, manifest.revision);
+  writeFileSync(join(routerDist, 'server/index.js'), 'tampered router');
+  assert.throws(() => verifyRelease(release), /artifacts changed/);
+  writeFileSync(join(routerDist, 'server/index.js'), 'server/index.js');
+  rmSync(routerDist, { recursive: true });
+  assert.throws(() => verifyRelease(release), /missing its workspace router/);
+  for (const name of ['index.js', 'server/index.js', 'client/index.js', 'router/index.js']) {
+    mkdirSync(join(routerDist, name, '..'), { recursive: true });
+    writeFileSync(join(routerDist, name), name);
+  }
   writeFileSync(join(release, 'dist/server.js'), 'tampered');
   assert.throws(() => verifyRelease(release), /artifacts changed/);
   writeFileSync(join(release, 'dist/server.js'), 'server.js');
