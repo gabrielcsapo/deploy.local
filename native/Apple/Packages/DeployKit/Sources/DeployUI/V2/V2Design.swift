@@ -85,15 +85,15 @@ struct V2DesignWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
             guard action.targetFrame?.isMainFrame ?? false, let url = action.request.url else { return decisionHandler(.allow) }
             let home = URL(string: connection.origin)
-            if url.host == home?.host, url.path.hasPrefix("/dashboard/design") { return decisionHandler(.allow) }
+            if url.scheme == home?.scheme, url.host == home?.host, (url.port ?? 443) == (home?.port ?? 443), url.path.hasPrefix("/dashboard/design") { return decisionHandler(.allow) }
             decisionHandler(.cancel)
             leave()
         }
 
         func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping @MainActor (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-            // A paired coordinator is trusted the way the pairing code said; everything else, like fonts, as usual.
+            // A checked or paired coordinator uses the app’s saved trust; everything else, like fonts, as usual.
             guard challenge.protectionSpace.host.lowercased() == URL(string: connection.origin)?.host?.lowercased(),
-                  let pinned = V2PairingVault.pinned(for: connection) else { return completionHandler(.performDefaultHandling, nil) }
+                  let pinned = V2CoordinatorTrust.pinned(for: connection) else { return completionHandler(.performDefaultHandling, nil) }
             let (disposition, credential) = pinned.evaluate(challenge)
             completionHandler(disposition, credential)
         }
