@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Action, Head, IconButton } from '@/components/ui';
+import { Action, Head, Icon, IconButton } from '@/components/ui';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
 import type {
   DesignReview,
@@ -515,9 +515,7 @@ export function DesignItemReview({
               (data.summary ? (
                 <p className="dl-review-summary">{data.summary}</p>
               ) : (
-                <p className="dl-meta dl-review-summary-missing">
-                  {missingSummary(data.proposer)}
-                </p>
+                <p className="dl-meta dl-review-summary-missing">{missingSummary(data.proposer)}</p>
               ))}
             {data && (
               <>
@@ -564,19 +562,18 @@ export function DesignItemReview({
                   data.proposer,
                 )}
               </p>
+              {!images.ready && <ReviewLoading total={boards.length} loaded={images.loaded} />}
               {tiles(boards.filter((entry) => entry.conflict))}
             </section>
           ) : (
             <>
               {loading && (
-                <p className="dl-meta" role="status">
-                  Loading {data ? counted(boards.length, 'screen') : 'the review'}…
-                </p>
+                <ReviewLoading total={data ? boards.length : null} loaded={images.loaded} />
               )}
               {!data && (
                 <div className="dl-review-grid">
                   {Array.from({ length: 6 }, (_, i) => (
-                    <div key={i} className="dl-review-skeleton" />
+                    <div key={i} className="dl-review-skeleton dl-skel" />
                   ))}
                 </div>
               )}
@@ -761,7 +758,7 @@ export function DesignItemReview({
                     )}
                   </div>
                 ) : (
-                  <div className="dl-review-skeleton" role="status">
+                  <div className="dl-review-skeleton dl-skel" role="status">
                     Loading screen…
                   </div>
                 )
@@ -977,5 +974,27 @@ function NoteText({
         <p>{after ? 'Removed' : 'New note'}</p>
       )}
     </div>
+  );
+}
+
+/** Says what is loading; after 10 s, how many screens are still being drawn. */
+function ReviewLoading({ total, loaded }: { total: number | null; loaded: number }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 10000);
+    return () => clearTimeout(timer);
+  }, []);
+  if (slow && total !== null && loaded < total)
+    return (
+      <p className="dl-notice" role="status">
+        <Icon name="running" className="dl-run" />
+        Still drawing {total - loaded} of {counted(total, 'screen')}. The first look at a design
+        takes longer.
+      </p>
+    );
+  return (
+    <p className="dl-meta" role="status">
+      Loading {total === null ? 'the review' : counted(total, 'screen')}…
+    </p>
   );
 }

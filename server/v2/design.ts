@@ -1,7 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { deployDataPath } from '../data-directory.ts';
 import { homeOf, readReleaseConfig } from './self-update-host.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1066,6 +1076,85 @@ type BoardRender = { png: Buffer; boxes: Record<string, DesignRect>; textBoxes?:
 const renders = new Map<string, BoardRender>();
 const rendering = new Map<string, Promise<BoardRender>>();
 const renderLimit = 64;
+// Renders also stay on disk, so a restart doesn't make a review draw every screen again.
+const renderFiles = 600;
+let rendersWritten = 0;
+const renderPath = (key: string) =>
+  join(deployDataPath('design-renders'), createHash('sha256').update(key).digest('hex'));
+function readRender(key: string): BoardRender | null {
+  try {
+    const path = renderPath(key);
+    return {
+      png: readFileSync(`${path}.png`),
+      ...JSON.parse(readFileSync(`${path}.json`, 'utf8')),
+    };
+  } catch {
+    return null;
+  }
+}
+function writeRender(key: string, rendered: BoardRender) {
+  try {
+    const path = renderPath(key);
+    mkdirSync(deployDataPath('design-renders'), { recursive: true });
+    writeFileSync(`${path}.png`, rendered.png);
+    writeFileSync(
+      `${path}.json`,
+      JSON.stringify({ boxes: rendered.boxes, textBoxes: rendered.textBoxes }),
+    );
+    if (++rendersWritten % 50 === 0) pruneRenders();
+  } catch {
+    // A full or read-only disk only costs a redraw later.
+  }
+}
+function pruneRenders() {
+  const directory = deployDataPath('design-renders');
+  const files = readdirSync(directory)
+    .filter((name) => name.endsWith('.png'))
+    .map((name) => ({ name, at: statSync(join(directory, name)).mtimeMs }))
+    .sort((a, b) => b.at - a.at);
+  for (const { name } of files.slice(renderFiles)) {
+    rmSync(join(directory, name), { force: true });
+    rmSync(join(directory, name.replace(/\.png$/, '.json')), { force: true });
+  }
+}
+
+// One Chromium draws every board, a few at a time, and closes after a minute without work.
+const drawLimit = 3;
+let drawing = 0;
+const drawQueue: (() => void)[] = [];
+let chromiumLaunch: Promise<import('playwright').Browser> | null = null;
+let chromiumIdle: ReturnType<typeof setTimeout> | undefined;
+async function withBoardChromium<T>(
+  executablePath: string,
+  work: (browser: import('playwright').Browser) => Promise<T>,
+): Promise<T> {
+  if (drawing >= drawLimit) await new Promise<void>((resolve) => drawQueue.push(resolve));
+  drawing++;
+  clearTimeout(chromiumIdle);
+  try {
+    let browser = chromiumLaunch && (await chromiumLaunch.catch(() => null));
+    if (!browser?.isConnected()) {
+      const { chromium } = await import('playwright');
+      chromiumLaunch = chromium.launch({ executablePath });
+      browser = await chromiumLaunch.catch((error) => {
+        chromiumLaunch = null;
+        throw error;
+      });
+    }
+    return await work(browser);
+  } finally {
+    drawing--;
+    drawQueue.shift()?.();
+    if (!drawing) {
+      chromiumIdle = setTimeout(() => {
+        const launched = chromiumLaunch;
+        chromiumLaunch = null;
+        void launched?.then((browser) => browser.close()).catch(() => {});
+      }, 60_000);
+      chromiumIdle.unref?.();
+    }
+  }
+}
 
 /** Render one board at a commit to PNG with headless Chromium on this computer. */
 /**
@@ -1119,7 +1208,13 @@ export async function renderBoardLayout(
   if (cached) return cached;
   const pending = rendering.get(key);
   if (pending) return pending;
-  const job = draw(repo, commit, board, width, height, scale);
+  const stored = draw === drawBoard ? readRender(key) : null;
+  const job = stored
+    ? Promise.resolve(stored)
+    : draw(repo, commit, board, width, height, scale).then((rendered) => {
+        if (draw === drawBoard) writeRender(key, rendered);
+        return rendered;
+      });
   rendering.set(key, job);
   try {
     const rendered = await job;
@@ -1154,53 +1249,54 @@ async function drawBoard(
   const executablePath = boardBrowser(chromium.executablePath());
   if (!executablePath)
     fail('Rendering boards needs Chromium on the coordinator: run pnpm audit:visual:install', 503);
-  const browser = await chromium.launch({ executablePath });
-  try {
+  return withBoardChromium(executablePath, async (browser) => {
     const context = await browser.newContext({
       viewport: { width, height: height ?? placed.h },
       deviceScaleFactor: scale,
       javaScriptEnabled: false,
     });
-    await context.route('**/*', (route) =>
-      /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(route.request().url())
-        ? route.continue()
-        : route.abort(),
-    );
-    const tab = await context.newPage();
-    await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
-    await tab.evaluate(() => document.fonts.ready);
-    const { boxes, textBoxes } = await tab.evaluate(() => {
-      const boxes: Record<string, { x: number; y: number; w: number; h: number }> = {};
-      const textBoxes = [];
-      for (const element of document.querySelectorAll<HTMLElement>('[data-layer]')) {
-        const rect = element.getBoundingClientRect();
-        if (
-          !rect.width ||
-          !rect.height ||
-          rect.right <= 0 ||
-          rect.bottom <= 0 ||
-          rect.x >= innerWidth ||
-          rect.y >= innerHeight ||
-          getComputedStyle(element).visibility === 'hidden'
-        )
-          continue;
-        const box = { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
-        boxes[element.dataset.layer!] = box;
-        if (
-          ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName) ||
-          Array.from(element.childNodes).some(
-            (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
+    try {
+      await context.route('**/*', (route) =>
+        /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(route.request().url())
+          ? route.continue()
+          : route.abort(),
+      );
+      const tab = await context.newPage();
+      await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
+      await tab.evaluate(() => document.fonts.ready);
+      const { boxes, textBoxes } = await tab.evaluate(() => {
+        const boxes: Record<string, { x: number; y: number; w: number; h: number }> = {};
+        const textBoxes = [];
+        for (const element of document.querySelectorAll<HTMLElement>('[data-layer]')) {
+          const rect = element.getBoundingClientRect();
+          if (
+            !rect.width ||
+            !rect.height ||
+            rect.right <= 0 ||
+            rect.bottom <= 0 ||
+            rect.x >= innerWidth ||
+            rect.y >= innerHeight ||
+            getComputedStyle(element).visibility === 'hidden'
           )
-        )
-          textBoxes.push(box);
-      }
-      return { boxes, textBoxes };
-    });
-    const png = await tab.screenshot();
-    return { png, boxes, textBoxes };
-  } finally {
-    await browser.close();
-  }
+            continue;
+          const box = { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
+          boxes[element.dataset.layer!] = box;
+          if (
+            ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName) ||
+            Array.from(element.childNodes).some(
+              (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
+            )
+          )
+            textBoxes.push(box);
+        }
+        return { boxes, textBoxes };
+      });
+      const png = await tab.screenshot();
+      return { png, boxes, textBoxes };
+    } finally {
+      await context.close();
+    }
+  });
 }
 
 /** Progressive review payload; the screenshot and rectangles come from the same render. */

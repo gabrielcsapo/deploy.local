@@ -113,7 +113,10 @@ test('a conflict names two items in words and counts three or more', () => {
   const name = (file: string) => (file === 'note:gutters' ? 'Gutters' : file.replace('.html', ''));
   const agent = { id: 'a1', name: 'Release notes writer', avatar: null };
   assert.equal(conflictCount(['Agent.html']), '1 screen conflicts with main');
-  assert.equal(conflictCount(['Agent.html', 'note:gutters']), '1 screen and 1 note conflict with main');
+  assert.equal(
+    conflictCount(['Agent.html', 'note:gutters']),
+    '1 screen and 1 note conflict with main',
+  );
   assert.equal(
     conflictLine(['Agent.html', 'note:gutters'], name, agent),
     'Main changed Agent and Gutters. Ask Release notes writer to update these screens.',

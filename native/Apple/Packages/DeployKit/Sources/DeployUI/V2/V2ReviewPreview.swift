@@ -27,7 +27,7 @@ struct V2ReviewCrop: View {
                     }
                 }.offset(y: -top)
                     .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading).clipped()
-            } else { Rectangle().fill(WorkspaceStyle.line(scheme)).redacted(reason: .placeholder) }
+            } else { V2ReviewShimmer() }
         }.background(WorkspaceStyle.surface(scheme)).clipped().accessibilityHidden(true)
     }
 }
@@ -324,6 +324,37 @@ struct V2ReviewNotePage: View {
             if case .second(true, _) = value { state = true }
         })
         .overlay(alignment: .topTrailing) { if before { Text("Before").font(.footnote.bold()).padding(8).background(.regularMaterial, in: Capsule()).padding(12) } }
+    }
+}
+/// A preview still being drawn: the design system's shimmer at the tile's size.
+struct V2ReviewShimmer: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shimmer = false
+    var body: some View {
+        GeometryReader { geometry in
+            Rectangle().fill(WorkspaceStyle.hover(scheme)).overlay {
+                if !reduceMotion {
+                    LinearGradient(colors: [.clear, WorkspaceStyle.surface(scheme), .clear], startPoint: .leading, endPoint: .trailing)
+                        .offset(x: shimmer ? geometry.size.width : -geometry.size.width)
+                        .animation(WorkspaceStyle.Motion.shimmer(reduceMotion: reduceMotion), value: shimmer)
+                }
+            }.clipped()
+        }.onAppear { shimmer = !reduceMotion }
+    }
+}
+/// Says what is loading; after 10 s, how many screens are still being drawn.
+struct V2ReviewLoadingLine: View {
+    let total: Int
+    let loaded: Int
+    @State private var slow = false
+    var body: some View {
+        Group {
+            if slow && loaded < total {
+                Label("Still drawing \(total - loaded) of \(V2ReviewModel.count(total, "screen")). The first look at a design takes longer.", systemImage: "hourglass")
+            } else { Text("Loading \(V2ReviewModel.count(total, "screen"))…") }
+        }.font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            .task { try? await Task.sleep(for: .seconds(10)); slow = true }
     }
 }
 #endif

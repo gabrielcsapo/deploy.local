@@ -494,6 +494,11 @@
   background: var(--ds-line);
   border-radius: var(--ds-radius-control);
 }
+/* The design system's shimmer, at the size of a tile. */
+.dl-review-skeleton.dl-skel {
+  height: 200px;
+  border-radius: var(--ds-radius-control);
+}
 .dl-review-footer {
   flex: none;
   padding: 16px 24px;
