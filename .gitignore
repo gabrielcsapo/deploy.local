@@ -15,3 +15,7 @@ output/
 
 # Linux Node app release artifacts.
 packages/node-app/release/
+
+# react-flight-router
+test-results/
+packages/react-flight-router-e2e/benchmark-results/
