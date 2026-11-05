@@ -20,6 +20,7 @@ const tests = [
   ...collectTests('server'),
   ...collectTests('packages/node-app/src'),
   ...collectTests('bin'),
+  'scripts/linux-release.test.mjs',
 ];
 // Web unit tests import .tsx components and their stylesheets, so they need a loader.
 const webTests = collectTests('app');
@@ -39,6 +40,13 @@ const run = (args) => {
   if (result.error) throw result.error;
   return result.status ?? 1;
 };
-const server = run(tests);
+// Vitest owns the router's TS/TSX suites; e2e specs and benchmarks are separate.
+const router = spawnSync('pnpm', ['--filter', 'react-flight-router', 'exec', 'vitest', 'run'], {
+  stdio: 'inherit',
+  env: process.env,
+});
+if (router.error) throw router.error;
+const worker = run(['packages/react-flight-router/dist/server/worker-pool.test.js']);
 const web = run(['--import', 'tsx', '--import', './scripts/test-css-stub.mjs', ...webTests]);
-process.exit(server || web);
+const server = run(tests);
+process.exit((router.status ?? 1) || worker || web || server);
