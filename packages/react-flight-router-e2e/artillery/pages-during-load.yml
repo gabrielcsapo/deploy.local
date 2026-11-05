@@ -1,0 +1,16 @@
+config:
+  target: "http://localhost:{{ $processEnvironment.PORT }}"
+  phases:
+    - duration: 30
+      arrivalRate: 20
+      name: "Page requests under load"
+
+scenarios:
+  - name: "Home page SSR"
+    flow:
+      - get:
+          url: "/"
+  - name: "RSC navigation"
+    flow:
+      - get:
+          url: "/__rsc?url=/request-info"

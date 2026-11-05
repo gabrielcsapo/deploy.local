@@ -1,0 +1,11 @@
+{
+  "name": "shared-ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./client-counter": "./src/client-counter.tsx"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  }
+}

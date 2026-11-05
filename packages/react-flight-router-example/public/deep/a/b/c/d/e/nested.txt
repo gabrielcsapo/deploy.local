@@ -1,0 +1,2 @@
+example-app-nested-public-file marker
+five levels deep: deep/a/b/c/d/e/nested.txt
