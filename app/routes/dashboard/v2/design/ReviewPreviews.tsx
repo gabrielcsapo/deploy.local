@@ -87,6 +87,7 @@ export function useReviewPreviews(
     error,
     retry: () => setRetry((n) => n + 1),
     ready: boards.every((board) => previews[previewKey(board.file, board.widths[0])]),
+    loaded: boards.filter((board) => previews[previewKey(board.file, board.widths[0])]).length,
   };
 }
 
@@ -130,7 +131,8 @@ export function ReviewCrop({
   title: string;
   changed: boolean;
 }) {
-  if (!preview) return <div className="dl-review-skeleton" aria-label={`Loading ${title}`} />;
+  if (!preview)
+    return <div className="dl-review-skeleton dl-skel" aria-label={`Loading ${title}`} />;
   const crop = preview.crop;
   return (
     <div className="dl-review-image">

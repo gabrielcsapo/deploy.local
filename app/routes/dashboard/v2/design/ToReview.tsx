@@ -89,7 +89,9 @@ export function ToReview({
           <section>
             <h2>Waiting on you</h2>
             <Group>
-              {!reviews.data && <div className="dl-review-skeleton" aria-label="Loading reviews" />}
+              {!reviews.data && (
+                <div className="dl-review-skeleton dl-skel" aria-label="Loading reviews" />
+              )}
               {reviews.data?.proposals.map((proposal) => (
                 <Item
                   key={proposal.id}

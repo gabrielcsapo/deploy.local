@@ -57,11 +57,12 @@ struct V2DesignWebView: UIViewRepresentable {
 
     func updateUIView(_ view: WKWebView, context: Context) {}
 
-    /// The Design page for a project on the coordinator.
+    /// The project's canvas on the coordinator. Without view=canvas the page opens To review
+    /// whenever a design waits, which the app already shows natively.
     static func address(_ origin: String, _ projectId: String) -> URL? {
         var parts = URLComponents(string: origin)
         parts?.path = "/dashboard/design"
-        parts?.queryItems = [URLQueryItem(name: "project", value: projectId)]
+        parts?.queryItems = [URLQueryItem(name: "project", value: projectId), URLQueryItem(name: "view", value: "canvas")]
         return parts?.url
     }
     /// What encodeURIComponent leaves alone, as the server's own cookie writes it.

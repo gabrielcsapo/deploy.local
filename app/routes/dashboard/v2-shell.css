@@ -264,6 +264,16 @@
     padding-right: 20px;
   }
 }
+/* A phone (the iPhone app's Design page included) gets the phone layout: navigation is a drawer. */
+@media (max-width: 600px) {
+  .dl-app > .dl-side,
+  .dl-app > .dz-rail {
+    display: none;
+  }
+  .dl-app .dl-icon-btn.dl-menu-btn {
+    display: inline-flex;
+  }
+}
 .dz-rail-who {
   position: relative;
 }

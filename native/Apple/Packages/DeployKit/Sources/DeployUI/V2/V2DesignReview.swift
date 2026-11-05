@@ -53,8 +53,8 @@ struct V2DesignReviewView: View {
                 if board != nil || note != nil { reviewToolbar }
             } else {
                 VStack(alignment: .leading, spacing: 18) {
-                    RoundedRectangle(cornerRadius: 8).fill(WorkspaceStyle.line(scheme)).frame(height: 68)
-                    RoundedRectangle(cornerRadius: 8).fill(WorkspaceStyle.line(scheme)).frame(height: 120)
+                    V2ReviewShimmer().frame(height: 68).clipShape(RoundedRectangle(cornerRadius: 8))
+                    V2ReviewShimmer().frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 8))
                     Text("Loading screens…").font(.subheadline).foregroundStyle(.secondary)
                     Spacer()
                 }.padding(24)
@@ -142,6 +142,9 @@ struct V2DesignReviewView: View {
                             Text(review.counts?.label() ?? V2ReviewModel.count(review.boards.count, "screen"))
                             if let updated = review.updatedWithMainAt, review.stale != true { Text("Updated with main \(V2ReviewModel.age(updated)) · no conflicts") }
                         }.font(.footnote).foregroundStyle(.secondary)
+                        if !review.boards.allSatisfy({ model.preview($0) != nil }) {
+                            V2ReviewLoadingLine(total: review.boards.count, loaded: review.boards.filter { model.preview($0) != nil }.count)
+                        }
                         HStack(spacing: 6) {
                             ForEach(screens.prefix(4)) { board in
                                 Button { model.page = .screen(board.file) } label: { V2ReviewCrop(preview: model.preview(board), showChanges: board.changeKind == "changed") }
@@ -174,7 +177,7 @@ struct V2DesignReviewView: View {
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
             }
             VStack(spacing: 6) {
-                if model.loading || model.checking || !model.loadingKeys.isEmpty { Text("Loading \(V2ReviewModel.count(review.boards.count, "screen"))…").font(.footnote).foregroundStyle(.secondary) }
+                if model.loading || model.checking || !model.loadingKeys.isEmpty { V2ReviewLoadingLine(total: review.boards.count, loaded: review.boards.filter { model.preview($0) != nil }.count) }
                 if let answer = review.item.answer {
                     Text("\(V2Labels.outcome(review.item)) · \(answer.by)").font(.footnote)
                 } else if review.stale == true {
@@ -294,6 +297,9 @@ struct V2DesignReviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(V2ReviewModel.conflictCount(review?.conflicts ?? [])).font(.title2.bold())
+                    if let review, !review.boards.allSatisfy({ model.preview($0) != nil }) {
+                        V2ReviewLoadingLine(total: review.boards.count, loaded: review.boards.filter { model.preview($0) != nil }.count)
+                    }
                     ForEach(review?.boards.filter { $0.conflict == true } ?? []) { board in
                         HStack { V2ReviewCrop(preview: model.preview(board), showChanges: true).frame(width: 100, height: 100); Text(board.name); Spacer(); Text("Conflict").font(.footnote) }
                     }
