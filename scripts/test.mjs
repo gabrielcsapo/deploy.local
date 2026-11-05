@@ -20,6 +20,7 @@ const tests = [
   ...collectTests('server'),
   ...collectTests('packages/node-app/src'),
   ...collectTests('bin'),
+  'scripts/flight-router-changelog.test.mjs',
   'scripts/linux-release.test.mjs',
 ];
 // Web unit tests import .tsx components and their stylesheets, so they need a loader.

@@ -75,7 +75,8 @@
   "scripts": {
     "build": "node ../../node_modules/typescript/bin/tsc",
     "dev": "node ../../node_modules/typescript/bin/tsc --watch",
-    "test": "pnpm build && vitest run && node --test dist/server/worker-pool.test.js"
+    "test": "pnpm build && vitest run && node --test dist/server/worker-pool.test.js",
+    "changelog": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@hono/node-server": "catalog:",
