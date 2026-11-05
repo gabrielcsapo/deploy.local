@@ -2168,6 +2168,8 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   if (sub === '/proposals' && req.method === 'GET') {
     const prefix = `design:${project.id}:`;
     // Each request also names the boards it would change, so the canvas can mark them In review.
+    // The canvas polls this every 10 s and it lists every proposal ever made, so it reads no git:
+    // counts and conflicts, which do, come from /api/v2/design/reviews for what still waits.
     const contexts = new Map(
       list('v2-inbox-native', owner)
         .filter((row: any) => row.id.startsWith(prefix))
@@ -2178,7 +2180,6 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .map((item) => ({
         ...item,
-        ...reviewSummary(owner, project, { item, context: contexts.get(item.id) }),
         branch: contexts.get(item.id)?.branch ?? null,
         boards: ((contexts.get(item.id)?.paths ?? []) as string[])
           .filter((path) => path.startsWith('design/boards/'))

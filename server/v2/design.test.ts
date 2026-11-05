@@ -379,6 +379,8 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   assert.equal(listed.id, item.id);
   assert.equal(listed.branch, 'design/welcome-title');
   assert.deepEqual(listed.boards.sort(), ['New.html', 'Welcome.html']);
+  // The canvas polls this list, so it must not do a review's git work for every proposal.
+  assert.equal(listed.counts, undefined);
   // Proposing the same commit again returns the same request.
   const again = await (
     await call('/propose', {
