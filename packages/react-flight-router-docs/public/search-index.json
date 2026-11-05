@@ -18,13 +18,14 @@
       "`useNavigation()`",
       "`useLocation()`",
       "`useSearchParams()`",
+      "`useCloseSlot(name)`",
       "Utilities",
       "`callServer`",
       "Additional Exports",
       "`SegmentRoot`",
       "`OutletDepthContext`"
     ],
-    "content": "Client Exports\nAll client-side components, hooks, and utilities are available from the \"react-flight-router/client\" import path. These are \"use client\" modules and can be used in both client components and server components that need to render interactive UI.\nComponents\n<LinkA client-side navigation link that renders a standard <aelement but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.\nThe <Linkcomponent also provides active and pending state awareness, making it suitable for navigation menus, sidebars, and tabs where you need to highlight the current route.\n Type                                         Description                                                                           |\n    |\n string                                     The target URL path to navigate to (e.g., \"/about\", \"/posts/42\").                 |\n string \\ —        \n CSSProperties \\ —        \n ReactNode \\ —        \n boolean                                    When true, requires exact pathname match. When false, prefix match is sufficient. |\n \"none\" \\ \"render\"             Controls when the link's RSC payload is prefetched. See Prefetching.  |\n AnchorHTMLAttributes                       All standard <aelement attributes (aria-, etc.) are passed through.            |\nThe <Linkcomponent allows default browser behavior for modifier-key clicks (Ctrl, Meta, Shift, Alt) and non-primary mouse buttons, so \"open in new tab\" works as expected.\nSets aria-current=\"page\" when active for accessibility.\nBasic usage\nActive state styling\nPending state\nisPending is true when a navigation to the link's destination is in progress:\nRender function children\nPrefetching\nThe prefetch prop controls when the link's RSC payload is fetched ahead of time, making subsequent navigation instant.\n Behavior                                                                                              |\n  |\n No prefetching (default). The RSC pay"
+    "content": "Client Exports\nAll client-side components, hooks, and utilities are available from the \"react-flight-router/client\" import path. These are \"use client\" modules and can be used in both client components and server components that need to render interactive UI.\nComponents\n<LinkA client-side navigation link that renders a standard <aelement but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.\nThe <Linkcomponent also provides active and pending state awareness, making it suitable for navigation menus, sidebars, and tabs where you need to highlight the current route.\n Type                                         Description                                                                                                                                                                                                              |\n    |\n string                                     The target URL path to navigate to (e.g., \"/about\", \"/posts/42\").                                                                                                                                                    |\n string \\ —        \n CSSProperties \\ —        \n ReactNode \\ —        \n boolean                                    When true, requires exact pathname match. When false, prefix match is sufficient.                                                                                                                                    |\n \"none\" \\ \"render\"             Controls when the link's RSC payload is prefetched. See Prefetching.                                                                                                                                     |\n string                                     Open to inside the named parallel-route slot instead of replacing the page. Resolves to <currentPathname>?@<intoSlot>=<to>. See Parallel Routes.                                     |\n boolean                     "
   },
   {
     "title": "Components",
@@ -40,7 +41,7 @@
     "path": "/docs/api-reference/client-exports#link",
     "section": "API Reference · Client Exports",
     "headings": [],
-    "content": "A client-side navigation link that renders a standard <aelement but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.\nThe <Linkcomponent also provides active and pending state awareness, making it suitable for navigation menus, sidebars, and tabs where you need to highlight the current route.\n Type                                         Description                                                                           |\n    |\n string                                     The target URL path to navigate to (e.g., \"/about\", \"/posts/42\").                 |\n string \\ —        \n CSSProperties \\ —        \n ReactNode \\ —        \n boolean                                    When true, requires exact pathname match. When false, prefix match is sufficient. |\n \"none\" \\ \"render\"             Controls when the link's RSC payload is prefetched. See Prefetching.  |\n AnchorHTMLAttributes                       All standard"
+    "content": "A client-side navigation link that renders a standard <aelement but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.\nThe <Linkcomponent also provides active and pending state awareness, making it suitable for navigation menus, sidebars, and tabs where you need to highlight the current route.\n Type                                         Description                                                                                                                                                                                                              |\n    |\n string                                     The target URL path to navigate to (e.g., \"/about\", \"/posts/42\").                                                                                                                                                    |\n string \\ —        \n CSSProperties \\ —        \n ReactNode \\ —        \n boolean                 "
   },
   {
     "title": "`<Outlet />`",
@@ -48,7 +49,7 @@
     "path": "/docs/api-reference/client-exports#outlet-",
     "section": "API Reference · Client Exports",
     "headings": [],
-    "content": "Renders the matched child route segment inside a layout component. Each <Outlet /reads the current segment depth from context and looks up the next-level child segment in the segment map.\nTakes no props. Returns null if no child segment matches.\nUsage\nOutlets can be nested. Each layout in the route tree renders its own , and the framework automatically resolves which child segment to display based on the current URL and segment key hierarchy.\nAutomatic boundary wrapping\nWhen the parent route config has a loading or error property, <Outlet /automatically wraps its children with the appropriate boundaries:\n- loading present: Children are wrapped in a <Suspenseboundary using the loading component as the fallback.\n- error present: Children are wrapped in an <ErrorBoundarythat catches render errors and displays the error component.\n- Both present: Children are wrapped in both (ErrorBoundary outside, Suspense inside).\nIf you also place manual <Loadingor <ErrorBoundarycomponents inside your l"
+    "content": "Renders the matched child route segment inside a layout component, or a named parallel-route slot when name is provided. Each <Outlet /reads the current segment depth from context and looks up the next-level segment key in the segment map.\n Type      Description                                                                                                                                                                                                                                |\n    |\n string  Renders the matching parallel-route slot declared on this layout's slots config instead of the default child segment. The slot is matched against ?@<name>=<pathin the URL. |\nReturns null if no child segment matches (default outlet) or if the slot is closed (named outlet).\nUsage\nOutlets can be nested. Each layout in the route tree renders its own , and the framework automatically resolves which child segment to display based on the current URL and segment key hierarchy.\nParallel-route slot out"
   },
   {
     "title": "`<Loading>`",
@@ -96,7 +97,7 @@
     "path": "/docs/api-reference/client-exports#userouter",
     "section": "API Reference · Client Exports",
     "headings": [],
-    "content": "Returns the full router context value. This is the most comprehensive hook and provides access to all routing state and the navigation function.\n Type                                              \n  \n string                                          \n (to: string, options?: NavigateOptions) =void \n () =void                                      \n Record<string, ReactNode\n \"idle\" \\ The current navigation state. \"loading\" while a navigation transition is pending, \"idle\" otherwise.                                                                                      |\n string \\ The URL of the in-progress navigation, or null when idle. Useful for building loading indicators that show where the user is navigating to.                                                |\n Record<string, string\nUsage\nUse refresh() to re-fetch the current page after a mutation without navigating away:"
+    "content": "Returns the full router context value. This is the most comprehensive hook and provides access to all routing state and the navigation function.\n Type                                              \n  \n string                                          \n (to: string, options?: NavigateOptions) =void \n () =void                                      \n Record<string, ReactNode\n \"idle\" \\ The current navigation state. \"loading\" while a navigation transition is pending, \"idle\" otherwise.                                                                                                                                                              |\n string \\ The URL of the in-progress navigation, or null when idle. Useful for building loading indicators that show where the user is navigating to.                                                                                                                        |\n Record<string, string\nUsage\nUse refresh() to re-fetch the current page after a mutation"
   },
   {
     "title": "`useParams()`",
@@ -129,6 +130,14 @@
     "section": "API Reference · Client Exports",
     "headings": [],
     "content": "Read and write URL search parameters. Returns a [searchParams, setSearchParams] tuple.\n Type              \n  \n URLSearchParams \n Function        \nsetSearchParams uses replaceState by default, so filter changes don't create extra history entries.\nUsage\nSee the Search Params guide for more examples."
+  },
+  {
+    "title": "`useCloseSlot(name)`",
+    "slug": "api-reference/client-exports#usecloseslotname",
+    "path": "/docs/api-reference/client-exports#usecloseslotname",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Returns a function that closes the named parallel-route slot by removing its ?@<namesearch param from the URL. Other slots and search params are preserved.\n Type     \n  \n string \nThe returned function uses replace: true for navigation, so closing a modal does not add a history entry. The slot's segments are dropped on the next navigation because the server omits them from segmentKeys when the slot param is absent.\nUsage\nSee the Parallel Routes guide for the full pattern, including the alternative \"open full page\" exit."
   },
   {
     "title": "Utilities",
@@ -179,6 +188,7 @@
       "`RouteConfig`",
       "Properties",
       "Boundary properties",
+      "Parallel-route slots",
       "Example",
       "Path matching rules",
       "`RouteModule`",
@@ -189,6 +199,10 @@
       "Properties",
       "Example",
       "`matchRoutes`",
+      "Example",
+      "`SlotMatch`",
+      "Properties",
+      "`matchSlots`",
       "Example"
     ],
     "content": "Route Config\nReact Flight Router uses a code-based route configuration. Routes are defined as an array of RouteConfig objects exported from your routes file (typically app/routes.ts). All types are available from the \"react-flight-router/router\" import path.\nRouteConfig\nDefines a single route in the routing tree. Routes can be nested to create layouts with child pages.\nProperties\n Type                          Description                                                                                                                                                                                                                                  |\n    |\n string                      Unique route identifier. Used to build hierarchical segment keys (e.g., \"root\", \"home\"). Must be unique across all routes.                                                                                                               |\n string                      URL path segment to match. Supports static segments (\"about\"), dynamic params (\":id\"), multi-segment patterns (\"posts/:slug\"), and catch-all params (\":path\"). Omit for layout routes that wrap children without adding to the URL. |\n boolean                     When true, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |\n () =Promise<RouteModule A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |\n RouteConfig[]               Nested child routes. The parent route's component acts as a layout and must render an <Outlet /for children to appear.                                                                                                                   |\nBoundary properties\nThes"
@@ -216,6 +230,14 @@
     "section": "API Reference · Route Config",
     "headings": [],
     "content": "These three optional properties control what renders when child routes are in a loading, error, or not-found state. They all work at any nesting level — the deepest matching ancestor provides the boundary. When present, <Outlet /automatically wraps children in the appropriate boundary (<Suspensefor loading, <ErrorBoundaryfor error).\n Type                          Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                |\n    |\n () =Promise<RouteModule A \"use client\" component shown as a Suspense fallback during navigation to child routes. When present, <Outlet /automatically wraps children i"
+  },
+  {
+    "title": "Parallel-route slots",
+    "slug": "api-reference/route-config#parallel-route-slots",
+    "path": "/docs/api-reference/route-config#parallel-route-slots",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "The slots property declares additional named route subtrees that render alongside the main . Each slot is matched against a ?@<slotName>=<pathsearch param in the URL and is rendered via <Outlet name=\"<slotName>\" /inside the layout. The classic use case is a modal that overlays the current page while keeping a shareable URL.\n Type                             Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |\n    |\n Record<string, RouteConfig[] Each entry maps a slot name to its o"
   },
   {
     "title": "Example",
@@ -303,6 +325,38 @@
     "path": "/docs/api-reference/route-config#example",
     "section": "API Reference · Route Config",
     "headings": [],
+    "content": "matchRoutes accepts an optional third argument, parentSegmentKey, used internally by parallel-route slot matching to root the resulting segment keys under an owning layout (e.g. \"root@modal\"). Application code typically does not need to pass it."
+  },
+  {
+    "title": "`SlotMatch`",
+    "slug": "api-reference/route-config#slotmatch",
+    "path": "/docs/api-reference/route-config#slotmatch",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Represents a parallel-route slot resolved from the URL's search params. The matchSlots function returns one SlotMatch per declared slot whose ?@<slotNameparam is present and matches its subtree."
+  },
+  {
+    "title": "Properties",
+    "slug": "api-reference/route-config#properties",
+    "path": "/docs/api-reference/route-config#properties",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Type           \n  \n string       \n string       \n string       \n RouteMatch[]"
+  },
+  {
+    "title": "`matchSlots`",
+    "slug": "api-reference/route-config#matchslots",
+    "path": "/docs/api-reference/route-config#matchslots",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Given the matches from matchRoutes and a URL's search params, return the SlotMatch for every declared slot whose ?@<slotNameparam resolves against its subtree.\nReturns an empty array when no slots are open or when no main match declared slots. Slots whose path doesn't resolve are dropped silently — the client treats them as closed."
+  },
+  {
+    "title": "Example",
+    "slug": "api-reference/route-config#example",
+    "path": "/docs/api-reference/route-config#example",
+    "section": "API Reference · Route Config",
+    "headings": [],
     "content": ""
   },
   {
@@ -352,7 +406,7 @@
     "path": "/docs/api-reference/server-exports#what-it-sets-up",
     "section": "API Reference · Server Exports",
     "headings": [],
-    "content": "The returned Hono app includes the following route handlers:\n Method \n  \n GET    \n GET    \n POST   \n GET"
+    "content": "The returned Hono app includes the following route handlers:\n Method \n  \n GET    \n GET    \n GET    \n POST   \n GET    \nPublic files are enumerated once at startup rather than served via a wildcard, so the SSR catch-all still handles arbitrary unknown paths. Framework-managed files (index.html, manifest.json, ssr-manifest.json, rsc-client-manifest.json) and dotfiles are skipped automatically."
   },
   {
     "title": "Usage",
@@ -440,7 +494,7 @@
     "path": "/docs/api-reference/server-exports#configuration",
     "section": "API Reference · Server Exports",
     "headings": [],
-    "content": "The build command is run from your project root directory and uses the following defaults:\n Default                                    \n  \n Current working directory                  \n ./dist                                   \n ./app/routes.ts                          \n react-flight-router/dist/client/entry.js \nThe build automatically loads your project's vite.config.ts to pick up user-configured plugins (such as Tailwind CSS). React Flight Router's own plugins (react, flightRouter) are filtered out to avoid duplication."
+    "content": "The build command is run from your project root directory and uses the following defaults:\n Default                                    \n  \n Current working directory                  \n ./dist                                   \n ./app/routes.ts                          \n react-flight-router/dist/client/entry.js \n ./public                                 \nThe build automatically loads your project's vite.config.ts to pick up user-configured plugins (such as Tailwind CSS). React Flight Router's own plugins (react, flightRouter) are filtered out to avoid duplication."
   },
   {
     "title": "Add to `package.json`",
@@ -504,7 +558,7 @@
     "path": "/docs/architecture/build-pipeline#phase-2-client-build",
     "section": "Architecture · Build Pipeline",
     "headings": [],
-    "content": "Purpose: Bundle client components, the client entry point, and CSS for the browser.\nThis phase produces the JavaScript and CSS that runs in the user's browser:\n- Client components: Every module marked with 'use client' is bundled as a separate entry point, enabling per-route code-splitting. Chunks are loaded on demand when a route is navigated to.\n- Client entry: The main entry point that bootstraps the RSC client, sets up the router, and handles hydration.\n- CSS entries: Server components can import CSS files (e.g., Tailwind), but those imports do not produce client CSS on their own. The build orchestrator scans for .css imports in server components and adds them as explicit client build entries.\n- App plugins: The orchestrator loads the application's vite.config.ts to extract user plugins (such as @tailwindcss/vite), filtering out framework-internal plugins, and applies them to this phase.\nOutput: dist/client/index.html, dist/client/assets/.js, dist/client/assets/.css"
+    "content": "Purpose: Bundle client components, the client entry point, and CSS for the browser.\nThis phase produces the JavaScript and CSS that runs in the user's browser:\n- Client components: Every module marked with 'use client' is bundled as a separate entry point, enabling per-route code-splitting. Chunks are loaded on demand when a route is navigated to.\n- Client entry: The main entry point that bootstraps the RSC client, sets up the router, and handles hydration.\n- CSS entries: Server components can import CSS files (e.g., Tailwind), but those imports do not produce client CSS on their own. The build orchestrator scans for .css imports in server components and adds them as explicit client build entries.\n- App plugins: The orchestrator loads the application's vite.config.ts to extract user plugins (such as @tailwindcss/vite), filtering out framework-internal plugins, and applies them to this phase.\n- Public directory: If <appRoot>/public exists (or the path given by the publicDir build option"
   },
   {
     "title": "Phase 3: SSR Build",
@@ -552,7 +606,7 @@
     "path": "/docs/architecture/build-pipeline#phase-5-server-build",
     "section": "Architecture · Build Pipeline",
     "headings": [],
-    "content": "Purpose: Bundle the production server entry point.\nThe final phase bundles server.ts into a single dist/server.js file that can be deployed and run with Node.js. This server handles:\n- Serving static assets from dist/client/\n- RSC rendering for both initial page loads and client-side navigation\n- Server-side rendering (SSR) for initial page loads\n- Server action execution\nOutput: dist/server.js"
+    "content": "Purpose: Bundle the production server entry point.\nThe final phase bundles server.ts into a single dist/server.js file that can be deployed and run with Node.js. This server handles:\n- Serving static assets from dist/client/ (hashed bundles under /assets/, plus a route per top-level file copied from publicDir)\n- RSC rendering for both initial page loads and client-side navigation\n- Server-side rendering (SSR) for initial page loads\n- Server action execution\nOutput: dist/server.js"
   },
   {
     "title": "Build Output Structure",
@@ -1038,6 +1092,7 @@
       "`app/root.tsx`",
       "`app/styles.css`",
       "`app/routes/`",
+      "`public/`",
       "`server.ts`",
       "Next steps"
     ],
@@ -1098,6 +1153,14 @@
     "section": "Getting Started · Project Structure",
     "headings": [],
     "content": "A conventional directory for route components. You can organize files however you like -- React Flight Router does not enforce filesystem conventions. The route configuration in app/routes.ts determines which files map to which URLs.\nServer components\nRoute components are React Server Components by default. They can be async functions and can use await to fetch data directly:\nClient components\nFiles that need browser interactivity (state, effects, event handlers) must include the \"use client\" directive at the top:\nClient components can be imported and rendered inside server components.\nNested layouts\nA layout component renders <Outlet /to display its child routes. This allows you to share UI (such as navigation or sidebars) across a group of pages:\nDynamic routes\nUse :param segments in the route path to capture dynamic values. The matched parameters are passed to the component via the params prop:\nThe corresponding route config uses :id in the path:"
+  },
+  {
+    "title": "`public/`",
+    "slug": "getting-started/project-structure#public",
+    "path": "/docs/getting-started/project-structure#public",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "An optional directory for static files that should be served verbatim at the root URL — favicons, robots.txt, web app manifests, images referenced by absolute path, and so on. Filenames are not content-hashed, so they keep stable URLs across deployments.\nA file at public/robots.txt is served at /robots.txt in both development and production:\n- Dev: Vite serves public/ natively from the project root.\n- Build: The build pipeline copies public/ into dist/client/, and the production server registers a route per top-level file with a daily-revalidating Cache-Control header.\nThe directory is optional; the build silently skips it when missing. The default location is <project root>/public — override it with the publicDir build option (see react-flight-router build)."
   },
   {
     "title": "`server.ts`",
@@ -1894,7 +1957,7 @@
       "Segment Diffing",
       "See also"
     ],
-    "content": "Navigation & Links\nReact Flight Router provides a <Linkcomponent and several hooks for navigating between pages in your application. Client-side navigation fetches only the changed segments of the page, avoiding full page reloads.\nThe Link Component\nUse the <Linkcomponent from \"react-flight-router/client\" for declarative navigation. It renders a standard <aelement and intercepts clicks to perform SPA-style navigation.\nSince <Linkrenders a regular <atag, it supports progressive enhancement. If JavaScript has not loaded, the link works as a normal browser navigation.\nProgrammatic Navigation\nUse the useRouter hook when you need to navigate in response to events other than link clicks.\nThe useRouter hook returns an object with the following properties:\n Type                                                    \n  \n string                                                \n (to: string, options?: { replace?: boolean }) =void \n () =void                                            \n Record<string, ReactNode\n \"idle\" \\ Whether a navigation is in progress.                                                                  |\n string \\ The URL of the pending navigation, or null when idle. Useful for building precise pending state UI. |\n Record<string, string\nRefreshing the current page\nUse router.refresh() to re-fetch the current page from the server without a hard browser reload. This is useful after mutations (server actions, form submissions) when you want the server components on the current page to re-run and reflect updated data.\nrefresh() calls the /rsc endpoint for the current URL without the partial-update header, so the server renders all segments fresh. The browser URL and history are not changed.\nLoading Indicators\nUse the useNavigation hook to show loading indicators during page transitions.\nThe useNavigation hook returns:\n Type                  \n  \n \"idle\" \\ \"loading\" during navigation, \"idle\" otherwise. |\nReading the Current Location\nUse the useLocation hook to read the "
+    "content": "Navigation & Links\nReact Flight Router provides a <Linkcomponent and several hooks for navigating between pages in your application. Client-side navigation fetches only the changed segments of the page, avoiding full page reloads.\nThe Link Component\nUse the <Linkcomponent from \"react-flight-router/client\" for declarative navigation. It renders a standard <aelement and intercepts clicks to perform SPA-style navigation.\nSince <Linkrenders a regular <atag, it supports progressive enhancement. If JavaScript has not loaded, the link works as a normal browser navigation.\nProgrammatic Navigation\nUse the useRouter hook when you need to navigate in response to events other than link clicks.\nThe useRouter hook returns an object with the following properties:\n Type                                                    \n  \n string                                                \n (to: string, options?: { replace?: boolean }) =void \n () =void                                            \n Record<string, ReactNode\n \"idle\" \\ Whether a navigation is in progress.                                                                                                      |\n string \\ The URL of the pending navigation, or null when idle. Useful for building precise pending state UI.                                     |\n Record<string, string\nRefreshing the current page\nUse router.refresh() to re-fetch the current page from the server without a hard browser reload. This is useful after mutations (server actions, form submissions) when you want the server components on the current page to re-run and reflect updated data.\nrefresh() calls the /rsc endpoint for the current URL without the partial-update header, so the server renders all segments fresh. The browser URL and history are not changed.\nLoading Indicators\nUse the useNavigation hook to show loading indicators during page transitions.\nThe useNavigation hook returns:\n Type                  \n  \n \"idle\" \\ \"loading\" during navigation, \"idle\" otherwi"
   },
   {
     "title": "The Link Component",
@@ -1910,7 +1973,7 @@
     "path": "/docs/guides/navigation-and-links#programmatic-navigation",
     "section": "Guides · Navigation & Links",
     "headings": [],
-    "content": "Use the useRouter hook when you need to navigate in response to events other than link clicks.\nThe useRouter hook returns an object with the following properties:\n Type                                                    \n  \n string                                                \n (to: string, options?: { replace?: boolean }) =void \n () =void                                            \n Record<string, ReactNode\n \"idle\" \\ Whether a navigation is in progress.                                                                  |\n string \\ The URL of the pending navigation, or null when idle. Useful for building precise pending state UI. |\n Record<string, string"
+    "content": "Use the useRouter hook when you need to navigate in response to events other than link clicks.\nThe useRouter hook returns an object with the following properties:\n Type                                                    \n  \n string                                                \n (to: string, options?: { replace?: boolean }) =void \n () =void                                            \n Record<string, ReactNode\n \"idle\" \\ Whether a navigation is in progress.                                                                                                      |\n string \\ The URL of the pending navigation, or null when idle. Useful for building precise pending state UI.                                     |\n Record<string, string"
   },
   {
     "title": "Refreshing the current page",
@@ -2086,6 +2149,132 @@
     "section": "Guides · Not Found Handling",
     "headings": [],
     "content": "- Error Handling — handling render errors (a related boundary type)\n- Routing — defining routes and the notFound property\n- Route Config — full API reference for RouteConfig"
+  },
+  {
+    "title": "Parallel Routes & Modals",
+    "slug": "guides/parallel-routes",
+    "path": "/docs/guides/parallel-routes",
+    "section": "Guides",
+    "headings": [
+      "When to use a slot vs. a child route",
+      "How it works",
+      "A complete example",
+      "Route configuration",
+      "Root layout with both outlets",
+      "The slot's outer layout",
+      "Linking into the slot",
+      "The three exits",
+      "Why hard-loading preserves the modal",
+      "Multiple slots side-by-side",
+      "Server-side details",
+      "Known limitations",
+      "See also"
+    ],
+    "content": "Parallel Routes & Modals\nA parallel-route slot lets you render a second route subtree on top of the current page. The slot has its own match chain — its own layouts, dynamic params, error and loading boundaries — and lives in the URL as a search param so the result is still a shareable, refreshable URL.\nThe canonical use case is a photo modal: clicking a thumbnail in a gallery opens the photo over the gallery, but pasting that URL into a new tab renders the photo as a regular full-page route.\nWhen to use a slot vs. a child route\nReach for a slot when both of these are true:\n- The overlay UI should not replace the underlying page (the gallery should stay mounted, scroll position preserved).\n- A direct visit to the overlay's \"real\" URL should render that page on its own (modals are meant to be skipped on cold loads).\nIf neither is true — e.g. a true sub-page — use ordinary nested children. Slots add a second match dimension to your URL handling, which is overhead you only want when you need it.\nHow it works\nA slot has three pieces:\n1. A slots config on the layout where it should attach.\n2. A search-param URL convention — the slot's path lives in ?@<slotName>=<path>.\n3. An <Outlet name=\"<slotName>\" /in the layout, rendered alongside the regular .\nWhen the URL contains ?@modal=/photo/3, the router matches /photo/3 against the slot's route tree and renders the result into the named outlet. When the param is absent, the slot is empty.\nA direct visit to /photo/3 (no slot param) is matched against the main route tree and renders normally — the share-link property of intercepting routes falls out of this for free.\nA complete example\nThis is the photo-modal POC from the e2e test suite, end to end.\nRoute configuration\nRoot layout with both outlets\nThe root layout renders the regular outlet for the page underneath, and a named outlet for the modal layer:\nThe slot's outer layout\nThe slot's outermost route is an ordinary layout. It renders modal chrome around its own :\nLinking in"
+  },
+  {
+    "title": "When to use a slot vs. a child route",
+    "slug": "guides/parallel-routes#when-to-use-a-slot-vs-a-child-route",
+    "path": "/docs/guides/parallel-routes#when-to-use-a-slot-vs-a-child-route",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "Reach for a slot when both of these are true:\n- The overlay UI should not replace the underlying page (the gallery should stay mounted, scroll position preserved).\n- A direct visit to the overlay's \"real\" URL should render that page on its own (modals are meant to be skipped on cold loads).\nIf neither is true — e.g. a true sub-page — use ordinary nested children. Slots add a second match dimension to your URL handling, which is overhead you only want when you need it."
+  },
+  {
+    "title": "How it works",
+    "slug": "guides/parallel-routes#how-it-works",
+    "path": "/docs/guides/parallel-routes#how-it-works",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "A slot has three pieces:\n1. A slots config on the layout where it should attach.\n2. A search-param URL convention — the slot's path lives in ?@<slotName>=<path>.\n3. An <Outlet name=\"<slotName>\" /in the layout, rendered alongside the regular .\nWhen the URL contains ?@modal=/photo/3, the router matches /photo/3 against the slot's route tree and renders the result into the named outlet. When the param is absent, the slot is empty.\nA direct visit to /photo/3 (no slot param) is matched against the main route tree and renders normally — the share-link property of intercepting routes falls out of this for free."
+  },
+  {
+    "title": "A complete example",
+    "slug": "guides/parallel-routes#a-complete-example",
+    "path": "/docs/guides/parallel-routes#a-complete-example",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "This is the photo-modal POC from the e2e test suite, end to end."
+  },
+  {
+    "title": "Route configuration",
+    "slug": "guides/parallel-routes#route-configuration",
+    "path": "/docs/guides/parallel-routes#route-configuration",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Root layout with both outlets",
+    "slug": "guides/parallel-routes#root-layout-with-both-outlets",
+    "path": "/docs/guides/parallel-routes#root-layout-with-both-outlets",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "The root layout renders the regular outlet for the page underneath, and a named outlet for the modal layer:"
+  },
+  {
+    "title": "The slot's outer layout",
+    "slug": "guides/parallel-routes#the-slots-outer-layout",
+    "path": "/docs/guides/parallel-routes#the-slots-outer-layout",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "The slot's outermost route is an ordinary layout. It renders modal chrome around its own :"
+  },
+  {
+    "title": "Linking into the slot",
+    "slug": "guides/parallel-routes#linking-into-the-slot",
+    "path": "/docs/guides/parallel-routes#linking-into-the-slot",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "<Link intoSlot=\"modal\" to=\"/photo/3\"rewrites the click target to <currentPathname>?@modal=/photo/3, which keeps the underlying page mounted and opens the modal on top."
+  },
+  {
+    "title": "The three exits",
+    "slug": "guides/parallel-routes#the-three-exits",
+    "path": "/docs/guides/parallel-routes#the-three-exits",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "Once a modal is open, there are three different \"exits\" — choose the one that matches what the user is trying to do.\n Result                                                     \n  \n Drops ?@<slot>=..., returns to the underlying page.      \n Drops the slot param and navigates to the canonical URL. \n Pops the history entry that opened the modal.              \nThe \"open full page\" affordance is worth shipping — without it, users who hard-load a ?@modal=... URL have no path to the standalone version of the page. A typical pattern:\nThis is wired into the slot subtree (not the main /photo/:id route), so it only renders inside the modal."
+  },
+  {
+    "title": "Why hard-loading preserves the modal",
+    "slug": "guides/parallel-routes#why-hard-loading-preserves-the-modal",
+    "path": "/docs/guides/parallel-routes#why-hard-loading-preserves-the-modal",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "The URL ?@modal=/photo/3 literally encodes \"modal is open with this path.\" Hard-loading or refreshing such a URL faithfully re-renders both layers — that's the share-link property and the reason slots exist. If reload silently dropped the slot, share links would be useless.\nTo leave the modal, use one of the three exits above."
+  },
+  {
+    "title": "Multiple slots side-by-side",
+    "slug": "guides/parallel-routes#multiple-slots-side-by-side",
+    "path": "/docs/guides/parallel-routes#multiple-slots-side-by-side",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "Because slots is a record, a single layout can declare any number of named slots. They render simultaneously, are matched independently, and are closed independently. Adding a side drawer alongside the photo modal:\nEach slot gets its own <Outlet nameand its own URL search param:\nWhen both are open, the URL looks like ?@modal=/photo/3&@drawer=/cart — and that URL is shareable: hard-loading it SSRs the gallery, the photo modal, and the cart drawer in one response. Closing either calls useCloseSlot(\"modal\") or useCloseSlot(\"drawer\") independently; the other slot's segments are preserved.\nA few things to mind when stacking slots:\n- Z-index ordering matters. If two slots overlap visually (a fullscreen modal and a side drawer), pick a stacking order that keeps the underlying slot's interactive elements reachable. In the example above the drawer sits above the modal so its close button is always clickable.\n- Each slot has its own close handler. useCloseSlot(\"modal\") and useCloseSlot(\"drawer\")"
+  },
+  {
+    "title": "Server-side details",
+    "slug": "guides/parallel-routes#server-side-details",
+    "path": "/docs/guides/parallel-routes#server-side-details",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "On every navigation the server runs matchSlots() against both the previous and current URL's search params. For each declared slot:\n- If the slot path is unchanged between the two URLs, its segments are skipped on the server and reused on the client (just like main-tree segment diffing).\n- If the slot path is different or newly opened, its entire subtree re-renders and is included in the response.\n- If the slot was open before but is now closed, its keys are simply omitted from the canonical segmentKeys list and the client drops them from its segment map.\nSlot segments are keyed under <parent>@<slotName>/... — for example, root@modal/photo-modal-layout/photo-in-modal. This namespace separation keeps slot diffing independent of main-tree diffing."
+  },
+  {
+    "title": "Known limitations",
+    "slug": "guides/parallel-routes#known-limitations",
+    "path": "/docs/guides/parallel-routes#known-limitations",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "A few sharp edges to be aware of:\n- No boundary \"above\" the slot. A slot's outermost route can declare loading and error, but those wrap its own children — there is no boundary that wraps the slot container itself. If you need a graceful skeleton while the modal is opening, you have to put a layout route at the top of the slot's tree.\n- Coarse slot diffing. When the slot path changes (e.g. /photo/3 → /photo/4), the entire slot subtree re-renders. Sub-segment diffing inside the slot is not yet implemented.\n- No nested slots. matchSlots() only inspects matches in the main tree. Slot routes declaring their own slots are silently ignored.\n- Slot params don't appear in useParams(). useParams() returns the leaf params of the main match chain. To get a slot's leaf params, render the value through the slot route component's params prop and pass it down explicitly.\n- History semantics are a judgment call. Opening a modal pushes a history entry; closing replaces it. Switching photos within the m"
+  },
+  {
+    "title": "See also",
+    "slug": "guides/parallel-routes#see-also",
+    "path": "/docs/guides/parallel-routes#see-also",
+    "section": "Guides · Parallel Routes & Modals",
+    "headings": [],
+    "content": "- Layouts & Outlets — the foundational mental model for <Outlet /and segment diffing\n- Navigation & Links — <Linkmechanics, including the intoSlot prop\n- Search Params — read and write search params for non-slot use cases\n- Route Config — the slots field reference\n- Client Exports — <Outlet name>, <Link intoSlot>, useCloseSlot()"
   },
   {
     "title": "Redirects",
@@ -2389,8 +2578,15 @@
     "slug": "guides/scroll-restoration",
     "path": "/docs/guides/scroll-restoration",
     "section": "Guides",
-    "headings": ["Setup", "Behavior", "How It Works", "API", "See also"],
-    "content": "Scroll Restoration\nThe <ScrollRestoration /component manages scroll position during client-side navigations. It scrolls to the top when navigating to a new page and restores the previous scroll position when using browser back/forward buttons.\nSetup\nAdd <ScrollRestoration /once in your root layout, inside the <body>:\nBehavior\n Scroll behavior                        |\n  |\n Scrolls to top (0, 0)                  |\n Restores previous scroll position      |\n Restores previous scroll position      |\n Restores position (via sessionStorage) |\nHow It Works\n1. Each navigation generates a unique key stored in history.state.\n2. As the user scrolls, the current position is saved to sessionStorage keyed by the history entry key (debounced at 100ms).\n3. On back/forward navigation (popstate event), the component looks up the saved position and restores it using requestAnimationFrame to wait for the DOM to update.\n4. On new navigation (link click or programmatic), the component scrolls to the top.\nPositions are stored in sessionStorage, so they survive page reloads within the same tab but are cleared when the tab is closed.\nAPI\nThe component renders nothing (null). It only manages scroll behavior through side effects.\nPlace it once in your root layout. Multiple instances are not needed and may cause unexpected behavior.\nSee also\n- Navigation & Links — the Link component and client-side navigation"
+    "headings": [
+      "Setup",
+      "Behavior",
+      "Holding the scroll position",
+      "How It Works",
+      "API",
+      "See also"
+    ],
+    "content": "Scroll Restoration\nThe <ScrollRestoration /component manages scroll position during client-side navigations. It scrolls to the top when navigating to a new page and restores the previous scroll position when using browser back/forward buttons.\nSetup\nAdd <ScrollRestoration /once in your root layout, inside the <body>:\nBehavior\n Scroll behavior                        |\n  |\n Scrolls to top (0, 0)                  |\n Stays where it is                      |\n Restores previous scroll position      |\n Restores previous scroll position      |\n Restores position (via sessionStorage) |\nHolding the scroll position\nSome URL changes don't replace what the user is reading: a modal route opening over a list, a filter toggling in the query string, in-place pagination. Resetting to the top on those is disorienting — worse on a long or infinitely-scrolled page, where the position is expensive to get back to.\nPass preventScrollReset to opt a single navigation out of the reset:\nThe same option works on navigate() and on the closer returned by useCloseSlot():\nIt only suppresses the scroll-to-top. The position is still recorded for the new history entry, so a later back/forward onto it restores normally.\nNote that this controls scrolling only — whether the page underneath keeps its state (loaded pages of an infinite list, for example) is a separate question, answered by whether the router re-renders that segment. Segments whose route and search params are unchanged are reused across a navigation, so their client state survives.\nHow It Works\n1. Each navigation generates a unique key stored in history.state.\n2. As the user scrolls, the current position is saved to sessionStorage keyed by the history entry key (debounced at 100ms).\n3. On back/forward navigation (popstate event), the component looks up the saved position and restores it using requestAnimationFrame to wait for the DOM to update.\n4. On new navigation (link click or programmatic), the component scrolls to the top — unless the "
   },
   {
     "title": "Setup",
@@ -2406,7 +2602,15 @@
     "path": "/docs/guides/scroll-restoration#behavior",
     "section": "Guides · Scroll Restoration",
     "headings": [],
-    "content": "Scroll behavior                        |\n  |\n Scrolls to top (0, 0)                  |\n Restores previous scroll position      |\n Restores previous scroll position      |\n Restores position (via sessionStorage) |"
+    "content": "Scroll behavior                        |\n  |\n Scrolls to top (0, 0)                  |\n Stays where it is                      |\n Restores previous scroll position      |\n Restores previous scroll position      |\n Restores position (via sessionStorage) |"
+  },
+  {
+    "title": "Holding the scroll position",
+    "slug": "guides/scroll-restoration#holding-the-scroll-position",
+    "path": "/docs/guides/scroll-restoration#holding-the-scroll-position",
+    "section": "Guides · Scroll Restoration",
+    "headings": [],
+    "content": "Some URL changes don't replace what the user is reading: a modal route opening over a list, a filter toggling in the query string, in-place pagination. Resetting to the top on those is disorienting — worse on a long or infinitely-scrolled page, where the position is expensive to get back to.\nPass preventScrollReset to opt a single navigation out of the reset:\nThe same option works on navigate() and on the closer returned by useCloseSlot():\nIt only suppresses the scroll-to-top. The position is still recorded for the new history entry, so a later back/forward onto it restores normally.\nNote that this controls scrolling only — whether the page underneath keeps its state (loaded pages of an infinite list, for example) is a separate question, answered by whether the router re-renders that segment. Segments whose route and search params are unchanged are reused across a navigation, so their client state survives."
   },
   {
     "title": "How It Works",
@@ -2414,7 +2618,7 @@
     "path": "/docs/guides/scroll-restoration#how-it-works",
     "section": "Guides · Scroll Restoration",
     "headings": [],
-    "content": "1. Each navigation generates a unique key stored in history.state.\n2. As the user scrolls, the current position is saved to sessionStorage keyed by the history entry key (debounced at 100ms).\n3. On back/forward navigation (popstate event), the component looks up the saved position and restores it using requestAnimationFrame to wait for the DOM to update.\n4. On new navigation (link click or programmatic), the component scrolls to the top.\nPositions are stored in sessionStorage, so they survive page reloads within the same tab but are cleared when the tab is closed."
+    "content": "1. Each navigation generates a unique key stored in history.state.\n2. As the user scrolls, the current position is saved to sessionStorage keyed by the history entry key (debounced at 100ms).\n3. On back/forward navigation (popstate event), the component looks up the saved position and restores it using requestAnimationFrame to wait for the DOM to update.\n4. On new navigation (link click or programmatic), the component scrolls to the top — unless the navigation set preventScrollReset, which is recorded on the history entry alongside its key.\nPositions are stored in sessionStorage, so they survive page reloads within the same tab but are cleared when the tab is closed."
   },
   {
     "title": "API",
@@ -2445,7 +2649,7 @@
       "URL behavior",
       "See also"
     ],
-    "content": "Search Params\nThe useSearchParams hook provides a way to read and write URL query parameters from client components. This is essential for features like filters, pagination, search, and sort state that should be reflected in the URL.\nBasic usage\nImport useSearchParams from \"react-flight-router/client\". It returns a [searchParams, setSearchParams] tuple, similar to useState.\nAPI\n Type              \n  \n URLSearchParams \n Function        \nThe setSearchParams function accepts either:\n- A URLSearchParams instance with the new values.\n- An updater function that receives the current params and returns new params.\nUpdater function\nUse the function form when you need to read the current params before updating:\nServer components\nThe useSearchParams hook is client-only. Server components do not receive search params as a prop. To access query parameters on the server, use getRequest() from react-flight-router/server and parse the URL:\nSee the Request Context guide for more on getRequest().\nURL behavior\nWhen setSearchParams is called, the router navigates to the same pathname with the updated query string. By default, this uses replaceState instead of pushState, so changing filters doesn't create extra browser history entries. This means pressing the back button takes the user to the previous page, not the previous filter state.\nSee also\n- Navigation & Links — programmatic navigation and the Link component\n- Request Context — accessing search params on the server via getRequest()"
+    "content": "Search Params\nThe useSearchParams hook provides a way to read and write URL query parameters from client components. This is essential for features like filters, pagination, search, and sort state that should be reflected in the URL.\nBasic usage\nImport useSearchParams from \"react-flight-router/client\". It returns a [searchParams, setSearchParams] tuple, similar to useState.\nAPI\n Type              \n  \n URLSearchParams \n Function        \nThe setSearchParams function accepts either:\n- A URLSearchParams instance with the new values.\n- An updater function that receives the current params and returns new params.\nUpdater function\nUse the function form when you need to read the current params before updating:\nServer components\nThe useSearchParams hook is client-only. Server route components receive search params directly as a searchParams prop — a plain object of the URL's query parameters:\nTwo things to know about the prop's shape:\n- Slot params are excluded. Parallel-route params (?@modal=/photo/2) drive the slot machinery and never appear in searchParams — so opening or closing a modal doesn't change the prop, matching the renderer's decision not to re-render the main tree for slot-only changes.\n- Duplicate keys collapse last-wins. ?tag=a&tag=b yields { tag: \"b\" }.\nFor multi-value params, or anywhere outside a route component (server actions, shared libs), read the raw URL via getRequest() from react-flight-router/server:\nSee the Request Context guide for more on getRequest().\nURL behavior\nWhen setSearchParams is called, the router navigates to the same pathname with the updated query string. By default, this uses replaceState instead of pushState, so changing filters doesn't create extra browser history entries. This means pressing the back button takes the user to the previous page, not the previous filter state.\nSee also\n- Navigation & Links — programmatic navigation and the Link component\n- Request Context — accessing search params on the server via getRequest()"
   },
   {
     "title": "Basic usage",
@@ -2477,7 +2681,7 @@
     "path": "/docs/guides/search-params#server-components",
     "section": "Guides · Search Params",
     "headings": [],
-    "content": "The useSearchParams hook is client-only. Server components do not receive search params as a prop. To access query parameters on the server, use getRequest() from react-flight-router/server and parse the URL:\nSee the Request Context guide for more on getRequest()."
+    "content": "The useSearchParams hook is client-only. Server route components receive search params directly as a searchParams prop — a plain object of the URL's query parameters:\nTwo things to know about the prop's shape:\n- Slot params are excluded. Parallel-route params (?@modal=/photo/2) drive the slot machinery and never appear in searchParams — so opening or closing a modal doesn't change the prop, matching the renderer's decision not to re-render the main tree for slot-only changes.\n- Duplicate keys collapse last-wins. ?tag=a&tag=b yields { tag: \"b\" }.\nFor multi-value params, or anywhere outside a route component (server actions, shared libs), read the raw URL via getRequest() from react-flight-router/server:\nSee the Request Context guide for more on getRequest()."
   },
   {
     "title": "URL behavior",

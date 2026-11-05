@@ -15,7 +15,7 @@ const pkg = JSON.parse(
 );
 
 export default defineConfig({
-  base: "/react-flight-router/",
+  base: "/",
   define: {
     __PACKAGE_VERSION__: JSON.stringify(pkg.version),
   },

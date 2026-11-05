@@ -81,7 +81,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 text-center text-sm text-gray-500 dark:text-gray-400">
           <p>MIT License</p>
           <a
-            href="https://github.com/gabrielcsapo/react-flight-router"
+            href="https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=main&path=packages/react-flight-router"
             className="hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
             target="_blank"
             rel="noopener noreferrer"

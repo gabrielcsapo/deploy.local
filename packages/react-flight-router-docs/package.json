@@ -7,8 +7,10 @@
     "build:output": "tsx scripts/capture-build-output.ts",
     "build:runtime": "tsx scripts/capture-runtime-output.ts",
     "build:search": "tsx scripts/build-search-index.ts",
-    "build": "pnpm build:output && pnpm build:runtime && pnpm build:search && vite build && cp dist/index.html dist/404.html",
-    "preview": "vite preview"
+    "build": "pnpm build:search && vite build && cp dist/index.html dist/404.html",
+    "preview": "vite preview",
+    "build:deploy": "pnpm build && node scripts/package-static.mjs",
+    "refresh:examples": "pnpm build:output && pnpm build:runtime"
   },
   "dependencies": {
     "@mdx-js/react": "^3.1.1",

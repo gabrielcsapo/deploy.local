@@ -150,7 +150,7 @@ Start with workers enabled:
 WORKERS=1 node dist/server.js
 ```
 
-See the [e2e test server](https://github.com/gabrielcsapo/react-flight-router/blob/main/packages/react-flight-router-e2e/server.ts) for a complete working example that also includes timing events, health checks, and Hono API routes alongside the flight app.
+See the [e2e test server](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=main&file=packages/react-flight-router-e2e/server.ts) for a complete working example that also includes timing events, health checks, and Hono API routes alongside the flight app.
 
 ## Limitations
 
