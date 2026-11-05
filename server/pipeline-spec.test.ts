@@ -56,3 +56,33 @@ test('pipeline deploy supports first deployments and a confined optional app roo
       /subdirectory/,
     );
 });
+
+test('pipeline paths survive canonical round trips and reject invalid filters', () => {
+  const withPaths = source + '  paths: ["packages/react-flight-router*/**", "pnpm-lock.yaml"]\n';
+  const compiled = compileDeployYaml(withPaths);
+  assert.deepEqual(compiled.spec.pipeline?.paths, [
+    'packages/react-flight-router*/**',
+    'pnpm-lock.yaml',
+  ]);
+  assert.equal(compileApplicationManifest(compiled.spec).digest, compiled.digest);
+  assert.equal(compileDeployYaml(source).spec.pipeline?.paths, undefined);
+  for (const paths of [
+    [],
+    [''],
+    ['../secret'],
+    ['/absolute'],
+    ['a/../b'],
+    ['./a'],
+    ['a\\b'],
+    ['!excluded'],
+    ['a', 'a'],
+    [false],
+    'src/**',
+    Array(33).fill('src'),
+  ]) {
+    assert.throws(
+      () => compileDeployYaml(source + `  paths: ${JSON.stringify(paths)}\n`),
+      /pipeline.paths/,
+    );
+  }
+});

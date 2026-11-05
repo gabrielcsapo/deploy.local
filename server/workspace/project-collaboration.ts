@@ -615,7 +615,13 @@ export async function executePullMerge(owner: string, operation: any, runGit: ty
       input: `start\nverify refs/heads/${pull.sourceBranch} ${operation.headCommit}\nupdate refs/heads/${pull.targetBranch} ${landed} ${operation.baseCommit}\ncreate ${receipt} ${landed}\nprepare\ncommit\n`,
     });
   }
-  queuePushTrigger(owner, project.id, `refs/heads/${pull.targetBranch}`, landed);
+  queuePushTrigger(
+    owner,
+    project.id,
+    `refs/heads/${pull.targetBranch}`,
+    landed,
+    operation.baseCommit,
+  );
   save('pull-request', owner, {
     ...get('pull-request', owner, pull.id),
     status: 'merged',

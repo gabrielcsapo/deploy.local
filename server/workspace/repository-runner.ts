@@ -296,7 +296,7 @@ export class RepositoryRunner {
       // Only a fast-forward, and only if main has not moved since it was read.
       await this.gitText(repo, ['update-ref', `refs/heads/${branch}`, remote, local], { signal });
       // Commits that arrive from the remote run the same pipelines as a push here.
-      queuePushTrigger(owner, project.id, `refs/heads/${branch}`, remote);
+      queuePushTrigger(owner, project.id, `refs/heads/${branch}`, remote, local);
       return 'in-sync';
     }
     return 'paused';

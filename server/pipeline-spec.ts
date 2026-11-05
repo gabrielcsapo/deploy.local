@@ -9,6 +9,8 @@ export type PipelineSpec = {
   on: ('manual' | 'push' | 'pull_request')[];
   branches: string[];
   jobs: Record<string, PipelineJob>;
+  /** Repository-relative globs; omitted means all files. Manual runs ignore these. */
+  paths?: string[];
   deploy?: { application: string; path?: string };
 };
 const namePattern = /^[a-z][a-z0-9-]{0,62}$/;
@@ -33,7 +35,7 @@ function strings(value: unknown, label: string, maximum = 32): string[] {
 }
 export function compilePipeline(value: unknown): PipelineSpec {
   const input = object(value, 'pipeline');
-  keys(input, ['on', 'branches', 'jobs', 'deploy'], 'pipeline');
+  keys(input, ['on', 'branches', 'paths', 'jobs', 'deploy'], 'pipeline');
   const on = strings(input.on ?? ['manual'], 'pipeline.on');
   if (!on.length || on.some((event) => !['manual', 'push', 'pull_request'].includes(event)))
     throw new Error('pipeline.on supports manual, push and pull_request');
@@ -44,6 +46,19 @@ export function compilePipeline(value: unknown): PipelineSpec {
     )
   )
     throw new Error('pipeline.branches requires exact branch names');
+  const paths = input.paths === undefined ? undefined : strings(input.paths, 'pipeline.paths');
+  if (
+    paths &&
+    (!paths.length ||
+      paths.some(
+        (path) =>
+          path.startsWith('/') ||
+          path.startsWith('!') ||
+          ['\\', '\0', '\r', '\n'].some((character) => path.includes(character)) ||
+          path.split('/').some((part) => !part || part === '.' || part === '..'),
+      ))
+  )
+    throw new Error('pipeline.paths requires nonempty repository-relative globs');
   const rawJobs = object(input.jobs, 'pipeline.jobs');
   if (!Object.keys(rawJobs).length || Object.keys(rawJobs).length > 32)
     throw new Error('pipeline.jobs requires 1–32 jobs');
@@ -121,5 +136,11 @@ export function compilePipeline(value: unknown): PipelineSpec {
       ...(target.path !== undefined ? { path: target.path } : {}),
     };
   }
-  return { on: on as PipelineSpec['on'], branches, jobs, ...(deploy ? { deploy } : {}) };
+  return {
+    on: on as PipelineSpec['on'],
+    branches,
+    jobs,
+    ...(paths ? { paths } : {}),
+    ...(deploy ? { deploy } : {}),
+  };
 }

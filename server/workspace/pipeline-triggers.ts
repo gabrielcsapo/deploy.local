@@ -1,12 +1,20 @@
 import { createHash } from 'node:crypto';
 import { save, now } from './store.ts';
-export function queuePushTrigger(owner: string, projectId: string, ref: string, commit: string) {
+export function queuePushTrigger(
+  owner: string,
+  projectId: string,
+  ref: string,
+  commit: string,
+  previousCommit?: string,
+) {
   if (
     !ref.startsWith('refs/heads/') ||
     !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(commit) ||
     /^0+$/.test(commit)
   )
     return;
+  if (previousCommit !== undefined && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(previousCommit))
+    throw new Error('Invalid previous push commit');
   save('pipeline-trigger-request', owner, {
     id: createHash('sha256')
       .update(JSON.stringify([projectId, ref, commit]))
@@ -14,6 +22,7 @@ export function queuePushTrigger(owner: string, projectId: string, ref: string, 
     projectId,
     ref,
     commit,
+    ...(previousCommit !== undefined ? { previousCommit } : {}),
     createdAt: now(),
   });
 }
@@ -21,7 +30,7 @@ export function queuePushTrigger(owner: string, projectId: string, ref: string, 
 export class PushCommands {
   private buffer = Buffer.alloc(0);
   private done = false;
-  readonly updates: { ref: string; commit: string }[] = [];
+  readonly updates: { ref: string; commit: string; previousCommit: string }[] = [];
   feed(chunk: Buffer) {
     if (this.done) return;
     this.buffer = Buffer.concat([this.buffer, chunk]);
@@ -42,9 +51,9 @@ export class PushCommands {
       }
       if (this.buffer.length < length) break;
       const command = this.buffer.subarray(4, length).toString().split('\0')[0].trimEnd();
-      const match = command.match(/^[a-f0-9]{40,64} ([a-f0-9]{40,64}) (refs\/heads\/[^\s]+)$/);
+      const match = command.match(/^([a-f0-9]{40,64}) ([a-f0-9]{40,64}) (refs\/heads\/[^\s]+)$/);
       if (match && this.updates.length < 1000)
-        this.updates.push({ commit: match[1], ref: match[2] });
+        this.updates.push({ previousCommit: match[1], commit: match[2], ref: match[3] });
       this.buffer = this.buffer.subarray(length);
     }
     if (this.done || this.buffer.length > 65536) {
@@ -64,7 +73,7 @@ export class PushResult {
   queue(owner: string, projectId: string) {
     for (const update of this.commands.updates) {
       if (this.report.includes(`ok ${update.ref}\n`))
-        queuePushTrigger(owner, projectId, update.ref, update.commit);
+        queuePushTrigger(owner, projectId, update.ref, update.commit, update.previousCommit);
     }
   }
 }
