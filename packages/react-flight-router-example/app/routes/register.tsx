@@ -1,4 +1,4 @@
-import RegisterForm from "./register.client.js";
+import RegisterForm from './register.client.js';
 
 export default function RegisterPage() {
   return (

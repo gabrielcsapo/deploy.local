@@ -1,40 +1,40 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: './e2e',
   timeout: 30_000,
   use: {
     headless: true,
   },
   projects: [
     {
-      name: "production",
-      testMatch: ["app.spec.ts", "auth.spec.ts", "boundaries.spec.ts", "public-dir.spec.ts"],
+      name: 'production',
+      testMatch: ['app.spec.ts', 'auth.spec.ts', 'boundaries.spec.ts', 'public-dir.spec.ts'],
       use: {
-        browserName: "chromium",
-        baseURL: "http://localhost:3000",
+        browserName: 'chromium',
+        baseURL: 'http://localhost:3000',
       },
     },
     {
-      name: "dev",
-      testMatch: ["dev.spec.ts", "auth-dev.spec.ts", "public-dir.spec.ts"],
+      name: 'dev',
+      testMatch: ['dev.spec.ts', 'auth-dev.spec.ts', 'public-dir.spec.ts'],
       use: {
-        browserName: "chromium",
-        baseURL: "http://localhost:5173",
+        browserName: 'chromium',
+        baseURL: 'http://localhost:5173',
       },
     },
     {
-      name: "logging",
-      testMatch: "logging.spec.ts",
+      name: 'logging',
+      testMatch: 'logging.spec.ts',
       use: {
-        browserName: "chromium",
+        browserName: 'chromium',
       },
     },
     {
-      name: "perf",
-      testMatch: "perf.spec.ts",
+      name: 'perf',
+      testMatch: 'perf.spec.ts',
       use: {
-        browserName: "chromium",
+        browserName: 'chromium',
       },
     },
   ],

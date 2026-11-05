@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { Link } from "react-flight-router/client";
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { Link } from 'react-flight-router/client';
 
 interface Note {
   id: string;
@@ -10,20 +10,20 @@ interface Note {
 }
 
 export default async function HomePage() {
-  const raw = await readFile(resolve(process.cwd(), "data/notes.json"), "utf-8");
+  const raw = await readFile(resolve(process.cwd(), 'data/notes.json'), 'utf-8');
   const notes: Note[] = JSON.parse(raw);
 
   return (
     <main className="max-w-3xl mx-auto p-8">
       <h1 className="text-3xl font-bold mb-2">Notes</h1>
       <p className="text-sm text-gray-500 mb-6">
-        {notes.length} note{notes.length !== 1 ? "s" : ""} &middot; Server rendered at{" "}
+        {notes.length} note{notes.length !== 1 ? 's' : ''} &middot; Server rendered at{' '}
         {new Date().toISOString()}
       </p>
 
       {notes.length === 0 ? (
         <p className="text-gray-500">
-          No notes yet.{" "}
+          No notes yet.{' '}
           <Link to="/notes/new" className="text-blue-600 hover:underline">
             Create one
           </Link>

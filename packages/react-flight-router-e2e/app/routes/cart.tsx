@@ -1,7 +1,7 @@
 const ITEMS = [
-  { id: "a", name: "Sunset print", price: 24 },
-  { id: "b", name: "Forest poster", price: 18 },
-  { id: "c", name: "Ocean canvas", price: 42 },
+  { id: 'a', name: 'Sunset print', price: 24 },
+  { id: 'b', name: 'Forest poster', price: 18 },
+  { id: 'c', name: 'Ocean canvas', price: 42 },
 ];
 
 export default function CartContents() {

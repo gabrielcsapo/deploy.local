@@ -1,5 +1,5 @@
-import { Link, useRouter } from "../router";
-import { navigation } from "./sidebar-nav";
+import { Link, useRouter } from '../router';
+import { navigation } from './sidebar-nav';
 
 export function Sidebar() {
   const { pathname } = useRouter();
@@ -20,8 +20,8 @@ export function Sidebar() {
                     to={item.path}
                     className={`block px-3 py-1.5 rounded-md transition-colors ${
                       isActive
-                        ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium"
-                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900"
+                        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900'
                     }`}
                   >
                     {item.title}

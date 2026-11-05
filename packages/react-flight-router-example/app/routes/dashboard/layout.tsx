@@ -1,5 +1,5 @@
-import { Outlet } from "react-flight-router/client";
-import { DashboardNav } from "../nav.client";
+import { Outlet } from 'react-flight-router/client';
+import { DashboardNav } from '../nav.client';
 
 export default function DashboardLayout() {
   return (

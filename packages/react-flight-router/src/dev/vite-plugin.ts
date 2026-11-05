@@ -1,46 +1,46 @@
-import type { Plugin, ViteDevServer } from "vite";
-import { searchForWorkspaceRoot } from "vite";
-import { Hono } from "hono";
-import { createRequire } from "module";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
-import { useClientPlugin } from "../build/plugin-use-client.js";
-import { useServerPlugin } from "../build/plugin-use-server.js";
-import { renderRSC, clearRouteMatchCache } from "../server/rsc-renderer.js";
-import { handleAction } from "../server/action-handler.js";
-import { createDevManifests } from "./dev-manifest.js";
-import { withStaleModuleRetry } from "./stale-module.js";
-import { createDevSSRRequire } from "./ssr-require.js";
-import { appendFallthroughRoute, createExtendMiddleware } from "./hono-middleware.js";
-import type { ExtendHook } from "../shared/extend.js";
-import { loadRSCServerRuntime } from "./react-server-loader.js";
+import type { Plugin, ViteDevServer } from 'vite';
+import { searchForWorkspaceRoot } from 'vite';
+import { Hono } from 'hono';
+import { createRequire } from 'module';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
+import { useClientPlugin } from '../build/plugin-use-client.js';
+import { useServerPlugin } from '../build/plugin-use-server.js';
+import { renderRSC, clearRouteMatchCache } from '../server/rsc-renderer.js';
+import { handleAction } from '../server/action-handler.js';
+import { createDevManifests } from './dev-manifest.js';
+import { withStaleModuleRetry } from './stale-module.js';
+import { createDevSSRRequire } from './ssr-require.js';
+import { appendFallthroughRoute, createExtendMiddleware } from './hono-middleware.js';
+import type { ExtendHook } from '../shared/extend.js';
+import { loadRSCServerRuntime } from './react-server-loader.js';
 import {
   RSC_CONTENT_TYPE,
   RSC_ENDPOINT,
   ACTION_ENDPOINT,
   RSC_PREVIOUS_SEGMENTS_HEADER,
   RSC_PREVIOUS_URL_HEADER,
-} from "../shared/constants.js";
-import type { RouteConfig } from "../router/types.js";
+} from '../shared/constants.js';
+import type { RouteConfig } from '../router/types.js';
 import type {
   RSCClientManifest,
   SSRManifest,
   RSCPayload,
   RequestTimingEvent,
-} from "../shared/types.js";
+} from '../shared/types.js';
 import {
   maybeCreateLogger,
   maskParams,
   type FlightTimer,
   type FlightLogger,
-} from "../shared/logger.js";
-import { generateBootstrapScript } from "../shared/bootstrap-script.js";
-import { injectFlightPayload } from "../shared/flight-html-stream.js";
-import { requestStorage } from "../server/request-context.js";
+} from '../shared/logger.js';
+import { generateBootstrapScript } from '../shared/bootstrap-script.js';
+import { injectFlightPayload } from '../shared/flight-html-stream.js';
+import { requestStorage } from '../server/request-context.js';
 
 /** Root of this package on disk (dist/dev/vite-plugin.js -> package root). */
 function packageRoot(): string {
-  return resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  return resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 }
 
 // Cached RSC runtime - loaded once with react-server condition
@@ -90,7 +90,7 @@ interface FlightRouterDevOptions {
  * - Client modules served directly by Vite (with HMR)
  */
 export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
-  const routesFile = opts?.routesFile ?? "./app/routes.ts";
+  const routesFile = opts?.routesFile ?? './app/routes.ts';
   const debugEnabled = opts?.debug;
   const onRequestComplete = opts?.onRequestComplete;
   const hasCallback = !!onRequestComplete;
@@ -98,13 +98,13 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const serverModules = new Set<string>();
   const ssrRequireCache: Record<string, unknown> = {};
   const MAX_SSR_CACHE_SIZE = 500;
-  let appRoot = "";
+  let appRoot = '';
 
   // State held by reference and shared with createDevManifests so the
   // manifest builders see module-set growth and the final appRoot.
   // Mutated alongside the locals above; the lookup maps rebuild lazily on
   // size change.
-  const devState = { clientModules, serverModules, appRoot: "" };
+  const devState = { clientModules, serverModules, appRoot: '' };
   const { clientManifest: devClientManifest, serverActionsManifest: devServerActionsManifest } =
     createDevManifests(devState);
 
@@ -120,14 +120,14 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       delete ssrRequireCache[key];
     }
     console.warn(
-      "[react-flight-router dev] Vite module runner was replaced (server restart) — " +
-        "cleared module caches and retrying the render.",
+      '[react-flight-router dev] Vite module runner was replaced (server restart) — ' +
+        'cleared module caches and retrying the render.',
     );
   }
 
   function fireRequestComplete(
     logger: FlightTimer,
-    type: RequestTimingEvent["type"],
+    type: RequestTimingEvent['type'],
     pathname: string,
     status: number,
     cancelled?: boolean,
@@ -135,30 +135,30 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
     if (!onRequestComplete) return;
     try {
       const entries = logger.getEntries();
-      const totalEntry = entries.find((e) => e.label === "total");
+      const totalEntry = entries.find((e) => e.label === 'total');
       onRequestComplete({
         type,
         pathname,
         status,
         totalMs: totalEntry?.durationMs ?? 0,
-        timings: entries.filter((e) => e.label !== "total"),
+        timings: entries.filter((e) => e.label !== 'total'),
         timestamp: new Date().toISOString(),
         ...(cancelled ? { cancelled } : {}),
       });
     } catch (err) {
-      console.error("[react-flight-router] onRequestComplete callback error:", err);
+      console.error('[react-flight-router] onRequestComplete callback error:', err);
     }
   }
 
   return [
     // Transform 'use client' files: RSC proxies for SSR, pass-through for client
     useClientPlugin({
-      mode: "auto",
+      mode: 'auto',
       onClientModule: (id) => clientModules.add(id),
     }),
     // Transform 'use server' files: register for SSR, stubs for client
     useServerPlugin({
-      mode: "auto",
+      mode: 'auto',
       onServerModule: (id) => serverModules.add(id),
     }),
     // Resolve virtual:rsc-runtime for dev mode.
@@ -166,21 +166,21 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
     // virtual:rsc-runtime. In production builds, rscRuntimePlugin provides it.
     // In dev, we resolve it to the CJS package directly (which is externalized).
     {
-      name: "react-flight-router:dev-rsc-runtime",
-      enforce: "pre",
+      name: 'react-flight-router:dev-rsc-runtime',
+      enforce: 'pre',
       resolveId(id) {
-        if (id === "virtual:rsc-runtime") return "\0virtual:rsc-runtime";
+        if (id === 'virtual:rsc-runtime') return '\0virtual:rsc-runtime';
       },
       load(id) {
-        if (id === "\0virtual:rsc-runtime") {
+        if (id === '\0virtual:rsc-runtime') {
           return `export { registerClientReference, registerServerReference } from 'react-server-dom-webpack/server.node';`;
         }
       },
     },
     // Main dev server plugin
     {
-      name: "react-flight-router:dev",
-      enforce: "post",
+      name: 'react-flight-router:dev',
+      enforce: 'post',
 
       config(userConfig) {
         return {
@@ -206,48 +206,48 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             // Without this, linked packages resolve their own copies of React,
             // causing "multiple React instances" / "Cannot read useState" errors.
             dedupe: [
-              "react",
-              "react/jsx-runtime",
-              "react/jsx-dev-runtime",
-              "react-dom",
-              "react-dom/server",
-              "react-dom/client",
-              "react-server-dom-webpack",
-              "react-server-dom-webpack/client.browser",
-              "react-server-dom-webpack/client.node",
-              "react-server-dom-webpack/server.node",
+              'react',
+              'react/jsx-runtime',
+              'react/jsx-dev-runtime',
+              'react-dom',
+              'react-dom/server',
+              'react-dom/client',
+              'react-server-dom-webpack',
+              'react-server-dom-webpack/client.browser',
+              'react-server-dom-webpack/client.node',
+              'react-server-dom-webpack/server.node',
             ],
           },
           ssr: {
             // Externalize CJS packages so they're loaded natively via require()
             external: [
-              "react-server-dom-webpack",
-              "react-server-dom-webpack/server.node",
-              "react-server-dom-webpack/client.node",
-              "react-server-dom-webpack/client.browser",
-              "react",
-              "react/jsx-runtime",
-              "react/jsx-dev-runtime",
-              "react-dom",
-              "react-dom/server",
-              "react-dom/client",
+              'react-server-dom-webpack',
+              'react-server-dom-webpack/server.node',
+              'react-server-dom-webpack/client.node',
+              'react-server-dom-webpack/client.browser',
+              'react',
+              'react/jsx-runtime',
+              'react/jsx-dev-runtime',
+              'react-dom',
+              'react-dom/server',
+              'react-dom/client',
             ],
             // Process react-flight-router through Vite's pipeline so use-client plugin runs
-            noExternal: ["react-flight-router"],
+            noExternal: ['react-flight-router'],
           },
           // Ensure CJS deps are pre-bundled for browser with proper ESM wrappers
           optimizeDeps: {
             include: [
-              "react",
-              "react/jsx-runtime",
-              "react/jsx-dev-runtime",
-              "react-dom",
-              "react-dom/client",
-              "react-server-dom-webpack/client.browser",
+              'react',
+              'react/jsx-runtime',
+              'react/jsx-dev-runtime',
+              'react-dom',
+              'react-dom/client',
+              'react-server-dom-webpack/client.browser',
             ],
             // Don't pre-bundle react-flight-router - its modules must share the same
             // instances (esp. React Context) with modules loaded via __webpack_require__
-            exclude: ["react-flight-router"],
+            exclude: ['react-flight-router'],
           },
         };
       },
@@ -261,7 +261,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
         // Provide __non_webpack_require__ so native-binding packages (e.g. better-sqlite3)
         // that detect __webpack_require__ don't crash looking for this companion global.
         const appRequireForNative = createRequire(
-          resolve(appRoot || process.cwd(), "package.json"),
+          resolve(appRoot || process.cwd(), 'package.json'),
         );
         (globalThis as any).__non_webpack_require__ = appRequireForNative;
 
@@ -287,7 +287,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             opts.extend({
               app: userApp,
               httpServer: server.httpServer,
-              mode: "development",
+              mode: 'development',
             }),
           ).then(() => {
             // Registered last so it only matches what the app didn't claim.
@@ -302,7 +302,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
           // `extend`. Requests still surface the error — each attaches its
           // own handler to `ready`.
           ready.catch((error) => {
-            console.error("[react-flight-router] extend hook failed:", error);
+            console.error('[react-flight-router] extend hook failed:', error);
           });
 
           const handle = createExtendMiddleware(userApp);
@@ -313,7 +313,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
         // Add middleware for RSC, SSR, and actions
         server.middlewares.use(async (req, res, next) => {
-          const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+          const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
 
           // Build a lightweight Request for the framework-managed context and user hook.
           const request = nodeReqToFastRequest(req, url);
@@ -331,21 +331,21 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               // RSC endpoint for client-side navigation
               if (url.pathname === RSC_ENDPOINT) {
                 const logger = maybeCreateLogger(debugEnabled, hasCallback);
-                logger?.time("total");
+                logger?.time('total');
 
                 // Capture the abort signal early — before the (potentially slow) render.
                 // If the client disconnects during rendering, the signal is already listening.
                 const reqAbort = new AbortController();
-                res.on("close", () => {
+                res.on('close', () => {
                   if (!res.writableFinished) reqAbort.abort();
                 });
 
-                const targetPath = url.searchParams.get("url") ?? "/";
+                const targetPath = url.searchParams.get('url') ?? '/';
                 const targetUrl = new URL(targetPath, url.origin);
                 const prevSegments = req.headers[RSC_PREVIOUS_SEGMENTS_HEADER.toLowerCase()] as
                   | string
                   | undefined;
-                const segments = prevSegments ? prevSegments.split(",") : undefined;
+                const segments = prevSegments ? prevSegments.split(',') : undefined;
 
                 const prevUrlHeader = req.headers[RSC_PREVIOUS_URL_HEADER.toLowerCase()] as
                   | string
@@ -358,7 +358,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 // not just streaming Suspense responses. Without this, HTTP/1.1
                 // keep-alive keeps the connection alive for pending requests whose
                 // headers haven't been sent, making res "close" with writableFinished=true.
-                res.writeHead(200, { "Content-Type": RSC_CONTENT_TYPE });
+                res.writeHead(200, { 'Content-Type': RSC_CONTENT_TYPE });
 
                 // Re-bind the request context to a synthetic Request whose URL
                 // is the *target page URL*, not the underlying /__rsc?url=…
@@ -394,8 +394,8 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                       stream,
                       `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
                       (cancelled) =>
-                        fireRequestComplete(logger, "RSC", targetUrl.pathname, 200, cancelled),
-                      "rsc:stream",
+                        fireRequestComplete(logger, 'RSC', targetUrl.pathname, 200, cancelled),
+                      'rsc:stream',
                       reqAbort.signal,
                     );
                   }
@@ -404,19 +404,19 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 } catch (err) {
                   // Headers already sent so we can't change the status code.
                   // Just log the error and end the response.
-                  console.error("[react-flight-router dev] RSC error:", err);
+                  console.error('[react-flight-router dev] RSC error:', err);
                   if (!res.writableFinished) res.end();
                 }
                 return;
               }
 
               // Server actions endpoint
-              if (url.pathname === ACTION_ENDPOINT && req.method === "POST") {
+              if (url.pathname === ACTION_ENDPOINT && req.method === 'POST') {
                 const logger = maybeCreateLogger(debugEnabled, hasCallback);
-                logger?.time("total");
+                logger?.time('total');
 
                 const request = await nodeReqToRequest(req, url);
-                const actionUrl = new URL((req.headers.referer as string) ?? "/", url.origin);
+                const actionUrl = new URL((req.headers.referer as string) ?? '/', url.origin);
                 const routes = await withStaleModuleRetry(
                   () => loadRoutes(server, routesFile),
                   evictStaleModules,
@@ -426,7 +426,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
                 // Create an abort signal that fires when the client disconnects.
                 const actionAbort = new AbortController();
-                res.on("close", () => {
+                res.on('close', () => {
                   if (!res.writableFinished) actionAbort.abort();
                 });
 
@@ -458,7 +458,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                   logger,
                   onComplete: (status, cancelled) => {
                     if (logger)
-                      fireRequestComplete(logger, "ACTION", actionUrl.pathname, status, cancelled);
+                      fireRequestComplete(logger, 'ACTION', actionUrl.pathname, status, cancelled);
                   },
                   requestSignal: actionAbort.signal,
                 });
@@ -475,21 +475,21 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
               // Skip Vite internal paths, static assets, and virtual modules
               if (
-                url.pathname.startsWith("/@") ||
-                url.pathname.startsWith("/node_modules") ||
-                url.pathname.startsWith("/assets") ||
-                url.pathname.includes(".")
+                url.pathname.startsWith('/@') ||
+                url.pathname.startsWith('/node_modules') ||
+                url.pathname.startsWith('/assets') ||
+                url.pathname.includes('.')
               ) {
                 return next();
               }
 
               // Initial page load: SSR with inlined RSC stream (streaming Suspense)
               const logger = maybeCreateLogger(debugEnabled, hasCallback);
-              logger?.time("total");
+              logger?.time('total');
 
               // Capture the abort signal early — before the (potentially slow) render.
               const ssrAbort = new AbortController();
-              res.on("close", () => {
+              res.on('close', () => {
                 if (!res.writableFinished) ssrAbort.abort();
               });
 
@@ -508,31 +508,31 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               // by processing a minimal HTML stub through Vite's plugin pipeline.
               const viteStub = await server.transformIndexHtml(
                 url.pathname,
-                "<!DOCTYPE html><html><head></head><body></body></html>",
+                '<!DOCTYPE html><html><head></head><body></body></html>',
               );
-              const viteHeadStart = viteStub.indexOf("<head>") + 6;
-              const viteHeadEnd = viteStub.indexOf("</head>");
+              const viteHeadStart = viteStub.indexOf('<head>') + 6;
+              const viteHeadEnd = viteStub.indexOf('</head>');
               const viteHeadContent =
                 viteHeadStart > 5 && viteHeadEnd > viteHeadStart
                   ? viteStub.slice(viteHeadStart, viteHeadEnd)
-                  : "";
+                  : '';
 
               // Resolve client entry module to a browser-requestable URL
               const clientEntryResolved = await server.pluginContainer.resolveId(
-                "react-flight-router/client/entry",
+                'react-flight-router/client/entry',
               );
               let clientEntryUrl: string;
               if (clientEntryResolved?.id) {
                 const id = clientEntryResolved.id;
-                clientEntryUrl = id.startsWith(appRoot) ? id.slice(appRoot.length) : "/@fs" + id;
+                clientEntryUrl = id.startsWith(appRoot) ? id.slice(appRoot.length) : '/@fs' + id;
               } else {
-                clientEntryUrl = "/node_modules/react-flight-router/dist/client/entry.js";
+                clientEntryUrl = '/node_modules/react-flight-router/dist/client/entry.js';
               }
 
               // Build head injection: CSS links + Vite scripts + client entry
               const cssLinks = cssUrls
                 .map((u: string) => `<link rel="stylesheet" href="${u}">`)
-                .join("");
+                .join('');
               const headInjection =
                 cssLinks +
                 viteHeadContent +
@@ -550,16 +550,16 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                   finalStream,
                   `SSR ${maskParams(url.pathname, ssrParams)} (dev)`,
                   (cancelled) =>
-                    fireRequestComplete(logger, "SSR", url.pathname, status, cancelled),
-                  "ssr:stream",
+                    fireRequestComplete(logger, 'SSR', url.pathname, status, cancelled),
+                  'ssr:stream',
                   ssrAbort.signal,
                 );
               }
 
-              res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+              res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
               await pipeReadableStreamToResponse(finalStream, res);
             } catch (err) {
-              console.error("[react-flight-router dev] Error:", err);
+              console.error('[react-flight-router dev] Error:', err);
               next(err);
             }
           }); // end requestStorage.run()
@@ -572,7 +572,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       // entire SSR module cache (which forced the next request to re-execute
       // every server module from scratch).
       handleHotUpdate({ file, server, modules }) {
-        if (file.includes("node_modules")) return;
+        if (file.includes('node_modules')) return;
 
         // Editing the routes file restructures the tree — full reset.
         const isRoutesFile = resolve(appRoot || process.cwd(), routesFile) === file;
@@ -608,15 +608,15 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
           }
 
           for (const key of Object.keys(ssrRequireCache)) {
-            const filePath = devModuleIdToFilePath(key, appRoot).split("?")[0];
+            const filePath = devModuleIdToFilePath(key, appRoot).split('?')[0];
             if (affectedFiles.has(filePath)) delete ssrRequireCache[key];
           }
         }
 
         // Client-only and CSS edits are handled by Vite's own HMR (Fast
         // Refresh / CSS replacement) — no full RSC revalidation needed.
-        if (!file.includes(".client.") && !file.endsWith(".css")) {
-          server.ws.send({ type: "custom", event: "react-flight-router:invalidate" });
+        if (!file.includes('.client.') && !file.endsWith('.css')) {
+          server.ws.send({ type: 'custom', event: 'react-flight-router:invalidate' });
         }
       },
     },
@@ -630,8 +630,8 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
  *   - /app/routes/x.client.tsx → <appRoot>/app/routes/x.client.tsx
  */
 function devModuleIdToFilePath(moduleId: string, appRoot: string): string {
-  if (moduleId.startsWith("/@fs/")) return moduleId.slice(4);
-  if (moduleId.startsWith("/") && !moduleId.startsWith(appRoot)) return appRoot + moduleId;
+  if (moduleId.startsWith('/@fs/')) return moduleId.slice(4);
+  if (moduleId.startsWith('/') && !moduleId.startsWith(appRoot)) return appRoot + moduleId;
   return moduleId;
 }
 
@@ -650,9 +650,9 @@ async function devRenderRSC(
   previousUrl?: URL,
   logger?: FlightLogger,
 ): Promise<{ stream: ReadableStream; status: number; params: Record<string, string> }> {
-  logger?.time("loadRoutes");
+  logger?.time('loadRoutes');
   const routes = await loadRoutes(server, routesFile);
-  logger?.timeEnd("loadRoutes");
+  logger?.timeEnd('loadRoutes');
 
   // Load RSC runtime with react-server condition patched
   const rscServerDom = await getRSCRuntime(rootDir);
@@ -712,31 +712,31 @@ async function devRenderSSR(
   // 2. Load SSR dependencies from the app's node_modules (not react-flight-router's).
   // With pnpm linked packages, bare imports here would resolve to react-flight-router's
   // own copies of react/react-dom, causing "multiple React instances" errors.
-  const appRequire = createRequire(resolve(appRoot, "package.json"));
-  const rscClientNode = appRequire("react-server-dom-webpack/client.node") as any;
+  const appRequire = createRequire(resolve(appRoot, 'package.json'));
+  const rscClientNode = appRequire('react-server-dom-webpack/client.node') as any;
   const { createFromReadableStream } = rscClientNode;
-  const reactDomServer = appRequire("react-dom/server") as any;
+  const reactDomServer = appRequire('react-dom/server') as any;
   const { renderToReadableStream: domRenderToReadableStream } = reactDomServer;
-  const React = appRequire("react") as any;
+  const React = appRequire('react') as any;
   const { createElement, StrictMode } = React;
 
   // 3. Load RouterProvider + OutletDepthContext via ssrLoadModule with ?ssr query.
   // The use-client plugin's resolveId hook propagates ?ssr to transitive imports,
   // so router-context.js also gets ?ssr and keeps real code (not proxies).
-  const clientResolved = await server.pluginContainer.resolveId("react-flight-router/client");
+  const clientResolved = await server.pluginContainer.resolveId('react-flight-router/client');
   if (!clientResolved)
-    throw new Error("[react-flight-router] Could not resolve react-flight-router/client");
-  const routerCtx = (await server.ssrLoadModule(clientResolved.id + "?ssr")) as any;
+    throw new Error('[react-flight-router] Could not resolve react-flight-router/client');
+  const routerCtx = (await server.ssrLoadModule(clientResolved.id + '?ssr')) as any;
   const { RouterProvider, OutletDepthContext } = routerCtx;
   // 4. Build dev SSR manifest (Proxy-based, like the client manifest)
   // Maps module IDs from the RSC stream to loadable paths for __webpack_require__
   const devSSRManifest: SSRManifest = {
     moduleMap: new Proxy({} as any, {
       get(_target: any, moduleId: string) {
-        if (typeof moduleId !== "string") return undefined;
+        if (typeof moduleId !== 'string') return undefined;
         return new Proxy({} as any, {
           get(_t: any, exportName: string) {
-            if (typeof exportName !== "string") return undefined;
+            if (typeof exportName !== 'string') return undefined;
             return { id: moduleId, chunks: [], name: exportName };
           },
         });
@@ -747,14 +747,14 @@ async function devRenderSSR(
   };
 
   // 5. Deserialize RSC stream into React elements (with real client components via SSR manifest)
-  logger?.time("ssr:deserializeRSC");
+  logger?.time('ssr:deserializeRSC');
   const payload = (await createFromReadableStream(streamForSSR, {
     serverConsumerManifest: devSSRManifest,
   })) as RSCPayload;
-  logger?.timeEnd("ssr:deserializeRSC");
+  logger?.timeEnd('ssr:deserializeRSC');
 
   // 6. Build the React tree matching client entry.tsx structure
-  const rootKey = Object.keys(payload.segments)[0] ?? "";
+  const rootKey = Object.keys(payload.segments)[0] ?? '';
   const RootSegment = payload.segments[rootKey];
   const noopCallServer = () => Promise.resolve(undefined);
   const noopCreateFromReadableStream = () => Promise.resolve({} as any);
@@ -789,18 +789,18 @@ async function devRenderSSR(
   // and route-level <ErrorBoundary> components catch the error properly.
   // Without this, the error bubbles up to Vite's connect handler and shows
   // the HMR overlay instead of the route's error fallback.
-  logger?.time("ssr:renderToHTML");
+  logger?.time('ssr:renderToHTML');
   let htmlStream: ReadableStream;
   try {
     htmlStream = await domRenderToReadableStream(app, {
       bootstrapScriptContent: bootstrapScript,
-      onError: (err: unknown) => console.error("[react-flight-router] Dev SSR error:", err),
+      onError: (err: unknown) => console.error('[react-flight-router] Dev SSR error:', err),
     });
   } catch (err) {
-    console.error("[react-flight-router] Dev SSR shell render failed, falling back to CSR:", err);
+    console.error('[react-flight-router] Dev SSR shell render failed, falling back to CSR:', err);
     htmlStream = createDevCSRFallbackStream(generateBootstrapScript({}, false));
   }
-  logger?.timeEnd("ssr:renderToHTML");
+  logger?.timeEnd('ssr:renderToHTML');
 
   // 9. Collect CSS files from the SSR module graph.
   // After RSC rendering, all route modules (and their CSS imports) are loaded.
@@ -823,7 +823,7 @@ function collectDevCssUrls(server: ViteDevServer): string[] {
 
   for (const [url] of ssrEnv.moduleGraph.urlToModuleMap) {
     if (/\.css(\?.*)?$/.test(url)) {
-      const cleanUrl = url.replace(/[?&]ssr\b/, "");
+      const cleanUrl = url.replace(/[?&]ssr\b/, '');
       if (!cssUrls.includes(cleanUrl)) {
         cssUrls.push(cleanUrl);
       }
@@ -866,7 +866,7 @@ function injectIntoHead(htmlStream: ReadableStream, injection: string): Readable
   const reader = htmlStream.getReader();
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-  let buffer = "";
+  let buffer = '';
   let injected = false;
 
   return new ReadableStream({
@@ -877,7 +877,7 @@ function injectIntoHead(htmlStream: ReadableStream, injection: string): Readable
         // Stream ended — flush any remaining buffer
         if (buffer) {
           controller.enqueue(encoder.encode(buffer));
-          buffer = "";
+          buffer = '';
         }
         controller.close();
         return;
@@ -891,11 +891,11 @@ function injectIntoHead(htmlStream: ReadableStream, injection: string): Readable
 
       // Buffer until we find </head> (typically arrives in the first chunk)
       buffer += decoder.decode(value, { stream: true });
-      const headCloseIdx = buffer.indexOf("</head>");
+      const headCloseIdx = buffer.indexOf('</head>');
       if (headCloseIdx !== -1) {
         const result = buffer.slice(0, headCloseIdx) + injection + buffer.slice(headCloseIdx);
         controller.enqueue(encoder.encode(result));
-        buffer = "";
+        buffer = '';
         injected = true;
       }
       // If </head> not found yet, keep buffering (only the <head> which is small)
@@ -905,7 +905,7 @@ function injectIntoHead(htmlStream: ReadableStream, injection: string): Readable
 
 async function pipeReadableStreamToResponse(
   stream: ReadableStream,
-  res: import("http").ServerResponse,
+  res: import('http').ServerResponse,
 ): Promise<void> {
   const reader = stream.getReader();
   let clientGone = false;
@@ -913,7 +913,7 @@ async function pipeReadableStreamToResponse(
     clientGone = true;
     reader.cancel().catch(() => {});
   };
-  res.on("close", onClose);
+  res.on('close', onClose);
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -921,7 +921,7 @@ async function pipeReadableStreamToResponse(
       res.write(value);
     }
   } finally {
-    res.off("close", onClose);
+    res.off('close', onClose);
     res.end();
   }
 }
@@ -930,22 +930,22 @@ async function pipeReadableStreamToResponse(
  * Build a lightweight Request from a Node.js IncomingMessage (headers only, no body).
  * Used by the onRequest hook where consumers only need headers/cookies.
  */
-function nodeReqToFastRequest(req: import("http").IncomingMessage, url: URL): Request {
+function nodeReqToFastRequest(req: import('http').IncomingMessage, url: URL): Request {
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
-    if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+    if (value) headers.set(key, Array.isArray(value) ? value.join(', ') : value);
   }
-  return new Request(url, { method: req.method ?? "GET", headers });
+  return new Request(url, { method: req.method ?? 'GET', headers });
 }
 
-async function nodeReqToRequest(req: import("http").IncomingMessage, url: URL): Promise<Request> {
+async function nodeReqToRequest(req: import('http').IncomingMessage, url: URL): Promise<Request> {
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
-    if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+    if (value) headers.set(key, Array.isArray(value) ? value.join(', ') : value);
   }
 
   let body: BodyInit | null = null;
-  if (req.method !== "GET" && req.method !== "HEAD") {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
     const chunks: Uint8Array[] = [];
     for await (const chunk of req) {
       chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));

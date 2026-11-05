@@ -1,6 +1,6 @@
 ---
-title: "Installation"
-description: "Install React Flight Router and its dependencies to start building React Server Component applications."
+title: 'Installation'
+description: 'Install React Flight Router and its dependencies to start building React Server Component applications.'
 ---
 
 # Installation
@@ -41,7 +41,7 @@ npm install -D tailwindcss @tailwindcss/vite
 Then create a CSS file (for example, `app/styles.css`) and import Tailwind:
 
 ```css
-@import "tailwindcss";
+@import 'tailwindcss';
 ```
 
 Import this file in your root layout component so that styles are available throughout your application. See [Vite Configuration](./vite-config.md) for how to add the Tailwind plugin to your Vite config.

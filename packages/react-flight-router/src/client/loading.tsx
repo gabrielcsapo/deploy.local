@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from 'react';
 
 interface LoadingProps {
   children: ReactNode;

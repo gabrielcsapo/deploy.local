@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import { useLocationState } from "./router-context.js";
+import { useEffect, useRef } from 'react';
+import { useLocationState } from './router-context.js';
 
 /** @internal Exported for testing */
-export const STORAGE_KEY = "react-flight-router:scroll";
+export const STORAGE_KEY = 'react-flight-router:scroll';
 /** @internal Exported for testing */
 export const MAX_SCROLL_POSITIONS = 100;
 
@@ -66,8 +66,8 @@ export function ScrollRestoration() {
   // Disable native scroll restoration so the browser doesn't interfere
   // with our manual scroll management during SPA navigations.
   useEffect(() => {
-    if (typeof globalThis.history !== "undefined") {
-      globalThis.history.scrollRestoration = "manual";
+    if (typeof globalThis.history !== 'undefined') {
+      globalThis.history.scrollRestoration = 'manual';
     }
   }, []);
 
@@ -78,8 +78,8 @@ export function ScrollRestoration() {
     const handler = () => {
       isPopstateRef.current = true;
     };
-    globalThis.addEventListener("popstate", handler);
-    return () => globalThis.removeEventListener("popstate", handler);
+    globalThis.addEventListener('popstate', handler);
+    return () => globalThis.removeEventListener('popstate', handler);
   }, []);
 
   // Handle scroll on URL change
@@ -156,13 +156,13 @@ export function ScrollRestoration() {
       scrollTimer = setTimeout(saveCurrentScroll, 100);
     };
 
-    globalThis.addEventListener("scroll", onScroll, { passive: true });
-    globalThis.addEventListener("beforeunload", saveCurrentScroll);
+    globalThis.addEventListener('scroll', onScroll, { passive: true });
+    globalThis.addEventListener('beforeunload', saveCurrentScroll);
 
     return () => {
       clearTimeout(scrollTimer);
-      globalThis.removeEventListener("scroll", onScroll);
-      globalThis.removeEventListener("beforeunload", saveCurrentScroll);
+      globalThis.removeEventListener('scroll', onScroll);
+      globalThis.removeEventListener('beforeunload', saveCurrentScroll);
     };
   }, []);
 

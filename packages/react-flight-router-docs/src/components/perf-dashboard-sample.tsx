@@ -1,5 +1,5 @@
-import { useState } from "react";
-import sampleEvents from "../generated/perf-sample-events.json";
+import { useState } from 'react';
+import sampleEvents from '../generated/perf-sample-events.json';
 
 interface TimingEntry {
   label: string;
@@ -10,7 +10,7 @@ interface TimingEntry {
 }
 
 interface SampleEvent {
-  type: "SSR" | "RSC" | "ACTION";
+  type: 'SSR' | 'RSC' | 'ACTION';
   pathname: string;
   status: number;
   totalMs: number;
@@ -22,15 +22,15 @@ interface SampleEvent {
 const SAMPLE_EVENTS: SampleEvent[] = sampleEvents as SampleEvent[];
 
 const TYPE_STYLES: Record<string, string> = {
-  SSR: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300",
-  RSC: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300",
-  ACTION: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300",
+  SSR: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+  RSC: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
+  ACTION: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300',
 };
 
 const BAR_COLORS: Record<string, string> = {
-  SSR: "bg-green-400 dark:bg-green-500",
-  RSC: "bg-blue-400 dark:bg-blue-500",
-  ACTION: "bg-purple-400 dark:bg-purple-500",
+  SSR: 'bg-green-400 dark:bg-green-500',
+  RSC: 'bg-blue-400 dark:bg-blue-500',
+  ACTION: 'bg-purple-400 dark:bg-purple-500',
 };
 
 function formatDuration(ms: number): string {
@@ -70,7 +70,7 @@ export function PerfDashboardSample() {
           Performance Dashboard
         </h3>
         <p className="text-xs text-gray-500 dark:text-gray-400 !mt-1 !mb-0">
-          Request timing data from{" "}
+          Request timing data from{' '}
           <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">
             onRequestComplete
           </code>
@@ -100,7 +100,7 @@ export function PerfDashboardSample() {
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
           <div className="text-xs text-gray-500 dark:text-gray-400">Cancelled</div>
           <div
-            className={`text-xl font-bold ${cancelledCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-900 dark:text-gray-100"}`}
+            className={`text-xl font-bold ${cancelledCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100'}`}
           >
             {cancelledCount}
           </div>
@@ -169,16 +169,16 @@ function SampleRow({
   onToggle: () => void;
 }) {
   const time = new Date(event.timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   });
 
   return (
     <>
       <tr
         onClick={onToggle}
-        className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${event.cancelled ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}`}
+        className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${event.cancelled ? 'bg-amber-50/50 dark:bg-amber-950/20' : ''}`}
       >
         <td className="px-4 py-2 !border-0">
           <span
@@ -201,8 +201,8 @@ function SampleRow({
         <td
           className={`px-4 py-2 text-right font-mono text-xs !border-0 ${
             event.totalMs > 10
-              ? "text-amber-600 dark:text-amber-400 font-semibold"
-              : "text-gray-700 dark:text-gray-300"
+              ? 'text-amber-600 dark:text-amber-400 font-semibold'
+              : 'text-gray-700 dark:text-gray-300'
           }`}
         >
           {formatDuration(event.totalMs)}
@@ -237,7 +237,7 @@ function TimingBreakdown({
   if (timings.length === 0) return null;
 
   const parentAtDepth: (TimingEntry | undefined)[] = [];
-  const barColor = BAR_COLORS[type] ?? "bg-blue-400 dark:bg-blue-500";
+  const barColor = BAR_COLORS[type] ?? 'bg-blue-400 dark:bg-blue-500';
 
   return (
     <div className="space-y-1.5">

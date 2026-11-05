@@ -1,7 +1,7 @@
-import { resolve } from "path";
-import type { InlineConfig } from "vite";
-import { useServerPlugin } from "./plugin-use-server.js";
-import { getModuleId } from "./plugin-use-client.js";
+import { resolve } from 'path';
+import type { InlineConfig } from 'vite';
+import { useServerPlugin } from './plugin-use-server.js';
+import { getModuleId } from './plugin-use-client.js';
 
 interface SSRBuildOptions {
   appDir: string;
@@ -28,27 +28,27 @@ export function createSSRConfig(opts: SSRBuildOptions): InlineConfig {
       // App client components import Link/useRouter from "react-flight-router/client",
       // and those imports must resolve to the bundled SSR copies (not the npm package)
       // so that all components share the same RouterContext instance.
-      noExternal: ["react-flight-router"],
+      noExternal: ['react-flight-router'],
     },
     build: {
       ssr: true,
-      outDir: resolve(opts.outDir, "server/ssr"),
+      outDir: resolve(opts.outDir, 'server/ssr'),
       emptyOutDir: true,
       rollupOptions: {
         input: ssrEntries,
         external: [
-          "react",
-          "react/jsx-runtime",
-          "react/jsx-dev-runtime",
-          "react-dom",
-          "react-dom/server",
-          "react-server-dom-webpack/client.node",
-          "react-server-dom-webpack/client",
-          "react-server-dom-webpack/client.browser",
-          "hono",
-          "@hono/node-server",
-          "react-flight-router",
-          "react-flight-router/server",
+          'react',
+          'react/jsx-runtime',
+          'react/jsx-dev-runtime',
+          'react-dom',
+          'react-dom/server',
+          'react-server-dom-webpack/client.node',
+          'react-server-dom-webpack/client',
+          'react-server-dom-webpack/client.browser',
+          'hono',
+          '@hono/node-server',
+          'react-flight-router',
+          'react-flight-router/server',
           // NOTE: "react-flight-router/client" is intentionally NOT externalized.
           // App client components (e.g., nav.client.tsx) import Link/useRouter from
           // this path. If externalized, Node.js resolves to the npm package's modules
@@ -56,16 +56,16 @@ export function createSSRConfig(opts: SSRBuildOptions): InlineConfig {
           // React context sharing (RouterContext) between the SSR RouterProvider and
           // the SSR Link/Outlet components. By bundling it, Vite deduplicates imports
           // with the SSR build entries, ensuring a single RouterContext instance.
-          "react-flight-router/router",
+          'react-flight-router/router',
         ],
         output: {
-          format: "esm" as const,
-          entryFileNames: "[name].js",
-          chunkFileNames: "chunks/[name]-[hash].js",
+          format: 'esm' as const,
+          entryFileNames: '[name].js',
+          chunkFileNames: 'chunks/[name]-[hash].js',
         },
       },
       minify: true,
     },
-    plugins: [useServerPlugin({ mode: "ssr" })],
+    plugins: [useServerPlugin({ mode: 'ssr' })],
   };
 }

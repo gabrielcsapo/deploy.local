@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   createDevManifests,
   legacyBuildDevClientManifest,
   legacyBuildDevServerActionsManifest,
-} from "./dev-manifest.js";
-import { getModuleId } from "../build/plugin-use-client.js";
+} from './dev-manifest.js';
+import { getModuleId } from '../build/plugin-use-client.js';
 
-const APP_ROOT = "/Users/dev/my-app";
+const APP_ROOT = '/Users/dev/my-app';
 
 function makeClientModulePaths(n: number): string[] {
   const paths: string[] = [];
@@ -24,8 +24,8 @@ function makeServerActionPaths(n: number): string[] {
   return paths;
 }
 
-describe("createDevManifests — correctness", () => {
-  it("client manifest returns the same shape as the legacy linear-scan implementation", () => {
+describe('createDevManifests — correctness', () => {
+  it('client manifest returns the same shape as the legacy linear-scan implementation', () => {
     const paths = makeClientModulePaths(10);
     const set = new Set(paths);
 
@@ -42,11 +42,11 @@ describe("createDevManifests — correctness", () => {
     }
 
     // Misses return undefined
-    expect(clientManifest["does/not/exist"]).toBeUndefined();
-    expect(legacy["does/not/exist"]).toBeUndefined();
+    expect(clientManifest['does/not/exist']).toBeUndefined();
+    expect(legacy['does/not/exist']).toBeUndefined();
   });
 
-  it("server-actions manifest returns the same shape as the legacy implementation", () => {
+  it('server-actions manifest returns the same shape as the legacy implementation', () => {
     const paths = makeServerActionPaths(10);
     const set = new Set(paths);
 
@@ -62,10 +62,10 @@ describe("createDevManifests — correctness", () => {
       const key = `${id}#myExport`;
       expect(serverActionsManifest[key]).toEqual(legacy[key]);
     }
-    expect(serverActionsManifest["does/not/exist#x"]).toBeUndefined();
+    expect(serverActionsManifest['does/not/exist#x']).toBeUndefined();
   });
 
-  it("client manifest reflects modules added after creation", () => {
+  it('client manifest reflects modules added after creation', () => {
     const set = new Set<string>();
     const { clientManifest } = createDevManifests({
       clientModules: set,
@@ -82,7 +82,7 @@ describe("createDevManifests — correctness", () => {
     expect(clientManifest[id].chunks).toBeInstanceOf(Array);
   });
 
-  it("server-actions manifest reflects modules added after creation", () => {
+  it('server-actions manifest reflects modules added after creation', () => {
     const set = new Set<string>();
     const { serverActionsManifest } = createDevManifests({
       clientModules: new Set(),
@@ -97,19 +97,19 @@ describe("createDevManifests — correctness", () => {
     set.add(path);
     expect(serverActionsManifest[`${id}#go`]).toEqual({
       id: path,
-      name: "go",
+      name: 'go',
       chunks: [],
     });
   });
 });
 
-describe("createDevManifests — perf vs legacy linear scan", () => {
+describe('createDevManifests — perf vs legacy linear scan', () => {
   // Ratio gates are loose to remain stable across machines and Node versions —
   // the assertion is "the new path is at least as fast", not a fixed multiplier.
   const M = 200; // realistic-ish: medium app with ~200 client components
   const LOOKUPS = 5000; // simulates many references over many renders
 
-  it("client manifest: Map lookup is faster than linear scan", () => {
+  it('client manifest: Map lookup is faster than linear scan', () => {
     const paths = makeClientModulePaths(M);
     const ids = paths.map((p) => getModuleId(p));
     const set = new Set(paths);
@@ -145,7 +145,7 @@ describe("createDevManifests — perf vs legacy linear scan", () => {
     expect(speedup).toBeGreaterThan(2);
   });
 
-  it("server-actions manifest: Map lookup is faster than linear scan", () => {
+  it('server-actions manifest: Map lookup is faster than linear scan', () => {
     const paths = makeServerActionPaths(M);
     const ids = paths.map((p) => getModuleId(p));
     const set = new Set(paths);

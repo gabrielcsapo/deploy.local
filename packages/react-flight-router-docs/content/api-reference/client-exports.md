@@ -1,6 +1,6 @@
 ---
-title: "Client Exports"
-description: "API reference for all client-side exports from react-flight-router/client, including components (Link, Outlet, ScrollRestoration, RouterProvider, Loading, ErrorBoundary), hooks (useRouter, useParams, useNavigation, useLocation, useSearchParams), and utilities."
+title: 'Client Exports'
+description: 'API reference for all client-side exports from react-flight-router/client, including components (Link, Outlet, ScrollRestoration, RouterProvider, Loading, ErrorBoundary), hooks (useRouter, useParams, useNavigation, useLocation, useSearchParams), and utilities.'
 ---
 
 # Client Exports
@@ -22,7 +22,7 @@ import {
   useSearchParams,
   useCloseSlot,
   callServer,
-} from "react-flight-router/client";
+} from 'react-flight-router/client';
 ```
 
 ---
@@ -38,14 +38,14 @@ The `<Link>` component also provides active and pending state awareness, making 
 ```ts
 interface LinkProps extends Omit<
   AnchorHTMLAttributes<HTMLAnchorElement>,
-  "className" | "style" | "href" | "children"
+  'className' | 'style' | 'href' | 'children'
 > {
   to: string;
   children: ReactNode | ((props: LinkRenderProps) => ReactNode);
   className?: string | ((props: LinkRenderProps) => string | undefined);
   style?: CSSProperties | ((props: LinkRenderProps) => CSSProperties | undefined);
   end?: boolean;
-  prefetch?: "none" | "intent" | "render";
+  prefetch?: 'none' | 'intent' | 'render';
   intoSlot?: string;
   preventScrollReset?: boolean;
 }
@@ -72,9 +72,9 @@ Sets `aria-current="page"` when active for accessibility.
 #### Basic usage
 
 ```tsx
-"use client";
+'use client';
 
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export function Navigation() {
   return (
@@ -95,7 +95,7 @@ export function Navigation() {
 <Link
   to="/dashboard"
   end={false}
-  className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+  className={({ isActive }) => (isActive ? 'font-bold text-blue-600' : 'text-gray-600')}
 >
   Dashboard
 </Link>
@@ -109,9 +109,9 @@ export function Navigation() {
 <Link
   to="/dashboard"
   className={({ isActive, isPending }) => {
-    if (isPending) return "text-gray-400 animate-pulse";
-    if (isActive) return "font-bold text-blue-600";
-    return "text-gray-600";
+    if (isPending) return 'text-gray-400 animate-pulse';
+    if (isActive) return 'font-bold text-blue-600';
+    return 'text-gray-600';
   }}
 >
   Dashboard
@@ -186,7 +186,7 @@ Returns `null` if no child segment matches (default outlet) or if the slot is cl
 
 ```tsx
 // app/routes/root.tsx (a layout route)
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -213,7 +213,7 @@ Outlets can be nested. Each layout in the route tree renders its own `<Outlet />
 
 ```tsx
 // app/routes/dashboard.tsx (a nested layout)
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function DashboardLayout() {
   return (
@@ -232,7 +232,7 @@ export default function DashboardLayout() {
 When `name` is set, the outlet renders the slot declared in the parent layout's `slots` config. Place it alongside (not inside) the regular `<Outlet />`:
 
 ```tsx
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -280,9 +280,9 @@ When placed manually in a layout, `<Loading>` takes precedence over the automati
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { Loading, Outlet } from "react-flight-router/client";
+import { Loading, Outlet } from 'react-flight-router/client';
 
 export default function DashboardLayout() {
   return (
@@ -324,9 +324,9 @@ When placed manually in a layout, `<ErrorBoundary>` takes precedence over the au
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { ErrorBoundary, Outlet } from "react-flight-router/client";
+import { ErrorBoundary, Outlet } from 'react-flight-router/client';
 
 function DashboardError({ error }: { error: Error }) {
   return (
@@ -366,7 +366,7 @@ Place once in your root layout. Positions are stored in `sessionStorage` keyed b
 #### Usage
 
 ```tsx
-import { ScrollRestoration, Outlet } from "react-flight-router/client";
+import { ScrollRestoration, Outlet } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -437,7 +437,7 @@ interface RouterContextValue {
   navigate: (to: string, options?: NavigateOptions) => void;
   refresh: () => void;
   segments: Record<string, ReactNode>;
-  navigationState: "idle" | "loading";
+  navigationState: 'idle' | 'loading';
   pendingUrl: string | null;
   params: Record<string, string>;
 }
@@ -456,9 +456,9 @@ interface RouterContextValue {
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { useRouter } from "react-flight-router/client";
+import { useRouter } from 'react-flight-router/client';
 
 export function SearchForm() {
   const { navigate, navigationState } = useRouter();
@@ -466,15 +466,15 @@ export function SearchForm() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const query = formData.get("q") as string;
+    const query = formData.get('q') as string;
     navigate(`/search?q=${encodeURIComponent(query)}`);
   };
 
   return (
     <form onSubmit={handleSubmit}>
       <input name="q" placeholder="Search..." />
-      <button type="submit" disabled={navigationState === "loading"}>
-        {navigationState === "loading" ? "Searching..." : "Search"}
+      <button type="submit" disabled={navigationState === 'loading'}>
+        {navigationState === 'loading' ? 'Searching...' : 'Search'}
       </button>
     </form>
   );
@@ -484,15 +484,15 @@ export function SearchForm() {
 Use `refresh()` to re-fetch the current page after a mutation without navigating away:
 
 ```tsx
-"use client";
+'use client';
 
-import { useRouter } from "react-flight-router/client";
+import { useRouter } from 'react-flight-router/client';
 
 export function DeleteButton({ id }: { id: string }) {
   const { refresh } = useRouter();
 
   async function handleClick() {
-    await fetch(`/api/items/${id}`, { method: "DELETE" });
+    await fetch(`/api/items/${id}`, { method: 'DELETE' });
     refresh();
   }
 
@@ -515,9 +515,9 @@ Returns a `Record<string, string>` containing all dynamic parameters from the ma
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { useParams } from "react-flight-router/client";
+import { useParams } from 'react-flight-router/client';
 
 export function PostHeader() {
   const params = useParams();
@@ -532,7 +532,7 @@ export function PostHeader() {
 Returns the current navigation state. Useful for showing loading indicators during page transitions.
 
 ```ts
-function useNavigation(): { state: "idle" | "loading" };
+function useNavigation(): { state: 'idle' | 'loading' };
 ```
 
 | Return Property | Type                  | Description                                                                                    |
@@ -544,14 +544,14 @@ Navigation transitions use `React.useTransition` under the hood, so existing con
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { useNavigation } from "react-flight-router/client";
+import { useNavigation } from 'react-flight-router/client';
 
 export function GlobalLoadingBar() {
   const { state } = useNavigation();
 
-  if (state === "idle") return null;
+  if (state === 'idle') return null;
 
   return (
     <div className="loading-bar" role="progressbar">
@@ -578,22 +578,22 @@ function useLocation(): { pathname: string };
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { useLocation } from "react-flight-router/client";
+import { useLocation } from 'react-flight-router/client';
 
 export function Breadcrumb() {
   const { pathname } = useLocation();
-  const parts = pathname.split("/").filter(Boolean);
+  const parts = pathname.split('/').filter(Boolean);
 
   return (
     <nav aria-label="Breadcrumb">
       <a href="/">Home</a>
       {parts.map((part, i) => {
-        const path = "/" + parts.slice(0, i + 1).join("/");
+        const path = '/' + parts.slice(0, i + 1).join('/');
         return (
           <span key={path}>
-            {" "}
+            {' '}
             / <a href={path}>{part}</a>
           </span>
         );
@@ -626,19 +626,19 @@ function useSearchParams(): [
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { useSearchParams } from "react-flight-router/client";
+import { useSearchParams } from 'react-flight-router/client';
 
 export function Pagination() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const page = Number(searchParams.get("page") ?? "1");
+  const page = Number(searchParams.get('page') ?? '1');
 
   return (
     <button
       onClick={() => {
         const next = new URLSearchParams(searchParams);
-        next.set("page", String(page + 1));
+        next.set('page', String(page + 1));
         setSearchParams(next);
       }}
     >
@@ -669,20 +669,20 @@ The returned function uses `replace: true` for navigation, so closing a modal do
 #### Usage
 
 ```tsx
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useCloseSlot } from "react-flight-router/client";
+import { useEffect } from 'react';
+import { useCloseSlot } from 'react-flight-router/client';
 
 export default function PhotoModal({ children }: { children?: React.ReactNode }) {
-  const close = useCloseSlot("modal");
+  const close = useCloseSlot('modal');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === 'Escape') close();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
   return (
@@ -732,7 +732,7 @@ In most cases, server actions are invoked directly and this function is called a
 
 ```tsx
 // app/routes/actions.ts
-"use server";
+'use server';
 
 export async function addItem(name: string) {
   // This runs on the server
@@ -742,9 +742,9 @@ export async function addItem(name: string) {
 
 ```tsx
 // app/routes/items.tsx
-"use client";
+'use client';
 
-import { addItem } from "./actions.js";
+import { addItem } from './actions.js';
 
 export function AddItemForm() {
   return (

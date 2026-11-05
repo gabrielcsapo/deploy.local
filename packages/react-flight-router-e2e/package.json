@@ -16,8 +16,8 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-flight-router": "workspace:*",
-    "react-server-dom-webpack": "catalog:",
-    "react-flight-router-shared-ui": "workspace:*"
+    "react-flight-router-shared-ui": "workspace:*",
+    "react-server-dom-webpack": "catalog:"
   },
   "devDependencies": {
     "@playwright/test": "catalog:",

@@ -1,4 +1,4 @@
-declare module "react-server-dom-webpack/server.node" {
+declare module 'react-server-dom-webpack/server.node' {
   export function renderToReadableStream(
     model: unknown,
     webpackMap: unknown,
@@ -26,14 +26,14 @@ declare module "react-server-dom-webpack/server.node" {
   ): Promise<unknown>;
 }
 
-declare module "react-server-dom-webpack/client.node" {
+declare module 'react-server-dom-webpack/client.node' {
   export function createFromReadableStream<T = unknown>(
     stream: ReadableStream,
     options: { serverConsumerManifest: unknown },
   ): Promise<T>;
 }
 
-declare module "react-server-dom-webpack/client.browser" {
+declare module 'react-server-dom-webpack/client.browser' {
   export function createFromReadableStream<T = unknown>(
     stream: ReadableStream,
     options?: { callServer?: (id: string, args: unknown[]) => Promise<unknown> },

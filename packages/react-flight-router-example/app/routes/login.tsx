@@ -1,4 +1,4 @@
-import LoginForm from "./login.client.js";
+import LoginForm from './login.client.js';
 
 export default function LoginPage() {
   return (

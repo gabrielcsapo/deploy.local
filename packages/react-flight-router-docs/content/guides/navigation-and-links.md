@@ -1,6 +1,6 @@
 ---
-title: "Navigation & Links"
-description: "How to navigate between pages in React Flight Router using the Link component, programmatic navigation, and hooks for loading states and route params."
+title: 'Navigation & Links'
+description: 'How to navigate between pages in React Flight Router using the Link component, programmatic navigation, and hooks for loading states and route params.'
 ---
 
 # Navigation & Links
@@ -12,9 +12,9 @@ React Flight Router provides a `<Link>` component and several hooks for navigati
 Use the `<Link>` component from `"react-flight-router/client"` for declarative navigation. It renders a standard `<a>` element and intercepts clicks to perform SPA-style navigation.
 
 ```tsx
-"use client";
+'use client';
 
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export function Navigation() {
   return (
@@ -34,9 +34,9 @@ Since `<Link>` renders a regular `<a>` tag, it supports progressive enhancement.
 Use the `useRouter` hook when you need to navigate in response to events other than link clicks.
 
 ```tsx
-"use client";
+'use client';
 
-import { useRouter } from "react-flight-router/client";
+import { useRouter } from 'react-flight-router/client';
 
 export function SearchForm() {
   const { navigate } = useRouter();
@@ -44,7 +44,7 @@ export function SearchForm() {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const query = formData.get("q") as string;
+    const query = formData.get('q') as string;
     navigate(`/search?q=${encodeURIComponent(query)}`);
   }
 
@@ -74,15 +74,15 @@ The `useRouter` hook returns an object with the following properties:
 Use `router.refresh()` to re-fetch the current page from the server without a hard browser reload. This is useful after mutations (server actions, form submissions) when you want the server components on the current page to re-run and reflect updated data.
 
 ```tsx
-"use client";
+'use client';
 
-import { useRouter } from "react-flight-router/client";
+import { useRouter } from 'react-flight-router/client';
 
 export function DeleteButton({ id }: { id: string }) {
   const { refresh } = useRouter();
 
   async function handleClick() {
-    await fetch(`/api/items/${id}`, { method: "DELETE" });
+    await fetch(`/api/items/${id}`, { method: 'DELETE' });
     // Re-fetch the current page so the deleted item disappears
     refresh();
   }
@@ -98,25 +98,25 @@ export function DeleteButton({ id }: { id: string }) {
 Use the `useNavigation` hook to show loading indicators during page transitions.
 
 ```tsx
-"use client";
+'use client';
 
-import { useNavigation } from "react-flight-router/client";
+import { useNavigation } from 'react-flight-router/client';
 
 export function GlobalLoadingBar() {
   const { state } = useNavigation();
 
-  if (state === "idle") return null;
+  if (state === 'idle') return null;
 
   return (
     <div
       style={{
-        position: "fixed",
+        position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
-        height: "3px",
-        background: "#0070f3",
-        animation: "loading 1s ease-in-out infinite",
+        height: '3px',
+        background: '#0070f3',
+        animation: 'loading 1s ease-in-out infinite',
       }}
     />
   );
@@ -134,22 +134,22 @@ The `useNavigation` hook returns:
 Use the `useLocation` hook to read the current pathname.
 
 ```tsx
-"use client";
+'use client';
 
-import { useLocation } from "react-flight-router/client";
+import { useLocation } from 'react-flight-router/client';
 
 export function Breadcrumb() {
   const { pathname } = useLocation();
-  const segments = pathname.split("/").filter(Boolean);
+  const segments = pathname.split('/').filter(Boolean);
 
   return (
     <nav aria-label="Breadcrumb">
-      <ol style={{ display: "flex", gap: "0.5rem", listStyle: "none" }}>
+      <ol style={{ display: 'flex', gap: '0.5rem', listStyle: 'none' }}>
         <li>
           <a href="/">Home</a>
         </li>
         {segments.map((segment, i) => {
-          const path = "/" + segments.slice(0, i + 1).join("/");
+          const path = '/' + segments.slice(0, i + 1).join('/');
           return (
             <li key={path}>
               <span aria-hidden="true">/</span> <a href={path}>{segment}</a>
@@ -167,27 +167,27 @@ export function Breadcrumb() {
 The `<Link>` component provides `isActive` and `isPending` state through callback props for `className`, `style`, and `children`. Use these to highlight the currently active link.
 
 ```tsx
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export default function Sidebar() {
   return (
     <nav>
       <Link
         to="/"
-        className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+        className={({ isActive }) => (isActive ? 'font-bold text-blue-600' : 'text-gray-600')}
       >
         Home
       </Link>
       <Link
         to="/dashboard"
         end={false}
-        className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+        className={({ isActive }) => (isActive ? 'font-bold text-blue-600' : 'text-gray-600')}
       >
         Dashboard
       </Link>
       <Link
         to="/settings"
-        className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+        className={({ isActive }) => (isActive ? 'font-bold text-blue-600' : 'text-gray-600')}
       >
         Settings
       </Link>
@@ -210,9 +210,9 @@ By default (`end={true}`), `isActive` requires an exact pathname match. Set `end
 <Link
   to="/dashboard"
   className={({ isActive, isPending }) => {
-    if (isPending) return "text-gray-400 animate-pulse";
-    if (isActive) return "font-bold text-blue-600";
-    return "text-gray-600";
+    if (isPending) return 'text-gray-400 animate-pulse';
+    if (isActive) return 'font-bold text-blue-600';
+    return 'text-gray-600';
   }}
 >
   Dashboard
@@ -240,7 +240,7 @@ By default, the RSC payload for a link is only fetched when the user clicks. You
 Set `prefetch="intent"` to prefetch when the user hovers over (with an 80ms delay to avoid wasted requests on quick mouse-overs) or focuses the link. This is recommended for primary navigation links.
 
 ```tsx
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export function Navigation() {
   return (
@@ -278,9 +278,9 @@ Prefetch requests are automatically deduplicated. Hovering the same link multipl
 Use the `useParams` hook to access dynamic route parameters. For a route defined as `/posts/:id`, the `id` parameter is available through this hook.
 
 ```tsx
-"use client";
+'use client';
 
-import { useParams } from "react-flight-router/client";
+import { useParams } from 'react-flight-router/client';
 
 export function PostHeader() {
   const params = useParams();

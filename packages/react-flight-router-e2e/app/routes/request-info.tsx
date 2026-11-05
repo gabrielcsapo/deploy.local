@@ -1,4 +1,4 @@
-import { getRequest } from "react-flight-router/server";
+import { getRequest } from 'react-flight-router/server';
 
 export default function RequestInfo() {
   const request = getRequest();

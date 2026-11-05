@@ -1,6 +1,6 @@
 ---
-title: "Server Actions"
-description: "Learn how to use server actions in React Flight Router to handle form submissions and mutations from client components, with progressive enhancement support."
+title: 'Server Actions'
+description: 'Learn how to use server actions in React Flight Router to handle form submissions and mutations from client components, with progressive enhancement support.'
 ---
 
 # Server Actions
@@ -13,10 +13,10 @@ Add the `"use server"` directive at the top of a file to mark all exported funct
 
 ```ts
 // app/actions.ts
-"use server";
+'use server';
 
 export async function addMessage(prevState: string[], formData: FormData) {
-  const text = (formData.get("text") as string)?.trim();
+  const text = (formData.get('text') as string)?.trim();
   if (text) {
     prevState.push(text);
   }
@@ -28,17 +28,17 @@ Server action files can export multiple functions. Each exported function become
 
 ```ts
 // app/actions.ts
-"use server";
+'use server';
 
 export async function createPost(prevState: any, formData: FormData) {
-  const title = formData.get("title") as string;
-  const body = formData.get("body") as string;
+  const title = formData.get('title') as string;
+  const body = formData.get('body') as string;
   // Save to database...
   return { success: true, title };
 }
 
 export async function deletePost(prevState: any, formData: FormData) {
-  const id = formData.get("id") as string;
+  const id = formData.get('id') as string;
   // Delete from database...
   return { success: true };
 }
@@ -50,10 +50,10 @@ The recommended way to use server actions is with React's `useActionState` hook.
 
 ```tsx
 // app/routes/messages.tsx
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { addMessage } from "../actions.js";
+import { useActionState } from 'react';
+import { addMessage } from '../actions.js';
 
 export function MessageBoard() {
   const [messages, formAction, isPending] = useActionState(addMessage, []);
@@ -62,7 +62,7 @@ export function MessageBoard() {
     <form action={formAction}>
       <input name="text" placeholder="Message" />
       <button type="submit" disabled={isPending}>
-        {isPending ? "Sending..." : "Send"}
+        {isPending ? 'Sending...' : 'Send'}
       </button>
       <ul>
         {messages.map((m, i) => (
@@ -91,7 +91,7 @@ It returns a tuple of:
 Server actions used with `useActionState` receive two arguments:
 
 ```ts
-"use server";
+'use server';
 
 export async function myAction(
   prevState: MyStateType, // The previous state returned by the action
@@ -108,10 +108,10 @@ The return value becomes the new state that `useActionState` provides to your co
 Server actions support progressive enhancement out of the box. When JavaScript is not available or has not yet loaded, forms using server actions will still submit and work correctly through standard HTML form submission. This means your forms are functional before hydration completes.
 
 ```tsx
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { subscribe } from "./actions.js";
+import { useActionState } from 'react';
+import { subscribe } from './actions.js';
 
 export function NewsletterForm() {
   const [state, formAction, isPending] = useActionState(subscribe, {
@@ -126,7 +126,7 @@ export function NewsletterForm() {
     <form action={formAction}>
       <input type="email" name="email" placeholder="you@example.com" required />
       <button type="submit" disabled={isPending}>
-        {isPending ? "Subscribing..." : "Subscribe"}
+        {isPending ? 'Subscribing...' : 'Subscribe'}
       </button>
     </form>
   );
@@ -143,8 +143,8 @@ You can also define server actions inline within server components by adding `"u
 // app/routes/home.tsx (server component)
 export default function Home() {
   async function logVisit() {
-    "use server";
-    console.log("Page visited at", new Date().toISOString());
+    'use server';
+    console.log('Page visited at', new Date().toISOString());
   }
 
   return (
@@ -160,7 +160,7 @@ export default function Home() {
 Handle errors within your server action and return them as part of the state.
 
 ```ts
-"use server";
+'use server';
 
 type FormState = {
   error?: string;
@@ -168,17 +168,17 @@ type FormState = {
 };
 
 export async function submitForm(prevState: FormState, formData: FormData): Promise<FormState> {
-  const email = formData.get("email") as string;
+  const email = formData.get('email') as string;
 
-  if (!email || !email.includes("@")) {
-    return { error: "Please enter a valid email address." };
+  if (!email || !email.includes('@')) {
+    return { error: 'Please enter a valid email address.' };
   }
 
   try {
     // Save to database...
     return { success: true };
   } catch (e) {
-    return { error: "Something went wrong. Please try again." };
+    return { error: 'Something went wrong. Please try again.' };
   }
 }
 ```
@@ -186,21 +186,21 @@ export async function submitForm(prevState: FormState, formData: FormData): Prom
 Then display the error in your client component:
 
 ```tsx
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { submitForm } from "./actions.js";
+import { useActionState } from 'react';
+import { submitForm } from './actions.js';
 
 export function ContactForm() {
   const [state, formAction, isPending] = useActionState(submitForm, {});
 
   return (
     <form action={formAction}>
-      {state.error && <p style={{ color: "red" }}>{state.error}</p>}
-      {state.success && <p style={{ color: "green" }}>Submitted!</p>}
+      {state.error && <p style={{ color: 'red' }}>{state.error}</p>}
+      {state.success && <p style={{ color: 'green' }}>Submitted!</p>}
       <input type="email" name="email" placeholder="Email" />
       <button type="submit" disabled={isPending}>
-        {isPending ? "Submitting..." : "Submit"}
+        {isPending ? 'Submitting...' : 'Submit'}
       </button>
     </form>
   );
@@ -214,7 +214,7 @@ By default, server actions run on the main Node.js thread. Under load, a slow ac
 ```ts
 // server.ts
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   workers: { size: 2 },
 });
 ```

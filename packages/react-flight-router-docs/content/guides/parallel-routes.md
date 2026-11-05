@@ -1,6 +1,6 @@
 ---
-title: "Parallel Routes & Modals"
-description: "Render a second route subtree alongside the main page using parallel-route slots. The classic use case is a modal that overlays the current page while still being shareable as a URL."
+title: 'Parallel Routes & Modals'
+description: 'Render a second route subtree alongside the main page using parallel-route slots. The classic use case is a modal that overlays the current page while still being shareable as a URL.'
 ---
 
 # Parallel Routes & Modals
@@ -38,25 +38,25 @@ This is the photo-modal POC from the e2e test suite, end to end.
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
     slots: {
       // The "modal" slot has its own route subtree.
       modal: [
         {
-          id: "photo-modal-layout",
-          path: "",
-          component: () => import("./routes/photo-modal-layout.js"),
+          id: 'photo-modal-layout',
+          path: '',
+          component: () => import('./routes/photo-modal-layout.js'),
           children: [
             {
-              id: "photo-in-modal",
-              path: "photo/:id",
-              component: () => import("./routes/photo-in-modal.js"),
+              id: 'photo-in-modal',
+              path: 'photo/:id',
+              component: () => import('./routes/photo-in-modal.js'),
             },
           ],
         },
@@ -64,16 +64,16 @@ export const routes: RouteConfig[] = [
     },
     children: [
       {
-        id: "photos",
-        path: "photos",
-        component: () => import("./routes/photos.js"),
+        id: 'photos',
+        path: 'photos',
+        component: () => import('./routes/photos.js'),
       },
       {
         // Direct-visit version of the same path. Same component, different
         // context — slots and main routes are independent trees.
-        id: "photo",
-        path: "photo/:id",
-        component: () => import("./routes/photo.js"),
+        id: 'photo',
+        path: 'photo/:id',
+        component: () => import('./routes/photo.js'),
       },
     ],
   },
@@ -86,7 +86,7 @@ The root layout renders the regular outlet for the page underneath, and a named 
 
 ```tsx
 // app/root.tsx
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -108,8 +108,8 @@ The slot's outermost route is an ordinary layout. It renders modal chrome around
 
 ```tsx
 // app/routes/photo-modal-layout.tsx
-import { Outlet } from "react-flight-router/client";
-import PhotoModal from "./photo-modal.client.js";
+import { Outlet } from 'react-flight-router/client';
+import PhotoModal from './photo-modal.client.js';
 
 export default function PhotoModalSlot() {
   return (
@@ -122,21 +122,21 @@ export default function PhotoModalSlot() {
 
 ```tsx
 // app/routes/photo-modal.client.tsx
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { useEffect } from "react";
-import { useCloseSlot } from "react-flight-router/client";
+import type { ReactNode } from 'react';
+import { useEffect } from 'react';
+import { useCloseSlot } from 'react-flight-router/client';
 
 export default function PhotoModal({ children }: { children?: ReactNode }) {
-  const close = useCloseSlot("modal");
+  const close = useCloseSlot('modal');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === 'Escape') close();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
   return (
@@ -158,7 +158,7 @@ export default function PhotoModal({ children }: { children?: ReactNode }) {
 
 ```tsx
 // app/routes/photos.tsx
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export default function PhotosPage() {
   return (
@@ -189,8 +189,8 @@ The "open full page" affordance is worth shipping — without it, users who hard
 
 ```tsx
 // app/routes/photo-in-modal.tsx
-import { Link } from "react-flight-router/client";
-import PhotoPage from "./photo.js";
+import { Link } from 'react-flight-router/client';
+import PhotoPage from './photo.js';
 
 export default function PhotoInModal({ params }: { params?: Record<string, string> }) {
   return (

@@ -1,5 +1,5 @@
-import { Link } from "react-flight-router/client";
-import { getRequest } from "react-flight-router/server";
+import { Link } from 'react-flight-router/client';
+import { getRequest } from 'react-flight-router/server';
 
 /**
  * Regression test page for the search-only-navigation bug
@@ -22,10 +22,10 @@ export default function SearchParamsPage({
 }) {
   const request = getRequest();
   const url = request ? new URL(request.url) : null;
-  const value = url?.searchParams.get("value") ?? "(none)";
+  const value = url?.searchParams.get('value') ?? '(none)';
   // The same value via the `searchParams` prop the renderer passes to route
   // components — the spec asserts both sources agree on every navigation.
-  const propValue = searchParams?.value ?? "(none)";
+  const propValue = searchParams?.value ?? '(none)';
 
   // Cheap render fingerprint — different value each server render. The spec
   // asserts this changes across navigations.

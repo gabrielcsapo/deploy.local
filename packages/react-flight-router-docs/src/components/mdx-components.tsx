@@ -1,8 +1,8 @@
-import { createContext, useContext, type ReactNode } from "react";
-import { PreBlock } from "./code-block";
-import { PerfDashboardSample } from "./perf-dashboard-sample";
-import { useRouter } from "../router";
-import { resolveDocLink } from "../lib/resolve-doc-link";
+import { createContext, useContext, type ReactNode } from 'react';
+import { PreBlock } from './code-block';
+import { PerfDashboardSample } from './perf-dashboard-sample';
+import { useRouter } from '../router';
+import { resolveDocLink } from '../lib/resolve-doc-link';
 
 const SlugContext = createContext<string | undefined>(undefined);
 
@@ -13,9 +13,9 @@ export function MdxSlugProvider({ slug, children }: { slug: string; children: Re
 function MdxLink({ href, children }: { href?: string; children?: ReactNode }) {
   const { navigate } = useRouter();
   const slug = useContext(SlugContext);
-  let resolvedHref = resolveDocLink(href ?? "", slug);
+  let resolvedHref = resolveDocLink(href ?? '', slug);
 
-  if (resolvedHref.startsWith("/")) {
+  if (resolvedHref.startsWith('/')) {
     return (
       <a
         href={resolvedHref}

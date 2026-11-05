@@ -1,7 +1,7 @@
-import { Worker, MessageChannel } from "node:worker_threads";
-import { cpus } from "node:os";
-import { fileURLToPath } from "node:url";
-import type { SerializedRequestContext } from "../shared/types.js";
+import { Worker, MessageChannel } from 'node:worker_threads';
+import { cpus } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import type { SerializedRequestContext } from '../shared/types.js';
 
 /** Internal task dispatched to a worker */
 export interface ActionTask {
@@ -50,7 +50,7 @@ const DEFAULT_TIMEOUT = 30_000;
 export async function createWorkerPool(config: WorkerPoolConfig): Promise<WorkerPool> {
   const poolSize = config.size ?? DEFAULT_POOL_SIZE;
   const timeout = config.timeout ?? DEFAULT_TIMEOUT;
-  const workerPath = fileURLToPath(new URL("./action-worker.js", import.meta.url));
+  const workerPath = fileURLToPath(new URL('./action-worker.js', import.meta.url));
 
   const workers: ManagedWorker[] = [];
 
@@ -70,27 +70,27 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
       };
 
       const onMessage = (msg: { type: string; message?: string }) => {
-        if (msg.type === "ready") {
-          worker.off("message", onMessage);
-          worker.off("error", onError);
+        if (msg.type === 'ready') {
+          worker.off('message', onMessage);
+          worker.off('error', onError);
           resolve(managed);
-        } else if (msg.type === "init-error") {
-          worker.off("message", onMessage);
-          worker.off("error", onError);
+        } else if (msg.type === 'init-error') {
+          worker.off('message', onMessage);
+          worker.off('error', onError);
           reject(new Error(`Worker initialization failed: ${msg.message}`));
         }
       };
 
       const onError = (err: Error) => {
-        worker.off("message", onMessage);
+        worker.off('message', onMessage);
         reject(err);
       };
 
-      worker.on("message", onMessage);
-      worker.on("error", onError);
+      worker.on('message', onMessage);
+      worker.on('error', onError);
 
       // Handle unexpected worker exit — replace the worker
-      worker.on("exit", (code) => {
+      worker.on('exit', (code) => {
         const idx = workers.indexOf(managed);
         if (idx === -1) return; // Already removed (destroy)
 
@@ -137,7 +137,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
 
   function dispatch(task: ActionTask): DispatchResult {
     if (destroyed) {
-      throw new Error("Worker pool has been destroyed");
+      throw new Error('Worker pool has been destroyed');
     }
 
     const managed = pickWorker();
@@ -165,26 +165,26 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
       start(controller) {
         // Set up the abort function for this task
         managed.taskAborts.set(task.taskId, () => {
-          controller.error(new Error("Worker crashed or was terminated"));
+          controller.error(new Error('Worker crashed or was terminated'));
           mainPort.close();
           cleanup();
-          resolveStatus({ status: 500, error: "Worker crashed" });
+          resolveStatus({ status: 500, error: 'Worker crashed' });
         });
 
         mainPort.on(
-          "message",
+          'message',
           (msg: { type: string; data?: ArrayBuffer; status?: number; message?: string }) => {
             switch (msg.type) {
-              case "chunk":
+              case 'chunk':
                 controller.enqueue(new Uint8Array(msg.data!));
                 break;
-              case "done":
+              case 'done':
                 controller.close();
                 mainPort.close();
                 cleanup();
                 resolveStatus({ status: 200 });
                 break;
-              case "error":
+              case 'error':
                 controller.error(new Error(msg.message));
                 mainPort.close();
                 cleanup();
@@ -194,7 +194,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
           },
         );
 
-        mainPort.on("close", () => {
+        mainPort.on('close', () => {
           // If the port closes without a done/error message, treat as error
           try {
             controller.close();
@@ -205,20 +205,20 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
 
         // Start timeout
         timeoutId = setTimeout(() => {
-          managed.worker.postMessage({ type: "abort", taskId: task.taskId });
+          managed.worker.postMessage({ type: 'abort', taskId: task.taskId });
           try {
-            controller.error(new Error("Action execution timed out"));
+            controller.error(new Error('Action execution timed out'));
           } catch {
             // Already closed
           }
           mainPort.close();
           cleanup();
-          resolveStatus({ status: 504, error: "Action execution timed out" });
+          resolveStatus({ status: 504, error: 'Action execution timed out' });
         }, timeout);
       },
       cancel() {
         // Client disconnected — tell worker to abort
-        managed.worker.postMessage({ type: "abort", taskId: task.taskId });
+        managed.worker.postMessage({ type: 'abort', taskId: task.taskId });
         mainPort.close();
         cleanup();
         resolveStatus({ status: 200 }); // Client-initiated cancel is not an error
@@ -231,7 +231,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
 
     managed.worker.postMessage(
       {
-        type: "execute",
+        type: 'execute',
         taskId: task.taskId,
         actionId: task.actionId,
         contentType: task.contentType,
@@ -248,7 +248,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
   function abort(taskId: string) {
     const managed = taskToWorker.get(taskId);
     if (managed) {
-      managed.worker.postMessage({ type: "abort", taskId });
+      managed.worker.postMessage({ type: 'abort', taskId });
     }
   }
 
@@ -261,13 +261,13 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
           managed.worker.terminate().then(() => resolve());
         }, 5_000);
 
-        managed.worker.once("exit", () => {
+        managed.worker.once('exit', () => {
           clearTimeout(forceTimer);
           resolve();
         });
 
         // Ask workers to exit gracefully
-        managed.worker.postMessage({ type: "shutdown" });
+        managed.worker.postMessage({ type: 'shutdown' });
       });
     });
 

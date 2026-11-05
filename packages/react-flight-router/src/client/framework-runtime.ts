@@ -9,7 +9,7 @@ const moduleCache: Record<string, unknown> = {};
 const chunkMap: Record<string, string> = {};
 
 // Auto-initialize from injected module map (production builds inject this in shell HTML)
-if (typeof window !== "undefined" && (window as any).__MODULE_MAP__) {
+if (typeof window !== 'undefined' && (window as any).__MODULE_MAP__) {
   Object.assign(chunkMap, (window as any).__MODULE_MAP__);
 }
 
@@ -21,7 +21,7 @@ if (typeof window !== "undefined" && (window as any).__MODULE_MAP__) {
 function resolveChunkUrl(chunkId: string): string {
   if (chunkMap[chunkId]) return chunkMap[chunkId];
   // Chunk IDs from Vite start with "assets/" - make them absolute
-  if (chunkId.startsWith("assets/")) return `/${chunkId}`;
+  if (chunkId.startsWith('assets/')) return `/${chunkId}`;
   return chunkId;
 }
 
@@ -34,7 +34,7 @@ function resolveChunkUrl(chunkId: string): string {
  */
 function deriveModuleId(chunkId: string): string | null {
   let id = chunkId;
-  if (id.startsWith("assets/")) id = id.slice(7);
+  if (id.startsWith('assets/')) id = id.slice(7);
   // Strip Vite's hash suffix: "-<hash>.js"
   // Vite uses base64url encoding for hashes which includes [A-Za-z0-9_-].
   // We require exactly 8 characters (Vite's default hash length) so the
@@ -56,17 +56,17 @@ function deriveModuleId(chunkId: string): string | null {
   const promise = import(/* @vite-ignore */ url)
     .then((mod: unknown) => {
       moduleCache[moduleId] = mod;
-      (promise as any).status = "fulfilled";
+      (promise as any).status = 'fulfilled';
       (promise as any).value = mod;
       return mod;
     })
     .catch((err: unknown) => {
-      (promise as any).status = "rejected";
+      (promise as any).status = 'rejected';
       (promise as any).reason = err;
       throw err;
     });
 
-  (promise as any).status = "pending";
+  (promise as any).status = 'pending';
   moduleCache[moduleId] = promise;
   return promise;
 };
@@ -80,7 +80,7 @@ function deriveModuleId(chunkId: string): string | null {
   const promise = import(/* @vite-ignore */ url)
     .then((mod: unknown) => {
       moduleCache[chunkId] = mod;
-      (promise as any).status = "fulfilled";
+      (promise as any).status = 'fulfilled';
       (promise as any).value = mod;
       // Register by derived module ID for __webpack_require__ lookups
       const derivedId = deriveModuleId(chunkId);
@@ -90,12 +90,12 @@ function deriveModuleId(chunkId: string): string | null {
       return mod;
     })
     .catch((err: unknown) => {
-      (promise as any).status = "rejected";
+      (promise as any).status = 'rejected';
       (promise as any).reason = err;
       throw err;
     });
 
-  (promise as any).status = "pending";
+  (promise as any).status = 'pending';
   moduleCache[chunkId] = promise;
   // Pre-register pending promise by derived module ID so __webpack_require__
   // finds the in-flight import instead of starting a new one with a bad URL
@@ -113,7 +113,7 @@ function deriveModuleId(chunkId: string): string | null {
 };
 
 // Shim: public path prefix (empty in dev, could be CDN prefix in prod)
-(globalThis as any).__webpack_require__.p = "";
+(globalThis as any).__webpack_require__.p = '';
 
 // Shim: get full script filename from chunk ID
 // Used by react-server-dom-webpack/client.browser to resolve module chunk URLs

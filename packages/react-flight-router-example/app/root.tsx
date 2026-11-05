@@ -1,7 +1,7 @@
-import { Outlet, ScrollRestoration } from "react-flight-router/client";
-import { MainNav } from "./routes/nav.client";
-import { AuthNav } from "./routes/auth-nav.client";
-import "./styles.css";
+import { Outlet, ScrollRestoration } from 'react-flight-router/client';
+import { MainNav } from './routes/nav.client';
+import { AuthNav } from './routes/auth-nav.client';
+import './styles.css';
 
 export default function RootLayout() {
   return (

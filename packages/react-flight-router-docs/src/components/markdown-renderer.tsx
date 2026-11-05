@@ -1,13 +1,13 @@
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
-import rehypeSlug from "rehype-slug";
-import { PreBlock } from "./code-block";
-import { useRouter } from "../router";
-import { resolveDocLink } from "../lib/resolve-doc-link";
-import type { Components } from "react-markdown";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import rehypeSlug from 'rehype-slug';
+import { PreBlock } from './code-block';
+import { useRouter } from '../router';
+import { resolveDocLink } from '../lib/resolve-doc-link';
+import type { Components } from 'react-markdown';
 
-import "highlight.js/styles/github-dark.min.css";
+import 'highlight.js/styles/github-dark.min.css';
 
 export function MarkdownRenderer({ content, slug }: { content: string; slug?: string }) {
   const { navigate } = useRouter();
@@ -17,11 +17,11 @@ export function MarkdownRenderer({ content, slug }: { content: string; slug?: st
       // Extract language from the code child's className
       const codeNode = node?.children?.[0];
       const classNames =
-        codeNode?.type === "element"
+        codeNode?.type === 'element'
           ? (codeNode.properties?.className as string[] | undefined)
           : undefined;
-      const langClass = classNames?.find((c) => typeof c === "string" && c.startsWith("language-"));
-      const language = langClass?.replace("language-", "") ?? "";
+      const langClass = classNames?.find((c) => typeof c === 'string' && c.startsWith('language-'));
+      const language = langClass?.replace('language-', '') ?? '';
 
       return <PreBlock language={language}>{children}</PreBlock>;
     },
@@ -37,12 +37,12 @@ export function MarkdownRenderer({ content, slug }: { content: string; slug?: st
       return <code className={className}>{children}</code>;
     },
     a({ href, children }) {
-      let resolvedHref = href ?? "";
+      let resolvedHref = href ?? '';
 
       // Resolve relative .md/.mdx links (e.g., ./vite-config.md, ./debugging.mdx) to doc paths
       resolvedHref = resolveDocLink(resolvedHref, slug);
 
-      if (resolvedHref.startsWith("/")) {
+      if (resolvedHref.startsWith('/')) {
         return (
           <a
             href={resolvedHref}
@@ -152,7 +152,7 @@ export function MarkdownRenderer({ content, slug }: { content: string; slug?: st
 
   // Strip HTML comments (e.g. <!-- BUILD_OUTPUT_START -->) that are used as
   // markers by scripts but should not be visible in rendered docs.
-  const cleaned = content.replace(/<!--[\s\S]*?-->/g, "");
+  const cleaned = content.replace(/<!--[\s\S]*?-->/g, '');
 
   return (
     <div className="prose-wrapper">

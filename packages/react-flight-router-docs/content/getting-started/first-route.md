@@ -1,6 +1,6 @@
 ---
-title: "Your First Route"
-description: "Create a root layout, a home page with data fetching, and a client component to see React Flight Router in action."
+title: 'Your First Route'
+description: 'Create a root layout, a home page with data fetching, and a client component to see React Flight Router in action.'
 ---
 
 # Your First Route
@@ -14,7 +14,7 @@ The root layout is the outermost component in your route hierarchy. It renders t
 Create `app/root.tsx`:
 
 ```tsx
-import { Link, Outlet } from "react-flight-router/client";
+import { Link, Outlet } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -51,17 +51,17 @@ Route components are server components by default. They can be `async` functions
 Create `app/routes/home.tsx`:
 
 ```tsx
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 export default async function HomePage() {
   // Read a file from disk -- only possible in a server component
-  const pkg = JSON.parse(await readFile(resolve(process.cwd(), "package.json"), "utf-8"));
+  const pkg = JSON.parse(await readFile(resolve(process.cwd(), 'package.json'), 'utf-8'));
 
   return (
     <div>
       <h1>{pkg.name}</h1>
-      <p>Version: {pkg.version ?? "0.0.0"}</p>
+      <p>Version: {pkg.version ?? '0.0.0'}</p>
       <p>
         This data was read from <code>package.json</code> on the server. No API endpoint, no
         client-side fetch, no loading spinner.
@@ -81,13 +81,13 @@ Server components cannot use hooks like `useState` or handle browser events. For
 Create `app/routes/note-editor.tsx`:
 
 ```tsx
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 export function NoteEditor() {
   const [notes, setNotes] = useState<string[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState('');
 
   return (
     <div>
@@ -96,7 +96,7 @@ export function NoteEditor() {
           e.preventDefault();
           if (draft.trim()) {
             setNotes([...notes, draft.trim()]);
-            setDraft("");
+            setDraft('');
           }
         }}
       >
@@ -121,7 +121,7 @@ export function NoteEditor() {
 Now create the server component that uses it. Create `app/routes/notes.tsx`:
 
 ```tsx
-import { NoteEditor } from "./note-editor.js";
+import { NoteEditor } from './note-editor.js';
 
 export default async function NotesPage() {
   return (
@@ -143,23 +143,23 @@ The route configuration maps URL paths to components. It is a plain TypeScript f
 Create `app/routes.ts`:
 
 ```ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "notes",
-        path: "notes",
-        component: () => import("./routes/notes.js"),
+        id: 'notes',
+        path: 'notes',
+        component: () => import('./routes/notes.js'),
       },
     ],
   },

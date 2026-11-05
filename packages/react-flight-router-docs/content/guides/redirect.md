@@ -1,6 +1,6 @@
 ---
-title: "Redirects"
-description: "Redirect users from server components using the redirect() function. Works for both initial page loads and client-side navigation without extra round trips."
+title: 'Redirects'
+description: 'Redirect users from server components using the redirect() function. Works for both initial page loads and client-side navigation without extra round trips.'
 ---
 
 # Redirects
@@ -12,11 +12,11 @@ The `redirect()` function lets you redirect the user to a different URL directly
 Import `redirect` from `"react-flight-router/server"` and call it inside any server component:
 
 ```tsx
-import { redirect } from "react-flight-router/server";
+import { redirect } from 'react-flight-router/server';
 
 export default async function ProtectedPage() {
   const session = await getSession();
-  if (!session) return redirect("/login");
+  if (!session) return redirect('/login');
 
   return <div>Welcome back, {session.user}!</div>;
 }
@@ -30,10 +30,10 @@ The default status code is `302` (temporary redirect). Pass `301` as the second 
 
 ```tsx
 // 302 — temporary (default)
-return redirect("/login");
+return redirect('/login');
 
 // 301 — permanent
-return redirect("/new-location", 301);
+return redirect('/new-location', 301);
 ```
 
 Use `301` for content that has permanently moved (e.g., a renamed route). Use `302` for conditional redirects like auth guards.
@@ -56,12 +56,12 @@ A common use case is protecting routes that require authentication:
 
 ```tsx
 // app/lib/session.ts
-import { getRequest } from "react-flight-router/server";
+import { getRequest } from 'react-flight-router/server';
 
 export async function requireSession() {
   const req = getRequest();
-  const cookie = req?.headers.get("Cookie") ?? "";
-  const token = parseCookie(cookie, "session");
+  const cookie = req?.headers.get('Cookie') ?? '';
+  const token = parseCookie(cookie, 'session');
   if (!token) return null;
   return validateToken(token);
 }
@@ -69,12 +69,12 @@ export async function requireSession() {
 
 ```tsx
 // app/routes/dashboard.tsx
-import { redirect } from "react-flight-router/server";
-import { requireSession } from "../lib/session.js";
+import { redirect } from 'react-flight-router/server';
+import { requireSession } from '../lib/session.js';
 
 export default async function Dashboard() {
   const session = await requireSession();
-  if (!session) return redirect("/login?from=/dashboard");
+  if (!session) return redirect('/login?from=/dashboard');
 
   return <div>Dashboard for {session.user}</div>;
 }
@@ -86,12 +86,12 @@ export default async function Dashboard() {
 
 ```tsx
 // app/routes/new-post.ts
-"use server";
+'use server';
 
-import { redirect } from "react-flight-router/server";
+import { redirect } from 'react-flight-router/server';
 
 export async function createPost(formData: FormData) {
-  const title = formData.get("title") as string;
+  const title = formData.get('title') as string;
   const post = await db.posts.create({ title });
   return redirect(`/posts/${post.id}`);
 }
@@ -99,7 +99,7 @@ export async function createPost(formData: FormData) {
 
 ```tsx
 // app/routes/new-post.tsx
-import { createPost } from "./new-post.js";
+import { createPost } from './new-post.js';
 
 export default function NewPost() {
   return (

@@ -1,6 +1,6 @@
 ---
-title: "Request Context"
-description: "Access the current HTTP request in server components and server actions using the built-in getRequest() API. No setup required."
+title: 'Request Context'
+description: 'Access the current HTTP request in server components and server actions using the built-in getRequest() API. No setup required.'
 ---
 
 # Request Context
@@ -12,11 +12,11 @@ Server components and server actions often need access to per-request data like 
 Import `getRequest` from `react-flight-router/server` and call it in any server component or server action:
 
 ```ts
-import { getRequest } from "react-flight-router/server";
+import { getRequest } from 'react-flight-router/server';
 
 export default async function MyComponent() {
   const request = getRequest();
-  const cookie = request?.headers.get("Cookie");
+  const cookie = request?.headers.get('Cookie');
   // ...
 }
 ```
@@ -31,7 +31,7 @@ A common use case is reading a session cookie to determine the current user.
 
 ```ts
 // app/lib/session.ts
-import { getRequest } from "react-flight-router/server";
+import { getRequest } from 'react-flight-router/server';
 
 function parseCookie(header: string, name: string): string | null {
   const match = header.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
@@ -42,8 +42,8 @@ export function getSessionUser() {
   const req = getRequest();
   if (!req) return null;
 
-  const cookieHeader = req.headers.get("Cookie") || "";
-  const token = parseCookie(cookieHeader, "session");
+  const cookieHeader = req.headers.get('Cookie') || '';
+  const token = parseCookie(cookieHeader, 'session');
   if (!token) return null;
 
   // Look up session in your database...
@@ -55,8 +55,8 @@ export function getSessionUser() {
 
 ```tsx
 // app/routes/root.tsx (server component)
-import { Outlet } from "react-flight-router/client";
-import { getSessionUser } from "../lib/session.js";
+import { Outlet } from 'react-flight-router/client';
+import { getSessionUser } from '../lib/session.js';
 
 export default async function RootLayout() {
   const user = await getSessionUser();
@@ -82,18 +82,18 @@ Since `getRequest()` is built-in, you don't need any request context wiring:
 
 ```ts
 // server.ts
-import { serve } from "@hono/node-server";
-import { createServer } from "react-flight-router/server";
+import { serve } from '@hono/node-server';
+import { createServer } from 'react-flight-router/server';
 
-const app = await createServer({ buildDir: "./dist" });
+const app = await createServer({ buildDir: './dist' });
 serve({ fetch: app.fetch, port: 3000 });
 ```
 
 ```ts
 // vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
   plugins: [react(), flightRouter()],
@@ -106,16 +106,16 @@ Mount API routes before the flight router. Both API routes and server components
 
 ```ts
 // server.ts
-import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { createServer } from "react-flight-router/server";
-import { apiApp } from "./app/api.js";
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { createServer } from 'react-flight-router/server';
+import { apiApp } from './app/api.js';
 
-const flightApp = await createServer({ buildDir: "./dist" });
+const flightApp = await createServer({ buildDir: './dist' });
 
 const app = new Hono();
-app.route("/", apiApp); // API routes first (handle /api/*)
-app.route("/", flightApp); // Flight router handles everything else
+app.route('/', apiApp); // API routes first (handle /api/*)
+app.route('/', flightApp); // Flight router handles everything else
 
 serve({ fetch: app.fetch, port: 3000 });
 ```
@@ -127,9 +127,9 @@ Server actions return RSC payloads (React Flight protocol), not HTTP responses. 
 ```ts
 // Client component
 async function handleLogin(username: string, password: string) {
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
   const result = await res.json();
@@ -139,7 +139,7 @@ async function handleLogin(username: string, password: string) {
   }
   // The server set the cookie via Set-Cookie header.
   // Full page reload to pick up the new session in server components.
-  window.location.href = "/";
+  window.location.href = '/';
 }
 ```
 
@@ -151,9 +151,9 @@ The `onRequest` callback is still available for setting up additional per-reques
 
 ```ts
 // vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
   plugins: [
@@ -172,7 +172,7 @@ The same applies to `createServer` in production:
 
 ```ts
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   onRequest: (request) => {
     console.log(`[request] ${request.method} ${new URL(request.url).pathname}`);
   },

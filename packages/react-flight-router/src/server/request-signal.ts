@@ -48,7 +48,7 @@ export function getRequestSignal(c: NodeAdapterContext): AbortSignal {
   }
 
   const onSocketClose = () => ac.abort();
-  socket.on("close", onSocketClose);
+  socket.on('close', onSocketClose);
 
   // Remove the listener when the response finishes so it doesn't accumulate
   // across keep-alive requests. The detach is idempotent — `off()` is a
@@ -58,12 +58,12 @@ export function getRequestSignal(c: NodeAdapterContext): AbortSignal {
     const detach = () => {
       if (detached) return;
       detached = true;
-      socket.off("close", onSocketClose);
-      outgoing.off("close", detach);
-      outgoing.off("finish", detach);
+      socket.off('close', onSocketClose);
+      outgoing.off('close', detach);
+      outgoing.off('finish', detach);
     };
-    outgoing.once("finish", detach);
-    outgoing.once("close", detach);
+    outgoing.once('finish', detach);
+    outgoing.once('close', detach);
   }
 
   return ac.signal;
@@ -83,7 +83,7 @@ export function legacyGetRequestSignal(c: NodeAdapterContext): AbortSignal {
     if (socket.destroyed) {
       ac.abort();
     } else {
-      socket.on("close", () => {
+      socket.on('close', () => {
         ac.abort();
       });
     }

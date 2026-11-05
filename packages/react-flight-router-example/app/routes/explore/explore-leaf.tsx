@@ -1,5 +1,5 @@
-import { Link } from "react-flight-router/client";
-import { EXPLORE_LEVELS, buildExplorePath } from "./explore-config.js";
+import { Link } from 'react-flight-router/client';
+import { EXPLORE_LEVELS, buildExplorePath } from './explore-config.js';
 
 interface ExploreLeafProps {
   params: Record<string, string>;
@@ -24,7 +24,7 @@ export function ExploreLeaf({ params }: ExploreLeafProps) {
   const allParams = EXPLORE_LEVELS.filter((l) => l.paramName).map((l) => ({
     name: l.name,
     paramName: l.paramName!,
-    value: params[l.paramName!] ?? "(missing)",
+    value: params[l.paramName!] ?? '(missing)',
   }));
 
   return (
@@ -65,8 +65,8 @@ export function ExploreLeaf({ params }: ExploreLeafProps) {
         <div className="font-semibold mb-1">All params ({allParams.length}):</div>
         {allParams.map((p) => (
           <div key={p.paramName}>
-            <span className="text-gray-500">{p.name}</span>{" "}
-            <span className="text-gray-400">({p.paramName})</span>={" "}
+            <span className="text-gray-500">{p.name}</span>{' '}
+            <span className="text-gray-400">({p.paramName})</span>={' '}
             <span className="font-medium">{p.value}</span>
           </div>
         ))}

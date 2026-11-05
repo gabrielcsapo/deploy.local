@@ -1,4 +1,4 @@
-import { TabsSettingsClient } from "./settings.client";
+import { TabsSettingsClient } from './settings.client';
 
 export default function TabsSettings() {
   return (

@@ -1,5 +1,5 @@
-import { Link } from "../router";
-import { getPrevNext } from "../lib/navigation";
+import { Link } from '../router';
+import { getPrevNext } from '../lib/navigation';
 
 export function PrevNextNav({ currentSlug }: { currentSlug: string }) {
   const { prev, next } = getPrevNext(currentSlug);

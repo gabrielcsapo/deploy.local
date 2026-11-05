@@ -1,5 +1,5 @@
-import { Link } from "react-flight-router/client";
-import { fetchUserPosts } from "../../lib/fake-api.js";
+import { Link } from 'react-flight-router/client';
+import { fetchUserPosts } from '../../lib/fake-api.js';
 
 export default async function UserPostsPage({ params = {} }: { params?: Record<string, string> }) {
   const userId = params.id;

@@ -1,7 +1,7 @@
-"use server";
+'use server';
 
-import { isMainThread } from "node:worker_threads";
-import { getRequest } from "react-flight-router/server";
+import { isMainThread } from 'node:worker_threads';
+import { getRequest } from 'react-flight-router/server';
 
 interface ActionResult {
   completedAt: number;
@@ -16,8 +16,8 @@ export async function slowAction(
 ): Promise<ActionResult> {
   // Support both real FormData (from browser) and plain objects (from benchmark tools)
   const delayMs =
-    formData && typeof (formData as FormData).get === "function"
-      ? Number((formData as FormData).get("delay")) || 1000
+    formData && typeof (formData as FormData).get === 'function'
+      ? Number((formData as FormData).get('delay')) || 1000
       : Number((formData as Record<string, unknown>).delay) || 1000;
 
   // Simulate CPU-bound or I/O-bound work
@@ -28,7 +28,7 @@ export async function slowAction(
   return {
     completedAt: Date.now(),
     delayMs,
-    threadType: isMainThread ? "main" : "worker",
-    userAgent: request?.headers.get("user-agent") ?? "unknown",
+    threadType: isMainThread ? 'main' : 'worker',
+    userAgent: request?.headers.get('user-agent') ?? 'unknown',
   };
 }

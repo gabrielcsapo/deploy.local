@@ -1,31 +1,31 @@
-import { parseFrontmatter, type Frontmatter } from "./frontmatter";
-import type { ComponentType } from "react";
+import { parseFrontmatter, type Frontmatter } from './frontmatter';
+import type { ComponentType } from 'react';
 
 // Plain markdown — loaded as raw strings, rendered via react-markdown
-const markdownModules = import.meta.glob<string>("/content/**/*.md", {
-  query: "?raw",
-  import: "default",
+const markdownModules = import.meta.glob<string>('/content/**/*.md', {
+  query: '?raw',
+  import: 'default',
 });
 
 // MDX — compiled to React components by @mdx-js/rollup
 const mdxModules = import.meta.glob<{
   default: ComponentType<{ components?: Record<string, unknown> }>;
   frontmatter: Record<string, string>;
-}>("/content/**/*.mdx");
+}>('/content/**/*.mdx');
 
 // MDX raw source — for TOC heading extraction and search
-const mdxRawModules = import.meta.glob<string>("/content/**/*.mdx", {
-  query: "?raw",
-  import: "default",
+const mdxRawModules = import.meta.glob<string>('/content/**/*.mdx', {
+  query: '?raw',
+  import: 'default',
 });
 
 export type MarkdownContent = {
-  type: "markdown";
+  type: 'markdown';
   frontmatter: Frontmatter;
   body: string;
 };
 export type MDXContent = {
-  type: "mdx";
+  type: 'mdx';
   frontmatter: Frontmatter;
   Component: ComponentType<{ components?: Record<string, unknown> }>;
   raw: () => {
@@ -41,12 +41,12 @@ export async function loadContent(slug: string): Promise<ContentResult | null> {
   if (mdxLoader) {
     const mod = await mdxLoader();
     const rawLoader = mdxRawModules[mdxKey];
-    const raw = rawLoader ? await rawLoader() : "";
+    const raw = rawLoader ? await rawLoader() : '';
     return {
-      type: "mdx",
+      type: 'mdx',
       frontmatter: {
-        title: mod.frontmatter?.title ?? "",
-        description: mod.frontmatter?.description ?? "",
+        title: mod.frontmatter?.title ?? '',
+        description: mod.frontmatter?.description ?? '',
       },
       Component: mod.default,
       raw,
@@ -60,5 +60,5 @@ export async function loadContent(slug: string): Promise<ContentResult | null> {
 
   const rawMd = await mdLoader();
   const result = parseFrontmatter(rawMd);
-  return { type: "markdown", ...result };
+  return { type: 'markdown', ...result };
 }

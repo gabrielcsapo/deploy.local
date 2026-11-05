@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import type { AnchorHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from "react";
-import { useCallback, useEffect, useRef } from "react";
-import { useNavigationActions, useLocationState } from "./router-context.js";
-import { prefetchRSC } from "./prefetch-cache.js";
-import { fastPathname } from "./fast-pathname.js";
+import type { AnchorHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useNavigationActions, useLocationState } from './router-context.js';
+import { prefetchRSC } from './prefetch-cache.js';
+import { fastPathname } from './fast-pathname.js';
 
 export type LinkRenderProps = {
   isActive: boolean;
@@ -13,7 +13,7 @@ export type LinkRenderProps = {
 
 interface LinkProps extends Omit<
   AnchorHTMLAttributes<HTMLAnchorElement>,
-  "className" | "style" | "href" | "children"
+  'className' | 'style' | 'href' | 'children'
 > {
   to: string;
   children: ReactNode | ((props: LinkRenderProps) => ReactNode);
@@ -31,7 +31,7 @@ interface LinkProps extends Omit<
    * - "intent": Prefetch on hover or focus (fires after a short delay to avoid wasted requests).
    * - "render": Prefetch as soon as the link renders (use sparingly).
    */
-  prefetch?: "none" | "intent" | "render";
+  prefetch?: 'none' | 'intent' | 'render';
   /**
    * When set, the link opens `to` inside the named parallel-route slot
    * instead of replacing the current page. Resolves to a URL like
@@ -67,9 +67,9 @@ function isPathActive(currentPathname: string, toPathname: string, end: boolean)
   }
   return (
     currentPathname.startsWith(toPathname) &&
-    (toPathname === "/" ||
+    (toPathname === '/' ||
       currentPathname.length === toPathname.length ||
-      currentPathname.charAt(toPathname.length) === "/")
+      currentPathname.charAt(toPathname.length) === '/')
   );
 }
 
@@ -87,7 +87,7 @@ export function Link({
   className,
   style,
   end = true,
-  prefetch = "none",
+  prefetch = 'none',
   intoSlot,
   preventScrollReset,
   ...rest
@@ -100,19 +100,19 @@ export function Link({
   const actions = useNavigationActions();
   const locationState = useLocationState();
 
-  const url = locationState?.url ?? "";
+  const url = locationState?.url ?? '';
   const navigate = actions?.navigate;
   const pendingUrl = locationState?.pendingUrl ?? null;
 
-  const origin = globalThis.location?.origin ?? "http://localhost";
-  const currentPathname = url ? fastPathname(url, origin) : "";
+  const origin = globalThis.location?.origin ?? 'http://localhost';
+  const currentPathname = url ? fastPathname(url, origin) : '';
   const toPathname = fastPathname(to, origin);
 
   // Resolved navigation target. For slot links, keep the current pathname and
   // attach `?@<slot>=<to>` so the modal opens "on top of" the current page
   // while a hard-visit to `to` still renders the page normally.
   const resolvedTo = intoSlot
-    ? buildSlotUrl(url || (globalThis.location?.href ?? "/"), intoSlot, to, origin)
+    ? buildSlotUrl(url || (globalThis.location?.href ?? '/'), intoSlot, to, origin)
     : to;
 
   const isActive = currentPathname ? isPathActive(currentPathname, toPathname, end) : false;
@@ -124,7 +124,7 @@ export function Link({
 
   // Prefetch on render
   useEffect(() => {
-    if (prefetch === "render" && !isActive) {
+    if (prefetch === 'render' && !isActive) {
       prefetchRSC(resolvedTo);
     }
   }, [prefetch, resolvedTo, isActive]);
@@ -133,7 +133,7 @@ export function Link({
   const intentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePointerEnter = useCallback(() => {
-    if (prefetch !== "intent" || isActive) return;
+    if (prefetch !== 'intent' || isActive) return;
     intentTimerRef.current = setTimeout(() => prefetchRSC(resolvedTo), 80);
   }, [prefetch, resolvedTo, isActive]);
 
@@ -145,7 +145,7 @@ export function Link({
   }, []);
 
   const handleFocus = useCallback(() => {
-    if (prefetch === "intent" && !isActive) {
+    if (prefetch === 'intent' && !isActive) {
       prefetchRSC(resolvedTo);
     }
   }, [prefetch, resolvedTo, isActive]);
@@ -157,20 +157,20 @@ export function Link({
     navigate?.(resolvedTo, preventScrollReset ? { preventScrollReset: true } : undefined);
   };
 
-  const resolvedClassName = typeof className === "function" ? className(renderProps) : className;
-  const resolvedStyle = typeof style === "function" ? style(renderProps) : style;
-  const resolvedChildren = typeof children === "function" ? children(renderProps) : children;
+  const resolvedClassName = typeof className === 'function' ? className(renderProps) : className;
+  const resolvedStyle = typeof style === 'function' ? style(renderProps) : style;
+  const resolvedChildren = typeof children === 'function' ? children(renderProps) : children;
 
   return (
     <a
       href={resolvedTo}
       onClick={handleClick}
-      onPointerEnter={prefetch === "intent" ? handlePointerEnter : undefined}
-      onPointerLeave={prefetch === "intent" ? handlePointerLeave : undefined}
-      onFocus={prefetch === "intent" ? handleFocus : undefined}
+      onPointerEnter={prefetch === 'intent' ? handlePointerEnter : undefined}
+      onPointerLeave={prefetch === 'intent' ? handlePointerLeave : undefined}
+      onFocus={prefetch === 'intent' ? handleFocus : undefined}
       className={resolvedClassName}
       style={resolvedStyle}
-      aria-current={isActive ? "page" : undefined}
+      aria-current={isActive ? 'page' : undefined}
       {...rest}
     >
       {resolvedChildren}

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { slowAction } from "./slow-action.js";
+import { useActionState } from 'react';
+import { slowAction } from './slow-action.js';
 
 interface ActionResult {
   completedAt: number;
@@ -38,14 +38,14 @@ export default function ActionForm() {
           disabled={isPending}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending ? "Running..." : "Submit Action"}
+          {isPending ? 'Running...' : 'Submit Action'}
         </button>
       </form>
 
       {state && (
         <div className="bg-gray-100 rounded p-4 space-y-1" data-testid="action-result">
           <p>
-            <strong>Completed at:</strong>{" "}
+            <strong>Completed at:</strong>{' '}
             <span data-testid="completed-at">{new Date(state.completedAt).toISOString()}</span>
           </p>
           <p>

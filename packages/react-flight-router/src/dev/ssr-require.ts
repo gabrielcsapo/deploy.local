@@ -43,13 +43,13 @@ export function createDevSSRRequire(opts: DevSSRRequireOptions): (moduleId: stri
     }
 
     const filePath = toFilePath(moduleId);
-    const ssrId = filePath + (filePath.includes("?") ? "&ssr" : "?ssr");
+    const ssrId = filePath + (filePath.includes('?') ? '&ssr' : '?ssr');
 
     const promise = loadModule(ssrId)
       .then((mod: unknown) => {
         cache[moduleId] = mod;
         (promise as any).value = mod;
-        (promise as any).status = "fulfilled";
+        (promise as any).status = 'fulfilled';
         return mod;
       })
       .catch((err: unknown) => {
@@ -57,12 +57,12 @@ export function createDevSSRRequire(opts: DevSSRRequireOptions): (moduleId: stri
         // failure forever (see header comment). Compare-and-swap so a fresher
         // entry that raced ahead of us survives.
         if (cache[moduleId] === promise) delete cache[moduleId];
-        (promise as any).status = "rejected";
+        (promise as any).status = 'rejected';
         (promise as any).reason = err;
         throw err;
       });
 
-    (promise as any).status = "pending";
+    (promise as any).status = 'pending';
     cache[moduleId] = promise;
     return promise;
   };

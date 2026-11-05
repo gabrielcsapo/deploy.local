@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo } from "react";
-import { useLocationState, useNavigationActions } from "./router-context.js";
+import { useCallback, useMemo } from 'react';
+import { useLocationState, useNavigationActions } from './router-context.js';
 
 type SearchParamsUpdater = URLSearchParams | ((prev: URLSearchParams) => URLSearchParams);
 
@@ -19,18 +19,18 @@ export function useSearchParams(): [URLSearchParams, (next: SearchParamsUpdater)
   // useSearchParams consumers to re-render.
   const locationState = useLocationState();
   const actions = useNavigationActions();
-  const url = locationState?.url ?? "";
+  const url = locationState?.url ?? '';
   const navigate = actions?.navigate;
 
-  const origin = globalThis.location?.origin ?? "http://localhost";
-  const searchParams = useMemo(() => new URL(url || "/", origin).searchParams, [url, origin]);
+  const origin = globalThis.location?.origin ?? 'http://localhost';
+  const searchParams = useMemo(() => new URL(url || '/', origin).searchParams, [url, origin]);
 
   const setSearchParams = useCallback(
     (next: SearchParamsUpdater) => {
-      const currentUrl = new URL(url || "/", globalThis.location?.origin ?? "http://localhost");
-      const newParams = typeof next === "function" ? next(currentUrl.searchParams) : next;
+      const currentUrl = new URL(url || '/', globalThis.location?.origin ?? 'http://localhost');
+      const newParams = typeof next === 'function' ? next(currentUrl.searchParams) : next;
       const search = newParams.toString();
-      const newUrl = currentUrl.pathname + (search ? `?${search}` : "");
+      const newUrl = currentUrl.pathname + (search ? `?${search}` : '');
       navigate?.(newUrl, { replace: true });
     },
     [url, navigate],

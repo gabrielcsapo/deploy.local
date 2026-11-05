@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { RSC_ENDPOINT } from "../shared/constants.js";
+import { RSC_ENDPOINT } from '../shared/constants.js';
 
 /**
  * Client-side prefetch cache for RSC payloads.
@@ -27,7 +27,7 @@ const prefetchCache = new Map<string, PrefetchEntry>();
 const inflightPrefetches = new Map<string, Promise<void>>();
 
 function cacheKey(to: string): string {
-  const origin = globalThis.location?.origin ?? "http://localhost";
+  const origin = globalThis.location?.origin ?? 'http://localhost';
   const url = new URL(to, origin);
   return url.pathname + url.search;
 }
@@ -52,7 +52,7 @@ export function prefetchRSC(to: string): void {
   if (inflightPrefetches.has(key)) return;
 
   const promise = fetch(`${RSC_ENDPOINT}?url=${encodeURIComponent(key)}`, {
-    priority: "low" as RequestPriority,
+    priority: 'low' as RequestPriority,
   })
     .then((response) => {
       if (response.ok && response.body) {

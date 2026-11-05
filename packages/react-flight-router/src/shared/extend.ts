@@ -1,6 +1,6 @@
-import type { Hono } from "hono";
-import type { Server as HttpServer } from "node:http";
-import type { Http2SecureServer } from "node:http2";
+import type { Hono } from 'hono';
+import type { Server as HttpServer } from 'node:http';
+import type { Http2SecureServer } from 'node:http2';
 
 /** Vite may hand back either server kind, so both are surfaced. */
 export type ExtendHttpServer = HttpServer | Http2SecureServer;
@@ -37,7 +37,7 @@ export interface ExtendContext {
    */
   httpServer: ExtendHttpServer | null;
 
-  mode: "development" | "production";
+  mode: 'development' | 'production';
 }
 
 export type ExtendHook = (context: ExtendContext) => void | Promise<void>;

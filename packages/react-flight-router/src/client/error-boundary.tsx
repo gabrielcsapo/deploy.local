@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Component, cloneElement, isValidElement, type ReactNode, type ErrorInfo } from "react";
+import { Component, cloneElement, isValidElement, type ReactNode, type ErrorInfo } from 'react';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -38,13 +38,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[react-flight-router] ErrorBoundary caught:", error, errorInfo);
+    console.error('[react-flight-router] ErrorBoundary caught:', error, errorInfo);
   }
 
   render() {
     if (this.state.error) {
       const { fallback } = this.props;
-      if (typeof fallback === "function") {
+      if (typeof fallback === 'function') {
         return fallback(this.state.error);
       }
       if (isValidElement(fallback)) {

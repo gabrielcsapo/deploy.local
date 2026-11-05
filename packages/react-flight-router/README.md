@@ -28,12 +28,12 @@ npm install -D vite @vitejs/plugin-react typescript
 
 ```ts
 // vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
-  plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
+  plugins: [react(), flightRouter({ routesFile: './app/routes.ts' })],
 });
 ```
 
@@ -57,18 +57,18 @@ middleware vs. your entry file), so pass the same hook to both:
 
 ```ts
 // app/server-routes.ts
-import type { Hono } from "hono";
+import type { Hono } from 'hono';
 
 export function registerRoutes(app: Hono) {
-  app.get("/healthz", (c) => c.text("ok"));
-  app.get("/api/rooms/:code", (c) => c.json({ code: c.req.param("code") }));
+  app.get('/healthz', (c) => c.text('ok'));
+  app.get('/api/rooms/:code', (c) => c.json({ code: c.req.param('code') }));
 }
 ```
 
 ```ts
 // vite.config.ts
 flightRouter({
-  routesFile: "./app/routes.ts",
+  routesFile: './app/routes.ts',
   extend: ({ app }) => registerRoutes(app),
 });
 ```
@@ -76,7 +76,7 @@ flightRouter({
 ```ts
 // server.ts
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   extend: ({ app }) => registerRoutes(app),
 });
 ```
@@ -99,7 +99,7 @@ entry file creates the server itself:
 
 ```ts
 // server.ts
-const app = await createServer({ buildDir: "./dist", extend: ({ app }) => registerRoutes(app) });
+const app = await createServer({ buildDir: './dist', extend: ({ app }) => registerRoutes(app) });
 const server = serve({ fetch: app.fetch, port: 3000 });
 attachWebSockets(server);
 ```

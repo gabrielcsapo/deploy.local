@@ -1,30 +1,30 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Link } from "react-flight-router/client";
+import { useState } from 'react';
+import { Link } from 'react-flight-router/client';
 
 export default function RegisterForm() {
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError("");
+    setError('');
 
     const form = new FormData(e.currentTarget);
-    const password = form.get("password") as string;
-    const confirm = form.get("confirm") as string;
+    const password = form.get('password') as string;
+    const confirm = form.get('confirm') as string;
 
     if (password !== confirm) {
-      setError("Passwords do not match");
+      setError('Passwords do not match');
       return;
     }
 
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: form.get("username"),
+          username: form.get('username'),
           password,
         }),
       });
@@ -36,9 +36,9 @@ export default function RegisterForm() {
         return;
       }
 
-      window.location.href = "/";
+      window.location.href = '/';
     } catch {
-      setError("An unexpected error occurred. Please try again.");
+      setError('An unexpected error occurred. Please try again.');
     }
   }
 
@@ -97,7 +97,7 @@ export default function RegisterForm() {
         </button>
       </form>
       <p className="mt-4 text-sm text-gray-600 text-center">
-        Already have an account?{" "}
+        Already have an account?{' '}
         <Link to="/login" className="text-blue-600 hover:underline">
           Sign in
         </Link>

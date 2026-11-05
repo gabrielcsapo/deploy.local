@@ -11,15 +11,15 @@
  * ArrayBuffer transfers.
  */
 
-import { parentPort, workerData } from "node:worker_threads";
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
-import type { MessagePort } from "node:worker_threads";
-import type { SerializedRequestContext } from "../shared/types.js";
-import { requestStorage } from "./request-context.js";
+import { parentPort, workerData } from 'node:worker_threads';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { MessagePort } from 'node:worker_threads';
+import type { SerializedRequestContext } from '../shared/types.js';
+import { requestStorage } from './request-context.js';
 
 if (!parentPort) {
-  throw new Error("action-worker.ts must be run as a worker thread");
+  throw new Error('action-worker.ts must be run as a worker thread');
 }
 
 const { buildDir } = workerData as { buildDir: string };
@@ -28,14 +28,14 @@ const { buildDir } = workerData as { buildDir: string };
 
 // 1. Load manifests
 const serverActionsManifest = JSON.parse(
-  readFileSync(resolve(buildDir, "server-actions-manifest.json"), "utf-8"),
+  readFileSync(resolve(buildDir, 'server-actions-manifest.json'), 'utf-8'),
 );
 const rscClientManifest = JSON.parse(
-  readFileSync(resolve(buildDir, "rsc-client-manifest.json"), "utf-8"),
+  readFileSync(resolve(buildDir, 'rsc-client-manifest.json'), 'utf-8'),
 );
 
 // 2. Import RSC runtime (pre-built with react-server conditions)
-const rscRuntime = await import(resolve(buildDir, "server/rsc-runtime.js"));
+const rscRuntime = await import(resolve(buildDir, 'server/rsc-runtime.js'));
 const { renderToReadableStream, decodeReply } = rscRuntime as {
   renderToReadableStream: (
     model: unknown,
@@ -46,9 +46,9 @@ const { renderToReadableStream, decodeReply } = rscRuntime as {
 };
 
 // 3. Pre-import server action entry files to populate globalThis.__flight_server_modules
-const serverDir = resolve(buildDir, "server");
+const serverDir = resolve(buildDir, 'server');
 const actionEntries = readdirSync(serverDir).filter(
-  (f) => f.startsWith("server-action-") && f.endsWith(".js"),
+  (f) => f.startsWith('server-action-') && f.endsWith('.js'),
 );
 for (const entry of actionEntries) {
   await import(resolve(serverDir, entry));
@@ -64,7 +64,7 @@ const loadModule = async (id: string): Promise<Record<string, unknown>> => {
 // --- Message Types ---
 
 interface ExecuteMessage {
-  type: "execute";
+  type: 'execute';
   taskId: string;
   actionId: string;
   contentType: string;
@@ -74,7 +74,7 @@ interface ExecuteMessage {
 }
 
 interface AbortMessage {
-  type: "abort";
+  type: 'abort';
   taskId: string;
 }
 
@@ -97,15 +97,15 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
 
   try {
     // Parse actionId: "moduleId#exportName"
-    const hashIndex = actionId.indexOf("#");
+    const hashIndex = actionId.indexOf('#');
     const moduleId = hashIndex >= 0 ? actionId.slice(0, hashIndex) : actionId;
-    const exportName = hashIndex >= 0 ? actionId.slice(hashIndex + 1) : "default";
+    const exportName = hashIndex >= 0 ? actionId.slice(hashIndex + 1) : 'default';
 
     // Validate action exists in manifest
     const manifestEntry = serverActionsManifest[moduleId];
     if (!manifestEntry) {
       resultPort.postMessage({
-        type: "error",
+        type: 'error',
         status: 404,
         message: `Action not found in manifest: ${actionId}`,
       });
@@ -115,7 +115,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
 
     // Check for early abort
     if (ac.signal.aborted) {
-      resultPort.postMessage({ type: "done" });
+      resultPort.postMessage({ type: 'done' });
       resultPort.close();
       return;
     }
@@ -123,11 +123,11 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
     // Decode arguments
     let args: unknown[];
     if (
-      contentType.includes("multipart/form-data") ||
-      contentType.includes("application/x-www-form-urlencoded")
+      contentType.includes('multipart/form-data') ||
+      contentType.includes('application/x-www-form-urlencoded')
     ) {
       const response = new Response(body, {
-        headers: { "content-type": contentType },
+        headers: { 'content-type': contentType },
       });
       const formData = await response.formData();
       args = (await decodeReply(formData, serverActionsManifest)) as unknown[];
@@ -140,9 +140,9 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
     const mod = await loadModule(manifestEntry.id);
     const actionFn = mod[exportName] as (...args: unknown[]) => Promise<unknown>;
 
-    if (typeof actionFn !== "function") {
+    if (typeof actionFn !== 'function') {
       resultPort.postMessage({
-        type: "error",
+        type: 'error',
         status: 404,
         message: `Action export "${exportName}" is not a function in ${moduleId}`,
       });
@@ -156,7 +156,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
 
     // Check for abort after execution
     if (ac.signal.aborted) {
-      resultPort.postMessage({ type: "done" });
+      resultPort.postMessage({ type: 'done' });
       resultPort.close();
       return;
     }
@@ -166,7 +166,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
       result,
       rscClientManifest,
       {
-        onError: (err: unknown) => console.error("[flight-worker] Action RSC error:", err),
+        onError: (err: unknown) => console.error('[flight-worker] Action RSC error:', err),
       },
     );
 
@@ -187,20 +187,20 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
           value.byteOffset,
           value.byteOffset + value.byteLength,
         ) as ArrayBuffer;
-        resultPort.postMessage({ type: "chunk", data: buffer }, [buffer]);
+        resultPort.postMessage({ type: 'chunk', data: buffer }, [buffer]);
       }
     } finally {
       reader.releaseLock();
     }
 
-    resultPort.postMessage({ type: "done" });
+    resultPort.postMessage({ type: 'done' });
     resultPort.close();
   } catch (err) {
     try {
       resultPort.postMessage({
-        type: "error",
+        type: 'error',
         status: 500,
-        message: err instanceof Error ? err.message : "Internal server error",
+        message: err instanceof Error ? err.message : 'Internal server error',
       });
       resultPort.close();
     } catch {
@@ -220,17 +220,17 @@ function handleAbort(msg: AbortMessage): void {
 
 // --- Main message listener ---
 
-parentPort.on("message", (msg: { type: string; taskId?: string }) => {
+parentPort.on('message', (msg: { type: string; taskId?: string }) => {
   switch (msg.type) {
-    case "execute":
+    case 'execute':
       handleExecute(msg as ExecuteMessage).catch((err) => {
-        console.error("[flight-worker] Unhandled error in handleExecute:", err);
+        console.error('[flight-worker] Unhandled error in handleExecute:', err);
       });
       break;
-    case "abort":
+    case 'abort':
       handleAbort(msg as AbortMessage);
       break;
-    case "shutdown":
+    case 'shutdown':
       // Graceful shutdown: let pending tasks finish, then exit
       // In practice the main thread will terminate us after a grace period
       process.exit(0);
@@ -239,4 +239,4 @@ parentPort.on("message", (msg: { type: string; taskId?: string }) => {
 });
 
 // Signal that initialization is complete
-parentPort.postMessage({ type: "ready" });
+parentPort.postMessage({ type: 'ready' });

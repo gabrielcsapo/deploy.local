@@ -1,7 +1,7 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Socket } from "node:net";
-import { Readable } from "node:stream";
-import type { Hono } from "hono";
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Socket } from 'node:net';
+import { Readable } from 'node:stream';
+import type { Hono } from 'hono';
 
 /**
  * Bridges a Hono app into Vite's connect-style middleware stack.
@@ -17,11 +17,11 @@ import type { Hono } from "hono";
  * used rather than `app.notFound()` so apps stay free to define their own
  * not-found handler for the routes they do own.
  */
-const FALLTHROUGH_HEADER = "x-react-flight-router-fallthrough";
+const FALLTHROUGH_HEADER = 'x-react-flight-router-fallthrough';
 
 /** Registers the sentinel. Must run *after* the user's routes. */
 export function appendFallthroughRoute(app: Hono): void {
-  app.all("*", () => new Response(null, { status: 404, headers: { [FALLTHROUGH_HEADER]: "1" } }));
+  app.all('*', () => new Response(null, { status: 404, headers: { [FALLTHROUGH_HEADER]: '1' } }));
 }
 
 export function isFallthrough(response: Response): boolean {
@@ -30,8 +30,8 @@ export function isFallthrough(response: Response): boolean {
 
 export function toWebRequest(request: IncomingMessage): Request {
   const encrypted = (request.socket as Socket & { encrypted?: boolean }).encrypted;
-  const origin = `${encrypted ? "https" : "http"}://${request.headers.host ?? "localhost"}`;
-  const url = new URL(request.url ?? "/", origin);
+  const origin = `${encrypted ? 'https' : 'http'}://${request.headers.host ?? 'localhost'}`;
+  const url = new URL(request.url ?? '/', origin);
 
   const headers = new Headers();
   for (const [name, value] of Object.entries(request.headers)) {
@@ -43,28 +43,28 @@ export function toWebRequest(request: IncomingMessage): Request {
     }
   }
 
-  const method = request.method ?? "GET";
+  const method = request.method ?? 'GET';
   // GET/HEAD must not carry a body, and Node streams need `duplex: "half"`.
   const body =
-    method === "GET" || method === "HEAD" ? undefined : (Readable.toWeb(request) as ReadableStream);
+    method === 'GET' || method === 'HEAD' ? undefined : (Readable.toWeb(request) as ReadableStream);
 
   return new Request(url, {
     method,
     headers,
     body,
-    ...(body ? { duplex: "half" } : {}),
+    ...(body ? { duplex: 'half' } : {}),
   } as RequestInit);
 }
 
 export async function writeWebResponse(response: Response, target: ServerResponse): Promise<void> {
   target.statusCode = response.status;
   response.headers.forEach((value, name) => {
-    if (name.toLowerCase() === "set-cookie") return;
+    if (name.toLowerCase() === 'set-cookie') return;
     target.setHeader(name, value);
   });
   // Multiple Set-Cookie headers have to be set as an array, not joined.
   const cookies = response.headers.getSetCookie?.();
-  if (cookies?.length) target.setHeader("set-cookie", cookies);
+  if (cookies?.length) target.setHeader('set-cookie', cookies);
 
   if (!response.body) {
     target.end();

@@ -1,10 +1,10 @@
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 const PHOTOS = [
-  { id: "1", title: "Sunset", color: "#fb923c" },
-  { id: "2", title: "Forest", color: "#22c55e" },
-  { id: "3", title: "Ocean", color: "#3b82f6" },
-  { id: "4", title: "Desert", color: "#f59e0b" },
+  { id: '1', title: 'Sunset', color: '#fb923c' },
+  { id: '2', title: 'Forest', color: '#22c55e' },
+  { id: '3', title: 'Ocean', color: '#3b82f6' },
+  { id: '4', title: 'Desert', color: '#f59e0b' },
 ];
 
 export default function PhotosPage() {

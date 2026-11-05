@@ -1,7 +1,7 @@
-import type { TimingEntry } from "./types.js";
+import type { TimingEntry } from './types.js';
 
 const supportsColor =
-  typeof process !== "undefined" && process.stdout?.isTTY === true && !process.env.NO_COLOR;
+  typeof process !== 'undefined' && process.stdout?.isTTY === true && !process.env.NO_COLOR;
 
 const c = {
   bold: (s: string) => (supportsColor ? `\x1b[1m${s}\x1b[22m` : s),
@@ -78,7 +78,7 @@ function renderWaterfallBar(
 ): string {
   if (!reference || !reference.durationMs || reference.durationMs <= 0) {
     // No reference context — fill the whole bar
-    return c.cyan("\u2588".repeat(BAR_WIDTH));
+    return c.cyan('\u2588'.repeat(BAR_WIDTH));
   }
 
   const relStart = (entry.startMs - reference.startMs) / reference.durationMs;
@@ -87,17 +87,17 @@ function renderWaterfallBar(
   const barStart = Math.max(0, Math.floor(relStart * BAR_WIDTH));
   const barEnd = Math.min(BAR_WIDTH, Math.ceil(relEnd * BAR_WIDTH));
 
-  let bar = "";
+  let bar = '';
   for (let i = 0; i < BAR_WIDTH; i++) {
-    bar += i >= barStart && i < barEnd ? "\u2588" : "\u2591";
+    bar += i >= barStart && i < barEnd ? '\u2588' : '\u2591';
   }
   return c.cyan(bar);
 }
 
 /** Pick headline color based on request type: SSR=green, RSC=cyan, ACTION=magenta */
 function headlineColor(headline: string): string {
-  if (headline.startsWith("SSR")) return c.green(`[flight] ${headline}`);
-  if (headline.startsWith("ACTION")) return c.magenta(`[flight] ${headline}`);
+  if (headline.startsWith('SSR')) return c.green(`[flight] ${headline}`);
+  if (headline.startsWith('ACTION')) return c.magenta(`[flight] ${headline}`);
   return c.cyan(`[flight] ${headline}`);
 }
 
@@ -111,9 +111,9 @@ export function maskParams(pathname: string, params: Record<string, string>): st
   if (!params || Object.keys(params).length === 0) return pathname;
   const paramValues = new Set(Object.values(params));
   return pathname
-    .split("/")
-    .map((segment) => (paramValues.has(segment) ? "****" : segment))
-    .join("/");
+    .split('/')
+    .map((segment) => (paramValues.has(segment) ? '****' : segment))
+    .join('/');
 }
 
 export function createFlightLogger(options?: { silent?: boolean }): FlightTimer {
@@ -156,23 +156,23 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
       if (silent) return;
 
       // Find total duration from a "total" entry if present
-      const totalEntry = entries.find((e) => e.label === "total");
+      const totalEntry = entries.find((e) => e.label === 'total');
       const totalStr =
-        totalEntry?.durationMs != null ? `  ${formatDuration(totalEntry.durationMs)}` : "";
+        totalEntry?.durationMs != null ? `  ${formatDuration(totalEntry.durationMs)}` : '';
 
       console.error(headlineColor(headline) + c.bold(totalStr));
 
       for (const entry of entries) {
-        if (entry.durationMs == null || entry.label === "total") continue;
+        if (entry.durationMs == null || entry.label === 'total') continue;
 
         const dur = formatDuration(entry.durationMs);
-        const indent = "  " + "  ".repeat(entry.depth);
+        const indent = '  ' + '  '.repeat(entry.depth);
         const colorFn = entry.durationMs > 100 ? c.yellow : c.dim;
 
         // Render a waterfall bar for every entry relative to total request duration
         const bar = renderWaterfallBar(entry, totalEntry);
         const padLen = Math.max(1, 24 - indent.length - entry.label.length);
-        console.error(`${indent}${entry.label}${" ".repeat(padLen)} ${bar} ${colorFn(dur)}`);
+        console.error(`${indent}${entry.label}${' '.repeat(padLen)} ${bar} ${colorFn(dur)}`);
       }
     },
 
@@ -192,8 +192,8 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
         if (completed) return;
         completed = true;
         if (streamLabel) self.timeEnd(streamLabel);
-        self.timeEnd("total");
-        self.flush(cancelled ? headline + " [CANCELLED]" : headline);
+        self.timeEnd('total');
+        self.flush(cancelled ? headline + ' [CANCELLED]' : headline);
         onComplete?.(cancelled);
       }
 
@@ -240,7 +240,7 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
           reader.cancel().catch(() => {});
         } else {
           requestSignal.addEventListener(
-            "abort",
+            'abort',
             () => {
               finish(true);
               reader.cancel().catch(() => {});
@@ -273,7 +273,7 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
 /** Check if debug mode is enabled via env var or programmatic option */
 export function isDebugEnabled(programmatic?: boolean): boolean {
   if (programmatic !== undefined) return programmatic;
-  return process.env.FLIGHT_DEBUG === "1" || process.env.FLIGHT_DEBUG === "true";
+  return process.env.FLIGHT_DEBUG === '1' || process.env.FLIGHT_DEBUG === 'true';
 }
 
 /**

@@ -1,5 +1,5 @@
-import { MessageBoard, ActionPropDemo } from "./counter.client.js";
-import { addMessage } from "./actions.js";
+import { MessageBoard, ActionPropDemo } from './counter.client.js';
+import { addMessage } from './actions.js';
 
 export default async function HomePage() {
   return (

@@ -1,6 +1,6 @@
-import { test, expect, type Page } from "@playwright/test";
-import { spawn, type ChildProcess } from "child_process";
-import { resolve } from "path";
+import { test, expect, type Page } from '@playwright/test';
+import { spawn, type ChildProcess } from 'child_process';
+import { resolve } from 'path';
 
 /**
  * Regression test for the search-only-navigation bug.
@@ -18,20 +18,20 @@ import { resolve } from "path";
 const PROD_PORT = 3006;
 const DEV_PORT = 3007;
 
-const PROD_SERVER_SCRIPT = resolve(import.meta.dirname, "../dist/server.js");
-const E2E_PACKAGE_DIR = resolve(import.meta.dirname, "..");
-const VITE_BIN = resolve(E2E_PACKAGE_DIR, "node_modules/.bin/vite");
+const PROD_SERVER_SCRIPT = resolve(import.meta.dirname, '../dist/server.js');
+const E2E_PACKAGE_DIR = resolve(import.meta.dirname, '..');
+const VITE_BIN = resolve(E2E_PACKAGE_DIR, 'node_modules/.bin/vite');
 
 async function waitForServer(
   baseUrl: string,
   timeoutMs: number,
-  options: { probe?: "health" | "root" } = {},
+  options: { probe?: 'health' | 'root' } = {},
 ): Promise<void> {
-  const probe = options.probe ?? "health";
+  const probe = options.probe ?? 'health';
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      if (probe === "health") {
+      if (probe === 'health') {
         const res = await fetch(`${baseUrl}/api/health`);
         if (res.ok && (await res.json()).ok) return;
       } else {
@@ -56,23 +56,23 @@ async function waitForServer(
 async function assertSearchParamNavigationUpdatesPage(page: Page, baseUrl: string): Promise<void> {
   await page.goto(`${baseUrl}/search-params?value=A`);
 
-  await expect(page.getByTestId("search-params-page")).toBeVisible();
-  await expect(page.getByTestId("search-params-value")).toHaveText("A");
+  await expect(page.getByTestId('search-params-page')).toBeVisible();
+  await expect(page.getByTestId('search-params-value')).toHaveText('A');
   // The renderer also passes search params as a component prop — both
   // sources must agree on every render.
-  await expect(page.getByTestId("search-params-prop-value")).toHaveText("A");
+  await expect(page.getByTestId('search-params-prop-value')).toHaveText('A');
 
-  const renderIdA = await page.getByTestId("search-params-render-id").textContent();
+  const renderIdA = await page.getByTestId('search-params-render-id').textContent();
   expect(renderIdA).toBeTruthy();
 
   // Soft-navigate to ?value=B. Before the fix this updated the URL but left
   // the rendered value as "A" — the bug we're guarding against.
-  await page.getByTestId("link-value-b").click();
+  await page.getByTestId('link-value-b').click();
   await expect(page).toHaveURL(`${baseUrl}/search-params?value=B`);
-  await expect(page.getByTestId("search-params-value")).toHaveText("B");
-  await expect(page.getByTestId("search-params-prop-value")).toHaveText("B");
+  await expect(page.getByTestId('search-params-value')).toHaveText('B');
+  await expect(page.getByTestId('search-params-prop-value')).toHaveText('B');
 
-  const renderIdB = await page.getByTestId("search-params-render-id").textContent();
+  const renderIdB = await page.getByTestId('search-params-render-id').textContent();
   // The server-render id is regenerated each render, so a successful
   // re-render produces a different string. This catches the failure mode
   // where the URL changes but the server returned an empty patch and the
@@ -80,46 +80,46 @@ async function assertSearchParamNavigationUpdatesPage(page: Page, baseUrl: strin
   expect(renderIdB).toBeTruthy();
   expect(renderIdB).not.toEqual(renderIdA);
 
-  await page.getByTestId("link-value-c").click();
+  await page.getByTestId('link-value-c').click();
   await expect(page).toHaveURL(`${baseUrl}/search-params?value=C`);
-  await expect(page.getByTestId("search-params-value")).toHaveText("C");
-  await expect(page.getByTestId("search-params-prop-value")).toHaveText("C");
+  await expect(page.getByTestId('search-params-value')).toHaveText('C');
+  await expect(page.getByTestId('search-params-prop-value')).toHaveText('C');
 
-  const renderIdC = await page.getByTestId("search-params-render-id").textContent();
+  const renderIdC = await page.getByTestId('search-params-render-id').textContent();
   expect(renderIdC).not.toEqual(renderIdB);
 
   // Navigate back to A and confirm the round-trip also works.
-  await page.getByTestId("link-value-a").click();
+  await page.getByTestId('link-value-a').click();
   await expect(page).toHaveURL(`${baseUrl}/search-params?value=A`);
-  await expect(page.getByTestId("search-params-value")).toHaveText("A");
-  await expect(page.getByTestId("search-params-prop-value")).toHaveText("A");
+  await expect(page.getByTestId('search-params-value')).toHaveText('A');
+  await expect(page.getByTestId('search-params-prop-value')).toHaveText('A');
 }
 
-test.describe("Search-only navigation — production server", () => {
+test.describe('Search-only navigation — production server', () => {
   const BASE_URL = `http://localhost:${PROD_PORT}`;
   let server: ChildProcess;
 
   test.beforeAll(async () => {
-    server = spawn("node", [PROD_SERVER_SCRIPT], {
-      env: { ...process.env, NODE_ENV: "production", PORT: String(PROD_PORT), NO_COLOR: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
+    server = spawn('node', [PROD_SERVER_SCRIPT], {
+      env: { ...process.env, NODE_ENV: 'production', PORT: String(PROD_PORT), NO_COLOR: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-    server.stdout!.on("data", () => {});
-    server.stderr!.on("data", () => {});
+    server.stdout!.on('data', () => {});
+    server.stderr!.on('data', () => {});
     await waitForServer(BASE_URL, 15_000);
   });
 
   test.afterAll(async () => {
-    server?.kill("SIGTERM");
+    server?.kill('SIGTERM');
     await new Promise((r) => setTimeout(r, 500));
   });
 
-  test("router.navigate between ?value=A/B/C re-renders the page", async ({ page }) => {
+  test('router.navigate between ?value=A/B/C re-renders the page', async ({ page }) => {
     await assertSearchParamNavigationUpdatesPage(page, BASE_URL);
   });
 });
 
-test.describe("Search-only navigation — vite dev server", () => {
+test.describe('Search-only navigation — vite dev server', () => {
   const BASE_URL = `http://localhost:${DEV_PORT}`;
   let server: ChildProcess;
 
@@ -128,26 +128,26 @@ test.describe("Search-only navigation — vite dev server", () => {
     // exec` — pnpm sometimes hangs in spawned non-TTY contexts waiting on
     // store locks, which manifested as a "server failed to start" timeout
     // before this fix.
-    server = spawn(VITE_BIN, ["--port", String(DEV_PORT), "--strictPort"], {
+    server = spawn(VITE_BIN, ['--port', String(DEV_PORT), '--strictPort'], {
       cwd: E2E_PACKAGE_DIR,
-      env: { ...process.env, NODE_ENV: "development", NO_COLOR: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, NODE_ENV: 'development', NO_COLOR: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-    server.stdout!.on("data", () => {});
-    server.stderr!.on("data", () => {});
+    server.stdout!.on('data', () => {});
+    server.stderr!.on('data', () => {});
     // Vite dev cold start is slower than the production server — give it
     // longer to compile the RSC entry on first request. /api/health
     // doesn't exist in dev (lives in production server.ts), so probe the
     // page under test instead.
-    await waitForServer(BASE_URL, 45_000, { probe: "root" });
+    await waitForServer(BASE_URL, 45_000, { probe: 'root' });
   });
 
   test.afterAll(async () => {
-    server?.kill("SIGTERM");
+    server?.kill('SIGTERM');
     await new Promise((r) => setTimeout(r, 500));
   });
 
-  test("router.navigate between ?value=A/B/C re-renders the page", async ({ page }) => {
+  test('router.navigate between ?value=A/B/C re-renders the page', async ({ page }) => {
     await assertSearchParamNavigationUpdatesPage(page, BASE_URL);
   });
 });

@@ -1,35 +1,35 @@
-import { test, expect } from "@playwright/test";
-import { spawn, type ChildProcess } from "child_process";
-import { resolve } from "path";
+import { test, expect } from '@playwright/test';
+import { spawn, type ChildProcess } from 'child_process';
+import { resolve } from 'path';
 
 const PORT = 3456;
 const BASE_URL = `http://localhost:${PORT}`;
-const SERVER_SCRIPT = resolve(import.meta.dirname, "../dist/server.js");
+const SERVER_SCRIPT = resolve(import.meta.dirname, '../dist/server.js');
 
 let server: ChildProcess;
-let stderr = "";
+let stderr = '';
 
 /**
  * Spawn the production server with FLIGHT_DEBUG=1 and capture stderr.
  * We use a dedicated port to avoid collisions with other test runs.
  */
 test.beforeAll(async () => {
-  stderr = "";
-  server = spawn("node", [SERVER_SCRIPT], {
+  stderr = '';
+  server = spawn('node', [SERVER_SCRIPT], {
     env: {
       ...process.env,
-      NODE_ENV: "production",
-      FLIGHT_DEBUG: "1",
-      NO_COLOR: "1",
+      NODE_ENV: 'production',
+      FLIGHT_DEBUG: '1',
+      NO_COLOR: '1',
       PORT: String(PORT),
     },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  server.stderr!.on("data", (chunk: Buffer) => {
+  server.stderr!.on('data', (chunk: Buffer) => {
     stderr += chunk.toString();
   });
-  server.stdout!.on("data", () => {});
+  server.stdout!.on('data', () => {});
 
   // Wait for the server to be ready
   const deadline = Date.now() + 15_000;
@@ -41,11 +41,11 @@ test.beforeAll(async () => {
       await new Promise((r) => setTimeout(r, 200));
     }
   }
-  throw new Error("Server failed to start within 15s");
+  throw new Error('Server failed to start within 15s');
 });
 
 test.afterAll(async () => {
-  server?.kill("SIGTERM");
+  server?.kill('SIGTERM');
   // Give it a moment to flush
   await new Promise((r) => setTimeout(r, 500));
 });
@@ -60,8 +60,8 @@ async function waitForStderr(pattern: RegExp, timeoutMs = 5000): Promise<string>
   throw new Error(`Timed out waiting for stderr pattern: ${pattern}\nStderr so far:\n${stderr}`);
 }
 
-test.describe("Performance logging output", () => {
-  test("SSR request logs flight timing", async ({ page }) => {
+test.describe('Performance logging output', () => {
+  test('SSR request logs flight timing', async ({ page }) => {
     const before = stderr.length;
     await page.goto(`${BASE_URL}/about`);
 
@@ -80,15 +80,15 @@ test.describe("Performance logging output", () => {
     expect(newOutput).toMatch(/\d+(\.\d+)?(ms|µs|s)/);
   });
 
-  test("RSC navigation request logs flight timing", async ({ page }) => {
+  test('RSC navigation request logs flight timing', async ({ page }) => {
     // First load a page to get the client JS
     await page.goto(`${BASE_URL}/`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
 
     const before = stderr.length;
     // Navigate to about page via client-side navigation (triggers RSC fetch)
-    await page.getByRole("link", { name: "About" }).first().click();
-    await expect(page.locator("h1")).toHaveText("About");
+    await page.getByRole('link', { name: 'About' }).first().click();
+    await expect(page.locator('h1')).toHaveText('About');
 
     await waitForStderr(/\[flight\] RSC \/about/, 10000);
     const newOutput = stderr.slice(before);
@@ -99,7 +99,7 @@ test.describe("Performance logging output", () => {
     expect(newOutput).toMatch(/matchRoutes/);
   });
 
-  test("dynamic route params are masked in log output", async ({ page }) => {
+  test('dynamic route params are masked in log output', async ({ page }) => {
     const before = stderr.length;
     await page.goto(`${BASE_URL}/posts/secret-post-id`);
 
@@ -112,19 +112,19 @@ test.describe("Performance logging output", () => {
     expect(newOutput).not.toMatch(/\[flight\] SSR \/posts\/secret-post-id/);
   });
 
-  test("RSC navigation to dynamic route masks params", async ({ page }) => {
+  test('RSC navigation to dynamic route masks params', async ({ page }) => {
     await page.goto(`${BASE_URL}/posts`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
 
     const before = stderr.length;
     // Navigate to a specific post (triggers RSC fetch with dynamic param)
     await page.goto(`${BASE_URL}/posts`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
 
     // Use direct fetch to trigger RSC endpoint with dynamic param
     await page.evaluate(async () => {
-      await fetch("/__rsc?url=/posts/my-secret-id", {
-        headers: { Accept: "text/x-component" },
+      await fetch('/__rsc?url=/posts/my-secret-id', {
+        headers: { Accept: 'text/x-component' },
       });
     });
 

@@ -1,8 +1,8 @@
-import type { SSRManifest, RSCPayload } from "../shared/types.js";
-import type { ReactNode } from "react";
-import type { FlightLogger } from "../shared/logger.js";
-import { generateBootstrapScript } from "../shared/bootstrap-script.js";
-import { injectFlightPayload, flightPayloadScriptStream } from "../shared/flight-html-stream.js";
+import type { SSRManifest, RSCPayload } from '../shared/types.js';
+import type { ReactNode } from 'react';
+import type { FlightLogger } from '../shared/logger.js';
+import { generateBootstrapScript } from '../shared/bootstrap-script.js';
+import { injectFlightPayload, flightPayloadScriptStream } from '../shared/flight-html-stream.js';
 
 // Types for react-server-dom-webpack/client.node
 type CreateFromReadableStream = (
@@ -40,9 +40,9 @@ interface SSRRenderOptions {
    * "react" can resolve to a different copy than the app's react-dom, causing
    * hydration mismatches.
    */
-  createElement: typeof import("react").createElement;
+  createElement: typeof import('react').createElement;
   /** React.StrictMode — same reason as createElement */
-  StrictMode: typeof import("react").StrictMode;
+  StrictMode: typeof import('react').StrictMode;
   /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
   logger?: FlightLogger;
   /**
@@ -85,15 +85,15 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   // Deserialize RSC stream into the RSC payload object.
   // The payload is { url, segments, params } where segments contains React elements
   // with SSR-built client component versions (resolved via __webpack_require__).
-  logger?.time("ssr:deserializeRSC");
+  logger?.time('ssr:deserializeRSC');
   const payload = (await createFromReadableStream(streamForSSR, {
     serverConsumerManifest: ssrManifest,
   })) as RSCPayload;
-  logger?.timeEnd("ssr:deserializeRSC");
+  logger?.timeEnd('ssr:deserializeRSC');
 
   // Extract root segment and construct the full React tree,
   // mirroring the structure in client/entry.tsx
-  const rootKey = Object.keys(payload.segments)[0] ?? "";
+  const rootKey = Object.keys(payload.segments)[0] ?? '';
   const RootSegment = payload.segments[rootKey] as ReactNode;
 
   // Stub callServer for SSR (server actions don't run during SSR)
@@ -126,13 +126,13 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   const bootstrapScript = generateBootstrapScript(moduleMap);
 
   // Render the React tree to HTML
-  logger?.time("ssr:renderToHTML");
+  logger?.time('ssr:renderToHTML');
   let htmlStream: ReadableStream;
   try {
     htmlStream = await renderToReadableStream(app, {
       bootstrapScriptContent: bootstrapScript,
       bootstrapModules: [clientEntryUrl],
-      onError: (err) => console.error("[react-flight-router] SSR error:", err),
+      onError: (err) => console.error('[react-flight-router] SSR error:', err),
       signal,
     });
   } catch {
@@ -142,11 +142,11 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     // to CSR: emit a minimal HTML shell so the client renders from scratch
     // with createRoot, where route-level <ErrorBoundary> components catch
     // the error properly.
-    logger?.timeEnd("ssr:renderToHTML");
+    logger?.timeEnd('ssr:renderToHTML');
     const csrBootstrap = generateBootstrapScript(moduleMap, false);
     return createCSRFallbackStream(streamForInline, clientEntryUrl, cssFiles, csrBootstrap);
   }
-  logger?.timeEnd("ssr:renderToHTML");
+  logger?.timeEnd('ssr:renderToHTML');
 
   // Interleave the RSC payload into the HTML stream progressively, with
   // modulepreload hints for client chunks referenced by the payload.
@@ -165,7 +165,7 @@ function createCSRFallbackStream(
   bootstrapScript: string,
 ): ReadableStream {
   const encoder = new TextEncoder();
-  const cssLinks = cssFiles.map((f) => `<link rel="stylesheet" href="${f}">`).join("");
+  const cssLinks = cssFiles.map((f) => `<link rel="stylesheet" href="${f}">`).join('');
   const shell =
     `<!DOCTYPE html><html><head>${cssLinks}</head><body>` +
     `<script>${bootstrapScript}</script>` +

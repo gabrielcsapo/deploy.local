@@ -1,4 +1,4 @@
-import type { RequestTimingEvent } from "react-flight-router/server";
+import type { RequestTimingEvent } from 'react-flight-router/server';
 
 const MAX_EVENTS = 200;
 
@@ -6,7 +6,7 @@ const MAX_EVENTS = 200;
 // In dev mode, vite.config.ts imports this module through Node's native require,
 // while the API plugin loads it through Vite's ssrLoadModule — creating two
 // separate module instances. globalThis bridges them.
-const STORE_KEY = "__flight_perf_events__";
+const STORE_KEY = '__flight_perf_events__';
 
 function getStore(): RequestTimingEvent[] {
   if (!(globalThis as any)[STORE_KEY]) {

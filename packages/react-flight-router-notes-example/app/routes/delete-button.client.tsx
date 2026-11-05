@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { deleteNote } from "./note-actions.js";
+import { useActionState } from 'react';
+import { deleteNote } from './note-actions.js';
 
 export function DeleteButton({ noteId }: { noteId: string }) {
   const [state, formAction, isPending] = useActionState(deleteNote, {});
@@ -25,7 +25,7 @@ export function DeleteButton({ noteId }: { noteId: string }) {
         disabled={isPending}
         className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer text-sm"
       >
-        {isPending ? "Deleting..." : "Delete Note"}
+        {isPending ? 'Deleting...' : 'Delete Note'}
       </button>
     </form>
   );

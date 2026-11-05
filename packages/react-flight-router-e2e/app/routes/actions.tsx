@@ -1,4 +1,4 @@
-import ActionForm from "./action-form.client.js";
+import ActionForm from './action-form.client.js';
 
 export default function ActionsPage() {
   return (

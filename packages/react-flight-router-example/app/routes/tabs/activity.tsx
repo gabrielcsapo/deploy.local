@@ -1,8 +1,8 @@
 export default function TabsActivity() {
   const recentItems = [
-    { id: 1, action: "Created project", time: "2 hours ago" },
-    { id: 2, action: "Updated settings", time: "5 hours ago" },
-    { id: 3, action: "Added collaborator", time: "1 day ago" },
+    { id: 1, action: 'Created project', time: '2 hours ago' },
+    { id: 2, action: 'Updated settings', time: '5 hours ago' },
+    { id: 3, action: 'Added collaborator', time: '1 day ago' },
   ];
 
   return (

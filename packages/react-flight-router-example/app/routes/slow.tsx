@@ -30,7 +30,7 @@ export default async function SlowPage() {
             <span className="text-blue-500 font-bold">2.</span>
             The Link's <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">
               isPending
-            </code>{" "}
+            </code>{' '}
             became true immediately
           </li>
           <li className="flex gap-2">
@@ -39,7 +39,7 @@ export default async function SlowPage() {
           </li>
           <li className="flex gap-2">
             <span className="text-blue-500 font-bold">4.</span>
-            Once the payload arrived, React committed the update and{" "}
+            Once the payload arrived, React committed the update and{' '}
             <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">isPending</code> became
             false
           </li>

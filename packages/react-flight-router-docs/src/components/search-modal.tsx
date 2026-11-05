@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import type Fuse from "fuse.js";
-import { useSearch } from "../hooks/use-search";
-import { useRouter } from "../router";
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type Fuse from 'fuse.js';
+import { useSearch } from '../hooks/use-search';
+import { useRouter } from '../router';
 
 function getSnippet(
   item: { content: string; headings: string[] },
@@ -11,14 +11,14 @@ function getSnippet(
 
   // Prefer content or headings matches over title (title is already visible)
   const match =
-    matches.find((m) => m.key === "content") ??
-    matches.find((m) => m.key === "headings") ??
+    matches.find((m) => m.key === 'content') ??
+    matches.find((m) => m.key === 'headings') ??
     matches[0];
 
-  if (match.key === "title") return null;
+  if (match.key === 'title') return null;
 
   const value =
-    match.key === "headings" ? (item.headings[match.refIndex ?? 0] ?? "") : (match.value ?? "");
+    match.key === 'headings' ? (item.headings[match.refIndex ?? 0] ?? '') : (match.value ?? '');
 
   if (!value) return null;
 
@@ -28,9 +28,9 @@ function getSnippet(
   const sliceStart = Math.max(0, start - snippetRadius);
   const sliceEnd = Math.min(value.length, end + 1 + snippetRadius);
 
-  const before = (sliceStart > 0 ? "..." : "") + value.slice(sliceStart, start);
+  const before = (sliceStart > 0 ? '...' : '') + value.slice(sliceStart, start);
   const highlighted = value.slice(start, end + 1);
-  const after = value.slice(end + 1, sliceEnd) + (sliceEnd < value.length ? "..." : "");
+  const after = value.slice(end + 1, sliceEnd) + (sliceEnd < value.length ? '...' : '');
 
   return (
     <span>
@@ -52,7 +52,7 @@ export function SearchModal({ open, onClose }: { open: boolean; onClose: () => v
   // Global keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         if (open) {
           onClose();
@@ -62,15 +62,15 @@ export function SearchModal({ open, onClose }: { open: boolean; onClose: () => v
         }
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
 
   // Focus input when opened
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 0);
-      search("");
+      search('');
       setSelectedIndex(0);
     }
   }, [open, search]);
@@ -83,15 +83,15 @@ export function SearchModal({ open, onClose }: { open: boolean; onClose: () => v
   if (!open) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
+    if (e.key === 'Escape') {
       onClose();
-    } else if (e.key === "ArrowDown") {
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((prev) => Math.max(prev - 1, 0));
-    } else if (e.key === "Enter" && results[selectedIndex]) {
+    } else if (e.key === 'Enter' && results[selectedIndex]) {
       navigate(results[selectedIndex].item.path);
       onClose();
     }
@@ -154,8 +154,8 @@ export function SearchModal({ open, onClose }: { open: boolean; onClose: () => v
                       onMouseEnter={() => setSelectedIndex(i)}
                       className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${
                         i === selectedIndex
-                          ? "bg-blue-50 dark:bg-blue-950"
-                          : "hover:bg-gray-50 dark:hover:bg-gray-800"
+                          ? 'bg-blue-50 dark:bg-blue-950'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
                       <svg

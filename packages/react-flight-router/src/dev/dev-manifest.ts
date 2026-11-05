@@ -1,5 +1,5 @@
-import type { RSCClientManifest, ServerActionsManifest } from "../shared/types.js";
-import { getModuleId } from "../build/plugin-use-client.js";
+import type { RSCClientManifest, ServerActionsManifest } from '../shared/types.js';
+import { getModuleId } from '../build/plugin-use-client.js';
 
 /**
  * State shared between the dev plugin and the manifest builders.
@@ -42,8 +42,8 @@ export function createDevManifests(state: DevManifestState): {
       const moduleId = getModuleId(mod);
       const viteUrl = mod.startsWith(state.appRoot)
         ? mod.slice(state.appRoot.length)
-        : "/@fs" + mod;
-      clientLookup.set(moduleId, { id: viteUrl, chunks: [viteUrl], name: "*", async: true });
+        : '/@fs' + mod;
+      clientLookup.set(moduleId, { id: viteUrl, chunks: [viteUrl], name: '*', async: true });
     }
     clientLookupSize = state.clientModules.size;
   }
@@ -59,7 +59,7 @@ export function createDevManifests(state: DevManifestState): {
 
   const clientManifest = new Proxy({} as RSCClientManifest, {
     get(_target, key: string | symbol) {
-      if (typeof key !== "string") return undefined;
+      if (typeof key !== 'string') return undefined;
       rebuildClientLookup();
       return clientLookup.get(key);
     },
@@ -67,12 +67,12 @@ export function createDevManifests(state: DevManifestState): {
 
   const serverActionsManifest = new Proxy({} as ServerActionsManifest, {
     get(_target, key: string | symbol) {
-      if (typeof key !== "string") return undefined;
+      if (typeof key !== 'string') return undefined;
       rebuildServerLookup();
       // key is "moduleId#exportName" (e.g., "app/routes/actions#addMessage")
-      const hashIndex = key.indexOf("#");
+      const hashIndex = key.indexOf('#');
       const moduleKey = hashIndex !== -1 ? key.slice(0, hashIndex) : key;
-      const exportName = hashIndex !== -1 ? key.slice(hashIndex + 1) : "*";
+      const exportName = hashIndex !== -1 ? key.slice(hashIndex + 1) : '*';
       const modPath = serverLookup.get(moduleKey);
       if (!modPath) return undefined;
       return { id: modPath, name: exportName, chunks: [] };
@@ -94,12 +94,12 @@ export function legacyBuildDevClientManifest(
 ): RSCClientManifest {
   return new Proxy({} as RSCClientManifest, {
     get(_target, key: string | symbol) {
-      if (typeof key !== "string") return undefined;
+      if (typeof key !== 'string') return undefined;
       for (const mod of clientModules) {
         const moduleId = getModuleId(mod);
         if (moduleId === key) {
-          const viteUrl = mod.startsWith(rootDir) ? mod.slice(rootDir.length) : "/@fs" + mod;
-          return { id: viteUrl, chunks: [viteUrl], name: "*", async: true };
+          const viteUrl = mod.startsWith(rootDir) ? mod.slice(rootDir.length) : '/@fs' + mod;
+          return { id: viteUrl, chunks: [viteUrl], name: '*', async: true };
         }
       }
       return undefined;
@@ -113,10 +113,10 @@ export function legacyBuildDevServerActionsManifest(
 ): ServerActionsManifest {
   return new Proxy({} as ServerActionsManifest, {
     get(_target, key: string | symbol) {
-      if (typeof key !== "string") return undefined;
-      const hashIndex = key.indexOf("#");
+      if (typeof key !== 'string') return undefined;
+      const hashIndex = key.indexOf('#');
       const moduleKey = hashIndex !== -1 ? key.slice(0, hashIndex) : key;
-      const exportName = hashIndex !== -1 ? key.slice(hashIndex + 1) : "*";
+      const exportName = hashIndex !== -1 ? key.slice(hashIndex + 1) : '*';
 
       for (const mod of serverModules) {
         const moduleId = getModuleId(mod);

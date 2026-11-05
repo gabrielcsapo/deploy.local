@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 
 interface TimingEntry {
   label: string;
@@ -13,7 +13,7 @@ interface TimingEntry {
 }
 
 interface RequestTimingEvent {
-  type: "SSR" | "RSC" | "ACTION";
+  type: 'SSR' | 'RSC' | 'ACTION';
   pathname: string;
   status: number;
   totalMs: number;
@@ -23,15 +23,15 @@ interface RequestTimingEvent {
 }
 
 const TYPE_STYLES: Record<string, string> = {
-  SSR: "bg-green-100 text-green-800",
-  RSC: "bg-blue-100 text-blue-800",
-  ACTION: "bg-purple-100 text-purple-800",
+  SSR: 'bg-green-100 text-green-800',
+  RSC: 'bg-blue-100 text-blue-800',
+  ACTION: 'bg-purple-100 text-purple-800',
 };
 
 const BAR_COLORS: Record<string, string> = {
-  SSR: "bg-green-400",
-  RSC: "bg-blue-400",
-  ACTION: "bg-purple-400",
+  SSR: 'bg-green-400',
+  RSC: 'bg-blue-400',
+  ACTION: 'bg-purple-400',
 };
 
 function formatDuration(ms: number): string {
@@ -47,7 +47,7 @@ export function PerfDashboard() {
 
   const fetchEvents = useCallback(async () => {
     try {
-      const res = await fetch("/api/perf/events?limit=50");
+      const res = await fetch('/api/perf/events?limit=50');
       if (res.ok) setEvents(await res.json());
     } catch {
       /* ignore network errors */
@@ -62,7 +62,7 @@ export function PerfDashboard() {
   }, [fetchEvents, autoRefresh]);
 
   const clearEvents = async () => {
-    await fetch("/api/perf/events", { method: "DELETE" });
+    await fetch('/api/perf/events', { method: 'DELETE' });
     setEvents([]);
     setExpanded(new Set());
   };
@@ -103,7 +103,7 @@ export function PerfDashboard() {
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-500">Cancelled</div>
-          <div className={`text-2xl font-bold ${cancelledCount > 0 ? "text-amber-600" : ""}`}>
+          <div className={`text-2xl font-bold ${cancelledCount > 0 ? 'text-amber-600' : ''}`}>
             {cancelledCount}
           </div>
         </div>
@@ -185,11 +185,11 @@ function EventRow({
     <>
       <tr
         onClick={() => onToggle(idx)}
-        className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${event.cancelled ? "bg-amber-50/50" : ""}`}
+        className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${event.cancelled ? 'bg-amber-50/50' : ''}`}
       >
         <td className="px-4 py-2">
           <span
-            className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_STYLES[event.type] ?? ""}`}
+            className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_STYLES[event.type] ?? ''}`}
           >
             {event.type}
           </span>
@@ -201,10 +201,10 @@ function EventRow({
         </td>
         <td className="px-4 py-2 font-mono text-gray-800">{event.pathname}</td>
         <td className="px-4 py-2 text-right">
-          <span className={event.status >= 400 ? "text-red-600" : ""}>{event.status}</span>
+          <span className={event.status >= 400 ? 'text-red-600' : ''}>{event.status}</span>
         </td>
         <td
-          className={`px-4 py-2 text-right font-mono ${event.totalMs > 100 ? "text-amber-600 font-semibold" : ""}`}
+          className={`px-4 py-2 text-right font-mono ${event.totalMs > 100 ? 'text-amber-600 font-semibold' : ''}`}
         >
           {formatDuration(event.totalMs)}
         </td>
@@ -246,7 +246,7 @@ function TimingBreakdown({
   // As we iterate, we track the last non-parallel entry at each depth
   // so children can compute positions relative to their parent.
   const parentAtDepth: (TimingEntry | undefined)[] = [];
-  const barColor = BAR_COLORS[type] ?? "bg-blue-400";
+  const barColor = BAR_COLORS[type] ?? 'bg-blue-400';
 
   return (
     <div className="space-y-1">

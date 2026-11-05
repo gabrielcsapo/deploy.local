@@ -11,11 +11,11 @@
 export function resolveDocLink(href: string, slug?: string): string {
   if (!/\.mdx?$/.test(href) || !slug) return href;
 
-  const section = slug.split("/")[0];
-  const target = href.replace(/^\.\//, "").replace(/\.mdx?$/, "");
+  const section = slug.split('/')[0];
+  const target = href.replace(/^\.\//, '').replace(/\.mdx?$/, '');
 
-  if (target.startsWith("../")) {
-    return `/docs/${target.replace(/^\.\.\//g, "")}`;
+  if (target.startsWith('../')) {
+    return `/docs/${target.replace(/^\.\.\//g, '')}`;
   }
 
   return `/docs/${section}/${target}`;

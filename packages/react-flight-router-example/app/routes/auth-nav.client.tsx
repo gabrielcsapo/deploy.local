@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Link } from "react-flight-router/client";
+import { useState, useEffect } from 'react';
+import { Link } from 'react-flight-router/client';
 
 export function AuthNav() {
   const [user, setUser] = useState<{ username: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch('/api/auth/me')
       .then((r) => r.json())
       .then((data) => setUser(data.user))
       .catch(() => {})
@@ -42,8 +42,8 @@ export function AuthNav() {
       </Link>
       <button
         onClick={async () => {
-          await fetch("/api/auth/logout", { method: "POST" });
-          window.location.href = "/";
+          await fetch('/api/auth/logout', { method: 'POST' });
+          window.location.href = '/';
         }}
         className="text-sm text-gray-500 hover:text-red-500"
       >

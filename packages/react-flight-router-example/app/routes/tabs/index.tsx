@@ -1,4 +1,4 @@
-import { TabsOverviewClient } from "./index.client";
+import { TabsOverviewClient } from './index.client';
 
 export default function TabsIndex() {
   return (

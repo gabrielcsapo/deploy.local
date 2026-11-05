@@ -1,4 +1,4 @@
-import ClientErrorPage from "./client-error.client.js";
+import ClientErrorPage from './client-error.client.js';
 
 export default function ClientErrorWrapper() {
   return <ClientErrorPage />;

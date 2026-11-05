@@ -1,31 +1,31 @@
-import { execSync, spawn, type ChildProcess } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { chromium } from "playwright";
+import { execSync, spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { chromium } from 'playwright';
 
-const rootDir = resolve(import.meta.dirname, "../../..");
-const exampleDir = resolve(rootDir, "packages/react-flight-router-example");
-const docsContentDir = resolve(import.meta.dirname, "../content");
-const targetFile = resolve(docsContentDir, "guides/debugging.mdx");
+const rootDir = resolve(import.meta.dirname, '../../..');
+const exampleDir = resolve(rootDir, 'packages/react-flight-router-example');
+const docsContentDir = resolve(import.meta.dirname, '../content');
+const targetFile = resolve(docsContentDir, 'guides/debugging.mdx');
 
 /** Markers for terminal output blocks (```code```) */
 const OUTPUT_MARKERS = {
-  ssr: { start: "{/* SSR_OUTPUT_START */}", end: "{/* SSR_OUTPUT_END */}" },
-  rsc: { start: "{/* RSC_OUTPUT_START */}", end: "{/* RSC_OUTPUT_END */}" },
-  rscParam: { start: "{/* RSC_PARAM_OUTPUT_START */}", end: "{/* RSC_PARAM_OUTPUT_END */}" },
-  action: { start: "{/* ACTION_OUTPUT_START */}", end: "{/* ACTION_OUTPUT_END */}" },
+  ssr: { start: '{/* SSR_OUTPUT_START */}', end: '{/* SSR_OUTPUT_END */}' },
+  rsc: { start: '{/* RSC_OUTPUT_START */}', end: '{/* RSC_OUTPUT_END */}' },
+  rscParam: { start: '{/* RSC_PARAM_OUTPUT_START */}', end: '{/* RSC_PARAM_OUTPUT_END */}' },
+  action: { start: '{/* ACTION_OUTPUT_START */}', end: '{/* ACTION_OUTPUT_END */}' },
 } as const;
 
 /** Markers for JSON sample data blocks (```json```) */
 const JSON_MARKERS = {
-  ssrJson: { start: "{/* SSR_JSON_START */}", end: "{/* SSR_JSON_END */}" },
-  rscJson: { start: "{/* RSC_JSON_START */}", end: "{/* RSC_JSON_END */}" },
-  rscSlowJson: { start: "{/* RSC_SLOW_JSON_START */}", end: "{/* RSC_SLOW_JSON_END */}" },
+  ssrJson: { start: '{/* SSR_JSON_START */}', end: '{/* SSR_JSON_END */}' },
+  rscJson: { start: '{/* RSC_JSON_START */}', end: '{/* RSC_JSON_END */}' },
+  rscSlowJson: { start: '{/* RSC_SLOW_JSON_START */}', end: '{/* RSC_SLOW_JSON_END */}' },
   rscCancelledJson: {
-    start: "{/* RSC_CANCELLED_JSON_START */}",
-    end: "{/* RSC_CANCELLED_JSON_END */}",
+    start: '{/* RSC_CANCELLED_JSON_START */}',
+    end: '{/* RSC_CANCELLED_JSON_END */}',
   },
-  actionJson: { start: "{/* ACTION_JSON_START */}", end: "{/* ACTION_JSON_END */}" },
+  actionJson: { start: '{/* ACTION_JSON_START */}', end: '{/* ACTION_JSON_END */}' },
 } as const;
 
 const PORT = 3210;
@@ -40,7 +40,7 @@ async function waitForServer(deadline: number): Promise<void> {
       await new Promise((r) => setTimeout(r, 200));
     }
   }
-  throw new Error("Server failed to start within timeout");
+  throw new Error('Server failed to start within timeout');
 }
 
 /** Fetch the most recent event from the perf API, optionally matching a type */
@@ -56,7 +56,7 @@ async function fetchLatestEvent(type?: string): Promise<Record<string, unknown> 
 
 /** Clear the perf event buffer */
 async function clearPerfEvents(): Promise<void> {
-  await fetch(`${BASE_URL}/api/perf/events`, { method: "DELETE" });
+  await fetch(`${BASE_URL}/api/perf/events`, { method: 'DELETE' });
 }
 
 /**
@@ -66,22 +66,22 @@ async function clearPerfEvents(): Promise<void> {
 function formatEventJson(event: Record<string, unknown>): string {
   const cleaned = { ...event };
   // Round totalMs for readability
-  if (typeof cleaned.totalMs === "number") {
+  if (typeof cleaned.totalMs === 'number') {
     cleaned.totalMs = round(cleaned.totalMs);
   }
   // Remove the "total" timing entry, normalize depths to start at 0, and round numbers
   if (Array.isArray(cleaned.timings)) {
     const timings = (cleaned.timings as Record<string, unknown>[]).filter(
-      (t) => t.label !== "total",
+      (t) => t.label !== 'total',
     );
     // Find the minimum depth so we can normalize to 0-based
     const minDepth = timings.reduce((min, t) => Math.min(min, (t.depth as number) ?? 0), Infinity);
     const depthOffset = Number.isFinite(minDepth) ? minDepth : 0;
     cleaned.timings = timings.map((t) => {
       const entry: Record<string, unknown> = { label: t.label };
-      if (typeof t.durationMs === "number") entry.durationMs = round(t.durationMs);
+      if (typeof t.durationMs === 'number') entry.durationMs = round(t.durationMs);
       entry.depth = (t.depth as number) - depthOffset;
-      if (typeof t.offsetMs === "number") entry.offsetMs = round(t.offsetMs);
+      if (typeof t.offsetMs === 'number') entry.offsetMs = round(t.offsetMs);
       if (t.parallel) entry.parallel = true;
       return entry;
     });
@@ -97,7 +97,7 @@ function round(n: number): number {
 /** Path to the generated dashboard sample events file */
 const dashboardSampleFile = resolve(
   import.meta.dirname,
-  "../src/generated/perf-sample-events.json",
+  '../src/generated/perf-sample-events.json',
 );
 
 interface CapturedOutput {
@@ -119,50 +119,53 @@ async function captureRuntimeOutput(): Promise<CapturedOutput | null> {
 
   try {
     // Build the library first
-    console.log("Building react-flight-router library...");
-    execSync("node scripts/flight-router.mjs", { cwd: rootDir, stdio: "pipe" });
+    console.log('Building react-flight-router library...');
+    execSync('node scripts/flight-router.mjs', { cwd: rootDir, stdio: 'pipe' });
 
     // Build the example app
-    console.log("Building example app...");
-    execSync("node ../react-flight-router/dist/bin/react-flight-router.js build", { cwd: exampleDir, stdio: "pipe" });
+    console.log('Building example app...');
+    execSync('node ../react-flight-router/dist/bin/react-flight-router.js build', {
+      cwd: exampleDir,
+      stdio: 'pipe',
+    });
 
     // Start the production server with debug logging and NO_COLOR
-    console.log("Starting production server with FLIGHT_DEBUG=1...");
-    server = spawn("node", [resolve(exampleDir, "dist/server.js")], {
+    console.log('Starting production server with FLIGHT_DEBUG=1...');
+    server = spawn('node', [resolve(exampleDir, 'dist/server.js')], {
       env: {
         ...process.env,
-        NODE_ENV: "production",
-        FLIGHT_DEBUG: "1",
-        NO_COLOR: "1",
+        NODE_ENV: 'production',
+        FLIGHT_DEBUG: '1',
+        NO_COLOR: '1',
         PORT: String(PORT),
       },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
       cwd: exampleDir,
     });
 
-    let stderr = "";
-    let stdout = "";
-    server.stderr!.on("data", (chunk: Buffer) => {
+    let stderr = '';
+    let stdout = '';
+    server.stderr!.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
     });
-    server.stdout!.on("data", (chunk: Buffer) => {
+    server.stdout!.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
     });
 
     // Detect early exit
     let exited = false;
-    server.on("exit", (code) => {
+    server.on('exit', (code) => {
       exited = true;
       if (code !== null && code !== 0) {
         console.error(`Server exited with code ${code}`);
-        console.error("stdout:", stdout);
-        console.error("stderr:", stderr);
+        console.error('stdout:', stdout);
+        console.error('stderr:', stderr);
       }
     });
 
     await waitForServer(Date.now() + 15_000);
-    if (exited) throw new Error("Server exited before becoming ready");
-    console.log("Server is ready.");
+    if (exited) throw new Error('Server exited before becoming ready');
+    console.log('Server is ready.');
 
     // Launch a headless browser to drive real interactions
     const browser = await chromium.launch({ headless: true });
@@ -170,62 +173,62 @@ async function captureRuntimeOutput(): Promise<CapturedOutput | null> {
 
     // ── 1. SSR: initial page load ──
     await clearPerfEvents();
-    stderr = "";
-    console.log("Requesting SSR /about ...");
+    stderr = '';
+    console.log('Requesting SSR /about ...');
     await page.goto(`${BASE_URL}/about`);
     await waitForPattern(() => stderr, /\[flight\] SSR/);
     const ssrOutput = extractFlightBlock(stderr);
     // Wait a moment for the event to be recorded
     await new Promise((r) => setTimeout(r, 200));
-    const ssrEvent = await fetchLatestEvent("SSR");
+    const ssrEvent = await fetchLatestEvent('SSR');
 
     // ── 2. RSC: client-side navigation ──
     await page.goto(`${BASE_URL}/`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
     await clearPerfEvents();
-    stderr = "";
-    console.log("Clicking link to /about (RSC navigation) ...");
-    await page.getByRole("link", { name: "About" }).first().click();
+    stderr = '';
+    console.log('Clicking link to /about (RSC navigation) ...');
+    await page.getByRole('link', { name: 'About' }).first().click();
     await page.waitForSelector("h1:has-text('About')");
     await waitForPattern(() => stderr, /\[flight\] RSC/);
     const rscOutput = extractFlightBlock(stderr);
     await new Promise((r) => setTimeout(r, 200));
-    const rscEvent = await fetchLatestEvent("RSC");
+    const rscEvent = await fetchLatestEvent('RSC');
 
     // ── 3. RSC with dynamic param (shows **** masking) ──
     await page.goto(`${BASE_URL}/posts`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
     await clearPerfEvents();
-    stderr = "";
-    console.log("Clicking link to /posts/:id (RSC with param) ...");
+    stderr = '';
+    console.log('Clicking link to /posts/:id (RSC with param) ...');
     await page.locator('a[href^="/posts/"]').first().click();
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
     await waitForPattern(() => stderr, /\[flight\] RSC \/posts\/\*\*\*\*/);
     const rscParamOutput = extractFlightBlock(stderr);
 
     // ── 4. RSC slow route (async rendering with rsc:stream) ──
     await page.goto(`${BASE_URL}/`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
     await clearPerfEvents();
-    stderr = "";
-    console.log("Clicking link to /slow (RSC slow route) ...");
-    await page.getByRole("link", { name: "Slow" }).first().click();
+    stderr = '';
+    console.log('Clicking link to /slow (RSC slow route) ...');
+    await page.getByRole('link', { name: 'Slow' }).first().click();
     // Wait for the slow page to fully render (3s delay)
     await page.waitForSelector("h1:has-text('Slow')", { timeout: 10_000 });
     await waitForPattern(() => stderr, /\[flight\] RSC/, 10_000);
     await new Promise((r) => setTimeout(r, 200));
-    const rscSlowEvent = await fetchLatestEvent("RSC");
+    const rscSlowEvent = await fetchLatestEvent('RSC');
 
     // ── 5. RSC cancelled (navigate away during slow render) ──
     await page.goto(`${BASE_URL}/`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
     await clearPerfEvents();
-    stderr = "";
-    console.log("Clicking /slow then navigating away (cancelled) ...");
-    await page.getByRole("link", { name: "Slow" }).first().click();
+    stderr = '';
+    console.log('Clicking /slow then navigating away (cancelled) ...');
+    await page.getByRole('link', { name: 'Slow' }).first().click();
     // Wait a moment then navigate away before the 3s delay completes
     await new Promise((r) => setTimeout(r, 500));
-    await page.getByRole("link", { name: "About" }).first().click();
+    await page.getByRole('link', { name: 'About' }).first().click();
     await page.waitForSelector("h1:has-text('About')");
     // Wait for the cancelled event to be recorded
     await waitForPattern(() => stderr, /\[CANCELLED\]/, 10_000);
@@ -238,19 +241,19 @@ async function captureRuntimeOutput(): Promise<CapturedOutput | null> {
 
     // ── 6. ACTION: server action ──
     await page.goto(`${BASE_URL}/`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
     await clearPerfEvents();
-    stderr = "";
-    console.log("Submitting message form (ACTION) ...");
-    await page.fill('input[name="text"]', "hello from capture script");
-    await page.getByRole("button", { name: "Send" }).click();
+    stderr = '';
+    console.log('Submitting message form (ACTION) ...');
+    await page.fill('input[name="text"]', 'hello from capture script');
+    await page.getByRole('button', { name: 'Send' }).click();
     await waitForPattern(() => stderr, /\[flight\] ACTION/, 10000);
     const actionOutput = extractFlightBlock(stderr);
     await new Promise((r) => setTimeout(r, 200));
-    const actionEvent = await fetchLatestEvent("ACTION");
+    const actionEvent = await fetchLatestEvent('ACTION');
 
     await browser.close();
-    server.kill("SIGTERM");
+    server.kill('SIGTERM');
     await new Promise((r) => setTimeout(r, 500));
 
     // If a real cancelled event wasn't captured (server completed before detecting
@@ -261,7 +264,7 @@ async function captureRuntimeOutput(): Promise<CapturedOutput | null> {
       cancelledForDashboard = {
         ...rscSlowEvent,
         // Remove rsc:stream (cancelled before stream could complete)
-        timings: slowTimings.filter((t) => t.label !== "rsc:stream"),
+        timings: slowTimings.filter((t) => t.label !== 'rsc:stream'),
         cancelled: true,
       };
     }
@@ -280,36 +283,36 @@ async function captureRuntimeOutput(): Promise<CapturedOutput | null> {
       rsc: rscOutput,
       rscParam: rscParamOutput,
       action: actionOutput,
-      ssrJson: ssrEvent ? formatEventJson(ssrEvent) : "",
-      rscJson: rscEvent ? formatEventJson(rscEvent) : "",
-      rscSlowJson: rscSlowEvent ? formatEventJson(rscSlowEvent) : "",
-      rscCancelledJson: cancelledForDashboard ? formatEventJson(cancelledForDashboard) : "",
-      actionJson: actionEvent ? formatEventJson(actionEvent) : "",
+      ssrJson: ssrEvent ? formatEventJson(ssrEvent) : '',
+      rscJson: rscEvent ? formatEventJson(rscEvent) : '',
+      rscSlowJson: rscSlowEvent ? formatEventJson(rscSlowEvent) : '',
+      rscCancelledJson: cancelledForDashboard ? formatEventJson(cancelledForDashboard) : '',
+      actionJson: actionEvent ? formatEventJson(actionEvent) : '',
       dashboardEvents: dashboardEvents.map((e) => JSON.parse(formatEventJson(e))),
     };
   } catch (err) {
-    console.error("Failed to capture runtime output:", err instanceof Error ? err.message : err);
-    server?.kill("SIGTERM");
+    console.error('Failed to capture runtime output:', err instanceof Error ? err.message : err);
+    server?.kill('SIGTERM');
     return null;
   }
 }
 
 function extractFlightBlock(stderr: string): string {
   // Extract lines from the first [flight] headline through the end of the timing block
-  const lines = stderr.split("\n");
-  const startIdx = lines.findIndex((l) => l.includes("[flight]"));
+  const lines = stderr.split('\n');
+  const startIdx = lines.findIndex((l) => l.includes('[flight]'));
   if (startIdx === -1) return stderr.trim();
 
   // Collect the headline + all indented timing lines that follow
   const block = [lines[startIdx]];
   for (let i = startIdx + 1; i < lines.length; i++) {
-    if (lines[i].match(/^\s+\S/) && !lines[i].includes("[flight]")) {
+    if (lines[i].match(/^\s+\S/) && !lines[i].includes('[flight]')) {
       block.push(lines[i]);
     } else {
       break;
     }
   }
-  return block.join("\n");
+  return block.join('\n');
 }
 
 async function waitForPattern(
@@ -326,17 +329,17 @@ async function waitForPattern(
 
 /** Map of all marker keys to their heading text (for JSON blocks) */
 const JSON_HEADINGS: Record<string, string> = {
-  ssrJson: "**SSR (initial page load)**",
-  rscJson: "**RSC (client-side navigation)**",
+  ssrJson: '**SSR (initial page load)**',
+  rscJson: '**RSC (client-side navigation)**',
   rscSlowJson:
-    "**RSC (slow route with async rendering)**\n\nWhen a route has Suspense boundaries or async data fetching, the `rsc:stream` entry captures the time spent during stream consumption:",
+    '**RSC (slow route with async rendering)**\n\nWhen a route has Suspense boundaries or async data fetching, the `rsc:stream` entry captures the time spent during stream consumption:',
   rscCancelledJson:
-    "**RSC (cancelled — client navigated away)**\n\nWhen the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes `cancelled: true`:",
-  actionJson: "**ACTION (server action)**",
+    '**RSC (cancelled — client navigated away)**\n\nWhen the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes `cancelled: true`:',
+  actionJson: '**ACTION (server action)**',
 };
 
 function injectIntoMarkdown(outputs: CapturedOutput): void {
-  const md = readFileSync(targetFile, "utf-8");
+  const md = readFileSync(targetFile, 'utf-8');
   let updated = md;
 
   // Inject terminal output blocks
@@ -368,19 +371,19 @@ function injectIntoMarkdown(outputs: CapturedOutput): void {
     }
     const before = updated.slice(0, startIdx + start.length);
     const after = updated.slice(endIdx);
-    const heading = JSON_HEADINGS[key] ?? "";
+    const heading = JSON_HEADINGS[key] ?? '';
     updated = `${before}\n\n${heading}\n\n\`\`\`json\n${json}\n\`\`\`\n\n${after}`;
   }
 
-  writeFileSync(targetFile, updated, "utf-8");
-  console.log("Runtime output injected into debugging.mdx");
+  writeFileSync(targetFile, updated, 'utf-8');
+  console.log('Runtime output injected into debugging.mdx');
 
   // Write dashboard sample events JSON
   if (outputs.dashboardEvents.length > 0) {
     writeFileSync(
       dashboardSampleFile,
-      JSON.stringify(outputs.dashboardEvents, null, 2) + "\n",
-      "utf-8",
+      JSON.stringify(outputs.dashboardEvents, null, 2) + '\n',
+      'utf-8',
     );
     console.log(`Dashboard sample events written to ${dashboardSampleFile}`);
   }
@@ -390,5 +393,5 @@ const output = await captureRuntimeOutput();
 if (output) {
   injectIntoMarkdown(output);
 } else {
-  console.log("Skipping injection — using existing runtime output in docs.");
+  console.log('Skipping injection — using existing runtime output in docs.');
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
 interface RouterContextValue {
   pathname: string;
@@ -7,12 +7,12 @@ interface RouterContextValue {
 
 const RouterContext = createContext<RouterContextValue | null>(null);
 
-const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 function stripBase(pathname: string): string {
   if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
     const stripped = pathname.slice(BASE_PATH.length);
-    return stripped || "/";
+    return stripped || '/';
   }
   return pathname;
 }
@@ -24,17 +24,17 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     const onPopState = () => {
       setPathname(stripBase(window.location.pathname));
     };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   const navigate = useCallback(
     (to: string) => {
-      const hashIdx = to.indexOf("#");
+      const hashIdx = to.indexOf('#');
       const path = hashIdx >= 0 ? to.slice(0, hashIdx) : to;
-      const hash = hashIdx >= 0 ? to.slice(hashIdx + 1) : "";
+      const hash = hashIdx >= 0 ? to.slice(hashIdx + 1) : '';
 
-      window.history.pushState(null, "", BASE_PATH + to);
+      window.history.pushState(null, '', BASE_PATH + to);
 
       if (path !== pathname) {
         // Different page — DocPage will handle hash scroll after content loads
@@ -43,7 +43,7 @@ export function RouterProvider({ children }: { children: ReactNode }) {
       } else if (hash) {
         // Same page — scroll to anchor immediately
         const el = document.getElementById(hash);
-        if (el) el.scrollIntoView({ behavior: "smooth" });
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
       } else {
         window.scrollTo(0, 0);
       }
@@ -56,7 +56,7 @@ export function RouterProvider({ children }: { children: ReactNode }) {
 
 export function useRouter() {
   const ctx = useContext(RouterContext);
-  if (!ctx) throw new Error("useRouter must be used within RouterProvider");
+  if (!ctx) throw new Error('useRouter must be used within RouterProvider');
   return ctx;
 }
 
@@ -69,7 +69,7 @@ export function Link({
   to: string;
   children: ReactNode;
   className?: string;
-} & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "href">) {
+} & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>) {
   const { navigate } = useRouter();
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -92,12 +92,12 @@ interface RouteMatch {
 }
 
 export function matchPath(pattern: string, pathname: string): RouteMatch | null {
-  if (pattern === "*") {
+  if (pattern === '*') {
     return { params: {} };
   }
 
-  const patternParts = pattern.split("/").filter(Boolean);
-  const pathParts = pathname.split("/").filter(Boolean);
+  const patternParts = pattern.split('/').filter(Boolean);
+  const pathParts = pathname.split('/').filter(Boolean);
 
   if (patternParts.length !== pathParts.length) {
     return null;
@@ -109,7 +109,7 @@ export function matchPath(pattern: string, pathname: string): RouteMatch | null 
     const pat = patternParts[i];
     const actual = pathParts[i];
 
-    if (pat.startsWith(":")) {
+    if (pat.startsWith(':')) {
       params[pat.slice(1)] = actual;
     } else if (pat !== actual) {
       return null;

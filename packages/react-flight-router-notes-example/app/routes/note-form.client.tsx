@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { createNote } from "./note-actions.js";
+import { useActionState } from 'react';
+import { createNote } from './note-actions.js';
 
 export function NoteForm() {
   const [state, formAction, isPending] = useActionState(createNote, {});
@@ -48,7 +48,7 @@ export function NoteForm() {
         disabled={isPending}
         className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
       >
-        {isPending ? "Creating..." : "Create Note"}
+        {isPending ? 'Creating...' : 'Create Note'}
       </button>
     </form>
   );

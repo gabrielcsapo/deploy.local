@@ -1,15 +1,15 @@
-import { useEffect } from "react";
-import { Sidebar } from "./sidebar";
+import { useEffect } from 'react';
+import { Sidebar } from './sidebar';
 
 export function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   useEffect(() => {
     if (open) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = "";
+      document.body.style.overflow = '';
     }
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = '';
     };
   }, [open]);
 

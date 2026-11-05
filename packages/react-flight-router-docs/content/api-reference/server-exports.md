@@ -1,6 +1,6 @@
 ---
-title: "Server Exports"
-description: "API reference for the server-side APIs in React Flight Router, including createServer for production, flightRouter Vite plugin for development, and the react-flight-router build CLI."
+title: 'Server Exports'
+description: 'API reference for the server-side APIs in React Flight Router, including createServer for production, flightRouter Vite plugin for development, and the react-flight-router build CLI.'
 ---
 
 # Server Exports
@@ -16,7 +16,7 @@ React Flight Router provides server-side APIs for both production and developmen
 Creates a production [Hono](https://hono.dev/) application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.
 
 ```ts
-import { createServer } from "react-flight-router/server";
+import { createServer } from 'react-flight-router/server';
 
 async function createServer(options: CreateServerOptions): Promise<Hono>;
 ```
@@ -83,11 +83,11 @@ Create a `server.ts` file in your project root:
 
 ```ts
 // server.ts
-import { serve } from "@hono/node-server";
-import { createServer } from "react-flight-router/server";
+import { serve } from '@hono/node-server';
+import { createServer } from 'react-flight-router/server';
 
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   workers: { size: 2 },
 });
 
@@ -134,7 +134,7 @@ import {
   renderRSC,
   renderSSR,
   handleAction,
-} from "react-flight-router/server";
+} from 'react-flight-router/server';
 ```
 
 | Export                    | Description                                                                                                                                                                                                                                    |
@@ -159,7 +159,7 @@ import {
 A Vite plugin (actually an array of plugins) that enables the React Flight Router development experience. It handles RSC rendering, SSR, server actions, `"use client"` / `"use server"` directive transformation, and HMR.
 
 ```ts
-import { flightRouter } from "react-flight-router/dev";
+import { flightRouter } from 'react-flight-router/dev';
 
 function flightRouter(options?: FlightRouterDevOptions): Plugin[];
 ```
@@ -199,15 +199,15 @@ Add the plugin to your `vite.config.ts`:
 
 ```ts
 // vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
   plugins: [
     react(),
     flightRouter({
-      routesFile: "./app/routes.ts",
+      routesFile: './app/routes.ts',
     }),
   ],
 });

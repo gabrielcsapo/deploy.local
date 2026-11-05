@@ -1,6 +1,6 @@
 ---
-title: "Project Structure"
-description: "Understand the file and folder conventions used by a React Flight Router application."
+title: 'Project Structure'
+description: 'Understand the file and folder conventions used by a React Flight Router application.'
 ---
 
 # Project Structure
@@ -38,12 +38,12 @@ my-app/
 The Vite configuration file where you register the React Flight Router plugin and any other Vite plugins (such as Tailwind CSS). This file tells React Flight Router where to find your route definitions.
 
 ```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
-  plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
+  plugins: [react(), flightRouter({ routesFile: './app/routes.ts' })],
 });
 ```
 
@@ -54,23 +54,23 @@ See [Vite Configuration](./vite-config.md) for the full details.
 The central route configuration file. It exports an array of `RouteConfig` objects that define the URL structure of your application, including nested layouts and dynamic segments.
 
 ```ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/about.js'),
       },
     ],
   },
@@ -90,7 +90,7 @@ Each route has:
 The root layout component. This is the outermost component in your route hierarchy and is responsible for rendering the `<html>`, `<head>`, and `<body>` tags. It uses the `<Outlet />` component to render matched child routes.
 
 ```tsx
-import { Link, Outlet } from "react-flight-router/client";
+import { Link, Outlet } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -117,13 +117,13 @@ export default function RootLayout() {
 Global CSS for your application. If you are using Tailwind CSS, this file typically contains:
 
 ```css
-@import "tailwindcss";
+@import 'tailwindcss';
 ```
 
 Import this file in your root layout (`app/root.tsx`) so the styles are included in the build:
 
 ```tsx
-import "./styles.css";
+import './styles.css';
 ```
 
 ### `app/routes/`
@@ -137,7 +137,7 @@ Route components are **React Server Components** by default. They can be `async`
 ```tsx
 // app/routes/home.tsx
 export default async function HomePage() {
-  const posts = await fetch("https://api.example.com/posts").then((r) => r.json());
+  const posts = await fetch('https://api.example.com/posts').then((r) => r.json());
 
   return (
     <main>
@@ -154,9 +154,9 @@ Files that need browser interactivity (state, effects, event handlers) must incl
 
 ```tsx
 // app/routes/counter.tsx
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 export function Counter() {
   const [count, setCount] = useState(0);
@@ -172,7 +172,7 @@ A layout component renders `<Outlet />` to display its child routes. This allows
 
 ```tsx
 // app/routes/posts/layout.tsx
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function PostsLayout() {
   return (
@@ -234,12 +234,12 @@ The directory is optional; the build silently skips it when missing. The default
 The production server entry point. React Flight Router provides a `createServer` function that returns a Hono application you can serve with `@hono/node-server`:
 
 ```ts
-import { serve } from "@hono/node-server";
-import { createServer } from "react-flight-router/server";
+import { serve } from '@hono/node-server';
+import { createServer } from 'react-flight-router/server';
 
 async function main() {
   const app = await createServer({
-    buildDir: "./dist",
+    buildDir: './dist',
   });
 
   serve({ fetch: app.fetch, port: 3000 }, (info) => {

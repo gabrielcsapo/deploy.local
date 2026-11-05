@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
 async function SlowSection({ delayMs }: { delayMs: number }) {
   await new Promise((r) => setTimeout(r, delayMs));

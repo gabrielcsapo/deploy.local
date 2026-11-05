@@ -1,6 +1,6 @@
 ---
-title: "Worker Threads"
-description: "Offload server actions to worker threads to keep page rendering fast under load. Learn how to enable workers, how they work, and see benchmark results."
+title: 'Worker Threads'
+description: 'Offload server actions to worker threads to keep page rendering fast under load. Learn how to enable workers, how they work, and see benchmark results.'
 ---
 
 # Worker Threads
@@ -38,11 +38,11 @@ Pass `workers` to `createServer`:
 
 ```ts
 // server.ts
-import { serve } from "@hono/node-server";
-import { createServer } from "react-flight-router/server";
+import { serve } from '@hono/node-server';
+import { createServer } from 'react-flight-router/server';
 
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   workers: { size: 2 },
 });
 
@@ -53,7 +53,7 @@ Or use `workers: true` for the default pool size (number of CPU cores minus one,
 
 ```ts
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   workers: true,
 });
 ```
@@ -130,14 +130,14 @@ A common pattern is toggling workers via an environment variable so you can use 
 
 ```ts
 // server.ts
-import { serve } from "@hono/node-server";
-import { createServer } from "react-flight-router/server";
+import { serve } from '@hono/node-server';
+import { createServer } from 'react-flight-router/server';
 
-const useWorkers = process.env.WORKERS === "1";
+const useWorkers = process.env.WORKERS === '1';
 const workerConfig = useWorkers ? { size: 2 } : undefined;
 
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   workers: workerConfig,
 });
 

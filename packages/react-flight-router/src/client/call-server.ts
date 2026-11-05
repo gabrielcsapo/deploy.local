@@ -1,4 +1,4 @@
-import { ACTION_ENDPOINT, RSC_ACTION_HEADER, RSC_CONTENT_TYPE } from "../shared/constants.js";
+import { ACTION_ENDPOINT, RSC_ACTION_HEADER, RSC_CONTENT_TYPE } from '../shared/constants.js';
 
 /**
  * Call a server action from the client.
@@ -6,13 +6,13 @@ import { ACTION_ENDPOINT, RSC_ACTION_HEADER, RSC_CONTENT_TYPE } from "../shared/
  * and returns the RSC response.
  */
 export async function callServer(id: string, args: unknown[]): Promise<unknown> {
-  const rscClientModule = (await import("react-server-dom-webpack/client.browser")) as any;
+  const rscClientModule = (await import('react-server-dom-webpack/client.browser')) as any;
   const { encodeReply, createFromReadableStream } = rscClientModule;
 
   const body = await encodeReply(args);
 
   const response = await fetch(ACTION_ENDPOINT, {
-    method: "POST",
+    method: 'POST',
     headers: {
       [RSC_ACTION_HEADER]: id,
     },
@@ -31,12 +31,12 @@ export async function callServer(id: string, args: unknown[]): Promise<unknown> 
   // silent permanent hang (observed in production as action calls that the
   // server logged as completed but the client waited on forever). Fail loudly
   // instead so callers can retry or surface the error.
-  const contentType = response.headers.get("content-type") ?? "";
+  const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes(RSC_CONTENT_TYPE)) {
     throw new Error(
       `[react-flight-router] Server action "${id}" returned ${
-        response.redirected ? `a redirect (to ${response.url}) with ` : ""
-      }content-type "${contentType || "unknown"}" instead of "${RSC_CONTENT_TYPE}" — ` +
+        response.redirected ? `a redirect (to ${response.url}) with ` : ''
+      }content-type "${contentType || 'unknown'}" instead of "${RSC_CONTENT_TYPE}" — ` +
         `the response is not a flight payload (server restarting, proxy error page, or ` +
         `an HTTP redirect on the action endpoint).`,
     );

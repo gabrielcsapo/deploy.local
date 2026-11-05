@@ -1,6 +1,6 @@
 ---
-title: "Debugging & Performance"
-description: "How to enable performance logging in React Flight Router to diagnose slow requests, module loading, and rendering bottlenecks."
+title: 'Debugging & Performance'
+description: 'How to enable performance logging in React Flight Router to diagnose slow requests, module loading, and rendering bottlenecks.'
 ---
 
 # Debugging & Performance
@@ -19,7 +19,7 @@ Or pass `debug: true` programmatically:
 
 ```ts
 // Production server
-const app = await createServer({ buildDir: "./dist", debug: true });
+const app = await createServer({ buildDir: './dist', debug: true });
 
 // Vite dev plugin
 flightRouter({ debug: true });
@@ -34,7 +34,7 @@ If you need structured timing data in your application (for dashboards, metrics,
 ```ts
 // Production server
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   onRequestComplete: (event) => {
     console.log(`${event.type} ${event.pathname} - ${event.totalMs.toFixed(1)}ms`);
   },
@@ -59,7 +59,7 @@ The `onRequestComplete` callback works independently of `debug` mode:
 ```ts
 interface RequestTimingEvent {
   /** "SSR", "RSC", or "ACTION" */
-  type: "SSR" | "RSC" | "ACTION";
+  type: 'SSR' | 'RSC' | 'ACTION';
   /** The request pathname (not masked — use maskParams() if needed) */
   pathname: string;
   /** HTTP status code */
@@ -88,13 +88,13 @@ interface TimingEntry {
 ### Example: Sending to an observability service
 
 ```ts
-import { createServer, type RequestTimingEvent } from "react-flight-router/server";
+import { createServer, type RequestTimingEvent } from 'react-flight-router/server';
 
 const app = await createServer({
-  buildDir: "./dist",
+  buildDir: './dist',
   onRequestComplete: (event) => {
     // Push to Prometheus, Datadog, New Relic, etc.
-    metrics.histogram("flight.request.duration", event.totalMs, {
+    metrics.histogram('flight.request.duration', event.totalMs, {
       type: event.type,
       pathname: event.pathname,
       status: String(event.status),
@@ -107,7 +107,7 @@ const app = await createServer({
 
     // Track cancelled requests
     if (event.cancelled) {
-      metrics.increment("flight.request.cancelled", { type: event.type });
+      metrics.increment('flight.request.cancelled', { type: event.type });
     }
 
     // Log slow requests

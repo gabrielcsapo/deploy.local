@@ -1,6 +1,6 @@
 ---
-title: "Loading & Suspense"
-description: "Control loading UI with route-level loading boundaries, manual Suspense boundaries, and streaming SSR for progressive content delivery."
+title: 'Loading & Suspense'
+description: 'Control loading UI with route-level loading boundaries, manual Suspense boundaries, and streaming SSR for progressive content delivery.'
 ---
 
 # Loading & Suspense
@@ -15,24 +15,24 @@ The loading component must be a `"use client"` module.
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    loading: () => import("./routes/loading.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    loading: () => import('./routes/loading.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/about.js'),
       },
     ],
   },
@@ -43,7 +43,7 @@ Create the loading component:
 
 ```tsx
 // app/routes/loading.tsx
-"use client";
+'use client';
 
 export default function Loading() {
   return (
@@ -63,26 +63,26 @@ Add `loading` to any layout route to show a section-specific loading state. The 
 ```ts
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    loading: () => import("./routes/loading.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    loading: () => import('./routes/loading.js'),
     children: [
       {
-        id: "dashboard",
-        path: "dashboard",
-        component: () => import("./routes/dashboard/layout.js"),
-        loading: () => import("./routes/dashboard/loading.js"),
+        id: 'dashboard',
+        path: 'dashboard',
+        component: () => import('./routes/dashboard/layout.js'),
+        loading: () => import('./routes/dashboard/loading.js'),
         children: [
           {
-            id: "dashboard-index",
+            id: 'dashboard-index',
             index: true,
-            component: () => import("./routes/dashboard/index.js"),
+            component: () => import('./routes/dashboard/index.js'),
           },
           {
-            id: "dashboard-analytics",
-            path: "analytics",
-            component: () => import("./routes/dashboard/analytics.js"),
+            id: 'dashboard-analytics',
+            path: 'analytics',
+            component: () => import('./routes/dashboard/analytics.js'),
           },
         ],
       },
@@ -94,7 +94,7 @@ export const routes: RouteConfig[] = [
 
 ```tsx
 // app/routes/dashboard/loading.tsx
-"use client";
+'use client';
 
 export default function DashboardLoading() {
   return (
@@ -129,9 +129,9 @@ This means the user sees the loading UI the instant they click a link, rather th
 For more control over where the loading fallback appears, use the `<Loading>` component from `react-flight-router/client` directly in your layout. Manual boundaries take precedence over the automatic one because they are closer to the content:
 
 ```tsx
-"use client";
+'use client';
 
-import { Loading, Outlet } from "react-flight-router/client";
+import { Loading, Outlet } from 'react-flight-router/client';
 
 export default function DashboardLayout() {
   return (
@@ -152,7 +152,7 @@ See the [Client Exports reference](../api-reference/client-exports.md) for the f
 For finer-grained control within a single page, wrap async server components in React's `<Suspense>` to show a fallback while they load:
 
 ```tsx
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
 export default function PostsPage() {
   return (
@@ -166,7 +166,7 @@ export default function PostsPage() {
 }
 
 async function PostsList() {
-  const res = await fetch("https://api.example.com/posts");
+  const res = await fetch('https://api.example.com/posts');
   const posts = await res.json();
 
   return (
@@ -186,7 +186,7 @@ The heading and fallback text are sent to the browser immediately. Once `PostsLi
 Each `<Suspense>` boundary streams independently. When you have multiple async components, they resolve in parallel and appear as soon as their data is ready:
 
 ```tsx
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
 export default function DashboardPage() {
   return (
@@ -209,7 +209,7 @@ export default function DashboardPage() {
 Suspense boundaries can be nested. The outer boundary resolves first, revealing content that may contain an inner boundary with its own fallback:
 
 ```tsx
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
 async function PostWithComments({ id }: { id: string }) {
   const post = await fetchPost(id); // ~1s

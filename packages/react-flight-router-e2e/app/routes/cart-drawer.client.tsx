@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { useEffect } from "react";
-import { useCloseSlot } from "react-flight-router/client";
+import type { ReactNode } from 'react';
+import { useEffect } from 'react';
+import { useCloseSlot } from 'react-flight-router/client';
 
 export default function CartDrawer({ children }: { children?: ReactNode }) {
-  const close = useCloseSlot("drawer");
+  const close = useCloseSlot('drawer');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === 'Escape') close();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
   return (

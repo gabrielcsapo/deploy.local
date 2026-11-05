@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useCallback } from "react";
-import { useNavigationActions, useLocationState } from "./router-context.js";
+import { useCallback } from 'react';
+import { useNavigationActions, useLocationState } from './router-context.js';
 
 /**
  * Returns a function that closes the named parallel-route slot by removing
@@ -22,12 +22,12 @@ export function useCloseSlot(
   const preventScrollReset = options?.preventScrollReset;
   const actions = useNavigationActions();
   const locationState = useLocationState();
-  const url = locationState?.url ?? "";
+  const url = locationState?.url ?? '';
 
   return useCallback(() => {
     if (!actions?.navigate) return;
-    const origin = globalThis.location?.origin ?? "http://localhost";
-    const current = new URL(url || globalThis.location?.href || "/", origin);
+    const origin = globalThis.location?.origin ?? 'http://localhost';
+    const current = new URL(url || globalThis.location?.href || '/', origin);
     current.searchParams.delete(`@${slotName}`);
     actions.navigate(current.pathname + current.search + current.hash, {
       replace: true,

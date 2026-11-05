@@ -1,6 +1,6 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import { AsyncLocalStorage } from 'node:async_hooks';
 
-const GLOBAL_KEY = "__flight_request_storage__";
+const GLOBAL_KEY = '__flight_request_storage__';
 
 /**
  * Framework-managed AsyncLocalStorage for the current HTTP request.

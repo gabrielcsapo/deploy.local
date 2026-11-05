@@ -1,6 +1,6 @@
-import type { Plugin } from "vite";
+import type { Plugin } from 'vite';
 
-export type UseClientMode = "rsc-server" | "client" | "ssr" | "auto";
+export type UseClientMode = 'rsc-server' | 'client' | 'ssr' | 'auto';
 
 interface UseClientPluginOptions {
   mode: UseClientMode;
@@ -17,30 +17,30 @@ interface UseClientPluginOptions {
  */
 export function useClientPlugin(opts: UseClientPluginOptions): Plugin {
   return {
-    name: "react-flight-router:use-client",
-    enforce: "pre",
+    name: 'react-flight-router:use-client',
+    enforce: 'pre',
 
     // Preserve and propagate ?ssr query through the module resolution chain.
     // When ssrLoadModule loads a module with ?ssr, this hook ensures:
     // 1. The ?ssr query survives Vite's module resolution (top-level calls)
     // 2. All transitive local imports also get ?ssr (propagation)
     async resolveId(source, importer, options) {
-      if (opts.mode !== "auto") return null;
+      if (opts.mode !== 'auto') return null;
 
-      const sourceHasSSR = source.includes("?ssr") || source.includes("&ssr");
-      const importerHasSSR = importer && (importer.includes("?ssr") || importer.includes("&ssr"));
+      const sourceHasSSR = source.includes('?ssr') || source.includes('&ssr');
+      const importerHasSSR = importer && (importer.includes('?ssr') || importer.includes('&ssr'));
       if (!sourceHasSSR && !importerHasSSR) return null;
 
-      const cleanSource = source.replace(/[?&]ssr\b/, "");
-      const cleanImporter = importer ? importer.replace(/[?&]ssr\b/, "") : undefined;
+      const cleanSource = source.replace(/[?&]ssr\b/, '');
+      const cleanImporter = importer ? importer.replace(/[?&]ssr\b/, '') : undefined;
       const resolved = await this.resolve(cleanSource, cleanImporter, {
         ...options,
         skipSelf: true,
       });
       if (!resolved || resolved.external) return resolved;
       // Only propagate to local file paths (not external packages)
-      if (resolved.id.startsWith("/")) {
-        return { ...resolved, id: resolved.id + "?ssr" };
+      if (resolved.id.startsWith('/')) {
+        return { ...resolved, id: resolved.id + '?ssr' };
       }
       return resolved;
     },
@@ -48,30 +48,30 @@ export function useClientPlugin(opts: UseClientPluginOptions): Plugin {
     transform(code: string, id: string, options?: { ssr?: boolean }) {
       if (!hasUseClientDirective(code)) return null;
       // Skip node_modules EXCEPT react-flight-router's own client components
-      if (id.includes("node_modules") && !id.includes("react-flight-router")) return null;
+      if (id.includes('node_modules') && !id.includes('react-flight-router')) return null;
 
       // ?ssr query param forces real code (not proxies) for dev SSR rendering
-      const isSSRReal = id.includes("?ssr") || id.includes("&ssr");
+      const isSSRReal = id.includes('?ssr') || id.includes('&ssr');
       const effectiveMode =
-        opts.mode === "auto"
+        opts.mode === 'auto'
           ? isSSRReal
-            ? "ssr"
+            ? 'ssr'
             : options?.ssr
-              ? "rsc-server"
-              : "client"
+              ? 'rsc-server'
+              : 'client'
           : opts.mode;
       // Only track client modules in RSC server mode (for the client manifest)
-      if (effectiveMode === "rsc-server") {
+      if (effectiveMode === 'rsc-server') {
         opts.onClientModule?.(id);
       }
 
-      if (effectiveMode === "rsc-server") {
+      if (effectiveMode === 'rsc-server') {
         return transformForRSCServer(code, id);
       }
 
       // In client/SSR mode, strip the directive but keep code
       return {
-        code: code.replace(/^['"]use client['"];?\s*/m, ""),
+        code: code.replace(/^['"]use client['"];?\s*/m, ''),
         map: null,
       };
     },
@@ -91,7 +91,7 @@ export function extractExportNames(code: string): string[] {
 
   // Match: export default function/class/expression
   if (/export\s+default\s+/m.test(code)) {
-    names.push("default");
+    names.push('default');
   }
 
   // Match: export function Name, export class Name
@@ -111,7 +111,7 @@ export function extractExportNames(code: string): string[] {
   const reExportRegex = /export\s*\{([^}]+)\}/g;
   while ((match = reExportRegex.exec(code)) !== null) {
     const inner = match[1];
-    for (const part of inner.split(",")) {
+    for (const part of inner.split(',')) {
       const trimmed = part.trim();
       if (!trimmed) continue;
       // Handle "Name as Alias" — the exported name is the alias
@@ -139,7 +139,7 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
   let proxyCode = `import { registerClientReference } from 'virtual:rsc-runtime';\n`;
 
   for (const name of exportNames) {
-    if (name === "default") {
+    if (name === 'default') {
       proxyCode += `export default registerClientReference(function() { throw new Error("Cannot call client component on server"); }, ${JSON.stringify(moduleId)}, "default");\n`;
     } else {
       proxyCode += `export const ${name} = registerClientReference(function() { throw new Error("Cannot call client component on server"); }, ${JSON.stringify(moduleId)}, ${JSON.stringify(name)});\n`;
@@ -158,13 +158,13 @@ export function getModuleId(filePath: string): string {
   // when the project root is /app (e.g., Docker WORKDIR), causing paths like
   // /app/node_modules/.pnpm/react-flight-router/dist/client/router-context.tsx
   // to match /app/ instead of the react-flight-router/ handler.
-  if (!filePath.includes("/node_modules/")) {
+  if (!filePath.includes('/node_modules/')) {
     // Check /app/ for app route files. Use lastIndexOf to find the deepest
     // /app/ directory — this avoids matching a parent directory named "app"
     // (e.g., Docker WORKDIR /app causes paths like /app/app/routes/foo.tsx
     // where indexOf would match the root, producing "app/app/routes/foo"
     // instead of the correct "app/routes/foo").
-    const appIndex = filePath.lastIndexOf("/app/");
+    const appIndex = filePath.lastIndexOf('/app/');
     if (appIndex !== -1) {
       const relative = filePath.slice(appIndex + 1);
       return stripExtension(relative);
@@ -172,14 +172,14 @@ export function getModuleId(filePath: string): string {
   }
   // Handle react-flight-router library modules.
   // Use lastIndexOf to avoid matching repo/workspace directory names.
-  const frIndex = filePath.lastIndexOf("react-flight-router/");
+  const frIndex = filePath.lastIndexOf('react-flight-router/');
   if (frIndex !== -1) {
     return stripExtension(filePath.slice(frIndex));
   }
   // Fallback: use the filename
-  return stripExtension(filePath.split("/").pop() ?? filePath);
+  return stripExtension(filePath.split('/').pop() ?? filePath);
 }
 
 function stripExtension(path: string): string {
-  return path.replace(/\.(tsx?|jsx?|mjs|cjs)$/, "");
+  return path.replace(/\.(tsx?|jsx?|mjs|cjs)$/, '');
 }

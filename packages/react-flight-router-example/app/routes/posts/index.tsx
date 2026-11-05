@@ -1,5 +1,5 @@
-import { Link } from "react-flight-router/client";
-import { fetchPosts } from "../../lib/fake-api.js";
+import { Link } from 'react-flight-router/client';
+import { fetchPosts } from '../../lib/fake-api.js';
 
 export default async function PostsIndexPage() {
   const posts = await fetchPosts(10);

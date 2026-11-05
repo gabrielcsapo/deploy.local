@@ -9,25 +9,25 @@
 //   node scripts/perf-ssr.mjs                 # default: /boundary-page, 30 iters
 //   ITERS=50 TARGET=/ node scripts/perf-ssr.mjs
 
-import { spawn } from "node:child_process";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawn } from 'node:child_process';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
-const PKG_DIR = resolve(dirname(__filename), "..");
+const PKG_DIR = resolve(dirname(__filename), '..');
 const ITERS = Number(process.env.ITERS) || 30;
-const TARGET = process.env.TARGET || "/boundary-page";
+const TARGET = process.env.TARGET || '/boundary-page';
 const BASE_PORT = Number(process.env.PORT) || 3030;
 
 function startServer(port) {
   return new Promise((resolveServer, reject) => {
-    const proc = spawn("node", ["dist/server.js"], {
+    const proc = spawn('node', ['dist/server.js'], {
       cwd: PKG_DIR,
       env: { ...process.env, PORT: String(port) },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let stderr = "";
-    proc.stderr.on("data", (d) => {
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
       stderr += d.toString();
     });
     const deadline = Date.now() + 15_000;
@@ -48,11 +48,11 @@ function startServer(port) {
 
 function stopServer(proc) {
   return new Promise((res) => {
-    proc.once("exit", () => res());
-    proc.kill("SIGTERM");
+    proc.once('exit', () => res());
+    proc.kill('SIGTERM');
     setTimeout(() => {
       try {
-        proc.kill("SIGKILL");
+        proc.kill('SIGKILL');
       } catch {}
       res();
     }, 2_000);
@@ -62,7 +62,7 @@ function stopServer(proc) {
 async function singleColdRun(port) {
   const proc = await startServer(port);
   try {
-    await fetch(`http://localhost:${port}/api/timing`, { method: "DELETE" });
+    await fetch(`http://localhost:${port}/api/timing`, { method: 'DELETE' });
 
     const url = `http://localhost:${port}${TARGET}`;
     const t0 = performance.now();
@@ -105,7 +105,7 @@ function mean(arr) {
 
 function fmt(arr) {
   return arr.length === 0
-    ? "—"
+    ? '—'
     : `mean=${mean(arr).toFixed(2)}ms  median=${pct(arr, 50).toFixed(2)}ms  p99=${pct(arr, 99).toFixed(2)}ms`;
 }
 
@@ -138,17 +138,17 @@ async function main() {
         labelTimes.get(t.label).push(t.durationMs);
       }
     }
-    process.stdout.write(".");
+    process.stdout.write('.');
   }
-  console.log("\n");
+  console.log('\n');
 
   console.log(`TTFB:           ${fmt(ttfb)}`);
   console.log(`total wall:     ${fmt(total)}`);
   console.log(
     `bytes/response: mean=${(mean(totalBytes) / 1024).toFixed(2)} KB  p99=${(pct(totalBytes, 99) / 1024).toFixed(2)} KB`,
   );
-  console.log("");
-  console.log("server-side per-label:");
+  console.log('');
+  console.log('server-side per-label:');
   const labelStats = [...labelTimes.entries()]
     .map(([label, arr]) => ({ label, mean: mean(arr), arr }))
     .sort((a, b) => b.mean - a.mean);

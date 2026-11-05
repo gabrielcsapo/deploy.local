@@ -1,6 +1,6 @@
 ---
-title: "Error Handling"
-description: "Handle route errors with the error route config property, supporting nested layouts for per-section error pages and client-side error boundaries."
+title: 'Error Handling'
+description: 'Handle route errors with the error route config property, supporting nested layouts for per-section error pages and client-side error boundaries.'
 ---
 
 # Error Handling
@@ -16,24 +16,24 @@ Add an `error` property to any route that has children. The error component serv
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    error: () => import("./routes/error.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    error: () => import('./routes/error.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/about.js'),
       },
     ],
   },
@@ -44,9 +44,9 @@ Create the error component. Use the `"use client"` directive so that it works bo
 
 ```tsx
 // app/routes/error.tsx
-"use client";
+'use client';
 
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export default function ErrorPage({ error }: { error: Error }) {
   return (
@@ -68,26 +68,26 @@ Add `error` to any layout route to handle errors within that section. The deepes
 ```ts
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    error: () => import("./routes/error.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    error: () => import('./routes/error.js'),
     children: [
       {
-        id: "dashboard",
-        path: "dashboard",
-        component: () => import("./routes/dashboard/layout.js"),
-        error: () => import("./routes/dashboard/error.js"),
+        id: 'dashboard',
+        path: 'dashboard',
+        component: () => import('./routes/dashboard/layout.js'),
+        error: () => import('./routes/dashboard/error.js'),
         children: [
           {
-            id: "dashboard-index",
+            id: 'dashboard-index',
             index: true,
-            component: () => import("./routes/dashboard/index.js"),
+            component: () => import('./routes/dashboard/index.js'),
           },
           {
-            id: "dashboard-settings",
-            path: "settings",
-            component: () => import("./routes/dashboard/settings.js"),
+            id: 'dashboard-settings',
+            path: 'settings',
+            component: () => import('./routes/dashboard/settings.js'),
           },
         ],
       },
@@ -128,9 +128,9 @@ The error component receives the caught `Error` as a prop, just like the server-
 
 ```tsx
 // app/routes/dashboard/error.tsx
-"use client";
+'use client';
 
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export default function DashboardError({ error }: { error: Error }) {
   return (
@@ -146,10 +146,10 @@ export default function DashboardError({ error }: { error: Error }) {
 You can also place an `<ErrorBoundary>` manually in your layout for more control over positioning. Manual boundaries take precedence over the automatic one because they are closer to the content:
 
 ```tsx
-"use client";
+'use client';
 
-import { ErrorBoundary, Outlet } from "react-flight-router/client";
-import DashboardError from "./error.js";
+import { ErrorBoundary, Outlet } from 'react-flight-router/client';
+import DashboardError from './error.js';
 
 export default function DashboardLayout() {
   return (

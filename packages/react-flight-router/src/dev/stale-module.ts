@@ -10,33 +10,33 @@
  * retried against the new runner after dropping cached module references.
  */
 const STALE_MODULE_MESSAGES = [
-  "Vite module runner has been closed",
-  "was mistakenly invalidated during fetch phase",
-  "The server is being restarted",
-  "server is being restarted",
-  "Vite server has been closed",
-  "The server is being closed",
+  'Vite module runner has been closed',
+  'was mistakenly invalidated during fetch phase',
+  'The server is being restarted',
+  'server is being restarted',
+  'Vite server has been closed',
+  'The server is being closed',
   // The module runner talks to the dev server over an RPC transport. Closing
   // the server disconnects it and rejects every in-flight call — most often
   // `fetchModule`, issued while evaluating a module we imported. Same cause as
   // a closed runner, different message because the failure surfaces on the
   // transport rather than on the runner itself.
-  "transport was disconnected",
+  'transport was disconnected',
 ];
 
 function messageOf(err: unknown): string {
   if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
+  if (typeof err === 'string') return err;
   // Vite revives RPC errors as plain objects when they don't survive
   // structured cloning as Error instances.
   if (
     err &&
-    typeof err === "object" &&
-    typeof (err as { message?: unknown }).message === "string"
+    typeof err === 'object' &&
+    typeof (err as { message?: unknown }).message === 'string'
   ) {
     return (err as { message: string }).message;
   }
-  return String(err ?? "");
+  return String(err ?? '');
 }
 
 export function isStaleModuleError(err: unknown): boolean {
@@ -55,7 +55,7 @@ export function isStaleModuleError(err: unknown): boolean {
     const message = messageOf(current);
     if (STALE_MODULE_MESSAGES.some((m) => message.includes(m))) return true;
 
-    if (typeof current === "object") {
+    if (typeof current === 'object') {
       const cause = (current as { cause?: unknown }).cause;
       if (cause !== undefined) queue.push(cause);
       const errors = (current as { errors?: unknown }).errors;

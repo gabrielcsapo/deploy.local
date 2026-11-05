@@ -1,6 +1,6 @@
 ---
-title: "Route Config"
-description: "API reference for the route configuration types exported from react-flight-router/router, including RouteConfig, RouteModule, and RouteMatch."
+title: 'Route Config'
+description: 'API reference for the route configuration types exported from react-flight-router/router, including RouteConfig, RouteModule, and RouteMatch.'
 ---
 
 # Route Config
@@ -8,7 +8,7 @@ description: "API reference for the route configuration types exported from reac
 React Flight Router uses a code-based route configuration. Routes are defined as an array of `RouteConfig` objects exported from your routes file (typically `app/routes.ts`). All types are available from the `"react-flight-router/router"` import path.
 
 ```ts
-import type { RouteConfig, RouteModule, RouteMatch, SlotMatch } from "react-flight-router/router";
+import type { RouteConfig, RouteModule, RouteMatch, SlotMatch } from 'react-flight-router/router';
 ```
 
 ---
@@ -63,41 +63,41 @@ The `slots` property declares additional named route subtrees that render alongs
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    error: () => import("./routes/error.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    error: () => import('./routes/error.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/about.js'),
       },
       {
-        id: "dashboard",
-        path: "dashboard",
-        component: () => import("./routes/dashboard/layout.js"),
-        loading: () => import("./routes/dashboard/loading.js"),
-        error: () => import("./routes/dashboard/error.js"),
+        id: 'dashboard',
+        path: 'dashboard',
+        component: () => import('./routes/dashboard/layout.js'),
+        loading: () => import('./routes/dashboard/loading.js'),
+        error: () => import('./routes/dashboard/error.js'),
         children: [
           {
-            id: "dashboard-index",
+            id: 'dashboard-index',
             index: true,
-            component: () => import("./routes/dashboard/index.js"),
+            component: () => import('./routes/dashboard/index.js'),
           },
           {
-            id: "dashboard-settings",
-            path: "settings",
-            component: () => import("./routes/dashboard/settings.js"),
+            id: 'dashboard-settings',
+            path: 'settings',
+            component: () => import('./routes/dashboard/settings.js'),
           },
         ],
       },
@@ -158,7 +158,7 @@ export default async function PostDetail({ params }: Props) {
 
 ```tsx
 // app/routes/root.tsx
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -216,14 +216,14 @@ Given this route config:
 ```ts
 const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
     children: [
       {
-        id: "post-detail",
-        path: "posts/:id",
-        component: () => import("./routes/post-detail.js"),
+        id: 'post-detail',
+        path: 'posts/:id',
+        component: () => import('./routes/post-detail.js'),
       },
     ],
   },
@@ -235,16 +235,16 @@ Matching the URL `/posts/42` produces:
 ```ts
 [
   {
-    route: { id: "root" /* ... */ },
+    route: { id: 'root' /* ... */ },
     params: {},
-    pathname: "",
-    segmentKey: "root",
+    pathname: '',
+    segmentKey: 'root',
   },
   {
-    route: { id: "post-detail" /* ... */ },
-    params: { id: "42" },
-    pathname: "/posts/42",
-    segmentKey: "root/post-detail",
+    route: { id: 'post-detail' /* ... */ },
+    params: { id: '42' },
+    pathname: '/posts/42',
+    segmentKey: 'root/post-detail',
   },
 ];
 ```
@@ -256,7 +256,7 @@ Matching the URL `/posts/42` produces:
 A utility function that matches a URL pathname against a route configuration tree.
 
 ```ts
-import { matchRoutes } from "react-flight-router/router";
+import { matchRoutes } from 'react-flight-router/router';
 
 function matchRoutes(routes: RouteConfig[], pathname: string): RouteMatch[];
 ```
@@ -266,10 +266,10 @@ Returns an array of `RouteMatch` objects ordered from outermost to innermost. Re
 ### Example
 
 ```ts
-import { matchRoutes } from "react-flight-router/router";
-import { routes } from "./app/routes.js";
+import { matchRoutes } from 'react-flight-router/router';
+import { routes } from './app/routes.js';
 
-const matches = matchRoutes(routes, "/posts/42");
+const matches = matchRoutes(routes, '/posts/42');
 
 for (const match of matches) {
   console.log(match.segmentKey, match.params);
@@ -311,7 +311,7 @@ interface SlotMatch {
 Given the matches from `matchRoutes` and a URL's search params, return the `SlotMatch` for every declared slot whose `?@<slotName>` param resolves against its subtree.
 
 ```ts
-import { matchSlots } from "react-flight-router/router";
+import { matchSlots } from 'react-flight-router/router';
 
 function matchSlots(mainMatches: RouteMatch[], searchParams: URLSearchParams): SlotMatch[];
 ```
@@ -321,10 +321,10 @@ Returns an empty array when no slots are open or when no main match declared `sl
 ### Example
 
 ```ts
-import { matchRoutes, matchSlots } from "react-flight-router/router";
-import { routes } from "./app/routes.js";
+import { matchRoutes, matchSlots } from 'react-flight-router/router';
+import { routes } from './app/routes.js';
 
-const url = new URL("/photos?@modal=/photo/3", "http://localhost");
+const url = new URL('/photos?@modal=/photo/3', 'http://localhost');
 const main = matchRoutes(routes, url.pathname);
 const slots = matchSlots(main, url.searchParams);
 

@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { useEffect } from "react";
-import { useCloseSlot } from "react-flight-router/client";
+import type { ReactNode } from 'react';
+import { useEffect } from 'react';
+import { useCloseSlot } from 'react-flight-router/client';
 
 export default function PhotoModalLayout({ children }: { children?: ReactNode }) {
-  const close = useCloseSlot("modal");
+  const close = useCloseSlot('modal');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === 'Escape') close();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
   return (

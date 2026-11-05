@@ -1,4 +1,4 @@
-import { useDarkMode } from "../hooks/use-dark-mode";
+import { useDarkMode } from '../hooks/use-dark-mode';
 
 export function DarkModeToggle() {
   const { isDark, toggle } = useDarkMode();
@@ -7,8 +7,8 @@ export function DarkModeToggle() {
     <button
       onClick={toggle}
       className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
       {isDark ? (
         <svg

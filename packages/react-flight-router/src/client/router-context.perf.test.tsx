@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, act, fireEvent } from "@testing-library/react";
-import { Profiler, StrictMode, createElement, useMemo, useState, type ReactNode } from "react";
-import { Link } from "./link.js";
-import { Outlet } from "./outlet.js";
-import { _testInternals, useRouter } from "./router-context.js";
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, cleanup, act, fireEvent } from '@testing-library/react';
+import { Profiler, StrictMode, createElement, useMemo, useState, type ReactNode } from 'react';
+import { Link } from './link.js';
+import { Outlet } from './outlet.js';
+import { _testInternals, useRouter } from './router-context.js';
 
 const { NavigationActionsContext, LocationContext, SegmentsContext } = _testInternals;
 
@@ -35,7 +35,7 @@ function ProviderShell({ children }: { children: ReactNode }) {
     () => ({
       url: `/page-${locationTrigger}`,
       pendingUrl: null,
-      navigationState: "idle" as const,
+      navigationState: 'idle' as const,
     }),
     [locationTrigger],
   );
@@ -43,12 +43,12 @@ function ProviderShell({ children }: { children: ReactNode }) {
   const segmentsValue = useMemo(
     () => ({
       segments: {
-        root: createElement("div", { key: segmentsTrigger }, `segment-${segmentsTrigger}`),
+        root: createElement('div', { key: segmentsTrigger }, `segment-${segmentsTrigger}`),
       },
       params: {},
       boundaryComponents: {},
       navigationError: null,
-      childKeyByParent: { "": "root" },
+      childKeyByParent: { '': 'root' },
     }),
     [segmentsTrigger],
   );
@@ -102,9 +102,9 @@ function makeConsumers(counters: Counters): ReactNode {
   );
 }
 
-describe("RouterContext split — render isolation", () => {
+describe('RouterContext split — render isolation', () => {
   beforeEach(() => {
-    vi.stubGlobal("location", { origin: "http://localhost", pathname: "/", search: "" });
+    vi.stubGlobal('location', { origin: 'http://localhost', pathname: '/', search: '' });
   });
 
   afterEach(() => {
@@ -112,7 +112,7 @@ describe("RouterContext split — render isolation", () => {
     vi.unstubAllGlobals();
   });
 
-  it("Link components do NOT re-render when only SegmentsContext changes", () => {
+  it('Link components do NOT re-render when only SegmentsContext changes', () => {
     const counters: Counters = { links: 0, outlet: 0 };
     const { getByTestId } = render(<ProviderShell>{makeConsumers(counters)}</ProviderShell>);
 
@@ -122,7 +122,7 @@ describe("RouterContext split — render isolation", () => {
     const initialOutletRenders = counters.outlet;
 
     act(() => {
-      fireEvent.click(getByTestId("bump-segments"));
+      fireEvent.click(getByTestId('bump-segments'));
     });
 
     // Outlet (subscribes to SegmentsContext) re-rendered.
@@ -132,27 +132,27 @@ describe("RouterContext split — render isolation", () => {
     expect(counters.links - initialLinkRenders).toBe(0);
   });
 
-  it("Link components DO re-render when LocationContext changes", () => {
+  it('Link components DO re-render when LocationContext changes', () => {
     const counters: Counters = { links: 0, outlet: 0 };
     const { getByTestId } = render(<ProviderShell>{makeConsumers(counters)}</ProviderShell>);
 
     const initialLinkRenders = counters.links;
 
     act(() => {
-      fireEvent.click(getByTestId("bump-location"));
+      fireEvent.click(getByTestId('bump-location'));
     });
 
     // Each Link re-rendered exactly once for the location change.
     expect(counters.links - initialLinkRenders).toBe(NUM_LINKS);
   });
 
-  it("A/B vs useRouter-based Link: split eliminates Link re-renders on segment changes", () => {
+  it('A/B vs useRouter-based Link: split eliminates Link re-renders on segment changes', () => {
     // A "legacy" Link that subscribes to the merged useRouter() value the
     // way pre-split components did. Same shape, different hook — re-renders
     // whenever ANY router slice changes.
     function LegacyLink({ to }: { to: string }) {
       const router = useRouter();
-      return createElement("a", { href: to }, `${to} (${router?.url ?? ""})`);
+      return createElement('a', { href: to }, `${to} (${router?.url ?? ''})`);
     }
 
     function makeBoth(counters: { split: number; legacy: number }): ReactNode {
@@ -195,7 +195,7 @@ describe("RouterContext split — render isolation", () => {
     const legacyBefore = counters.legacy;
 
     act(() => {
-      fireEvent.click(getByTestId("bump-segments"));
+      fireEvent.click(getByTestId('bump-segments'));
     });
 
     const splitDelta = counters.split - splitBefore;
@@ -211,7 +211,7 @@ describe("RouterContext split — render isolation", () => {
     expect(legacyDelta).toBe(NUM_LINKS);
   });
 
-  it("under StrictMode, segment-only updates still skip Links", () => {
+  it('under StrictMode, segment-only updates still skip Links', () => {
     // StrictMode double-invokes render functions; the relative comparison
     // (delta of 0 from the post-mount baseline) still holds because the
     // doubling is symmetric.
@@ -224,7 +224,7 @@ describe("RouterContext split — render isolation", () => {
 
     const initialLinkRenders = counters.links;
     act(() => {
-      fireEvent.click(getByTestId("bump-segments"));
+      fireEvent.click(getByTestId('bump-segments'));
     });
 
     expect(counters.links - initialLinkRenders).toBe(0);

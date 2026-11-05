@@ -1,4 +1,4 @@
-import type { Plugin, ViteDevServer } from "vite";
+import type { Plugin, ViteDevServer } from 'vite';
 
 /**
  * Vite plugin that serves API routes during dev mode.
@@ -10,46 +10,46 @@ import type { Plugin, ViteDevServer } from "vite";
  */
 export function apiPlugin(): Plugin {
   return {
-    name: "example:api-middleware",
+    name: 'example:api-middleware',
     configureServer(server: ViteDevServer) {
       server.middlewares.use(async (req, res, next) => {
-        const url = req.url ?? "/";
+        const url = req.url ?? '/';
 
-        if (!url.startsWith("/api/")) {
+        if (!url.startsWith('/api/')) {
           return next();
         }
 
         try {
-          const mod = await server.ssrLoadModule("./app/api.ts");
+          const mod = await server.ssrLoadModule('./app/api.ts');
           const apiApp = mod.app;
 
           if (!apiApp) {
-            console.error("[api-plugin] Could not load API app");
+            console.error('[api-plugin] Could not load API app');
             return next();
           }
 
-          const protocol = req.headers["x-forwarded-proto"] || "http";
-          const host = req.headers.host || "localhost:5173";
+          const protocol = req.headers['x-forwarded-proto'] || 'http';
+          const host = req.headers.host || 'localhost:5173';
           const fullUrl = `${protocol}://${host}${url}`;
 
           const headers = new Headers();
           for (const [key, value] of Object.entries(req.headers)) {
             if (value) {
-              headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+              headers.set(key, Array.isArray(value) ? value.join(', ') : value);
             }
           }
 
           let body: ReadableStream<Uint8Array> | null = null;
-          if (req.method !== "GET" && req.method !== "HEAD") {
+          if (req.method !== 'GET' && req.method !== 'HEAD') {
             body = new ReadableStream({
               start(controller) {
-                req.on("data", (chunk: Buffer) => {
+                req.on('data', (chunk: Buffer) => {
                   controller.enqueue(new Uint8Array(chunk));
                 });
-                req.on("end", () => {
+                req.on('end', () => {
                   controller.close();
                 });
-                req.on("error", (err) => {
+                req.on('error', (err) => {
                   controller.error(err);
                 });
               },
@@ -57,18 +57,18 @@ export function apiPlugin(): Plugin {
           }
 
           const request = new Request(fullUrl, {
-            method: req.method ?? "GET",
+            method: req.method ?? 'GET',
             headers,
             body,
             // @ts-expect-error - Node.js duplex option needed for streaming body
-            duplex: body ? "half" : undefined,
+            duplex: body ? 'half' : undefined,
           });
 
           const response = await apiApp.fetch(request);
 
           res.statusCode = response.status;
           response.headers.forEach((value: string, key: string) => {
-            if (key.toLowerCase() !== "transfer-encoding") {
+            if (key.toLowerCase() !== 'transfer-encoding') {
               res.setHeader(key, value);
             }
           });
@@ -88,10 +88,10 @@ export function apiPlugin(): Plugin {
             res.end(text);
           }
         } catch (err) {
-          console.error("[api-plugin] Error handling request:", err);
+          console.error('[api-plugin] Error handling request:', err);
           if (!res.headersSent) {
             res.statusCode = 500;
-            res.end("Internal Server Error");
+            res.end('Internal Server Error');
           }
         }
       });

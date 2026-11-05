@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 /** The RSC payload structure sent over the wire */
 export interface RSCPayload {
@@ -101,7 +101,7 @@ export interface TimingEntry {
 /** Structured performance data emitted after each request completes */
 export interface RequestTimingEvent {
   /** Request type: "SSR" for initial page loads, "RSC" for client navigations, "ACTION" for server actions */
-  type: "SSR" | "RSC" | "ACTION";
+  type: 'SSR' | 'RSC' | 'ACTION';
   /** The pathname of the request (not masked — use maskParams() if needed) */
   pathname: string;
   /** HTTP status code of the response */

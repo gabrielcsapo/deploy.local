@@ -1,5 +1,5 @@
-import { Counter } from "./counter.client.js";
-import { SearchFilters } from "./search-filters.client.js";
+import { Counter } from './counter.client.js';
+import { SearchFilters } from './search-filters.client.js';
 
 export default function AboutPage() {
   return (

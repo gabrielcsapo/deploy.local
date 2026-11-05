@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Link } from "react-flight-router/client";
+import { useState } from 'react';
+import { Link } from 'react-flight-router/client';
 
 export default function LoginForm() {
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError("");
+    setError('');
 
     try {
       const form = new FormData(e.currentTarget);
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: form.get("username"),
-          password: form.get("password"),
+          username: form.get('username'),
+          password: form.get('password'),
         }),
       });
 
@@ -28,9 +28,9 @@ export default function LoginForm() {
         return;
       }
 
-      window.location.href = "/";
+      window.location.href = '/';
     } catch {
-      setError("An unexpected error occurred. Please try again.");
+      setError('An unexpected error occurred. Please try again.');
     }
   }
 
@@ -74,7 +74,7 @@ export default function LoginForm() {
         </button>
       </form>
       <p className="mt-4 text-sm text-gray-600 text-center">
-        Don&apos;t have an account?{" "}
+        Don&apos;t have an account?{' '}
         <Link to="/register" className="text-blue-600 hover:underline">
           Register
         </Link>

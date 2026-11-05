@@ -1,55 +1,55 @@
-import { Header } from "../components/header";
-import { Hero } from "../components/hero";
-import { Link } from "../router";
+import { Header } from '../components/header';
+import { Hero } from '../components/hero';
+import { Link } from '../router';
 
 const features = [
   {
-    title: "React Server Components",
+    title: 'React Server Components',
     description:
-      "Routes are async server components that fetch data directly. No client-side data fetching libraries needed.",
-    link: "/docs/guides/data-fetching",
+      'Routes are async server components that fetch data directly. No client-side data fetching libraries needed.',
+    link: '/docs/guides/data-fetching',
   },
   {
-    title: "Nested Layouts",
+    title: 'Nested Layouts',
     description:
-      "Compose routes via <Outlet />, sharing layouts across child routes without re-rendering parents.",
-    link: "/docs/guides/layouts-and-outlets",
+      'Compose routes via <Outlet />, sharing layouts across child routes without re-rendering parents.',
+    link: '/docs/guides/layouts-and-outlets',
   },
   {
-    title: "Server Actions",
+    title: 'Server Actions',
     description:
       "'use server' functions callable from client components. Progressive enhancement with form actions.",
-    link: "/docs/guides/server-actions",
+    link: '/docs/guides/server-actions',
   },
   {
-    title: "SSR",
+    title: 'SSR',
     description:
-      "Production builds render full HTML on the server for fast FCP, SEO, and zero-waterfall hydration.",
-    link: "/docs/guides/ssr",
+      'Production builds render full HTML on the server for fast FCP, SEO, and zero-waterfall hydration.',
+    link: '/docs/guides/ssr',
   },
   {
-    title: "Segment Diffing",
+    title: 'Segment Diffing',
     description:
-      "Navigation only re-renders changed segments. Shared layouts are preserved across route transitions.",
-    link: "/docs/architecture/segment-diffing",
+      'Navigation only re-renders changed segments. Shared layouts are preserved across route transitions.',
+    link: '/docs/architecture/segment-diffing',
   },
   {
-    title: "Streaming",
+    title: 'Streaming',
     description:
-      "RSC payloads stream to the client via the React Flight protocol. No loading waterfalls.",
-    link: "/docs/architecture/how-it-works",
+      'RSC payloads stream to the client via the React Flight protocol. No loading waterfalls.',
+    link: '/docs/architecture/how-it-works',
   },
   {
-    title: "Debugging & Performance",
+    title: 'Debugging & Performance',
     description:
-      "Built-in perf hooks track RSC, SSR, and navigation timing. FLIGHT_DEBUG mode logs every request with full context.",
-    link: "/docs/guides/debugging",
+      'Built-in perf hooks track RSC, SSR, and navigation timing. FLIGHT_DEBUG mode logs every request with full context.',
+    link: '/docs/guides/debugging',
   },
   {
-    title: "Dynamic Params",
+    title: 'Dynamic Params',
     description:
-      ":id style URL segments with params passed directly to server components as props.",
-    link: "/docs/guides/routing",
+      ':id style URL segments with params passed directly to server components as props.',
+    link: '/docs/guides/routing',
   },
 ];
 

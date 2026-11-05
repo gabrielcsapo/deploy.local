@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useContext, Suspense, cloneElement, isValidElement, type ReactNode } from "react";
-import { useSegmentsState, OutletDepthContext } from "./router-context.js";
-import { ErrorBoundary } from "./error-boundary.js";
+import { useContext, Suspense, cloneElement, isValidElement, type ReactNode } from 'react';
+import { useSegmentsState, OutletDepthContext } from './router-context.js';
+import { ErrorBoundary } from './error-boundary.js';
 
 interface OutletProps {
   /**

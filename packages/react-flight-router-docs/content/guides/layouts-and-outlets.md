@@ -1,6 +1,6 @@
 ---
-title: "Layouts & Outlets"
-description: "Use layouts and the Outlet component to create shared UI that persists across navigations, with nested route rendering and segment-level updates."
+title: 'Layouts & Outlets'
+description: 'Use layouts and the Outlet component to create shared UI that persists across navigations, with nested route rendering and segment-level updates.'
 ---
 
 # Layouts & Outlets
@@ -12,7 +12,7 @@ Layouts are route components that wrap child routes with shared UI -- things lik
 Import `Outlet` from `react-flight-router/client` and render it wherever you want the child route to appear:
 
 ```tsx
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function MyLayout() {
   return (
@@ -31,8 +31,8 @@ export default function MyLayout() {
 The root layout is the outermost route in your configuration. It typically renders the `<html>`, `<head>`, and `<body>` elements, along with site-wide navigation:
 
 ```tsx
-import { Link, Outlet } from "react-flight-router/client";
-import "./styles.css";
+import { Link, Outlet } from 'react-flight-router/client';
+import './styles.css';
 
 export default function RootLayout() {
   return (
@@ -84,7 +84,7 @@ For example, a posts section with its own layout:
 
 ```tsx
 // app/routes/posts/layout.tsx
-import { Link, Outlet } from "react-flight-router/client";
+import { Link, Outlet } from 'react-flight-router/client';
 
 export default function PostsLayout() {
   return (
@@ -171,7 +171,7 @@ When a route config includes `loading` or `error` properties, `<Outlet />` autom
 With this configuration, the dashboard layout's `<Outlet />` automatically wraps children in both a Suspense boundary (with the loading component as fallback) and an ErrorBoundary (with the error component as fallback). The layout component itself remains simple:
 
 ```tsx
-import { Outlet } from "react-flight-router/client";
+import { Outlet } from 'react-flight-router/client';
 
 export default function DashboardLayout() {
   return (

@@ -1,25 +1,25 @@
 config:
-  target: "http://localhost:{{ $processEnvironment.PORT }}"
+  target: 'http://localhost:{{ $processEnvironment.PORT }}'
   phases:
     - duration: 30
       arrivalRate: 15
-      name: "Mixed page + action load"
+      name: 'Mixed page + action load'
 
 scenarios:
-  - name: "Page navigation"
+  - name: 'Page navigation'
     weight: 60
     flow:
       - get:
-          url: "/"
+          url: '/'
       - think: 1
       - get:
-          url: "/__rsc?url=/request-info"
-  - name: "Action submission"
+          url: '/__rsc?url=/request-info'
+  - name: 'Action submission'
     weight: 40
     flow:
       - post:
-          url: "/__action"
+          url: '/__action'
           headers:
-            X-RSC-Action: "app/routes/slow-action#slowAction"
-            Content-Type: "text/plain"
+            X-RSC-Action: 'app/routes/slow-action#slowAction'
+            Content-Type: 'text/plain'
           body: '[null, {"delay": 100}]'

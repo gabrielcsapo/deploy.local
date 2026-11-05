@@ -10,7 +10,9 @@ rmSync(bundle, { recursive: true, force: true });
 rmSync(archive, { force: true });
 const assets = readdirSync(dist);
 mkdirSync(join(bundle, 'site'), { recursive: true });
-for (const name of assets) cpSync(join(dist, name), join(bundle, 'site', name), { recursive: true });
-for (const name of ['Dockerfile', 'nginx.conf', 'deploy.yaml']) cpSync(join(root, name), join(bundle, name));
+for (const name of assets)
+  cpSync(join(dist, name), join(bundle, 'site', name), { recursive: true });
+for (const name of ['Dockerfile', 'nginx.conf', 'deploy.yaml'])
+  cpSync(join(root, name), join(bundle, name));
 execFileSync('tar', ['-czf', archive, '-C', bundle, '.']);
 console.log(`Static deployment bundle: ${archive}`);

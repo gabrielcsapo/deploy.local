@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useSearchParams } from "react-flight-router/client";
+import { useSearchParams } from 'react-flight-router/client';
 
 export function SearchFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const sort = searchParams.get("sort") ?? "newest";
-  const q = searchParams.get("q") ?? "";
+  const sort = searchParams.get('sort') ?? 'newest';
+  const q = searchParams.get('q') ?? '';
 
   return (
     <div data-testid="search-filters" className="space-y-4">
@@ -28,13 +28,13 @@ export function SearchFilters() {
         <button
           data-testid="sort-oldest"
           className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            sort === "oldest"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            sort === 'oldest'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
           onClick={() => {
             const next = new URLSearchParams(searchParams);
-            next.set("sort", "oldest");
+            next.set('sort', 'oldest');
             setSearchParams(next);
           }}
         >
@@ -43,13 +43,13 @@ export function SearchFilters() {
         <button
           data-testid="sort-newest"
           className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            sort === "newest"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            sort === 'newest'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
           onClick={() => {
             const next = new URLSearchParams(searchParams);
-            next.set("sort", "newest");
+            next.set('sort', 'newest');
             setSearchParams(next);
           }}
         >
@@ -61,7 +61,7 @@ export function SearchFilters() {
           onClick={() => {
             setSearchParams((prev) => {
               const next = new URLSearchParams(prev);
-              next.set("q", "hello");
+              next.set('q', 'hello');
               return next;
             });
           }}

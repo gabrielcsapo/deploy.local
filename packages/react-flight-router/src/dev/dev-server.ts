@@ -1,6 +1,6 @@
-import { resolve } from "path";
-import { createServer, loadConfigFromFile, type InlineConfig } from "vite";
-import { flightRouter } from "./vite-plugin.js";
+import { resolve } from 'path';
+import { createServer, loadConfigFromFile, type InlineConfig } from 'vite';
+import { flightRouter } from './vite-plugin.js';
 
 export interface DevServerOptions {
   /** Root directory of the app (where vite.config and app/ live). */
@@ -41,7 +41,7 @@ export async function startDevServer(opts: DevServerOptions): Promise<void> {
   // a config-less app still gets RSC/SSR dev. When the app's config already
   // includes it, we leave plugins untouched to honour the user's options.
   if (!(await appHasFlightRouterPlugin(appRoot))) {
-    const react = (await import("@vitejs/plugin-react")).default;
+    const react = (await import('@vitejs/plugin-react')).default;
     inlineConfig.plugins = [react(), flightRouter()];
   }
 
@@ -59,7 +59,7 @@ export async function startDevServer(opts: DevServerOptions): Promise<void> {
 async function appHasFlightRouterPlugin(appRoot: string): Promise<boolean> {
   try {
     const result = await loadConfigFromFile(
-      { command: "serve", mode: "development" },
+      { command: 'serve', mode: 'development' },
       undefined, // auto-detect config file
       appRoot,
     );
@@ -68,9 +68,9 @@ async function appHasFlightRouterPlugin(appRoot: string): Promise<boolean> {
     return plugins.some(
       (p) =>
         p != null &&
-        typeof p === "object" &&
-        "name" in p &&
-        String((p as { name: unknown }).name).startsWith("react-flight-router"),
+        typeof p === 'object' &&
+        'name' in p &&
+        String((p as { name: unknown }).name).startsWith('react-flight-router'),
     );
   } catch {
     return false;

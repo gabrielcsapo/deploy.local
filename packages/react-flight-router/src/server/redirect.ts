@@ -4,7 +4,7 @@ export class RedirectError extends Error {
     public readonly status: 301 | 302,
   ) {
     super(`Redirect to ${destination}`);
-    this.name = "RedirectError";
+    this.name = 'RedirectError';
   }
 }
 

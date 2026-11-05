@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -10,11 +10,11 @@ import {
   useMemo,
   useRef,
   type ReactNode,
-} from "react";
-import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from "../shared/constants.js";
-import { SuspenseSentinel } from "./suspense-sentinel.js";
-import { consumePrefetch } from "./prefetch-cache.js";
-import { fastPathname } from "./fast-pathname.js";
+} from 'react';
+import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from '../shared/constants.js';
+import { SuspenseSentinel } from './suspense-sentinel.js';
+import { consumePrefetch } from './prefetch-cache.js';
+import { fastPathname } from './fast-pathname.js';
 
 // Cached element to avoid creating a new one on every navigation
 const suspenseSentinelElement = createElement(SuspenseSentinel);
@@ -55,7 +55,7 @@ interface RouterContextValue {
   /** Re-fetch the current page via the RSC endpoint without a hard browser reload */
   refresh: () => Promise<void>;
   segments: Record<string, ReactNode>;
-  navigationState: "idle" | "loading";
+  navigationState: 'idle' | 'loading';
   params: Record<string, string>;
   /** Target URL during an active navigation, null when idle */
   pendingUrl: string | null;
@@ -85,7 +85,7 @@ interface NavigationActionsValue {
 interface LocationValue {
   url: string;
   pendingUrl: string | null;
-  navigationState: "idle" | "loading";
+  navigationState: 'idle' | 'loading';
 }
 
 interface SegmentsValue {
@@ -114,8 +114,8 @@ interface SegmentsValue {
 function buildChildKeyByParent(segments: Record<string, ReactNode>): Record<string, string> {
   const map: Record<string, string> = {};
   for (const key in segments) {
-    const lastSlash = key.lastIndexOf("/");
-    const parentKey = lastSlash === -1 ? "" : key.slice(0, lastSlash);
+    const lastSlash = key.lastIndexOf('/');
+    const parentKey = lastSlash === -1 ? '' : key.slice(0, lastSlash);
     if (!(parentKey in map)) map[parentKey] = key;
   }
   return map;
@@ -135,7 +135,7 @@ export interface OutletDepthContextValue {
 }
 
 export const OutletDepthContext = createContext<OutletDepthContextValue>({
-  segmentKey: "",
+  segmentKey: '',
   depth: 0,
 });
 
@@ -201,7 +201,7 @@ export function useParams() {
 export function useLocation() {
   const { url } = useContext(LocationContext);
   return useMemo(
-    () => ({ pathname: fastPathname(url, globalThis.location?.origin ?? "http://localhost") }),
+    () => ({ pathname: fastPathname(url, globalThis.location?.origin ?? 'http://localhost') }),
     [url],
   );
 }
@@ -251,11 +251,11 @@ export function RouterProvider({
   // but the browser URL still shows the original URL, update it here so the
   // URL bar reflects the canonical location without an extra round trip.
   useEffect(() => {
-    if (typeof globalThis.history !== "undefined" && !globalThis.history.state?.key) {
+    if (typeof globalThis.history !== 'undefined' && !globalThis.history.state?.key) {
       const key = Math.random().toString(36).slice(2);
       const browserPath = globalThis.location.pathname + globalThis.location.search;
       const targetUrl = initialUrl !== browserPath ? initialUrl : globalThis.location.href;
-      globalThis.history.replaceState({ key }, "", targetUrl);
+      globalThis.history.replaceState({ key }, '', targetUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -282,9 +282,9 @@ export function RouterProvider({
         // newer navigation.
         if (options?.preventScrollReset) entryState.preventScrollReset = true;
         if (options?.replace) {
-          globalThis.history.replaceState(entryState, "", to);
+          globalThis.history.replaceState(entryState, '', to);
         } else {
-          globalThis.history.pushState(entryState, "", to);
+          globalThis.history.pushState(entryState, '', to);
         }
       }
 
@@ -306,7 +306,7 @@ export function RouterProvider({
         setSegments((prev) => {
           const next = { ...prev };
           for (const key of Object.keys(prev)) {
-            const parentKey = key.includes("/") ? key.slice(0, key.lastIndexOf("/")) : "";
+            const parentKey = key.includes('/') ? key.slice(0, key.lastIndexOf('/')) : '';
             if (parentKey && currentBoundaries[parentKey]?.loading) {
               next[key] = suspenseSentinelElement;
             }
@@ -413,7 +413,7 @@ export function RouterProvider({
           });
         }
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
+        if (err instanceof DOMException && err.name === 'AbortError') {
           // Expected: a newer navigation aborted this one
           return;
         }
@@ -472,7 +472,7 @@ export function RouterProvider({
       setParams(payload.params ?? {});
       setPendingUrl(null);
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
+      if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
       setPendingUrl(null);
@@ -495,15 +495,15 @@ export function RouterProvider({
         globalThis.location.pathname + globalThis.location.search + globalThis.location.hash,
       );
     };
-    globalThis.addEventListener("popstate", handler);
-    return () => globalThis.removeEventListener("popstate", handler);
+    globalThis.addEventListener('popstate', handler);
+    return () => globalThis.removeEventListener('popstate', handler);
   }, [navigate]);
 
   // Memoize each context's value independently so consumers re-render only
   // when the slice they subscribe to actually changes. Identity stability
   // matters here: a fresh object on every RouterProvider render would
   // propagate to every useContext consumer regardless of memoization.
-  const navigationState: "idle" | "loading" = pendingUrl != null ? "loading" : "idle";
+  const navigationState: 'idle' | 'loading' = pendingUrl != null ? 'loading' : 'idle';
 
   const actionsValue = useMemo<NavigationActionsValue>(
     () => ({ navigate, refresh }),

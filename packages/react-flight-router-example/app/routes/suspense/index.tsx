@@ -1,5 +1,5 @@
-import { Suspense } from "react";
-import { fetchPosts, fetchUsers, fetchRecentComments } from "../../lib/fake-api.js";
+import { Suspense } from 'react';
+import { fetchPosts, fetchUsers, fetchRecentComments } from '../../lib/fake-api.js';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -105,7 +105,7 @@ export default function SuspenseIndexPage() {
       <section data-testid="suspense-section-basic">
         <h2 className="text-xl font-semibold mb-1">1. Basic Suspense</h2>
         <p className="text-sm text-gray-500 mb-4">
-          A single <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{"<Suspense>"}</code>{" "}
+          A single <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{'<Suspense>'}</code>{' '}
           boundary wraps an async server component that fetches posts with a ~5s delay. The fallback
           is shown immediately while the server streams in the real content.
         </p>
@@ -191,8 +191,8 @@ export default function SuspenseIndexPage() {
           <li className="flex gap-2">
             <span className="text-blue-500 font-bold">4.</span>
             Each <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">
-              {"<Suspense>"}
-            </code>{" "}
+              {'<Suspense>'}
+            </code>{' '}
             boundary is independent — fast data appears without waiting for slow data.
           </li>
         </ul>

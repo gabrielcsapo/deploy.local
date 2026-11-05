@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Extract the pathname portion of a URL string, fast-pathing the common

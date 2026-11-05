@@ -1,11 +1,11 @@
-import { Hono } from "hono";
-import { setCookie, getCookie } from "hono/cookie";
-import { register, login, logout, validateSession } from "./lib/auth.js";
-import { getEvents, clearEvents } from "./lib/perf-store.js";
+import { Hono } from 'hono';
+import { setCookie, getCookie } from 'hono/cookie';
+import { register, login, logout, validateSession } from './lib/auth.js';
+import { getEvents, clearEvents } from './lib/perf-store.js';
 
 export const app = new Hono();
 
-app.post("/api/auth/register", async (c) => {
+app.post('/api/auth/register', async (c) => {
   const { username, password } = await c.req.json();
   const result = register(username, password);
 
@@ -13,17 +13,17 @@ app.post("/api/auth/register", async (c) => {
     return c.json({ error: result.error }, 400);
   }
 
-  setCookie(c, "session", result.token!, {
+  setCookie(c, 'session', result.token!, {
     httpOnly: true,
-    sameSite: "Lax",
-    path: "/",
+    sameSite: 'Lax',
+    path: '/',
     maxAge: 86400,
   });
 
   return c.json({ user: { username } });
 });
 
-app.post("/api/auth/login", async (c) => {
+app.post('/api/auth/login', async (c) => {
   const { username, password } = await c.req.json();
   const result = login(username, password);
 
@@ -31,34 +31,34 @@ app.post("/api/auth/login", async (c) => {
     return c.json({ error: result.error }, 401);
   }
 
-  setCookie(c, "session", result.token!, {
+  setCookie(c, 'session', result.token!, {
     httpOnly: true,
-    sameSite: "Lax",
-    path: "/",
+    sameSite: 'Lax',
+    path: '/',
     maxAge: 86400,
   });
 
   return c.json({ user: { username } });
 });
 
-app.post("/api/auth/logout", async (c) => {
-  const token = getCookie(c, "session");
+app.post('/api/auth/logout', async (c) => {
+  const token = getCookie(c, 'session');
   if (token) {
     logout(token);
   }
 
-  setCookie(c, "session", "", {
+  setCookie(c, 'session', '', {
     httpOnly: true,
-    sameSite: "Lax",
-    path: "/",
+    sameSite: 'Lax',
+    path: '/',
     maxAge: 0,
   });
 
   return c.json({ ok: true });
 });
 
-app.get("/api/auth/me", async (c) => {
-  const token = getCookie(c, "session");
+app.get('/api/auth/me', async (c) => {
+  const token = getCookie(c, 'session');
   if (!token) return c.json({ user: null });
 
   const session = validateSession(token);
@@ -68,12 +68,12 @@ app.get("/api/auth/me", async (c) => {
 });
 
 // Performance monitoring endpoints
-app.get("/api/perf/events", (c) => {
-  const limit = Number(c.req.query("limit")) || 50;
+app.get('/api/perf/events', (c) => {
+  const limit = Number(c.req.query('limit')) || 50;
   return c.json(getEvents(limit));
 });
 
-app.delete("/api/perf/events", (c) => {
+app.delete('/api/perf/events', (c) => {
   clearEvents();
   return c.json({ ok: true });
 });

@@ -1,8 +1,8 @@
-import "./framework-runtime.js";
-import { startTransition, StrictMode } from "react";
-import { RouterProvider, OutletDepthContext } from "./router-context.js";
-import { callServer } from "./call-server.js";
-import type { RSCPayload } from "../shared/types.js";
+import './framework-runtime.js';
+import { startTransition, StrictMode } from 'react';
+import { RouterProvider, OutletDepthContext } from './router-context.js';
+import { callServer } from './call-server.js';
+import type { RSCPayload } from '../shared/types.js';
 
 declare global {
   interface Window {
@@ -13,10 +13,10 @@ declare global {
 }
 
 // Dynamic imports for CJS modules - Vite pre-bundles them into ESM wrappers
-const reactDomClient = (await import("react-dom/client")) as any;
+const reactDomClient = (await import('react-dom/client')) as any;
 const { createRoot, hydrateRoot } = reactDomClient;
 
-const rscClient = (await import("react-server-dom-webpack/client.browser")) as any;
+const rscClient = (await import('react-server-dom-webpack/client.browser')) as any;
 const { createFromReadableStream } = rscClient;
 
 // Read the inlined RSC stream from the HTML.
@@ -33,7 +33,7 @@ const initialPayloadPromise = Promise.resolve(
 // Render the app once the initial RSC payload is ready
 initialPayloadPromise
   .then((payload: RSCPayload) => {
-    const rootKey = Object.keys(payload.segments)[0] ?? "";
+    const rootKey = Object.keys(payload.segments)[0] ?? '';
     const RootSegment = payload.segments[rootKey];
 
     const app = (
@@ -67,7 +67,7 @@ initialPayloadPromise
     });
   })
   .catch((err) => {
-    console.error("[react-flight-router] Failed to load initial RSC payload:", err);
+    console.error('[react-flight-router] Failed to load initial RSC payload:', err);
     // Show a minimal error UI so users don't see a blank page
     document.body.innerHTML =
       '<div style="font-family:system-ui;padding:2rem"><h1>Failed to load page</h1><p>An error occurred while loading the application. Please try refreshing.</p></div>';
@@ -75,8 +75,8 @@ initialPayloadPromise
 
 // HMR support: revalidate when server components change
 if (import.meta.hot) {
-  import.meta.hot.on("react-flight-router:invalidate", () => {
-    console.log("[react-flight-router] Server component changed, revalidating...");
+  import.meta.hot.on('react-flight-router:invalidate', () => {
+    console.log('[react-flight-router] Server component changed, revalidating...');
     window.location.reload();
   });
 }

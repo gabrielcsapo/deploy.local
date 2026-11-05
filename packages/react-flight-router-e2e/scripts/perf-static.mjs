@@ -7,14 +7,14 @@
 //   PORT=3010 CONNECTIONS=200 DURATION=10 node scripts/perf-static.mjs
 //   ASSET=/assets/index-DOwEwm_z.js node scripts/perf-static.mjs
 
-import { spawn } from "node:child_process";
-import { readdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import autocannon from "autocannon";
+import { spawn } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import autocannon from 'autocannon';
 
 const __filename = fileURLToPath(import.meta.url);
-const PKG_DIR = resolve(dirname(__filename), "..");
+const PKG_DIR = resolve(dirname(__filename), '..');
 const PORT = Number(process.env.PORT) || 3010;
 const CONNECTIONS = Number(process.env.CONNECTIONS) || 100;
 const DURATION = Number(process.env.DURATION) || 10;
@@ -22,8 +22,8 @@ const PIPELINING = Number(process.env.PIPELINING) || 1;
 
 function pickAsset() {
   if (process.env.ASSET) return process.env.ASSET;
-  const dir = resolve(PKG_DIR, "dist/client/assets");
-  const files = readdirSync(dir).filter((f) => f.endsWith(".js"));
+  const dir = resolve(PKG_DIR, 'dist/client/assets');
+  const files = readdirSync(dir).filter((f) => f.endsWith('.js'));
   // Pick a mid-sized JS file (not the smallest, not the largest) for a realistic chunk
   files.sort();
   const pick = files[Math.floor(files.length / 2)];
@@ -32,14 +32,14 @@ function pickAsset() {
 
 function startServer() {
   return new Promise((resolveServer, reject) => {
-    const proc = spawn("node", ["dist/server.js"], {
+    const proc = spawn('node', ['dist/server.js'], {
       cwd: PKG_DIR,
       env: { ...process.env, PORT: String(PORT) },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    let stderr = "";
-    proc.stderr.on("data", (d) => {
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
       stderr += d.toString();
     });
 
@@ -61,11 +61,11 @@ function startServer() {
 
 function stopServer(proc) {
   return new Promise((res) => {
-    proc.once("exit", () => res());
-    proc.kill("SIGTERM");
+    proc.once('exit', () => res());
+    proc.kill('SIGTERM');
     setTimeout(() => {
       try {
-        proc.kill("SIGKILL");
+        proc.kill('SIGKILL');
       } catch {}
       res();
     }, 3_000);
@@ -97,7 +97,7 @@ async function main() {
     console.log(`latency p50:   ${result.latency.p50.toFixed(2)} ms`);
     console.log(`latency p99:   ${result.latency.p99.toFixed(2)} ms`);
     console.log(`latency max:   ${result.latency.max.toFixed(2)} ms`);
-    console.log(`2xx:           ${result["2xx"]}`);
+    console.log(`2xx:           ${result['2xx']}`);
     console.log(`non-2xx:       ${result.non2xx}`);
     console.log(`errors:        ${result.errors}`);
     console.log(`timeouts:      ${result.timeouts}`);

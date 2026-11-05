@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 
 export function useActiveHeading(headingIds: string[]): string | null {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -15,7 +15,7 @@ export function useActiveHeading(headingIds: string[]): string | null {
         }
       },
       {
-        rootMargin: "-80px 0px -80% 0px",
+        rootMargin: '-80px 0px -80% 0px',
         threshold: 0,
       },
     );

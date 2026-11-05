@@ -1,11 +1,11 @@
-import { useState, useRef, type ReactNode } from "react";
+import { useState, useRef, type ReactNode } from 'react';
 
 export function PreBlock({ children, language }: { children: ReactNode; language: string }) {
   const [copied, setCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
 
   const handleCopy = () => {
-    const text = preRef.current?.textContent ?? "";
+    const text = preRef.current?.textContent ?? '';
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

@@ -1,4 +1,4 @@
-import { getSessionUser } from "../lib/auth.js";
+import { getSessionUser } from '../lib/auth.js';
 
 /**
  * Profile page — a server component that reads the session directly
@@ -17,7 +17,7 @@ export default function ProfilePage() {
       {user ? (
         <div>
           <p className="text-lg">
-            Welcome,{" "}
+            Welcome,{' '}
             <span className="font-semibold" data-testid="profile-username">
               {user.username}
             </span>
@@ -33,7 +33,7 @@ export default function ProfilePage() {
             Not logged in
           </p>
           <p className="text-sm text-gray-500 mt-2">
-            Sign in to see your profile here. The server component reads the session cookie via{" "}
+            Sign in to see your profile here. The server component reads the session cookie via{' '}
             <code>onRequest</code> + <code>AsyncLocalStorage</code>.
           </p>
         </div>

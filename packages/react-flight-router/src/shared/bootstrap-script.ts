@@ -40,5 +40,5 @@ export function generateBootstrapScript(
     });
     window.__RSC_PUSH__ = function(c) { __rscQ.push(c); };
     window.__RSC_CLOSE__ = function() { __rscQ.push(null); };
-  `.replace(/\n\s+/g, "");
+  `.replace(/\n\s+/g, '');
 }

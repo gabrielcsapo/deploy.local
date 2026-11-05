@@ -1,9 +1,9 @@
-import { describe, it, afterEach } from "node:test";
-import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { createWorkerPool, type WorkerPool } from "./worker-pool.js";
+import { describe, it, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createWorkerPool, type WorkerPool } from './worker-pool.js';
 
 /**
  * Create a temporary build directory with minimal fixtures that the
@@ -11,27 +11,27 @@ import { createWorkerPool, type WorkerPool } from "./worker-pool.js";
  * instead of the full React + react-server-dom-webpack stack.
  */
 function createTestFixtures(opts?: { actionModule?: string; actionModuleId?: string }): string {
-  const dir = mkdtempSync(join(tmpdir(), "flight-worker-test-"));
-  const serverDir = join(dir, "server");
+  const dir = mkdtempSync(join(tmpdir(), 'flight-worker-test-'));
+  const serverDir = join(dir, 'server');
   mkdirSync(serverDir, { recursive: true });
-  mkdirSync(join(serverDir, "chunks"), { recursive: true });
+  mkdirSync(join(serverDir, 'chunks'), { recursive: true });
 
   // Server actions manifest
-  const actionId = opts?.actionModuleId ?? "test/action";
+  const actionId = opts?.actionModuleId ?? 'test/action';
   writeFileSync(
-    join(dir, "server-actions-manifest.json"),
+    join(dir, 'server-actions-manifest.json'),
     JSON.stringify({
-      [actionId]: { id: actionId, name: "*", chunks: [] },
+      [actionId]: { id: actionId, name: '*', chunks: [] },
     }),
   );
 
   // RSC client manifest (empty — no client components needed for action tests)
-  writeFileSync(join(dir, "rsc-client-manifest.json"), "{}");
+  writeFileSync(join(dir, 'rsc-client-manifest.json'), '{}');
 
   // Mock RSC runtime: renderToReadableStream serializes to JSON,
   // decodeReply parses JSON or returns FormData as-is
   writeFileSync(
-    join(serverDir, "rsc-runtime.js"),
+    join(serverDir, 'rsc-runtime.js'),
     `
 export function renderToReadableStream(model, _manifest, _opts) {
   const encoded = new TextEncoder().encode(JSON.stringify(model));
@@ -67,7 +67,7 @@ globalThis.__flight_server_modules["${actionId}"] = {
   },
 };
 `;
-  writeFileSync(join(serverDir, "server-action-test.js"), actionCode);
+  writeFileSync(join(serverDir, 'server-action-test.js'), actionCode);
 
   return dir;
 }
@@ -86,20 +86,20 @@ afterEach(async () => {
   }
 });
 
-describe("WorkerPool", () => {
-  it("creates a pool and executes an action", async () => {
+describe('WorkerPool', () => {
+  it('creates a pool and executes an action', async () => {
     fixtureDir = createTestFixtures();
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
 
     const { stream, done } = pool.dispatch({
-      taskId: "test-1",
-      actionId: "test/action#default",
-      body: new TextEncoder().encode(JSON.stringify(["hello"])).buffer as ArrayBuffer,
-      contentType: "text/plain",
+      taskId: 'test-1',
+      actionId: 'test/action#default',
+      body: new TextEncoder().encode(JSON.stringify(['hello'])).buffer as ArrayBuffer,
+      contentType: 'text/plain',
       requestContext: {
-        url: "http://localhost:3000/",
-        method: "POST",
-        headers: [["content-type", "text/plain"]],
+        url: 'http://localhost:3000/',
+        method: 'POST',
+        headers: [['content-type', 'text/plain']],
       },
     });
 
@@ -122,24 +122,24 @@ describe("WorkerPool", () => {
     }
     const result = JSON.parse(new TextDecoder().decode(combined));
 
-    assert.deepEqual(result, { result: "ok", args: ["hello"] });
+    assert.deepEqual(result, { result: 'ok', args: ['hello'] });
 
     const { status } = await done;
     assert.equal(status, 200);
   });
 
-  it("returns 404 for unknown action", async () => {
+  it('returns 404 for unknown action', async () => {
     fixtureDir = createTestFixtures();
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
 
     const { stream, done } = pool.dispatch({
-      taskId: "test-2",
-      actionId: "nonexistent/action#default",
-      body: new TextEncoder().encode("[]").buffer as ArrayBuffer,
-      contentType: "text/plain",
+      taskId: 'test-2',
+      actionId: 'nonexistent/action#default',
+      body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+      contentType: 'text/plain',
       requestContext: {
-        url: "http://localhost:3000/",
-        method: "POST",
+        url: 'http://localhost:3000/',
+        method: 'POST',
         headers: [],
       },
     });
@@ -148,7 +148,7 @@ describe("WorkerPool", () => {
     const reader = stream.getReader();
     try {
       await reader.read();
-      assert.fail("Expected stream to error");
+      assert.fail('Expected stream to error');
     } catch (err) {
       assert.ok(err instanceof Error);
       assert.match(err.message, /Action not found/);
@@ -158,18 +158,18 @@ describe("WorkerPool", () => {
     assert.equal(status, 404);
   });
 
-  it("returns 500 when action throws", async () => {
+  it('returns 500 when action throws', async () => {
     fixtureDir = createTestFixtures();
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
 
     const { stream, done } = pool.dispatch({
-      taskId: "test-3",
-      actionId: "test/action#throwingAction",
-      body: new TextEncoder().encode("[]").buffer as ArrayBuffer,
-      contentType: "text/plain",
+      taskId: 'test-3',
+      actionId: 'test/action#throwingAction',
+      body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+      contentType: 'text/plain',
       requestContext: {
-        url: "http://localhost:3000/",
-        method: "POST",
+        url: 'http://localhost:3000/',
+        method: 'POST',
         headers: [],
       },
     });
@@ -177,7 +177,7 @@ describe("WorkerPool", () => {
     const reader = stream.getReader();
     try {
       await reader.read();
-      assert.fail("Expected stream to error");
+      assert.fail('Expected stream to error');
     } catch (err) {
       assert.ok(err instanceof Error);
       assert.match(err.message, /Test action error/);
@@ -187,7 +187,7 @@ describe("WorkerPool", () => {
     assert.equal(status, 500);
   });
 
-  it("handles abort", async () => {
+  it('handles abort', async () => {
     // Create a slow action that waits long enough for the abort to arrive
     fixtureDir = createTestFixtures({
       actionModule: `
@@ -204,19 +204,19 @@ globalThis.__flight_server_modules["test/action"] = {
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
 
     const { stream, done } = pool.dispatch({
-      taskId: "test-4",
-      actionId: "test/action#default",
-      body: new TextEncoder().encode("[]").buffer as ArrayBuffer,
-      contentType: "text/plain",
+      taskId: 'test-4',
+      actionId: 'test/action#default',
+      body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+      contentType: 'text/plain',
       requestContext: {
-        url: "http://localhost:3000/",
-        method: "POST",
+        url: 'http://localhost:3000/',
+        method: 'POST',
         headers: [],
       },
     });
 
     // Abort after a short delay
-    setTimeout(() => pool!.abort("test-4"), 50);
+    setTimeout(() => pool!.abort('test-4'), 50);
 
     const reader = stream.getReader();
     const chunks: Uint8Array[] = [];
@@ -231,7 +231,7 @@ globalThis.__flight_server_modules["test/action"] = {
     assert.equal(status, 200);
   });
 
-  it("respects timeout", async () => {
+  it('respects timeout', async () => {
     fixtureDir = createTestFixtures({
       actionModule: `
 globalThis.__flight_server_modules ??= {};
@@ -248,13 +248,13 @@ globalThis.__flight_server_modules["test/action"] = {
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 1, timeout: 100 });
 
     const { stream, done } = pool.dispatch({
-      taskId: "test-5",
-      actionId: "test/action#default",
-      body: new TextEncoder().encode("[]").buffer as ArrayBuffer,
-      contentType: "text/plain",
+      taskId: 'test-5',
+      actionId: 'test/action#default',
+      body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+      contentType: 'text/plain',
       requestContext: {
-        url: "http://localhost:3000/",
-        method: "POST",
+        url: 'http://localhost:3000/',
+        method: 'POST',
         headers: [],
       },
     });
@@ -262,7 +262,7 @@ globalThis.__flight_server_modules["test/action"] = {
     const reader = stream.getReader();
     try {
       await reader.read();
-      assert.fail("Expected stream to error with timeout");
+      assert.fail('Expected stream to error with timeout');
     } catch (err) {
       assert.ok(err instanceof Error);
       assert.match(err.message, /timed out/);
@@ -272,7 +272,7 @@ globalThis.__flight_server_modules["test/action"] = {
     assert.equal(status, 504);
   });
 
-  it("creates multiple workers", async () => {
+  it('creates multiple workers', async () => {
     fixtureDir = createTestFixtures();
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 3 });
 
@@ -280,12 +280,12 @@ globalThis.__flight_server_modules["test/action"] = {
     const tasks = Array.from({ length: 3 }, (_, i) =>
       pool!.dispatch({
         taskId: `test-multi-${i}`,
-        actionId: "test/action#default",
+        actionId: 'test/action#default',
         body: new TextEncoder().encode(JSON.stringify([i])).buffer as ArrayBuffer,
-        contentType: "text/plain",
+        contentType: 'text/plain',
         requestContext: {
-          url: "http://localhost:3000/",
-          method: "POST",
+          url: 'http://localhost:3000/',
+          method: 'POST',
           headers: [],
         },
       }),
@@ -315,11 +315,11 @@ globalThis.__flight_server_modules["test/action"] = {
 
     for (let i = 0; i < 3; i++) {
       assert.equal(results[i].status, 200);
-      assert.deepEqual(results[i].data, { result: "ok", args: [i] });
+      assert.deepEqual(results[i].data, { result: 'ok', args: [i] });
     }
   });
 
-  it("destroys cleanly", async () => {
+  it('destroys cleanly', async () => {
     fixtureDir = createTestFixtures();
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 2 });
     await pool.destroy();
@@ -327,13 +327,13 @@ globalThis.__flight_server_modules["test/action"] = {
     // Dispatch after destroy should throw
     assert.throws(() => {
       pool!.dispatch({
-        taskId: "test-destroyed",
-        actionId: "test/action#default",
+        taskId: 'test-destroyed',
+        actionId: 'test/action#default',
         body: new ArrayBuffer(0),
-        contentType: "text/plain",
+        contentType: 'text/plain',
         requestContext: {
-          url: "http://localhost:3000/",
-          method: "POST",
+          url: 'http://localhost:3000/',
+          method: 'POST',
           headers: [],
         },
       });

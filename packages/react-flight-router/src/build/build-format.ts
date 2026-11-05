@@ -1,18 +1,18 @@
-import { resolve, relative, dirname, extname } from "path";
-import { existsSync, readFileSync, readdirSync, statSync } from "fs";
-import { gzipSync } from "zlib";
-import { transformWithEsbuild } from "vite";
+import { resolve, relative, dirname, extname } from 'path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { gzipSync } from 'zlib';
+import { transformWithEsbuild } from 'vite';
 
 // Minimal Rollup types we need (avoids requiring rollup as a direct dependency)
 interface RollupOutputChunk {
-  type: "chunk";
+  type: 'chunk';
   code: string;
   facadeModuleId: string | null;
   fileName: string;
 }
 
 interface RollupOutputAsset {
-  type: "asset";
+  type: 'asset';
   fileName: string;
 }
 
@@ -25,7 +25,7 @@ export interface RollupOutput {
 // ---------------------------------------------------------------------------
 
 const supportsColor =
-  typeof process !== "undefined" && process.stdout?.isTTY === true && !process.env.NO_COLOR;
+  typeof process !== 'undefined' && process.stdout?.isTTY === true && !process.env.NO_COLOR;
 
 const c = {
   bold: (s: string) => (supportsColor ? `\x1b[1m${s}\x1b[22m` : s),
@@ -92,10 +92,10 @@ export interface ParsedRoute {
  */
 export async function parseRoutes(routesFilePath: string): Promise<ParsedRoute[]> {
   try {
-    const raw = readFileSync(routesFilePath, "utf-8");
+    const raw = readFileSync(routesFilePath, 'utf-8');
 
     // Strip import type lines
-    let cleaned = raw.replace(/import\s+type\s+[^;]*;\s*/g, "");
+    let cleaned = raw.replace(/import\s+type\s+[^;]*;\s*/g, '');
 
     // Replace component: () => import("./path") with componentPath: "./path"
     cleaned = cleaned.replace(
@@ -105,16 +105,16 @@ export async function parseRoutes(routesFilePath: string): Promise<ParsedRoute[]
 
     // Use esbuild (via Vite) to strip remaining TS syntax
     const result = await transformWithEsbuild(cleaned, routesFilePath, {
-      loader: "ts",
+      loader: 'ts',
     });
 
     // Strip exports and convert to a function body that returns the routes array
     let code = result.code;
     // Handle `export const routes = [...]`
-    code = code.replace(/export\s+const\s+routes\s*=\s*/, "return ");
+    code = code.replace(/export\s+const\s+routes\s*=\s*/, 'return ');
     // Handle esbuild ESM split: `const routes = [...]; export { routes };`
-    code = code.replace(/const\s+routes\s*=\s*/, "return ");
-    code = code.replace(/export\s*\{[^}]*\}\s*;?/g, "");
+    code = code.replace(/const\s+routes\s*=\s*/, 'return ');
+    code = code.replace(/export\s*\{[^}]*\}\s*;?/g, '');
 
     const fn = new Function(code);
     return fn();
@@ -152,7 +152,7 @@ export function validateRouteComponents(
         const componentFile = resolveModulePath(route.componentPath, routesDir);
         if (componentFile) {
           try {
-            const content = readFileSync(componentFile, "utf-8");
+            const content = readFileSync(componentFile, 'utf-8');
             if (/^['"]use client['"];?/m.test(content.trimStart())) {
               errors.push({ routeId: route.id, filePath: componentFile });
             }
@@ -172,24 +172,24 @@ export function validateRouteComponents(
 }
 
 export function printRouteValidationErrors(errors: RouteValidationError[]): void {
-  console.error("");
+  console.error('');
   console.error(c.bold(`  ✗ Route components must not use the "use client" directive`));
-  console.error("");
+  console.error('');
   console.error(`  Route components are rendered as server components. Move client-side`);
   console.error(`  logic into a separate .client.tsx file and import it from the route.`);
-  console.error("");
+  console.error('');
   for (const err of errors) {
-    console.error(`    ${c.yellow("→")} ${err.routeId}  ${c.dim(err.filePath)}`);
+    console.error(`    ${c.yellow('→')} ${err.routeId}  ${c.dim(err.filePath)}`);
   }
-  console.error("");
+  console.error('');
   console.error(`  Example fix:`);
-  console.error("");
+  console.error('');
   console.error(c.dim(`    // app/routes/my-route.tsx (server component)`));
   console.error(c.dim(`    import MyRouteClient from "./my-route.client";`));
   console.error(c.dim(`    export default function MyRoute() {`));
   console.error(c.dim(`      return <MyRouteClient />;`));
   console.error(c.dim(`    }`));
-  console.error("");
+  console.error('');
 }
 
 // ---------------------------------------------------------------------------
@@ -214,25 +214,25 @@ export function flattenRoutes(routes: ParsedRoute[]): FlatRoute[] {
   // If there's a single root layout with children, unwrap it for cleaner display
   if (routes.length === 1 && routes[0].children && routes[0].children.length > 0) {
     const root = routes[0];
-    const rootPath = root.path ? "/" + root.path : "/";
+    const rootPath = root.path ? '/' + root.path : '/';
     const result: FlatRoute[] = [];
 
     // Add the root layout as a standalone entry
     result.push({
       id: root.id,
       fullPath: rootPath,
-      isDynamic: rootPath.includes(":"),
+      isDynamic: rootPath.includes(':'),
       depth: 0,
-      treePrefix: "",
+      treePrefix: '',
     });
 
     // Flatten its children as the top-level tree
-    result.push(...flattenRoutesInner(root.children!, rootPath === "/" ? "" : rootPath, 0, ""));
+    result.push(...flattenRoutesInner(root.children!, rootPath === '/' ? '' : rootPath, 0, ''));
 
     return result;
   }
 
-  return flattenRoutesInner(routes, "", 0, "");
+  return flattenRoutesInner(routes, '', 0, '');
 }
 
 function flattenRoutesInner(
@@ -246,21 +246,21 @@ function flattenRoutesInner(
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i];
     const isLast = i === routes.length - 1;
-    const segment = route.path ?? "";
+    const segment = route.path ?? '';
 
     let fullPath: string;
     if (route.index) {
       // Index routes match the parent path — show with trailing / to distinguish
-      fullPath = parentPath ? parentPath + "/" : "/";
+      fullPath = parentPath ? parentPath + '/' : '/';
     } else {
-      fullPath = parentPath ? (parentPath + "/" + segment).replace(/\/+/g, "/") : "/" + segment;
+      fullPath = parentPath ? (parentPath + '/' + segment).replace(/\/+/g, '/') : '/' + segment;
     }
 
-    if (!fullPath.startsWith("/")) fullPath = "/" + fullPath;
+    if (!fullPath.startsWith('/')) fullPath = '/' + fullPath;
 
-    const isDynamic = fullPath.includes(":");
-    const treeChar = isLast ? "└" : i === 0 && depth === 0 ? "┌" : "├";
-    const connector = parentPrefix + treeChar + " ";
+    const isDynamic = fullPath.includes(':');
+    const treeChar = isLast ? '└' : i === 0 && depth === 0 ? '┌' : '├';
+    const connector = parentPrefix + treeChar + ' ';
 
     result.push({
       id: route.id,
@@ -271,9 +271,9 @@ function flattenRoutesInner(
     });
 
     if (route.children && route.children.length > 0) {
-      const childPrefix = parentPrefix + (isLast ? "  " : "│ ");
+      const childPrefix = parentPrefix + (isLast ? '  ' : '│ ');
       result.push(
-        ...flattenRoutesInner(route.children, fullPath.replace(/\/$/, ""), depth + 1, childPrefix),
+        ...flattenRoutesInner(route.children, fullPath.replace(/\/$/, ''), depth + 1, childPrefix),
       );
     }
   }
@@ -285,7 +285,7 @@ function flattenRoutesInner(
 // Route → client module mapping
 // ---------------------------------------------------------------------------
 
-const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
+const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
 
 /**
  * Resolve a module path to an actual file, trying common extensions.
@@ -313,7 +313,7 @@ function resolveModulePath(importPath: string, fromDir: string): string | null {
  */
 function extractImports(filePath: string): string[] {
   try {
-    const content = readFileSync(filePath, "utf-8");
+    const content = readFileSync(filePath, 'utf-8');
     const imports: string[] = [];
     // Match: import ... from "..." / import "..."
     const regex = /import\s+(?:.*?\s+from\s+)?['"]([^'"]+)['"]/g;
@@ -321,7 +321,7 @@ function extractImports(filePath: string): string[] {
     while ((match = regex.exec(content)) !== null) {
       const specifier = match[1];
       // Only follow relative imports
-      if (specifier.startsWith(".")) {
+      if (specifier.startsWith('.')) {
         imports.push(specifier);
       }
     }
@@ -435,12 +435,12 @@ export function computeRouteSizes(
   rscOutput: RollupOutput | RollupOutput[],
   clientModules: Set<string>,
 ): BuildSizeData {
-  const clientDir = resolve(outDir, "client");
-  const manifestPath = resolve(clientDir, ".vite/manifest.json");
+  const clientDir = resolve(outDir, 'client');
+  const manifestPath = resolve(clientDir, '.vite/manifest.json');
 
   let viteManifest: ViteManifest = {};
   try {
-    viteManifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+    viteManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
   } catch {
     // If no manifest, return empty data
     return {
@@ -470,7 +470,7 @@ export function computeRouteSizes(
     const e = viteManifest[k];
     return (
       e.isEntry &&
-      (k.includes("entry-client") || k.includes("entry.js") || e.name === "entry-client")
+      (k.includes('entry-client') || k.includes('entry.js') || e.name === 'entry-client')
     );
   });
 
@@ -578,12 +578,12 @@ export function computeRouteSizes(
 
   for (const output of outputs) {
     for (const chunk of output.output) {
-      if (chunk.type === "chunk") {
+      if (chunk.type === 'chunk') {
         const outputChunk = chunk as RollupOutputChunk;
         if (outputChunk.facadeModuleId) {
           serverChunkSizes.set(
             outputChunk.facadeModuleId,
-            Buffer.byteLength(outputChunk.code, "utf-8"),
+            Buffer.byteLength(outputChunk.code, 'utf-8'),
           );
         }
       }
@@ -640,9 +640,9 @@ export function mapServerChunksToRoutes(
   const chunksByFacade = new Map<string, number>();
   for (const output of outputs) {
     for (const chunk of output.output) {
-      if (chunk.type === "chunk" && (chunk as RollupOutputChunk).facadeModuleId) {
+      if (chunk.type === 'chunk' && (chunk as RollupOutputChunk).facadeModuleId) {
         const oc = chunk as RollupOutputChunk;
-        chunksByFacade.set(oc.facadeModuleId!, Buffer.byteLength(oc.code, "utf-8"));
+        chunksByFacade.set(oc.facadeModuleId!, Buffer.byteLength(oc.code, 'utf-8'));
       }
     }
   }
@@ -659,7 +659,7 @@ export function mapServerChunksToRoutes(
           } else {
             // Try fuzzy match on path suffix
             for (const [facade, s] of chunksByFacade) {
-              if (facade.endsWith(componentFile.split("/app/").pop() ?? "")) {
+              if (facade.endsWith(componentFile.split('/app/').pop() ?? '')) {
                 result.set(route.id, s);
                 break;
               }
@@ -683,9 +683,9 @@ export function mapServerChunksToRoutes(
 // ---------------------------------------------------------------------------
 
 export function printHeader(version: string): void {
-  console.log("");
+  console.log('');
   console.log(c.bold(`  react-flight-router v${version}`));
-  console.log("");
+  console.log('');
 }
 
 const MAX_PATH_COL = 45;
@@ -695,12 +695,12 @@ export function printRouteTable(
   sizeData: BuildSizeData,
   serverSizes: Map<string, number>,
 ): void {
-  const headerPad = " ".repeat(MAX_PATH_COL - 8);
-  console.log(c.bold("  Routes") + headerPad + c.dim("Server") + "    " + c.dim("First Load JS"));
-  console.log("");
+  const headerPad = ' '.repeat(MAX_PATH_COL - 8);
+  console.log(c.bold('  Routes') + headerPad + c.dim('Server') + '    ' + c.dim('First Load JS'));
+  console.log('');
 
   for (const route of flatRoutes) {
-    const icon = route.isDynamic ? c.yellow("λ") : c.cyan("○");
+    const icon = route.isDynamic ? c.yellow('λ') : c.cyan('○');
     const routeSizeInfo = sizeData.routes.get(route.id);
 
     const serverSize = serverSizes.get(route.id) ?? 0;
@@ -711,27 +711,27 @@ export function printRouteTable(
     const maxPathLen = MAX_PATH_COL - prefixPlain.length - 3; // 3 for "○ "
     let pathStr = route.fullPath;
     if (pathStr.length > maxPathLen && maxPathLen > 10) {
-      pathStr = pathStr.slice(0, maxPathLen - 3) + "...";
+      pathStr = pathStr.slice(0, maxPathLen - 3) + '...';
     }
 
     const pathDisplay = `${route.treePrefix}${icon} ${pathStr}`;
     const plainPath = stripAnsi(pathDisplay);
     const pad = Math.max(1, MAX_PATH_COL - plainPath.length);
 
-    const serverStr = serverSize > 0 ? formatSize(serverSize) : c.dim("0 B");
+    const serverStr = serverSize > 0 ? formatSize(serverSize) : c.dim('0 B');
     const firstLoadStr = formatSize(firstLoadJS);
 
     console.log(
-      `  ${pathDisplay}${" ".repeat(pad)}${serverStr.padStart(10)}  ${c.bold(firstLoadStr.padStart(12))}`,
+      `  ${pathDisplay}${' '.repeat(pad)}${serverStr.padStart(10)}  ${c.bold(firstLoadStr.padStart(12))}`,
     );
   }
 
-  console.log("");
+  console.log('');
 }
 
 export function printSharedChunks(sizeData: BuildSizeData): void {
   console.log(
-    `  ${c.dim("+")} First Load JS shared by all` +
+    `  ${c.dim('+')} First Load JS shared by all` +
       `          ${c.bold(formatSize(sizeData.sharedSize).padStart(10))}`,
   );
 
@@ -743,26 +743,26 @@ export function printSharedChunks(sizeData: BuildSizeData): void {
   for (let i = 0; i < top.length; i++) {
     const chunk = top[i];
     const isLast = i === top.length - 1 && rest.length === 0;
-    const prefix = isLast ? "└" : "├";
+    const prefix = isLast ? '└' : '├';
     const displayPath = truncatePath(chunk.path, 40);
     console.log(
-      `    ${c.dim(prefix)} ${c.dim(displayPath)}${" ".repeat(Math.max(1, 42 - displayPath.length))}${c.dim(formatSize(chunk.size).padStart(10))}`,
+      `    ${c.dim(prefix)} ${c.dim(displayPath)}${' '.repeat(Math.max(1, 42 - displayPath.length))}${c.dim(formatSize(chunk.size).padStart(10))}`,
     );
   }
 
   if (rest.length > 0) {
     const otherSize = rest.reduce((sum, ch) => sum + ch.size, 0);
     console.log(
-      `    ${c.dim("└")} ${c.dim("other shared chunks (framework)")}${" ".repeat(10)}${c.dim(formatSize(otherSize).padStart(10))}`,
+      `    ${c.dim('└')} ${c.dim('other shared chunks (framework)')}${' '.repeat(10)}${c.dim(formatSize(otherSize).padStart(10))}`,
     );
   }
 
-  console.log("");
+  console.log('');
 }
 
 export function printLegend(): void {
-  console.log(`  ${c.cyan("○")} static   ${c.yellow("λ")} dynamic`);
-  console.log("");
+  console.log(`  ${c.cyan('○')} static   ${c.yellow('λ')} dynamic`);
+  console.log('');
 }
 
 export function printModuleCounts(
@@ -774,19 +774,19 @@ export function printModuleCounts(
   if (clientCount > 0) parts.push(`${clientCount} client`);
   if (serverCount > 0) parts.push(`${serverCount} server actions`);
   if (cssCount > 0) parts.push(`${cssCount} css`);
-  console.log(`  ${c.dim("Modules:")} ${parts.join(c.dim(", "))}`);
-  console.log("");
+  console.log(`  ${c.dim('Modules:')} ${parts.join(c.dim(', '))}`);
+  console.log('');
 }
 
 export function printPhase(phase: number, label: string, durationMs: number): void {
   console.log(
-    `  ${c.green("✓")} Phase ${phase}  ${label.padEnd(16)} ${c.dim(formatDuration(durationMs).padStart(8))}`,
+    `  ${c.green('✓')} Phase ${phase}  ${label.padEnd(16)} ${c.dim(formatDuration(durationMs).padStart(8))}`,
   );
 }
 
 export function printBuildStart(): void {
-  console.log(c.bold("  Build"));
-  console.log("");
+  console.log(c.bold('  Build'));
+  console.log('');
 }
 
 export function printOutputSummary(outDir: string, totalDurationMs: number): void {
@@ -794,45 +794,45 @@ export function printOutputSummary(outDir: string, totalDurationMs: number): voi
 
   const categories: { label: string; filter: (f: OutputFile) => boolean; showGzip: boolean }[] = [
     {
-      label: "server",
+      label: 'server',
       filter: (f) =>
-        f.path === "server.js" ||
-        (f.path.startsWith("server/") && !f.path.startsWith("server/ssr/")),
+        f.path === 'server.js' ||
+        (f.path.startsWith('server/') && !f.path.startsWith('server/ssr/')),
       showGzip: false,
     },
-    { label: "ssr", filter: (f) => f.path.startsWith("server/ssr/"), showGzip: false },
+    { label: 'ssr', filter: (f) => f.path.startsWith('server/ssr/'), showGzip: false },
     {
-      label: "client",
-      filter: (f) => f.path.startsWith("client/") && !f.path.endsWith(".json"),
+      label: 'client',
+      filter: (f) => f.path.startsWith('client/') && !f.path.endsWith('.json'),
       showGzip: true,
     },
-    { label: "manifests", filter: (f) => f.path.endsWith(".json"), showGzip: false },
+    { label: 'manifests', filter: (f) => f.path.endsWith('.json'), showGzip: false },
   ];
 
-  console.log("");
+  console.log('');
   console.log(
-    c.bold("  Output") +
-      "                                       " +
-      c.dim("Size") +
-      "       " +
-      c.dim("Gzip"),
+    c.bold('  Output') +
+      '                                       ' +
+      c.dim('Size') +
+      '       ' +
+      c.dim('Gzip'),
   );
-  console.log("");
+  console.log('');
 
   for (const { label, filter, showGzip } of categories) {
     const catFiles = files.filter(filter);
     if (catFiles.length === 0) continue;
     const totalSize = catFiles.reduce((sum, f) => sum + f.size, 0);
-    const jsFiles = catFiles.filter((f) => f.path.endsWith(".js"));
-    const cssFiles = catFiles.filter((f) => f.path.endsWith(".css"));
-    const jsonFiles = catFiles.filter((f) => f.path.endsWith(".json"));
+    const jsFiles = catFiles.filter((f) => f.path.endsWith('.js'));
+    const cssFiles = catFiles.filter((f) => f.path.endsWith('.css'));
+    const jsonFiles = catFiles.filter((f) => f.path.endsWith('.json'));
 
     const parts: string[] = [];
     if (jsFiles.length > 0) parts.push(`${jsFiles.length} js`);
     if (cssFiles.length > 0) parts.push(`${cssFiles.length} css`);
     if (jsonFiles.length > 0) parts.push(`${jsonFiles.length} json`);
 
-    let gzipStr = "";
+    let gzipStr = '';
     if (showGzip) {
       let gzipTotal = 0;
       for (const f of catFiles) {
@@ -848,18 +848,18 @@ export function printOutputSummary(outDir: string, totalDurationMs: number): voi
     }
 
     console.log(
-      `  ${label.padEnd(12)} ${c.dim(parts.join(", ").padEnd(20))} ${formatSize(totalSize).padStart(10)}${gzipStr ? "  " + c.dim(gzipStr) : ""}`,
+      `  ${label.padEnd(12)} ${c.dim(parts.join(', ').padEnd(20))} ${formatSize(totalSize).padStart(10)}${gzipStr ? '  ' + c.dim(gzipStr) : ''}`,
     );
   }
 
   const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-  console.log(`  ${"─".repeat(55)}`);
+  console.log(`  ${'─'.repeat(55)}`);
   console.log(
-    `  ${"total".padEnd(12)} ${c.dim(`${files.length} files`.padEnd(20))} ${formatSize(totalSize).padStart(10)}`,
+    `  ${'total'.padEnd(12)} ${c.dim(`${files.length} files`.padEnd(20))} ${formatSize(totalSize).padStart(10)}`,
   );
-  console.log("");
-  console.log(`  ${c.green("✓")} Done in ${c.bold(formatDuration(totalDurationMs))}`);
-  console.log("");
+  console.log('');
+  console.log(`  ${c.green('✓')} Done in ${c.bold(formatDuration(totalDurationMs))}`);
+  console.log('');
 }
 
 // ---------------------------------------------------------------------------
@@ -868,15 +868,15 @@ export function printOutputSummary(outDir: string, totalDurationMs: number): voi
 
 function truncatePath(p: string, maxLen: number = 40): string {
   if (p.length <= maxLen) return p;
-  const ext = p.slice(p.lastIndexOf("."));
+  const ext = p.slice(p.lastIndexOf('.'));
   const keep = maxLen - 3 - ext.length;
-  if (keep < 5) return p.slice(0, maxLen - 3) + "...";
-  return p.slice(0, keep) + "..." + ext;
+  if (keep < 5) return p.slice(0, maxLen - 3) + '...';
+  return p.slice(0, keep) + '...' + ext;
 }
 
 // eslint-disable-next-line no-control-regex
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
 
 function stripAnsi(s: string): string {
-  return s.replace(ANSI_REGEX, "");
+  return s.replace(ANSI_REGEX, '');
 }

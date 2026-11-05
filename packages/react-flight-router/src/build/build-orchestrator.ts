@@ -1,6 +1,6 @@
-import { resolve, dirname } from "path";
-import { existsSync, readdirSync, readFileSync } from "fs";
-import { fileURLToPath } from "url";
+import { resolve, dirname } from 'path';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import {
   createBuilder,
   loadConfigFromFile,
@@ -8,12 +8,12 @@ import {
   type InlineConfig,
   type Plugin,
   type PluginOption,
-} from "vite";
-import react from "@vitejs/plugin-react";
-import { createRSCServerConfig } from "./vite-config-rsc.js";
-import { createClientConfig } from "./vite-config-client.js";
-import { createSSRConfig } from "./vite-config-ssr.js";
-import { generateManifests } from "./manifest-generator.js";
+} from 'vite';
+import react from '@vitejs/plugin-react';
+import { createRSCServerConfig } from './vite-config-rsc.js';
+import { createClientConfig } from './vite-config-client.js';
+import { createSSRConfig } from './vite-config-ssr.js';
+import { generateManifests } from './manifest-generator.js';
 import {
   type RollupOutput,
   parseRoutes,
@@ -31,7 +31,7 @@ import {
   printPhase,
   printBuildStart,
   printOutputSummary,
-} from "./build-format.js";
+} from './build-format.js';
 
 interface BuildOptions {
   /** Root directory of the app (where app/ lives) */
@@ -54,27 +54,27 @@ interface BuildOptions {
 
 /** Packages the server entry bundle must not bundle (shared singletons / node-native). */
 const SERVER_ENTRY_EXTERNALS = [
-  "react",
-  "react/jsx-runtime",
-  "react/jsx-dev-runtime",
-  "react-dom",
-  "react-dom/server",
-  "react-dom/client",
-  "react-server-dom-webpack/client.node",
-  "hono",
-  "@hono/node-server",
-  "react-flight-router",
-  "react-flight-router/server",
-  "react-flight-router/client",
-  "react-flight-router/router",
+  'react',
+  'react/jsx-runtime',
+  'react/jsx-dev-runtime',
+  'react-dom',
+  'react-dom/server',
+  'react-dom/client',
+  'react-server-dom-webpack/client.node',
+  'hono',
+  '@hono/node-server',
+  'react-flight-router',
+  'react-flight-router/server',
+  'react-flight-router/client',
+  'react-flight-router/router',
 ];
 
 /** Flatten a Vite `plugins` value (nested arrays / falsy entries) to plugin objects. */
-function flattenPlugins(plugins: InlineConfig["plugins"]): Plugin[] {
+function flattenPlugins(plugins: InlineConfig['plugins']): Plugin[] {
   if (!plugins) return [];
   return (plugins as PluginOption[])
     .flat(Infinity as 1)
-    .filter((p): p is Plugin => !!p && typeof p === "object" && "name" in p);
+    .filter((p): p is Plugin => !!p && typeof p === 'object' && 'name' in p);
 }
 
 /** Restrict a set of plugins to the named build environments. */
@@ -97,28 +97,28 @@ function toEnvOptions(cfg: InlineConfig): EnvironmentOptions {
   const resolve: Record<string, unknown> = { ...cfg.resolve };
   if (cfg.ssr?.noExternal !== undefined) resolve.noExternal = cfg.ssr.noExternal;
   if (cfg.ssr?.external !== undefined) resolve.external = cfg.ssr.external;
-  if (Object.keys(resolve).length > 0) env.resolve = resolve as EnvironmentOptions["resolve"];
+  if (Object.keys(resolve).length > 0) env.resolve = resolve as EnvironmentOptions['resolve'];
 
-  if (cfg.build) env.build = cfg.build as EnvironmentOptions["build"];
-  env.consumer = cfg.build?.ssr ? "server" : "client";
+  if (cfg.build) env.build = cfg.build as EnvironmentOptions['build'];
+  env.consumer = cfg.build?.ssr ? 'server' : 'client';
   return env;
 }
 
 function readPackageVersion(): string {
   try {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    const pkgPath = resolve(__dirname, "../../package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    return pkg.version ?? "0.0.0";
+    const pkgPath = resolve(__dirname, '../../package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    return pkg.version ?? '0.0.0';
   } catch {
-    return "0.0.0";
+    return '0.0.0';
   }
 }
 
 export async function build(opts: BuildOptions): Promise<void> {
   const appRoot = resolve(opts.appRoot);
-  const outDir = resolve(opts.outDir ?? "dist");
-  const routesEntry = resolve(appRoot, opts.routesFile ?? "app/routes.ts");
+  const outDir = resolve(opts.outDir ?? 'dist');
+  const routesEntry = resolve(appRoot, opts.routesFile ?? 'app/routes.ts');
   // Resolve the client entry relative to this package's own dist directory,
   // so it works regardless of node_modules layout (pnpm workspaces, symlinks, hoisting)
   let clientEntry: string;
@@ -126,7 +126,7 @@ export async function build(opts: BuildOptions): Promise<void> {
     clientEntry = resolve(appRoot, opts.clientEntry);
   } else {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    clientEntry = resolve(__dirname, "../client/entry.js");
+    clientEntry = resolve(__dirname, '../client/entry.js');
   }
 
   const buildStart = performance.now();
@@ -194,11 +194,11 @@ export async function build(opts: BuildOptions): Promise<void> {
   if (opts.publicDir === false) {
     resolvedPublicDir = false;
   } else {
-    const candidate = resolve(appRoot, opts.publicDir ?? "public");
+    const candidate = resolve(appRoot, opts.publicDir ?? 'public');
     resolvedPublicDir = existsSync(candidate) ? candidate : false;
   }
 
-  const serverEntryPath = resolve(appRoot, opts.serverEntry ?? "server.ts");
+  const serverEntryPath = resolve(appRoot, opts.serverEntry ?? 'server.ts');
   const hasServerEntry = existsSync(serverEntryPath);
 
   // Build the per-environment InlineConfigs from the existing factories so all
@@ -250,7 +250,7 @@ export async function build(opts: BuildOptions): Promise<void> {
               ...nativeModules,
               ...(appConfig.ssrExternal ?? []),
             ],
-            output: { format: "esm" as const, entryFileNames: "[name].js" },
+            output: { format: 'esm' as const, entryFileNames: '[name].js' },
           },
           minify: true,
         },
@@ -259,17 +259,17 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Scope plugins to the environments that previously received them.
   const allPlugins: Plugin[] = [
-    ...scopePlugins(flattenPlugins(rscInline.plugins), ["rsc"]),
-    ...scopePlugins(flattenPlugins(clientInline.plugins), ["client"]),
-    ...scopePlugins(flattenPlugins(ssrInline.plugins), ["ssr"]),
-    ...scopePlugins(flattenPlugins(react()), ["client", "ssr"]),
-    ...scopePlugins(flattenPlugins(appPlugins), ["rsc", "client"]),
+    ...scopePlugins(flattenPlugins(rscInline.plugins), ['rsc']),
+    ...scopePlugins(flattenPlugins(clientInline.plugins), ['client']),
+    ...scopePlugins(flattenPlugins(ssrInline.plugins), ['ssr']),
+    ...scopePlugins(flattenPlugins(react()), ['client', 'ssr']),
+    ...scopePlugins(flattenPlugins(appPlugins), ['rsc', 'client']),
   ];
 
   const builder = await createBuilder({
     configFile: false,
     root: appRoot,
-    logLevel: "silent",
+    logLevel: 'silent',
     plugins: allPlugins,
     environments: {
       rsc: toEnvOptions(rscInline),
@@ -295,7 +295,7 @@ export async function build(opts: BuildOptions): Promise<void> {
   const rscOutput = (await builder.build(builder.environments.rsc)) as RollupOutput;
   const clientModules = rscFactory.getClientModules();
   const serverModules = rscFactory.getServerModules();
-  printPhase(1, "RSC server", performance.now() - phaseStart);
+  printPhase(1, 'RSC server', performance.now() - phaseStart);
 
   // Now that client modules are known, set the client/ssr entry inputs on the
   // already-resolved environments (verified to be honoured at build time).
@@ -318,7 +318,7 @@ export async function build(opts: BuildOptions): Promise<void> {
     builder.build(builder.environments.client),
     builder.build(builder.environments.ssr),
   ]);
-  printPhase(2, "Client + SSR (parallel)", performance.now() - parallelStart);
+  printPhase(2, 'Client + SSR (parallel)', performance.now() - parallelStart);
 
   // Phase 3: Generate manifests (depends on client build output)
   phaseStart = performance.now();
@@ -328,15 +328,15 @@ export async function build(opts: BuildOptions): Promise<void> {
     clientModules,
     serverModules,
   });
-  printPhase(3, "Manifests", performance.now() - phaseStart);
+  printPhase(3, 'Manifests', performance.now() - phaseStart);
 
   // Phase 4: await the server entry build started above.
   if (serverPromise) {
     await serverPromise;
-    printPhase(4, "Server entry", serverDuration);
+    printPhase(4, 'Server entry', serverDuration);
   }
 
-  console.log("");
+  console.log('');
 
   // Route analysis: compute per-route sizes
   if (parsedRoutes.length > 0) {
@@ -372,25 +372,25 @@ async function loadAppConfig(appRoot: string): Promise<{
 }> {
   try {
     const result = await loadConfigFromFile(
-      { command: "build", mode: "production" },
+      { command: 'build', mode: 'production' },
       undefined, // auto-detect config file
       appRoot,
     );
     if (!result?.config) return { plugins: [] };
 
     const skipNames = new Set([
-      "vite:react-babel",
-      "vite:react-jsx",
-      "vite:react-refresh",
-      "react-flight-router",
-      "react-flight-router:rsc",
+      'vite:react-babel',
+      'vite:react-jsx',
+      'vite:react-refresh',
+      'react-flight-router',
+      'react-flight-router:rsc',
     ]);
 
     const plugins = (result.config.plugins ?? [])
       .flat()
       .filter(
         (p): p is any =>
-          p != null && typeof p === "object" && "name" in p && !skipNames.has((p as any).name),
+          p != null && typeof p === 'object' && 'name' in p && !skipNames.has((p as any).name),
       );
 
     // Extract ssr.external from the app config so CJS-only packages
@@ -411,7 +411,7 @@ async function loadAppConfig(appRoot: string): Promise<{
  * so we need to add these as explicit entries.
  */
 function scanForCSSImports(appRoot: string): string[] {
-  const appDir = resolve(appRoot, "app");
+  const appDir = resolve(appRoot, 'app');
   if (!existsSync(appDir)) return [];
 
   const cssFiles: string[] = [];
@@ -422,7 +422,7 @@ function scanForCSSImports(appRoot: string): string[] {
     if (!/\.(ts|tsx|js|jsx)$/.test(entry.name)) continue;
 
     const fullPath = resolve(entry.parentPath, entry.name);
-    const content = readFileSync(fullPath, "utf-8");
+    const content = readFileSync(fullPath, 'utf-8');
 
     // Match: import './styles.css' or import '../foo.css' etc.
     const cssImportPattern = /import\s+['"]([^'"]+\.css)['"]/g;
@@ -444,7 +444,7 @@ function scanForCSSImports(appRoot: string): string[] {
  * (which get replaced in the RSC build, hiding their server action imports).
  */
 function scanForServerModules(appRoot: string): string[] {
-  const appDir = resolve(appRoot, "app");
+  const appDir = resolve(appRoot, 'app');
   if (!existsSync(appDir)) return [];
 
   const serverModules: string[] = [];
@@ -455,7 +455,7 @@ function scanForServerModules(appRoot: string): string[] {
     if (!/\.(ts|tsx|js|jsx)$/.test(entry.name)) continue;
 
     const fullPath = resolve(entry.parentPath, entry.name);
-    const content = readFileSync(fullPath, "utf-8");
+    const content = readFileSync(fullPath, 'utf-8');
 
     if (/^['"]use server['"];?/m.test(content.trimStart())) {
       serverModules.push(fullPath);
@@ -472,10 +472,10 @@ function scanForServerModules(appRoot: string): string[] {
  * in package.json.
  */
 export function detectNativeModules(appRoot: string): string[] {
-  const pkgPath = resolve(appRoot, "package.json");
+  const pkgPath = resolve(appRoot, 'package.json');
   if (!existsSync(pkgPath)) return [];
 
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
   const deps = Object.keys(pkg.dependencies ?? {});
   const native: string[] = [];
 
@@ -485,21 +485,21 @@ export function detectNativeModules(appRoot: string): string[] {
 
   for (const dep of deps) {
     try {
-      const depPkgPath = resolve(appRoot, "node_modules", dep, "package.json");
+      const depPkgPath = resolve(appRoot, 'node_modules', dep, 'package.json');
       if (!existsSync(depPkgPath)) continue;
-      const depPkg = JSON.parse(readFileSync(depPkgPath, "utf-8"));
+      const depPkg = JSON.parse(readFileSync(depPkgPath, 'utf-8'));
       const depDir = dirname(depPkgPath);
 
-      const installScript = depPkg.scripts?.install ?? "";
+      const installScript = depPkg.scripts?.install ?? '';
 
       // Check classic native module indicators
       if (
-        existsSync(resolve(depDir, "binding.gyp")) ||
+        existsSync(resolve(depDir, 'binding.gyp')) ||
         depPkg.gypfile ||
         depPkg.binary ||
-        installScript.includes("node-gyp") ||
-        installScript.includes("prebuild-install") ||
-        installScript.includes("node-pre-gyp")
+        installScript.includes('node-gyp') ||
+        installScript.includes('prebuild-install') ||
+        installScript.includes('node-pre-gyp')
       ) {
         native.push(dep);
         continue;

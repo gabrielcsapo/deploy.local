@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { Link } from "react-flight-router/client";
-import { DeleteButton } from "./delete-button.client.js";
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { Link } from 'react-flight-router/client';
+import { DeleteButton } from './delete-button.client.js';
 
 interface Note {
   id: string;
@@ -11,7 +11,7 @@ interface Note {
 }
 
 export default async function NoteDetailPage({ params }: { params: Record<string, string> }) {
-  const raw = await readFile(resolve(process.cwd(), "data/notes.json"), "utf-8");
+  const raw = await readFile(resolve(process.cwd(), 'data/notes.json'), 'utf-8');
   const notes: Note[] = JSON.parse(raw);
   const note = notes.find((n) => n.id === params.id);
 

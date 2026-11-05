@@ -1,6 +1,6 @@
 ---
-title: "Data Fetching"
-description: "Fetch data directly in your route components using async/await, with no client-side state management required. React Flight Router streams server-rendered content as data resolves."
+title: 'Data Fetching'
+description: 'Fetch data directly in your route components using async/await, with no client-side state management required. React Flight Router streams server-rendered content as data resolves.'
 ---
 
 # Data Fetching
@@ -19,7 +19,7 @@ interface Post {
 }
 
 export default async function PostsPage() {
-  const res = await fetch("https://jsonplaceholder.typicode.com/posts?_limit=10");
+  const res = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=10');
   const posts: Post[] = await res.json();
 
   return (
@@ -104,7 +104,7 @@ React Flight Router streams the RSC response to the client as each part of the c
 - **No loading spinners required**: In many cases, data resolves quickly enough on the server that the user sees the complete page. For slower requests, you can use React's `<Suspense>` to show a fallback.
 
 ```tsx
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
 export default function PostsLayout() {
   return (
@@ -118,7 +118,7 @@ export default function PostsLayout() {
 }
 
 async function PostsList() {
-  const res = await fetch("https://jsonplaceholder.typicode.com/posts");
+  const res = await fetch('https://jsonplaceholder.typicode.com/posts');
   const posts = await res.json();
 
   return (
@@ -155,7 +155,7 @@ Since route components execute on the server, you can safely access databases, i
 export default async function AdminPage() {
   // This code runs only on the server
   const db = await connectToDatabase();
-  const users = await db.query("SELECT * FROM users LIMIT 50");
+  const users = await db.query('SELECT * FROM users LIMIT 50');
 
   return (
     <table>

@@ -1,6 +1,6 @@
 ---
-title: "Vite Configuration"
-description: "Configure Vite with the React Flight Router plugin to enable React Server Components, SSR, and development tooling."
+title: 'Vite Configuration'
+description: 'Configure Vite with the React Flight Router plugin to enable React Server Components, SSR, and development tooling.'
 ---
 
 # Vite Configuration
@@ -12,12 +12,12 @@ React Flight Router integrates with [Vite](https://vite.dev/) through a dedicate
 Create a `vite.config.ts` file in the root of your project:
 
 ```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
-  plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
+  plugins: [react(), flightRouter({ routesFile: './app/routes.ts' })],
 });
 ```
 
@@ -35,7 +35,7 @@ The `flightRouter` plugin accepts the following options:
 | `routesFile` | `string` | No       | `"./app/routes.ts"` | Path to the route configuration file, relative to the project root. |
 
 ```ts
-flightRouter({ routesFile: "./app/routes.ts" });
+flightRouter({ routesFile: './app/routes.ts' });
 ```
 
 ## Adding Tailwind CSS
@@ -43,27 +43,27 @@ flightRouter({ routesFile: "./app/routes.ts" });
 To use [Tailwind CSS v4](https://tailwindcss.com/) with React Flight Router, install the dependencies and add the Tailwind plugin to your Vite config. The Tailwind plugin should come **before** the other plugins:
 
 ```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
-  plugins: [tailwindcss(), react(), flightRouter({ routesFile: "./app/routes.ts" })],
+  plugins: [tailwindcss(), react(), flightRouter({ routesFile: './app/routes.ts' })],
 });
 ```
 
 Then create a CSS file that imports Tailwind (for example, `app/styles.css`):
 
 ```css
-@import "tailwindcss";
+@import 'tailwindcss';
 ```
 
 Import it in your root layout so the styles are included throughout your application:
 
 ```tsx
 // app/root.tsx
-import "./styles.css";
+import './styles.css';
 ```
 
 ## Running the development server
@@ -107,13 +107,13 @@ node dist/server.js
 Here is a complete `vite.config.ts` with Tailwind CSS:
 
 ```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
-  plugins: [tailwindcss(), react(), flightRouter({ routesFile: "./app/routes.ts" })],
+  plugins: [tailwindcss(), react(), flightRouter({ routesFile: './app/routes.ts' })],
 });
 ```
 

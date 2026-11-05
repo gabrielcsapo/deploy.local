@@ -1,5 +1,5 @@
 ---
-title: "Client Components"
+title: 'Client Components'
 description: "Add interactivity with client components using the 'use client' directive. Use React hooks, handle events, and compose client and server components together."
 ---
 
@@ -12,9 +12,9 @@ By default, all components in React Flight Router are React Server Components --
 Add `"use client"` as the very first line of a file to mark all exports in that file as client components:
 
 ```tsx
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 export function Counter() {
   const [count, setCount] = useState(0);
@@ -49,7 +49,7 @@ Server components can import and render client components. Props passed from ser
 
 ```tsx
 // app/routes/about.tsx (server component)
-import { Counter } from "./counter.js";
+import { Counter } from './counter.js';
 
 export default function AboutPage() {
   return (
@@ -71,9 +71,9 @@ The static parts of the page (heading, paragraph, timestamp) are rendered on the
 Client components have access to all React hooks:
 
 ```tsx
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 
 export function Clock() {
   const [time, setTime] = useState(new Date());
@@ -92,12 +92,12 @@ export function Clock() {
 Client components are the right place for interactive forms with controlled inputs and client-side validation:
 
 ```tsx
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 export function SearchForm({ onSearch }: { onSearch?: (query: string) => void }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
 
   return (
     <form
@@ -137,7 +137,7 @@ You **cannot** pass:
 
 ```tsx
 // Server component passes data to client component
-import { LikeButton } from "./post-interactions.js";
+import { LikeButton } from './post-interactions.js';
 
 export default async function PostPage({ params }: { params: Record<string, string> }) {
   const res = await fetch(`https://api.example.com/posts/${params.id}`);
@@ -165,23 +165,23 @@ Client components are rendered during server-side rendering (SSR) in addition to
 Be mindful of code that accesses browser-only APIs (like `window` or `localStorage`). Guard those calls inside `useEffect` or check for the browser environment:
 
 ```tsx
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState('light');
 
   useEffect(() => {
     // Safe to access localStorage here -- only runs in the browser
-    const saved = localStorage.getItem("theme");
+    const saved = localStorage.getItem('theme');
     if (saved) setTheme(saved);
   }, []);
 
   const toggle = () => {
-    const next = theme === "light" ? "dark" : "light";
+    const next = theme === 'light' ? 'dark' : 'light';
     setTheme(next);
-    localStorage.setItem("theme", next);
+    localStorage.setItem('theme', next);
   };
 
   return <button onClick={toggle}>Theme: {theme}</button>;

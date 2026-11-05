@@ -1,6 +1,6 @@
 ---
-title: "Segment Diffing"
-description: "How React Flight Router compares route segments between the previous and next URL to minimize re-rendering during client-side navigation."
+title: 'Segment Diffing'
+description: 'How React Flight Router compares route segments between the previous and next URL to minimize re-rendering during client-side navigation.'
 ---
 
 # Segment Diffing

@@ -1,6 +1,6 @@
 ---
-title: "Not Found Handling"
-description: "Handle 404 pages with the notFound route config property, supporting nested layouts for per-section not-found pages."
+title: 'Not Found Handling'
+description: 'Handle 404 pages with the notFound route config property, supporting nested layouts for per-section not-found pages.'
 ---
 
 # Not Found Handling
@@ -13,24 +13,24 @@ Add a `notFound` property to any route that has children. When no child route ma
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    notFound: () => import("./routes/not-found.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    notFound: () => import('./routes/not-found.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/about.js'),
       },
     ],
   },
@@ -41,7 +41,7 @@ Create the not-found component:
 
 ```tsx
 // app/routes/not-found.tsx
-import { Link } from "react-flight-router/client";
+import { Link } from 'react-flight-router/client';
 
 export default function NotFound() {
   return (
@@ -63,26 +63,26 @@ Add `notFound` to any layout route to handle not-found within that section. The 
 ```ts
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    notFound: () => import("./routes/not-found.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    notFound: () => import('./routes/not-found.js'),
     children: [
       {
-        id: "dashboard",
-        path: "dashboard",
-        component: () => import("./routes/dashboard/layout.js"),
-        notFound: () => import("./routes/dashboard/not-found.js"),
+        id: 'dashboard',
+        path: 'dashboard',
+        component: () => import('./routes/dashboard/layout.js'),
+        notFound: () => import('./routes/dashboard/not-found.js'),
         children: [
           {
-            id: "dashboard-index",
+            id: 'dashboard-index',
             index: true,
-            component: () => import("./routes/dashboard/index.js"),
+            component: () => import('./routes/dashboard/index.js'),
           },
           {
-            id: "dashboard-settings",
-            path: "settings",
-            component: () => import("./routes/dashboard/settings.js"),
+            id: 'dashboard-settings',
+            path: 'settings',
+            component: () => import('./routes/dashboard/settings.js'),
           },
         ],
       },

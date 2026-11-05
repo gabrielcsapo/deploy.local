@@ -1,4 +1,4 @@
-import { NoteForm } from "./note-form.client.js";
+import { NoteForm } from './note-form.client.js';
 
 export default function NewNotePage() {
   return (

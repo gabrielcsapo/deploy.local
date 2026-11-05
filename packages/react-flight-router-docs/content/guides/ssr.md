@@ -1,6 +1,6 @@
 ---
-title: "SSR"
-description: "How React Flight Router handles server-side rendering for fast initial page loads and SEO, with zero-waterfall hydration powered by RSC."
+title: 'SSR'
+description: 'How React Flight Router handles server-side rendering for fast initial page loads and SEO, with zero-waterfall hydration powered by RSC.'
 ---
 
 # Server-Side Rendering (SSR)
@@ -70,7 +70,7 @@ The client detects that SSR has occurred and uses `hydrateRoot` instead of `crea
 ```tsx
 // This is handled internally by React Flight Router.
 // You do not need to write this code.
-import { hydrateRoot } from "react-dom/client";
+import { hydrateRoot } from 'react-dom/client';
 
 hydrateRoot(document, <App />);
 ```
@@ -82,7 +82,7 @@ Users see content instantly and can interact with it as soon as hydration comple
 React Flight Router streams the HTML response to the client. This means the browser can start parsing and rendering HTML before the entire response is complete. If your components use `<Suspense>` boundaries, content within those boundaries will be streamed in as it resolves.
 
 ```tsx
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
 export default function PostsPage() {
   return (

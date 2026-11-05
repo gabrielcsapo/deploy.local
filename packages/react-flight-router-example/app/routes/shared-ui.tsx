@@ -1,4 +1,4 @@
-import { ClientCounter } from "react-flight-router-shared-ui/client-counter";
+import { ClientCounter } from 'react-flight-router-shared-ui/client-counter';
 
 export default function SharedUIPage() {
   return (

@@ -1,5 +1,5 @@
-import { Link, Outlet } from "react-flight-router/client";
-import { fetchUser } from "../../lib/fake-api.js";
+import { Link, Outlet } from 'react-flight-router/client';
+import { fetchUser } from '../../lib/fake-api.js';
 
 export default async function UserLayout({ params = {} }: { params?: Record<string, string> }) {
   const userId = params.id;

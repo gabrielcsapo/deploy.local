@@ -1,5 +1,5 @@
 ---
-title: "Routing"
+title: 'Routing'
 description: "Define your application's route tree using the RouteConfig interface, with support for dynamic segments, catch-all routes, index routes, and nested layouts."
 ---
 
@@ -12,7 +12,7 @@ React Flight Router uses a centralized route configuration to define your applic
 Import the `RouteConfig` type from `react-flight-router/router` and export a `routes` array:
 
 ```ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   // ...
@@ -26,23 +26,23 @@ Each `RouteConfig` object defines a route's `id`, `path`, `component`, and optio
 A minimal route tree with a root layout, an index (home) page, and an about page:
 
 ```ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/about.js'),
       },
     ],
   },
@@ -131,45 +131,45 @@ The layout component persists across navigations between its children, so shared
 Here is a complete route tree demonstrating all of these patterns together:
 
 ```ts
-import type { RouteConfig } from "react-flight-router/router";
+import type { RouteConfig } from 'react-flight-router/router';
 
 export const routes: RouteConfig[] = [
   {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
     children: [
       {
-        id: "home",
+        id: 'home',
         index: true,
-        component: () => import("./routes/home.js"),
+        component: () => import('./routes/home.js'),
       },
       {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/about.js'),
       },
       {
-        id: "posts",
-        path: "posts",
-        component: () => import("./routes/posts/layout.js"),
+        id: 'posts',
+        path: 'posts',
+        component: () => import('./routes/posts/layout.js'),
         children: [
           {
-            id: "posts-index",
+            id: 'posts-index',
             index: true,
-            component: () => import("./routes/posts/index.js"),
+            component: () => import('./routes/posts/index.js'),
           },
           {
-            id: "post-detail",
-            path: ":id",
-            component: () => import("./routes/posts/detail.js"),
+            id: 'post-detail',
+            path: ':id',
+            component: () => import('./routes/posts/detail.js'),
           },
         ],
       },
       {
-        id: "user-detail",
-        path: "users/:id",
-        component: () => import("./routes/users/detail.js"),
+        id: 'user-detail',
+        path: 'users/:id',
+        component: () => import('./routes/users/detail.js'),
       },
     ],
   },

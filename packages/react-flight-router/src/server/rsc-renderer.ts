@@ -1,10 +1,10 @@
-import { createElement } from "react";
-import { matchRoutes, matchSlots } from "../router/route-matcher.js";
-import { diffSegments } from "../router/segment-diff.js";
-import type { RouteConfig, RouteMatch, RouteModule, SlotMatch } from "../router/types.js";
-import type { RSCClientManifest, ModuleLoader } from "../shared/types.js";
-import type { FlightLogger } from "../shared/logger.js";
-import { RedirectError } from "./redirect.js";
+import { createElement } from 'react';
+import { matchRoutes, matchSlots } from '../router/route-matcher.js';
+import { diffSegments } from '../router/segment-diff.js';
+import type { RouteConfig, RouteMatch, RouteModule, SlotMatch } from '../router/types.js';
+import type { RSCClientManifest, ModuleLoader } from '../shared/types.js';
+import type { FlightLogger } from '../shared/logger.js';
+import { RedirectError } from './redirect.js';
 
 // LRU cache for route matching results by pathname.
 // Routes are static after build, so the same pathname always yields the same matches.
@@ -44,10 +44,10 @@ function slotMapKey(s: SlotMatch): string {
 export function nonSlotSearchKey(params: URLSearchParams): string {
   const entries: [string, string][] = [];
   for (const [k, v] of params) {
-    if (!k.startsWith("@")) entries.push([k, v]);
+    if (!k.startsWith('@')) entries.push([k, v]);
   }
   entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return entries.map(([k, v]) => `${k}=${v}`).join("&");
+  return entries.map(([k, v]) => `${k}=${v}`).join('&');
 }
 
 /**
@@ -64,7 +64,7 @@ export function nonSlotSearchKey(params: URLSearchParams): string {
 export function searchParamsProp(params: URLSearchParams): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of params) {
-    if (!k.startsWith("@")) out[k] = v;
+    if (!k.startsWith('@')) out[k] = v;
   }
   return out;
 }
@@ -72,9 +72,9 @@ export function searchParamsProp(params: URLSearchParams): Record<string, string
 /** Return true for errors caused by stream cancellation (client disconnect). */
 function isAbortError(err: unknown): boolean {
   if (err instanceof Error) {
-    if (err.name === "AbortError") return true;
+    if (err.name === 'AbortError') return true;
     // React's renderToReadableStream throws this specific message when cancelled
-    if (err.message === "The render was aborted by the server without a reason.") return true;
+    if (err.message === 'The render was aborted by the server without a reason.') return true;
   }
   return false;
 }
@@ -95,17 +95,17 @@ type RenderToReadableStream = (
  */
 function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+  if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
-    signal.addEventListener("abort", onAbort, { once: true });
+    const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal.addEventListener('abort', onAbort, { once: true });
     promise.then(
       (value) => {
-        signal.removeEventListener("abort", onAbort);
+        signal.removeEventListener('abort', onAbort);
         resolve(value);
       },
       (err) => {
-        signal.removeEventListener("abort", onAbort);
+        signal.removeEventListener('abort', onAbort);
         reject(err);
       },
     );
@@ -189,10 +189,10 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     return result;
   };
 
-  logger?.time("matchRoutes");
+  logger?.time('matchRoutes');
   const matches = cachedMatch(url.pathname);
   const slotMatches = matchSlots(matches, url.searchParams);
-  logger?.timeEnd("matchRoutes");
+  logger?.timeEnd('matchRoutes');
 
   if (matches.length === 0) {
     const payload = {
@@ -204,7 +204,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     return {
       stream: renderToReadableStream(payload, clientManifest, {
         onError: (err) => {
-          if (!isAbortError(err)) console.error("[react-flight-router] RSC render error:", err);
+          if (!isAbortError(err)) console.error('[react-flight-router] RSC render error:', err);
         },
       }),
       status: 404,
@@ -283,7 +283,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   // read-only by convention and identical across segments and slots.
   const searchParams = searchParamsProp(url.searchParams);
 
-  logger?.time("buildSegmentMap");
+  logger?.time('buildSegmentMap');
   let segmentMap: Record<string, unknown>;
   try {
     if (slotMatches.length === 0) {
@@ -311,7 +311,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
       segmentMap = Object.assign({}, ...trees);
     }
   } catch (err) {
-    logger?.timeEnd("buildSegmentMap");
+    logger?.timeEnd('buildSegmentMap');
     if (err instanceof RedirectError) {
       const redirectPayload = {
         url: url.pathname + url.search,
@@ -329,18 +329,18 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     }
     throw err;
   }
-  logger?.timeEnd("buildSegmentMap");
+  logger?.timeEnd('buildSegmentMap');
 
   // Wait for the parallel boundary load (typically already complete by here).
   // Time entry measures wait duration only — the actual import work overlaps
   // with buildSegmentMap.
-  logger?.time("buildBoundaryComponents");
+  logger?.time('buildBoundaryComponents');
   const boundaryComponents = await boundaryComponentsPromise;
-  logger?.timeEnd("buildBoundaryComponents");
+  logger?.timeEnd('buildBoundaryComponents');
 
-  const isNotFound = matches.some((m) => m.route.id === "__not-found__");
+  const isNotFound = matches.some((m) => m.route.id === '__not-found__');
   const isError = Object.keys(segmentMap).some(
-    (k) => k.endsWith("/__error__") || k === "__error__",
+    (k) => k.endsWith('/__error__') || k === '__error__',
   );
   const status = isError ? 500 : isNotFound ? 404 : 200;
 
@@ -380,14 +380,14 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
 
   const matchedParams = (matches[matches.length - 1]?.params ?? {}) as Record<string, string>;
 
-  logger?.time("rsc:serialize");
+  logger?.time('rsc:serialize');
   const stream = renderToReadableStream(payload, clientManifest, {
     onError: (err) => {
-      if (!isAbortError(err)) console.error("[react-flight-router] RSC render error:", err);
+      if (!isAbortError(err)) console.error('[react-flight-router] RSC render error:', err);
     },
     signal,
   });
-  logger?.timeEnd("rsc:serialize");
+  logger?.timeEnd('rsc:serialize');
 
   return { stream, status, params: matchedParams };
 }
@@ -490,12 +490,12 @@ async function buildSegmentMap(
       try {
         errorMod = await handler();
       } catch (handlerError) {
-        console.warn("[react-flight-router] Error handler module failed to import:", handlerError);
+        console.warn('[react-flight-router] Error handler module failed to import:', handlerError);
         throw result.error;
       }
 
       const ErrorComponent = errorMod.default;
-      const errorKey = ancestorKey ? `${ancestorKey}/__error__` : "__error__";
+      const errorKey = ancestorKey ? `${ancestorKey}/__error__` : '__error__';
 
       segmentMap[errorKey] = createElement(ErrorComponent as any, {
         error: result.error instanceof Error ? result.error : new Error(String(result.error)),
@@ -568,8 +568,8 @@ async function buildBoundaryComponents(
         // async helper so a *synchronous* throw (Vite's module runner does this
         // once its environment is closed) is caught too, not just a rejection.
         const [loadingMod, errorMod] = await Promise.all([
-          loadBoundaryModule(match.route.loading, "loading component", match.route.id),
-          loadBoundaryModule(match.route.error, "error boundary component", match.route.id),
+          loadBoundaryModule(match.route.loading, 'loading component', match.route.id),
+          loadBoundaryModule(match.route.error, 'error boundary component', match.route.id),
         ]);
 
         if (loadingMod?.default) boundaries.loading = createElement(loadingMod.default, {});

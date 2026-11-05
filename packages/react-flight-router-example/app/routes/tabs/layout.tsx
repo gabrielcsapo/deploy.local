@@ -1,5 +1,5 @@
-import { Outlet } from "react-flight-router/client";
-import { TabsNav } from "./nav.client";
+import { Outlet } from 'react-flight-router/client';
+import { TabsNav } from './nav.client';
 
 export default function TabsLayout() {
   return (

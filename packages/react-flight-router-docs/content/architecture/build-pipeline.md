@@ -1,5 +1,5 @@
 ---
-title: "Build Pipeline"
+title: 'Build Pipeline'
 description: "Detailed breakdown of React Flight Router's 5-phase production build process, covering RSC bundling, client code-splitting, SSR builds, manifest generation, and server bundling."
 ---
 

@@ -1,6 +1,6 @@
 ---
-title: "Scroll Restoration"
-description: "Manage scroll position across client-side navigations with the ScrollRestoration component."
+title: 'Scroll Restoration'
+description: 'Manage scroll position across client-side navigations with the ScrollRestoration component.'
 ---
 
 # Scroll Restoration
@@ -12,7 +12,7 @@ The `<ScrollRestoration />` component manages scroll position during client-side
 Add `<ScrollRestoration />` once in your root layout, inside the `<body>`:
 
 ```tsx
-import { Link, Outlet, ScrollRestoration } from "react-flight-router/client";
+import { Link, Outlet, ScrollRestoration } from 'react-flight-router/client';
 
 export default function RootLayout() {
   return (
@@ -68,9 +68,9 @@ The same option works on `navigate()` and on the closer returned by `useCloseSlo
 
 ```tsx
 const { navigate } = useRouter();
-navigate("/models", { preventScrollReset: true });
+navigate('/models', { preventScrollReset: true });
 
-const closeModal = useCloseSlot("modal", { preventScrollReset: true });
+const closeModal = useCloseSlot('modal', { preventScrollReset: true });
 ```
 
 It only suppresses the scroll-to-top. The position is still recorded for the new history entry, so a later back/forward onto it restores normally.

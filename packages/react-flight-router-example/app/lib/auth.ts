@@ -1,5 +1,5 @@
-import { createHash, randomBytes } from "node:crypto";
-import { getRequest } from "react-flight-router/server";
+import { createHash, randomBytes } from 'node:crypto';
+import { getRequest } from 'react-flight-router/server';
 
 // In-memory stores (reset on server restart — fine for an example app).
 // Use globalThis singletons so the RSC bundle and server entry share the
@@ -20,11 +20,11 @@ const sessions: Map<string, SessionRecord> = ((globalThis as any).__example_sess
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function hashPassword(password: string): string {
-  return createHash("sha256").update(password).digest("hex");
+  return createHash('sha256').update(password).digest('hex');
 }
 
 function generateToken(): string {
-  return randomBytes(32).toString("hex");
+  return randomBytes(32).toString('hex');
 }
 
 function parseCookie(header: string, name: string): string | null {
@@ -33,9 +33,9 @@ function parseCookie(header: string, name: string): string | null {
 }
 
 export function register(username: string, password: string): { token?: string; error?: string } {
-  if (!username || !password) return { error: "Missing required fields" };
-  if (password.length < 6) return { error: "Password must be at least 6 characters" };
-  if (users.has(username)) return { error: "Username already taken" };
+  if (!username || !password) return { error: 'Missing required fields' };
+  if (password.length < 6) return { error: 'Password must be at least 6 characters' };
+  if (users.has(username)) return { error: 'Username already taken' };
 
   users.set(username, { username, passwordHash: hashPassword(password) });
 
@@ -49,13 +49,13 @@ export function register(username: string, password: string): { token?: string; 
 }
 
 export function login(username: string, password: string): { token?: string; error?: string } {
-  if (!username || !password) return { error: "Missing required fields" };
+  if (!username || !password) return { error: 'Missing required fields' };
 
   const user = users.get(username);
-  if (!user) return { error: "Invalid credentials" };
+  if (!user) return { error: 'Invalid credentials' };
 
   if (user.passwordHash !== hashPassword(password)) {
-    return { error: "Invalid credentials" };
+    return { error: 'Invalid credentials' };
   }
 
   const token = generateToken();
@@ -92,8 +92,8 @@ export function getSessionUser(): { username: string } | null {
   const req = getRequest();
   if (!req) return null;
 
-  const cookieHeader = req.headers.get("Cookie") || "";
-  const token = parseCookie(cookieHeader, "session");
+  const cookieHeader = req.headers.get('Cookie') || '';
+  const token = parseCookie(cookieHeader, 'session');
   if (!token) return null;
 
   return validateSession(token);

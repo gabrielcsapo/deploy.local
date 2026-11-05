@@ -1,6 +1,6 @@
 ---
-title: "CSS & Styling"
-description: "How to style your React Flight Router application with global CSS, CSS modules, and Vite-compatible tools like Tailwind."
+title: 'CSS & Styling'
+description: 'How to style your React Flight Router application with global CSS, CSS modules, and Vite-compatible tools like Tailwind.'
 ---
 
 # CSS & Styling
@@ -42,8 +42,8 @@ a:hover {
 
 ```tsx
 // app/root.tsx
-import { Outlet } from "react-flight-router/client";
-import "./styles.css";
+import { Outlet } from 'react-flight-router/client';
+import './styles.css';
 
 export default function RootLayout() {
   return (
@@ -92,7 +92,7 @@ Import the module and use the `styles` object to reference class names:
 
 ```tsx
 // app/routes/dashboard.tsx
-import styles from "./dashboard.module.css";
+import styles from './dashboard.module.css';
 
 export default function Dashboard() {
   return (
@@ -124,10 +124,10 @@ Add the Tailwind plugin to your `vite.config.ts`:
 
 ```ts
 // vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import { flightRouter } from "react-flight-router/dev";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { flightRouter } from 'react-flight-router/dev';
 
 export default defineConfig({
   plugins: [tailwindcss(), react(), flightRouter()],
@@ -140,7 +140,7 @@ The Tailwind plugin should come **before** the other plugins. See [Vite Configur
 
 ```css
 /* app/styles.css */
-@import "tailwindcss";
+@import 'tailwindcss';
 ```
 
 Import it in your root layout and use Tailwind classes anywhere:
@@ -161,7 +161,7 @@ export default function HomePage() {
 You can freely mix styling approaches within the same application. For example, use Tailwind for utility styles and CSS modules for complex component-specific styles:
 
 ```tsx
-import styles from "./header.module.css";
+import styles from './header.module.css';
 
 export default function Header() {
   return (

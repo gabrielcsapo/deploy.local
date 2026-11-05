@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useActionState } from "react";
-import { addMessage } from "./actions.js";
+import { useState, useActionState } from 'react';
+import { addMessage } from './actions.js';
 
 /**
  * Receives a server action as a prop from a server component.
@@ -33,7 +33,7 @@ export function ActionPropDemo({
             disabled={isPending}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
-            {isPending ? "Sending..." : "Send (Prop)"}
+            {isPending ? 'Sending...' : 'Send (Prop)'}
           </button>
         </div>
       </form>
@@ -83,7 +83,7 @@ export function MessageBoard() {
             disabled={isPending}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
-            {isPending ? "Sending..." : "Send"}
+            {isPending ? 'Sending...' : 'Send'}
           </button>
         </div>
       </form>

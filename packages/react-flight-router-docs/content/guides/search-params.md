@@ -1,6 +1,6 @@
 ---
-title: "Search Params"
-description: "Read and write URL query parameters using the useSearchParams hook for filters, pagination, and search state."
+title: 'Search Params'
+description: 'Read and write URL query parameters using the useSearchParams hook for filters, pagination, and search state.'
 ---
 
 # Search Params
@@ -12,20 +12,20 @@ The `useSearchParams` hook provides a way to read and write URL query parameters
 Import `useSearchParams` from `"react-flight-router/client"`. It returns a `[searchParams, setSearchParams]` tuple, similar to `useState`.
 
 ```tsx
-"use client";
+'use client';
 
-import { useSearchParams } from "react-flight-router/client";
+import { useSearchParams } from 'react-flight-router/client';
 
 export function FilterBar() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const category = searchParams.get("category") ?? "all";
+  const category = searchParams.get('category') ?? 'all';
 
   return (
     <select
       value={category}
       onChange={(e) => {
         const next = new URLSearchParams(searchParams);
-        next.set("category", e.target.value);
+        next.set('category', e.target.value);
         setSearchParams(next);
       }}
     >
@@ -62,13 +62,13 @@ The `setSearchParams` function accepts either:
 Use the function form when you need to read the current params before updating:
 
 ```tsx
-"use client";
+'use client';
 
-import { useSearchParams } from "react-flight-router/client";
+import { useSearchParams } from 'react-flight-router/client';
 
 export function Pagination() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const page = Number(searchParams.get("page") ?? "1");
+  const page = Number(searchParams.get('page') ?? '1');
 
   return (
     <div>
@@ -77,7 +77,7 @@ export function Pagination() {
         onClick={() =>
           setSearchParams((prev) => {
             const next = new URLSearchParams(prev);
-            next.set("page", String(page + 1));
+            next.set('page', String(page + 1));
             return next;
           })
         }
@@ -100,8 +100,8 @@ export default async function PostsList({
 }: {
   searchParams?: Record<string, string>;
 }) {
-  const category = searchParams?.category ?? "all";
-  const page = Number(searchParams?.page ?? "1");
+  const category = searchParams?.category ?? 'all';
+  const page = Number(searchParams?.page ?? '1');
 
   const posts = await fetch(`https://api.example.com/posts?category=${category}&page=${page}`).then(
     (r) => r.json(),
@@ -128,11 +128,11 @@ Two things to know about the prop's shape:
 For multi-value params, or anywhere outside a route component (server actions, shared libs), read the raw URL via `getRequest()` from `react-flight-router/server`:
 
 ```tsx
-import { getRequest } from "react-flight-router/server";
+import { getRequest } from 'react-flight-router/server';
 
 const request = getRequest();
-const url = new URL(request?.url ?? "http://localhost");
-const tags = url.searchParams.getAll("tag");
+const url = new URL(request?.url ?? 'http://localhost');
+const tags = url.searchParams.getAll('tag');
 ```
 
 See the [Request Context guide](./request-context.md) for more on `getRequest()`.

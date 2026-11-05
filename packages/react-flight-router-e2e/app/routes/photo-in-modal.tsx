@@ -1,5 +1,5 @@
-import { Link } from "react-flight-router/client";
-import PhotoPage from "./photo.js";
+import { Link } from 'react-flight-router/client';
+import PhotoPage from './photo.js';
 
 export default function PhotoInModal({ params }: { params?: Record<string, string> }) {
   return (

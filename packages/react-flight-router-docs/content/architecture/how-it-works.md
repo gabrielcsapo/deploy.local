@@ -1,6 +1,6 @@
 ---
-title: "How It Works"
-description: "High-level architecture of React Flight Router, covering route matching, segment rendering, RSC streaming, client hydration, and navigation."
+title: 'How It Works'
+description: 'High-level architecture of React Flight Router, covering route matching, segment rendering, RSC streaming, client hydration, and navigation.'
 ---
 
 # How It Works

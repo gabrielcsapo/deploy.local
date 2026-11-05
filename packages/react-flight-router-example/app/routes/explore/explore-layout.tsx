@@ -1,5 +1,5 @@
-import { Link, Outlet } from "react-flight-router/client";
-import { EXPLORE_LEVELS, buildExplorePath } from "./explore-config.js";
+import { Link, Outlet } from 'react-flight-router/client';
+import { EXPLORE_LEVELS, buildExplorePath } from './explore-config.js';
 
 interface ExploreLayoutProps {
   level: number;
@@ -49,7 +49,7 @@ export function ExploreLayout({ level, params }: ExploreLayoutProps) {
       <div className="flex items-baseline gap-3 flex-wrap">
         <span className="font-semibold text-sm" data-testid={`level-${config.routeId}`}>
           L{level} {config.name}
-          {currentValue ? `: ${currentValue}` : ""}
+          {currentValue ? `: ${currentValue}` : ''}
         </span>
         <span
           className="text-xs text-gray-500 font-mono"

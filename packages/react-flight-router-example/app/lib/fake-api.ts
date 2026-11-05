@@ -40,82 +40,82 @@ export interface User {
 const USERS: User[] = [
   {
     id: 1,
-    name: "Avery Chen",
-    username: "averyc",
-    email: "avery.chen@example.com",
-    phone: "555-0101",
-    website: "averychen.example.com",
-    company: { name: "Streamline Labs" },
+    name: 'Avery Chen',
+    username: 'averyc',
+    email: 'avery.chen@example.com',
+    phone: '555-0101',
+    website: 'averychen.example.com',
+    company: { name: 'Streamline Labs' },
   },
   {
     id: 2,
-    name: "Jordan Patel",
-    username: "jpatel",
-    email: "jordan.patel@example.com",
-    phone: "555-0102",
-    website: "jordanpatel.example.com",
-    company: { name: "Flightworks" },
+    name: 'Jordan Patel',
+    username: 'jpatel',
+    email: 'jordan.patel@example.com',
+    phone: '555-0102',
+    website: 'jordanpatel.example.com',
+    company: { name: 'Flightworks' },
   },
   {
     id: 3,
-    name: "Sam Okafor",
-    username: "sokafor",
-    email: "sam.okafor@example.com",
-    phone: "555-0103",
-    website: "samokafor.example.com",
-    company: { name: "Hydration Systems" },
+    name: 'Sam Okafor',
+    username: 'sokafor',
+    email: 'sam.okafor@example.com',
+    phone: '555-0103',
+    website: 'samokafor.example.com',
+    company: { name: 'Hydration Systems' },
   },
   {
     id: 4,
-    name: "Riley Nakamura",
-    username: "rnakamura",
-    email: "riley.nakamura@example.com",
-    phone: "555-0104",
-    website: "rileynakamura.example.com",
-    company: { name: "Suspense & Co" },
+    name: 'Riley Nakamura',
+    username: 'rnakamura',
+    email: 'riley.nakamura@example.com',
+    phone: '555-0104',
+    website: 'rileynakamura.example.com',
+    company: { name: 'Suspense & Co' },
   },
 ];
 
 const POST_TOPICS: [string, string][] = [
   [
-    "Why streaming beats buffering",
-    "Sending bytes as soon as they exist keeps the browser busy and the user informed. Buffering the whole response trades latency for nothing the user can see.",
+    'Why streaming beats buffering',
+    'Sending bytes as soon as they exist keeps the browser busy and the user informed. Buffering the whole response trades latency for nothing the user can see.',
   ],
   [
-    "Server components and the data waterfall",
-    "Fetching data where it is rendered avoids shipping fetching logic to the client, but it makes parallelism your responsibility. Promise.all is your friend.",
+    'Server components and the data waterfall',
+    'Fetching data where it is rendered avoids shipping fetching logic to the client, but it makes parallelism your responsibility. Promise.all is your friend.',
   ],
   [
-    "Suspense boundaries as loading contracts",
-    "A boundary is a promise to the user: this region will fill in. Place them around the slowest data, not around the whole page.",
+    'Suspense boundaries as loading contracts',
+    'A boundary is a promise to the user: this region will fill in. Place them around the slowest data, not around the whole page.',
   ],
   [
-    "The case for partial navigation",
-    "Re-rendering only the segments that changed keeps layouts stable, preserves client state, and cuts payload size on every click.",
+    'The case for partial navigation',
+    'Re-rendering only the segments that changed keeps layouts stable, preserves client state, and cuts payload size on every click.',
   ],
   [
-    "Module preloading in practice",
-    "Telling the browser about chunks before it discovers them flattens the fetch waterfall and shaves real milliseconds off interactivity.",
+    'Module preloading in practice',
+    'Telling the browser about chunks before it discovers them flattens the fetch waterfall and shaves real milliseconds off interactivity.',
   ],
   [
-    "Designing error boundaries that help",
-    "An error boundary should say what broke, keep the rest of the page working, and give the user a way forward.",
+    'Designing error boundaries that help',
+    'An error boundary should say what broke, keep the rest of the page working, and give the user a way forward.',
   ],
   [
-    "Prefetching without regret",
-    "Prefetch on intent, cap the cache, and expire entries. Stale data served instantly is worse than fresh data served quickly.",
+    'Prefetching without regret',
+    'Prefetch on intent, cap the cache, and expire entries. Stale data served instantly is worse than fresh data served quickly.',
   ],
   [
-    "Render timeouts and runaway work",
-    "A timeout that only races a response leaves the render burning CPU in the background. Abort signals finish the job.",
+    'Render timeouts and runaway work',
+    'A timeout that only races a response leaves the render burning CPU in the background. Abort signals finish the job.',
   ],
   [
-    "Progressive enhancement still matters",
-    "Forms that post without JavaScript keep working when bundles fail. The server action is the same either way.",
+    'Progressive enhancement still matters',
+    'Forms that post without JavaScript keep working when bundles fail. The server action is the same either way.',
   ],
   [
-    "Measuring before optimizing",
-    "Chunk timestamps, resource timings, and CPU samples turn perf arguments into perf answers.",
+    'Measuring before optimizing',
+    'Chunk timestamps, resource timings, and CPU samples turn perf arguments into perf answers.',
   ],
 ];
 
@@ -127,19 +127,19 @@ const POSTS: Post[] = POST_TOPICS.map(([title, body], i) => ({
 }));
 
 const COMMENT_AUTHORS = [
-  ["Morgan Lee", "morgan.lee@example.com"],
-  ["Casey Diaz", "casey.diaz@example.com"],
-  ["Taylor Brooks", "taylor.brooks@example.com"],
-  ["Jamie Park", "jamie.park@example.com"],
-  ["Drew Castillo", "drew.castillo@example.com"],
+  ['Morgan Lee', 'morgan.lee@example.com'],
+  ['Casey Diaz', 'casey.diaz@example.com'],
+  ['Taylor Brooks', 'taylor.brooks@example.com'],
+  ['Jamie Park', 'jamie.park@example.com'],
+  ['Drew Castillo', 'drew.castillo@example.com'],
 ] as const;
 
 const COMMENT_BODIES = [
-  "Great writeup — we hit exactly this in production last quarter.",
-  "Curious how this interacts with HTTP/2 prioritization.",
-  "The measurement section convinced me. Numbers over vibes.",
-  "We adopted this pattern and our p95 dropped noticeably.",
-  "Would love a follow-up post with a worked example.",
+  'Great writeup — we hit exactly this in production last quarter.',
+  'Curious how this interacts with HTTP/2 prioritization.',
+  'The measurement section convinced me. Numbers over vibes.',
+  'We adopted this pattern and our p95 dropped noticeably.',
+  'Would love a follow-up post with a worked example.',
 ];
 
 const COMMENTS: Comment[] = POSTS.flatMap((post) =>

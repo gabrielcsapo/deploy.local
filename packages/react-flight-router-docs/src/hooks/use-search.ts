@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import Fuse from "fuse.js";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import Fuse from 'fuse.js';
 
 interface SearchEntry {
   title: string;
@@ -27,9 +27,9 @@ async function getFuse(): Promise<Fuse<SearchEntry>> {
     .then((data: SearchEntry[]) => {
       cachedFuse = new Fuse(data, {
         keys: [
-          { name: "title", weight: 3 },
-          { name: "headings", weight: 2 },
-          { name: "content", weight: 1 },
+          { name: 'title', weight: 3 },
+          { name: 'headings', weight: 2 },
+          { name: 'content', weight: 1 },
         ],
         includeMatches: true,
         threshold: 0.3,
@@ -42,7 +42,7 @@ async function getFuse(): Promise<Fuse<SearchEntry>> {
 }
 
 export function useSearch() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();

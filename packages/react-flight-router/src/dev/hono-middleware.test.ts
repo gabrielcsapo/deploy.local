@@ -1,17 +1,17 @@
 // @vitest-environment node
 // This bridge is Node-only server code. happy-dom's Headers has no working
 // getSetCookie, which would make the Set-Cookie assertions meaningless.
-import { describe, expect, it } from "vitest";
-import { Hono } from "hono";
-import { PassThrough } from "node:stream";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { describe, expect, it } from 'vitest';
+import { Hono } from 'hono';
+import { PassThrough } from 'node:stream';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   appendFallthroughRoute,
   createExtendMiddleware,
   isFallthrough,
   toWebRequest,
   writeWebResponse,
-} from "./hono-middleware.js";
+} from './hono-middleware.js';
 
 function fakeRequest(
   url: string,
@@ -23,8 +23,8 @@ function fakeRequest(
 
   return Object.assign(stream, {
     url,
-    method: init.method ?? "GET",
-    headers: { host: "localhost:5173", ...(init.headers ?? {}) },
+    method: init.method ?? 'GET',
+    headers: { host: 'localhost:5173', ...(init.headers ?? {}) },
     socket: {},
   }) as unknown as IncomingMessage;
 }
@@ -52,7 +52,7 @@ function fakeResponse() {
   return {
     res: res as unknown as ServerResponse,
     get body() {
-      return Buffer.concat(chunks).toString("utf8");
+      return Buffer.concat(chunks).toString('utf8');
     },
     get headers() {
       return headers;
@@ -66,39 +66,39 @@ function fakeResponse() {
   };
 }
 
-describe("toWebRequest", () => {
-  it("builds an absolute URL from the host header", () => {
-    const request = toWebRequest(fakeRequest("/api/rooms?code=abc"));
-    expect(request.url).toBe("http://localhost:5173/api/rooms?code=abc");
-    expect(request.method).toBe("GET");
+describe('toWebRequest', () => {
+  it('builds an absolute URL from the host header', () => {
+    const request = toWebRequest(fakeRequest('/api/rooms?code=abc'));
+    expect(request.url).toBe('http://localhost:5173/api/rooms?code=abc');
+    expect(request.method).toBe('GET');
   });
 
-  it("carries headers across", () => {
-    const request = toWebRequest(fakeRequest("/", { headers: { "x-token": "secret" } }));
-    expect(request.headers.get("x-token")).toBe("secret");
+  it('carries headers across', () => {
+    const request = toWebRequest(fakeRequest('/', { headers: { 'x-token': 'secret' } }));
+    expect(request.headers.get('x-token')).toBe('secret');
   });
 
-  it("omits a body for GET and HEAD", () => {
-    expect(toWebRequest(fakeRequest("/", { method: "GET" })).body).toBeNull();
-    expect(toWebRequest(fakeRequest("/", { method: "HEAD" })).body).toBeNull();
+  it('omits a body for GET and HEAD', () => {
+    expect(toWebRequest(fakeRequest('/', { method: 'GET' })).body).toBeNull();
+    expect(toWebRequest(fakeRequest('/', { method: 'HEAD' })).body).toBeNull();
   });
 
-  it("forwards a body for POST", async () => {
+  it('forwards a body for POST', async () => {
     const request = toWebRequest(
-      fakeRequest("/api/move", { method: "POST", body: '{"unitId":"a"}' }),
+      fakeRequest('/api/move', { method: 'POST', body: '{"unitId":"a"}' }),
     );
     expect(await request.text()).toBe('{"unitId":"a"}');
   });
 });
 
-describe("fallthrough", () => {
-  it("flags unmatched routes and leaves matched ones alone", async () => {
+describe('fallthrough', () => {
+  it('flags unmatched routes and leaves matched ones alone', async () => {
     const app = new Hono();
-    app.get("/mine", () => new Response("mine"));
+    app.get('/mine', () => new Response('mine'));
     appendFallthroughRoute(app);
 
-    const matched = await app.fetch(new Request("http://x/mine"));
-    const unmatched = await app.fetch(new Request("http://x/theirs"));
+    const matched = await app.fetch(new Request('http://x/mine'));
+    const unmatched = await app.fetch(new Request('http://x/theirs'));
 
     expect(isFallthrough(matched)).toBe(false);
     expect(isFallthrough(unmatched)).toBe(true);
@@ -106,45 +106,45 @@ describe("fallthrough", () => {
 
   it("does not hijack an app's own not-found handler", async () => {
     const app = new Hono();
-    app.get("/api/*", (c) => c.text("api not found", 404));
+    app.get('/api/*', (c) => c.text('api not found', 404));
     appendFallthroughRoute(app);
 
-    const apiMiss = await app.fetch(new Request("http://x/api/nope"));
+    const apiMiss = await app.fetch(new Request('http://x/api/nope'));
     expect(isFallthrough(apiMiss)).toBe(false);
-    expect(await apiMiss.text()).toBe("api not found");
+    expect(await apiMiss.text()).toBe('api not found');
   });
 });
 
-describe("createExtendMiddleware", () => {
-  it("writes a matched response and does not call next", async () => {
+describe('createExtendMiddleware', () => {
+  it('writes a matched response and does not call next', async () => {
     const app = new Hono();
-    app.get("/healthz", (c) => c.text("ok"));
+    app.get('/healthz', (c) => c.text('ok'));
     appendFallthroughRoute(app);
 
     const handle = createExtendMiddleware(app);
     const out = fakeResponse();
     let nextCalled = false;
 
-    await handle(fakeRequest("/healthz"), out.res, () => {
+    await handle(fakeRequest('/healthz'), out.res, () => {
       nextCalled = true;
     });
 
     expect(nextCalled).toBe(false);
     expect(out.status).toBe(200);
-    expect(out.body).toBe("ok");
+    expect(out.body).toBe('ok');
     expect(out.ended).toBe(true);
   });
 
-  it("calls next when nothing matched", async () => {
+  it('calls next when nothing matched', async () => {
     const app = new Hono();
-    app.get("/healthz", (c) => c.text("ok"));
+    app.get('/healthz', (c) => c.text('ok'));
     appendFallthroughRoute(app);
 
     const handle = createExtendMiddleware(app);
     const out = fakeResponse();
     let nextCalled = false;
 
-    await handle(fakeRequest("/some/page"), out.res, () => {
+    await handle(fakeRequest('/some/page'), out.res, () => {
       nextCalled = true;
     });
 
@@ -152,10 +152,10 @@ describe("createExtendMiddleware", () => {
     expect(out.ended).toBe(false);
   });
 
-  it("forwards handler errors to next instead of hanging", async () => {
+  it('forwards handler errors to next instead of hanging', async () => {
     const app = new Hono();
-    app.get("/boom", () => {
-      throw new Error("handler exploded");
+    app.get('/boom', () => {
+      throw new Error('handler exploded');
     });
     // Hono converts a thrown error into a 500 rather than rejecting, so the
     // middleware should write it out like any other response.
@@ -165,7 +165,7 @@ describe("createExtendMiddleware", () => {
     const out = fakeResponse();
     let nextError: unknown = null;
 
-    await handle(fakeRequest("/boom"), out.res, (error?: unknown) => {
+    await handle(fakeRequest('/boom'), out.res, (error?: unknown) => {
       nextError = error;
     });
 
@@ -174,37 +174,37 @@ describe("createExtendMiddleware", () => {
   });
 });
 
-describe("writeWebResponse", () => {
-  it("copies status and headers", async () => {
+describe('writeWebResponse', () => {
+  it('copies status and headers', async () => {
     const out = fakeResponse();
     await writeWebResponse(
-      new Response("payload", {
+      new Response('payload', {
         status: 201,
-        headers: { "content-type": "text/plain" },
+        headers: { 'content-type': 'text/plain' },
       }),
       out.res,
     );
 
     expect(out.status).toBe(201);
-    expect(out.headers["content-type"]).toBe("text/plain");
-    expect(out.body).toBe("payload");
+    expect(out.headers['content-type']).toBe('text/plain');
+    expect(out.body).toBe('payload');
   });
 
-  it("preserves multiple Set-Cookie headers as an array", async () => {
+  it('preserves multiple Set-Cookie headers as an array', async () => {
     const headers = new Headers();
-    headers.append("set-cookie", "a=1; Path=/");
-    headers.append("set-cookie", "b=2; Path=/");
+    headers.append('set-cookie', 'a=1; Path=/');
+    headers.append('set-cookie', 'b=2; Path=/');
 
     const out = fakeResponse();
     await writeWebResponse(new Response(null, { headers }), out.res);
 
-    expect(out.headers["set-cookie"]).toEqual(["a=1; Path=/", "b=2; Path=/"]);
+    expect(out.headers['set-cookie']).toEqual(['a=1; Path=/', 'b=2; Path=/']);
   });
 
-  it("ends the response when there is no body", async () => {
+  it('ends the response when there is no body', async () => {
     const out = fakeResponse();
     await writeWebResponse(new Response(null, { status: 204 }), out.res);
     expect(out.ended).toBe(true);
-    expect(out.body).toBe("");
+    expect(out.body).toBe('');
   });
 });

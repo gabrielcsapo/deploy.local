@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useActiveHeading } from "../hooks/use-active-heading";
+import { useMemo } from 'react';
+import { useActiveHeading } from '../hooks/use-active-heading';
 
 interface TocEntry {
   id: string;
@@ -17,8 +17,8 @@ function extractHeadings(markdown: string): TocEntry[] {
     const text = match[2].trim();
     const id = text
       .toLowerCase()
-      .replace(/[^\w\s-]/g, "")
-      .replace(/\s+/g, "-");
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-');
     headings.push({ id, text, level });
   }
 
@@ -42,8 +42,8 @@ export function TableOfContents({ content }: { content: string }) {
               href={`#${heading.id}`}
               className={`block py-0.5 transition-colors ${
                 activeId === heading.id
-                  ? "text-blue-600 dark:text-blue-400 font-medium"
-                  : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                  ? 'text-blue-600 dark:text-blue-400 font-medium'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
               }`}
             >
               {heading.text}

@@ -1,4 +1,4 @@
-import { resolve } from "path";
+import { resolve } from 'path';
 
 /**
  * Loader function shape — called with a moduleId (path relative to the
@@ -38,23 +38,23 @@ export function createSSRModuleLoader(
   function load(moduleId: string): unknown {
     if (cache[moduleId]) return cache[moduleId];
 
-    const fullPath = resolve(buildDir, "server", moduleId);
+    const fullPath = resolve(buildDir, 'server', moduleId);
     const promise = importer(fullPath)
       .then((mod: unknown) => {
         cache[moduleId] = mod;
         (promise as any).value = mod;
-        (promise as any).status = "fulfilled";
+        (promise as any).status = 'fulfilled';
         return mod;
       })
       .catch((err: unknown) => {
         // Evict so the next request retries (see header comment).
         if (cache[moduleId] === promise) delete cache[moduleId];
-        (promise as any).status = "rejected";
+        (promise as any).status = 'rejected';
         (promise as any).reason = err;
         throw err;
       });
 
-    (promise as any).status = "pending";
+    (promise as any).status = 'pending';
     cache[moduleId] = promise;
     return promise;
   }

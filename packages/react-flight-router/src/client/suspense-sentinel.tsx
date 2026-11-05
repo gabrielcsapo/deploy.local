@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * A component that suspends indefinitely by throwing a never-resolving Promise.

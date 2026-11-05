@@ -29,7 +29,7 @@
  * an HTML-injection vector. `<` is identical after JS string parsing.
  */
 export function escapeInlineScriptJSON(text: string): string {
-  return JSON.stringify(text).replace(/</g, "\\u003c");
+  return JSON.stringify(text).replace(/</g, '\\u003c');
 }
 
 function flightChunkScript(text: string): string {
@@ -41,33 +41,33 @@ const FLIGHT_CLOSE_SCRIPT = `<script>(self.__RSC_CHUNKS__||(self.__RSC_CHUNKS__=
 /** Elements whose content the HTML parser treats as raw text — a <script>
  * tag inserted inside them would be text, not an executed script. */
 const RAW_TEXT_TAGS = new Set([
-  "script",
-  "style",
-  "textarea",
-  "title",
-  "xmp",
-  "iframe",
-  "noembed",
-  "noframes",
-  "noscript",
+  'script',
+  'style',
+  'textarea',
+  'title',
+  'xmp',
+  'iframe',
+  'noembed',
+  'noframes',
+  'noscript',
 ]);
 
 /** HTML void elements — no closing tag, never change nesting depth. */
 const VOID_TAGS = new Set([
-  "area",
-  "base",
-  "br",
-  "col",
-  "embed",
-  "hr",
-  "img",
-  "input",
-  "link",
-  "meta",
-  "param",
-  "source",
-  "track",
-  "wbr",
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
 ]);
 
 const enum ScanState {
@@ -108,13 +108,13 @@ const enum ScanState {
  */
 export class HtmlInjectionScanner {
   private state: ScanState = ScanState.Text;
-  private quote = ""; // active attribute quote char inside a tag
-  private tagName = ""; // accumulates while reading a tag name
+  private quote = ''; // active attribute quote char inside a tag
+  private tagName = ''; // accumulates while reading a tag name
   private readingName = false;
   private isClosing = false;
   private isBang = false; // current "tag" is <!DOCTYPE …> — not an element
-  private prevTagChar = ""; // last significant char inside the tag (for "/>")
-  private rawCloseTarget = ""; // "</script" etc.
+  private prevTagChar = ''; // last significant char inside the tag (for "/>")
+  private rawCloseTarget = ''; // "</script" etc.
   private rawMatchPos = 0;
   private commentDashes = 0;
   private lastWasTagClose = false; // last consumed char completed a tag (">")
@@ -126,10 +126,10 @@ export class HtmlInjectionScanner {
     if (this.isBang) return;
     if (this.isClosing) {
       if (this.depth > 0) this.depth--;
-      if (this.tagName === "body") this.bodyDepth = -1;
+      if (this.tagName === 'body') this.bodyDepth = -1;
     } else if (!selfClosing && !VOID_TAGS.has(this.tagName)) {
       this.depth++;
-      if (this.tagName === "body") this.bodyDepth = this.depth;
+      if (this.tagName === 'body') this.bodyDepth = this.depth;
     }
   }
 
@@ -141,64 +141,64 @@ export class HtmlInjectionScanner {
       this.lastWasTagClose = false;
       switch (this.state) {
         case ScanState.Text:
-          if (c === "<") {
+          if (c === '<') {
             this.state = ScanState.TagOpen;
           }
           break;
 
         case ScanState.TagOpen:
-          if (c === "!") {
+          if (c === '!') {
             this.state = ScanState.Bang;
-          } else if (c === "/") {
+          } else if (c === '/') {
             this.state = ScanState.Tag;
             this.isClosing = true;
             this.isBang = false;
-            this.tagName = "";
+            this.tagName = '';
             this.readingName = true;
-            this.quote = "";
-            this.prevTagChar = "";
+            this.quote = '';
+            this.prevTagChar = '';
           } else {
             this.state = ScanState.Tag;
             this.isClosing = false;
             this.isBang = false;
-            this.tagName = /[a-zA-Z]/.test(c) ? c.toLowerCase() : "";
+            this.tagName = /[a-zA-Z]/.test(c) ? c.toLowerCase() : '';
             this.readingName = /[a-zA-Z]/.test(c);
-            this.quote = "";
+            this.quote = '';
             this.prevTagChar = c;
           }
           break;
 
         case ScanState.Bang:
-          if (c === "-") {
+          if (c === '-') {
             this.state = ScanState.BangDash;
           } else {
             // <!DOCTYPE …> — scan to ">" but don't count it as an element
             this.state = ScanState.Tag;
             this.isClosing = false;
             this.isBang = true;
-            this.tagName = "";
+            this.tagName = '';
             this.readingName = false;
-            this.quote = "";
-            this.prevTagChar = "";
+            this.quote = '';
+            this.prevTagChar = '';
           }
           break;
 
         case ScanState.BangDash:
-          if (c === "-") {
+          if (c === '-') {
             this.state = ScanState.Comment;
             this.commentDashes = 0;
           } else {
             this.state = ScanState.Tag;
             this.isBang = true;
-            this.quote = "";
-            this.prevTagChar = "";
+            this.quote = '';
+            this.prevTagChar = '';
           }
           break;
 
         case ScanState.Comment:
-          if (c === "-") {
+          if (c === '-') {
             this.commentDashes++;
-          } else if (c === ">" && this.commentDashes >= 2) {
+          } else if (c === '>' && this.commentDashes >= 2) {
             this.state = ScanState.Text;
             this.lastWasTagClose = true;
           } else {
@@ -208,16 +208,16 @@ export class HtmlInjectionScanner {
 
         case ScanState.Tag:
           if (this.quote) {
-            if (c === this.quote) this.quote = "";
+            if (c === this.quote) this.quote = '';
           } else if (c === '"' || c === "'") {
             this.quote = c;
             this.readingName = false;
             this.prevTagChar = c;
-          } else if (c === ">") {
-            this.completeTag(this.prevTagChar === "/");
+          } else if (c === '>') {
+            this.completeTag(this.prevTagChar === '/');
             if (!this.isClosing && !this.isBang && RAW_TEXT_TAGS.has(this.tagName)) {
               this.state = ScanState.RawText;
-              this.rawCloseTarget = "</" + this.tagName;
+              this.rawCloseTarget = '</' + this.tagName;
               this.rawMatchPos = 0;
             } else {
               this.state = ScanState.Text;
@@ -240,27 +240,27 @@ export class HtmlInjectionScanner {
           const lower = c.toLowerCase();
           if (this.rawMatchPos === this.rawCloseTarget.length) {
             // Matched "</script" — next char decides if the tag really closes
-            if (c === ">" || c === "/" || c === " " || c === "\n" || c === "\t") {
+            if (c === '>' || c === '/' || c === ' ' || c === '\n' || c === '\t') {
               // Re-scan the close tag tail as a normal closing tag
               this.state = ScanState.Tag;
               this.isClosing = true;
               this.isBang = false;
               this.tagName = this.rawCloseTarget.slice(2);
               this.readingName = false;
-              this.quote = "";
-              this.prevTagChar = "";
-              if (c === ">") {
+              this.quote = '';
+              this.prevTagChar = '';
+              if (c === '>') {
                 this.completeTag(false);
                 this.state = ScanState.Text;
                 this.lastWasTagClose = true;
               }
             } else {
-              this.rawMatchPos = c === "<" ? 1 : 0;
+              this.rawMatchPos = c === '<' ? 1 : 0;
             }
           } else if (lower === this.rawCloseTarget[this.rawMatchPos]) {
             this.rawMatchPos++;
           } else {
-            this.rawMatchPos = c === "<" ? 1 : 0;
+            this.rawMatchPos = c === '<' ? 1 : 0;
           }
           break;
         }
@@ -344,7 +344,7 @@ export function injectFlightPayload(
         waiter.notify?.();
       }
     } catch (err) {
-      console.error("[react-flight-router] RSC stream error during SSR:", err);
+      console.error('[react-flight-router] RSC stream error during SSR:', err);
       opts.onFlightError?.(err);
     } finally {
       rscDone = true;
@@ -363,11 +363,11 @@ export function injectFlightPayload(
         if (!done) {
           let text = htmlDecoder.decode(value, { stream: true });
           if (!cssInjected) {
-            const headCloseIndex = text.indexOf("</head>");
+            const headCloseIndex = text.indexOf('</head>');
             if (headCloseIndex !== -1) {
               const cssLinks = opts
                 .cssFiles!.map((f) => `<link rel="stylesheet" href="${f}">`)
-                .join("");
+                .join('');
               text = text.slice(0, headCloseIndex) + cssLinks + text.slice(headCloseIndex);
               cssInjected = true;
             }
@@ -375,7 +375,7 @@ export function injectFlightPayload(
           scanner.scan(text);
           controller.enqueue(encoder.encode(text));
           if (scanner.safe && pending.length > 0) {
-            controller.enqueue(encoder.encode(pending.join("")));
+            controller.enqueue(encoder.encode(pending.join('')));
             pending.length = 0;
           }
           return;
@@ -386,7 +386,7 @@ export function injectFlightPayload(
       // HTML complete — drain remaining flight chunks as they arrive.
       while (true) {
         if (pending.length > 0) {
-          controller.enqueue(encoder.encode(pending.join("")));
+          controller.enqueue(encoder.encode(pending.join('')));
           pending.length = 0;
           return;
         }

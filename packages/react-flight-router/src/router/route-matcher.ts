@@ -1,4 +1,4 @@
-import type { RouteConfig, RouteMatch, SlotMatch } from "./types.js";
+import type { RouteConfig, RouteMatch, SlotMatch } from './types.js';
 
 /**
  * Match a URL pathname against a route configuration tree.
@@ -10,11 +10,11 @@ import type { RouteConfig, RouteMatch, SlotMatch } from "./types.js";
 export function matchRoutes(
   routes: RouteConfig[],
   pathname: string,
-  parentSegmentKey: string = "",
+  parentSegmentKey: string = '',
 ): RouteMatch[] {
   const matches: RouteMatch[] = [];
   const normalized = normalizePath(pathname);
-  const pathSegments = normalized.split("/").filter(Boolean);
+  const pathSegments = normalized.split('/').filter(Boolean);
   matchRecursive(routes, pathSegments, 0, parentSegmentKey, matches);
   return matches;
 }
@@ -60,7 +60,7 @@ const patternCache = new Map<string, string[]>();
 function getPatternSegments(pattern: string): string[] {
   let cached = patternCache.get(pattern);
   if (!cached) {
-    cached = pattern.split("/").filter(Boolean);
+    cached = pattern.split('/').filter(Boolean);
     patternCache.set(pattern, cached);
   }
   return cached;
@@ -81,7 +81,7 @@ function matchRecursive(
         matches.push({
           route,
           params: { ...parentParams },
-          pathname: "",
+          pathname: '',
           segmentKey,
         });
         return true;
@@ -89,7 +89,7 @@ function matchRecursive(
       continue;
     }
 
-    const pattern = route.path ?? "";
+    const pattern = route.path ?? '';
     const result = matchSegment(pattern, pathSegments, pathOffset);
 
     if (result.matched) {
@@ -112,11 +112,11 @@ function matchRecursive(
         // Children didn't match — check for notFound fallback
         const hasRemaining = result.nextOffset < pathSegments.length;
         if (route.notFound && hasRemaining) {
-          const notFoundKey = buildSegmentKey(segmentKey, "__not-found__");
-          const rest = "/" + pathSegments.slice(result.nextOffset).join("/");
+          const notFoundKey = buildSegmentKey(segmentKey, '__not-found__');
+          const rest = '/' + pathSegments.slice(result.nextOffset).join('/');
           matches.push({
             route: {
-              id: "__not-found__",
+              id: '__not-found__',
               component: route.notFound,
             },
             params: mergedParams,
@@ -149,7 +149,7 @@ interface SegmentMatchResult {
 const noMatchResult: SegmentMatchResult = {
   matched: false,
   params: {},
-  consumed: "",
+  consumed: '',
   nextOffset: 0,
 };
 
@@ -159,8 +159,8 @@ function matchSegment(
   pathOffset: number,
 ): SegmentMatchResult {
   // Layout route - matches everything, consumes nothing
-  if (pattern === "") {
-    return { matched: true, params: {}, consumed: "", nextOffset: pathOffset };
+  if (pattern === '') {
+    return { matched: true, params: {}, consumed: '', nextOffset: pathOffset };
   }
 
   const patternSegments = getPatternSegments(pattern);
@@ -174,15 +174,15 @@ function matchSegment(
       return noMatchResult;
     }
 
-    if (seg.startsWith(":")) {
-      if (seg.endsWith("*")) {
+    if (seg.startsWith(':')) {
+      if (seg.endsWith('*')) {
         // Catch-all: consume the rest
         const paramName = seg.slice(1, -1);
         params[paramName] = pathSegments
           .slice(pathOffset + i)
           .map(decodeURIComponent)
-          .join("/");
-        const consumed = "/" + pathSegments.slice(pathOffset).join("/");
+          .join('/');
+        const consumed = '/' + pathSegments.slice(pathOffset).join('/');
         return { matched: true, params, consumed, nextOffset: pathSegments.length };
       }
       // Dynamic segment
@@ -194,7 +194,7 @@ function matchSegment(
   }
 
   const consumed =
-    "/" + pathSegments.slice(pathOffset, pathOffset + patternSegments.length).join("/");
+    '/' + pathSegments.slice(pathOffset, pathOffset + patternSegments.length).join('/');
 
   return { matched: true, params, consumed, nextOffset: pathOffset + patternSegments.length };
 }
@@ -206,7 +206,7 @@ function buildSegmentKey(parentKey: string, routeId: string): string {
 function normalizePath(pathname: string): string {
   // Ensure leading slash, remove trailing slash (except for root)
   let p = pathname;
-  if (!p.startsWith("/")) p = "/" + p;
-  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  if (!p.startsWith('/')) p = '/' + p;
+  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
   return p;
 }

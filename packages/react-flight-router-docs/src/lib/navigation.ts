@@ -1,4 +1,4 @@
-import { navigation, type NavItem } from "../components/sidebar-nav";
+import { navigation, type NavItem } from '../components/sidebar-nav';
 
 const flatItems: NavItem[] = navigation.flatMap((section) => section.items);
 

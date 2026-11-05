@@ -1,4 +1,4 @@
-import { fetchUser } from "../../lib/fake-api.js";
+import { fetchUser } from '../../lib/fake-api.js';
 
 export default async function UserProfilePage({
   params = {},

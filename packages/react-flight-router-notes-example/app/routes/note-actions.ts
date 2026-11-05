@@ -1,7 +1,7 @@
-"use server";
+'use server';
 
-import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 interface Note {
   id: string;
@@ -10,15 +10,15 @@ interface Note {
   createdAt: string;
 }
 
-const NOTES_PATH = resolve(process.cwd(), "data/notes.json");
+const NOTES_PATH = resolve(process.cwd(), 'data/notes.json');
 
 async function readNotes(): Promise<Note[]> {
-  const raw = await readFile(NOTES_PATH, "utf-8");
+  const raw = await readFile(NOTES_PATH, 'utf-8');
   return JSON.parse(raw);
 }
 
 async function writeNotes(notes: Note[]): Promise<void> {
-  await writeFile(NOTES_PATH, JSON.stringify(notes, null, 2), "utf-8");
+  await writeFile(NOTES_PATH, JSON.stringify(notes, null, 2), 'utf-8');
 }
 
 interface CreateNoteState {
@@ -31,14 +31,14 @@ export async function createNote(
   prevState: CreateNoteState,
   formData: FormData,
 ): Promise<CreateNoteState> {
-  const title = (formData.get("title") as string)?.trim();
-  const body = (formData.get("body") as string)?.trim();
+  const title = (formData.get('title') as string)?.trim();
+  const body = (formData.get('body') as string)?.trim();
 
   if (!title) {
-    return { error: "Title is required." };
+    return { error: 'Title is required.' };
   }
   if (!body) {
-    return { error: "Body is required." };
+    return { error: 'Body is required.' };
   }
 
   const notes = await readNotes();
@@ -62,7 +62,7 @@ export async function deleteNote(
   prevState: DeleteNoteState,
   formData: FormData,
 ): Promise<DeleteNoteState> {
-  const id = formData.get("id") as string;
+  const id = formData.get('id') as string;
   const notes = await readNotes();
   const filtered = notes.filter((n) => n.id !== id);
   await writeNotes(filtered);

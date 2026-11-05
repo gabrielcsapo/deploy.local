@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { Link } from "../router";
-import { DarkModeToggle } from "./dark-mode-toggle";
-import { SearchModal } from "./search-modal";
-import { MobileMenu } from "./mobile-menu";
+import { useState, useEffect } from 'react';
+import { Link } from '../router';
+import { DarkModeToggle } from './dark-mode-toggle';
+import { SearchModal } from './search-modal';
+import { MobileMenu } from './mobile-menu';
 
 export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -10,13 +10,13 @@ export function Header() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   return (

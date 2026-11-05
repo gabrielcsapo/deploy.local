@@ -1,5 +1,5 @@
-import { Link } from "react-flight-router/client";
-import { getDefaultFullPath, EXPLORE_LEVELS } from "./explore-config.js";
+import { Link } from 'react-flight-router/client';
+import { getDefaultFullPath, EXPLORE_LEVELS } from './explore-config.js';
 
 export default function ExploreIndex() {
   const fullPath = getDefaultFullPath();

@@ -12,26 +12,26 @@
 //   ITERS=50 TARGET=/boundary-page node scripts/perf-rsc-cold.mjs
 //   FLIGHT_DEBUG=1 ITERS=3 node scripts/perf-rsc-cold.mjs   # also prints per-iter timings
 
-import { spawn } from "node:child_process";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawn } from 'node:child_process';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
-const PKG_DIR = resolve(dirname(__filename), "..");
+const PKG_DIR = resolve(dirname(__filename), '..');
 const ITERS = Number(process.env.ITERS) || 30;
-const TARGET = process.env.TARGET || "/boundary-page";
+const TARGET = process.env.TARGET || '/boundary-page';
 const BASE_PORT = Number(process.env.PORT) || 3020;
 
 function startServer(port) {
   return new Promise((resolveServer, reject) => {
-    const proc = spawn("node", ["dist/server.js"], {
+    const proc = spawn('node', ['dist/server.js'], {
       cwd: PKG_DIR,
       env: { ...process.env, PORT: String(port) },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    let stderr = "";
-    proc.stderr.on("data", (d) => {
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
       stderr += d.toString();
     });
 
@@ -53,11 +53,11 @@ function startServer(port) {
 
 function stopServer(proc) {
   return new Promise((res) => {
-    proc.once("exit", () => res());
-    proc.kill("SIGTERM");
+    proc.once('exit', () => res());
+    proc.kill('SIGTERM');
     setTimeout(() => {
       try {
-        proc.kill("SIGKILL");
+        proc.kill('SIGKILL');
       } catch {}
       res();
     }, 2_000);
@@ -68,7 +68,7 @@ async function singleColdRun(port) {
   const proc = await startServer(port);
   try {
     // Drain any timing events from server warm-up requests
-    await fetch(`http://localhost:${port}/api/timing`, { method: "DELETE" });
+    await fetch(`http://localhost:${port}/api/timing`, { method: 'DELETE' });
 
     // Issue the cold RSC request
     const url = `http://localhost:${port}/__rsc?url=${encodeURIComponent(TARGET)}`;
@@ -127,29 +127,29 @@ async function main() {
         if (!labelTimes.has(t.label)) labelTimes.set(t.label, []);
         labelTimes.get(t.label).push(t.durationMs);
       }
-      if (process.env.FLIGHT_DEBUG === "1") {
+      if (process.env.FLIGHT_DEBUG === '1') {
         console.log(
           `iter ${i}: wall=${wallMs.toFixed(2)}ms total=${event.totalMs.toFixed(2)}ms ` +
             (event.timings ?? [])
               .filter((t) => t.durationMs != null)
               .map((t) => `${t.label}=${t.durationMs.toFixed(2)}`)
-              .join(" "),
+              .join(' '),
         );
       }
     }
-    process.stdout.write(".");
+    process.stdout.write('.');
   }
-  console.log("\n");
+  console.log('\n');
 
   const fmt = (arr) =>
     arr.length === 0
-      ? "—"
+      ? '—'
       : `mean=${mean(arr).toFixed(2)}ms  median=${pct(arr, 50).toFixed(2)}ms  p99=${pct(arr, 99).toFixed(2)}ms`;
 
   console.log(`wall (client-observed): ${fmt(wallTimes)}`);
   console.log(`total (server logger):  ${fmt(totalTimes)}`);
-  console.log("");
-  console.log("per-label (in render):");
+  console.log('');
+  console.log('per-label (in render):');
   // Sort labels by mean duration descending so the slowest are first
   const labelStats = [...labelTimes.entries()]
     .map(([label, arr]) => ({ label, mean: mean(arr), arr }))
