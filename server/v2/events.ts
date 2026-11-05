@@ -145,6 +145,10 @@ export function mapConversationEvent(row: any, run?: any): ConversationEvent | u
   }
 }
 
+// Time-based inbox expiry and state changes without an event appear within this interval.
+const STATE_REFRESH_INTERVAL_MS = 500;
+const lastRefreshByOwner = new Map<string, number>();
+
 /** Poll SQLite, including time-based inbox expiry, so independent workers can wake clients. */
 export async function waitForV2Events(
   owner: string,
@@ -154,15 +158,16 @@ export async function waitForV2Events(
 ): Promise<V2EventsResponse> {
   const deadline = Date.now() + Math.min(10_000, Math.max(0, waitMs));
   let cursor = after;
-  let fresh = false;
+  let firstPass = true;
   let runs: Map<string, any> | undefined;
   for (;;) {
     signal.throwIfAborted();
-    // Refresh live state and the inbox once per wait, not once per page while draining a backlog.
-    if (!fresh) {
+    const now = Date.now();
+    if (firstPass || now - (lastRefreshByOwner.get(owner) ?? 0) >= STATE_REFRESH_INTERVAL_MS) {
+      firstPass = false;
+      lastRefreshByOwner.set(owner, now);
       await getLive(owner);
       syncInbox(owner);
-      fresh = true;
     }
     const rows = events(owner, cursor);
     const result: V2Event[] = [];
@@ -190,7 +195,6 @@ export async function waitForV2Events(
     // Drain full pages before sleeping; ignored events must not strand mapped events behind them.
     if (rows.length === 1000) continue;
     await delay(Math.min(50, deadline - Date.now()), undefined, { signal });
-    fresh = false;
     runs = undefined;
   }
 }

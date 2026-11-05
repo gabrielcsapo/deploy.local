@@ -835,6 +835,43 @@ describe('store – password hashing & sessions', () => {
   });
 });
 
+describe('store – dashboard aggregate', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  it('counts requests and server errors per app only within the last 60 seconds', async () => {
+    const store = await loadStore();
+    for (const name of ['alpha', 'beta', 'idle']) {
+      store.saveDeployment({ name, username: 'alice', port: 3001 });
+    }
+    const insert = store.getSqlite().prepare(
+      `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp)
+       VALUES (?, 'GET', '/', ?, 10, ?)`,
+    );
+    const now = Date.now();
+    for (const status of [200, 404, 500, 503]) insert.run('alpha', status, now - 1000);
+    for (const status of [200, 201]) insert.run('beta', status, now - 59_000);
+    for (const name of ['alpha', 'beta', 'idle']) {
+      insert.run(name, 200, now - 61_000);
+      insert.run(name, 500, now - 61_000);
+    }
+
+    const { perApp, totals } = store.getDashboardAggregate();
+    assert.deepEqual(
+      perApp
+        .map(({ name, requestsLastMin, errPct }: any) => ({ name, requestsLastMin, errPct }))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name)),
+      [
+        { name: 'alpha', requestsLastMin: 4, errPct: 50 },
+        { name: 'beta', requestsLastMin: 2, errPct: 0 },
+        { name: 'idle', requestsLastMin: 0, errPct: 0 },
+      ],
+    );
+    assert.equal(totals.requestsLastMin, 6);
+    assert.equal(totals.errorRatePct, (2 / 6) * 100);
+  });
+});
+
 describe('store – request summary percentiles', () => {
   beforeEach(setup);
   afterEach(teardown);

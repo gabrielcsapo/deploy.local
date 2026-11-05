@@ -466,6 +466,40 @@ test('long-poll observes legacy mutations and expiry without a v2 writer', async
   assert.ok(expired.events.some((e) => e.type === 'inbox' && e.item.state === 'expired'));
 });
 
+test('concurrent waiters share periodic refreshes but every wait refreshes on its first pass', async (t) => {
+  const s = fixture();
+  await waitForV2Events(s.owner, cursor(s.owner), 0, new AbortController().signal);
+  // With no inbox items or live apps, each syncInbox refresh opens exactly one transaction.
+  const transactions = t.mock.method(db, 'transaction');
+  const waiterCount = 4;
+  const responses = await Promise.all(
+    Array.from({ length: waiterCount }, () =>
+      waitForV2Events(s.owner, cursor(s.owner), 1100, new AbortController().signal),
+    ),
+  );
+  assert.ok(responses.every((response) => response.events.length === 0));
+  const refreshCount = transactions.mock.callCount();
+  assert.ok(refreshCount >= waiterCount + 1, `expected periodic refreshes, got ${refreshCount}`);
+  assert.ok(refreshCount <= waiterCount + 3, `too many refreshes: ${refreshCount}`);
+
+  for (let i = 1; i <= 2; i++) {
+    await waitForV2Events(s.owner, cursor(s.owner), 0, new AbortController().signal);
+    assert.equal(transactions.mock.callCount(), refreshCount + i);
+  }
+});
+
+test('plain events wake a waiter before the next state refresh', async () => {
+  const s = fixture();
+  const pending = waitForV2Events(s.owner, cursor(s.owner), 1000, new AbortController().signal);
+  await delay(100);
+  const sentAt = Date.now();
+  event(s.owner, s.taskId, s.runId, 'message', { role: 'user', content: 'Wake now' });
+  const response = await pending;
+  // Sent 100 ms in, so waiting for the refresh at 500 ms would take about 400 ms.
+  assert.ok(Date.now() - sentAt < 350, 'event delivery must not wait for the 500 ms refresh');
+  assert.ok(response.events.some((e) => e.type === 'conversation' && e.event.kind === 'you'));
+});
+
 test('unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts', async () => {
   const s = fixture(),
     other = fixture();

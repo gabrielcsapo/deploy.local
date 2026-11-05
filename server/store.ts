@@ -2423,12 +2423,13 @@ export function getDashboardAggregate(): DashboardAggregate {
   const metricsByApp = new Map(metricsRows.map((m) => [m.deploymentName, m]));
 
   // Request aggregates per app over last 60s. Single query, GROUP BY app.
+  // Force the time index so missing planner statistics cannot cause a full scan for GROUP BY.
   const reqRows = sqlite
     .prepare(
       `SELECT deployment_name as deploymentName,
               count(*) as total,
               sum(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as errors
-       FROM request_logs
+       FROM request_logs INDEXED BY idx_request_logs_ts
        WHERE timestamp >= ?
        GROUP BY deployment_name`,
     )
