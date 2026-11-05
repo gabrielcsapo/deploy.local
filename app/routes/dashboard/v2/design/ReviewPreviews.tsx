@@ -1,6 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import type { DesignReviewPreview, DesignReviewScreen } from '../../../../../shared/v2/contracts';
+import type {
+  DesignReviewPin,
+  DesignReviewPreview,
+  DesignReviewScreen,
+} from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, request } from '../projects/data';
 
 export type Preview = DesignReviewPreview & { beforeSrc: string | null; afterSrc: string | null };
@@ -89,6 +93,56 @@ export function useReviewPreviews(
     ready: boards.every((board) => previews[previewKey(board.file, board.widths[0])]),
     loaded: boards.filter((board) => previews[previewKey(board.file, board.widths[0])]).length,
   };
+}
+
+/** Inspect an older drawing against its original pixels, even when it is outside this pair. */
+export function useReviewPinPreview(api: string, pin?: DesignReviewPin) {
+  const [result, setResult] = useState<{ key: string; preview: Preview }>();
+  const [error, setError] = useState('');
+  const key = pin?.drawing ? `${pin.id}:${pin.revision}:${pin.width}` : '';
+  useEffect(() => {
+    setError('');
+    if (!pin?.drawing) return;
+    const controller = new AbortController();
+    let objectUrl: string | undefined;
+    const drawing = pin.drawing;
+    const src = `${api}/render?${new URLSearchParams({ ref: pin.revision, board: pin.board, width: String(drawing.nativeWidth), height: String(drawing.nativeHeight) })}`;
+    void (async () => {
+      try {
+        const response = await authenticatedFetch(src, { signal: controller.signal });
+        if (!response.ok) throw new Error('Preview unavailable');
+        const blob = await response.blob();
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        const image = new Image();
+        image.src = objectUrl;
+        await image.decode();
+        if (controller.signal.aborted) return;
+        setResult({
+          key,
+          preview: {
+            width: drawing.nativeWidth,
+            height: drawing.nativeHeight,
+            areas: [],
+            crop: { x: pin.x, y: pin.y, w: 1, h: 1 },
+            before: drawing.side === 'before' ? src : null,
+            after: drawing.side === 'after' ? src : null,
+            beforeSrc: drawing.side === 'before' ? objectUrl : null,
+            afterSrc: drawing.side === 'after' ? objectUrl : null,
+          },
+        });
+      } catch {
+        if (!controller.signal.aborted) setError('The previews could not be loaded. Try again.');
+      }
+    })();
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+    // Pins retain their original revision and geometry when their text changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, key]);
+  return { preview: result?.key === key ? result.preview : undefined, error };
 }
 
 async function loadPreview(

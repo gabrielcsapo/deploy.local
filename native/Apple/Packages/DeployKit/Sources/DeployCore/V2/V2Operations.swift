@@ -113,8 +113,8 @@ extension V2Client {
         try await client.request("/api/v2/projects/\(Self.segment(project))/design/review?item=\(Self.segment(item))")
     }
     /// A board rendered at a commit and width, as PNG.
-    public func designImage(project: String, board: String, commit: String, width: Int) async throws -> Data {
-        try await client.data("/api/v2/projects/\(Self.segment(project))/design/render?ref=\(Self.segment(commit))&board=\(Self.segment(board))&width=\(width)", timeout: 60)
+    public func designImage(project: String, board: String, commit: String, width: Int, height: Int? = nil) async throws -> Data {
+        try await client.data("/api/v2/projects/\(Self.segment(project))/design/render?ref=\(Self.segment(commit))&board=\(Self.segment(board))&width=\(width)\(height.map { "&height=\($0)" } ?? "")", timeout: 60)
     }
     public func repository(_ project: String) async throws -> RepositoryInfo {
         try await client.request("/api/workspace/projects/\(Self.segment(project))/repository")

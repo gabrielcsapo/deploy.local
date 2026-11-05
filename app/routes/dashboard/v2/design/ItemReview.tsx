@@ -21,7 +21,14 @@ import {
   reviewCounts,
   counted,
 } from './review-model';
-import { previewKey, ReviewCrop, useReviewPreviews, type Preview } from './ReviewPreviews';
+import {
+  previewKey,
+  ReviewCrop,
+  useReviewPreviews,
+  useReviewPinPreview,
+  type Preview,
+} from './ReviewPreviews';
+import { reviewDrawingPath } from '../../../../../shared/v2/design-review';
 import './review.css';
 
 type Picked = { kind: 'board'; file: string } | { kind: 'note'; id: string };
@@ -110,17 +117,32 @@ export function DesignItemReview({
     picked?.kind === 'board' ? boards.find((entry) => entry.file === picked.file) : undefined;
   const note =
     picked?.kind === 'note' ? data?.notes.find((entry) => entry.id === picked.id) : undefined;
-  const width = board?.widths.includes(chosenWidth)
-    ? chosenWidth
-    : (board?.widths[0] ?? chosenWidth);
+  const pins = data?.pins ?? [];
+  const selectedDrawing = pins.find(
+    (pin) =>
+      pin.id === draft?.id && pin.drawing && pin.board === board?.file && pin.width === chosenWidth,
+  );
+  const width = selectedDrawing
+    ? selectedDrawing.width
+    : board?.widths.includes(chosenWidth)
+      ? chosenWidth
+      : (board?.widths[0] ?? chosenWidth);
   const images = useReviewPreviews(
     api,
     item.id,
     boards,
-    board ? { file: board.file, width } : undefined,
+    board?.widths.includes(width) ? { file: board.file, width } : undefined,
   );
-  const preview = board ? images.previews[previewKey(board.file, width)] : undefined;
-  const pins = data?.pins ?? [];
+  const currentPreview = board ? images.previews[previewKey(board.file, width)] : undefined;
+  const historicalPin =
+    selectedDrawing &&
+    (![board?.before, board?.after].includes(selectedDrawing.revision) ||
+      !board?.widths.includes(selectedDrawing.width) ||
+      (currentPreview && currentPreview.height !== selectedDrawing.drawing!.nativeHeight))
+      ? selectedDrawing
+      : undefined;
+  const historical = useReviewPinPreview(api, historicalPin);
+  const preview = historicalPin ? historical.preview : currentPreview;
   const unresolved = data ? openPins(data) : [];
   const waiting =
     (inbox.items.find((entry) => entry.id === item.id) ?? data?.item ?? item).state === 'waiting';
@@ -173,7 +195,7 @@ export function DesignItemReview({
   }, [board, draft, sequence, index, openBoard]);
   const shownFile = board?.file;
   const wasSeen = board?.seen;
-  const previewReady = Boolean(preview);
+  const previewReady = Boolean(preview) && !historicalPin;
   const proposalRevision = data?.after;
   useLayoutEffect(() => {
     const element = stage.current;
@@ -253,11 +275,18 @@ export function DesignItemReview({
     }
   };
   const editPin = (pin: DesignReviewPin) => {
+    setChanges(true);
     if (pin.noteId) setPicked({ kind: 'note', id: pin.noteId });
     else openBoard(pin.board);
     setChosenWidth(pin.width);
     const onBoard = boards.find((entry) => entry.file === pin.board);
-    setRevision(pin.revision === onBoard?.before ? 'before' : 'after');
+    setRevision(
+      pin.revision === onBoard?.before
+        ? 'before'
+        : pin.revision === onBoard?.after
+          ? 'after'
+          : (pin.drawing?.side ?? 'after'),
+    );
     setDraft(pin);
     setAllPins(false);
   };
@@ -394,7 +423,10 @@ export function DesignItemReview({
           className="dl-review-pin-editor"
           onSubmit={(event) => {
             event.preventDefault();
-            void savePin(draft.id ? 'PATCH' : 'POST', draft);
+            void savePin(
+              draft.id ? 'PATCH' : 'POST',
+              draft.id ? { id: draft.id, text: draft.text } : draft,
+            );
           }}
         >
           <h2>{draft.id ? `Pin ${draft.number}` : 'Add a pin'}</h2>
@@ -662,8 +694,14 @@ export function DesignItemReview({
             <span className="dl-grow" />
             {board?.added && <span className="dl-meta">After only</span>}
             {board?.removed && <span className="dl-meta">Before only</span>}
-            {board && <WidthSwitch widths={board.widths} value={width} onChange={setChosenWidth} />}
-            {(!board || (!board.added && !board.removed)) && (
+            {board && (
+              <WidthSwitch
+                widths={historicalPin ? [historicalPin.width] : board.widths}
+                value={width}
+                onChange={setChosenWidth}
+              />
+            )}
+            {!historicalPin && (!board || (!board.added && !board.removed)) && (
               <>
                 <div
                   className={`dl-seg dl-review-comparison${note ? ' note' : ''}`}
@@ -698,23 +736,27 @@ export function DesignItemReview({
             <div className="dl-review-stage" ref={stage}>
               {board && (
                 <div className="dl-review-stage-head">
-                  <p className="dl-meta dl-review-hint">
+                  <p className="dl-meta dl-review-hint" hidden={Boolean(historicalPin)}>
                     Click the screen to add a pin. Use ← → to move between screens.
                   </p>
                   <div
-                    className={`dl-review-screen dl-review-captions ${board.added || board.removed ? 'single' : ''}`}
+                    className={`dl-review-screen dl-review-captions ${historicalPin || board.added || board.removed ? 'single' : ''}`}
                     data-revision={revision}
                     aria-hidden="true"
                   >
-                    {!board.added && <span className="before">Before</span>}
-                    {!board.removed && <span className="after">After</span>}
+                    {(historicalPin ? historicalPin.drawing?.side === 'before' : !board.added) && (
+                      <span className="before">Before</span>
+                    )}
+                    {(historicalPin ? historicalPin.drawing?.side === 'after' : !board.removed) && (
+                      <span className="after">After</span>
+                    )}
                   </div>
                 </div>
               )}
               {board ? (
                 preview ? (
                   <div
-                    className={`dl-review-screen ${board.added || board.removed ? 'single' : ''}`}
+                    className={`dl-review-screen ${historicalPin || board.added || board.removed ? 'single' : ''}`}
                     data-revision={revision}
                   >
                     {(['before', 'after'] as const).map(
@@ -724,23 +766,29 @@ export function DesignItemReview({
                             key={side}
                             preview={preview}
                             side={side}
-                            changes={changes && !board.added && !board.removed}
+                            changes={changes && !historicalPin && !board.added && !board.removed}
                             pins={pins.filter(
                               (pin) =>
+                                changes &&
                                 pin.board === board.file &&
                                 pin.width === width &&
-                                pin.revision === (side === 'before' ? board.before : board.after),
+                                pin.revision ===
+                                  (historicalPin?.revision ??
+                                    (side === 'before' ? board.before : board.after)),
                             )}
                             draft={
                               draft?.board === board.file &&
                               draft.width === width &&
-                              draft.revision === (side === 'before' ? board.before : board.after)
+                              draft.revision ===
+                                (historicalPin?.revision ??
+                                  (side === 'before' ? board.before : board.after))
                                 ? draft
                                 : null
                             }
                             editPin={editPin}
                             addPin={(x, y) =>
                               waiting &&
+                              !historicalPin &&
                               !data?.stale &&
                               setDraft({
                                 number: Math.max(0, ...pins.map((pin) => pin.number)) + 1,
@@ -759,7 +807,7 @@ export function DesignItemReview({
                   </div>
                 ) : (
                   <div className="dl-review-skeleton dl-skel" role="status">
-                    Loading screen…
+                    {historical.error || 'Loading screen…'}
                   </div>
                 )
               ) : (
@@ -917,6 +965,29 @@ function ScreenShot({
             })}
           </svg>
         )}
+        <svg
+          className="dl-review-outlines"
+          viewBox={`0 0 ${preview.width} ${preview.height}`}
+          aria-hidden="true"
+        >
+          {pins
+            .filter(
+              (pin) =>
+                pin.drawing &&
+                pin.drawing.nativeWidth === preview.width &&
+                pin.drawing.nativeHeight === preview.height,
+            )
+            .map((pin) =>
+              pin.drawing!.strokes.map((stroke, index) => (
+                <path
+                  key={`${pin.id}-${index}`}
+                  className="dl-review-drawing"
+                  d={reviewDrawingPath(pin.drawing!, stroke)}
+                  strokeWidth={pin.drawing!.weight}
+                />
+              )),
+            )}
+        </svg>
         {pins.map((pin) => (
           <button
             type="button"
@@ -935,7 +1006,7 @@ function ScreenShot({
             {pin.number}
           </button>
         ))}
-        {draft && (
+        {draft && !draft.id && (
           <span
             className="dl-review-pin"
             style={{

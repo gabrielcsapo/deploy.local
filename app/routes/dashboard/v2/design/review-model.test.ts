@@ -143,3 +143,26 @@ test('a missing summary asks the proposer, or tells you when it is yours', () =>
     'No summary. Add one when you propose again.',
   );
 });
+
+test('drawing paths use their native dimensions, preserve stroke order and reject nonfinite points', async () => {
+  const { reviewDrawingPath, validReviewDrawing } =
+    await import('../../../../../shared/v2/design-review.ts');
+  const drawing = {
+    side: 'after' as const,
+    nativeWidth: 1440,
+    nativeHeight: 900,
+    anchor: { x: 0.25, y: 0.5 },
+    weight: 3,
+    strokes: [
+      [
+        { x: 0.25, y: 0.5 },
+        { x: 1, y: 0 },
+      ],
+    ],
+  };
+  assert.equal(validReviewDrawing(drawing), true);
+  assert.equal(reviewDrawingPath(drawing, drawing.strokes[0]), 'M360 450 L1440 0');
+  assert.equal(reviewDrawingPath(drawing, [{ x: 0, y: 0 }]), 'M0 0 l0 0');
+  for (const x of [NaN, Infinity, -Infinity, -1, 1.1])
+    assert.equal(validReviewDrawing({ ...drawing, strokes: [[{ x, y: 0 }]] }), false);
+});

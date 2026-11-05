@@ -1315,7 +1315,35 @@ test('pins persist as board comments, edits retain positions, deletion never reu
       y: 220,
       text,
     });
-  await pin('Alpha.html', 'Keep the name visible.');
+  const drawing = {
+    side: 'after',
+    nativeWidth: 1440,
+    nativeHeight: 900,
+    anchor: { x: 110 / 1440, y: 220 / 900 },
+    weight: 3,
+    strokes: [
+      [
+        { x: 0.1, y: 0.2 },
+        { x: 0.3, y: 0.4 },
+      ],
+      [{ x: 0.5, y: 0.6 }],
+    ],
+  };
+  assert.equal(
+    (
+      await f.call('/review/pins', {
+        item: item.id,
+        board: 'Alpha.html',
+        width: 1440,
+        revision: first.after,
+        x: 110,
+        y: 220,
+        text: 'Keep the name visible.',
+        drawing,
+      })
+    ).status,
+    200,
+  );
   await pin('Beta.html', 'Wrap this suggestion.');
   let review = await f.read(item);
   assert.deepEqual(
@@ -1344,6 +1372,7 @@ test('pins persist as board comments, edits retain positions, deletion never reu
     [1, 3],
   );
   assert.equal(review.pins[0].x, 110);
+  assert.deepEqual(review.pins[0].drawing, drawing);
   assert.equal(
     (
       await f.call('/review/pins', {
@@ -1370,7 +1399,8 @@ test('pins persist as board comments, edits retain positions, deletion never reu
   const message = store.get('queued-message', 'alice', taskId).content;
   assert.match(message, /Pin 1.*Alpha.html/);
   assert.match(message, /Pin 3.*Beta.html/);
-  assert.match(message, /Keep the name visible while scrolling/);
+  assert.match(message, /Keep the name visible while scrolling\. \(drawn on the screen\)/);
+  assert.equal(message.match(/Pin 1 ·/g)?.length, 1);
   assert.match(message, /Let it wrap to two lines/);
   assert.throws(
     () => answerInbox('alice', item.id, { actionId: 'changes', on: 'web' }),
@@ -1413,6 +1443,19 @@ test('seen state is owner/revision/screen scoped and round two retains only unch
     x: 60,
     y: 100,
     text: 'Explain the source.',
+    drawing: {
+      side: 'after',
+      nativeWidth: 1440,
+      nativeHeight: 900,
+      weight: 3,
+      anchor: { x: 60 / 1440, y: 100 / 900 },
+      strokes: [
+        [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ],
+      ],
+    },
   });
   const { answerInbox } = await import('./inbox.ts');
   answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
@@ -1445,6 +1488,7 @@ test('seen state is owner/revision/screen scoped and round two retains only unch
   assert.equal(round.pins[0].reply, 'Added the source and date.');
   assert.equal(round.pins[0].resolved, true);
   assert.equal(round.pins[0].revision, initial.after);
+  assert.deepEqual(round.pins[0].drawing, pin.drawing);
   await f.call('/review/seen', { item: next.id, board: 'Alpha.html', revision: round.after });
   assert.equal((await f.read(next)).pins[0].resolved, true, 'looking does not change resolution');
   await f.call('/review/pins', { item: next.id, id: pin.id, resolved: false }, 'PATCH');
@@ -1609,4 +1653,91 @@ test('review preview density defaults to 1, preserves CSS geometry and separates
       400,
     );
   }
+});
+
+test('drawing pins validate native coordinates, side, dimensions and bounded paths; edits preserve association', async () => {
+  const f = await reviewFixture('review-drawings');
+  const item = await f.propose(),
+    review = await f.read(item);
+  const drawing = {
+    side: 'before',
+    nativeWidth: 390,
+    nativeHeight: 844,
+    anchor: { x: 0.5, y: 0.5 },
+    weight: 3,
+    strokes: [
+      [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+      ],
+    ],
+  };
+  const body = {
+    item: item.id,
+    board: 'Beta.html',
+    width: 390,
+    revision: review.before,
+    x: 195,
+    y: 422,
+    text: 'Keep this.',
+    drawing,
+  };
+  for (const invalid of [
+    null,
+    {},
+    { ...drawing, side: 'after' },
+    { ...drawing, weight: 0 },
+    { ...drawing, nativeWidth: 700 },
+    { ...drawing, nativeHeight: 900 },
+    { ...drawing, anchor: { x: 0, y: 0 } },
+    { ...drawing, strokes: [] },
+    { ...drawing, strokes: [[]] },
+    { ...drawing, strokes: [[{ x: -0.1, y: 0 }]] },
+    { ...drawing, strokes: [[{ x: 0, y: 1.1 }]] },
+    { ...drawing, strokes: [[{ x: '0.5', y: 0 }]] },
+    { ...drawing, strokes: [[{ x: null, y: 0 }]] },
+    { ...drawing, strokes: Array.from({ length: 129 }, () => [{ x: 0, y: 0 }]) },
+    { ...drawing, strokes: [Array.from({ length: 4097 }, () => ({ x: 0, y: 0 }))] },
+    {
+      ...drawing,
+      strokes: Array.from({ length: 5 }, () =>
+        Array.from({ length: 4096 }, () => ({ x: 0, y: 0 })),
+      ),
+    },
+  ])
+    assert.equal((await f.call('/review/pins', { ...body, drawing: invalid })).status, 400);
+  assert.equal((await f.read(item)).pins.length, 0);
+  assert.equal((await f.call('/review/pins', body)).status, 200);
+  const pin = (await f.read(item)).pins[0];
+  assert.deepEqual(pin.drawing, drawing);
+  assert.equal(pin.number, 1);
+  assert.equal(
+    (
+      await f.call(
+        '/review/pins',
+        { item: item.id, id: pin.id, drawing: { ...drawing, side: 'after' } },
+        'PATCH',
+      )
+    ).status,
+    400,
+  );
+  await f.call(
+    '/review/pins',
+    { item: item.id, id: pin.id, text: 'Keep all of this.', resolved: true },
+    'PATCH',
+  );
+  const edited = (await f.read(item)).pins[0];
+  assert.deepEqual(edited.drawing, drawing);
+  assert.equal(edited.revision, review.before);
+  assert.equal(edited.resolved, true);
+  await f.call('/review/pins', { item: item.id, id: pin.id }, 'DELETE');
+  assert.equal((await f.read(item)).pins.length, 0);
+  const maximum = {
+    ...drawing,
+    strokes: Array.from({ length: 128 }, () =>
+      Array.from({ length: 128 }, () => ({ x: 0.5, y: 0.5 })),
+    ),
+  };
+  assert.equal((await f.call('/review/pins', { ...body, drawing: maximum })).status, 200);
+  assert.deepEqual((await f.read(item)).pins[0].drawing, maximum);
 });

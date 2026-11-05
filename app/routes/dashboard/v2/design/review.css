@@ -865,3 +865,10 @@
 .dz-stage:has(.dl-design-waiting-banner) > .dz-canvas {
   top: 44px;
 }
+
+.dl-review-drawing {
+  fill: none;
+  stroke: var(--ds-accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
