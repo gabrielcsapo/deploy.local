@@ -20,7 +20,7 @@ The boards are in section 10 of the canvas (`design/canvas.json`, “10 · Packa
 - A pnpm monorepo (`pnpm@10.24.0`, no `engines`) with 120 commits, 35 tags and version 0.12.1. deploy.local installs 0.12.0 from npmjs.org.
 - The published package, `packages/react-flight-router`, holds about 11k lines of TypeScript and 4.4k lines of tests. It builds with plain `tsc` into `dist/`, has one bin (`react-flight-router`), is ESM only, and peers on react 19, react-server-dom-webpack 19, vite 8, @vitejs/plugin-react 6, hono 4 and @hono/node-server 2.
 - Private packages beside it: `docs` (a Vite + MDX site on GitHub Pages), `react-flight-router-example`, `react-flight-router-notes-example`, `react-flight-router-e2e` (Playwright specs and benchmarks) and `shared-ui`.
-- Tests: 28 vitest files (happy-dom) plus a `node:test` worker-pool test against `dist`. There are 17 Playwright specs on ports 3000, 3001 and 5173. CI (`.github/workflows/e2e.yml`) runs only lint and e2e, never the unit tests.
+- Tests: 20 vitest files (happy-dom) plus a `node:test` worker-pool test against `dist`. There are 17 Playwright specs on ports 3000, 3001 and 5173. CI (`.github/workflows/e2e.yml`) runs only lint and e2e, never the unit tests.
 - Release: `scripts/release.mjs` bumps the version, writes the changelog from conventional commits, tags `vX.Y.Z`, runs `pnpm publish` to npmjs.org and pushes to `origin`. The local clone has no remote. Repository URLs point at both `github.com/gabrielcsapo/flight-router` and `…/react-flight-router`.
 
 ### Recommendation: workspace packages in deploy.local, consumed with `workspace:*`
@@ -33,17 +33,17 @@ deploy.local is the router's main user, and the two often change together. Keepi
 
 The history is imported with `git filter-repo` path renames and merged with `--allow-unrelated-histories`, so `git log --follow` and blame keep working. Tags are renamed `react-flight-router@0.12.1` so they don't collide with deploy.local's own `vX.Y.Z` tags.
 
-| From (react-flight-router repo)          | To (deploy.local)                                      |
-| ---------------------------------------- | ------------------------------------------------------ |
-| `packages/react-flight-router/`          | `packages/react-flight-router/`                        |
-| root `CHANGELOG.md`, `README.md`         | `packages/react-flight-router/`                        |
-| `scripts/release.mjs`                    | replaced (see Releasing)                               |
-| `packages/docs/`                         | `packages/react-flight-router-docs/`                   |
-| `packages/react-flight-router-example/`  | same name                                              |
-| `packages/react-flight-router-notes-example/` | same name                                         |
-| `packages/react-flight-router-e2e/`      | same name                                              |
-| `packages/shared-ui/`                    | `packages/react-flight-router-shared-ui/` (renamed)    |
-| root `package.json`, lockfiles, `.husky`, `.github/`, `.DS_Store`, nested `pnpm-lock.yaml` files | dropped |
+| From (react-flight-router repo)                                                                  | To (deploy.local)                                   |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| `packages/react-flight-router/`                                                                  | `packages/react-flight-router/`                     |
+| root `CHANGELOG.md`, `README.md`                                                                 | `packages/react-flight-router/`                     |
+| `scripts/release.mjs`                                                                            | replaced (see Releasing)                            |
+| `packages/docs/`                                                                                 | `packages/react-flight-router-docs/`                |
+| `packages/react-flight-router-example/`                                                          | same name                                           |
+| `packages/react-flight-router-notes-example/`                                                    | same name                                           |
+| `packages/react-flight-router-e2e/`                                                              | same name                                           |
+| `packages/shared-ui/`                                                                            | `packages/react-flight-router-shared-ui/` (renamed) |
+| root `package.json`, lockfiles, `.husky`, `.github/`, `.DS_Store`, nested `pnpm-lock.yaml` files | dropped                                             |
 
 Everything lands under the existing `packages/*` workspace glob, so `pnpm-workspace.yaml` only gains a catalog.
 
@@ -53,8 +53,9 @@ Everything lands under the existing `packages/*` workspace glob, so `pnpm-worksp
 - **TypeScript.** The router uses TS 6 and deploy.local uses TS 7. The library builds with the root's TS 7. If the declaration output differs in a way that matters, the library alone keeps TS 6 as a dev dependency. This is checked in the first slice.
 - **Format and lint.** One commit reformats the router with deploy.local's oxfmt config (single quotes) and is listed in `.git-blame-ignore-revs`. The router's oxlint plugins (react, unicorn, import) stay in a nested `.oxlintrc.json` under its packages.
 - **Build order.** deploy.local's `dev`, `typecheck`, `build` and `test` first run `pnpm --filter react-flight-router build`, through a small `scripts/flight-router.mjs` that skips the build when `dist` is newer than `src`. The root `build` calls `node packages/react-flight-router/dist/bin/react-flight-router.js build` directly instead of relying on a bin link made before `dist` existed (the router's CI re-ran `pnpm install` for this reason). SER's `deploy-update prepare` runs install, typecheck, build and test, so it picks this up with no changes.
-- **Unit tests** join `pnpm test` through `scripts/test.mjs`. That adds the 28 vitest files and the worker-pool test, so they run on every SER release for the first time.
-- **End-to-end tests and benchmarks** stay out of `deploy-update prepare`, which already takes about 10 minutes. They become a `deploy.yaml` pipeline job, `flight-router-e2e` (Linux, Chromium), on pushes to main and on pull requests that touch `packages/react-flight-router*`. Pipelines have no path filter today, so this needs a small `paths:` addition to `server/pipeline-spec.ts`; until then the job runs on every push.
+- **Unit tests** join `pnpm test` through `scripts/test.mjs`. That adds the 20 vitest files and the worker-pool test, so they run on every SER release for the first time.
+- **End-to-end tests and benchmarks** stay out of `deploy-update prepare`, which already takes about 10 minutes. They become a `deploy.yaml` pipeline job, `flight-router-e2e` (Linux, Chromium), on pushes to main and on pull requests that touch `packages/react-flight-router*`. `server/pipeline-spec.ts` gains an optional `paths:` filter for this.
+- **Open: where the e2e job lives.** Pipelines are read from a root `deploy.yaml`, and a root `deploy.yaml` on main marks the project as deployment-configured, even with only a pipeline in it. That would change deploy.local's own shipping controls, so the job isn't added yet. Until a pipeline can exist without that, the end-to-end specs run by hand with `pnpm --filter react-flight-router-e2e test:e2e`. `pipeline.publish` for the router depends on the same fix.
 - **Docs.** `packages/react-flight-router-docs` is deployed as a static app on deploy.local instead of GitHub Pages. Vite's `base` becomes `/`, and links to GitHub point at deploy.local's code page. The GitHub Pages workflow goes away.
 
 ### Releasing the router after the move
@@ -116,13 +117,13 @@ The old repository folder is left as it is. Archiving the GitHub repository is f
 
 Everything reuses deploy.local accounts. **Every request needs a credential**: there is no anonymous install, even on the LAN.
 
-| Credential | Where it comes from | Install | Publish |
-| --- | --- | --- | --- |
-| **Package key** `dlp_<32 random bytes, base64url>` | `deploy packages login` mints it from your CLI sign-in. Listed in Settings → Package keys, with a label, scope and last use. Revoked at once by Remove. | yes | if scoped “Installs and publishes” |
-| CLI session (Basic `username:token`, exactly as Git over HTTPS accepts it today) | `deploy login` | yes | yes |
-| Computer key (Basic `workspace-worker.<id>` or worker headers) | already on every computer | yes | no |
-| Pipeline token, 30 minutes, scoped to one project's packages (like `ci_` tokens) | minted for a pipeline's publish step only; its jobs never see it | yes | that project's packages only |
-| Agent run token (`X-Deploy-Agent-Token`) | agent runs | no (agents install through their computer's key) | no |
+| Credential                                                                       | Where it comes from                                                                                                                                     | Install                                          | Publish                            |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------- |
+| **Package key** `dlp_<32 random bytes, base64url>`                               | `deploy packages login` mints it from your CLI sign-in. Listed in Settings → Package keys, with a label, scope and last use. Revoked at once by Remove. | yes                                              | if scoped “Installs and publishes” |
+| CLI session (Basic `username:token`, exactly as Git over HTTPS accepts it today) | `deploy login`                                                                                                                                          | yes                                              | yes                                |
+| Computer key (Basic `workspace-worker.<id>` or worker headers)                   | already on every computer                                                                                                                               | yes                                              | no                                 |
+| Pipeline token, 30 minutes, scoped to one project's packages (like `ci_` tokens) | minted for a pipeline's publish step only; its jobs never see it                                                                                        | yes                                              | that project's packages only       |
+| Agent run token (`X-Deploy-Agent-Token`)                                         | agent runs                                                                                                                                              | no (agents install through their computer's key) | no                                 |
 
 - Package keys are stored sha256-hashed, like worker tokens. npm sends them as `_authToken` (Bearer). Cargo sends the raw value in `Authorization`, so both `dlp_…` and `Bearer dlp_…` are accepted.
 - Package keys exist so that npm and Cargo keep working when the 30-day CLI session rotates. The session still works for one-off use, so “reuse CLI tokens” holds.
@@ -157,6 +158,7 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
   - Cargo: `Cargo.lock`
 
   It fetches anything missing in the background. The Copies tab gives a project its own row only when something is missing or removed.
+
 - **This is not a promise that builds work offline.** It covers npm packages and crates. App builds also need their Docker image (see Not covered), and the board says so.
 - **A package its source removes.** npmjs.org can pull a version, for example as malware. When revalidation finds a kept version gone from its packument, deploy.local stops serving it (a 404 that names the source and the date) and keeps the file out of installs, even if it is pinned. The project with that version in its lockfile gets a Removed row, and a rollback that needs it fails and says why. While the source is unreachable this can't be known, so kept versions are still served. A yanked crate is different: Cargo still allows it for existing lockfiles, so it keeps being served.
 - **Pins.** When a release builds, deploy.local records which files it installed. Files needed by the live release, its rollback target, or main's lockfile are pinned, so a rollback never needs the internet.
@@ -241,7 +243,6 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 ### Order of work
 
 Private Cargo stays in the first version, because the owner plans to build crates locally.
-
 
 Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<slice>`), with Claude verifying: captures at board widths with `design/tools/capture.mjs` and `pair.py`, the iOS build, and real npm, pnpm and Cargo clients.
 
