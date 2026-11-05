@@ -73,9 +73,9 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "test": "tsc && vitest run && node --test dist/server/worker-pool.test.js"
+    "build": "node ../../node_modules/typescript/bin/tsc",
+    "dev": "node ../../node_modules/typescript/bin/tsc --watch",
+    "test": "pnpm build && vitest run && node --test dist/server/worker-pool.test.js"
   },
   "devDependencies": {
     "@hono/node-server": "catalog:",
@@ -88,7 +88,6 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-server-dom-webpack": "catalog:",
-    "typescript": "^6.0.3",
     "vite": "catalog:",
     "vitest": "catalog:"
   },
