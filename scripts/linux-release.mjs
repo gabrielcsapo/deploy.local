@@ -85,6 +85,21 @@ export function artifactHashes(release) {
   visit('dist');
   if (!hashes['dist/supervisor.js'] || !hashes['dist/server.js'] || !hashes['dist/edge.js'])
     throw new Error('Build is missing its production entry points.');
+  // Published dependencies used to supply this runtime code. With workspace:*
+  // the server imports a mutable build beside dist, so verify that output too.
+  const packagePath = join(release, 'package.json');
+  const router = existsSync(packagePath)
+    ? JSON.parse(readFileSync(packagePath, 'utf8')).dependencies?.['react-flight-router']
+    : undefined;
+  if (typeof router === 'string' && router.startsWith('workspace:')) {
+    const routerDist = 'packages/react-flight-router/dist';
+    if (!existsSync(join(release, routerDist)))
+      throw new Error('Build is missing its workspace router.');
+    visit(routerDist);
+    for (const entry of ['index.js', 'server/index.js', 'client/index.js', 'router/index.js'])
+      if (!hashes[`${routerDist}/${entry}`])
+        throw new Error('Build is missing its workspace router entry points.');
+  }
   return hashes;
 }
 

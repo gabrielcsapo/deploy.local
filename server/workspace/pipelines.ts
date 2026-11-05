@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { compileDeployYaml } from '../application-spec.ts';
 import { command, commandReplay, db, get, id, list, now, save } from './store.ts';
@@ -207,6 +208,8 @@ export async function scanPipelineTriggers() {
         request.ref,
         request.commit,
         'push',
+        undefined,
+        request.previousCommit,
       );
       db.prepare(
         "DELETE FROM records WHERE kind='pipeline-trigger-request' AND owner=? AND id=?",
@@ -237,7 +240,15 @@ export async function scanPipelineTriggers() {
         // Establish a baseline for imports, then process branch changes. Direct push notifications
         // can enqueue the same intent; the commit/ref key deduplicates them.
         if (previous && previous.commit !== commit)
-          await pipelineTrigger(row.owner, project, ref, commit, 'push');
+          await pipelineTrigger(
+            row.owner,
+            project,
+            ref,
+            commit,
+            'push',
+            undefined,
+            previous.commit,
+          );
         for (const pull of list('pull-request', row.owner).filter(
           (candidate) =>
             candidate.projectId === project.id &&
@@ -262,6 +273,7 @@ export async function pipelineTrigger(
   commit: string,
   trigger: string,
   pullId?: string,
+  previousCommit?: string,
 ) {
   const key = createHash('sha256')
     .update(JSON.stringify([project.id, ref, commit, trigger, pullId]))
@@ -284,6 +296,39 @@ export async function pipelineTrigger(
     if (!pipeline?.on.includes(trigger as any) || !branches.includes(target)) {
       save('pipeline-trigger', owner, { id: key, projectId: project.id, status: 'ignored' });
       return;
+    }
+    if (pipeline.paths && (trigger === 'push' || trigger === 'pull_request')) {
+      let base = previousCommit;
+      if (trigger === 'pull_request') {
+        const targetCommit = await resolveCommit(project.repositoryPath, `refs/heads/${target}`);
+        base = await gitText(project.repositoryPath, ['merge-base', targetCommit, commit]);
+      } else if (base === undefined) {
+        // Internal single-commit publications have no receive-pack old OID.
+        const parents = await gitText(project.repositoryPath, [
+          'rev-list',
+          '--parents',
+          '-n',
+          '1',
+          commit,
+        ]);
+        base = parents.split(' ')[1];
+      }
+      const changed = await gitText(
+        project.repositoryPath,
+        base && !/^0+$/.test(base)
+          ? ['diff', '--name-only', '--no-renames', '-z', base, commit, '--']
+          : ['ls-tree', '-r', '--name-only', '-z', commit],
+      );
+      if (
+        !changed
+          .split('\0')
+          .some(
+            (file) => file && pipeline.paths!.some((pattern) => posix.matchesGlob(file, pattern)),
+          )
+      ) {
+        save('pipeline-trigger', owner, { id: key, projectId: project.id, status: 'ignored' });
+        return;
+      }
     }
     const run = await pipelineStart(
       owner,

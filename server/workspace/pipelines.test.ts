@@ -161,7 +161,9 @@ test('receive-pack command parser handles chunking and ignores packfile bytes', 
     (body.length + 4).toString(16).padStart(4, '0') + body + '0000PACKgarbage',
   );
   for (const byte of packet) commands.feed(Buffer.from([byte]));
-  assert.deepEqual(commands.updates, [{ commit: 'a'.repeat(40), ref: 'refs/heads/main' }]);
+  assert.deepEqual(commands.updates, [
+    { previousCommit: '0'.repeat(40), commit: 'a'.repeat(40), ref: 'refs/heads/main' },
+  ]);
 });
 
 test('timed-out jobs fail the pipeline and skip dependents instead of waiting forever', async () => {

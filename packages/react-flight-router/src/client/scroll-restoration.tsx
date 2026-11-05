@@ -1,0 +1,170 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { useLocationState } from './router-context.js';
+
+/** @internal Exported for testing */
+export const STORAGE_KEY = 'react-flight-router:scroll';
+/** @internal Exported for testing */
+export const MAX_SCROLL_POSITIONS = 100;
+
+export function getScrollPositions(): Record<string, number> {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveScrollPosition(key: string, y: number) {
+  try {
+    const positions = getScrollPositions();
+    positions[key] = y;
+
+    // Prune oldest entries if over limit
+    const keys = Object.keys(positions);
+    if (keys.length > MAX_SCROLL_POSITIONS) {
+      const deleteCount = keys.length - MAX_SCROLL_POSITIONS;
+      for (let i = 0; i < deleteCount; i++) {
+        delete positions[keys[i]];
+      }
+    }
+
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
+  } catch {
+    // sessionStorage may be unavailable
+  }
+}
+
+/**
+ * Manages scroll position across client-side navigations.
+ *
+ * - New navigations (link clicks): scrolls to top
+ * - Back/forward (popstate): restores the previous scroll position
+ * - Navigations made with `preventScrollReset` (a `<Link preventScrollReset>`
+ *   or `navigate(to, { preventScrollReset: true })`): leaves the page where it
+ *   is, for URL changes that don't replace what the user is reading — modal
+ *   routes, filter toggles, in-place pagination
+ * - Positions are persisted in sessionStorage for tab reload support
+ *
+ * Place once in the root layout, inside RouterProvider:
+ * ```tsx
+ * <body>
+ *   <ScrollRestoration />
+ *   <nav>...</nav>
+ *   <Outlet />
+ * </body>
+ * ```
+ */
+export function ScrollRestoration() {
+  // Subscribing only to location — segment changes don't trigger scroll work.
+  const { url } = useLocationState();
+  const previousUrlRef = useRef(url);
+  const isPopstateRef = useRef(false);
+
+  // Disable native scroll restoration so the browser doesn't interfere
+  // with our manual scroll management during SPA navigations.
+  useEffect(() => {
+    if (typeof globalThis.history !== 'undefined') {
+      globalThis.history.scrollRestoration = 'manual';
+    }
+  }, []);
+
+  // Track popstate events to distinguish back/forward from link clicks.
+  // On popstate, save the scroll position for the page we're LEAVING
+  // before history.state.key changes to the target entry's key.
+  useEffect(() => {
+    const handler = () => {
+      isPopstateRef.current = true;
+    };
+    globalThis.addEventListener('popstate', handler);
+    return () => globalThis.removeEventListener('popstate', handler);
+  }, []);
+
+  // Handle scroll on URL change
+  useEffect(() => {
+    if (url === previousUrlRef.current) return;
+
+    if (isPopstateRef.current) {
+      // Back/forward: restore scroll position.
+      // Keep isPopstateRef true until AFTER the scroll is restored in the
+      // next frame — otherwise scroll events from DOM updates can fire between
+      // the effect and the rAF, overwriting the saved position with scrollY=0.
+      const key = globalThis.history.state?.key;
+      if (key) {
+        const positions = getScrollPositions();
+        const savedY = positions[key];
+        if (savedY != null) {
+          // Retry scroll restoration across multiple frames because content
+          // may load asynchronously after navigation (RSC payloads, Suspense
+          // boundaries, etc.) and the page might not be tall enough to scroll
+          // to on the first frame.
+          let attempts = 0;
+          const maxAttempts = 60; // ~3s at 50ms intervals
+          const tryRestore = () => {
+            window.scrollTo(0, savedY);
+            attempts++;
+            if (Math.abs(window.scrollY - savedY) <= 1 || attempts >= maxAttempts) {
+              isPopstateRef.current = false;
+            } else {
+              setTimeout(tryRestore, 50);
+            }
+          };
+          requestAnimationFrame(tryRestore);
+        } else {
+          isPopstateRef.current = false;
+        }
+      } else {
+        isPopstateRef.current = false;
+      }
+    } else if (globalThis.history.state?.preventScrollReset) {
+      // The navigation opted out of the reset. Nothing moves, so no scroll
+      // event fires to save a position for this entry — record it here, or a
+      // later back/forward onto this entry would find nothing to restore.
+      const key = globalThis.history.state?.key;
+      if (key) saveScrollPosition(key, window.scrollY);
+    } else {
+      // New navigation: scroll to top
+      window.scrollTo(0, 0);
+    }
+
+    previousUrlRef.current = url;
+  }, [url]);
+
+  // Continuously save scroll position (debounced)
+  useEffect(() => {
+    const saveCurrentScroll = () => {
+      // Re-check at fire time, not just at scroll time: a save scheduled by
+      // the scroll-to-top of a forward navigation can fire AFTER a quick
+      // back/forward has already swapped history.state.key to the previous
+      // entry — writing scrollY=0 over the position we're about to restore.
+      if (isPopstateRef.current) return;
+      const key = globalThis.history.state?.key;
+      if (key) {
+        saveScrollPosition(key, window.scrollY);
+      }
+    };
+
+    let scrollTimer: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      // Don't save during back/forward transitions — the old page content is
+      // still rendered at scrollY=0 but history.state.key already points to
+      // the target page. Saving now would overwrite the target's stored position.
+      if (isPopstateRef.current) return;
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(saveCurrentScroll, 100);
+    };
+
+    globalThis.addEventListener('scroll', onScroll, { passive: true });
+    globalThis.addEventListener('beforeunload', saveCurrentScroll);
+
+    return () => {
+      clearTimeout(scrollTimer);
+      globalThis.removeEventListener('scroll', onScroll);
+      globalThis.removeEventListener('beforeunload', saveCurrentScroll);
+    };
+  }, []);
+
+  return null;
+}
