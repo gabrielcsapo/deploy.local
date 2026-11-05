@@ -35,6 +35,7 @@ import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.t
 import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
 import { queueMessage, queuedMessage } from '../workspace/queued-message.ts';
 import {
+  validReviewDrawing,
   reviewAreas,
   reviewCrop,
   reviewWidths,
@@ -623,6 +624,7 @@ function reviewPins(owner: string, context: any): DesignReviewPin[] {
       noteId: row.position.noteId ?? null,
       width: row.position.width,
       revision: row.position.revision,
+      ...(row.drawing ? { drawing: row.drawing } : {}),
       x: row.position.x,
       y: row.position.y,
       text: row.text,
@@ -811,6 +813,7 @@ function mutateReviewPin(owner: string, project: any, method: string, body: any)
       if (method !== 'POST') {
         const pin = review.pins.find((pin) => pin.id === body?.id);
         if (!pin) fail('No such pin', 404);
+        if (body.drawing !== undefined) fail('A saved drawing cannot change its revision or paths');
         const saved = get('design-comment', owner, pin!.id);
         const text = body.text === undefined ? saved.text : optionalWords(body.text, 4000);
         if (!text) fail('A pin needs text');
@@ -848,6 +851,20 @@ function mutateReviewPin(owner: string, project: any, method: string, body: any)
           y > (board?.h ?? 100000)
         )
           fail('Invalid pin coordinates');
+        if (body.drawing !== undefined) {
+          const drawing = body.drawing;
+          if (
+            !board ||
+            note ||
+            !validReviewDrawing(drawing) ||
+            drawing.nativeWidth !== width ||
+            drawing.nativeHeight !== board.h ||
+            revision !== board[drawing.side] ||
+            Math.abs(drawing.anchor.x * width - x) > 0.01 ||
+            Math.abs(drawing.anchor.y * drawing.nativeHeight - y) > 0.01
+          )
+            fail('Invalid pin drawing');
+        }
         const existing = list('design-comment', owner).filter(
           (entry) =>
             entry.projectId === project.id &&
@@ -864,6 +881,7 @@ function mutateReviewPin(owner: string, project: any, method: string, body: any)
           commit: revision,
           number: Math.max(0, ...existing.map((entry) => entry.number ?? 0)) + 1,
           position: { width, revision, x, y, noteId: note ? note.id : null },
+          ...(body.drawing ? { drawing: body.drawing } : {}),
           resolved: false,
           createdAt: now(),
         });
@@ -1006,7 +1024,7 @@ registerInboxSource('design', (owner, item, body, context) => {
           note,
           ...pins.map(
             (pin) =>
-              `Pin ${pin.number} · ${pin.board}${pin.noteId ? ` · note ${pin.noteId}` : ''} · ${pin.width}px · ${pin.revision} · (${pin.x}, ${pin.y})\n${pin.text}`,
+              `Pin ${pin.number} · ${pin.board}${pin.noteId ? ` · note ${pin.noteId}` : ''} · ${pin.width}px · ${pin.revision} · (${pin.x}, ${pin.y})\n${pin.text}${pin.drawing ? ' (drawn on the screen)' : ''}`,
           ),
         ]
           .filter(Boolean)
@@ -1332,6 +1350,21 @@ export async function reviewPreview(
   };
 }
 
+/**
+ * Draw a new proposal's screens in the background, one at a time, at the densities the web
+ * (2×) and iPhone (3×) ask for, so the first look at it is as fast as the second.
+ */
+async function warmReview(owner: string, project: any, repo: string, itemId: string) {
+  try {
+    const row = reviewRow(owner, project.id, itemId);
+    for (const board of designReview(owner, project, row).boards)
+      for (const scale of [2, 3])
+        await reviewPreview(repo, project.id, board, board.widths[0], renderBoardLayout, scale);
+  } catch {
+    // Warming is only a head start; the review draws whatever is missing when it opens.
+  }
+}
+
 /** What an agent asked about a layer needs to know: the request, the element, and the rules. */
 /** What an agent asked to change a design-system component is told. */
 export function componentPrompt(input: {
@@ -1490,15 +1523,16 @@ export function designTool(scope: { owner: string; taskId: string }, args: any) 
         ),
       };
     }
-    case 'propose':
-      return {
-        item: proposeDesign(scope.owner, project, {
-          task: task.id,
-          title: args.title,
-          summary: args.summary,
-          changeWords: args.changeWords,
-        }),
-      };
+    case 'propose': {
+      const item = proposeDesign(scope.owner, project, {
+        task: task.id,
+        title: args.title,
+        summary: args.summary,
+        changeWords: args.changeWords,
+      });
+      setImmediate(() => void warmReview(scope.owner, project, project.repositoryPath, item.id));
+      return { item };
+    }
     default:
       fail('action must be presence, comments, comment, resolve or propose');
   }
@@ -2068,19 +2102,15 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   // Ask for approval of a design branch or a design task, in Waiting on you.
   if (sub === '/propose' && req.method === 'POST') {
     const body = await readJson(req);
-    return sendJson(
-      res,
-      {
-        item: proposeDesign(owner, project, {
-          ref: body?.ref,
-          task: body?.task,
-          title: body?.title,
-          summary: body?.summary,
-          changeWords: body?.changeWords,
-        }),
-      },
-      201,
-    );
+    const item = proposeDesign(owner, project, {
+      ref: body?.ref,
+      task: body?.task,
+      title: body?.title,
+      summary: body?.summary,
+      changeWords: body?.changeWords,
+    });
+    setImmediate(() => void warmReview(owner, project, repo, item.id));
+    return sendJson(res, { item }, 201);
   }
 
   // Agents working on this design right now.
@@ -2131,7 +2161,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   }
 
   if (sub === '/review/pins' && ['POST', 'PATCH', 'DELETE'].includes(req.method!)) {
-    const body = await readJson(req);
+    const body = await readJson(req, req.method === 'POST' ? 1024 * 1024 : 128 * 1024);
     return sendJson(res, mutateReviewPin(owner, project, req.method!, body));
   }
 

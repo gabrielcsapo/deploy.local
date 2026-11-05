@@ -1,5 +1,6 @@
 import type {
   DesignRect,
+  DesignReviewDrawing,
   DesignReviewChange,
   DesignReviewPreview,
   DesignReviewScreen,
@@ -122,4 +123,53 @@ export function nextUnseen(boards: Pick<DesignReviewScreen, 'file' | 'seen'>[], 
     if (!board.seen) return board.file;
   }
   return null;
+}
+
+// Bound both payload size and rendering work. Coordinates belong to the original board.
+export function validReviewDrawing(value: unknown): value is DesignReviewDrawing {
+  if (!value || typeof value !== 'object') return false;
+  const drawing = value as DesignReviewDrawing;
+  const point = (p: { x: number; y: number }) =>
+    p &&
+    typeof p.x === 'number' &&
+    Number.isFinite(p.x) &&
+    p.x >= 0 &&
+    p.x <= 1 &&
+    typeof p.y === 'number' &&
+    Number.isFinite(p.y) &&
+    p.y >= 0 &&
+    p.y <= 1;
+  return (
+    (drawing.side === 'before' || drawing.side === 'after') &&
+    Number.isInteger(drawing.nativeWidth) &&
+    drawing.nativeWidth > 0 &&
+    drawing.nativeWidth <= 100000 &&
+    Number.isInteger(drawing.nativeHeight) &&
+    drawing.nativeHeight > 0 &&
+    drawing.nativeHeight <= 100000 &&
+    drawing.weight === 3 &&
+    !!point(drawing.anchor) &&
+    Array.isArray(drawing.strokes) &&
+    drawing.strokes.length > 0 &&
+    drawing.strokes.length <= 128 &&
+    drawing.strokes.every(
+      (stroke) =>
+        Array.isArray(stroke) && stroke.length > 0 && stroke.length <= 4096 && stroke.every(point),
+    ) &&
+    drawing.strokes.reduce((count, stroke) => count + stroke.length, 0) <= 16384
+  );
+}
+
+export function reviewDrawingPath(
+  drawing: DesignReviewDrawing,
+  stroke: DesignReviewDrawing['strokes'][number],
+) {
+  return (
+    stroke
+      .map(
+        (point, index) =>
+          `${index ? 'L' : 'M'}${point.x * drawing.nativeWidth} ${point.y * drawing.nativeHeight}`,
+      )
+      .join(' ') + (stroke.length === 1 ? ' l0 0' : '')
+  );
 }

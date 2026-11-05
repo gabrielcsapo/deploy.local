@@ -102,9 +102,27 @@ public struct V2ReviewPreview: Decodable, Sendable {
     public var areas: [Area]
     public var crop: V2ReviewRect
 }
-public struct V2ReviewPin: Decodable, Identifiable, Sendable {
+public struct V2ReviewDrawing: Codable, Equatable, Sendable {
+    public struct Point: Codable, Equatable, Sendable {
+        public var x: Double
+        public var y: Double
+        public init(x: Double, y: Double) { self.x = x; self.y = y }
+    }
+    public var side: String
+    public var nativeWidth: Int
+    public var nativeHeight: Int
+    public var anchor: Point
+    public var strokes: [[Point]]
+    public var weight: Double
+    public init(side: String, nativeWidth: Int, nativeHeight: Int, anchor: Point, strokes: [[Point]] = [], weight: Double = 3) {
+        self.side = side; self.nativeWidth = nativeWidth; self.nativeHeight = nativeHeight
+        self.anchor = anchor; self.strokes = strokes; self.weight = weight
+    }
+}
+public struct V2ReviewPin: Codable, Identifiable, Sendable {
     public var id: String
     public var number: Int
+    public var drawing: V2ReviewDrawing?
     public var board: String
     public var noteId: String?
     public var width: Int
@@ -126,9 +144,10 @@ public struct V2ReviewPinDraft: Encodable, Sendable {
     public var y: Double
     public var text: String
     public var noteId: String?
-    public init(item: String, board: String, width: Int, revision: String, x: Double, y: Double, text: String = "", noteId: String? = nil) {
+    public var drawing: V2ReviewDrawing?
+    public init(item: String, board: String, width: Int, revision: String, x: Double, y: Double, text: String = "", noteId: String? = nil, drawing: V2ReviewDrawing? = nil) {
         self.item = item; self.board = board; self.width = width; self.revision = revision
-        self.x = x; self.y = y; self.text = text; self.noteId = noteId
+        self.x = x; self.y = y; self.text = text; self.noteId = noteId; self.drawing = drawing
     }
 }
 public struct V2ReviewProposer: Decodable, Sendable {

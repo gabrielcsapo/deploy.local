@@ -28,6 +28,16 @@ final class V2ReviewState {
     var conflict = false
     var asking = false
     var showChanges = true
+    var pagingAllowed = true
+    var comparing = false
+    var divider = 0.4
+    var peeking = false
+    var drawing = false
+    var selectedPin: V2ReviewPin?
+    var viewports: [String: CGRect] = [:]
+    var crops: [String: (scale: CGFloat, offset: CGPoint)] = [:]
+    var drawingOrigin: (scale: CGFloat, offset: CGPoint)?
+    var restoreCrop = 0
     var pinTool = false
     var draft: V2ReviewPinDraft?
     var editing: V2ReviewPin?
@@ -88,13 +98,72 @@ final class V2ReviewState {
             self.review?.boards[index].seen = true
         } catch { if !Task.isCancelled { self.error = coordinatorErrorDescription(error) } }
     }
+    func canCompare(_ board: V2DesignReview.Board) -> Bool {
+        !drawing && preview(board)?.before != nil && preview(board)?.after != nil
+    }
+    func toggleCompare(_ board: V2DesignReview.Board) {
+        guard canCompare(board) else { return }
+        comparing.toggle(); peeking = false; pinTool = false; selectedPin = nil
+        if comparing { divider = 0.4 }
+    }
+    func selectWidth(_ width: Int, board: V2DesignReview.Board) {
+        guard !drawing else { return }
+        comparing = false; peeking = false; selectedPin = nil; widths[board.file] = width
+    }
+    func startDrawing(_ board: V2DesignReview.Board) {
+        guard !drawing, let review, review.item.state == .waiting, let preview = preview(board) else { return }
+        let side = board.isRemoved ? "before" : "after"
+        let revision = board.isRemoved ? board.before ?? review.before : board.after ?? review.after
+        draft = .init(item: review.item.id, board: board.file, width: width(board), revision: revision, x: 0, y: 0,
+                      drawing: .init(side: side, nativeWidth: preview.metadata.width, nativeHeight: preview.metadata.height, anchor: .init(x: 0, y: 0)))
+        drawingOrigin = crops[key(board)]; drawing = true; comparing = false; peeking = false
+        editing = nil; selectedPin = nil; sheetText = ""; pinTool = false; error = nil
+    }
+    func appendStroke(_ points: [V2ReviewDrawing.Point]) {
+        guard drawing, !points.isEmpty, let paths = draft?.drawing?.strokes, paths.count < 128,
+              points.count <= 4096, paths.reduce(0, { $0 + $1.count }) + points.count <= 16384 else { return }
+        draft?.drawing?.strokes.append(points)
+        updateAnchor()
+    }
+    func undoStroke() {
+        guard drawing, draft?.drawing?.strokes.isEmpty == false else { return }
+        draft?.drawing?.strokes.removeLast(); updateAnchor()
+    }
+    private func updateAnchor() {
+        guard let drawing = draft?.drawing, let first = drawing.strokes.first, let start = first.first else { return }
+        let width = Double(drawing.nativeWidth), height = Double(drawing.nativeHeight)
+        // Keep the number beside the first mark; later arrows do not move its anchor.
+        let point = first.count == 1 ? start : V2ReviewDrawing.Point(
+            x: min(1, max(0, (first.map(\.x).max() ?? start.x) - 22 / width)),
+            y: min(1, max(0, (first.map(\.y).max() ?? start.y) + 22 / height)))
+        draft?.drawing?.anchor = point
+        draft?.x = point.x * Double(drawing.nativeWidth); draft?.y = point.y * Double(drawing.nativeHeight)
+    }
+    func commentOnDrawing() {
+        guard drawing, draft?.drawing?.strokes.isEmpty == false else { return }
+        pinSheet = true
+    }
+    func cancelDrawing() {
+        if let draft, let board = review?.boards.first(where: { $0.file == draft.board }), let drawingOrigin { crops[key(board)] = drawingOrigin }
+        restoreCrop += 1; drawing = false; draft = nil; sheetText = ""; drawingOrigin = nil; error = nil
+    }
+    func dismissPinSheet() {
+        if !drawing { draft = nil; sheetText = "" }
+        editing = nil
+    }
+    func placePin(_ board: V2DesignReview.Board) {
+        guard let preview = preview(board), let review else { return }
+        let rect = viewports[key(board)] ?? CGRect(x: 0, y: 0, width: preview.metadata.width, height: preview.metadata.height)
+        let point = CGPoint(x: min(Double(preview.metadata.width), max(0, rect.midX)), y: min(Double(preview.metadata.height), max(0, rect.midY)))
+        drop(board: board.file, width: width(board), revision: board.isRemoved ? board.before ?? review.before : board.after ?? review.after, point: point)
+    }
     func drop(board: String, width: Int, revision: String, point: CGPoint, noteId: String? = nil) {
-        guard let review, review.item.state == .waiting else { return }
+        guard !drawing, !comparing, let review, review.item.state == .waiting else { return }
         draft = .init(item: review.item.id, board: board, width: width, revision: revision, x: point.x, y: point.y, noteId: noteId)
-        editing = nil; sheetText = ""; pinTool = false; pinSheet = true
+        editing = nil; sheetText = ""; pinTool = false; pinSheet = true; error = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
-    func edit(_ pin: V2ReviewPin) { editing = pin; draft = nil; sheetText = pin.text; pinSheet = true }
+    func edit(_ pin: V2ReviewPin) { error = nil; selectedPin = nil; editing = pin; draft = nil; sheetText = pin.text; pinSheet = true }
     func savePin(client: V2Client, remove: Bool = false, reopen: Bool = false) async {
         guard let review, review.item.state == .waiting, !saving else { return }
         saving = true; error = nil
@@ -109,7 +178,12 @@ final class V2ReviewState {
                 guard !draft.text.isEmpty else { return }
                 pins = try await client.addReviewPin(project: project, draft: draft)
             } else { return }
+            if let draft, draft.drawing != nil {
+                selectedPin = pins.last { pin in !self.pins.contains { $0.id == pin.id } && pin.board == draft.board && pin.revision == draft.revision && pin.width == draft.width && pin.drawing == draft.drawing }
+                showChanges = true
+            }
             self.review?.pins = pins; pinSheet = false; draft = nil; editing = nil
+            drawing = false; drawingOrigin = nil; sheetText = ""
         } catch { self.error = coordinatorErrorDescription(error) }
     }
     func finishReview() { page = .decide }

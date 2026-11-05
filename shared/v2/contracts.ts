@@ -319,9 +319,18 @@ export type DesignReviewPreview = {
   areas: (DesignReviewChange & { before: DesignRect | null; after: DesignRect | null })[];
   crop: DesignRect;
 };
+export type DesignReviewDrawing = {
+  side: 'before' | 'after';
+  nativeWidth: number;
+  nativeHeight: number;
+  anchor: { x: number; y: number };
+  strokes: { x: number; y: number }[][];
+  weight: number;
+};
 export type DesignReviewPin = {
   id: string;
   number: number;
+  drawing?: DesignReviewDrawing;
   board: string;
   noteId: string | null;
   width: number;

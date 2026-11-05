@@ -10,6 +10,7 @@ struct V2DesignReviewView: View {
     @State private var model = V2ReviewState()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     @State private var active = false
@@ -40,6 +41,13 @@ struct V2DesignReviewView: View {
                 if !pages.contains(model.page), let board {
                     // Unchanged round-two screens are inspectable from All screens, outside the swipe sequence.
                     screenPage(board)
+                } else if reduceMotion {
+                    steadyPage(review).simultaneousGesture(DragGesture(minimumDistance: 40).onEnded { value in
+                        guard !model.comparing, !model.drawing, !model.obscured, model.pagingAllowed,
+                              abs(value.translation.width) > abs(value.translation.height), let index = pages.firstIndex(of: model.page) else { return }
+                        let next = index + (value.translation.width < 0 ? 1 : -1)
+                        if pages.indices.contains(next) { model.page = pages[next] }
+                    })
                 } else {
                     TabView(selection: $model.page) {
                         cover(review).tag(V2ReviewModel.Page.cover)
@@ -67,13 +75,13 @@ struct V2DesignReviewView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button { if model.page == .cover { dismiss() } else { model.page = .cover } } label: { Image(systemName: "chevron.left").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("Back")
+                Button { if model.drawing { model.cancelDrawing() } else if model.comparing { model.comparing = false } else if model.page == .cover { dismiss() } else { model.page = .cover } } label: { Image(systemName: "chevron.left").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("Back")
             }
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {
-                    Text(board?.name ?? note?.title ?? (model.page == .decide ? "Finish review" : "Design review")).font(.headline).lineLimit(1).truncationMode(.tail)
+                    Text(model.drawing && !model.pinSheet ? "Draw a comment" : board?.name ?? note?.title ?? (model.page == .decide ? "Finish review" : "Design review")).font(.headline).lineLimit(1).truncationMode(.tail)
                     if let board {
-                        Text(screenCounter(board)).font(.footnote).foregroundStyle(.secondary)
+                        Text(model.drawing && !model.pinSheet ? "\(board.name) · \(screenCounter(board))" : "\(board.changeKind == "new" ? "New · " : board.isRemoved ? "Removed · " : "")\(screenCounter(board))").font(.footnote).foregroundStyle(.secondary)
                     } else if let note, let index = review?.changedNotes.firstIndex(where: { $0.id == note.id }) {
                         Text("Note \(index + 1) of \(review?.changedNotes.count ?? 0)").font(.footnote).foregroundStyle(.secondary)
                     }
@@ -83,15 +91,19 @@ struct V2DesignReviewView: View {
                 Menu {
                     if model.page == .cover { Button("See all screens") { model.grid = true } }
                     else {
-                        Button("Approve design") { model.finishReview() }
-                        Button("Ask for changes") { model.finishReview() }
+                        Button("Approve design") { model.finishReview() }.disabled(!canDecide)
+                        Button("Ask for changes") { model.finishReview() }.disabled(!canDecide)
+                    }
+                    if board != nil || note != nil {
+                        Button("Place a pin") { if let board { model.placePin(board) } else { model.pinTool = true } }.disabled(model.comparing || model.drawing || review?.item.state != .waiting || (board != nil && board.flatMap(model.preview) == nil))
+                        Button("All screens") { model.grid = true }
                     }
                     Button("Open the Design page") { model.design = true }
-                } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("More")
+                } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("More").disabled(model.drawing)
             }
         }
         .sheet(isPresented: $model.grid) { gridSheet.presentationDetents([.large]).presentationDragIndicator(.visible) }
-        .sheet(isPresented: $model.pinSheet, onDismiss: { model.draft = nil; model.editing = nil }) {
+        .sheet(isPresented: $model.pinSheet, onDismiss: { model.dismissPinSheet() }) {
             V2ReviewPinSheet(model: model, client: store.client).presentationDetents([.medium, .large]).presentationDragIndicator(.visible).interactiveDismissDisabled(model.saving)
         }
         .sheet(isPresented: $model.conflict) { conflictSheet.presentationDetents([.medium, .large]) }
@@ -115,9 +127,18 @@ struct V2DesignReviewView: View {
         }
         .onAppear { active = true }
         .onDisappear { active = false }
-        .onChange(of: model.page) { _, _ in model.pinTool = false }
+        .onChange(of: model.page) { _, _ in model.pinTool = false; model.pagingAllowed = true; model.comparing = false; model.peeking = false; model.selectedPin = nil }
+        .transaction { if reduceMotion { $0.animation = nil; $0.disablesAnimations = true } }
     }
 
+    @ViewBuilder private func steadyPage(_ review: V2DesignReview) -> some View {
+        switch model.page {
+        case .cover: cover(review)
+        case .decide: decide(review)
+        case .screen: if let board { screenPage(board) }
+        case .note: if let note { V2ReviewNotePage(model: model, note: note) }
+        }
+    }
     private func screenPage(_ board: V2DesignReview.Board) -> some View {
         V2ReviewScreenPage(model: model, board: board, client: store.client, active: model.page == .screen(board.file) && !model.obscured)
             .accessibilityElement(children: .contain)
@@ -213,25 +234,55 @@ struct V2DesignReviewView: View {
         }
     }
     private var reviewToolbar: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 16) {
-                if board?.changeKind == "changed" || (note?.before != nil && note?.after != nil) {
-                    tool("Show changes", "square.lefthalf.filled", selected: model.showChanges) { model.showChanges.toggle() }
+        VStack(spacing: 2) {
+            if model.drawing && !model.pinSheet {
+                HStack {
+                    Button("Cancel") { model.cancelDrawing() }.frame(minWidth: 60, minHeight: 44)
+                    Spacer()
+                    Button { model.undoStroke() } label: { Label("Undo", systemImage: "arrow.uturn.backward") }.frame(minWidth: 60, minHeight: 44).disabled(model.draft?.drawing?.strokes.isEmpty != false)
+                    Spacer()
+                    Button("Next") { model.commentOnDrawing() }.bold().frame(minWidth: 60, minHeight: 44).disabled(model.draft?.drawing?.strokes.isEmpty != false)
                 }
-                tool("Pin", "pin", selected: model.pinTool) { model.pinTool.toggle() }.disabled(review?.item.state != .waiting || (board != nil && board.flatMap(model.preview) == nil))
-                tool("All screens", "square.grid.2x2") { model.grid = true }
-                Spacer(minLength: 0)
-                let seen = board?.seen == true || note.map { model.seenNotes.contains($0.id) } == true
-                let pins = model.pins.filter { pin in board.map { pin.board == $0.file && pin.noteId == nil } ?? (pin.noteId == note?.id) }.count
-                HStack(spacing: 4) {
-                    if seen { Image(systemName: "checkmark") }
-                    Text("\(seen ? "Seen" : "Not seen") · \(V2ReviewModel.count(pins, "pin"))")
-                }.font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("Draw with your finger. Two fingers to pan.").font(.footnote).foregroundStyle(.secondary).padding(.top, 6)
+            } else {
+                HStack(spacing: 8) {
+                    if let board {
+                        V2ReviewCompareControl(selected: model.comparing, enabled: model.canCompare(board), reason: compareReason(board),
+                                               tap: { model.toggleCompare(board) }, hold: { model.peeking = $0 })
+                            .frame(width: 106, height: 44)
+                        tool("Draw and comment", "pencil") { model.startDrawing(board) }.disabled(review?.item.state != .waiting || model.preview(board) == nil)
+                    }
+                    tool("Show changes", "square.lefthalf.filled", selected: model.showChanges) { model.showChanges.toggle(); model.selectedPin = nil }
+                        .disabled(board.map { $0.changeKind != "changed" } ?? (note?.before == nil || note?.after == nil))
+                    Spacer(minLength: 0)
+                    if let board {
+                        if board.previewWidths.count > 1 {
+                            Menu { ForEach(board.previewWidths, id: \.self) { width in Button(String(width)) { model.selectWidth(width, board: board) } } } label: { widthLabel(board) }.disabled(model.drawing)
+                        } else { widthLabel(board) }
+                    }
+                    if model.comparing { Button("Done") { model.comparing = false }.font(.subheadline.bold()).frame(minWidth: 48, minHeight: 44) }
+                }
+                HStack(spacing: 8) {
+                    Text(board.map(compareReason).flatMap { $0.isEmpty ? nil : $0 } ?? (model.comparing ? "Drag anywhere to compare" : "Long-press to pin"))
+                    Spacer(minLength: 0)
+                    let seen = board?.seen == true || note.map { model.seenNotes.contains($0.id) } == true
+                    let pins = model.pins.filter { pin in board.map { pin.board == $0.file && pin.noteId == nil } ?? (pin.noteId == note?.id) }.count
+                    HStack(spacing: 4) {
+                        if seen { Image(systemName: "checkmark") }
+                        Text("\(seen ? "Seen" : "Not seen")\(pins == 0 && board?.changeKind != "changed" ? "" : " · \(V2ReviewModel.count(pins, "pin"))")")
+                    }
+                }.font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                ProgressView(value: Double(pages.firstIndex(of: model.page) ?? 0), total: Double(max(1, pages.count - 1)))
+                    .tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Review position").padding(.top, 8)
             }
-            ProgressView(value: Double(pages.firstIndex(of: model.page) ?? 0), total: Double(max(1, pages.count - 1)))
-                .tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Review position")
-        }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12)
-            .overlay(alignment: .top) { Divider() }
+        }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12).overlay(alignment: .top) { Divider() }
+    }
+    private func compareReason(_ board: V2DesignReview.Board) -> String {
+        board.isRemoved ? "No After for this screen" : board.added ? "No Before for this screen" : ""
+    }
+    private func widthLabel(_ board: V2DesignReview.Board) -> some View {
+        Text(String(model.width(board))).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 9).padding(.vertical, 2)
+            .overlay(Capsule().stroke(WorkspaceStyle.line(scheme))).frame(minWidth: 50, minHeight: 44).accessibilityLabel("Preview width, \(model.width(board))")
     }
     private func tool(_ label: String, _ icon: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) { Image(systemName: icon).font(.system(size: 22)).frame(width: 44, height: 44).background(selected ? WorkspaceStyle.line(scheme) : .clear, in: Circle()) }
@@ -384,17 +435,29 @@ struct V2ReviewPinSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    if let drawing = model.editing?.drawing ?? model.draft?.drawing {
+                        HStack(spacing: 12) {
+                            V2ReviewDrawingThumbnail(model: model, drawing: drawing, client: client).frame(width: 112, height: 84).clipShape(RoundedRectangle(cornerRadius: 8))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(context)
+                                Text("Drawing · Pin \(model.editing?.number ?? model.draftNumber)").foregroundStyle(.secondary)
+                            }.font(.footnote)
+                        }
+                    }
                     TextField("What should change?", text: $model.sheetText, axis: .vertical).lineLimit(3...8).padding(12)
                         .background(.background, in: RoundedRectangle(cornerRadius: 12)).focused($focused)
-                    Text(context).font(.footnote).foregroundStyle(.secondary)
+                    if model.editing?.drawing == nil && model.draft?.drawing == nil { Text(context).font(.footnote).foregroundStyle(.secondary) }
                     if let pin = model.editing, model.review?.item.state == .waiting {
                         if pin.resolved { Button("Reopen") { Task { await model.savePin(client: client, reopen: true) } } }
                         Button("Remove pin", role: .destructive) { Task { await model.savePin(client: client, remove: true) } }
                     }
-                    if let error = model.error { Text(error).font(.footnote).foregroundStyle(.secondary) }
+                    if let error = model.error {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                        Button("Retry") { Task { await model.savePin(client: client) } }.disabled(model.sheetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }.padding(16)
             }
-            .navigationTitle("Pin \(model.editing?.number ?? model.draftNumber)").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(model.editing?.drawing != nil || model.draft?.drawing != nil ? "Comment" : "Pin \(model.editing?.number ?? model.draftNumber)").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.pinSheet = false }.disabled(model.saving) }
                 ToolbarItem(placement: .confirmationAction) {

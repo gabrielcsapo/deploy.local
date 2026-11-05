@@ -16,6 +16,23 @@ struct V2DesignReviewTests {
     private func pin(_ number: Int, resolved: Bool) throws -> V2ReviewPin {
         try JSONDecoder().decode(V2ReviewPin.self, from: Data(#"{"id":"p\#(number)","number":\#(number),"board":"changed1","noteId":null,"width":390,"revision":"b","x":12,"y":25,"text":"Keep the name visible","author":"owner","resolved":\#(resolved),"reply":"Kept the name","createdAt":"2026-11-04T12:00:00Z"}"#.utf8))
     }
+    @Test func drawingsRoundTripAndLegacyPinsStayCompatible() throws {
+        var pin = try pin(4, resolved: false)
+        #expect(pin.drawing == nil)
+        let drawing = V2ReviewDrawing(side: "after", nativeWidth: 390, nativeHeight: 844, anchor: .init(x: 0.5, y: 0.25),
+                                      strokes: [[.init(x: 0, y: 0), .init(x: 1, y: 1)], [.init(x: 0.5, y: 0.25)]])
+        pin.drawing = drawing
+        let decoded = try JSONDecoder().decode(V2ReviewPin.self, from: JSONEncoder().encode(pin))
+        #expect(decoded.drawing == drawing)
+        #expect(decoded.revision == pin.revision)
+        let draft = V2ReviewPinDraft(item: "review", board: pin.board, width: 390, revision: pin.revision, x: 195, y: 211, text: pin.text, drawing: drawing)
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(draft)) as? [String: Any])
+        let encodedDrawing = try #require(json["drawing"] as? [String: Any])
+        #expect(encodedDrawing["weight"] as? Double == 3)
+        #expect(try JSONDecoder().decode(V2ReviewDrawing.self, from: JSONSerialization.data(withJSONObject: encodedDrawing)) == drawing)
+        var review = try review(); review.pins = [decoded]
+        #expect(V2ReviewModel.primaryAction(review) == .changes(1))
+    }
     @Test func pagerUsesStatusThenCanvasOrderAndCountsOnlyScreens() throws {
         let review = try review()
         #expect(V2ReviewModel.canvasBoards(review).map(\.file) == ["new", "changed1", "removed", "changed2"])
