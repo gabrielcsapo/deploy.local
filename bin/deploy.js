@@ -33,6 +33,7 @@ import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
 import { downloadWorkerBuild, installWorkerBuild } from './worker-update.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
+import { printCertificateFingerprint } from './certificate-fingerprint.mjs';
 import {
   HELP,
   browserLogin,
@@ -3409,6 +3410,7 @@ try {
         default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
       },
       password: { type: 'boolean', default: false },
+      fingerprint: { type: 'boolean', default: false },
       application: { type: 'string', short: 'a' },
       app: { type: 'string' },
       name: { type: 'string' },
@@ -3591,6 +3593,10 @@ try {
       await cmdRollback(requireApp());
       break;
     case 'status': {
+      if (values.fingerprint) {
+        await printCertificateFingerprint(serverUrl);
+        break;
+      }
       const [deployments, fleet, inbox] = await Promise.all([
         api('/api/deployments'),
         api('/api/nodes'),

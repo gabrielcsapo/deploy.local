@@ -14,16 +14,16 @@ struct V2SignIn: View {
     var body: some View {
         NavigationStack {
             V2Page(title: "Sign in") {
-                Text("On a computer that is signed in, open Settings › Devices › Add iPhone, then scan the code it shows.").font(.system(size: 17))
+                Text("On a computer that is signed in, open Settings › Account › Add iPhone, then scan the code it shows.").font(.system(size: 17))
                 Button { scanner = true } label: {
                     Image(systemName: "qrcode.viewfinder").font(.system(size: 100, weight: .ultraLight)).frame(maxWidth: .infinity, minHeight: 240)
                 }.accessibilityLabel("Scan pairing code").disabled(busy || V2Evidence.board != nil)
-                Text("The code carries your coordinator's address, its certificate fingerprint and a one-time sign-in.").font(.system(size: 13)).foregroundStyle(.secondary)
+                Text("The code carries SER's address, its certificate and a one-time sign-in, so there is nothing to type or check.").font(.system(size: 13)).foregroundStyle(.secondary)
                 if busy { ProgressView("Signing in…") }
                 if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
-                Button { password = true } label: { V2Row(title: "Sign in with a password", subtitle: "Your iPhone must trust the coordinator's certificate", icon: "key") }
+                Button { password = true } label: { V2Row(title: "Sign in with a password", subtitle: "You will check SER's certificate by hand", icon: "key") }
             }.toolbar { Button("Done") { dismiss() } }
-                .sheet(isPresented: $password) { ConnectionSheet(store: workspace) }
+                .sheet(isPresented: $password) { V2PasswordSignIn { connection in connected(connection); dismiss() } }
                 .sheet(isPresented: $scanner) {
                     if DataScannerViewController.isSupported && DataScannerViewController.isAvailable {
                         V2QRScanner { result in

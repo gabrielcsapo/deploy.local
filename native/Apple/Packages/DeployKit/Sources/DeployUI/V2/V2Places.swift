@@ -170,6 +170,7 @@ struct V2SettingsView: View {
     @State private var devices = false
     @State private var approvals = false
     @State private var approvalRules: V2Approvals?
+    @State private var forgetCertificate = false
     @AppStorage(V2Appearance.defaultsKey) private var appearance = V2Appearance.system
     @Environment(\.colorScheme) private var scheme
     private var agentSummary: String {
@@ -201,6 +202,18 @@ struct V2SettingsView: View {
                         V2SettingsRow(title: accountName,
                                       subtitle: "Signed in on this iPhone · \(coordinatorName)",
                                       avatar: accountName) { EmptyView() }
+                        if let certificate = V2CoordinatorTrust.checked(for: store.connection) {
+                            Divider()
+                            HStack(spacing: 14) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("SER's certificate").font(.system(size: 16, weight: .medium))
+                                    Text("Checked by you on \(certificate.checkedAt.formatted(date: .long, time: .omitted))")
+                                        .font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                                }.frame(maxWidth: .infinity, alignment: .leading)
+                                Button("Forget", role: .destructive) { forgetCertificate = true }
+                                    .font(.system(size: 16)).foregroundStyle(WorkspaceStyle.danger(scheme)).frame(minWidth: 44, minHeight: 44)
+                            }.padding(.horizontal, 16).frame(minHeight: 80)
+                        }
                     }
                     V2NotificationControls(store: store, openSettings: { notifications = true })
                     V2SettingsGroup(title: "Devices") {
@@ -249,6 +262,12 @@ struct V2SettingsView: View {
                 }.padding(.horizontal, 16).padding(.bottom, 32)
             }
         }.scrollIndicators(.hidden).buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
+        .confirmationDialog("Forget SER's certificate?", isPresented: $forgetCertificate, titleVisibility: .visible) {
+            Button("Forget", role: .destructive) { forget() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This removes this app's saved certificate trust for \(store.connection.origin.replacingOccurrences(of: "https://", with: "")) and signs you out of this connection. Your next password sign-in checks again unless iOS already trusts it. Other apps are unaffected.")
+        }
         .sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
         .sheet(isPresented: $notifications) { V2NotificationSettings(store: store) }
         .sheet(isPresented: $devices) { V2DevicesView(store: store) }
@@ -262,6 +281,12 @@ struct V2SettingsView: View {
             // A failed read leaves the real names visible without guessing at permissions.
             approvalRules = try? await store.client.approvals()
         }
+    }
+    private func forget() {
+        do {
+            try V2CertificateVault.clear(origin: store.connection.origin)
+            store.suspend(); workspace.disconnect()
+        } catch { store.error = coordinatorErrorDescription(error) }
     }
     private func signOut() {
         Task {

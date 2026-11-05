@@ -115,9 +115,9 @@ public actor WorkspaceClient {
     public let connection: Connection
     private let session: URLSession
 
-    public init(connection: Connection, session: URLSession = URLSession(configuration: .ephemeral, delegate: OriginRedirectGuard(), delegateQueue: nil)) {
+    public init(connection: Connection, session: URLSession? = nil) {
         self.connection = connection
-        self.session = session
+        self.session = session ?? V2CoordinatorTrust.session(for: connection) ?? URLSession(configuration: .ephemeral, delegate: OriginRedirectGuard(), delegateQueue: nil)
     }
 
     public func request<T: Decodable & Sendable>(_ path: String, method: String = "GET", body: Data? = nil, contentType: String = "application/json", timeout: TimeInterval = 20) async throws -> T {

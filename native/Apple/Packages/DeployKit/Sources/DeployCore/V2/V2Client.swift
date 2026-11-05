@@ -171,7 +171,7 @@ public actor V2Client {
     public init(connection: Connection, session: URLSession? = nil) {
         self.connection = connection
         if let session { client = WorkspaceClient(connection: connection, session: session) }
-        else if let pinned = V2PairingVault.session(for: connection) { client = WorkspaceClient(connection: connection, session: pinned) }
+        else if let pinned = V2CoordinatorTrust.session(for: connection) { client = WorkspaceClient(connection: connection, session: pinned) }
         else { client = WorkspaceClient(connection: connection) }
     }
     public static func segment(_ value: String) -> String {

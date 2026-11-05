@@ -1,6 +1,5 @@
 import Foundation
 import Security
-import CryptoKit
 
 public struct V2PairingPayload: Codable, Equatable, Sendable {
     public let version: Int
@@ -59,18 +58,21 @@ public enum V2PairingVault {
     }
 }
 
-// The QR is the trust source. Never accept a redirect or a separately fetched fingerprint.
+// The QR or an explicit manual check is the trust source. Never accept a redirect or a separately fetched fingerprint.
 public final class V2PinnedCoordinator: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     private let origin: String
     private let fingerprint: String
     private let certificate: Data
     public init(origin: String, fingerprint: String, certificate: Data) { self.origin = origin; self.fingerprint = fingerprint.uppercased(); self.certificate = certificate }
     public static func matches(certificate: Data, fingerprint: String) -> Bool {
-        SHA256.hash(data: certificate).map { String(format: "%02X", $0) }.joined(separator: ":") == fingerprint.uppercased()
+        V2CertificateFingerprint.full(certificate) == fingerprint.uppercased()
     }
     public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         let (disposition, credential) = evaluate(challenge)
         completionHandler(disposition, credential)
+    }
+    public func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        urlSession(session, didReceive: challenge, completionHandler: completionHandler)
     }
     /// The same check for any client of the coordinator, such as the Design page's web view.
     public func evaluate(_ challenge: URLAuthenticationChallenge) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
@@ -78,7 +80,7 @@ public final class V2PinnedCoordinator: NSObject, URLSessionDelegate, URLSession
               let url = URL(string: origin), challenge.protectionSpace.host.lowercased() == url.host?.lowercased(),
               challenge.protectionSpace.port == (url.port ?? 443),
               let trust = challenge.protectionSpace.serverTrust else { return (.cancelAuthenticationChallenge, nil) }
-        // The downloaded root is authenticated by the QR before any token is sent.
+        // The downloaded root is authenticated before any token is sent.
         SecTrustSetNetworkFetchAllowed(trust, false)
         guard Self.matches(certificate: certificate, fingerprint: fingerprint),
               let root = SecCertificateCreateWithData(nil, certificate as CFData),
@@ -91,7 +93,7 @@ public final class V2PinnedCoordinator: NSObject, URLSessionDelegate, URLSession
     public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
 public enum V2PairingClient {
-    public static func certificateDER(_ data: Data, fingerprint: String) throws -> Data {
+    static func certificateBytes(_ data: Data) throws -> Data {
         guard data.count <= 65536 else { throw ClientError.invalidResponse }
         let der: Data
         if let pem = String(data: data, encoding: .utf8), pem.contains("-----BEGIN CERTIFICATE-----") {
@@ -99,26 +101,36 @@ public enum V2PairingClient {
             guard let decoded = Data(base64Encoded: base64) else { throw ClientError.invalidResponse }
             der = decoded
         } else { der = data }
+        return der
+    }
+    public static func certificateDER(_ data: Data, fingerprint: String) throws -> Data {
+        let der = try certificateBytes(data)
         guard V2PinnedCoordinator.matches(certificate: der, fingerprint: fingerprint), SecCertificateCreateWithData(nil, der as CFData) != nil else { throw ClientError.response(400, "The coordinator certificate does not match this code. Create a new code on your computer.") }
         return der
     }
-    private static func downloadCertificate(_ payload: V2PairingPayload, session: URLSession?) async throws -> Data {
+    static func downloadCertificate(origin: String, session: URLSession? = nil) async throws -> Data {
         // TLS servers need not send their root. Fetch only its public bytes without credentials,
-        // authenticate them against the scanned digest, then create a separate pinned session.
+        // authenticate them by QR or manual check, then create a separate pinned session.
         let config = URLSessionConfiguration.ephemeral
-        config.httpShouldSetCookies = false
-        let transport = session ?? URLSession(configuration: config, delegate: V2PublicCertificateDownload(origin: payload.address), delegateQueue: nil)
+        config.httpShouldSetCookies = false; config.urlCredentialStorage = nil
+        let transport = session ?? URLSession(configuration: config, delegate: V2PublicCertificateDownload(origin: origin), delegateQueue: nil)
         defer { if session == nil { transport.invalidateAndCancel() } }
-        let base = try Connection(origin: payload.address, username: "", token: "").baseURL()
+        let base = try Connection(origin: origin, username: "", token: "").baseURL()
         var request = URLRequest(url: URL(string: "/ca.crt", relativeTo: base)!.absoluteURL)
         request.timeoutInterval = 20; request.cachePolicy = .reloadIgnoringLocalCacheData
-        let (data, response) = try await transport.data(for: request)
+        let (bytes, response) = try await transport.bytes(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else { throw ClientError.response(400, "The coordinator certificate is unavailable. Sign in with a password or create a new pairing code.") }
-        return try certificateDER(data, fingerprint: payload.fingerprint)
+        guard response.expectedContentLength <= 65536 else { throw ClientError.invalidResponse }
+        var data = Data()
+        for try await byte in bytes {
+            guard data.count < 65536 else { throw ClientError.invalidResponse }
+            data.append(byte)
+        }
+        return data
     }
     public static func exchange(_ payload: V2PairingPayload, name: String, session: URLSession? = nil) async throws -> V2PairedDevice {
         _ = try V2PairingPayload.parse(String(decoding: JSONEncoder().encode(payload), as: UTF8.self))
-        let certificate = try await downloadCertificate(payload, session: session)
+        let certificate = try certificateDER(await downloadCertificate(origin: payload.address, session: session), fingerprint: payload.fingerprint)
         let transport = session ?? URLSession(configuration: .ephemeral, delegate: V2PinnedCoordinator(origin: payload.address, fingerprint: payload.fingerprint, certificate: certificate), delegateQueue: nil)
         let client = WorkspaceClient(connection: Connection(origin: payload.address, username: "", token: ""), session: transport)
         struct Response: Decodable, Sendable { let id: String; let username: String; let token: String; let expiresAt: Double }
@@ -133,7 +145,7 @@ public enum V2PairingClient {
 }
 
 // This delegate is private to the credential-free /ca.crt download. The downloaded
-// bytes are untrusted until their DER hash matches the fingerprint scanned from QR.
+// bytes are untrusted until checked against the QR or explicitly compared by the owner.
 private final class V2PublicCertificateDownload: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     let origin: String
     init(origin: String) { self.origin = origin }
@@ -142,6 +154,10 @@ private final class V2PublicCertificateDownload: NSObject, URLSessionDelegate, U
               challenge.protectionSpace.host.lowercased() == url.host?.lowercased(), challenge.protectionSpace.port == (url.port ?? 443),
               let trust = challenge.protectionSpace.serverTrust else { completionHandler(.cancelAuthenticationChallenge, nil); return }
         completionHandler(.useCredential, URLCredential(trust: trust))
+    }
+    // Async `bytes(for:)` asks the task, not the session, so answer both the same way.
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        urlSession(session, didReceive: challenge, completionHandler: completionHandler)
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
