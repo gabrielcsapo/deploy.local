@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=760">
+<title>CLI — packages: sign in once, publish from a folder</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</head>
+<body>
+<style data-layer="t-win-border">
+.t-win{border-radius:12px;overflow:hidden;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,.1),0 24px 48px -16px rgba(20,18,26,.35);display:flex;flex-direction:column;min-width:0}
+.t-bar{height:34px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;font-family:var(--font-sans);font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.t-bar .t-lights{position:absolute;left:12px;top:11px;display:flex;gap:7px}
+.t-bar .t-lights span{width:11px;height:11px;border-radius:6px;background:#ff5f57}
+.t-bar .t-lights span:nth-child(2){background:#febc2e}
+.t-bar .t-lights span:nth-child(3){background:#28c840}
+.t-body{margin:0;padding:14px 18px 18px;font-family:var(--font-mono);font-size:13px;line-height:20px;white-space:pre;overflow:hidden;color:var(--ink);flex:1}
+.t-dim{color:var(--muted)}.t-ok{color:var(--success)}.t-fail{color:var(--danger)}.t-warn{color:var(--warning)}.t-run{color:var(--active)}.t-acc{color:var(--accent)}.t-b{font-weight:700}
+.t-row{display:grid;gap:24px;align-items:start}
+.t-cap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+</style><div data-layer="sheet" class="dl-sheet" style="width: 1440px; height: 760px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden"><div data-layer="t" class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span data-layer="cli-packages" class="dl-meta">CLI · packages</span><h1 data-layer="sign-in-once" class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">Sign in once. Publish from the folder.</h1><span data-layer="deploy-packages-login" class="dl-soft" style="font-size:15px;line-height:24px;max-width:860px">deploy packages login makes a package key from your deploy.local sign-in and gives it to npm, pnpm and Cargo. deploy packages publish packs the package in the current folder and publishes it under your name. Tasks never run it: their computers can install but not publish, so packages from a task are published by the pipeline when you merge.</span></div><div data-layer="t-row" class="t-row" style="grid-template-columns:1fr 1fr"><div data-layer="div"><div data-layer="t-cap" class="t-cap"><span data-layer="signing-in-then" class="dl-strong" style="font-size:15px;line-height:24px">Signing in, then setting up a project</span><span data-layer="each-step-names" class="dl-soft">Each step names the file it wrote</span></div><div data-layer="t-win" class="t-win" data-theme="dark" style="height:420px;"><div data-layer="t-bar" class="t-bar"><span data-layer="t-lights" class="t-lights"><span data-layer="span"></span><span data-layer="span-2"></span><span data-layer="span-3"></span></span>zsh</div><pre data-layer="t-body" class="t-body"><span data-layer="code-mdink" class="t-dim">~/code/mdink $</span> deploy packages login
+
+  <span data-layer="t-ok" class="t-ok">✓</span> Package key for gabriel         <span data-layer="macbook-pro-can" class="t-dim">MacBook Pro · can publish</span>
+  <span data-layer="t-ok-2" class="t-ok">✓</span> npm and pnpm                     <span data-layer="npmrc-https-deploy" class="t-dim">~/.npmrc · https://deploy.local/npm/</span>
+  <span data-layer="t-ok-3" class="t-ok">✓</span> Cargo                            <span data-layer="cargo-credentials-toml" class="t-dim">~/.cargo/credentials.toml</span>
+  <span data-layer="t-ok-4" class="t-ok">✓</span> Trusts SER’s certificate         <span data-layer="already-in-your" class="t-dim">already in your keychain</span>
+
+<span data-layer="code-mdink-2" class="t-dim">~/code/mdink $</span> deploy packages use
+
+  <span data-layer="t-ok-5" class="t-ok">✓</span> Wrote .npmrc and .cargo/config.toml
+    <span data-layer="commit-them-so" class="t-dim">Commit them so everyone installs from deploy.local.</span>
+    <span data-layer="anyone-who-can" class="t-dim">Anyone who can’t reach deploy.local can’t install this project.</span>
+    <span data-layer="undo-deploy-packages" class="t-dim">Undo: deploy packages use --off</span></pre></div></div><div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="publishing-a-crate" class="dl-strong" style="font-size:15px;line-height:24px">Publishing a crate, and trying the same version again</span><span data-layer="a-version-that" class="dl-soft">A version that exists is refused, never overwritten</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark" style="height:420px;"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="code-mdink-crates" class="t-dim">~/code/mdink/crates/mde-core $</span> deploy packages publish
+
+<span data-layer="mde-core" class="t-b">mde-core</span> <span data-layer="cargo-crate-0" class="t-dim">· Cargo crate · 0.1.0 → 0.1.1</span>
+
+  <span data-layer="t-ok-6" class="t-ok">✓</span> Packed 18 files                  <span data-layer="42-kb-cargo" class="t-dim">42 KB · cargo package</span>
+  <span data-layer="t-ok-7" class="t-ok">✓</span> Checked the version is new       <span data-layer="0-1-1" class="t-dim">0.1.1 is not on deploy.local</span>
+  <span data-layer="t-ok-8" class="t-ok">✓</span> Published                        <span data-layer="by-you-0" class="t-dim">by you · 0.6 s</span>
+
+<span data-layer="t-ok-9" class="t-ok">✓</span> <span data-layer="mde-core-0" class="t-b">mde-core 0.1.1 is on deploy.local</span>
+  https://deploy.local/packages/cargo/mde-core
+
+<span data-layer="code-mdink-crates-2" class="t-dim">~/code/mdink/crates/mde-core $</span> deploy packages publish
+
+<span data-layer="t-fail" class="t-fail">✗</span> <span data-layer="0-1-1-2" class="t-b">0.1.1 is already published.</span> Nothing changed.
+  <span data-layer="versions-are-never" class="t-dim">Versions are never replaced. Set a new version in Cargo.toml.</span></pre></div></div></div></div>
+</body>
+</html>
