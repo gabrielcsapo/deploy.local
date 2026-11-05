@@ -3482,7 +3482,7 @@
       "y": 24748,
       "w": 390,
       "h": 200,
-      "text": "SER's certificate · iPhone Settings\nThe account group records a manual check: Checked by you on November 3, 2026. Forget removes this app's saved certificate trust for deploy.local; the next password sign-in checks again unless iOS already trusts it. Other apps are unaffected."
+      "text": "SER's certificate · iPhone Settings\nThe account group records a manual check: Checked by you on November 3, 2026. Forget asks first: “Forget SER's certificate? This removes this app's saved certificate trust for deploy.local and signs you out of this connection. Your next password sign-in checks again unless iOS already trusts it. Other apps are unaffected.” The app can't reach SER without that trust, so Forget also signs out and returns to Sign in."
     },
     "review-clarity-DesignToReview": {
       "x": 1600,
