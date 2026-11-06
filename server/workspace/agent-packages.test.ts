@@ -254,6 +254,7 @@ process.stdout.write(JSON.stringify({ type: ${JSON.stringify(adapter === 'claude
       const child = spawn(process.execPath, [resolve('server/workspace/remote-worker.ts')], {
         env: {
           ...process.env,
+          NPM_CONFIG_USERCONFIG: undefined,
           PATH: directory + ':' + process.env.PATH,
           DEPLOY_WORKER_ROOT: directory,
           DEPLOY_WORKER_ID: 'remote',
