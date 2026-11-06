@@ -4,16 +4,15 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { stripTypeScriptTypes } from 'node:module';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-v2-api-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { db, save, get, list, event, cursor, now } = await import('../workspace/store.ts');
-const { authenticate, registerUser } = await import('../store.ts');
+const { registerUser } = await import('../store.ts');
 const { questionTool, answerQuestion } = await import('../workspace/questions.ts');
 const { interactiveTool, interactiveWorker, interactiveOperator } =
   await import('../workspace/interactive.ts');
@@ -21,20 +20,8 @@ const { syncInbox } = await import('./inbox.ts');
 const { mapConversationEvent, waitForV2Events } = await import('./events.ts');
 const { v2Api } = await import('./api.ts');
 
-// Exercise the actual cookie/header auth helper without starting API background services.
-const apiSource = readFileSync(new URL('../api.ts', import.meta.url), 'utf8');
-const authSource = apiSource.slice(
-  apiSource.indexOf('const AUTH_COOKIE'),
-  apiSource.indexOf('function requireAdmin'),
-);
-const requireAuth = new Function(
-  'authenticate',
-  'error',
-  stripTypeScriptTypes(authSource) + '\nreturn requireAuth;',
-)(authenticate, (res: ServerResponse, message: string, status: number) => {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: message }));
-}) as (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
+// Exercise the actual cookie/header auth helper, which no longer starts API background services.
+const { requireAuth } = await import('../api/shared.ts');
 const server = createServer((req, res) => {
   void v2Api(req, res, requireAuth);
 });
@@ -100,8 +87,8 @@ async function request(scope: ReturnType<typeof fixture>, path: string, body?: a
 
 test('auth uses the existing mount and rejects missing, invalid, agent and worker credentials', async () => {
   assert.match(
-    apiSource,
-    /if \(path.startsWith\('\/api\/v2\/'\)\) return v2Api\(req, res, requireAuth\);/,
+    readFileSync(new URL('../api/v2.ts', import.meta.url), 'utf8'),
+    /if \(path\.startsWith\('\/api\/v2\/'\)\)[\s\S]*v2Api\(req, res, requireAuth\)/,
   );
   const s = fixture();
   for (const path of ['/inbox', '/events?waitMs=10000', '/inbox/question:q/answer']) {

@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { registerHooks } from 'node:module';
 
 let tempDir: string;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,13 +27,28 @@ function teardown() {
   rmSync(tempDir, { recursive: true, force: true });
 }
 
-// Dynamic import so each test suite gets a fresh module with the new cwd
+// Reload the facade and its store modules so each test captures its own data directory.
 async function loadStore() {
-  // Bust the module cache by using a query param
-  const id = `../server/store.ts?t=${Date.now()}-${Math.random()}`;
-  const mod = await import(id);
-  currentStore = mod;
-  return mod;
+  const version = `${Date.now()}-${Math.random()}`;
+  const storeModules = new URL('./store/', import.meta.url).href;
+  const hook = registerHooks({
+    resolve(specifier, context, nextResolve) {
+      const resolved = nextResolve(specifier, context);
+      if (resolved.url.startsWith(storeModules)) {
+        const url = new URL(resolved.url);
+        url.searchParams.set('t', version);
+        return { ...resolved, url: url.href };
+      }
+      return resolved;
+    },
+  });
+  try {
+    const mod = await import(`./store.ts?t=${version}`);
+    currentStore = mod;
+    return mod;
+  } finally {
+    hook.deregister();
+  }
 }
 
 describe('store – registerUser', () => {
