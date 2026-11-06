@@ -127,6 +127,7 @@ async function main() {
       const controlRoute =
         pathname === '/api' ||
         pathname.startsWith('/api/') ||
+        pathname.startsWith('/npm/') ||
         isControlSocketPath(pathname) ||
         pathname === '/install' ||
         pathname === '/install.ps1' ||
@@ -156,7 +157,8 @@ async function main() {
       req.url === '/install.ps1' ||
       req.url?.startsWith('/cli') ||
       isDesktopDownloadPath(req.url) ||
-      req.url?.startsWith('/api/')
+      req.url?.startsWith('/api/') ||
+      req.url?.startsWith('/npm/')
     ) {
       forwardToControl(req, res);
       return;

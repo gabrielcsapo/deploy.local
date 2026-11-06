@@ -1,3 +1,4 @@
+import { npmRegistry } from './packages/npm.ts';
 import {
   consumeAgentUpload,
   assertAgentApplication,
@@ -873,6 +874,8 @@ export function apiMiddleware(
     const hostname = colonIdx === -1 ? hostHeader : hostHeader.substring(0, colonIdx);
     const url = new URL(rawUrl, `http://${hostHeader}`);
     const path = url.pathname;
+
+    if (!shortGitRoute(rawUrl, method) && (await npmRegistry.handle(req, res))) return;
 
     // CORS preflight
     if (method === 'OPTIONS') {

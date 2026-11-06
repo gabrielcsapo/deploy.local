@@ -5,6 +5,7 @@ import { gitText, repositoryGit } from './repository-git.ts';
 import { compileDeployYaml } from '../application-spec.ts';
 import {
   projectAtAddress,
+  packageRepositoryAddresses,
   repositoryAddress,
   repositoryFolderName,
   reservedRepositoryAddress,
@@ -191,7 +192,11 @@ export function updateProjectSettings(owner: string, projectId: string, input: a
       { status: 409 },
     );
   if (name !== project.name) assertRepositoryAddress(owner, name, projectId);
-  const previous = repositoryAddress(project.name);
+  const previous =
+    repositoryAddress(project.name) ||
+    (packageRepositoryAddresses.has(repositoryFolderName(project.name).toLowerCase())
+      ? repositoryFolderName(project.name)
+      : null);
   const renamed = previous && !sameRepositoryAddress(name, previous);
   const updated = save('project', owner, {
     ...project,
@@ -324,7 +329,15 @@ export function findRepository(owner: string, idOrAddress: string) {
   try {
     return requireRepository(owner, idOrAddress);
   } catch (error: any) {
-    const project = error?.status === 404 && repositoryAtAddress(owner, idOrAddress);
+    const legacy = packageRepositoryAddresses.has(idOrAddress.toLowerCase())
+      ? list('project', owner).filter(
+          (project) =>
+            repositoryFolderName(project.name).toLowerCase() === idOrAddress.toLowerCase(),
+        )
+      : [];
+    const project =
+      error?.status === 404 &&
+      (repositoryAtAddress(owner, idOrAddress) || (legacy.length === 1 ? legacy[0] : null));
     if (!project) throw error;
     return requireRepository(owner, project.id);
   }
