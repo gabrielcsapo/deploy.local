@@ -308,6 +308,12 @@ test('PR checks pack only changed versions and display only current, free, check
   pass(run);
   await advancePipelinePackages('owner', run.id, registry.copy);
   const job = claim(run);
+  // The check's container is node:26, which has no corepack.
+  assert.match(
+    job.command,
+    /^npm install --global pnpm@11\.1\.3 .*&& pnpm install --frozen-lockfile/,
+  );
+  assert.doesNotMatch(job.command, /corepack/);
   assert.throws(() => issuePipelinePackageToken('owner', job), /owner's pipelines/);
   await (
     await packed(f, job)

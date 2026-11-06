@@ -414,7 +414,8 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       if (attestation && req.method === 'GET') {
         const name = nameOf(attestation[1]);
         versionOf(attestation[2]);
-        if (packageByName(name) || name.startsWith('@deploy.local/')) fail('Not found', 404);
+        if (packageByName(name) || name.startsWith('@deploy.local/') || !copy.reachable)
+          fail('Not found', 404);
         let response: Response;
         try {
           response = await copy.fetch(`-/npm/v1/attestations/${name}@${attestation[2]}`);

@@ -1375,6 +1375,41 @@ importers:
   assert.equal(evictions, 4);
 });
 
+test('once the source is known to be down, kept documents answer without waiting on it', async () => {
+  upstreamPackage('kept-through-outage', ['1.0.0']);
+  const headers = auth();
+  const url = origin + '/npm/kept-through-outage';
+  assert.equal((await fetch(url, { headers })).status, 200);
+  const old = () =>
+    getSqlite()!
+      .prepare(
+        "UPDATE package_cache_entries SET fetched_at='2000-01-01' WHERE kind='doc' AND key='kept-through-outage'",
+      )
+      .run();
+  old();
+  sourceDown = true;
+  try {
+    await registry.copy.fetch('-/ping').catch(() => {});
+    await registry.copy.fetch('-/ping').catch(() => {});
+    assert.equal(registry.copy.reachable, false);
+    const hits = upstreamHits;
+    assert.equal((await fetch(url, { headers })).status, 200);
+    const attestation = origin + '/npm/-/npm/v1/attestations/kept-through-outage@1.0.0';
+    assert.equal((await fetch(attestation, { headers })).status, 404);
+    assert.equal(upstreamHits, hits, 'nothing waited on the source');
+    // A name it has never kept still gets its chance, so a brief failure can't refuse it.
+    assert.equal((await fetch(origin + '/npm/never-kept-outage', { headers })).status, 503);
+    assert.equal(upstreamHits, hits + 1);
+  } finally {
+    sourceDown = false;
+    await registry.copy.fetch('-/ping').catch(() => {});
+  }
+  assert.equal(registry.copy.reachable, true);
+  old();
+  const hits = upstreamHits;
+  assert.equal((await fetch(url, { headers })).status, 200);
+  assert.equal(upstreamHits, hits + 1, 'it asks the source again once it is back');
+});
 test('attestations pass through from the source, and private names have none', async () => {
   const before = upstreamHits;
   upstreamHandlers.set('/-/npm/v1/attestations/left-pad@1.3.0', (_req, res) => {

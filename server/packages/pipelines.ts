@@ -35,6 +35,19 @@ export async function packageAtCommit(repository: string, commit: string, path: 
     status: 'waiting',
   };
 }
+/** Node 25 and later ship without corepack, so a check's container installs pnpm itself. */
+async function pnpmForCheck(repository: string, commit: string) {
+  const text = await gitText(repository, ['show', `${commit}:package.json`], {
+    limit: 65536,
+  }).catch(() => null);
+  let version: string | undefined;
+  try {
+    version = JSON.parse(text || '{}').packageManager?.match(/^pnpm@(\d+\.\d+\.\d+)(?:\+|$)/)?.[1];
+  } catch {
+    /* A package.json that doesn't parse fails the install with its own message. */
+  }
+  return version ? `pnpm@${version}` : 'pnpm';
+}
 export async function checkPipelinePackage(projectId: string, item: any, copy: NpmCopy) {
   const pkg = packageByName(item.name);
   if (pkg && pkg.project_id !== projectId)
@@ -208,7 +221,10 @@ export async function advancePipelinePackages(
       // A fresh checkout needs its dependencies; pnpm pack resolves workspace: ranges.
       // prepublishOnly is a publish hook, not a pack hook, so invoke it explicitly.
       const destination = '.deploy-pipeline-package';
-      const command = `${checkOnly ? 'corepack enable && ' : ''}pnpm install --frozen-lockfile && cd ${quote(item.path)} && pnpm run --if-present prepublishOnly && pnpm pack --pack-destination ${quote(destination)}`;
+      const setup = checkOnly
+        ? `npm install --global ${await pnpmForCheck(project.repositoryPath, run.commit)} --silent --no-audit --no-fund && `
+        : '';
+      const command = `${setup}pnpm install --frozen-lockfile && cd ${quote(item.path)} && pnpm run --if-present prepublishOnly && pnpm pack --pack-destination ${quote(destination)}`;
       item.status = 'running';
       item.jobId = jobId;
       workspace.transaction(() => {

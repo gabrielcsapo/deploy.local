@@ -326,6 +326,13 @@ Not tested: SER's own server cut off from npmjs.org, as opposed to the simulated
 - **Auth matrix.** Each credential is tested against each action, including a task's 403 on publish.
 - **Board parity.** Each screen is checked at 1440 and 700 (web) and 390 (iPhone).
 
+### Checked on a sealed copy of the server (2026-11-06)
+
+The real server, repository and router ran in a container on SER with its own Docker, so nothing reached the real registry: claiming, a pipeline upload, a pull request check followed by a merge, and an outage of npmjs.org that hangs instead of refusing. The test is kept with the session notes rather than the test suite, because it needs a privileged container.
+
+- **Outages that hang.** Once the source is known to be down, kept documents answer from the copy without asking it. A name it never kept still tries, so one brief failure can't refuse it.
+- **Docker on SER's worker.** Spawning from root drops supplementary groups. The managed worker now keeps the docker group only, and only when its account is in that group. Docker access amounts to root on that computer, so any job on the worker has it.
+
 ### Questions for the owner
 
 1. **npmjs.org.** Stop publishing react-flight-router there after 0.12.1 (proposed), or keep mirroring each release for outside users?

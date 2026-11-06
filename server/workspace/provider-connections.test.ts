@@ -11,7 +11,7 @@ process.env.DEPLOY_DATA_DIR = root;
 const { save, db } = await import('./store.ts');
 const { providerConnections, saveProviderConnection, requestProviderLogin, updateProviderLogin } =
   await import('./provider-connections.ts');
-const { managedWorkerLaunch } = await import('./managed-worker.ts');
+const { managedWorkerLaunch, managedWorkerExec } = await import('./managed-worker.ts');
 const { workspaceApi } = await import('./api.ts');
 save('worker', 'alice', { id: 'ser-a', name: 'SER', heartbeat: new Date().toISOString() });
 save('worker', 'alice', { id: 'ser-b', name: 'Other', heartbeat: new Date().toISOString() });
@@ -218,4 +218,51 @@ test('revoked computers are not listed with provider connections', async () => {
   const ids = ((await response.json()) as any).workers.map((worker: any) => worker.id);
   assert.ok(ids.includes('ser-a'));
   assert.ok(!ids.includes('old-mac'));
+});
+test('a managed worker keeps only the docker group, and only if its account has it', () => {
+  const identity = {
+    username: 'operator',
+    uid: 1000,
+    gid: 1000,
+    homedir: '/home/operator',
+    shell: '/bin/sh',
+  } as any;
+  const system = (group: string, overrides = {}) => ({
+    isRoot: () => true,
+    dockerGroup: () => group,
+    setpriv: () => Buffer.from(''),
+    ...overrides,
+  });
+  const kept = managedWorkerExec(identity, '/w.js', system('docker:x:973:someone,operator\n'));
+  assert.equal(kept.command, 'setpriv');
+  assert.equal(kept.keepIdentity, false);
+  assert.deepEqual(kept.args, [
+    '--reuid',
+    '1000',
+    '--regid',
+    '1000',
+    '--groups',
+    '973',
+    process.execPath,
+    '/w.js',
+  ]);
+  for (const plain of [
+    system('docker:x:973:someone\n'),
+    system('docker:x:973:\n'),
+    system('docker:x:973:operator\n', { isRoot: () => false }),
+    system('', {
+      dockerGroup: () => {
+        throw new Error('no docker group');
+      },
+    }),
+    system('docker:x:973:operator\n', {
+      setpriv: () => {
+        throw new Error('no setpriv');
+      },
+    }),
+  ]) {
+    const result = managedWorkerExec(identity, '/w.js', plain as any);
+    assert.equal(result.command, process.execPath);
+    assert.equal(result.keepIdentity, true);
+  }
 });
