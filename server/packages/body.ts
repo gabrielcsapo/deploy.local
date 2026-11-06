@@ -1,5 +1,6 @@
+import { packageWorkerFile } from './worker-file.ts';
 import { randomUUID } from 'node:crypto';
-import { createWriteStream, existsSync } from 'node:fs';
+import { createWriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -24,9 +25,8 @@ export async function publishBody(req: IncomingMessage) {
         signal: AbortSignal.timeout(600000),
       },
     );
-    const bundled = new URL('./package-body-worker.mjs', import.meta.url);
     const worker = new Worker(
-      existsSync(bundled) ? bundled : new URL('./body-worker.mjs', import.meta.url),
+      packageWorkerFile(import.meta.url, 'package-body-worker.mjs', './body-worker.mjs'),
       { workerData: { path } },
     );
     const result = await new Promise<{

@@ -1,3 +1,4 @@
+import { packageWorkerFile } from './packages/worker-file.ts';
 import { Worker } from 'node:worker_threads';
 import {
   createCipheriv,
@@ -975,9 +976,12 @@ export async function createRecoveryBundle(input: {
     };
     // Hosted packages can be large. Collection, verification, encoding, encryption and
     // artifact materialization happen in a worker; only the small receipt comes back.
-    const bundled = new URL('./package-recovery-worker.js', import.meta.url);
     const worker = new Worker(
-      existsSync(bundled) ? bundled : new URL('./packages/recovery-worker.ts', import.meta.url),
+      packageWorkerFile(
+        import.meta.url,
+        'package-recovery-worker.js',
+        './packages/recovery-worker.ts',
+      ),
       {
         workerData: { payload, input, databaseSnapshot, root: deployDataDirectory() },
       },
@@ -1242,9 +1246,12 @@ export function recoveryWork(
   action: 'verify' | 'restore' | 'rehearse',
   input: unknown,
 ): Promise<unknown> {
-  const bundled = new URL('./package-recovery-worker.js', import.meta.url);
   const worker = new Worker(
-    existsSync(bundled) ? bundled : new URL('./packages/recovery-worker.ts', import.meta.url),
+    packageWorkerFile(
+      import.meta.url,
+      'package-recovery-worker.js',
+      './packages/recovery-worker.ts',
+    ),
     { workerData: { action, input } },
   );
   return new Promise((resolve, reject) => {

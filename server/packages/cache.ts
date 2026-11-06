@@ -1,4 +1,5 @@
-import { createReadStream, createWriteStream, existsSync } from 'node:fs';
+import { packageWorkerFile } from './worker-file.ts';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { stat, mkdir, mkdtemp, rename, rm, open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
@@ -233,9 +234,8 @@ export class NpmCopy {
     return writeCopy(async () => {
       const current = entry('doc', row.key);
       if (!current || current.removed_at) return {};
-      const bundled = new URL('./package-index-worker.mjs', import.meta.url);
       const worker = new Worker(
-        existsSync(bundled) ? bundled : new URL('./index-worker.mjs', import.meta.url),
+        packageWorkerFile(import.meta.url, 'package-index-worker.mjs', './index-worker.mjs'),
         {
           workerData: { path: objectPath('docs', current.index_sha256), version },
         },
@@ -350,9 +350,12 @@ export class NpmCopy {
           throw error;
         }
         const prepared = await preparationSlot(() => {
-          const bundled = new URL('./package-document-worker.mjs', import.meta.url);
           const worker = new Worker(
-            existsSync(bundled) ? bundled : new URL('./document-worker.mjs', import.meta.url),
+            packageWorkerFile(
+              import.meta.url,
+              'package-document-worker.mjs',
+              './document-worker.mjs',
+            ),
             {
               workerData: {
                 path,

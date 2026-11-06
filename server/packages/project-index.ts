@@ -1,11 +1,10 @@
+import { packageWorkerFile } from './worker-file.ts';
 import { repositoryGit } from '../workspace/repository-git.ts';
 import { Worker } from 'node:worker_threads';
-import { existsSync } from 'node:fs';
 import type { LockfileIndex } from './lockfiles.ts';
 export function readLockfile(file: string, text: string): Promise<LockfileIndex> {
-  const bundled = new URL('./package-lock-worker.js', import.meta.url);
   const worker = new Worker(
-    existsSync(bundled) ? bundled : new URL('./lock-worker.ts', import.meta.url),
+    packageWorkerFile(import.meta.url, 'package-lock-worker.js', './lock-worker.ts'),
     { workerData: { file, text } },
   );
   return new Promise((resolve, reject) => {

@@ -483,6 +483,7 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         // exception class and source locations, never arbitrary error text.
         console.error('Unexpected package registry error', {
           type: error instanceof TypeError ? 'TypeError' : 'Error',
+          code: typeof error?.code === 'string' ? error.code : undefined,
           locations:
             error instanceof Error
               ? error.stack
