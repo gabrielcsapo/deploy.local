@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-// @ts-expect-error CLI owner workflow is runtime JavaScript.
 import { runWanderAdoptionCli } from '../bin/wander-adoption.mjs';
 const account = {
   username: 'synthetic-owner',

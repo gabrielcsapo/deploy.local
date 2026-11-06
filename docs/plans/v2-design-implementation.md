@@ -1,5 +1,7 @@
 # deploy.local v2: implementation brief
 
+Current client ownership: Electron in `desktop/` is the Mac, Windows and Linux app. The Swift Mac target has been retired under cleanup step 9; `native/Apple` remains the iPhone app. References to Swift Mac builds below record the earlier implementation.
+
 Written: 2026-10-27
 
 This brief turns the v2 design into work an agent can pick up one slice at a time. The design itself is drawn, not written here:

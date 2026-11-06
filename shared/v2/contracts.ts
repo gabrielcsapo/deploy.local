@@ -474,3 +474,5 @@ export type ComputerUpdateOverview = Omit<ComputerUpdates, 'computers'> & {
     state: ComputerUpdates['computers'][number]['state'] | 'updating' | 'failed';
   })[];
 };
+
+export type * from './workspace.ts';

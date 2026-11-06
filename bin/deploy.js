@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import * as contracts from './cli-contracts.mjs';
 import { runPackages } from './packages.mjs';
 import {
   agentConfigPath,
@@ -3201,7 +3202,7 @@ function waitTimeout() {
 
 async function projectReleases(name) {
   try {
-    return await api(`/api/v2/projects/${encodeURIComponent(name)}/releases`);
+    return await contracts.projectReleases(api, name);
   } catch (error) {
     if (error.status === 404)
       throw cliError(
@@ -3250,10 +3251,7 @@ async function cmdRollback(name) {
   }
   let rollback;
   try {
-    rollback = await api(`/api/v2/projects/${encodeURIComponent(name)}/rollback`, {
-      method: 'POST',
-      body: JSON.stringify({ to: target.id, from: current.id }),
-    });
+    rollback = await contracts.rollbackProject(api, name, target.id, current.id);
   } catch (error) {
     if (error.status === 404)
       throw cliError(
@@ -3271,7 +3269,7 @@ async function cmdRollback(name) {
 
 async function cmdTasks(create = false) {
   if (!create) {
-    const state = await api('/api/workspace/state');
+    const state = await contracts.workspaceState(api);
     if (values.json) outputJson({ tasks: state.tasks });
     else {
       for (const task of state.tasks || [])
@@ -3291,7 +3289,7 @@ async function cmdTasks(create = false) {
     );
   let workerId = 'local';
   if (values.on) {
-    const state = await api('/api/workspace/state');
+    const state = await contracts.workspaceState(api);
     const worker = state.workers?.find(
       (worker) => worker.id === values.on || worker.name === values.on,
     );
@@ -3299,15 +3297,12 @@ async function cmdTasks(create = false) {
       throw cliError(`Computer "${values.on}" is not available for tasks.`, 'deploy computers', 2);
     workerId = worker.id;
   }
-  const task = await api('/api/workspace/tasks', {
-    method: 'POST',
-    body: JSON.stringify({
-      title: text,
-      prompt: text,
-      workerId,
-      operationId: createHash('sha256').update(`${Date.now()}:${Math.random()}`).digest('hex'),
-    }),
-  });
+  const task = await contracts.createWorkspaceTask(
+    api,
+    text,
+    workerId,
+    createHash('sha256').update(`${Date.now()}:${Math.random()}`).digest('hex'),
+  );
   if (values.json) outputJson(task);
   else console.log(`Started task ${task.title} · ${task.id}\n  Next: deploy tasks`);
 }

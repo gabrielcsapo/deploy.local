@@ -1,6 +1,6 @@
 # deploy.local
 
-Instructions for any agent working in this repository: web app, Mac desktop app, iPhone app, CLI and docs. Folder-specific notes live beside the code (for example `app/AGENTS.md`).
+Instructions for any agent working in this repository: web app, Mac desktop app, iPhone app, CLI and docs. The desktop app on Mac, Windows and Linux is Electron in `desktop/`; `native/Apple` contains the Swift iPhone app and its Mac-runnable package tests. Folder-specific notes live beside the code (for example `app/AGENTS.md`).
 
 ## Visual changes: change the design first, get it approved, then build it
 

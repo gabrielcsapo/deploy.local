@@ -1,7 +1,7 @@
 # deploy.local Desktop
 
 The Electron client loads the coordinator's `/dashboard`. This directory has its own dependency
-lock and is not part of the root workspace. It does not install a service or replace Deploy.app.
+lock and is not part of the root workspace. It does not install a system service. It is the desktop app on Mac, Windows and Linux; the earlier Swift Mac target is retired.
 Closing a window keeps its child worker running; Quit stops that worker.
 
 ## Develop and package
@@ -24,6 +24,8 @@ The JS bundler uses its platform package; no native server database dependency i
 The built app is `dist/mac-arm64/deploy.local Desktop.app` on Apple Silicon. It stays in this folder.
 `pnpm package -- --mac`, `--win`, or `--linux` selects dmg, nsis, or AppImage/deb on a suitable host.
 Run packaging on the destination OS for release acceptance.
+
+`assets/design-tokens.css` is generated at build time from `../app/design-tokens.css` and is not tracked. Desktop tests do not require it or a prior build.
 
 The build reads and bundles `../server/workspace/remote-worker.ts` and its dependencies. The
 local `worker.ts` shares a coordinator database and therefore must not run on a desktop client.

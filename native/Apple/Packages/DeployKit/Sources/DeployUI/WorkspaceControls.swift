@@ -122,18 +122,10 @@ extension ButtonStyle where Self == WorkspaceButtonStyle {
 
 extension WorkspaceStyle {
     static var buttonHeight: CGFloat {
-        #if os(macOS)
-        Control.compact
-        #else
         Control.standard
-        #endif
     }
     static var controlTargetHeight: CGFloat {
-        #if os(macOS)
-        Control.compact
-        #else
         Control.touch
-        #endif
     }
     static let controlRadius: CGFloat = Control.radius
     static let panelRadius: CGFloat = 14

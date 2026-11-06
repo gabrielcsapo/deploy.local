@@ -27,40 +27,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: local.deploy.workspace.control-helper
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
-  DeployMac:
-    type: application
-    platform: macOS
-    sources: [Apps/DeployMac, Apps/Shared/Assets.xcassets]
-    dependencies:
-      - target: DeployControlHelper
-        embed: false
-      - package: DeployKit
-        product: DeployUI
-      - package: DeployKit
-        product: DeployCore
-    settings:
-      base:
-        PRODUCT_NAME: Deploy
-        PRODUCT_BUNDLE_IDENTIFIER: local.deploy.workspace.mac
-        CODE_SIGN_ENTITLEMENTS: Apps/DeployMac/DeployMac.entitlements
-        INFOPLIST_KEY_CFBundleDisplayName: deploy.local
-        INFOPLIST_KEY_NSScreenCaptureUsageDescription: View the selected desktop during a coding task.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: Dictate a message for review before sending. Audio is transcribed by your configured home service.
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Connect to your deploy.local home coordinator.
-        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
-        ENABLE_APP_SANDBOX: NO
-    postCompileScripts:
-      - name: Embed control helper
-        script: |
-          set -eu
-          mkdir -p "${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
-          /usr/bin/ditto "${BUILT_PRODUCTS_DIR}/deploy-control-helper" "${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers/deploy-control-helper"
-        inputFiles:
-          - $(BUILT_PRODUCTS_DIR)/deploy-control-helper
-        outputFiles:
-          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/deploy-control-helper
-    scheme:
-      testTargets: []
   DeployIOS:
     type: application
     platform: iOS

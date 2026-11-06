@@ -450,7 +450,7 @@ Applications, Computers, Repositories and Settings use `ListPageHeader` below th
 
 Applications show URL and exceptional runtime status, with Open in a new window as an icon action. Metrics remain on the application detail page. Edit reveals the real bulk restart/delete controls; the default list has no checkbox column. Computers show platform and online state plus one role summary, excluding Coordinator from the count: All roles ready, a ready count with named setup/paused roles, or Offline. Coordinator stays a quiet chip. Select a computer to see the existing role controls, permissions, runtime applications and jobs. Repositories show description, imported remote host or Hosted on deploy.local; inventory rows never expose filesystem paths or remote credentials.
 
-On Mac the activity rail navigates Tasks, Repositories and Computers. Each destination has its own sidebar list, with New repository or Connect a computer at the top and 32 pt navigation rows. Selecting a repository opens ProjectHubView in the main pane; selecting a computer opens its roles and permissions there. The title bar reflects the section/item. Applications is omitted until native application inventory is available. Back/forward remains task history and returns to Tasks. Popovers are for pickers and account information, never section lists.
+The Mac desktop app uses the web navigation inside the Electron shell in `desktop/`. The earlier Swift activity rail and `ProjectHubView` were retired in cleanup step 9.
 
 The live List pages specimen in `/dashboard/design-system` uses these same components with links to the real reference sections.
 
@@ -469,7 +469,7 @@ and saved per device. Projects with no task updated within the last 30 days use 
 focus and selection restore ink. Task rows are 32 px on desktop and at least 44 pt on touch. Section
 headings use 16 px above and 4 px below, with the same 8 px inset in all three sections.
 
-`Skeleton` (web) and `WorkspaceSkeleton` (SwiftUI) are the shared loading primitives. Their variants
+`Skeleton` is the web loading primitive. The legacy Swift `WorkspaceSkeleton` was retired with the Swift Mac screens. Web variants
 are rows (five 52 px blocks), sidebar, conversation (three alternating message shapes), and web detail.
 Use only when the requested data has never loaded: sidebar, resource lists, application detail,
 repository hub, Changes and Activity. Retain cached content while refreshing. Placeholders contain

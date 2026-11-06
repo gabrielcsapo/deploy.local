@@ -45,7 +45,7 @@ await copyFile(
 );
 const candidates = [
   process.env.DEPLOY_DESKTOP_HELPER,
-  '../native/Apple/DerivedData/Build/Products/Debug/Deploy.app/Contents/Helpers/deploy-control-helper',
+  '../native/Apple/DerivedData/Build/Products/Debug/deploy-control-helper',
   'build/helpers/deploy-control-helper',
 ].filter(Boolean);
 let helper = false;

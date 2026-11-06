@@ -1,4 +1,3 @@
-// @ts-expect-error Fixed cold-copy JavaScript module is exercised directly.
 import { wanderInventory } from './wander-data.mjs';
 import { createHash } from 'node:crypto';
 import { threadId } from 'node:worker_threads';

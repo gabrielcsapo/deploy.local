@@ -21,7 +21,6 @@ import {
   verifyWanderSeed,
   wanderInventory,
   assertWanderData,
-  // @ts-expect-error Fixed helper module is tested as runtime JavaScript.
 } from './wander-data.mjs';
 function fixture(run: (root: string, db: DatabaseSync) => void) {
   const root = mkdtempSync(join(tmpdir(), 'wander-data-'));

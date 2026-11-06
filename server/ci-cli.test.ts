@@ -6,10 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-const cliModule = await import(
-  // @ts-expect-error CLI JavaScript runtime is tested directly.
-  '../bin/ci-release.mjs'
-);
+const cliModule = await import('../bin/ci-release.mjs');
 const { ciAuth, sourceBundle, ciRequest, waitCiRelease, assertCiReceipt } = cliModule;
 const token = 'ci_' + '1'.repeat(64);
 const auth = { version: 1, url: 'https://deploy.local', username: 'synthetic', token };
@@ -76,7 +73,7 @@ test('scoped transport has strict origin, redirect and no query-token contract',
   let observed: any;
   await ciRequest(a, '/api/ci/releases/head', {}, async (u: any, o: any) => {
     observed = { u, o };
-    return { ok: true, json: async () => ({ application: 'notes' }) };
+    return Response.json({ application: 'notes' });
   });
   assert.equal(observed.o.redirect, 'error');
   assert.equal(observed.u.search, '');

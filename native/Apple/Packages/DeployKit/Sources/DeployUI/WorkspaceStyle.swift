@@ -198,102 +198,46 @@ enum WorkspaceStyle {
     static let contentWidth: CGFloat = 760
     static let iconWidth: CGFloat = 18
     static var projectHeadingHeight: CGFloat {
-        #if os(macOS)
-        20
-        #else
         44
-        #endif
     }
     static var projectDisclosureWidth: CGFloat {
-        #if os(macOS)
-        24
-        #else
         44
-        #endif
     }
     static var projectHeaderInset: CGFloat {
-        #if os(macOS)
-        0
-        #else
         10
-        #endif
     }
     static var projectChildInset: CGFloat {
-        #if os(macOS)
-        40
-        #else
         26
-        #endif
     }
     static var conversationGutter: CGFloat {
-        #if os(macOS)
-        24
-        #else
         16
-        #endif
     }
     static var messageInset: CGFloat {
-        #if os(macOS)
-        16
-        #else
         0
-        #endif
     }
     static var controlSize: CGFloat {
-        #if os(macOS)
-        36
-        #else
         44
-        #endif
     }
     static var secondaryAction: Font {
-        #if os(macOS)
-        .system(.footnote)
-        #else
         .subheadline
-        #endif
     }
     static var navigation: Font {
-        #if os(macOS)
-        .system(.subheadline)
-        #else
         .system(.callout)
-        #endif
     }
     static var project: Font {
-        #if os(macOS)
-        .system(.subheadline, weight: .medium)
-        #else
         .body.weight(.medium)
-        #endif
     }
     static var metadata: Font {
-        #if os(macOS)
-        .system(.footnote)
-        #else
         .caption
-        #endif
     }
     static var body: Font {
-        #if os(macOS)
-        .system(.body)
-        #else
         .body
-        #endif
     }
     static var taskNavigationHeight: CGFloat {
-        #if os(macOS)
-        IconAction.standard
-        #else
         IconAction.touch
-        #endif
     }
     static var rowHeight: CGFloat {
-        #if os(macOS)
-        30
-        #else
         46
-        #endif
     }
 }
 
@@ -326,11 +270,7 @@ struct WorkspaceMenuLabel: View {
 
 struct WorkspaceMenuStyle: ViewModifier {
     func body(content: Content) -> some View {
-        #if os(macOS)
-        content.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
-        #else
         content.buttonStyle(.plain)
-        #endif
     }
 }
 
