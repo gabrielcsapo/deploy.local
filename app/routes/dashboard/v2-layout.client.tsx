@@ -1,9 +1,17 @@
 'use client';
 import { formatTime } from './v2/data/time';
-import { useCallback, useEffect, useId, useRef, useState, type ComponentProps } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentProps,
+} from 'react';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
-import { Sidebar, Nav, Icon, IconButton, Status } from '@/components/ui';
+import { Head, Sidebar, Nav, Icon, IconButton, Skeleton, Status } from '@/components/ui';
 import {
   AgentNamesProvider,
   CoordinatorNameProvider,
@@ -301,6 +309,40 @@ export function V2Layout() {
   );
 }
 
+/**
+ * A page that is not ready yet waits here, so the sidebar stays. The header stays too, because at
+ * 600 px and below its menu button is the only way to the sidebar.
+ */
+function PageLoading() {
+  return (
+    <>
+      <Head
+        ruled
+        title={<span className="dl-skel" style={{ width: 96 }} />}
+        menu={
+          <IconButton
+            icon="menu"
+            label="Show sidebar"
+            className="dl-menu-btn"
+            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+          />
+        }
+      />
+      <div className="dl-scroll">
+        <div className="dl-page">
+          <div className="dl-page-head" aria-hidden="true">
+            <div className="dl-t" style={{ gap: 10 }}>
+              <span className="dl-skel" style={{ width: 180, height: 20, borderRadius: 6 }} />
+              <span className="dl-skel" style={{ width: 320 }} />
+            </div>
+          </div>
+          <Skeleton />
+        </div>
+      </div>
+    </>
+  );
+}
+
 function V2Shell() {
   const data = useSidebarData();
   const { pathname } = useLocation();
@@ -415,7 +457,9 @@ function V2Shell() {
         <CoordinatorNameProvider nodes={data.computers.data?.nodes}>
           <AgentNamesProvider agents={data.agents.data?.agents}>
             {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
-            <Outlet />
+            <Suspense fallback={<PageLoading />}>
+              <Outlet />
+            </Suspense>
           </AgentNamesProvider>
         </CoordinatorNameProvider>
       </main>
