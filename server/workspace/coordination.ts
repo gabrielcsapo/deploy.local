@@ -1,3 +1,6 @@
+import { finishJobPins } from '../packages/copies.ts';
+import { computerInstallConfig } from '../packages/builds.ts';
+import { revokeComputerPackageKey } from '../packages/keys.ts';
 import { terminalRelay } from './terminal-service.ts';
 import { workerUpdate } from './worker-update.ts';
 import { coordinatorDockerReachable } from '../metrics-collector.ts';
@@ -142,6 +145,7 @@ export function revokeWorker(owner: string, workerId: string) {
     throw new Error('Turn the managed worker off in Settings instead');
   const worker = get('worker', owner, workerId);
   remove('worker-credential', owner, workerId);
+  revokeComputerPackageKey(owner, workerComputerId(owner, workerId));
   remove('terminal-permission', owner, workerId);
   terminalRelay.disable(owner, workerId);
   remove('interactive-worker', owner, workerId);
@@ -416,7 +420,22 @@ function jobAssignment(owner: string, workerId: string, job: any) {
     },
   };
 }
-export function jobCommand(owner: string, workerId: string, action: string, body: any) {
+export function jobCommand(owner: string, workerId: string, action: string, body: any): any {
+  if (action === 'packages') {
+    const job = get('job', owner, body.jobId);
+    if (
+      job.status !== 'running' ||
+      job.workerId !== workerId ||
+      job.generation !== body.generation ||
+      job.instanceId !== body.instanceId
+    )
+      throw new Error('Stale job assignment');
+    const projectId = job.pipelineId
+      ? get('pipeline-run', owner, job.pipelineId).projectId
+      : get('task', owner, job.taskId).projectId;
+    return computerInstallConfig(owner, workerId, projectId);
+  }
+
   return db
     .transaction(() => {
       if (workerId !== 'local') {
@@ -478,6 +497,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
       if (action === 'update' || action === 'complete') {
         if (action === 'complete' && !terminal.includes(body.status))
           throw new Error('Invalid job terminal status');
+        if (action === 'complete') finishJobPins(job.id);
         const result = save('job', owner, {
           ...job,
           output: String(body.output || '').slice(-64000),

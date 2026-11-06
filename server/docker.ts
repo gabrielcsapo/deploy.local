@@ -1,10 +1,12 @@
+import { computerInstallConfig } from './packages/builds.ts';
+import { preparePackageInstall, secretOutput } from '../shared/package-install.mjs';
 import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
 import { withApplicationMutation } from './ci-fence.ts';
 import { assertLegacyMutationAllowed } from './legacy-docker-update.ts';
-import { execFile, spawn, spawnSync } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { rm, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { createServer, createConnection, type AddressInfo, type Socket } from 'node:net';
 import http from 'node:http';
@@ -172,18 +174,29 @@ export function classifyProject(dir: string): string | null {
 
 // ── Dockerfile generation ───────────────────────────────────────────────────
 
-function generateNodeDockerfile(dir: string) {
-  const content = `# syntax=docker/dockerfile:1.7
-FROM node:22-alpine
+const generatedNodeDirectories = new Set<string>();
+export function nodeDockerfile(buildkit = true) {
+  const mounts = buildkit
+    ? `--mount=type=cache,target=/root/.npm \\
+    --mount=type=cache,target=/root/.local/share/pnpm/store \\
+    --mount=type=secret,id=npmrc,target=/run/deploy-packages/npmrc,mode=0600 \\
+    --mount=type=secret,id=ca,target=/run/deploy-packages/ca.crt,mode=0600 \\
+    `
+    : '';
+  const configure = buildkit
+    ? `if [ -f /run/deploy-packages/npmrc ]; then export NPM_CONFIG_USERCONFIG=/run/deploy-packages/npmrc; if grep -q '^__metadata:' yarn.lock 2>/dev/null; then export YARN_NPM_REGISTRY_SERVER="$(sed -n 's/^registry=//p' /run/deploy-packages/npmrc)" YARN_NPM_AUTH_TOKEN="$(sed -n 's/.*:_authToken=//p' /run/deploy-packages/npmrc)" YARN_NPM_ALWAYS_AUTH=true; if [ -s /run/deploy-packages/ca.crt ]; then export YARN_HTTPS_CA_FILE_PATH=/run/deploy-packages/ca.crt; fi; fi; fi; `
+    : '';
+  return `${buildkit ? '# syntax=docker/dockerfile:1.7\n' : ''}FROM node:22-alpine
 WORKDIR /app
-COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
-RUN --mount=type=cache,target=/root/.npm \
-    --mount=type=cache,target=/root/.local/share/pnpm/store \
-    corepack enable && if [ -f pnpm-lock.yaml ]; then pnpm install --prod --frozen-lockfile; elif [ -f yarn.lock ]; then yarn install --production --frozen-lockfile; elif [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
+COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* .npmrc* .yarnrc.yml* ./
+RUN ${mounts}${configure}corepack enable && if [ -f pnpm-lock.yaml ]; then pnpm install --prod --frozen-lockfile; elif [ -f yarn.lock ]; then yarn install --production --frozen-lockfile; elif [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 COPY . .
 CMD ["npm", "start"]
 `;
-  writeFileSync(resolve(dir, 'Dockerfile'), content);
+}
+function generateNodeDockerfile(dir: string) {
+  generatedNodeDirectories.add(resolve(dir));
+  writeFileSync(resolve(dir, 'Dockerfile'), nodeDockerfile());
 }
 
 function generateStaticDockerfile(dir: string) {
@@ -254,33 +267,30 @@ const BUILD_TIMEOUT_MS = 15 * 60 * 1000;
 let buildxAvailable: boolean | null = null;
 const BUILDX_BUILDER = 'deploy-local';
 
-function hasBuildx(): boolean {
-  if (buildxAvailable === null) {
-    if (spawnSync('docker', ['buildx', 'version'], { stdio: 'ignore' }).status !== 0) {
-      buildxAvailable = false;
-    } else if (
-      spawnSync('docker', ['buildx', 'inspect', BUILDX_BUILDER], { stdio: 'ignore' }).status === 0
-    ) {
-      buildxAvailable = true;
-    } else {
-      // A dedicated docker-container builder supports portable local cache
-      // import/export even when Docker's default builder does not.
-      buildxAvailable =
-        spawnSync(
-          'docker',
-          ['buildx', 'create', '--name', BUILDX_BUILDER, '--driver', 'docker-container'],
-          { stdio: 'ignore' },
-        ).status === 0;
+async function hasBuildx(): Promise<boolean> {
+  if (buildxAvailable !== null) return buildxAvailable;
+  try {
+    await execFileAsync('docker', ['buildx', 'version'], { timeout: 5000 });
+    try {
+      await execFileAsync('docker', ['buildx', 'inspect', BUILDX_BUILDER], { timeout: 5000 });
+    } catch {
+      await execFileAsync(
+        'docker',
+        ['buildx', 'create', '--name', BUILDX_BUILDER, '--driver', 'docker-container'],
+        { timeout: 10000 },
+      );
     }
+    return (buildxAvailable = true);
+  } catch {
+    return (buildxAvailable = false);
   }
-  return buildxAvailable;
 }
 
-export function buildImage(
+export async function buildImage(
   name: string,
   dir: string,
   onLine?: (line: string, timestamp: string) => void,
-  options?: { noCache?: boolean; timeoutMs?: number },
+  options?: { noCache?: boolean; timeoutMs?: number; owner?: string; projectId?: string },
 ): Promise<BuildResult> {
   const tag = `deploy-sh-${name.toLowerCase()}`;
   const startTime = Date.now();
@@ -292,8 +302,21 @@ export function buildImage(
   // escape hatch for cases where a prior build cached a corrupted COPY layer
   // and subsequent builds keep replaying it.
   const cacheDir = buildCacheDirectory(name);
-  mkdirSync(cacheDir, { recursive: true });
-  const useBuildx = hasBuildx();
+  await mkdir(cacheDir, { recursive: true });
+  const useBuildx = await hasBuildx();
+  const generated = generatedNodeDirectories.has(resolve(dir));
+  const install = await preparePackageInstall(
+    useBuildx && generated && options?.owner
+      ? await computerInstallConfig(options.owner, 'local', options.projectId)
+      : null,
+    {
+      cwd: dir,
+      root: deployDataPath('packages', 'tmp'),
+      container: true,
+      log: (line) => onLine?.(line, new Date().toISOString()),
+    },
+  );
+  if (generated) await writeFile(resolve(dir, 'Dockerfile'), nodeDockerfile(useBuildx));
   let buildArgs: string[];
   if (useBuildx) {
     buildArgs = ['buildx', 'build', '--builder', BUILDX_BUILDER, '--load'];
@@ -305,6 +328,14 @@ export function buildImage(
       }
       buildArgs.push('--cache-to', `type=local,dest=${cacheDir},mode=max`);
     }
+    if (install.npmrc)
+      buildArgs.push(
+        '--secret',
+        `id=npmrc,src=${install.npmrc}`,
+        '--secret',
+        `id=ca,src=${install.ca}`,
+        ...(install.key ? ['--add-host', 'deploy.local:host-gateway'] : []),
+      );
     buildArgs.push('-t', tag, '.');
   } else {
     buildArgs = options?.noCache
@@ -312,7 +343,7 @@ export function buildImage(
       : ['build', '--cache-from', tag, '-t', tag, '.'];
   }
 
-  return new Promise((resolve) => {
+  return new Promise<BuildResult>((resolve) => {
     const proc = spawn('docker', buildArgs, {
       cwd: dir,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -321,9 +352,8 @@ export function buildImage(
     let output = '';
     let timedOut = false;
 
-    function handleData(data: Buffer) {
-      const str = data.toString();
-      process.stdout.write(data);
+    function handleData(str: string) {
+      process.stdout.write(str);
       const ts = new Date().toISOString();
       for (const line of str.split('\n')) {
         if (line) {
@@ -333,8 +363,10 @@ export function buildImage(
       }
     }
 
-    proc.stdout?.on('data', handleData);
-    proc.stderr?.on('data', handleData);
+    const redacted = secretOutput([install.key], handleData);
+    proc.stdout?.on('data', redacted.write);
+    proc.stderr?.on('data', redacted.write);
+    proc.once('close', () => redacted.end());
 
     // Kill the build if it exceeds the wall-clock budget. SIGTERM first to
     // give docker a chance to clean up its buildkit session; SIGKILL 5s
@@ -366,7 +398,7 @@ export function buildImage(
       const failOutput = `Failed to start docker build: ${err.message}`;
       resolve({ tag, output: failOutput, success: false, duration });
     });
-  });
+  }).finally(() => install.cleanup());
 }
 
 // Canonical definition lives with the TCP proxy that consumes the mappings.

@@ -246,6 +246,19 @@ export function ProjectConfiguration({
         </Group>
       </section>
       <section className="dl-section">
+        <h2 className="dl-section-title">Packages</h2>
+        <Group>
+          <Setting label="Install through deploy.local">
+            <Switch
+              label="Install through deploy.local"
+              checked={settings.data?.installThroughDeploy ?? true}
+              disabled={busy || !settings.data}
+              onChange={(installThroughDeploy) => void policy({ installThroughDeploy })}
+            />
+          </Setting>
+        </Group>
+      </section>
+      <section className="dl-section">
         <h2 className="dl-section-title">Remove</h2>
         <Group>
           <Setting

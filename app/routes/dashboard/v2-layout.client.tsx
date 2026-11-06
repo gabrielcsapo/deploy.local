@@ -36,7 +36,7 @@ import { DesktopUpdateRow } from './v2/DesktopUpdate';
 
 function useSidebarData() {
   return {
-    packages: useResource<{ served: boolean }>('/api/v2/packages?sidebar=1'),
+    packages: useResource<{ served: boolean; usingCopies: boolean }>('/api/v2/packages?sidebar=1'),
     inbox: useInbox(),
     workspace: useResource<WorkspaceState>('/api/workspace/state'),
     agents: useResource<{ agents: SidebarAgent[] }>('/api/v2/agents', true),
@@ -139,6 +139,14 @@ export function V2Sidebar({
               href="/dashboard/packages"
               active={pathname.startsWith('/dashboard/packages')}
               lead={<Icon name="package" />}
+              end={
+                data.packages.data?.usingCopies ? (
+                  <span className="dl-status attention">
+                    <span className="dl-dot" />
+                    Using copies
+                  </span>
+                ) : undefined
+              }
             >
               Packages
             </Nav>

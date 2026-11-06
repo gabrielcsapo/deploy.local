@@ -3237,7 +3237,7 @@ export function apiMiddleware(
                     data: { line, timestamp },
                   });
                 },
-                { noCache },
+                { noCache, owner: username, projectId: repositoryProjectId },
               );
 
               buildLogStream.end();

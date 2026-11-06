@@ -1,3 +1,4 @@
+import { revokeComputerPackageKey } from '../packages/keys.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
   Computer,
@@ -265,7 +266,9 @@ export function removeComputer(owner: string, id: string) {
       const plan = removalPlan(owner, id);
       if (!plan.allowed) fail(plan.reasons.join(' '), 409);
       const computer = computerFor(owner, id);
+      revokeComputerPackageKey(owner, computer.id);
       for (const workerId of computer.workerIds) {
+        revokeComputerPackageKey(owner, workerId);
         db.prepare("DELETE FROM records WHERE kind='worker-credential' AND owner=? AND id=?").run(
           owner,
           workerId,

@@ -356,17 +356,25 @@ test('project release preferences validate, persist, isolate owners and refuse a
   const path = '/projects/gym/settings';
   assert.equal((await api(path)).body.keepReleases, 5);
   assert.equal(
-    (await api(path, 'PATCH', { keepReleases: 3, verifyMigrations: false })).status,
+    (
+      await api(path, 'PATCH', {
+        keepReleases: 3,
+        verifyMigrations: false,
+        installThroughDeploy: false,
+      })
+    ).status,
     200,
   );
   const saved = (await api(path)).body;
   assert.equal(saved.keepReleases, 3);
   assert.equal(saved.verifyMigrations, false);
+  assert.equal(saved.installThroughDeploy, false);
   for (const body of [
     { keepReleases: 0 },
     { keepReleases: 1.5 },
     { keepReleases: 101 },
     { verifyMigrations: 'false' },
+    { installThroughDeploy: 'false' },
     { unknown: true },
   ])
     assert.equal((await api(path, 'PATCH', body)).status, 400);

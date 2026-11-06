@@ -1,3 +1,5 @@
+import { copiesStatus, queueCopies } from './copies.ts';
+import { npmRegistry } from './npm.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAdmin } from '../store.ts';
 import { list } from '../workspace/store.ts';
@@ -6,7 +8,12 @@ import { smallBody } from './body.ts';
 import { db, fail, nameOf, packageByName, versions, type Package } from './store.ts';
 import { deprecate, send } from './npm.ts';
 import { usedBy } from './projects.ts';
-export async function packagesApi(req: IncomingMessage, res: ServerResponse, username: string) {
+export async function packagesApi(
+  req: IncomingMessage,
+  res: ServerResponse,
+  username: string,
+  copy = npmRegistry.copy,
+) {
   const path = new URL(req.url!, 'http://localhost').pathname;
   if (!/^\/api\/v2\/(?:packages|package-keys)(?:\/|$)/.test(path)) return false;
   const identity: Identity = {
@@ -15,6 +22,20 @@ export async function packagesApi(req: IncomingMessage, res: ServerResponse, use
     admin: isAdmin(username),
     credential: 'person-session',
   };
+  if (path === '/api/v2/packages/cache' && req.method === 'GET') {
+    send(res, copiesStatus(username, copy));
+    return true;
+  }
+  if (path === '/api/v2/packages/cache/warm' && req.method === 'POST') {
+    const body = await smallBody(req);
+    const projects = list('project', username).filter(
+      (p) => !body.projectId || p.id === body.projectId,
+    );
+    if (body.projectId && !projects.length) fail('Project not found', 404);
+    for (const project of projects) queueCopies(username, project.id);
+    send(res, { queued: projects.length }, 202);
+    return true;
+  }
   if (path === '/api/v2/package-keys') {
     if (req.method === 'GET') send(res, { keys: listKeys(username) });
     else if (req.method === 'POST') {
@@ -36,6 +57,7 @@ export async function packagesApi(req: IncomingMessage, res: ServerResponse, use
     if (new URL(req.url!, 'http://localhost').searchParams.has('sidebar')) {
       send(res, {
         served: !!db().prepare("SELECT 1 FROM system_settings WHERE key='packages.served'").get(),
+        usingCopies: !copy.reachable,
       });
       return true;
     }
@@ -64,6 +86,7 @@ export async function packagesApi(req: IncomingMessage, res: ServerResponse, use
     send(res, {
       packages,
       served: !!db().prepare("SELECT 1 FROM system_settings WHERE key='packages.served'").get(),
+      usingCopies: !copy.reachable,
     });
     return true;
   }

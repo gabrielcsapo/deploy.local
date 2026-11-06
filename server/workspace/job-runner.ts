@@ -1,3 +1,5 @@
+import { readdir, rm } from 'node:fs/promises';
+import { preparePackageInstall, secretOutput } from '../../shared/package-install.mjs';
 import { repositoryGit } from './repository-git.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
 import { spawn } from 'node:child_process';
@@ -26,6 +28,7 @@ export class JobRunner {
   private killTimer?: ReturnType<typeof setTimeout>;
   private statePath: string;
   private directory: string;
+  private packageCleanup: Promise<void>;
   private preparation?: AbortController;
   private collecting?: AbortController;
   private authentication?: { origin: string; header: string };
@@ -42,6 +45,11 @@ export class JobRunner {
     this.directory = directory;
     this.request = request;
     mkdirSync(directory, { recursive: true, mode: 0o700 });
+    this.packageCleanup = readdir(directory, { withFileTypes: true }).then(async (entries) => {
+      for (const entry of entries)
+        if (entry.isDirectory() && entry.name.startsWith('package-install-'))
+          await rm(resolve(directory, entry.name), { recursive: true, force: true });
+    });
     this.statePath = resolve(directory, 'job.json');
     this.state = existsSync(this.statePath)
       ? JSON.parse(readFileSync(this.statePath, 'utf8'))
@@ -87,6 +95,7 @@ export class JobRunner {
       requests = artifactRequests(job.artifactPaths);
     } catch {}
     let started = false;
+    let install: Awaited<ReturnType<typeof preparePackageInstall>> | undefined;
     this.state = {
       jobId: job.id,
       generation: job.generation,
@@ -155,6 +164,22 @@ export class JobRunner {
           }
         });
       if (this.closing || this.state.reason) throw new Error('Job cancelled during preparation');
+      // New worker asks on its authenticated channel. Older coordinators answer 404;
+      // older workers never make this request and retain their public-registry behavior.
+      const config = await this.request('packages', {
+        jobId: job.id,
+        generation: job.generation,
+        instanceId: job.instanceId,
+      }).catch(() => null);
+      install = await preparePackageInstall(config, {
+        cwd,
+        root: this.directory,
+        container: !!job.container,
+        log: (line: string) => {
+          this.state.output += line + '\n';
+        },
+      });
+      if (this.closing || this.state.reason) throw new Error('Job cancelled during preparation');
       started = true;
       const executable = job.container ? 'docker' : '/bin/sh';
       const args = job.container
@@ -168,6 +193,7 @@ export class JobRunner {
             `${cwd}:/workspace`,
             '--workdir',
             '/workspace',
+            ...install.args,
             job.container,
             '/bin/sh',
             '-lc',
@@ -176,22 +202,25 @@ export class JobRunner {
         : ['-lc', job.command];
       const child = (this.child = spawn(executable, args, {
         cwd,
-        env: shellEnvironment(),
+        env: { ...shellEnvironment(), ...install.env },
         detached: true,
         stdio: ['ignore', 'pipe', 'pipe'],
       }));
-      const append = (data: Buffer) => {
+      const append = (data: string) => {
         this.state.output += data.toString();
         if (this.state.output.length > 64000) this.state.truncated = true;
         this.state.output = this.state.output.slice(-64000);
       };
-      child.stdout!.on('data', append);
-      child.stderr!.on('data', append);
+      const output = secretOutput([install.key], append);
+      child.stdout!.on('data', output.write);
+      child.stderr!.on('data', output.write);
       let spawnError: string | undefined;
       child.once('error', (error) => {
         spawnError = error.message;
       });
       child.once('close', async (code) => {
+        output.end();
+        await install?.cleanup();
         if (job.container) {
           const error = await this.removeContainer(job);
           if (error) this.state.terminal = { status: 'unknown', error };
@@ -215,6 +244,7 @@ export class JobRunner {
         this.persist();
       });
     } catch (error: any) {
+      await install?.cleanup();
       clearTimeout(this.timer);
       this.preparation = undefined;
       if (requests.length)
@@ -279,6 +309,7 @@ export class JobRunner {
     if (this.busy || this.closing) return;
     this.busy = true;
     try {
+      await this.packageCleanup;
       if (this.state) {
         const completing = Boolean(this.state.terminal);
         const result = await this.request(completing ? 'complete' : 'update', {

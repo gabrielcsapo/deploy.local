@@ -65,6 +65,10 @@ export async function storeFile(
   area: 'hosted' | 'cache' | 'docs',
   integrity: string,
   max = MAX_FILE,
+  promote?: (
+    file: { sha256: string; size: number; integrity: string },
+    move: () => Promise<void>,
+  ) => Promise<void>,
 ) {
   const matches = integrity
     .split(/\s+/)
@@ -94,8 +98,10 @@ export async function storeFile(
     const hash = sha.digest('hex');
     const path = objectPath(area, hash);
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-    await rename(temp, path);
-    return { sha256: hash, size, integrity };
+    const file = { sha256: hash, size, integrity };
+    if (promote) await promote(file, () => rename(temp, path));
+    else await rename(temp, path);
+    return file;
   } finally {
     await rm(temp, { force: true });
   }

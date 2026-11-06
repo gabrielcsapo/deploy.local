@@ -1,3 +1,5 @@
+import { CopyWarmer, queueCopies } from '../packages/copies.ts';
+import { npmRegistry } from '../packages/npm.ts';
 import { agentControl } from './phone-preferences.ts';
 import { projectReleasePolicy, retainProjectReleases } from './project-policy.ts';
 import {
@@ -432,6 +434,12 @@ export class ProjectReleaseService {
           release.apps = record.plan.apps;
           release.migrations = record.plan.migrations;
           persistRelease(owner, record);
+          const repository = list('project', owner).find((p) => p.id === project.id);
+          if (repository?.repositoryPath && release.source.commit) {
+            await new CopyWarmer(npmRegistry.copy)
+              .scan(owner, repository, release.source.commit, record.id, 'release', false)
+              .catch(() => queueCopies(owner, project.id));
+          }
           await this.runtime.prepare(record.plan);
         } else if (step.name === 'verify') await this.runtime.verify(record.plan!);
         else if (step.name === 'activate') {
@@ -480,6 +488,7 @@ export class ProjectReleaseService {
           }
         }
         release.state = 'live';
+        queueCopies(owner, project.id);
         persistRelease(owner, record);
         retainProjectReleases(owner, project.id);
       }).immediate();

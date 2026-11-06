@@ -10,9 +10,8 @@ import { once } from 'node:events';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, writeFile, rm, readdir, utimes, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { execFile, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 const exec = promisify(execFile);
@@ -36,7 +35,7 @@ const { registerUser, getSqlite, _resetDb } = await import('../store.ts');
 const { db: workspaceDb, save } = await import('../workspace/store.ts');
 const { createNpmRegistry } = await import('./npm.ts');
 const { packagesApi } = await import('./api.ts');
-const { createKey, listKeys } = await import('./keys.ts');
+const { createKey, listKeys, computerPackageKey } = await import('./keys.ts');
 const { objectPath, storeFile, nameOf, fileOf, MAX_FILE } = await import('./store.ts');
 const { enrollWorker } = await import('../workspace/credentials.ts');
 const { lockfileVersions } = await import('./projects.ts');
@@ -99,7 +98,7 @@ const upstream = createServer((req, res) => {
 const server = createServer(async (req, res) => {
   if (await registry.handle(req, res)) return;
   try {
-    if (await packagesApi(req, res, 'alice')) return;
+    if (await packagesApi(req, res, 'alice', registry.copy)) return;
   } catch (error: any) {
     res.writeHead(error.status || 500);
     res.end(JSON.stringify({ error: error.message }));
@@ -189,15 +188,16 @@ test('npm protocol, auth, isolation, cache and responsiveness', async (t) => {
         { headers: auth(), read: 200, publish: 201 },
         { headers: auth(installKey.key), read: 200, publish: 403 },
         { headers: { Authorization: basic }, read: 200, publish: 201 },
-        { headers: { Authorization: computer }, read: 200, publish: 403 },
+        { headers: auth(computerPackageKey('alice', worker.workerId)), read: 200, publish: 403 },
+        { headers: { Authorization: computer }, read: 401, publish: 401 },
         {
           headers: {
             Authorization: '',
             'x-deploy-worker-id': worker.workerId,
             'x-deploy-worker-token': worker.workerToken,
           },
-          read: 200,
-          publish: 403,
+          read: 401,
+          publish: 401,
         },
         { headers: { ...auth(), 'x-deploy-agent-token': 'agent-token' }, read: 401, publish: 401 },
       ];
@@ -564,8 +564,7 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
     npm_config_manage_package_manager_versions: 'false',
     npm_config_package_manager_strict: 'false',
   };
-  const yarn = resolve('output/packages-npm/tools/node_modules/yarn/bin/yarn.js');
-  const available = { npm: has('npm'), pnpm: has('pnpm'), yarn: existsSync(yarn) };
+  const available = { npm: has('npm'), pnpm: has('pnpm'), yarn: has('yarn') };
   for (const client of ['npm', 'pnpm', 'yarn'] as const) {
     await t.test(client, { skip: !available[client] }, async () => {
       const dir = join(root, client + '-publisher');
@@ -576,11 +575,10 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
         JSON.stringify({ name, version: '1.0.0', main: 'index.js', license: 'MIT' }),
       );
       await writeFile(join(dir, 'index.js'), 'module.exports = 42;\n');
-      const command = client === 'yarn' ? process.execPath : client;
+      const command = client;
       const publishArgs =
         client === 'yarn'
           ? [
-              yarn,
               'publish',
               '--non-interactive',
               '--new-version',
@@ -609,14 +607,7 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
       );
       const install =
         client === 'yarn'
-          ? [
-              yarn,
-              'install',
-              '--non-interactive',
-              '--ignore-scripts',
-              '--registry',
-              origin + '/npm/',
-            ]
+          ? ['install', '--non-interactive', '--ignore-scripts', '--registry', origin + '/npm/']
           : [
               'install',
               '--ignore-scripts',
@@ -722,6 +713,7 @@ test('CLI preserves user config, never writes keys to projects, uses pnpm pack a
     packCommand: 'pnpm',
   };
   await runPackages(['login'], {}, context);
+  assert.ok(messages.some((message) => message.includes('Trusts the coordinator’s certificate')));
   const rc = await readFile(join(home, '.npmrc'), 'utf8');
   assert.match(rc, /# keep this\nengine-strict=true/);
   assert.match(rc, /dlp_/);
@@ -1351,4 +1343,81 @@ test('attestations pass through from the source, and private names have none', a
   sourceDown = false;
   assert.equal(down.status, 404);
   await registry.copy.fetch('-/ping').then((response) => response.body?.cancel());
+});
+
+test('Copies API and CLI expose only the signed-in owner’s projects and warming requests', async () => {
+  save('project', 'alice', { id: 'alice-cache', name: 'Alice cache' });
+  save('project', 'bob', { id: 'bob-cache', name: 'Bob secret cache' });
+  const response = await fetch(origin + '/api/v2/packages/cache');
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.ok(result.projects.some((p: any) => p.id === 'alice-cache'));
+  assert.ok(!JSON.stringify(result).includes('Bob secret cache'));
+  assert.equal(result.storage.limit, 20 * 1024 ** 3);
+  assert.equal(result.storage.days, 90);
+  const forbidden = await fetch(origin + '/api/v2/packages/cache/warm', {
+    method: 'POST',
+    body: JSON.stringify({ projectId: 'bob-cache' }),
+  });
+  assert.equal(forbidden.status, 404);
+  const accepted = await fetch(origin + '/api/v2/packages/cache/warm', {
+    method: 'POST',
+    body: JSON.stringify({ projectId: 'alice-cache' }),
+  });
+  assert.equal(accepted.status, 202);
+  assert.ok(
+    workspaceDb
+      .prepare(
+        "SELECT 1 FROM records WHERE kind='package-warm' AND owner='alice' AND id='alice-cache'",
+      )
+      .get(),
+  );
+  assert.ok(
+    !workspaceDb
+      .prepare("SELECT 1 FROM records WHERE kind='package-warm' AND owner='bob' AND id='bob-cache'")
+      .get(),
+  );
+  const { runPackages } = await import(new URL('../../bin/packages.mjs', import.meta.url).href);
+  const output: string[] = [];
+  const api = async (path: string, options: any) => (await fetch(origin + path, options)).json();
+  const context = {
+    serverUrl: origin,
+    config: {},
+    api,
+    print: (line: string) => output.push(line),
+  };
+  await runPackages(['copies'], { json: true }, context);
+  assert.ok(!output.join('').includes('Bob secret cache'));
+  await runPackages(['copies', 'fetch'], { project: 'alice-cache' }, context);
+  assert.match(output.at(-1)!, /Queued 1 projects/);
+});
+
+test('login reports the certificate location when it is not in the keychain', async (t) => {
+  const { runPackages } = await import(new URL('../../bin/packages.mjs', import.meta.url).href);
+  const home = join(root, 'https-cli-home');
+  await mkdir(home);
+  const certificate =
+    '-----BEGIN CERTIFICATE-----\nfixture-certificate\n-----END CERTIFICATE-----\n';
+  t.mock.method(globalThis, 'fetch', async () => new Response(certificate));
+  const output: string[] = [];
+  await runPackages(
+    ['login'],
+    {},
+    {
+      serverUrl: 'https://deploy.local',
+      home,
+      cwd: home,
+      config: { username: 'alice', token: 'fixture-session' },
+      api: async () => ({ key: installKey.key, label: 'Fixture' }),
+      print: (line: string) => output.push(line),
+    },
+  );
+  const ca = join(home, '.deploy', 'packages', 'ca.crt');
+  assert.equal(await readFile(ca, 'utf8'), certificate);
+  assert.ok(
+    output.some(
+      (line) => line.includes('Trusts the coordinator’s certificate') && line.includes(ca),
+    ),
+  );
+  assert.ok(!output.join('').includes(installKey.key));
 });

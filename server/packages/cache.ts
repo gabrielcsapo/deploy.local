@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
-import { readFile, stat, mkdir, mkdtemp, rename, rm, open } from 'node:fs/promises';
+import { stat, mkdir, mkdtemp, rename, rm, open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -11,6 +11,7 @@ import {
   objectPath,
   storeFile,
   MAX_UPSTREAM_DOC,
+  MAX_FILE,
   fileOf,
   nameOf,
   tempRoot,
@@ -47,15 +48,18 @@ export type CacheEntry = {
 };
 type File = { sha256: string; size: number };
 type Prepared = { files: { full: File; abbreviated: File; index: File }; versions: string[] };
-export type VersionIndex = Record<string, { tarball: string; integrity: string }>;
-const entry = (kind: string, key: string) =>
+export type VersionIndex = Record<
+  string,
+  { tarball: string; integrity: string; os?: string[]; cpu?: string[] }
+>;
+export const entry = (kind: string, key: string) =>
   db()
     .prepare("SELECT * FROM package_cache_entries WHERE ecosystem='npm' AND kind=? AND key=?")
     .get(kind, key) as CacheEntry | undefined;
 // Serialize promotion and collection across registry instances: a shared index must
 // never be collected between another writer's promotion and row update.
 let writing: Promise<unknown> = Promise.resolve();
-function writeCopy<T>(work: () => Promise<T>): Promise<T> {
+export function writeCopy<T>(work: () => Promise<T>): Promise<T> {
   const result = writing.then(work);
   writing = result.catch(() => {});
   return result;
@@ -80,8 +84,15 @@ export class NpmCopy {
   readonly settings: RegistrySettings;
   readonly startupCleanup: Promise<void>;
   reachable = true;
+  failures = 0;
+  downSince: string | null = null;
+  copiesServed = 0;
+  get activeRequests() {
+    return this.pending.size;
+  }
   checkedAt: string | null = null;
   private timer?: ReturnType<typeof setInterval>;
+  private checkingAlways = false;
   private pending = new Map<string, Promise<any>>();
   constructor(settings: RegistrySettings = productionSettings) {
     const base = new URL(settings.upstreamBase);
@@ -97,11 +108,29 @@ export class NpmCopy {
   }
   close() {
     if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+    this.checkingAlways = false;
+  }
+  startChecks() {
+    this.close();
+    this.checkingAlways = true;
+    const check = () =>
+      void this.fetch('-/ping')
+        .then((response) => response.body?.cancel())
+        .catch(() => {});
+    check();
+    this.timer = setInterval(check, 60000);
+    this.timer.unref();
   }
   private state(reachable: boolean) {
-    this.reachable = reachable;
-    this.checkedAt = now();
     if (reachable) {
+      this.failures = 0;
+      this.downSince = null;
+    } else this.failures++;
+    this.reachable = reachable || this.failures < 2;
+    if (!this.reachable) this.downSince ||= now();
+    this.checkedAt = now();
+    if (reachable && !this.checkingAlways) {
       this.close();
       this.timer = undefined;
     } else if (!this.timer) {
@@ -145,8 +174,10 @@ export class NpmCopy {
   }
   body(response: Response): Readable {
     const source = Readable.fromWeb(response.body as any);
+    let failed = false;
     const unavailable = () => {
-      this.state(false);
+      if (!failed) this.state(false);
+      failed = true;
       return Object.assign(new Error('npmjs.org package download failed.'), { status: 503 });
     };
     let idle: ReturnType<typeof setTimeout>;
@@ -193,11 +224,26 @@ export class NpmCopy {
         .run(now(), kind, row.key);
     return row;
   }
-  async index(row: CacheEntry): Promise<VersionIndex> {
+  async index(row: CacheEntry, version?: string): Promise<VersionIndex> {
     return writeCopy(async () => {
       const current = entry('doc', row.key);
       if (!current || current.removed_at) return {};
-      return JSON.parse(await readFile(objectPath('docs', current.index_sha256), 'utf8'));
+      const bundled = new URL('./package-index-worker.mjs', import.meta.url);
+      const worker = new Worker(
+        existsSync(bundled) ? bundled : new URL('./index-worker.mjs', import.meta.url),
+        {
+          workerData: { path: objectPath('docs', current.index_sha256), version },
+        },
+      );
+      return new Promise<VersionIndex>((resolve, reject) => {
+        worker.once('message', (result) =>
+          result.error ? reject(new Error(result.error)) : resolve(result.index),
+        );
+        worker.once('error', reject);
+        worker.once('exit', (code) => {
+          if (code) reject(new Error('Package index reader failed'));
+        });
+      });
     });
   }
   async openDocument(name: string, abbreviated = false) {
@@ -417,13 +463,15 @@ export class NpmCopy {
           `${name}@${version} was removed from npmjs.org on ${previous.removed_at.slice(0, 10)}.`,
           404,
         );
-      const index = doc ? await this.index(doc) : {};
+      const index = doc ? await this.index(doc, version) : {};
       if (!Object.hasOwn(index, version)) fail('Version not found on npmjs.org', 404);
       if (
         previous &&
         (await stat(objectPath('cache', previous.sha256)).catch(() => null))?.size === previous.size
-      )
+      ) {
+        if (!this.reachable) this.copiesServed++;
         return this.touch('file', previous);
+      }
       const dist = index[version];
       const response = await this.fetch(dist.tarball);
       if (!response.ok) {
@@ -438,10 +486,32 @@ export class NpmCopy {
         await response.body?.cancel();
         fail('npmjs.org did not supply sha512 integrity for this tarball.', 502);
       }
-      const file = await storeFile(this.body(response), 'cache', integrity);
-      this.record('file', key, file);
+      await storeFile(this.body(response), 'cache', integrity, MAX_FILE, (file, move) =>
+        writeCopy(async () => {
+          await move();
+          this.record('file', key, file);
+          this.touch('file', entry('file', key)!);
+        }),
+      );
       return entry('file', key)!;
     });
+  }
+  async openTarball(
+    name: string,
+    filename: string,
+  ): Promise<CacheEntry & { handle: import('node:fs/promises').FileHandle }> {
+    await this.tarball(name, filename);
+    const key = name + '@' + filename.slice(name.split('/').pop()!.length + 1, -4);
+    const file = await writeCopy(async () => {
+      const current = entry('file', key);
+      if (!current) return null;
+      if (current.removed_at)
+        fail(`${key} was removed from npmjs.org on ${current.removed_at.slice(0, 10)}.`, 404);
+      this.touch('file', current);
+      return { ...current, handle: await open(objectPath('cache', current.sha256), 'r') };
+    });
+    if (!file) return this.openTarball(name, filename);
+    return file;
   }
   async importVersion(name: string, version: string) {
     const file = await this.tarball(name, name.split('/').pop()! + '-' + version + '.tgz');

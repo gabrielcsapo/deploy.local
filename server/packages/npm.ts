@@ -1,3 +1,4 @@
+import { pinComputerInstall } from './copies.ts';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream } from 'node:fs';
@@ -176,7 +177,7 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         const prepared = await copy.document(name, true);
         const index = prepared ? await copy.index(prepared) : {};
         upstream = { versions: index };
-        if (!copy.reachable)
+        if (copy.failures)
           fail('Cannot check whether this name exists on npmjs.org while it is unreachable.', 503);
         if (Object.keys(index).length && !claim)
           fail(
@@ -433,7 +434,20 @@ export function createNpmRegistry(settings?: RegistrySettings) {
           );
           if (!row) fail('Version not found', 404);
           await sendFile(req, res, 'hosted', row);
-        } else await sendFile(req, res, 'cache', await copy.tarball(name, filename));
+        } else {
+          const file = await copy.openTarball(name, filename);
+          if (identity.computer)
+            pinComputerInstall(
+              identity.username,
+              identity.credential.slice('computer:'.length),
+              file.key,
+            );
+          try {
+            await sendFile(req, res, 'cache', file, 'application/octet-stream', file.handle);
+          } finally {
+            await file.handle.close();
+          }
+        }
         served();
         return true;
       }

@@ -1,3 +1,7 @@
+import { CopyWarmer } from '../packages/copies.ts';
+import { npmRegistry } from '../packages/npm.ts';
+import { computerInstallConfig } from '../packages/builds.ts';
+import { writeFile as writePrivateFile, chown as chownPrivateFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -17,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { userInfo } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SelfUpdateRun, SelfUpdateStatus } from '../../shared/v2/contracts.ts';
-import { isAdmin } from '../store.ts';
+import { isAdmin, getSqlite } from '../store.ts';
 import { list } from '../workspace/store.ts';
 import {
   changesSince,
@@ -148,7 +152,7 @@ function releaseName(config: ReleaseConfig, to: string) {
   }
 }
 
-export function startSelfUpdate(owner: string, to: unknown): SelfUpdateStatus {
+export async function startSelfUpdate(owner: string, to: unknown): Promise<SelfUpdateStatus> {
   const found = context(owner);
   if ('reason' in found) fail(found.reason, 409);
   const { config, running, repository } = found;
@@ -186,6 +190,33 @@ export function startSelfUpdate(owner: string, to: unknown): SelfUpdateStatus {
       history: join(directory, 'history.json'),
     },
   };
+  // Only a path enters the public run. The key stays outside every release directory.
+  const packageConfig = join(directory, `${id}.packages.json`);
+  const project = list('project', owner).find((p) => p.repositoryPath === repository.path);
+  if (project) {
+    run.plan.packageProject = project.id;
+    const warmer = new CopyWarmer(npmRegistry.copy);
+    for (const commit of [run.from, run.to])
+      await warmer.scan(owner, project, commit, commit, 'self-release', false).catch(() => {});
+    getSqlite()!
+      .prepare("INSERT OR REPLACE INTO system_settings VALUES('packages.selfUpdateContext',?,?)")
+      .run(
+        JSON.stringify({
+          owner,
+          projectId: project.id,
+          from: run.from,
+          to: run.to,
+          state: 'running',
+        }),
+        new Date().toISOString(),
+      );
+  }
+  const install = await computerInstallConfig(owner, 'local', project?.id);
+  if (install) {
+    await writePrivateFile(packageConfig, JSON.stringify(install), { mode: 0o600, flag: 'wx' });
+    await chownPrivateFile(packageConfig, uid, gid);
+    run.plan.packageConfig = packageConfig;
+  }
   const file = stateFile(config);
   writeFileSync(`${file}.tmp`, JSON.stringify(run, null, 2), { mode: 0o644 });
   chownSync(`${file}.tmp`, uid, gid);
@@ -269,7 +300,7 @@ export async function selfUpdateApi(req: IncomingMessage, res: ServerResponse, o
     } catch {
       fail('Invalid JSON');
     }
-    return send(startSelfUpdate(owner, input.to), 202);
+    return send(await startSelfUpdate(owner, input.to), 202);
   }
   return send({ error: 'Method not allowed' }, 405);
 }
