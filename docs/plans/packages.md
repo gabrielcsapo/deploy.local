@@ -242,7 +242,7 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 
 ### Order of work
 
-Private Cargo stays in the first version, because the owner plans to build crates locally.
+Private crates still ship, but last. The owner moved Cargo to the end because the goal is npm first: point deploy.local at its own registry, and publish a router change and see it right away.
 
 Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<slice>`), with Claude verifying: captures at board widths with `design/tools/capture.mjs` and `pair.py`, the iOS build, and real npm, pnpm and Cargo clients.
 
@@ -253,23 +253,49 @@ Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<sl
    - `deploy packages login|use|publish`
    - the Packages list and the package page
    - Settings → Package keys
-4. **Cargo:** the private registry and the crates.io copy.
-5. **Builds use it:**
-   - computers, job containers and app Docker builds
+4. **Builds use it:**
+   - computers, job containers and app Docker builds, for npm
    - the project switch
    - keeping what lockfiles need, and pins
    - removed versions
    - the Copies tab and the sidebar state
-6. **Pipelines publish:**
+   - the blocked-network release test (see "What still comes from outside")
+5. **Pipelines publish:**
+   - a pipeline that doesn't make deploy.local deployment-configured (the open problem in Part 1)
    - `pipeline.publish` in `deploy.yaml` and `server/pipeline-spec.ts`
    - the publish step and pipeline tokens
    - packages on the pipeline run
    - the task status line and panel row
    - iPhone Packages
-7. **Switch over:**
+6. **Switch over:**
    - bring over every react-flight-router version on npmjs.org
    - publish 0.12.2 from deploy.local
    - point other projects that use it at Packages
+7. **Cargo:**
+   - the private registry and the crates.io copy
+   - per-computer `CARGO_HOME`, job containers and app builds
+   - `yank`, and Cargo on the Set up, Copies and iPhone screens
+
+Each step adds its own part of a screen, so nothing claims what doesn't exist yet. The boards are the finished state, and the app matches them fully once step 7 lands.
+
+### What still comes from outside
+
+The owner's goal: "all the content should go through that and cache so we can have some insulation from upstream issues". The registry only covers what clients fetch from the registry, so these stay outside it. Checked on 2026-11-05 against this repository's dependencies and on SER.
+
+| What                        | When it's fetched                                                                   | From                                                            | Where deploy.local is exposed                                                                                                                                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `better-sqlite3` 13         | Every install that builds it: `node-gyp` compiles it, with Node's headers           | nodejs.org, only if `~/.cache/node-gyp` lacks that Node version | SER has headers for its Node 26.5.0, so it only needs nodejs.org after a Node upgrade. It also needs a compiler.                                                                                                      |
+| Electron                    | First use, not install: 44.x has no install script and `index.js` runs its download | github.com/electron/electron releases                           | Building the Mac app and anything else that runs Electron. A SER release's install doesn't fetch it. Whether SER's tests can trigger it isn't checked; `~/.cache/electron` on SER has an entry from some earlier run. |
+| Docker base images          | App builds                                                                          | Docker Hub (`node:22-alpine`)                                   | Every app build that doesn't already have the image                                                                                                                                                                   |
+| Node for `build:cli`        | Building the CLI                                                                    | nodejs.org                                                      | CLI releases                                                                                                                                                                                                          |
+| Playwright browsers         | Only when asked (`@playwright/browser-chromium` is not allowed to build)            | Playwright's CDN                                                | Browser tests                                                                                                                                                                                                         |
+| Git and GitHub dependencies | Install                                                                             | The git host                                                    | None for deploy.local: its lockfile has none. Other projects aren't checked.                                                                                                                                          |
+
+`esbuild`'s install script gets its binary from a registry package, so the copy covers it. `ssh2`, `cpu-features`, `protobufjs` and `unix-dgram` are not allowed to run install scripts.
+
+**A real test of the insulation.** Step 4 ends with a release run with npmjs.org and the other outside hosts blocked, and a report of what fails, because the table above comes from reading code, not from running with those hosts down. Rehearse on a computer other than SER first, and on SER use `deploy-update prepare` without activating. Ask the owner before blocking anything on SER.
+
+**deploy.local's own installs keep their fallback.** As planned under "How builds use it", they use the registry only when `/npm/-/ping` answers and otherwise use npmjs.org, so a fresh machine or a recovery can still install.
 
 ### How it is tested
 
@@ -288,5 +314,11 @@ Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<sl
 3. **Addresses.** Reserve `/npm/` and `/cargo/` (proposed), or use `/api/packages/npm/`? The latter is uglier, but no project names are reserved.
 4. **Copy limits.** 20 GB and 90 days (proposed)?
 5. **Anonymous installs** on the LAN: off (proposed)?
-6. **Docker images** next? They are the remaining internet dependency for offline app builds.
+6. **"All the content".** The registry doesn't carry Docker images, Node downloads, Electron or git dependencies (see "What still comes from outside"). Is that enough insulation, or should some of them be kept too? Docker images matter most, since every app build needs one.
 7. **Versions.** Keep setting the version in the pull request (proposed), or have the pipeline work out the next version from commit messages? The router's commits already follow the convention, but not every project's do.
+8. **Other projects and new router versions.** `workspace:*` gives deploy.local a router change right away. Other projects only get it through a version bump, and nothing in this plan does that, so "see the changes right away" holds only for deploy.local today. Options:
+   - Bump by hand in each project, as now.
+   - A `deploy packages update <name>` command that updates a project's version and lockfile, run by a person or an agent.
+   - When a new version publishes, deploy.local starts a task in each project using it, which opens a pull request. The owner still merges. This contradicts the approved `Package` board's "deploy.local does not open pull requests for new versions", so it needs a design change.
+9. **Freshly published versions and pnpm's waiting period.** pnpm's `minimumReleaseAge` applies to private packages too, so a project with that setting can't install a new private version until the period passes. The real-client tests set it to 0 to get around this. deploy.local has this setting today, so it would affect other projects set up the same way. Should private names be excluded, per project or for all of them?
+10. **Deprecating from the web, and search on Packages.** The plan offers deprecate on version rows, and the boards draw a search button, but no board draws either interaction. The CLI and API can deprecate. Draw them, or leave them out?
