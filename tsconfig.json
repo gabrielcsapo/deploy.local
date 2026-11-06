@@ -16,8 +16,9 @@
     "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./app/*"]
-    }
+    },
+    "allowJs": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "app/types/**/*.d.ts"],
+  "include": ["**/*.ts", "**/*.tsx", "app/types/**/*.d.ts", "bin/cli-contracts.mjs"],
   "exclude": ["node_modules", "dist", "packages/react-flight-router*"]
 }

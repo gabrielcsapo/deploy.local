@@ -1,4 +1,5 @@
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
+import { workspaceFixture, minimalWorkspaceFixture } from './workspace-contract-fixtures.ts';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -185,8 +186,47 @@ test('contracts resolve in Node, Vite, and the existing CLI bundler without alia
   });
 });
 
+function requireSwift(
+  t: Pick<TestContext, 'skip'>,
+  platform: NodeJS.Platform = process.platform,
+  compiler: { status: number | null; error?: Error; stderr?: string } = spawnSync(
+    'swiftc',
+    ['--version'],
+    { encoding: 'utf8' },
+  ),
+) {
+  if (compiler.status === 0) return true;
+  if (platform === 'darwin')
+    assert.fail(
+      `swiftc is required on macOS, where the iPhone client is built: ${compiler.error?.message || compiler.stderr}`,
+    );
+  t.skip(
+    `Swift compiler unavailable on ${platform}; the Linux server release does not build the iPhone client. Run this check on macOS.`,
+  );
+  return false;
+}
+
+test('Swift is mandatory on Mac; Linux releases can skip an unavailable compiler', () => {
+  const skipped: string[] = [];
+  const context = {
+    skip: (message?: string) => {
+      skipped.push(message || '');
+    },
+  };
+  const missing = { status: null, error: new Error('spawn swiftc ENOENT') };
+  assert.throws(() => requireSwift(context, 'darwin', missing), /swiftc is required on macOS/);
+  assert.equal(skipped.length, 0);
+  assert.equal(requireSwift(context, 'linux', missing), false);
+  assert.match(skipped[0], /Linux server release does not build the iPhone client/);
+  assert.throws(
+    () => requireSwift(context, 'darwin', { status: 1, stderr: 'toolchain broken' }),
+    /toolchain broken/,
+  );
+  assert.equal(requireSwift(context, 'linux', { status: 0 }), true);
+});
+
 test('Swift Codable round-trips every contract and flat conversation variant', (t) => {
-  if (spawnSync('swiftc', ['--version']).error) return t.skip('Swift compiler unavailable');
+  if (!requireSwift(t)) return;
   const dir = mkdtempSync(join(tmpdir(), 'deploy-v2-contracts-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const fields = {
@@ -233,4 +273,64 @@ FileHandle.standardOutput.write(try JSONEncoder().encode(value))
   });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), fixture);
+});
+
+test('Swift decodes workspace payloads consumed by iPhone, including nested and optional fields', (t) => {
+  if (!requireSwift(t)) return;
+  const dir = mkdtempSync(join(tmpdir(), 'deploy-workspace-contracts-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(
+    join(dir, 'main.swift'),
+    `import Foundation
+struct Fixture: Decodable {
+    let state: WorkspaceState
+    let detail: TaskDetail
+    let diff: TaskDiff
+    let events: EventPage
+    let control: ControlState
+    let snapshot: ControlSnapshot
+}
+let input = FileHandle.standardInput.readDataToEndOfFile()
+let values = try JSONDecoder().decode([Fixture].self, from: input)
+let full = values[0]
+precondition(full.state.workers[0].permissions?[0].step?.command == "open")
+precondition(full.state.workers[0].providers?[0].windows[0].usedPercent == 12.5)
+precondition(full.detail.task.controlRequest?.record == true)
+precondition(full.detail.runs[0].recoveryView?.canMarkStopped == true)
+precondition(full.detail.messages[0].deployment?.application == "web")
+precondition(full.detail.jobs?[0].artifacts?[0].attachmentId == "image")
+precondition(full.detail.attachments?[0].width == 100)
+precondition(full.detail.queuedMessage?.attachmentIds == ["image"])
+precondition(full.detail.latestCheckpoint?.changedFileCount == 1)
+precondition(full.detail.eventsBefore == 2)
+precondition(full.diff.scope == "turn" && full.diff.baselinePending == false)
+precondition(full.control.targets[0].targetId == "window")
+precondition(full.snapshot.inputBounds?["x"] == 1)
+precondition(values[1].detail.task.controlRequest == nil)
+precondition(values[1].detail.jobs == nil && values[1].events.supportsWait == nil)
+print("decoded full and minimal workspace fixtures")
+`,
+  );
+  const core = resolve('native/Apple/Packages/DeployKit/Sources/DeployCore');
+  const compiled = spawnSync(
+    'swiftc',
+    [
+      '-module-cache-path',
+      join(dir, 'cache'),
+      ...['Models.swift', 'MediaAttachment.swift', 'WorkerUpdate.swift'].map((file) =>
+        join(core, file),
+      ),
+      join(dir, 'main.swift'),
+      '-o',
+      join(dir, 'decode'),
+    ],
+    { encoding: 'utf8' },
+  );
+  assert.equal(compiled.status, 0, compiled.stderr);
+  const result = spawnSync(join(dir, 'decode'), [], {
+    input: JSON.stringify([workspaceFixture, minimalWorkspaceFixture]),
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /decoded full and minimal workspace fixtures/);
 });

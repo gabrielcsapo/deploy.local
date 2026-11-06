@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, rm, copyFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { verifyPreloads } from '../scripts/preload-check.mjs';
 import { fixtureRuntime } from '../scripts/fixture-runtime.mjs';
 import { startFixture, preview } from '../../docs/evidence/v2/13-desktop-2/fixture-server.mjs';
@@ -10,7 +11,17 @@ import { CoordinatorClient } from '../src/client.mjs';
 
 test('packaged preload audit rejects extra capabilities, nested methods and shell globals', async () => {
   const remote = await readFile(new URL('../src/preload.cjs', import.meta.url), 'utf8');
-  const local = await readFile(new URL('../build/shell-preload.cjs', import.meta.url), 'utf8');
+  // Exercise the packaged form without requiring a prior desktop build on fresh checkouts.
+  const { build } = createRequire(import.meta.resolve('vite'))('esbuild');
+  const bundled = await build({
+    entryPoints: [new URL('../src/shell-preload.mjs', import.meta.url).pathname],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    external: ['electron'],
+    write: false,
+  });
+  const local = bundled.outputFiles[0].text;
   await verifyPreloads(remote, local);
   await assert.rejects(
     verifyPreloads(remote.replace('const api = {', 'const api = { exec: () => {},'), local),
@@ -60,6 +71,12 @@ test('fixture runtime rejects real coordinators, mDNS and persistent profiles; c
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+// The served shell links this generated file, which a fresh checkout doesn't have until a build.
+await copyFile(
+  new URL('../../app/design-tokens.css', import.meta.url),
+  new URL('../assets/design-tokens.css', import.meta.url),
+);
 
 test('capture coordinator serves real v2 envelopes, admission and offline errors with no enrollment route', async () => {
   const fixture = await startFixture();

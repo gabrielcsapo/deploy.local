@@ -4,7 +4,7 @@ See [Computers and roles](computers.md) for the shared role switches and readine
 
 Node is a background task worker with a native tray menu and one on-demand setup window.
 There is no task, chat or review window: **Open deploy.local** opens the coordinator in your
-browser. macOS uses the native SwiftUI Deploy app; this package has no macOS build target.
+browser. The current desktop app for macOS, Windows and Linux is Electron in `desktop/`. This separate Linux supervisor tray utility has no macOS build target.
 
 ## Install and run
 

@@ -1,5 +1,7 @@
 # Project workspace implementation evidence
 
+Current client ownership: Electron in `desktop/` is the Mac, Windows and Linux app. The Swift Mac target has been retired under cleanup step 9; `native/Apple` remains the iPhone app. References to Swift Mac builds below record the earlier implementation.
+
 Updated: 2026-10-15 (America/New_York)
 
 This branch implements a shared project/task harness, repository collaboration, and mesh CI/CD pilot.

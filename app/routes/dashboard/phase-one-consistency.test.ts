@@ -5,8 +5,7 @@ import tokens from '../../design-tokens.json';
 const source = (name: string) => readFileSync(new URL(name, import.meta.url), 'utf8');
 test('one placeholder and a project-aware prompt across platforms', () => {
   for (const file of [
-    '../../../native/Apple/Packages/DeployKit/Sources/DeployUI/NewConversationView.swift',
-    '../../../native/Apple/Packages/DeployKit/Sources/DeployUI/WorkspaceView.swift',
+    '../../../native/Apple/Packages/DeployKit/Sources/DeployUI/V2/V2Conversation.swift',
   ]) {
     const value = source(file);
     assert.match(value, /Ask, build, or follow up…/);

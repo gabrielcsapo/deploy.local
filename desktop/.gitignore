@@ -2,3 +2,6 @@ node_modules/
 build/
 dist/
 .pnpm-store/
+
+# Generated from the web token source by scripts/build.mjs.
+assets/design-tokens.css

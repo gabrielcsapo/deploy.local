@@ -1,3 +1,4 @@
+import * as contracts from './cli-contracts.mjs';
 import { stripVTControlCharacters } from 'node:util';
 
 // Presentation and compatibility helpers shared by the source and bundled CLI.
@@ -154,7 +155,7 @@ export function printLive(status) {
 
 export async function readInbox(api) {
   try {
-    const result = await api('/api/v2/inbox?state=waiting');
+    const result = await contracts.inbox(api);
     const items = Array.isArray(result) ? result : result.items;
     if (!Array.isArray(items))
       throw cliError('The inbox response was not recognized.', 'deploy upgrade');
@@ -193,10 +194,7 @@ export async function runInbox(api, args, options, prompt) {
       ))
     )
       return { cancelled: true };
-    return api(`/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
-      method: 'POST',
-      body: JSON.stringify({ actionId: action.id, on: 'cli' }),
-    });
+    return contracts.answerInbox(api, item.id, action.id);
   }
   if (options.json) return { items };
   if (!items.length) console.log('Nothing waiting on you.');
@@ -215,10 +213,7 @@ export async function runInbox(api, args, options, prompt) {
     const action = item.actions[Number(choice) - 1];
     if (!action) continue;
     if (action.confirm && !(await confirmChange(action.confirm, options.yes, prompt))) continue;
-    const result = await api(`/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
-      method: 'POST',
-      body: JSON.stringify({ actionId: action.id, on: 'cli' }),
-    });
+    const result = await contracts.answerInbox(api, item.id, action.id);
     const answered = result.item || result;
     console.log(
       `  ✓ Answered${answered.answer?.by ? ` by ${answered.answer.by} on ${answered.answer.on}` : ''}. Next: deploy status`,
@@ -299,9 +294,7 @@ export async function followDeploy(api, name, accepted, timeoutMs) {
     );
   if (accepted.projectRelease && accepted.buildLogId) {
     do {
-      const result = await api(
-        `/api/v2/releases/uploads/${encodeURIComponent(accepted.buildLogId)}`,
-      );
+      const result = await contracts.uploadRelease(api, accepted.buildLogId);
       if (result.release)
         return followRelease(api, result.release, Math.max(0, deadline - Date.now()));
       if (Date.now() >= deadline)
@@ -347,7 +340,7 @@ export async function followRelease(api, accepted, timeoutMs) {
   let release = accepted.release || accepted;
   const deadline = Date.now() + timeoutMs;
   while (release.state === 'running') {
-    const response = await api(`/api/v2/releases/${encodeURIComponent(release.id)}`);
+    const response = await contracts.release(api, release.id);
     release = response.release || response;
     if (release.state !== 'running' || Date.now() >= deadline) break;
     await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
@@ -366,7 +359,7 @@ export async function followRollback(api, project, accepted, timeoutMs) {
         ? 'rolled-back'
         : 'running';
     if (state !== 'running' || Date.now() >= deadline) return { ...rollback, state };
-    const response = await api(`/api/v2/projects/${encodeURIComponent(project)}/rollbacks`);
+    const response = await contracts.rollbacks(api, project);
     const found = (response.rollbacks || response).find((entry) => entry.id === rollback.id);
     if (!found)
       throw cliError('The rollback receipt is unavailable.', `deploy releases ${project}`);
@@ -394,7 +387,7 @@ export async function browserLogin({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-  const pending = await post('/api/v2/auth/cli/start', {});
+  const pending = await contracts.startLogin(post);
   const verification = new URL(pending.verificationUri);
   if (verification.origin !== new URL(serverUrl).origin)
     throw cliError('The sign-in address does not match this computer.', 'deploy login --password');
@@ -407,7 +400,7 @@ export async function browserLogin({
   const deadline = now() + Math.min(pending.expiresIn, 300) * 1000;
   while (now() < deadline) {
     await sleep(Math.max(1, pending.interval || 2) * 1000);
-    const result = await post('/api/v2/auth/cli/poll', { deviceCode: pending.deviceCode });
+    const result = await contracts.pollLogin(post, pending.deviceCode);
     if (result.state === 'denied') throw cliError('Sign-in was denied.', 'deploy login');
     if (result.state === 'approved' && result.username && result.token) {
       await save({ username: result.username, token: result.token, url: serverUrl });

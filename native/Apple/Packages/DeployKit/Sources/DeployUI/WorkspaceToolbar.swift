@@ -8,13 +8,8 @@ extension WorkspaceStyle {
     enum Toolbar {
         static let spacing: CGFloat = WorkspaceStyle.IconAction.gap
         static let radius: CGFloat = 8
-        #if os(macOS)
-        static let iconSize: CGFloat = WorkspaceStyle.IconAction.standardGlyph
-        static let targetSize: CGFloat = 32
-        #else
         static let iconSize: CGFloat = WorkspaceStyle.IconAction.touchGlyph
         static let targetSize: CGFloat = 44
-        #endif
     }
 }
 

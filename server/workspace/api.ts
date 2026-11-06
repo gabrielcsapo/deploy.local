@@ -1,4 +1,5 @@
 import { sendJson } from '../http.ts';
+import type { WorkspaceState, TaskDetail, Message } from '../../shared/v2/contracts.ts';
 import { updateBase, baseUpdateWorker } from './update-base.ts';
 import { taskQueue, moveQueuedRun } from './run-queue.ts';
 import { cleanShellMessage } from './shell-commands.ts';
@@ -366,7 +367,7 @@ export async function workspaceApi(
             .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
             .map((run) => [run.taskId, run.status]),
         );
-        return send({
+        const state = {
           version: 1,
           cursor: cursor(owner),
           projects: addressedProjects(owner),
@@ -379,7 +380,8 @@ export async function workspaceApi(
             })))(pendingControlRequests(owner)),
           runs: runs.map((run) => presentRun(owner, run)),
           ...(await capabilities(owner)),
-        });
+        };
+        return send(state satisfies WorkspaceState);
       }
       if (path === '/events' && url.searchParams.has('before')) {
         // Older history behind a task detail's bounded `events` (see `eventsBefore`).
@@ -446,11 +448,11 @@ export async function workspaceApi(
           );
         recoverShellCommands(owner, task.id);
         const runs = list('run', owner).filter((r) => r.taskId === task.id);
-        const messages = list('message', owner)
+        const messages: Message[] = list('message', owner)
           .filter((message) => message.taskId === task.id)
           .map(cleanShellMessage);
         const recent = recentEvents(owner, task.id);
-        return send({
+        const detail = {
           task: {
             ...taskQueue(owner, taskPullSummary(task, list('pull-request', owner))),
             waitingForAnswer: tasksWaitingForAnswer(owner).has(task.id),
@@ -481,7 +483,8 @@ export async function workspaceApi(
           eventsTruncated: recent.truncated,
           eventsBefore: recent.before,
           cursor: cursor(owner),
-        });
+        };
+        return send(detail satisfies TaskDetail);
       }
     }
     if (method === 'POST') {

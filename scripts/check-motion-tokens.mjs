@@ -19,15 +19,7 @@ for (const path of paths) {
 const native = fileURLToPath(
   new URL('../native/Apple/Packages/DeployKit/Sources/DeployUI', import.meta.url),
 );
-for (const name of [
-  'TaskTreeViews.swift',
-  'TaskRightSplit.swift',
-  'WorkspaceToolbar.swift',
-  'WorkspaceView.swift',
-  'WorkspaceSkeleton.swift',
-  'TurnMinimap.swift',
-  'NewConversationView.swift',
-]) {
+for (const name of ['WorkspaceToolbar.swift']) {
   const source = readFileSync(resolve(native, name), 'utf8');
   if (/\.animation\(\.(?:ease|linear|spring)|withAnimation\(\.(?:ease|linear|spring)/.test(source))
     failures.push(`${name}: use WorkspaceStyle.Motion`);

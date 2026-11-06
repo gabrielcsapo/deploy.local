@@ -196,14 +196,16 @@ can revoke remembered screen-sharing permissions independently.
 
 ## macOS
 
-Install the Mac app with its embedded, consistently signed Swift helper. A remote worker
-now discovers `Contents/Helpers/deploy-control-helper` under `~/Applications/Deploy.app`
-or `/Applications/Deploy.app` and sets `DEPLOY_DESKTOP_HELPER` when unset. For another
-installation path, set it explicitly before starting the worker:
+Install the Electron desktop app with its embedded, consistently signed Swift helper.
+The bundled worker receives the helper path from the desktop app. For a separately started
+remote worker, set the helper path explicitly before starting it:
 
 ```sh
-export DEPLOY_DESKTOP_HELPER=/Applications/Deploy.app/Contents/Helpers/deploy-control-helper
+export DEPLOY_DESKTOP_HELPER="/Applications/deploy.local Desktop.app/Contents/Resources/helpers/deploy-control-helper"
 ```
+
+The remote worker still recognizes helpers inside an older `Deploy.app` installation for
+compatibility. Those fallback paths do not build or depend on the retired Swift Mac target.
 
 macOS Screen Recording and Accessibility permissions, per-window approval, and existing
 input behavior are unchanged. The Linux user service is not installed on macOS.

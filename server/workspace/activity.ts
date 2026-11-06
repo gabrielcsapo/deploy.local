@@ -81,7 +81,7 @@ const pretty = (value: unknown) =>
 const basename = (value: string) => value.split('/').pop() || value;
 
 /** Fold lifecycle events into one inspectable action; streamed assistant text is not activity. */
-export function projectActivity(events: Row[], runs: Row[], messages: Row[]) {
+export function projectActivity<T extends Row>(events: Row[], runs: Row[], messages: T[]) {
   const byRun = new Map<string, Map<string, Row>>();
   const messageRuns = new Map<string, string>();
   const lastToolAt = new Map<string, string>();

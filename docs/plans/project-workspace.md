@@ -1,5 +1,7 @@
 # deploy.local project workspace plan
 
+Current client ownership: Electron in `desktop/` is the Mac, Windows and Linux app. The Swift Mac target has been retired under cleanup step 9; `native/Apple` remains the iPhone app. References to Swift Mac builds below record the earlier implementation.
+
 Status: Implementation pilot underway; full milestone acceptance remains incomplete. See
 [implementation evidence and remaining work](workspace-implementation.md).
 
