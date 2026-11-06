@@ -2329,6 +2329,20 @@
       "w": 390,
       "h": 900,
       "title": "iPhone — the Settings row for Packages, in every state"
+    },
+    "PackageVersionsErrorPhone.html": {
+      "x": 12080,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a package’s versions could not be refreshed"
+    },
+    "PackagesLongNamePhone.html": {
+      "x": 12490,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Packages with a long name and a long version"
     }
   },
   "order": [
@@ -2641,7 +2655,9 @@
     "PackagesEmptyPhone.html",
     "PackagesErrorPhone.html",
     "PackagesUnreachablePhone.html",
-    "SettingsPackagesRowPhone.html"
+    "SettingsPackagesRowPhone.html",
+    "PackageVersionsErrorPhone.html",
+    "PackagesLongNamePhone.html"
   ],
   "notes": {
     "intro": {
@@ -3867,7 +3883,7 @@
       "w": 760,
       "x": 9620,
       "y": 74670,
-      "text": "Drawn after the iPhone screens were first seen running.\n\n• Packages and a package’s versions both open as sheets, like every other Settings destination.\n• The two parts load separately: if one fails, the other still shows. A failed part with nothing to show says it could not be refreshed. One with rows keeps them.\n• Storage reads like web: gigabytes of 1024³, then the limit (6.2 GB of 20 GB).\n• Version dates carry the year. Today’s reads Today, 7:57 AM.\n• Kept on SER opens nothing, so it has no chevron."
+      "text": "Drawn after the iPhone screens were first seen running.\n\n• Packages and a package’s versions both open as sheets, like every other Settings destination.\n• The two parts load separately: if one fails, the other still shows. A failed part with nothing to show says it could not be refreshed. One with rows keeps them.\n• Storage reads like web: gigabytes of 1024³, then the limit (6.2 GB of 20 GB).\n• Version dates carry the year. Today’s reads Today, 7:57 AM.\n• Kept on SER opens nothing, so it has no chevron.\n• A latest version over 12 characters is capped at 96 pt and shortened in the middle, so it can’t squeeze the name. The versions sheet shows it in full."
     }
   },
   "starts": {}
