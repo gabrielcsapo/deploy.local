@@ -2286,11 +2286,20 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Packages from Settings: what is hosted, and whether anything is missing"
+    },
+    "PageLoading.html": {
+      "x": 2520,
+      "y": 4320,
+      "w": 1440,
+      "h": 900,
+      "title": "Moving between pages: the sidebar stays, only the page waits",
+      "expand": "fill"
     }
   },
   "order": [
     "DesignSystem.html",
     "States.html",
+    "PageLoading.html",
     "Structure.html",
     "Flow.html",
     "Coverage.html",
@@ -3805,6 +3814,13 @@
       "x": -520,
       "y": 73720,
       "text": "Proposal. deploy.local hosts npm packages and Cargo crates, and keeps a copy of everything projects install from npmjs.org and crates.io, so installs keep working when those sites are down.\n\n• Packages sits in the sidebar under Computers. It appears once deploy.local has served a package: a private one, or a copy. On approval, every board's sidebar gets the same row.\n• Tabs: Private, Copies, Set up. A package opens its page: install, versions, the projects that use it (read from each project's lockfile on main).\n• Versions are never replaced or deleted. npm versions can be deprecated and crates yanked from the package page's version rows.\n• Who publishes: pipelines, so nobody has to release a package by hand. deploy.yaml's pipeline gets a publish list. Once every job passes on main, each listed package whose version is new is published (PipelineRun), and a version already published is skipped. A failed publish fails the run, and Run pipeline retries it. Merging a new version is what starts it (TaskPublish). Pull requests never publish. People can still run deploy packages publish, for a package with no pipeline. Tasks and agents never publish; their computers' keys only install. There is no publish card in Waiting on you.\n• A project with a pipeline shows Pipelines after Apps, as the app has today. This board is the first to draw that tab.\n• Copies tab, normal state: no banner, both sources read Reachable, Packages kept has one row for all projects, and the sidebar row shows nothing. While a source is down the sidebar shows Using copies, as drawn. Only projects with a problem get their own row, with the cause. A missing package is fetched on its own when the source is back. A version its source removed stops installing until the project moves off it.\n• Copies cover npm packages and crates. App builds also need their Docker image, which deploy.local doesn't keep.\n• Package keys (Settings, General) are made by deploy packages login from your CLI sign-in. Installs only or Installs and publishes. Remove revokes it at once.\n• Project settings get a Packages group with one switch, Install through deploy.local (on). A project with packages gets a Packages tab after Releases, listing its own packages with the same rows.\n• Mac app: the window loads these web pages; nothing native is added. iPhone: Settings → Packages is read-only (PackagesPhone). Rows open the package's versions in a sheet."
+    },
+    "note-page-loading": {
+      "fill": "purple",
+      "w": 440,
+      "x": 4040,
+      "y": 4320,
+      "text": "PageLoading.html\nMoving to a page that is not ready yet. The sidebar stays where it is, with the page you clicked already selected, and only the page area shows skeleton rows. It uses the same skeleton as the rest of the app and says nothing until 10 s, when it says what is slow (see States).\n\nBelow 820 px the sidebar is hidden, so the header stays with its menu button: you can always leave a page that is still loading. Same on web and in the Mac app; the iPhone app is native and does not have this."
     }
   },
   "starts": {}
