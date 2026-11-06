@@ -166,6 +166,8 @@ struct V2SettingsView: View {
     @Bindable var store: V2Store
     @Bindable var workspace: WorkspaceStore
     @State private var backups = false
+    @State private var packages = false
+    @State private var packageSummary: String?
     @State private var notifications = false
     @State private var devices = false
     @State private var approvals = false
@@ -229,6 +231,10 @@ struct V2SettingsView: View {
                         Button { backups = true } label: {
                             V2SettingsRow(title: "Backups", subtitle: "Restore an app to a copy", icon: "arrow.down.to.line") { V2SettingsChevron() }
                         }
+                        Divider()
+                        Button { packages = true } label: {
+                            V2SettingsRow(title: "Packages", subtitle: packageSummary, icon: "shippingbox") { V2SettingsChevron() }
+                        }
                     }
                     V2SettingsGroup(title: "Display") {
                         Menu {
@@ -269,10 +275,12 @@ struct V2SettingsView: View {
             Text("This removes this app's saved certificate trust for \(store.connection.origin.replacingOccurrences(of: "https://", with: "")) and signs you out of this connection. Your next password sign-in checks again unless iOS already trusts it. Other apps are unaffected.")
         }
         .sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
+        .sheet(isPresented: $packages) { NavigationStack { V2PackagesView(store: store).toolbar { Button("Done") { packages = false } } } }
         .sheet(isPresented: $notifications) { V2NotificationSettings(store: store) }
         .sheet(isPresented: $devices) { V2DevicesView(store: store) }
         .sheet(isPresented: $approvals) { V2SettingsApprovals(store: store) }
         .task {
+            if V2Evidence.board == "PackagesPhone" { packages = true }
             if V2Evidence.board == "RestorePhone" { backups = true }
             if V2Evidence.board == "SettingsApprovalsPhone" { approvals = true }
             if V2Evidence.agentsBoard == .rules { approvals = true }
@@ -280,6 +288,12 @@ struct V2SettingsView: View {
         .task(id: store.snapshot.updatedAt) {
             // A failed read leaves the real names visible without guessing at permissions.
             approvalRules = try? await store.client.approvals()
+            do {
+                async let list = store.client.packages()
+                async let status = store.client.packageCopies()
+                let (items, copies) = try await (list, status)
+                packageSummary = "\(items.count) private · \(copies.keptDescription.lowercased())"
+            } catch { packageSummary = nil }
         }
     }
     private func forget() {

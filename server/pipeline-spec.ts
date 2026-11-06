@@ -11,6 +11,7 @@ export type PipelineSpec = {
   jobs: Record<string, PipelineJob>;
   /** Repository-relative globs; omitted means all files. Manual runs ignore these. */
   paths?: string[];
+  publish?: string[];
   deploy?: { application: string; path?: string };
 };
 const namePattern = /^[a-z][a-z0-9-]{0,62}$/;
@@ -35,7 +36,7 @@ function strings(value: unknown, label: string, maximum = 32): string[] {
 }
 export function compilePipeline(value: unknown): PipelineSpec {
   const input = object(value, 'pipeline');
-  keys(input, ['on', 'branches', 'paths', 'jobs', 'deploy'], 'pipeline');
+  keys(input, ['on', 'branches', 'paths', 'jobs', 'deploy', 'publish'], 'pipeline');
   const on = strings(input.on ?? ['manual'], 'pipeline.on');
   if (!on.length || on.some((event) => !['manual', 'push', 'pull_request'].includes(event)))
     throw new Error('pipeline.on supports manual, push and pull_request');
@@ -136,7 +137,22 @@ export function compilePipeline(value: unknown): PipelineSpec {
       ...(target.path !== undefined ? { path: target.path } : {}),
     };
   }
+  const publish =
+    input.publish === undefined ? undefined : strings(input.publish, 'pipeline.publish');
+  if (
+    publish?.some(
+      (path) =>
+        path.startsWith('/') ||
+        path.includes('\\') ||
+        [...path].some(
+          (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+        ) ||
+        path.split('/').some((part) => !part || part === '.' || part === '..'),
+    )
+  )
+    throw new Error('pipeline.publish must contain repository subdirectories');
   return {
+    ...(publish ? { publish } : {}),
     on: on as PipelineSpec['on'],
     branches,
     jobs,

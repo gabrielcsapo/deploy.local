@@ -106,6 +106,7 @@ export function deprecate(
   message: unknown,
   req?: IncomingMessage,
 ) {
+  if (identity.pipeline) fail('Pipeline tokens can only publish new versions.', 403);
   canPublish(identity, pkg.created_by);
   if (typeof message !== 'string' || message.length > 4096)
     fail('A deprecation message is required');
@@ -134,10 +135,17 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       const existing = packageByName(name);
       input = await publishBody(req);
       const doc = input.document;
+      if (
+        identity.pipeline &&
+        (identity.pipeline.name !== name ||
+          (existing && existing.project_id !== identity.pipeline.projectId))
+      )
+        fail('This pipeline token cannot publish this package.', 403);
       if (doc.name !== name || !doc.versions || typeof doc.versions !== 'object')
         fail('Package name does not match the publish URL', 422);
       const entries = Object.entries(doc.versions) as [string, any][];
       if (!input.attachment) {
+        if (identity.pipeline) fail('Pipeline tokens can only publish new versions.', 403);
         if (!existing || !entries.length) fail('A tarball is required', 422);
         // npm deprecate PUTs the existing packument with only deprecated changed.
         const current = hostedDocument(existing, copy).versions;
@@ -161,6 +169,8 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       if (entries.length !== 1) fail('Publish exactly one version', 422);
       const [version, value] = entries[0];
       versionOf(version);
+      if (identity.pipeline && version !== identity.pipeline.version)
+        fail('This pipeline token cannot publish this version.', 403);
       if (value.name !== name || value.version !== version)
         fail('Manifest name or version does not match', 422);
       if (existing && versions(existing.id).some((v) => v.version === version))
@@ -234,11 +244,15 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         1024 * (prior.count + imported.length + 1);
       if (documentBytes > MAX_DOC) fail('Packument exceeds 10 MB.', 413);
       if (!registryIdentity(req)) fail('Run deploy packages login.', 401);
-      const projectId = await packageProject(identity.username, value.repository);
+      const projectId =
+        identity.pipeline?.projectId ?? (await packageProject(identity.username, value.repository));
+      if (!registryIdentity(req)) fail('Pipeline credential expired or run ended.', 401);
       db().transaction(() => {
         // Unique constraints arbitrate concurrent writers/processes; no version is updated here.
         const pkg = packageByName(name);
         canPublish(identity, pkg?.created_by);
+        if (identity.pipeline && pkg && pkg.project_id !== identity.pipeline.projectId)
+          fail('This package belongs to another project.', 403);
         const id = pkg?.id || randomUUID();
         if (!pkg)
           db()
@@ -247,7 +261,7 @@ export function createNpmRegistry(settings?: RegistrySettings) {
             )
             .run(id, name, projectId, identity.username, now());
         const insert = db().prepare(
-          'INSERT INTO package_versions(package_id,version,sha256,integrity,size,manifest,published_by,published_via,deprecated,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO package_versions(package_id,version,sha256,integrity,size,manifest,published_by,published_via,"commit",deprecated,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
         );
         for (const old of imported)
           insert.run(
@@ -259,6 +273,7 @@ export function createNpmRegistry(settings?: RegistrySettings) {
             JSON.stringify(old.manifest),
             identity.username,
             'import',
+            null,
             old.manifest.deprecated ?? null,
             old.createdAt,
           );
@@ -270,10 +285,19 @@ export function createNpmRegistry(settings?: RegistrySettings) {
           file.size,
           JSON.stringify({
             ...value,
+            ...(identity.pipeline
+              ? {
+                  _deployPipeline: {
+                    id: identity.pipeline.pipelineId,
+                    pullNumber: identity.pipeline.pullNumber,
+                  },
+                }
+              : {}),
             dist: { ...value.dist, shasum: attachment.shasum, integrity: attachment.integrity },
           }),
           identity.username,
-          'person',
+          identity.pipeline ? 'release' : 'person',
+          identity.pipeline?.commit ?? null,
           value.deprecated ?? null,
           now(),
         );
@@ -301,6 +325,11 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         send(res, { error: 'ENEEDAUTH', reason: 'Run deploy packages login.' }, 401);
         return true;
       }
+      if (
+        identity.pipeline &&
+        (req.method !== 'PUT' || decodeURIComponent(rawPath) !== '/npm/' + identity.pipeline.name)
+      )
+        fail('Pipeline tokens can only publish their assigned package version.', 403);
       // Decode once. Never normalize dot segments before validating a registry path.
       let path: string;
       try {

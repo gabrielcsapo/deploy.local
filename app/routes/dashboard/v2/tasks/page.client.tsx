@@ -339,6 +339,15 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                   <span>{summary.detail}</span>
                 </>
               )}
+              {view.packages?.map((pkg) => (
+                <span key={pkg.name}>
+                  <span className="dl-task-sep" aria-hidden="true">
+                    {' '}
+                    ·{' '}
+                  </span>
+                  Merging publishes {pkg.name} {pkg.version}
+                </span>
+              ))}
               {updatedAt && (
                 <>
                   <span className="dl-task-sep" aria-hidden="true">

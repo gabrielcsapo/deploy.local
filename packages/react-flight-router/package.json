@@ -32,6 +32,7 @@
       "dev": [
         "./dist/dev/index.d.ts"
       ],
+      "prepublishOnly": "pnpm build",
       "build": [
         "./dist/build/index.d.ts"
       ],

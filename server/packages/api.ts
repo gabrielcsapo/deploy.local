@@ -116,6 +116,9 @@ export async function packagesApi(
       publishedBy: v.published_by,
       publishedByYou: v.published_by === username,
       publishedVia: v.published_via,
+      commit: v.commit,
+      pipeline:
+        v.published_via === 'release' ? JSON.parse(v.manifest)._deployPipeline || null : null,
       createdAt: v.created_at,
     })),
     tags,

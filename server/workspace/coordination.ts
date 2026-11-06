@@ -419,6 +419,17 @@ function jobAssignment(owner: string, workerId: string, job: any) {
   };
 }
 export function jobCommand(owner: string, workerId: string, action: string, body: any): any {
+  if (action === 'package-publish') {
+    const job = get('job', owner, body.jobId);
+    if (
+      job.status !== 'running' ||
+      job.workerId !== workerId ||
+      job.generation !== body.generation ||
+      job.instanceId !== body.instanceId
+    )
+      throw new Error('Stale job assignment');
+    return packageHooks.publishConfig!(owner, job);
+  }
   if (action === 'packages') {
     if (body.runId) {
       const run = get('run', owner, body.runId);
@@ -509,7 +520,13 @@ export function jobCommand(owner: string, workerId: string, action: string, body
       if (action === 'update' || action === 'complete') {
         if (action === 'complete' && !terminal.includes(body.status))
           throw new Error('Invalid job terminal status');
-        if (action === 'complete') packageHooks.finishJob(job.id);
+        if (action === 'complete') {
+          try {
+            packageHooks.finishJob(job.id);
+          } catch {
+            /* Pin cleanup cannot turn a successful job into a failed publication. */
+          }
+        }
         const result = save('job', owner, {
           ...job,
           output: String(body.output || '').slice(-64000),

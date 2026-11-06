@@ -116,9 +116,18 @@ export async function prepareSelfUpdate(plan, installation, exec, log = () => {}
         env: { ...process.env, ...installation.env },
       });
     } catch (error) {
-      if (!installation.npmrc) throw error;
+      // Older installed helpers print execFileSync's error, newer ones also print step headings.
+      const output = String(error.output || error.message || '');
+      const failures = [...output.matchAll(/^Command failed: pnpm ([^\r\n]+)$/gm)];
+      const failedInstall = failures.at(-1)?.[1] === 'install --frozen-lockfile';
+      if (
+        !installation.npmrc ||
+        !failedInstall ||
+        ['typecheck', 'build', 'test'].includes(readPrepare(output).command)
+      )
+        throw error;
       await installation.cleanup();
-      log('deploy.local package prepare failed; retrying without registry configuration.\n');
+      log('deploy.local package install failed; retrying without registry configuration.\n');
       return await exec('deploy-update', ['prepare', plan.release], { env: { ...process.env } });
     }
   } finally {

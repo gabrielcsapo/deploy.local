@@ -6,7 +6,7 @@ let inventory = [
   'node',
   // job-artifacts: finished checkpoint jobs can stream requested files back to the coordinator.
   ...(['darwin', 'linux'].includes(platform())
-    ? ['checkpoint-jobs', 'job-artifacts', 'terminal', 'task-terminal']
+    ? ['checkpoint-jobs', 'package-publish-v1', 'job-artifacts', 'terminal', 'task-terminal']
     : []),
 ];
 let refreshing = false;

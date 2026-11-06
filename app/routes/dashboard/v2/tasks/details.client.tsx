@@ -76,6 +76,23 @@ export function TaskPanel({
             </div>
           </>
         )}
+        {view.packages?.map((pkg) => (
+          <div key={pkg.name}>
+            <div className="dl-panel-label">Package</div>
+            <div className="dl-panel-item">
+              <Icon name="package" />
+              <span className="dl-t">
+                <span>
+                  {pkg.name} {pkg.version}
+                </span>
+                <span>
+                  The pipeline publishes it after merge
+                  {pkg.previousVersion ? ` · now ${pkg.previousVersion}` : ''}
+                </span>
+              </span>
+            </div>
+          </div>
+        ))}
         {view.computer && (
           <>
             <div className="dl-panel-label">Computer</div>

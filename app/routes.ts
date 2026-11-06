@@ -291,6 +291,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
+            id: 'v2-project-pipelines',
+            path: 'projects/:p/pipelines',
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
+          },
+          {
             id: 'v2-projects-p-releases',
             path: 'projects/:p/releases',
             component: () => import('./routes/dashboard/v2/releases/page.js'),

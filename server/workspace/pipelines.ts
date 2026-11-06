@@ -1,4 +1,5 @@
 import { posix } from 'node:path';
+import { hostname } from 'node:os';
 import { createHash } from 'node:crypto';
 import { compileDeployYaml } from '../application-spec.ts';
 import { command, commandReplay, db, get, id, list, now, save } from './store.ts';
@@ -29,11 +30,19 @@ export async function pipelineStart(
   const pipeline = compileDeployYaml(manifest).spec.pipeline;
   if (!pipeline) throw new Error('deploy.yaml does not define a pipeline');
   const trigger = input.trigger || 'manual';
-  if (!pipeline.on.includes(trigger)) throw new Error(`Pipeline does not enable ${trigger}`);
+  if (trigger !== 'manual' && !pipeline.on.includes(trigger))
+    throw new Error(`Pipeline does not enable ${trigger}`);
   if (trigger === 'pull_request' && Object.values(pipeline.jobs).some((job) => !job.container))
     throw new Error(
       'Automatic pull-request checks require container jobs; host commands can be started manually by the owner',
     );
+  const title = await gitText(project.repositoryPath, ['show', '-s', '--format=%s', commit]);
+  const merged = db
+    .prepare(
+      "SELECT data FROM records WHERE kind='pull-request' AND owner=? AND json_extract(data,'$.projectId')=? AND json_extract(data,'$.status')='merged' AND (json_extract(data,'$.mergedTargetCommit')=? OR json_extract(data,'$.mergedCommit')=?) LIMIT 1",
+    )
+    .get(owner, projectId, commit, commit) as any;
+  const mergedPull = merged ? JSON.parse(merged.data) : null;
   const pipelineId = id(),
     sourceRef = `refs/deploy/pipelines/${pipelineId}`;
   await gitText(project.repositoryPath, ['update-ref', sourceRef, commit]);
@@ -47,13 +56,28 @@ export async function pipelineStart(
         taskId: input.taskId || null,
         pullId: pull?.id || null,
         commit,
+        title: mergedPull?.title || title,
+        mergedPull: mergedPull
+          ? {
+              number: mergedPull.number,
+              mergedBy: mergedPull.mergedBy,
+              mergedByYou: mergedPull.mergedBy === owner,
+            }
+          : null,
         sourceRef,
         ref,
+        branch:
+          input.branch ||
+          (ref === 'HEAD' ? project.defaultBranch || 'main' : ref.replace(/^refs\/heads\//, '')),
         trigger,
         specification: pipeline,
         status: 'queued',
         deployment:
-          pipeline.deploy && !pull && trigger !== 'pull_request'
+          // Run pipeline works on any pipeline, but only one that opted in can deploy that way.
+          pipeline.deploy &&
+          !pull &&
+          trigger !== 'pull_request' &&
+          (trigger !== 'manual' || pipeline.on.includes('manual'))
             ? { ...pipeline.deploy, status: 'waiting' }
             : null,
         createdAt: now(),
@@ -88,6 +112,16 @@ export async function pipelineStart(
 // Stored `status` covers jobs only and gates publication. Clients show the run's
 // overall outcome, so a failed or pending deployment must not read as succeeded.
 export function presentPipelineRun(run: any) {
+  if (
+    run.status === 'succeeded' &&
+    run.specification?.publish?.length &&
+    run.packages?.status !== 'succeeded'
+  )
+    return {
+      ...run,
+      jobsStatus: run.status,
+      status: run.packages?.status === 'failed' ? 'failed' : 'publishing',
+    };
   if (run.status !== 'succeeded' || !run.deployment) return run;
   const deployment = run.deployment.status;
   const status =
@@ -104,40 +138,76 @@ export function pipelineRead(owner: string, projectId: string, pipelineId?: stri
   get('project', owner, projectId);
   if (!pipelineId)
     return {
-      runs: list('pipeline-run', owner)
-        .filter((run) => run.projectId === projectId)
-        .slice(-100)
-        .reverse()
+      runs: (
+        db
+          .prepare(
+            "SELECT data FROM records WHERE kind='pipeline-run' AND owner=? AND json_extract(data,'$.projectId')=? ORDER BY rowid DESC LIMIT 100",
+          )
+          .all(owner, projectId) as any[]
+      )
+        .map((row) => JSON.parse(row.data))
         .map(presentPipelineRun),
-      triggers: list('pipeline-trigger', owner)
-        .filter((row) => row.projectId === projectId && row.status === 'failed')
-        .slice(-20)
-        .reverse(),
+      triggers: (
+        db
+          .prepare(
+            "SELECT data FROM records WHERE kind='pipeline-trigger' AND owner=? AND json_extract(data,'$.projectId')=? AND json_extract(data,'$.status')='failed' ORDER BY rowid DESC LIMIT 20",
+          )
+          .all(owner, projectId) as any[]
+      ).map((row) => JSON.parse(row.data)),
     };
   const pipeline = get('pipeline-run', owner, pipelineId);
   if (pipeline.projectId !== projectId)
     throw Object.assign(new Error('Not found'), { status: 404 });
   return {
     pipeline: presentPipelineRun(pipeline),
-    jobs: list('job', owner)
-      .filter((job) => job.pipelineId === pipelineId)
-      .map((job) => describeJob(owner, job)),
+    jobs: (
+      db
+        .prepare(
+          "SELECT data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.pipelineId')=? ORDER BY rowid",
+        )
+        .all(owner, pipelineId) as any[]
+    ).map((row) => {
+      const job = JSON.parse(row.data);
+      let computer;
+      try {
+        computer =
+          job.workerId === 'local'
+            ? process.env.DEPLOY_NODE_NAME || hostname()
+            : job.workerId
+              ? get('worker', owner, job.workerId).name
+              : undefined;
+      } catch {}
+      return { ...describeJob(owner, job), computer };
+    }),
   };
 }
 export function pipelineCancel(owner: string, projectId: string, pipelineId: string) {
   pipelineRead(owner, projectId, pipelineId);
   // Act on the stored job outcome; a publishing release is owned by the controller.
   const pipeline = get('pipeline-run', owner, pipelineId);
-  if (terminal.includes(pipeline.status)) return presentPipelineRun(pipeline);
-  for (const job of list('job', owner).filter(
-    (row) => row.pipelineId === pipelineId && ['waiting', 'queued', 'running'].includes(row.status),
-  ))
+  if (
+    terminal.includes(pipeline.status) &&
+    !(
+      pipeline.status === 'succeeded' &&
+      pipeline.specification?.publish?.length &&
+      !['succeeded', 'failed'].includes(pipeline.packages?.status)
+    )
+  )
+    return presentPipelineRun(pipeline);
+  const jobs = db
+    .prepare(
+      "SELECT data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.pipelineId')=? AND json_extract(data,'$.status') IN ('waiting','queued','running')",
+    )
+    .all(owner, pipelineId) as { data: string }[];
+  for (const row of jobs) {
+    const job = JSON.parse(row.data);
     save('job', owner, {
       ...job,
       stopRequested: true,
       status: job.status === 'running' ? 'running' : 'cancelled',
       updatedAt: now(),
     });
+  }
   return save('pipeline-run', owner, {
     ...pipeline,
     stopRequested: true,
@@ -152,7 +222,9 @@ export function reconcilePipelines() {
       .all() as any[]) {
       const run = JSON.parse(row.data);
       if (terminal.includes(run.status)) continue;
-      const jobs = list('job', row.owner).filter((job) => job.pipelineId === run.id);
+      const jobs = list('job', row.owner).filter(
+        (job) => job.pipelineId === run.id && !job.packagePublish,
+      );
       for (const job of jobs) {
         if (job.status !== 'waiting') continue;
         const dependencies = jobs.filter((dependency) => job.needs.includes(dependency.name));
@@ -333,7 +405,7 @@ export async function pipelineTrigger(
     const run = await pipelineStart(
       owner,
       project.id,
-      { operationId: `pipeline-trigger:${key}`, ref: commit, trigger, pullId },
+      { operationId: `pipeline-trigger:${key}`, ref: commit, branch, trigger, pullId },
       key,
     );
     save('pipeline-trigger', owner, {

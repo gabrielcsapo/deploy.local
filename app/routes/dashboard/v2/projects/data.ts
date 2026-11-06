@@ -46,6 +46,7 @@ export type Work = {
 export type Overview = {
   project: Project;
   repository: null | {
+    deployment?: { configured: boolean; pipeline?: boolean };
     defaultBranch?: string;
     head?: string;
     status: string;

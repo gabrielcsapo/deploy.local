@@ -15,13 +15,15 @@ export function projectTabs(input: {
   releases: number;
   /** A one-app project is its own app page, so a web app's requests are a project tab. */
   requests?: boolean;
+  pipeline?: boolean;
 }) {
   return [
     'Overview',
     ...(input.code ? ['Code'] : []),
     ...(input.pulls ? ['Pull requests'] : []),
     ...(input.issues ? ['Issues'] : []),
-    ...(input.apps > 1 ? ['Apps'] : []),
+    ...(input.apps > 1 || (input.pipeline && input.apps > 0) ? ['Apps'] : []),
+    ...(input.pipeline ? ['Pipelines'] : []),
     ...(input.releases ? ['Releases'] : []),
     ...(input.apps === 1 && input.requests ? ['Requests'] : []),
     ...(input.apps ? ['Logs'] : []),
@@ -38,7 +40,7 @@ export function projectTabItems(
   overview:
     | {
         project: { apps: { kind?: string }[] };
-        repository: unknown;
+        repository: { deployment?: { pipeline?: boolean } } | null;
         pulls: { state?: string; status?: string }[];
         issues: unknown[];
       }
@@ -49,6 +51,7 @@ export function projectTabItems(
   const apps = overview?.project.apps.length ?? 0;
   return projectTabs({
     code: !!overview?.repository,
+    pipeline: !!overview?.repository?.deployment?.pipeline,
     pulls: overview?.pulls.length ?? 0,
     issues: overview?.issues.length ?? 0,
     apps,

@@ -129,6 +129,22 @@ function Setup() {
         <p className="dl-list-note">A project can turn this off in its settings, under Packages.</p>
       </section>
       <section className="dl-section">
+        <h2 className="dl-section-title">Publish from a pipeline</h2>
+        <p className="dl-list-note">
+          Once every job passes on main, the pipeline publishes each listed package whose version is
+          new.
+        </p>
+        <pre className="dl-term">
+          {
+            '# deploy.yaml\npipeline:\n  on: [push]\n  branches: [main]\n  jobs:\n    test:\n      run: pnpm test\n      runsOn: { os: linux }\n  publish:\n    - packages/react-flight-router'
+          }
+        </pre>
+        <p className="dl-list-note">
+          Change the version in a pull request and merging publishes it. Any other run skips it,
+          because that version is already published. Pull requests never publish.
+        </p>
+      </section>
+      <section className="dl-section">
         <h2 className="dl-section-title">On your computer</h2>
         <Group>
           <div className="dl-inset">
@@ -231,8 +247,14 @@ function PackagePage({ name }: { name: string }) {
                       <>
                         {version.publishedVia === 'import'
                           ? 'Brought over from npmjs.org'
-                          : 'Published by ' +
-                            (version.publishedByYou ? 'you' : version.publishedBy)}{' '}
+                          : version.publishedVia === 'release'
+                            ? 'Published by the pipeline' +
+                              (version.pipeline?.pullNumber
+                                ? ` when #${version.pipeline.pullNumber} merged`
+                                : '') +
+                              (version.commit ? ` · ${version.commit.slice(0, 7)}` : '')
+                            : 'Published by ' +
+                              (version.publishedByYou ? 'you' : version.publishedBy)}{' '}
                         · {date(version.createdAt)}
                         {version.deprecated ? ' · ' + version.deprecated : ''}
                       </>

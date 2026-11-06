@@ -33,6 +33,11 @@ if ((db.pragma('table_info(records)') as any[]).filter((c) => c.pk).length < 3)
 db.exec(
   'CREATE INDEX IF NOT EXISTS event_owner_cursor ON events(owner,cursor); CREATE INDEX IF NOT EXISTS event_task_cursor ON events(owner,taskId,cursor)',
 );
+// Only the record kinds these lookups read, so the indexes stay small and quick to build.
+db.exec(`CREATE INDEX IF NOT EXISTS record_run_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pipeline-run';
+CREATE INDEX IF NOT EXISTS record_trigger_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pipeline-trigger';
+CREATE INDEX IF NOT EXISTS record_pull_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pull-request';
+CREATE INDEX IF NOT EXISTS record_job_pipeline ON records(owner,json_extract(data,'$.pipelineId')) WHERE kind='job';`);
 export const now = () => new Date().toISOString();
 export const id = () => randomUUID();
 export function save(kind: string, owner: string, row: any) {
