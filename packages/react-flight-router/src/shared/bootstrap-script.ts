@@ -9,10 +9,13 @@
  * @param ssr - Whether the document was server-rendered. When true, the client
  *   uses hydrateRoot; when false (CSR fallback after a shell-render failure),
  *   the client uses createRoot against an empty document.
+ * @param buildId - Identifies this production build, so the page can tell when the server has moved
+ *   on to another one. Absent in dev mode.
  */
 export function generateBootstrapScript(
   moduleMap: Record<string, string> = {},
   ssr: boolean = true,
+  buildId?: string,
 ): string {
   // Inline flight-chunk scripts use the array protocol
   //   (self.__RSC_CHUNKS__||(self.__RSC_CHUNKS__=[])).push(chunk)
@@ -21,7 +24,7 @@ export function generateBootstrapScript(
   // is rebound to feed the controller directly. `push(null)` closes the
   // stream. See shared/flight-html-stream.ts for the emit side.
   return `
-    window.__SSR__ = ${ssr};
+    window.__SSR__ = ${ssr};${buildId ? `window.__RSC_BUILD__ = ${JSON.stringify(buildId)};` : ''}
     window.__MODULE_MAP__ = ${JSON.stringify(moduleMap)};
     var __rscQ = self.__RSC_CHUNKS__ = self.__RSC_CHUNKS__ || [];
     window.__RSC_STREAM__ = new ReadableStream({

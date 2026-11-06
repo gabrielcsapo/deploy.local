@@ -28,6 +28,8 @@ interface SSRRenderOptions {
   cssFiles: string[];
   /** Module ID → client chunk URL mapping for __webpack_require__ on the client */
   moduleMap: Record<string, string>;
+  /** Identifies this build, so the page can tell when the server has moved on */
+  buildId?: string;
   createFromReadableStream: CreateFromReadableStream;
   renderToReadableStream: RenderToReadableStream;
   /** SSR-built RouterProvider component */
@@ -69,6 +71,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     clientEntryUrl,
     cssFiles,
     moduleMap,
+    buildId,
     createFromReadableStream,
     renderToReadableStream,
     RouterProvider,
@@ -123,7 +126,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   );
 
   // Build the bootstrap script
-  const bootstrapScript = generateBootstrapScript(moduleMap);
+  const bootstrapScript = generateBootstrapScript(moduleMap, true, buildId);
 
   // Render the React tree to HTML
   logger?.time('ssr:renderToHTML');
@@ -143,7 +146,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     // with createRoot, where route-level <ErrorBoundary> components catch
     // the error properly.
     logger?.timeEnd('ssr:renderToHTML');
-    const csrBootstrap = generateBootstrapScript(moduleMap, false);
+    const csrBootstrap = generateBootstrapScript(moduleMap, false, buildId);
     return createCSRFallbackStream(streamForInline, clientEntryUrl, cssFiles, csrBootstrap);
   }
   logger?.timeEnd('ssr:renderToHTML');

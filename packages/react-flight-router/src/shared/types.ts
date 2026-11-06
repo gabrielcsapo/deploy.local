@@ -51,6 +51,8 @@ export type ServerActionsManifest = Record<
 
 /** All manifests loaded at runtime */
 export interface Manifests {
+  /** Changes whenever a page from this build could no longer safely use the next build's code */
+  buildId: string;
   rscClientManifest: RSCClientManifest;
   ssrManifest: SSRManifest;
   serverActionsManifest: ServerActionsManifest;

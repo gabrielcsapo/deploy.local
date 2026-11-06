@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, cleanup } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { RouterProvider, useRouter } from './router-context.js';
-import { RSC_ENDPOINT } from '../shared/constants.js';
+import { RSC_BUILD_HEADER, RSC_ENDPOINT } from '../shared/constants.js';
 
 // ---------------------------------------------------------------------------
 // Minimal test helpers
@@ -280,6 +280,91 @@ describe('useRouter().refresh()', () => {
 
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe(`${RSC_ENDPOINT}?url=${encodeURIComponent('/search?q=hello')}`);
+  });
+});
+
+describe('a page left open across a release', () => {
+  const reload = vi.fn();
+  const applied = createElement('div', null, 'from the new build');
+
+  function serverOn(build: string) {
+    const fetchMock = vi.fn().mockImplementation(async () => ({
+      body: makeStream({ segments: { root: applied }, params: {} }),
+      status: 200,
+      headers: new Headers({ [RSC_BUILD_HEADER]: build }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  beforeEach(() => {
+    reload.mockReset();
+    vi.stubGlobal('location', {
+      origin: 'http://localhost',
+      pathname: '/current',
+      search: '',
+      href: 'http://localhost/current',
+      reload,
+    });
+    vi.stubGlobal('history', {
+      state: { key: 'test' },
+      replaceState: vi.fn(),
+      pushState: vi.fn(),
+    });
+    const values = new Map<string, string>();
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => void values.set(key, value),
+    });
+    vi.stubGlobal('__RSC_BUILD__', 'old');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('loads the page it was going to instead of rendering the new build', async () => {
+    serverOn('new');
+    const { result } = renderHook(() => useRouter(), { wrapper });
+    await act(async () => {
+      await result.current.navigate('/next');
+    });
+    expect(globalThis.history.pushState).toHaveBeenCalledWith(expect.anything(), '', '/next');
+    expect(reload).toHaveBeenCalledOnce();
+    expect(result.current.url).toBe('/current');
+  });
+
+  it('navigates in place while the server is on the same build', async () => {
+    serverOn('old');
+    const { result } = renderHook(() => useRouter(), { wrapper });
+    await act(async () => {
+      await result.current.navigate('/next');
+    });
+    expect(reload).not.toHaveBeenCalled();
+    expect(result.current.url).toBe('/next');
+  });
+
+  it('carries on in place if a reload already tried this build', async () => {
+    serverOn('new');
+    const { result } = renderHook(() => useRouter(), { wrapper });
+    await act(async () => {
+      await result.current.navigate('/next');
+    });
+    await act(async () => {
+      await result.current.navigate('/later');
+    });
+    expect(reload).toHaveBeenCalledOnce();
+    expect(result.current.url).toBe('/later');
+  });
+
+  it('also checks when refreshing the current page', async () => {
+    serverOn('new');
+    const { result } = renderHook(() => useRouter(), { wrapper });
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(reload).toHaveBeenCalledOnce();
   });
 });
 

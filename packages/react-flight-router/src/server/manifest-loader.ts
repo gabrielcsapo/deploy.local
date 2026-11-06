@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import type {
@@ -28,7 +29,22 @@ export function loadManifests(buildDir: string): Manifests {
     readFileSync(resolve(buildDir, 'build-meta.json'), 'utf-8'),
   );
 
+  // Named after what a page depends on. The entry's own file name is no use here: it can stay the
+  // same when the chunks behind it change. A server-only change keeps the ID, so open pages stay.
+  const buildId = createHash('sha256')
+    .update(
+      JSON.stringify([
+        rscClientManifest,
+        serverActionsManifest,
+        buildMeta.clientEntryUrl,
+        buildMeta.cssFiles,
+      ]),
+    )
+    .digest('hex')
+    .slice(0, 16);
+
   return {
+    buildId,
     rscClientManifest,
     ssrManifest,
     serverActionsManifest,

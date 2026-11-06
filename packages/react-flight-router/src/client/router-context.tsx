@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from '../shared/constants.js';
+import { reloadForNewBuild } from './build-check.js';
 import { SuspenseSentinel } from './suspense-sentinel.js';
 import { consumePrefetch } from './prefetch-cache.js';
 import { fastPathname } from './fast-pathname.js';
@@ -332,6 +333,8 @@ export function RouterProvider({
             },
           ));
 
+        if (reloadForNewBuild(response)) return;
+
         if (!response.body) {
           throw new Error(
             `[react-flight-router] RSC response has no body (status: ${response.status})`,
@@ -443,6 +446,8 @@ export function RouterProvider({
         `${RSC_ENDPOINT}?url=${encodeURIComponent(currentUrl.pathname + currentUrl.search)}`,
         { signal: controller.signal },
       );
+
+      if (reloadForNewBuild(response)) return;
 
       if (!response.body) {
         throw new Error(

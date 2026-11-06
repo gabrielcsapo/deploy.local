@@ -1,6 +1,7 @@
 'use client';
 
 import { Component, cloneElement, isValidElement, type ReactNode, type ErrorInfo } from 'react';
+import { recoverFromChunkError } from './build-check.js';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -39,6 +40,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[react-flight-router] ErrorBoundary caught:', error, errorInfo);
+    void recoverFromChunkError(error);
   }
 
   render() {

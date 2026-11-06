@@ -17,6 +17,7 @@ import { createSSRModuleLoader } from './ssr-module-loader.js';
 import { withRenderTimeout } from './render-timeout.js';
 import {
   RSC_CONTENT_TYPE,
+  RSC_BUILD_HEADER,
   RSC_ENDPOINT,
   ACTION_ENDPOINT,
   RSC_ACTION_HEADER,
@@ -673,6 +674,7 @@ export async function createServer(opts: CreateServerOptions) {
       headers: {
         'Content-Type': RSC_CONTENT_TYPE,
         'Cache-Control': 'no-transform',
+        [RSC_BUILD_HEADER]: manifests.buildId,
         ...(streamingGzip ? { 'Content-Encoding': 'gzip' } : {}),
       },
     });
@@ -862,6 +864,7 @@ export async function createServer(opts: CreateServerOptions) {
         clientEntryUrl: manifests.clientEntryUrl,
         cssFiles: manifests.cssFiles,
         moduleMap: fullModuleMap,
+        buildId: manifests.buildId,
         createFromReadableStream,
         renderToReadableStream: domRenderToReadableStream,
         RouterProvider: SSRRouterProvider,
