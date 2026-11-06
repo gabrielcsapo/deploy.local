@@ -60,6 +60,22 @@ function writeCopy<T>(work: () => Promise<T>): Promise<T> {
   writing = result.catch(() => {});
   return result;
 }
+// A first install asks for hundreds of documents at once, and each large one takes a worker
+// a lot of memory to prepare. Serving what's prepared never waits on this.
+const PREPARING_AT_ONCE = 4;
+let preparing = 0;
+const waitingToPrepare: (() => void)[] = [];
+async function preparationSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (preparing >= PREPARING_AT_ONCE) await new Promise<void>((go) => waitingToPrepare.push(go));
+  else preparing++;
+  try {
+    return await work();
+  } finally {
+    const next = waitingToPrepare.shift();
+    if (next) next();
+    else preparing--;
+  }
+}
 export class NpmCopy {
   readonly settings: RegistrySettings;
   readonly startupCleanup: Promise<void>;
@@ -279,28 +295,32 @@ export class NpmCopy {
           if (error.status === 413) fail('Upstream packument too large', 502);
           throw error;
         }
-        const bundled = new URL('./package-document-worker.mjs', import.meta.url);
-        const worker = new Worker(
-          existsSync(bundled) ? bundled : new URL('./document-worker.mjs', import.meta.url),
-          {
-            workerData: {
-              path,
-              directory,
-              name,
-              publicBase: this.settings.publicBase,
-              upstreamOrigin: new URL(this.settings.upstreamBase).origin,
+        const prepared = await preparationSlot(() => {
+          const bundled = new URL('./package-document-worker.mjs', import.meta.url);
+          const worker = new Worker(
+            existsSync(bundled) ? bundled : new URL('./document-worker.mjs', import.meta.url),
+            {
+              workerData: {
+                path,
+                directory,
+                name,
+                publicBase: this.settings.publicBase,
+                upstreamOrigin: new URL(this.settings.upstreamBase).origin,
+              },
             },
-          },
-        );
-        const prepared = await new Promise<Prepared>((resolve, reject) => {
-          worker.once('message', (value) =>
-            value.error
-              ? reject(Object.assign(new Error(value.error), value.invalid ? { status: 502 } : {}))
-              : resolve(value),
           );
-          worker.once('error', reject);
-          worker.once('exit', (code) => {
-            if (code) reject(new Error('Package preparation failed'));
+          return new Promise<Prepared>((resolve, reject) => {
+            worker.once('message', (value) =>
+              value.error
+                ? reject(
+                    Object.assign(new Error(value.error), value.invalid ? { status: 502 } : {}),
+                  )
+                : resolve(value),
+            );
+            worker.once('error', reject);
+            worker.once('exit', (code) => {
+              if (code) reject(new Error('Package preparation failed'));
+            });
           });
         });
         await writeCopy(async () => {

@@ -1314,3 +1314,30 @@ importers:
     await bounded.read(repository, revision, 'bun.lock');
   assert.equal(evictions, 4);
 });
+
+test('attestations pass through from the source, and private names have none', async () => {
+  const before = upstreamHits;
+  upstreamHandlers.set('/-/npm/v1/attestations/left-pad@1.3.0', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end('{"attestations":[]}');
+  });
+  const headers = { authorization: 'Bearer ' + aliceKey.key };
+  const found = await fetch(origin + '/npm/-/npm/v1/attestations/left-pad@1.3.0', { headers });
+  assert.equal(found.status, 200);
+  assert.deepEqual(await found.json(), { attestations: [] });
+  assert.equal(upstreamHits, before + 1);
+  const hits = upstreamHits;
+  const hidden = await fetch(origin + '/npm/-/npm/v1/attestations/@deploy.local/none@1.0.0', {
+    headers,
+  });
+  assert.equal(hidden.status, 404);
+  assert.equal(upstreamHits, hits);
+  const anonymous = await fetch(origin + '/npm/-/npm/v1/attestations/left-pad@1.3.0');
+  assert.equal(anonymous.status, 401);
+  upstreamHandlers.delete('/-/npm/v1/attestations/left-pad@1.3.0');
+  sourceDown = true;
+  const down = await fetch(origin + '/npm/-/npm/v1/attestations/left-pad@1.3.0', { headers });
+  sourceDown = false;
+  assert.equal(down.status, 404);
+  await registry.copy.fetch('-/ping').then((response) => response.body?.cancel());
+});

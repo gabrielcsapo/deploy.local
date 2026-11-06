@@ -12,6 +12,7 @@ import {
   MAX_DOC,
   fail,
   fileOf,
+  limiter,
   nameOf,
   now,
   packageByName,
@@ -367,6 +368,27 @@ export function createNpmRegistry(settings?: RegistrySettings) {
           total: rows.length,
           time: now(),
         });
+        return true;
+      }
+      // pnpm's supply-chain checks read these. A hosted or private name has none, and with the
+      // source down there is nothing to say, so both answer as "no attestations".
+      const attestation = path.match(/^-\/npm\/v1\/attestations\/(.+)@([^@/]+)$/);
+      if (attestation && req.method === 'GET') {
+        const name = nameOf(attestation[1]);
+        versionOf(attestation[2]);
+        if (packageByName(name) || name.startsWith('@deploy.local/')) fail('Not found', 404);
+        let response: Response;
+        try {
+          response = await copy.fetch(`-/npm/v1/attestations/${name}@${attestation[2]}`);
+        } catch {
+          fail('Not found', 404);
+        }
+        if (!response.ok) {
+          await response.body?.cancel();
+          fail('Not found', 404);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        await pipeline(copy.body(response), limiter(MAX_DOC), res);
         return true;
       }
       const tagRoute = path.match(/^-\/package\/(.+)\/dist-tags(?:\/([^/]+))?$/);
