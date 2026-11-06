@@ -1148,7 +1148,7 @@ test('review regressions: prepared copies, timeouts, cleanup and private names',
       // A second row may legitimately share content-addressed outputs.
       getSqlite()!
         .prepare(
-          "INSERT INTO package_cache_entries SELECT ecosystem,kind,'shared-doc',sha256,size,abbreviated_sha256,abbreviated_size,index_sha256,index_size,etag,fetched_at,last_used_at,removed_at FROM package_cache_entries WHERE kind='doc' AND key='replace-doc'",
+          "INSERT INTO package_cache_entries SELECT ecosystem,kind,'shared-doc',sha256,size,abbreviated_sha256,abbreviated_size,index_sha256,index_size,etag,fetched_at,last_used_at,removed_at,format FROM package_cache_entries WHERE kind='doc' AND key='replace-doc'",
         )
         .run();
       upstreamPackage('replace-doc', ['2.0.0']);
@@ -1420,4 +1420,34 @@ test('login reports the certificate location when it is not in the keychain', as
     ),
   );
   assert.ok(!output.join('').includes(installKey.key));
+});
+
+test('scoped tarball URLs are standard, and older documents are prepared again', async () => {
+  const name = '@standard/url-check';
+  upstreamPackage(name);
+  const headers = { authorization: 'Bearer ' + aliceKey.key };
+  const read = async () =>
+    (await (await fetch(origin + '/npm/' + encodeURIComponent(name), { headers })).json()) as any;
+  const tarball = origin + '/npm/@standard/url-check/-/url-check-1.0.0.tgz';
+  assert.equal((await read()).versions['1.0.0'].dist.tarball, tarball);
+  assert.equal((await fetch(tarball, { headers })).status, 200);
+
+  // A document stored before this format stays usable while the source is down...
+  const entries = getSqlite()!.prepare(
+    "UPDATE package_cache_entries SET format=1 WHERE ecosystem='npm' AND kind='doc' AND key=?",
+  );
+  entries.run(name);
+  sourceDown = true;
+  assert.equal((await read()).name, name);
+  sourceDown = false;
+  await registry.copy.fetch('-/ping').then((response) => response.body?.cancel());
+
+  // ...and is prepared again once it answers, even when upstream would say nothing changed.
+  const before = revalidations;
+  assert.equal((await read()).versions['1.0.0'].dist.tarball, tarball);
+  assert.equal(revalidations, before);
+  const row = getSqlite()!
+    .prepare("SELECT format FROM package_cache_entries WHERE kind='doc' AND key=?")
+    .get(name) as { format: number };
+  assert.equal(row.format, 2);
 });

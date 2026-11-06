@@ -57,8 +57,10 @@ try {
       cpu: value.cpu,
     };
     value.dist.tarball =
+      // Scoped names stay unencoded, as on npmjs.org: pnpm treats any other form as a
+      // non-standard URL, writes it into lockfiles, and refuses it for its own package.
       workerData.publicBase +
-      encodeURIComponent(doc.name) +
+      doc.name +
       '/-/' +
       encodeURIComponent(doc.name.split('/').pop() + '-' + version + '.tgz');
     abbreviated.versions[version] = Object.fromEntries(

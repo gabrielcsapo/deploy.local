@@ -34,7 +34,11 @@ export const productionSettings: RegistrySettings = {
   upstreamBase: 'https://registry.npmjs.org/',
   publicBase: 'https://deploy.local/npm/',
 };
+// Raise this when prepared documents change. Older ones stay usable while the source is down,
+// and are prepared again once it answers, even if upstream hasn't changed.
+const DOCUMENT_FORMAT = 2;
 export type CacheEntry = {
+  format?: number;
   key: string;
   sha256: string;
   size: number;
@@ -293,13 +297,17 @@ export class NpmCopy {
       if (
         previous &&
         !force &&
+        previous.format === DOCUMENT_FORMAT &&
         Date.now() - Date.parse(previous.fetched_at) < (this.settings.revalidateMs ?? 300000)
       )
         return previous.removed_at ? null : this.touch('doc', previous);
       let response: Response;
       try {
         response = await this.fetch(encodeURIComponent(name), {
-          headers: previous?.etag ? { 'If-None-Match': previous.etag } : {},
+          headers:
+            previous?.etag && previous.format === DOCUMENT_FORMAT
+              ? { 'If-None-Match': previous.etag }
+              : {},
         });
       } catch (error) {
         if (previous) return previous.removed_at ? null : this.touch('doc', previous);
@@ -323,9 +331,9 @@ export class NpmCopy {
             this.record('doc', name, { sha256: '0'.repeat(64), size: 0 });
             db()
               .prepare(
-                "UPDATE package_cache_entries SET removed_at=?,abbreviated_sha256=NULL,abbreviated_size=NULL,index_sha256=NULL,index_size=NULL WHERE ecosystem='npm' AND kind='doc' AND key=?",
+                "UPDATE package_cache_entries SET removed_at=?,format=?,abbreviated_sha256=NULL,abbreviated_size=NULL,index_sha256=NULL,index_size=NULL WHERE ecosystem='npm' AND kind='doc' AND key=?",
               )
-              .run(now(), name);
+              .run(now(), DOCUMENT_FORMAT, name);
           })();
           if (previous) await this.collect(previous);
         });
@@ -392,9 +400,16 @@ export class NpmCopy {
               this.record('doc', name, full, response.headers.get('etag'));
               db()
                 .prepare(
-                  "UPDATE package_cache_entries SET removed_at=NULL,abbreviated_sha256=?,abbreviated_size=?,index_sha256=?,index_size=? WHERE ecosystem='npm' AND kind='doc' AND key=?",
+                  "UPDATE package_cache_entries SET removed_at=NULL,format=?,abbreviated_sha256=?,abbreviated_size=?,index_sha256=?,index_size=? WHERE ecosystem='npm' AND kind='doc' AND key=?",
                 )
-                .run(abbreviated.sha256, abbreviated.size, index.sha256, index.size, name);
+                .run(
+                  DOCUMENT_FORMAT,
+                  abbreviated.sha256,
+                  abbreviated.size,
+                  index.sha256,
+                  index.size,
+                  name,
+                );
               this.markRemoved(name, prepared.versions);
             })();
           } catch (error) {
@@ -450,7 +465,7 @@ export class NpmCopy {
   tarballUrl(name: string, version: string) {
     return (
       this.settings.publicBase +
-      encodeURIComponent(name) +
+      name +
       '/-/' +
       encodeURIComponent(name.split('/').pop()! + '-' + version + '.tgz')
     );

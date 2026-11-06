@@ -1,0 +1,1 @@
+ALTER TABLE package_cache_entries ADD COLUMN format INTEGER NOT NULL DEFAULT 1;
