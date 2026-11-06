@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { runPackages } from './packages.mjs';
 import {
   agentConfigPath,
   userAgentConfigPath,
@@ -3397,7 +3398,9 @@ Options:
   -h, --help                 Show this help
 `.trim();
 
-const _ciCommand = process.argv.slice(2).some((arg) => arg === 'publish' || arg === 'release');
+const _ciCommand =
+  process.argv[2] !== 'packages' &&
+  process.argv.slice(2).some((arg) => arg === 'publish' || arg === 'release');
 const _initialConfig = _ciCommand ? {} : loadConfig();
 let values, positionals;
 try {
@@ -3409,6 +3412,10 @@ try {
         short: 'u',
         default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
       },
+      tag: { type: 'string' },
+      claim: { type: 'boolean' },
+      off: { type: 'boolean' },
+      'dry-run': { type: 'boolean' },
       password: { type: 'boolean', default: false },
       fingerprint: { type: 'boolean', default: false },
       application: { type: 'string', short: 'a' },
@@ -3704,6 +3711,14 @@ try {
       }
       break;
     }
+    case 'packages':
+      await runPackages(positionals.slice(1), values, {
+        serverUrl,
+        config: loadConfig(),
+        api,
+        prompt,
+      });
+      break;
     case 'validate':
       cmdValidate();
       break;

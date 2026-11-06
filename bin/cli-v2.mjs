@@ -32,6 +32,14 @@ Apps and computers
   computers              Computers and what each one is doing
   computer join          Make this computer a worker
 
+Packages
+  packages               List private packages
+  packages login         Sign in npm and pnpm
+  packages use           Install this project through deploy.local
+  packages use --off     Remove the project's registry setting
+  packages publish       Publish this folder (--tag next, --dry-run, --claim)
+  packages deprecate     Deprecate <name>@<range> "<message>"
+
 Account   login · logout · whoami · upgrade · version
 
 Flags    --json  machine output       -y, --yes  skip confirmations
