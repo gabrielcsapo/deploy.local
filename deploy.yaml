@@ -1,0 +1,15 @@
+apiVersion: deploy.local/v1
+kind: Application
+pipeline:
+  on: [push, manual]
+  branches: [main]
+  paths:
+    - deploy.yaml
+    - packages/react-flight-router/**
+  jobs:
+    router-test:
+      runsOn: { os: linux, capabilities: [node] }
+      run: pnpm install --frozen-lockfile && pnpm --filter react-flight-router test
+      timeoutSeconds: 900
+  publish:
+    - packages/react-flight-router

@@ -271,9 +271,10 @@ Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<sl
    - the task status line and panel row
    - iPhone Packages
 6. **Switch over:**
-   - bring over every react-flight-router version on npmjs.org
-   - publish 0.12.2 from deploy.local
-   - point other projects that use it at Packages
+   - bring over every react-flight-router version on npmjs.org (done 2026-11-06: 35 versions, each matching npmjs.org's hash)
+   - publish 0.12.2 from deploy.local (done 2026-11-06, with `deploy packages publish --claim`, because a pipeline can't claim a name)
+   - the root `deploy.yaml` tests the router on every change to it and publishes a new version. The first version a pipeline uploads will be the next one after 0.12.2.
+   - point other projects that use it at Packages. Jobs on updated computers already install through deploy.local. forma is on 0.12.1 and moves with a version bump (question 8).
 7. **Cargo:**
    - the private registry and the crates.io copy
    - per-computer `CARGO_HOME`, job containers and app builds
