@@ -302,7 +302,16 @@ The owner's goal: "all the content should go through that and cache so we can ha
 
 `esbuild`'s install script gets its binary from a registry package, so the copy covers it. `ssh2`, `cpu-features`, `protobufjs` and `unix-dgram` are not allowed to run install scripts.
 
-**A real test of the insulation.** Step 4 ends with a release run with npmjs.org and the other outside hosts blocked, and a report of what fails, because the table above comes from reading code, not from running with those hosts down. Rehearse on a computer other than SER first, and on SER use `deploy-update prepare` without activating. Ask the owner before blocking anything on SER.
+**The insulation test, run 2026-11-06.** Nothing was blocked on SER itself. The release steps ran in a throwaway container on SER on a Docker network with no internet, which could only reach SER's registry, beside a control with internet. Separately, deploy.local's real lockfile was installed on a Mac from a registry whose upstream was unreachable.
+
+| Scenario                                                     | Result                                                                                                                                                                                                |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No internet, SER's Node 26.5 and cached headers, empty store | Install (35 s, 1,146 packages, compiles `better-sqlite3`), typecheck and build pass. Tests match the control, apart from the one test later fixed in c086eb71. No outside host was named in the logs. |
+| No internet, a Node version whose headers aren't cached      | Packages all arrive, then `better-sqlite3` fails: `getaddrinfo EAI_AGAIN nodejs.org`. This is what a fresh machine, or SER after a Node upgrade, would hit.                                           |
+| npmjs.org unreachable, real lockfile, empty store            | Passes in 35 s, with 1,146 downloads served from the copy and no errors.                                                                                                                              |
+| A real SER release (c086eb7)                                 | Installs with the registry config and no fallback. It downloads nothing, because releases copy the previous `node_modules`.                                                                           |
+
+Not tested: SER's own server cut off from npmjs.org, as opposed to the simulated upstream on the Mac, and a release whose lockfile adds packages. So the insulation holds for deploy.local's install, build and tests while Node stays the same. **The gap to close is Node's headers:** fetching them through deploy.local, or keeping them with the copy, would cover a Node upgrade during an outage.
 
 **deploy.local's own installs keep their fallback.** As planned under "How builds use it", they use the registry only when `/npm/-/ping` answers and otherwise use npmjs.org, so a fresh machine or a recovery can still install.
 
