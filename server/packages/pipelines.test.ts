@@ -16,6 +16,7 @@ const { db, get, save, list, now } = await import('../workspace/store.ts');
 const { pipelineStart, reconcilePipelines, pipelineRead } =
   await import('../workspace/pipelines.ts');
 const { advancePipelinePackages } = await import('./pipelines.ts');
+const { packageProject } = await import('./projects.ts');
 const { createNpmRegistry } = await import('./npm.ts');
 const { packageByName, versions } = await import('./store.ts');
 const { issuePipelinePackageToken, pipelinePackageIdentity } = await import('./pipeline-auth.ts');
@@ -266,6 +267,25 @@ test('failed jobs publish nothing; Cargo skips; public names need an admin claim
   assert.match(get('pipeline-run', 'owner', pub.id).packages.error, /admin.*--claim/);
   save('project', 'owner', { ...f.project, owner: 'someone' });
   await assert.rejects(start(f), /repository owner's/);
+});
+test('a first publish from a hosted repository belongs to that project', async () => {
+  const f = await fixture(['packages/first-publish']);
+  const clone = 'https://deploy.local/api/workspace/git/' + f.project.id;
+  assert.equal(await packageProject('owner', { type: 'git', url: clone }), f.project.id);
+  assert.equal(await packageProject('owner', 'git+' + clone + '.git'), f.project.id);
+  assert.equal(await packageProject('someone', clone), null);
+  assert.equal(await packageProject('owner', clone + '-other'), null);
+});
+test('the router builds before it is packed', async () => {
+  const manifest = JSON.parse(
+    await readFile(
+      new URL('../../packages/react-flight-router/package.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  assert.equal(manifest.scripts.prepublishOnly, 'pnpm build');
+  assert.deepEqual(manifest.files, ['dist']);
+  assert.equal(manifest.typesVersions['*'].prepublishOnly, undefined);
 });
 test('PR checks pack only changed versions and display only current, free, checked evidence', async () => {
   const f = await fixture(['packages/a']);

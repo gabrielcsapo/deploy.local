@@ -24,6 +24,9 @@ export async function packageProject(owner: string, repository: unknown): Promis
       new URL(repositoryWebURL(owner, p)).pathname,
       repositoryClonePath(owner, p),
       '/' + repositoryFolderName(p.name) + '.git',
+      // The address `git remote get-url origin` gives for a hosted repository.
+      '/api/workspace/git/' + p.id,
+      '/api/workspace/git/' + p.id + '.git',
     ].includes(url.pathname),
   );
   return matches.length === 1 ? matches[0].id : null;

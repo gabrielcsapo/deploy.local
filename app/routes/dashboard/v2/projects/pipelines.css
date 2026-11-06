@@ -33,3 +33,15 @@
 .v2-pipeline-detail .dl-section-title {
   margin-bottom: 12px;
 }
+.v2-pipeline-detail .dl-setting .dl-t {
+  flex: 1 1 0;
+}
+.v2-pipeline-detail .dl-setting .dl-v {
+  white-space: nowrap;
+}
+.v2-pipeline-command {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

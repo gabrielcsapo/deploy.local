@@ -1,6 +1,6 @@
 {
   "name": "react-flight-router",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,7 +32,6 @@
       "dev": [
         "./dist/dev/index.d.ts"
       ],
-      "prepublishOnly": "pnpm build",
       "build": [
         "./dist/build/index.d.ts"
       ],
@@ -74,6 +73,7 @@
     "access": "public"
   },
   "scripts": {
+    "prepublishOnly": "pnpm build",
     "build": "node ../../node_modules/typescript/bin/tsc",
     "dev": "node ../../node_modules/typescript/bin/tsc --watch",
     "test": "pnpm build && vitest run && node --test dist/server/worker-pool.test.js",

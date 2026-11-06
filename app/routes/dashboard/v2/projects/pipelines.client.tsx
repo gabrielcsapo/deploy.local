@@ -21,6 +21,15 @@ const elapsed = (start?: string, end?: string) => {
     ? `${seconds} s`
     : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
 };
+const inProgress = ['queued', 'waiting', 'running', 'cancelling', 'publishing', 'deploying'];
+const failureSummary = (entry: any) =>
+  entry.jobsStatus !== 'succeeded'
+    ? entry.specification?.publish?.length
+      ? 'tests failed · nothing published'
+      : 'tests failed'
+    : entry.packages?.status === 'failed'
+      ? 'publish failed'
+      : 'release failed';
 export function ProjectPipelines({ projectId }: { projectId: string }) {
   const path = `/api/workspace/projects/${encodeURIComponent(projectId)}/pipelines`;
   const runs = useData<any>(path);
@@ -85,14 +94,18 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
                     ? 'check'
                     : entry.status === 'failed'
                       ? 'close'
-                      : 'running'
+                      : inProgress.includes(entry.status)
+                        ? 'running'
+                        : 'attention'
                 }
                 className={
                   entry.status === 'succeeded'
                     ? 'dl-ok'
                     : entry.status === 'failed'
                       ? 'dl-fail'
-                      : 'dl-run'
+                      : inProgress.includes(entry.status)
+                        ? 'dl-run'
+                        : 'dl-warn'
                 }
               />
               <span className="dl-t">
@@ -102,7 +115,7 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
                     ? `Push to ${entry.branch || 'main'}`
                     : formatTime(entry.createdAt)}
                   {entry.status === 'failed'
-                    ? ` · ${entry.jobsStatus === 'succeeded' ? 'publish failed' : 'tests failed · nothing published'}`
+                    ? ` · ${failureSummary(entry)}`
                     : ` · ${elapsed(entry.createdAt, entry.packages?.completedAt || entry.completedAt) || entry.status}`}
                 </span>
               </span>
@@ -144,9 +157,13 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
                       <Setting
                         key={job.id}
                         label={job.name}
-                        description={<span className="dl-mono">{job.command}</span>}
+                        description={
+                          <span className="dl-mono v2-pipeline-command" title={job.command}>
+                            {job.command}
+                          </span>
+                        }
                       >
-                        <span className="dl-v">
+                        <span>
                           {job.status === 'succeeded'
                             ? 'Passed'
                             : job.status === 'failed'
