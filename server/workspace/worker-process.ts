@@ -14,6 +14,19 @@ export type WorkerLease = {
 };
 const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
 
+/** Linux refuses this read while a process exits or belongs to another user: unverified, not fatal. */
+function readWorkerRoot(pid: number) {
+  try {
+    return readFileSync(`/proc/${pid}/environ`, 'utf8')
+      .split('\0')
+      .find((entry) => entry.startsWith('DEPLOY_WORKER_ROOT='))
+      ?.slice('DEPLOY_WORKER_ROOT='.length);
+  } catch (error: any) {
+    if (error.code === 'EACCES') return undefined;
+    throw error;
+  }
+}
+
 /** A start token prevents a recycled PID from authorizing a signal to another process. */
 function inspect(pid: number) {
   if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error('Invalid worker PID');
@@ -27,10 +40,7 @@ function inspect(pid: number) {
         executablePath: readlinkSync(`/proc/${pid}/exe`).replace(/ \(deleted\)$/, ''),
         args: readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean),
         // Inspect only the scope marker; never log the process environment or credentials.
-        workerRoot: readFileSync(`/proc/${pid}/environ`, 'utf8')
-          .split('\0')
-          .find((entry) => entry.startsWith('DEPLOY_WORKER_ROOT='))
-          ?.slice('DEPLOY_WORKER_ROOT='.length),
+        workerRoot: readWorkerRoot(pid),
       };
     }
     // Platforms without a start-token probe can respect live locks, but cannot signal them.
