@@ -422,6 +422,20 @@ function jobAssignment(owner: string, workerId: string, job: any) {
 }
 export function jobCommand(owner: string, workerId: string, action: string, body: any): any {
   if (action === 'packages') {
+    if (body.runId) {
+      const run = get('run', owner, body.runId);
+      const worker = get('worker', owner, workerId);
+      if (
+        !['starting', 'running'].includes(run.status) ||
+        run.stopRequested ||
+        run.workerId !== workerId ||
+        run.generation !== body.generation ||
+        run.assignedInstanceId !== body.instanceId ||
+        worker.instanceId !== body.instanceId
+      )
+        throw new Error('Stale agent assignment');
+      return computerInstallConfig(owner, workerId, get('task', owner, run.taskId).projectId);
+    }
     const job = get('job', owner, body.jobId);
     if (
       job.status !== 'running' ||

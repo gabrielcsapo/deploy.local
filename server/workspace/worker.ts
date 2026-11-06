@@ -1,3 +1,6 @@
+import { prepareAgentInstall, agentEnvironment } from './agent-packages.ts';
+import { computerInstallConfig } from '../packages/builds.ts';
+import { secretOutput } from '../../shared/package-install.mjs';
 import { resumeQuestionAnswers } from './questions.ts';
 import { runAgentContext } from './agent-context-store.ts';
 import { writeNodeSnapshot } from './node-status.ts';
@@ -114,7 +117,7 @@ const interactiveTimer = setInterval(() => {
   }
 }, 500);
 let shuttingDown = false;
-function tick() {
+async function tick() {
   if (shuttingDown) return;
   tickChecks();
   for (const row of db
@@ -239,14 +242,32 @@ function tick() {
       void finish(row.owner, run, 'failed', `Image input unavailable: ${failure.message}`);
       continue;
     }
-    const launch = agentLaunch({ ...run, imagePaths: [...images.paths, ...attachmentImagePaths] });
+    const install = await prepareAgentInstall(
+      () => computerInstallConfig(row.owner, 'local', task.projectId),
+      {
+        cwd: task.workspacePath,
+        root: resolve(root, 'agent-packages'),
+        log: (line) => event(row.owner, task.id, run.id, 'provider.output', { text: line + '\n' }),
+      },
+    );
+    if (shuttingDown || get('run', row.owner, run.id).stopRequested) {
+      await install.cleanup();
+      images.cleanup();
+      void finish(row.owner, run, 'interrupted', null);
+      continue;
+    }
+    const launch = agentLaunch(
+      { ...run, imagePaths: [...images.paths, ...attachmentImagePaths] },
+      install.env,
+    );
     const agentToken = issueAgentToken({ owner: row.owner, taskId: task.id, runId: run.id });
     const child = spawn(launch.executable, launch.args, {
       cwd: task.workspacePath,
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
-        ...process.env,
+        ...agentEnvironment(process.env, install.env),
+        ...install.env,
         ...launch.env,
         DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
         DEPLOY_AGENT_URL: toolUrl,
@@ -271,7 +292,7 @@ function tick() {
     child.stdin.end(run.prompt + attachmentPrompt);
     let buffer = '',
       stderr = '';
-    child.stdout.on('data', (chunk) => {
+    const stdout = secretOutput(install.secrets, (chunk) => {
       buffer += chunk;
       let n;
       while ((n = buffer.indexOf('\n')) >= 0) {
@@ -306,14 +327,19 @@ function tick() {
         }
       }
     });
-    child.stderr.on('data', (data) => {
+    const errorOutput = secretOutput(install.secrets, (data) => {
       stderr = (stderr + data).slice(-10000);
     });
+    child.stdout.on('data', stdout.write);
+    child.stderr.on('data', errorOutput.write);
     child.once('error', (error) => {
       active.delete(run.id);
       finish(row.owner, run, 'failed', error.message);
     });
-    child.once('close', (code) => {
+    child.once('close', async (code) => {
+      stdout.end();
+      errorOutput.end();
+      await install.cleanup();
       images!.cleanup();
       active.delete(run.id);
       const current = get('run', row.owner, run.id);
@@ -384,8 +410,18 @@ async function finish(owner: string, run: any, status: string, error: string | n
     finishing.delete(run.id);
   }
 }
-const workerTimer = setInterval(tick, 500);
-tick();
+let ticking = false;
+const poll = () => {
+  if (ticking) return;
+  ticking = true;
+  void tick()
+    .catch((error) => console.error('Local worker:', error.message))
+    .finally(() => {
+      ticking = false;
+    });
+};
+const workerTimer = setInterval(poll, 500);
+poll();
 console.log('Workspace worker ready (local, ordinary user)');
 process.on('SIGTERM', () => {
   shuttingDown = true;

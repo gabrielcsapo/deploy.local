@@ -2157,7 +2157,10 @@ export function apiMiddleware(
                           username,
                           releaseDirectory,
                           source.digest,
-                          { noCache: fields.noCache === '1' || fields.noCache === 'true' },
+                          {
+                            noCache: fields.noCache === '1' || fields.noCache === 'true',
+                            projectId: repositoryProjectId,
+                          },
                         );
                         legacyResult = {
                           name,

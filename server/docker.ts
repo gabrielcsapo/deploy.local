@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { rm, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
-import { createServer, createConnection, type AddressInfo, type Socket } from 'node:net';
+import { isIP, createServer, createConnection, type AddressInfo, type Socket } from 'node:net';
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import type { DeployConfig } from './deploy-config.ts';
@@ -183,13 +183,34 @@ export function nodeDockerfile(buildkit = true) {
     --mount=type=secret,id=ca,target=/run/deploy-packages/ca.crt,mode=0600 \\
     `
     : '';
+  const install = `install_packages() {
+    if [ -f pnpm-lock.yaml ]; then pnpm install --prod --frozen-lockfile;
+    elif [ -f yarn.lock ]; then yarn install --production --frozen-lockfile;
+    elif [ -f package-lock.json ]; then npm ci --omit=dev;
+    else npm install --omit=dev; fi;
+  };
+  corepack enable && `;
   const configure = buildkit
-    ? `if [ -f /run/deploy-packages/npmrc ]; then export NPM_CONFIG_USERCONFIG=/run/deploy-packages/npmrc; if grep -q '^__metadata:' yarn.lock 2>/dev/null; then export YARN_NPM_REGISTRY_SERVER="$(sed -n 's/^registry=//p' /run/deploy-packages/npmrc)" YARN_NPM_AUTH_TOKEN="$(sed -n 's/.*:_authToken=//p' /run/deploy-packages/npmrc)" YARN_NPM_ALWAYS_AUTH=true; if [ -s /run/deploy-packages/ca.crt ]; then export YARN_HTTPS_CA_FILE_PATH=/run/deploy-packages/ca.crt; fi; fi; fi; `
-    : '';
+    ? `
+  if [ -f /run/deploy-packages/npmrc ]; then
+    export NPM_CONFIG_USERCONFIG=/run/deploy-packages/npmrc;
+    if grep -q '^__metadata:' yarn.lock 2>/dev/null || grep -Eq '"packageManager"[[:space:]]*:[[:space:]]*"yarn@([2-9]|[0-9]{2,})\\.' package.json; then
+      export YARN_NPM_REGISTRY_SERVER="$(sed -n 's/^registry=//p' "$NPM_CONFIG_USERCONFIG")";
+      export YARN_NPM_AUTH_TOKEN="$(sed -n 's/.*:_authToken=//p' "$NPM_CONFIG_USERCONFIG")" YARN_NPM_ALWAYS_AUTH=true;
+      if [ -s /run/deploy-packages/ca.crt ]; then export YARN_HTTPS_CA_FILE_PATH=/run/deploy-packages/ca.crt; fi;
+    fi;
+    if ! install_packages; then
+      echo 'deploy.local package install failed; retrying without registry configuration.';
+      unset NPM_CONFIG_USERCONFIG YARN_NPM_REGISTRY_SERVER YARN_NPM_AUTH_TOKEN YARN_NPM_ALWAYS_AUTH YARN_HTTPS_CA_FILE_PATH;
+      install_packages;
+    fi;
+  else install_packages; fi`
+    : 'install_packages';
+  const shell = (install + configure).trim().replaceAll('\n', ' \\\n');
   return `${buildkit ? '# syntax=docker/dockerfile:1.7\n' : ''}FROM node:22-alpine
 WORKDIR /app
-COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* .npmrc* .yarnrc.yml* ./
-RUN ${mounts}${configure}corepack enable && if [ -f pnpm-lock.yaml ]; then pnpm install --prod --frozen-lockfile; elif [ -f yarn.lock ]; then yarn install --production --frozen-lockfile; elif [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
+COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+RUN ${mounts}${shell}
 COPY . .
 CMD ["npm", "start"]
 `;
@@ -266,13 +287,19 @@ export interface BuildResult {
 const BUILD_TIMEOUT_MS = 15 * 60 * 1000;
 let buildxAvailable: boolean | null = null;
 const BUILDX_BUILDER = 'deploy-local';
+let buildxDriver = 'docker-container';
 
 async function hasBuildx(): Promise<boolean> {
   if (buildxAvailable !== null) return buildxAvailable;
   try {
     await execFileAsync('docker', ['buildx', 'version'], { timeout: 5000 });
     try {
-      await execFileAsync('docker', ['buildx', 'inspect', BUILDX_BUILDER], { timeout: 5000 });
+      const result = await execFileAsync(
+        'docker',
+        ['buildx', 'inspect', BUILDX_BUILDER, '--format', '{{.Driver}}'],
+        { timeout: 5000 },
+      );
+      buildxDriver = result.stdout.trim();
     } catch {
       await execFileAsync(
         'docker',
@@ -284,6 +311,75 @@ async function hasBuildx(): Promise<boolean> {
   } catch {
     return (buildxAvailable = false);
   }
+}
+
+/** BuildKit's container driver cannot interpret host-gateway. Resolve the daemon bridge,
+ * not this process's DNS address. An unavailable bridge disables registry secrets entirely. */
+export async function buildRegistryArgs(
+  driver: string,
+  install: { npmrc?: string; ca?: string; key: string },
+  inspect: () => Promise<{ stdout: string }> = () =>
+    execFileAsync('docker', ['network', 'inspect', 'bridge'], { timeout: 3000 }),
+): Promise<string[]> {
+  if (!install.npmrc) return [];
+  let address = 'host-gateway';
+  if (install.key && driver !== 'docker') {
+    try {
+      const networks = JSON.parse((await inspect()).stdout);
+      address = networks[0]?.IPAM?.Config?.map((entry: { Gateway?: string }) => entry.Gateway).find(
+        (value: string) => isIP(value || ''),
+      );
+      if (!address) return [];
+    } catch {
+      return [];
+    }
+  }
+  return [
+    '--secret',
+    `id=npmrc,src=${install.npmrc}`,
+    '--secret',
+    `id=ca,src=${install.ca}`,
+    ...(install.key ? ['--add-host', `deploy.local:${address}`] : []),
+  ];
+}
+
+export function imageBuildArguments({
+  tag,
+  cacheDir,
+  noCache,
+  useBuildx,
+  cacheExists,
+  registryArgs,
+}: {
+  tag: string;
+  cacheDir: string;
+  noCache?: boolean;
+  useBuildx: boolean;
+  cacheExists: boolean;
+  registryArgs: string[];
+}) {
+  if (!useBuildx)
+    return noCache
+      ? ['build', '--no-cache', '-t', tag, '.']
+      : ['build', '--cache-from', tag, '-t', tag, '.'];
+  return [
+    'buildx',
+    'build',
+    '--builder',
+    BUILDX_BUILDER,
+    '--load',
+    ...(noCache
+      ? ['--no-cache']
+      : [
+          ...(cacheExists ? ['--cache-from', `type=local,src=${cacheDir}`] : []),
+          '--cache-to',
+          `type=local,dest=${cacheDir},mode=max`,
+        ]),
+    ...registryArgs,
+    '-t',
+    tag,
+    '.',
+  ];
 }
 
 export async function buildImage(
@@ -307,7 +403,7 @@ export async function buildImage(
   const generated = generatedNodeDirectories.has(resolve(dir));
   const install = await preparePackageInstall(
     useBuildx && generated && options?.owner
-      ? await computerInstallConfig(options.owner, 'local', options.projectId)
+      ? await computerInstallConfig(options.owner, 'local', options.projectId).catch(() => null)
       : null,
     {
       cwd: dir,
@@ -317,31 +413,14 @@ export async function buildImage(
     },
   );
   if (generated) await writeFile(resolve(dir, 'Dockerfile'), nodeDockerfile(useBuildx));
-  let buildArgs: string[];
-  if (useBuildx) {
-    buildArgs = ['buildx', 'build', '--builder', BUILDX_BUILDER, '--load'];
-    if (options?.noCache) {
-      buildArgs.push('--no-cache');
-    } else {
-      if (existsSync(resolve(cacheDir, 'index.json'))) {
-        buildArgs.push('--cache-from', `type=local,src=${cacheDir}`);
-      }
-      buildArgs.push('--cache-to', `type=local,dest=${cacheDir},mode=max`);
-    }
-    if (install.npmrc)
-      buildArgs.push(
-        '--secret',
-        `id=npmrc,src=${install.npmrc}`,
-        '--secret',
-        `id=ca,src=${install.ca}`,
-        ...(install.key ? ['--add-host', 'deploy.local:host-gateway'] : []),
-      );
-    buildArgs.push('-t', tag, '.');
-  } else {
-    buildArgs = options?.noCache
-      ? ['build', '--no-cache', '-t', tag, '.']
-      : ['build', '--cache-from', tag, '-t', tag, '.'];
-  }
+  const buildArgs = imageBuildArguments({
+    tag,
+    cacheDir,
+    noCache: options?.noCache,
+    useBuildx,
+    cacheExists: existsSync(resolve(cacheDir, 'index.json')),
+    registryArgs: useBuildx ? await buildRegistryArgs(buildxDriver, install) : [],
+  });
 
   return new Promise<BuildResult>((resolve) => {
     const proc = spawn('docker', buildArgs, {
@@ -363,7 +442,7 @@ export async function buildImage(
       }
     }
 
-    const redacted = secretOutput([install.key], handleData);
+    const redacted = secretOutput(install.secrets, handleData);
     proc.stdout?.on('data', redacted.write);
     proc.stderr?.on('data', redacted.write);
     proc.once('close', () => redacted.end());

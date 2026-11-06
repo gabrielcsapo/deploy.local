@@ -9,6 +9,7 @@ export type PreparedInstall = {
   env: NodeJS.ProcessEnv;
   args: string[];
   key: string;
+  secrets: string[];
   npmrc?: string;
   ca?: string;
   directory?: string;
@@ -23,6 +24,7 @@ export function preparePackageInstall(
     cwd: string;
     root: string;
     container?: boolean;
+    environment?: NodeJS.ProcessEnv;
     log?: (line: string) => void;
     ping?: typeof registryPing;
   },

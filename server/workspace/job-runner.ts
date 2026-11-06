@@ -211,7 +211,7 @@ export class JobRunner {
         if (this.state.output.length > 64000) this.state.truncated = true;
         this.state.output = this.state.output.slice(-64000);
       };
-      const output = secretOutput([install.key], append);
+      const output = secretOutput(install.secrets, append);
       child.stdout!.on('data', output.write);
       child.stderr!.on('data', output.write);
       let spawnError: string | undefined;
@@ -220,11 +220,11 @@ export class JobRunner {
       });
       child.once('close', async (code) => {
         output.end();
-        await install?.cleanup();
         if (job.container) {
-          const error = await this.removeContainer(job);
+          const error = await this.removeContainer(job, install!);
           if (error) this.state.terminal = { status: 'unknown', error };
         }
+        await install?.cleanup();
         clearTimeout(this.timer);
         // Kill any remaining descendants of the shell before releasing the slot.
         try {
@@ -279,11 +279,14 @@ export class JobRunner {
       this.collecting = undefined;
     }
   }
-  private removeContainer(job: any): Promise<string | null> {
+  private removeContainer(
+    job: any,
+    install: Awaited<ReturnType<typeof preparePackageInstall>>,
+  ): Promise<string | null> {
     return new Promise((done) => {
       const cleanup = spawn('docker', ['rm', '-f', `deploy-job-${job.id}-${job.generation}`], {
         stdio: ['ignore', 'ignore', 'pipe'],
-        env: shellEnvironment(),
+        env: { ...shellEnvironment(), ...install.env },
       });
       let stderr = '',
         timedOut = false;
@@ -291,11 +294,13 @@ export class JobRunner {
         timedOut = true;
         cleanup.kill('SIGKILL');
       }, 10000);
-      cleanup.stderr.on('data', (chunk) => {
+      const output = secretOutput(install.secrets, (chunk) => {
         stderr = (stderr + chunk).slice(-2000);
       });
+      cleanup.stderr.on('data', output.write);
       cleanup.on('error', () => {});
       cleanup.on('close', (code) => {
+        output.end();
         clearTimeout(timer);
         done(
           !timedOut && (code === 0 || /No such (container|object)/i.test(stderr))

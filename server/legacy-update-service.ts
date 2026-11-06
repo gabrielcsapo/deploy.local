@@ -17,7 +17,7 @@ export function legacyUpdateService(
   username: string,
   sourceDirectory?: string,
   sourceDigest = '',
-  buildOptions: { noCache?: boolean } = {},
+  buildOptions: { noCache?: boolean; projectId?: string } = {},
 ) {
   const deployment = getDeployment(name);
   if (!deployment || deployment.username !== username)
@@ -87,7 +87,10 @@ export function legacyUpdateService(
     },
     build: async () => {
       if (!sourceDirectory) throw new Error('A validated source upload is required');
-      const result = await buildImage(name, resolve(sourceDirectory), undefined, buildOptions);
+      const result = await buildImage(name, resolve(sourceDirectory), undefined, {
+        ...buildOptions,
+        owner: username,
+      });
       if (!result.success) throw new Error('Legacy code build failed; existing writer untouched');
       const image = await dockerRequest<{ Id: string }>({
         method: 'GET',

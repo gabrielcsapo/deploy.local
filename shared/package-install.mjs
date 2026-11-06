@@ -4,6 +4,7 @@ import { request as httpsRequest } from 'node:https';
 import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { lookup } from 'node:dns/promises';
+import { homedir } from 'node:os';
 
 export const registryFallback =
   'deploy.local’s package registry is unreachable; installing from npmjs.org.';
@@ -45,9 +46,16 @@ export async function projectRegistry(cwd) {
 }
 export async function preparePackageInstall(
   config,
-  { cwd, root, container = false, log = () => {}, ping = registryPing } = {},
+  {
+    cwd,
+    root,
+    container = false,
+    log = () => {},
+    ping = registryPing,
+    environment = process.env,
+  } = {},
 ) {
-  const empty = { env: {}, args: [], key: '', cleanup: async () => {} };
+  const empty = { env: {}, args: [], key: '', secrets: [], cleanup: async () => {} };
   let reported = false;
   const fallback = () => {
     if (!reported) log(registryFallback);
@@ -83,9 +91,21 @@ export async function preparePackageInstall(
     const ca = join(directory, 'ca.crt');
     const npmrc = join(directory, 'npmrc');
     await writeFile(ca, config.ca || '', { mode: 0o600, flag: 'wx' });
+    // Host jobs retain personal scoped registries and credentials. Containers never do.
+    const userConfig = container
+      ? ''
+      : await optional(
+          environment.NPM_CONFIG_USERCONFIG ||
+            environment.npm_config_userconfig ||
+            join(environment.HOME || homedir(), '.npmrc'),
+        );
+    const inherited = userConfig
+      .split('\n')
+      .filter((line) => !/^\s*(registry|cafile)\s*=/i.test(line))
+      .join('\n');
     await writeFile(
       npmrc,
-      `registry=${url.href}\n${config.key ? `//${url.host}${url.pathname}:_authToken=${config.key}\n` : ''}${config.ca ? `cafile=${target}/ca.crt\n` : ''}`,
+      `${inherited ? inherited.replace(/\n?$/, '\n') : ''}registry=${url.href}\n${config.key ? `//${url.host}${url.pathname}:_authToken=${config.key}\n` : ''}${config.ca ? `cafile=${target}/ca.crt\n` : ''}`,
       { mode: 0o600, flag: 'wx' },
     );
     const env = { NPM_CONFIG_USERCONFIG: `${target}/npmrc` };
@@ -114,7 +134,13 @@ export async function preparePackageInstall(
           ...Object.keys(env).flatMap((key) => ['--env', key]),
         ]
       : [];
-    return { env, args, key: config.key, npmrc, ca, directory, cleanup };
+    const secrets = [
+      config.key,
+      ...inherited.matchAll(/(?:_authToken|_auth|_password)\s*=\s*(.+)/g),
+    ]
+      .map((value) => (typeof value === 'string' ? value : value[1]))
+      .filter(Boolean);
+    return { env, args, key: config.key, secrets, npmrc, ca, directory, cleanup };
   } catch {
     await cleanup().catch(() => {});
     fallback();
@@ -138,7 +164,8 @@ export function secretOutput(secrets, append) {
       pending = pending.slice(pending.length - keep);
     },
     end() {
-      if (pending) append('[redacted]');
+      if (pending)
+        append(pending.length <= 4 && 'dlp_'.startsWith(pending) ? pending : '[redacted]');
       pending = '';
     },
   };

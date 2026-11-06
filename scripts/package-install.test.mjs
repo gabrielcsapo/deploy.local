@@ -4,8 +4,7 @@ import { createServer } from 'node:http';
 import { mkdtemp, mkdir, writeFile, readFile, stat, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { selfUpdateInstall } from './self-update.mjs';
-import { releaseStepEnvironment } from './linux-release.mjs';
+import { selfUpdateInstall, prepareSelfUpdate, cleanupUpdatePackages } from './self-update.mjs';
 
 test('self-update fallback uses public registry, leaves release unchanged and removes credential material', async () => {
   const root = await mkdtemp(join(tmpdir(), 'self-update-packages-'));
@@ -31,7 +30,10 @@ test('self-update fallback uses public registry, leaves release unchanged and re
     );
     assert.match(logs.join(''), /unreachable; installing from npmjs.org/);
     assert.equal(logs.length, 1);
-    assert.equal(await readFile(prepared.npmrc, 'utf8'), 'registry=https://registry.npmjs.org/\n');
+    assert.match(
+      await readFile(prepared.npmrc, 'utf8'),
+      /^registry=https:\/\/registry.npmjs.org\//m,
+    );
     assert.equal((await stat(prepared.npmrc)).mode & 0o777, 0o600);
     assert.equal(await stat(packageConfig).catch(() => null), null);
     assert.ok(!prepared.npmrc.startsWith(release + '/'));
@@ -40,13 +42,6 @@ test('self-update fallback uses public registry, leaves release unchanged and re
     await prepared.cleanup();
     assert.equal(await stat(prepared.npmrc).catch(() => null), null);
     assert.deepEqual((await selfUpdateInstall({ data: root, release })).env, {});
-    const env = { PATH: '/bin', DEPLOY_PACKAGE_NPMRC: '/private/temporary/npmrc' };
-    assert.deepEqual(releaseStepEnvironment('install', env), {
-      PATH: '/bin',
-      NPM_CONFIG_USERCONFIG: '/private/temporary/npmrc',
-    });
-    assert.deepEqual(releaseStepEnvironment('test', env), { PATH: '/bin' });
-    assert.deepEqual(releaseStepEnvironment('install', { PATH: '/bin' }), { PATH: '/bin' });
   } finally {
     server.closeAllConnections();
     await new Promise((done) => server.close(done));
@@ -83,6 +78,167 @@ test('self-update pins retain live and rollback releases and discard a failed ca
     assert.equal(database.prepare('SELECT COUNT(*) n FROM package_pins').get().n, 2);
   } finally {
     database.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('prepare uses the update directory and the installed helper environment; retries once and removes secrets on all outcomes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'prepare-registry-'));
+  const release = join(root, 'release');
+  const updates = join(root, 'updates');
+  await mkdir(release);
+  await mkdir(updates);
+  const server = createServer((_req, res) => res.end('{}'));
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  try {
+    for (const outcome of ['success', 'fallback', 'both-fail']) {
+      const packageConfig = join(updates, 'run.packages.json');
+      const key = 'dlp_' + 'a'.repeat(43);
+      await writeFile(
+        packageConfig,
+        JSON.stringify({ registry: `http://127.0.0.1:${server.address().port}/npm/`, key, ca: '' }),
+        { mode: 0o600 },
+      );
+      const plan = {
+        release,
+        packageConfig,
+        data: '/inaccessible/root/packages',
+        history: join(updates, 'history.json'),
+      };
+      const install = await selfUpdateInstall(plan);
+      assert.ok(install.npmrc.startsWith(updates + '/package-install-'));
+      assert.equal(await stat(packageConfig).catch(() => null), null);
+      let calls = 0;
+      const logs = [];
+      const prepare = prepareSelfUpdate(
+        plan,
+        install,
+        async (command, args, options) => {
+          calls++;
+          assert.equal(command, 'deploy-update');
+          assert.deepEqual(args, ['prepare', release]);
+          assert.equal(options.env.DEPLOY_PACKAGE_NPMRC, undefined);
+          if (calls === 1) {
+            assert.equal(options.env.NPM_CONFIG_USERCONFIG, install.npmrc);
+            assert.ok((await readFile(install.npmrc, 'utf8')).includes(key));
+            if (outcome !== 'success') throw Error('registry disappeared');
+          } else {
+            assert.equal(options.env.NPM_CONFIG_USERCONFIG, process.env.NPM_CONFIG_USERCONFIG);
+            assert.equal(await stat(install.npmrc).catch(() => null), null);
+            if (outcome === 'both-fail') throw Error('public install also failed');
+          }
+          return 'prepared';
+        },
+        (line) => logs.push(line),
+      );
+      if (outcome === 'both-fail') await assert.rejects(prepare, /public install also failed/);
+      else assert.equal(await prepare, 'prepared');
+      assert.equal(calls, outcome === 'success' ? 1 : 2);
+      assert.equal(logs.length, calls - 1);
+      assert.equal(await stat(install.directory).catch(() => null), null);
+    }
+    const stale = join(updates, 'package-install-crashed');
+    await mkdir(stale);
+    await writeFile(join(stale, 'npmrc'), 'secret');
+    await writeFile(join(updates, 'old.packages.json'), 'secret');
+    await writeFile(join(updates, 'new.packages.json'), 'new');
+    cleanupUpdatePackages(updates, join(updates, 'new.packages.json'));
+    assert.equal(await stat(stale).catch(() => null), null);
+    assert.equal(await stat(join(updates, 'old.packages.json')).catch(() => null), null);
+    assert.equal(await readFile(join(updates, 'new.packages.json'), 'utf8'), 'new');
+    cleanupUpdatePackages(updates);
+    assert.equal(await stat(join(updates, 'new.packages.json')).catch(() => null), null);
+    let calls = 0;
+    await assert.rejects(
+      prepareSelfUpdate({ release }, { env: {}, cleanup: async () => {} }, async () => {
+        calls++;
+        throw Error('manual failure');
+      }),
+      /manual failure/,
+    );
+    assert.equal(calls, 1, 'manual prepare is unchanged');
+  } finally {
+    server.closeAllConnections();
+    await new Promise((done) => server.close(done));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a terminated updater removes its prepare config; the next start removes an uncatchable crash leftover', async () => {
+  const { spawn } = await import('node:child_process');
+  const { once } = await import('node:events');
+  const { resolve } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'update-crash-'));
+  const current = join(root, 'current');
+  const release = join(root, 'next');
+  const bin = join(root, 'bin');
+  await mkdir(current);
+  await mkdir(bin);
+  const marker = join(root, 'prepare-started');
+  await writeFile(join(bin, 'git'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  await writeFile(
+    join(bin, 'deploy-update'),
+    `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, process.env.NPM_CONFIG_USERCONFIG); setInterval(() => {}, 1000);\n`,
+    { mode: 0o755 },
+  );
+  const server = createServer((_req, res) => res.end('{}'));
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  const file = join(root, 'current.json');
+  const packageConfig = join(root, 'run.packages.json');
+  await writeFile(
+    packageConfig,
+    JSON.stringify({
+      registry: `http://127.0.0.1:${server.address().port}/npm/`,
+      key: 'dlp_' + 'c'.repeat(43),
+      ca: '',
+    }),
+  );
+  await writeFile(
+    file,
+    JSON.stringify({
+      from: 'aaa',
+      to: 'bbb',
+      steps: ['prepare', 'backup', 'restart', 'check'].map((id) => ({ id, state: 'waiting' })),
+      plan: {
+        current,
+        release,
+        repository: root,
+        data: root,
+        log: join(root, 'run.log'),
+        history: join(root, 'history.json'),
+        packageConfig,
+      },
+    }),
+  );
+  const child = spawn(process.execPath, [resolve('scripts/self-update.mjs'), file], {
+    detached: true,
+    env: { ...process.env, PATH: bin + ':' + process.env.PATH },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  let error = '';
+  child.stderr.on('data', (chunk) => {
+    error += chunk;
+  });
+  try {
+    const deadline = Date.now() + 10000;
+    while (!(await stat(marker).catch(() => null))) {
+      assert.equal(child.exitCode, null, error);
+      assert.ok(Date.now() < deadline, 'prepare started');
+      await new Promise((done) => setTimeout(done, 25));
+    }
+    const npmrc = await readFile(marker, 'utf8');
+    assert.ok((await readFile(npmrc, 'utf8')).includes('dlp_'));
+    const exited = once(child, 'exit');
+    child.kill('SIGTERM');
+    await exited;
+    assert.equal(await stat(npmrc).catch(() => null), null);
+    assert.equal(await stat(packageConfig).catch(() => null), null);
+  } finally {
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {}
+    server.closeAllConnections();
+    await new Promise((done) => server.close(done));
     await rm(root, { recursive: true, force: true });
   }
 });

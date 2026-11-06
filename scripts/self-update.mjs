@@ -95,9 +95,35 @@ export async function selfUpdateInstall(plan, log = () => {}) {
   }
   return preparePackageInstall(config, {
     cwd: plan.release,
-    root: join(plan.data, 'packages', 'tmp'),
+    root: dirname(plan.packageConfig || plan.history || plan.release),
     log: (line) => log(line + '\n'),
   });
+}
+
+/** Also used at the next start after an uncatchable kill or power loss. */
+export function cleanupUpdatePackages(directory, keep) {
+  for (const name of readdirSync(directory)) {
+    const path = join(directory, name);
+    if (path !== keep && (name.startsWith('package-install-') || name.endsWith('.packages.json')))
+      rmSync(path, { recursive: true, force: true });
+  }
+}
+
+export async function prepareSelfUpdate(plan, installation, exec, log = () => {}) {
+  try {
+    try {
+      return await exec('deploy-update', ['prepare', plan.release], {
+        env: { ...process.env, ...installation.env },
+      });
+    } catch (error) {
+      if (!installation.npmrc) throw error;
+      await installation.cleanup();
+      log('deploy.local package prepare failed; retrying without registry configuration.\n');
+      return await exec('deploy-update', ['prepare', plan.release], { env: { ...process.env } });
+    }
+  } finally {
+    await installation.cleanup();
+  }
 }
 
 /** Keep the running and rollback release pins across updater restarts. No credentials here. */
@@ -133,12 +159,22 @@ export function finishSelfUpdatePins(plan, run, state) {
 function main(file) {
   let run = JSON.parse(readFileSync(file, 'utf8'));
   const { plan } = run;
+  const updateDirectory = dirname(file);
+  cleanupUpdatePackages(updateDirectory, plan.packageConfig);
+  // Synchronous exit cleanup covers exceptions and catchable signals; next start covers SIGKILL.
+  const cleanup = () => cleanupUpdatePackages(updateDirectory);
+  process.once('exit', cleanup);
+  for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'])
+    process.once(signal, () => {
+      cleanup();
+      process.exit(1);
+    });
   const save = () => {
     writeFileSync(`${file}.tmp`, JSON.stringify(run, null, 2), { mode: 0o644 });
     renameSync(`${file}.tmp`, file);
   };
   const log = (text) => appendFileSync(plan.log, text);
-  let installKey = '';
+  let installSecrets = [];
   const exec = (command, args, options = {}) =>
     new Promise((resolve, reject) => {
       log(`$ ${command} ${args.join(' ')}\n`);
@@ -148,7 +184,7 @@ function main(file) {
         output += chunk;
         log(chunk);
       };
-      const redacted = secretOutput([installKey], take);
+      const redacted = secretOutput(installSecrets, take);
       child.stdout.on('data', redacted.write);
       child.stderr.on('data', redacted.write);
       child.once('close', () => redacted.end());
@@ -209,17 +245,12 @@ function main(file) {
       await exec('git', ['-C', plan.release, 'clean', '-fdq']);
       rmSync(join(plan.release, 'dist'), { recursive: true, force: true });
       const installation = await selfUpdateInstall(plan, log);
-      installKey = installation.key;
+      installSecrets = installation.secrets;
       try {
-        output = await exec('deploy-update', ['prepare', plan.release], {
-          env: {
-            ...process.env,
-            ...(installation.npmrc ? { DEPLOY_PACKAGE_NPMRC: installation.npmrc } : {}),
-          },
-        });
+        output = await prepareSelfUpdate(plan, installation, exec, log);
       } finally {
         await installation.cleanup();
-        installKey = '';
+        installSecrets = [];
       }
       finish(
         'prepare',

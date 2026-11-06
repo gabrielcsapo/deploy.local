@@ -219,11 +219,6 @@ async function activate(path) {
   }
 }
 
-export function releaseStepEnvironment(command, source = process.env) {
-  const { DEPLOY_PACKAGE_NPMRC: npmrc, ...env } = source;
-  if (command === 'install' && npmrc) env.NPM_CONFIG_USERCONFIG = npmrc;
-  return env;
-}
 async function prepare(path) {
   if (process.getuid() === 0) throw new Error('Build releases as the ordinary deploy user.');
   const release = realpathSync(path);
@@ -231,7 +226,7 @@ async function prepare(path) {
   const before = revision(release);
   for (const args of [['install', '--frozen-lockfile'], ['typecheck'], ['build'], ['test']]) {
     console.log(`pnpm ${args.join(' ')}`);
-    run('pnpm', args, { cwd: release, stdio: 'inherit', env: releaseStepEnvironment(args[0]) });
+    run('pnpm', args, { cwd: release, stdio: 'inherit' });
   }
   if (revision(release) !== before) throw new Error('Revision changed while building.');
   writeFileSync(
