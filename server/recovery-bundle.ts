@@ -1,3 +1,4 @@
+import { getRequestsSqlite } from './requests-db.ts';
 import { packageWorkerFile } from './packages/worker-file.ts';
 import { Worker } from 'node:worker_threads';
 import {
@@ -261,6 +262,7 @@ export function buildRecoveryInventory(): RecoveryInventory {
 function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   const files: Array<{ source: string; path: string }> = [
     { source: databaseSnapshot, path: 'deploy.db' },
+    { source: resolve(dirname(databaseSnapshot), 'requests.db'), path: 'requests.db' },
   ];
   const snapshot = new Database(databaseSnapshot, { readonly: true, fileMustExist: true });
   try {
@@ -467,6 +469,17 @@ function extractPayload(payload: RecoveryPayload, destinationDirectory: string):
 }
 
 function verifyExtractedDatabase(directory: string, payload: RecoveryPayload): void {
+  // Older bundles contain only deploy.db; startup imports their request history.
+  const requestsFile = resolve(directory, 'requests.db');
+  if (existsSync(requestsFile)) {
+    const requests = new Database(requestsFile, { readonly: true, fileMustExist: true });
+    try {
+      if (requests.pragma('integrity_check', { simple: true }) !== 'ok')
+        throw new Error('Recovered requests database failed integrity_check');
+    } finally {
+      requests.close();
+    }
+  }
   const database = new Database(resolve(directory, 'deploy.db'), {
     readonly: true,
     fileMustExist: true,
@@ -943,6 +956,9 @@ export async function createRecoveryBundle(input: {
   try {
     const databaseSnapshot = resolve(temporary, 'deploy.db');
     await getSqlite()!.backup(databaseSnapshot);
+    // Snapshot after deploy.db: during import the legacy source plus the atomic
+    // requests.db cursor can resume the full history on a replacement Home.
+    await getRequestsSqlite().backup(resolve(temporary, 'requests.db'));
     const snapshotDatabase = new Database(databaseSnapshot, {
       readonly: true,
       fileMustExist: true,

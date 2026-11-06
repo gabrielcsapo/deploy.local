@@ -1,3 +1,9 @@
+import {
+  getRequestsSqlite,
+  pruneRequests,
+  REQUEST_RETENTION_DAYS,
+  ROLLUP_RETENTION_DAYS,
+} from './requests-db.ts';
 import { legacyUpdateProtected } from './legacy-docker-update.ts';
 /**
  * Database maintenance tasks + periodic rsync backup
@@ -58,13 +64,13 @@ let _recoveryBoundaryScheduler: { stop(): void } | null = null;
 // ── Data retention ──────────────────────────────────────────────────────────
 
 const RETENTION_DAYS_METRICS = 30;
-const RETENTION_DAYS_REQUESTS = 90;
+const RETENTION_DAYS_REQUESTS = REQUEST_RETENTION_DAYS;
 // 5xx body captures are debugging artifacts, not analytics — two weeks is
 // plenty, and the per-app rate limit already bounds the steady-state count.
 const RETENTION_DAYS_CAPTURES = 14;
 // 1-minute rollups are tiny (one row per app per active minute) — keep ~13
 // months so year-over-year charts stay possible after raw rows age out.
-const RETENTION_DAYS_ROLLUPS = 396;
+const RETENTION_DAYS_ROLLUPS = ROLLUP_RETENTION_DAYS;
 
 function pruneOldData() {
   try {
@@ -72,18 +78,13 @@ function pruneOldData() {
     if (!sqlite) return;
 
     const metricsCutoff = Date.now() - RETENTION_DAYS_METRICS * 86_400_000;
-    const requestsCutoff = Date.now() - RETENTION_DAYS_REQUESTS * 86_400_000;
-    const rollupsCutoff = Date.now() - RETENTION_DAYS_ROLLUPS * 86_400_000;
 
     const metricsResult = sqlite
       .prepare('DELETE FROM resource_metrics WHERE timestamp < ?')
       .run(metricsCutoff);
-    const requestsResult = sqlite
-      .prepare('DELETE FROM request_logs WHERE timestamp < ?')
-      .run(requestsCutoff);
-    const rollupsResult = sqlite
-      .prepare('DELETE FROM request_logs_1m WHERE bucket_ms < ?')
-      .run(rollupsCutoff);
+    const pruned = pruneRequests();
+    const requestsResult = { changes: pruned.requests };
+    const rollupsResult = { changes: pruned.rollups };
 
     if (metricsResult.changes > 0 || requestsResult.changes > 0 || rollupsResult.changes > 0) {
       console.log(
@@ -129,13 +130,15 @@ function runIncrementalVacuum() {
 // committed-but-uncheckpointed data) — the restored copy may be corrupt or
 // stale exactly when it matters. better-sqlite3's backup API produces a
 // transactionally-consistent snapshot file; we ship that instead and exclude
-// the live DB files from the rsync.
+// the live DB files from the rsync. Restore both *.db.snapshot files to their
+// matching *.db names on an offline replacement.
 const DB_SNAPSHOT_NAME = 'deploy.db.snapshot';
 
-async function snapshotDatabase(): Promise<void> {
+export async function snapshotDatabase(): Promise<void> {
   const sqlite = getSqlite();
   if (!sqlite) throw new Error('SQLite not initialized');
   await sqlite.backup(resolve(DATA_DIR, DB_SNAPSHOT_NAME));
+  await getRequestsSqlite().backup(resolve(DATA_DIR, 'requests.db.snapshot'));
 }
 
 async function waitForBackupJob(jobId: string, nodeName: string) {
@@ -269,14 +272,20 @@ async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number;
       [
         '-a', // archive mode
         '--delete', // mirror deletions
-        // The live DB files are excluded — deploy.db.snapshot (written just
-        // above by the online backup API) is the consistent copy we ship.
+        // The live DB files are excluded; deploy.db.snapshot and
+        // requests.db.snapshot are consistent online-backup copies.
         '--exclude',
         'deploy.db',
         '--exclude',
         'deploy.db-wal',
         '--exclude',
         'deploy.db-shm',
+        '--exclude',
+        'requests.db',
+        '--exclude',
+        'requests.db-wal',
+        '--exclude',
+        'requests.db-shm',
         // Hosted packages are durable data; the refetchable copy and incomplete writes are not.
         '--exclude',
         '/packages/cache/',

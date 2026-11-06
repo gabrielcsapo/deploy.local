@@ -1,3 +1,4 @@
+import { getRequestsSqlite } from './requests-db.ts';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -70,14 +71,14 @@ describe('fleet telemetry synchronization', () => {
       createdAt: now,
       volumePaths: ['data', 'uploads'],
     });
-    sqlite
+    getRequestsSqlite()
       .prepare(
         `INSERT INTO request_logs
           (deployment_name, method, path, status, duration, timestamp, ip)
          VALUES ('notes', 'GET', '/private?token=secret', 200, 7, ?, '192.0.2.1')`,
       )
       .run(Date.now());
-    sqlite
+    getRequestsSqlite()
       .prepare(
         `INSERT INTO request_logs_1m
           (deployment_name, bucket_ms, count, errors_4xx, errors_5xx,

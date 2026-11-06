@@ -1,3 +1,4 @@
+import { initializeRequestStorage } from './server/requests-lifecycle.ts';
 import { CopyWarmer, cleanupCopies, queueAllCopies } from './server/packages/copies.ts';
 import './server/packages/hooks.ts';
 import { npmRegistry } from './server/packages/npm.ts';
@@ -19,6 +20,7 @@ import {
   flushRequestLogs,
   logRequest,
   getAllDeployments,
+  getSqlite,
 } from './server/store.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './server/certs.ts';
 import {
@@ -68,6 +70,7 @@ function serveCaCert(res: ServerResponse) {
 }
 
 async function main() {
+  initializeRequestStorage(getSqlite()!);
   // Generate CA + server certs on first startup, including all known
   // deployments. Both roles: the control plane owns cert generation; the
   // edge only reads them.

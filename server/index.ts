@@ -1,3 +1,4 @@
+import { initializeRequestStorage } from './requests-lifecycle.ts';
 import { terminalRelay } from './workspace/terminal-service.ts';
 import { createServer, request as httpRequest } from 'node:http';
 import { handleWebRedirect } from './web-redirects.ts';
@@ -7,7 +8,13 @@ import { setupWebSocket, attachWebSocketUpgrade } from './ws.ts';
 import { syncContainerStates, startAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
 import { startManagedWorkers, stopManagedWorkers } from './workspace/managed-worker.ts';
-import { cleanupStaleBuildLogs, flushRequestLogs, logRequest, getAllDeployments } from './store.ts';
+import {
+  cleanupStaleBuildLogs,
+  flushRequestLogs,
+  logRequest,
+  getAllDeployments,
+  getSqlite,
+} from './store.ts';
 import { notFoundPage } from './error-page.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
 import { serveInstallScript, serveWindowsInstallScript, serveCliRequest } from './cli-download.ts';
@@ -24,6 +31,8 @@ installCrashGuard();
 const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
 const VITE_PORT = parseInt(process.env.VITE_PORT || '5173', 10);
+
+initializeRequestStorage(getSqlite()!);
 
 // Generate CA + server certs on first startup, including all known deployments
 const deploymentNames = getAllDeployments().map((d) => d.name);

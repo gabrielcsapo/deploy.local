@@ -2,11 +2,12 @@
  * A web app's requests: the Requests tab and one request opened.
  *
  * Counts and the chart read the 1-minute rollups (request_logs_1m); percentiles, paths and the
- * list read request_logs (kept 90 days). Server errors carry a capture with what was sent and
+ * list read request_logs (kept 84 days). Server errors carry a capture with what was sent and
  * what came back (kept 14 days), read back with secrets hidden.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getDeployment, getSqlite } from '../store.ts';
+import { getDeployment } from '../store.ts';
+import { getRequestsSqlite } from '../requests-db.ts';
 import { readCapture, type CaptureRecord } from '../capture.ts';
 import { list } from '../workspace/store.ts';
 import { fail } from './inbox.ts';
@@ -148,7 +149,7 @@ export function describeBrowser(agent: string | null): string | null {
 
 function percentile(name: string, from: number, to: number, total: number, p: number) {
   if (!total) return 0;
-  const row = getSqlite()!
+  const row = getRequestsSqlite()
     .prepare(
       `SELECT duration FROM request_logs WHERE deployment_name = ? AND timestamp >= ? AND timestamp <= ?
        ORDER BY duration LIMIT 1 OFFSET ?`,
@@ -166,7 +167,7 @@ export async function requestSummary(
   now = Date.now(),
 ) {
   ownedWebApp(owner, name);
-  const db = getSqlite()!;
+  const db = getRequestsSqlite();
   const { ms, bucketMs } = REQUEST_RANGES[range];
   const to = now;
   const from = now - ms;
@@ -371,7 +372,7 @@ export function requestList(
   if (show === 'server') where.push('status >= 500');
   if (show === 'client') where.push('status >= 400 AND status < 500');
   if (show === 'slow') where.push(`duration >= ${SLOW_MS}`);
-  const db = getSqlite()!;
+  const db = getRequestsSqlite();
   const { total } = db
     .prepare(`SELECT count(*) AS total FROM request_logs WHERE ${where.join(' AND ')}`)
     .get(...params) as { total: number };
@@ -386,7 +387,7 @@ export function requestList(
 
 export async function requestDetail(owner: string, name: string, id: number, now = Date.now()) {
   ownedWebApp(owner, name);
-  const db = getSqlite()!;
+  const db = getRequestsSqlite();
   const row = db
     .prepare(
       `SELECT id, timestamp AS at, method, path, query_params AS query, status, duration, ip,

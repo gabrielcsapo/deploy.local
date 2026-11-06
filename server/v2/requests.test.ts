@@ -1,3 +1,4 @@
+import { getRequestsSqlite } from '../requests-db.ts';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -7,8 +8,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { routeFetch } from './test-request.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-requests-test-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { saveDeployment, registerUser, authenticate, getSqlite, _resetDb } =
-  await import('../store.ts');
+const { saveDeployment, registerUser, authenticate, _resetDb } = await import('../store.ts');
 const { db, save } = await import('../workspace/store.ts');
 const { writeCapture } = await import('../capture.ts');
 const { describeBrowser, errorReason, normalizePath, pathFilter } = await import('./requests.ts');
@@ -52,7 +52,7 @@ save('v2-release', owner, {
 });
 
 // Two hours of traffic: fast pages all along, then a slow export that times out after the release.
-const sqlite = getSqlite()!;
+const sqlite = getRequestsSqlite();
 const insert = sqlite.prepare(
   `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id)
    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
