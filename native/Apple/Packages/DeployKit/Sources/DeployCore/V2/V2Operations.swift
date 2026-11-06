@@ -180,6 +180,18 @@ public enum V2Labels {
         formatter.dateFormat = days < 14 ? "EEEE, HH:mm" : "d MMM, HH:mm"
         return (days >= 7 && days < 14 ? "Last " : "") + formatter.string(from: date)
     }
+    /// A version is a record, so its date stays readable a year later: the year is always there.
+    public static func versionDate(_ value: String, now: Date = Date(), calendar: Calendar = .current) -> String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = iso.date(from: value) ?? ISO8601DateFormatter().date(from: value) else { return "Unavailable" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar; formatter.timeZone = calendar.timeZone
+        let today = calendar.isDate(date, inSameDayAs: now)
+        formatter.dateFormat = today ? "h:mm a" : "MMM d, yyyy"
+        return (today ? "Today, " : "") + formatter.string(from: date)
+    }
     public static func shortDate(_ value: String, now: Date = Date(), calendar: Calendar = .current) -> String {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

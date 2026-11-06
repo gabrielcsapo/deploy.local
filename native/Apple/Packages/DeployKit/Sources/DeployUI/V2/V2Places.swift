@@ -168,6 +168,7 @@ struct V2SettingsView: View {
     @State private var backups = false
     @State private var packages = false
     @State private var packageSummary: String?
+    @State private var summaryRefresh = 0
     @State private var notifications = false
     @State private var devices = false
     @State private var approvals = false
@@ -233,7 +234,7 @@ struct V2SettingsView: View {
                         }
                         Divider()
                         Button { packages = true } label: {
-                            V2SettingsRow(title: "Packages", subtitle: packageSummary, icon: "shippingbox") { V2SettingsChevron() }
+                            V2SettingsRow(title: "Packages", subtitle: packageSummary ?? "Checking…", icon: "shippingbox") { V2SettingsChevron() }
                         }
                     }
                     V2SettingsGroup(title: "Display") {
@@ -255,19 +256,19 @@ struct V2SettingsView: View {
                     Text("Screen use, removing data and secrets stay on a computer.")
                         .font(.system(size: 13)).lineSpacing(2).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                         .padding(.horizontal, 16).padding(.top, 12)
+                    Text("Credits\nAgent avatars: Glyphs by Matt Houser, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via DiceBear")
+                        .font(.system(size: 13)).lineSpacing(2).foregroundStyle(WorkspaceStyle.tertiary(scheme)).tint(WorkspaceStyle.accent(scheme))
+                        .padding(.horizontal, 16).padding(.top, 12)
                     V2SettingsGroup {
                         Button(role: .destructive, action: signOut) {
                             Text("Sign out").font(.system(size: 16, weight: .medium)).foregroundStyle(WorkspaceStyle.danger(scheme))
                                 .frame(maxWidth: .infinity, minHeight: 56).contentShape(Rectangle())
                         }
                     }.padding(.top, 36)
-                    V2SettingsGroup(title: "Credits") {
-                        Text("Avatars: DiceBear Glyphs by Matt Houser, a remix of Abstract Avatars for All Creative Profile Use.").font(.system(size: 13)).padding(16)
-                        Link("CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!).font(.system(size: 13)).padding(.horizontal, 16).padding(.bottom, 16)
-                    }
                 }.padding(.horizontal, 16).padding(.bottom, 32)
             }
-        }.scrollIndicators(.hidden).buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
+        }.defaultScrollAnchor(V2Evidence.board == "SettingsPackagesRowPhone" ? .bottom : .top)
+        .scrollIndicators(.hidden).buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
         .confirmationDialog("Forget SER's certificate?", isPresented: $forgetCertificate, titleVisibility: .visible) {
             Button("Forget", role: .destructive) { forget() }
             Button("Cancel", role: .cancel) { }
@@ -275,25 +276,39 @@ struct V2SettingsView: View {
             Text("This removes this app's saved certificate trust for \(store.connection.origin.replacingOccurrences(of: "https://", with: "")) and signs you out of this connection. Your next password sign-in checks again unless iOS already trusts it. Other apps are unaffected.")
         }
         .sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
-        .sheet(isPresented: $packages) { NavigationStack { V2PackagesView(store: store).toolbar { Button("Done") { packages = false } } } }
+        .sheet(isPresented: $packages, onDismiss: { summaryRefresh += 1 }) { NavigationStack { V2PackagesView(store: store).toolbar { Button("Done") { packages = false } } } }
         .sheet(isPresented: $notifications) { V2NotificationSettings(store: store) }
         .sheet(isPresented: $devices) { V2DevicesView(store: store) }
-        .sheet(isPresented: $approvals) { V2SettingsApprovals(store: store) }
+        .sheet(isPresented: $approvals, onDismiss: { summaryRefresh += 1 }) { V2SettingsApprovals(store: store) }
         .task {
-            if V2Evidence.board == "PackagesPhone" { packages = true }
+            if V2Evidence.board == "PackagesPhone" || V2Evidence.board == "PackageVersionsPhone" { packages = true }
             if V2Evidence.board == "RestorePhone" { backups = true }
             if V2Evidence.board == "SettingsApprovalsPhone" { approvals = true }
             if V2Evidence.agentsBoard == .rules { approvals = true }
         }
-        .task(id: store.snapshot.updatedAt) {
-            // A failed read leaves the real names visible without guessing at permissions.
-            approvalRules = try? await store.client.approvals()
-            do {
-                async let list = store.client.packages()
-                async let status = store.client.packageCopies()
-                let (items, copies) = try await (list, status)
-                packageSummary = "\(items.count) private · \(copies.keptDescription.lowercased())"
-            } catch { packageSummary = nil }
+        // Not keyed on snapshot.updatedAt: that changes with every event, and these read the whole
+        // package cache. Each minute matches web, and so does npmjs.org's own check.
+        .task(id: "\(summaryRefresh)-\(store.online)") {
+            while !Task.isCancelled {
+                await refreshSummaries()
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+    }
+    private func refreshSummaries() async {
+        // A failed read leaves the real names visible without guessing at permissions.
+        let rules = try? await store.client.approvals()
+        guard !Task.isCancelled else { return }
+        approvalRules = rules
+        do {
+            async let list = store.client.packages()
+            async let status = store.client.packageCopies()
+            let (items, copies) = try await (list, status)
+            guard !Task.isCancelled else { return }
+            packageSummary = copies.summary(privateCount: items.count)
+        } catch {
+            guard !Task.isCancelled else { return }
+            packageSummary = "Could not be checked"
         }
     }
     private func forget() {

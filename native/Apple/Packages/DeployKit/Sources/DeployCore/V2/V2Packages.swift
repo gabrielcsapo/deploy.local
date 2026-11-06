@@ -7,6 +7,8 @@ public struct V2Package: Decodable, Identifiable, Sendable {
     public var ecosystem: String
     public var project: String?
     public var latest: Latest?
+    public var kindLabel: String { ecosystem == "cargo" ? "Cargo crate" : ecosystem }
+    public var subtitle: String { kindLabel + (project.map { " · from \($0)" } ?? "") }
 }
 public struct V2PackageVersion: Decodable, Identifiable, Sendable {
     public struct Pipeline: Decodable, Sendable { public var id: String; public var pullNumber: Int? }
@@ -40,16 +42,41 @@ public struct V2PackageCopies: Decodable, Sendable {
         public var checkedAt: String?
         public var removed: [Removed]
     }
-    public struct Storage: Decodable, Sendable { public var bytes: Double }
+    public struct Storage: Decodable, Sendable {
+        public var bytes: Double
+        public var limit: Double?
+        /// Reads the same as web for the same bytes: gigabytes of 1024³, then the limit.
+        public var description: String {
+            let gigabyte = 1_073_741_824.0
+            let used = String(format: "%.1f GB", locale: Locale(identifier: "en_US_POSIX"), bytes / gigabyte)
+            guard let limit else { return used }
+            let total = limit / gigabyte
+            let format = total == total.rounded() ? "%.0f GB" : "%.1f GB"
+            return "\(used) of \(String(format: format, locale: Locale(identifier: "en_US_POSIX"), total))"
+        }
+    }
     public var sources: [Source]
     public var projects: [Project]
     public var storage: Storage
     public var keptDescription: String {
-        let missing = projects.reduce(0) { $0 + $1.missing }
-        if projects.contains(where: { !$0.removed.isEmpty }) { return "Removed" }
-        if missing > 0 { return "\(missing) missing" }
+        if let problem { return problem }
         if projects.contains(where: { $0.checkedAt == nil }) { return "Not checked yet" }
         return "Nothing missing"
+    }
+    /// What the Settings row says after the count, worst first: a source being down
+    /// outranks "nothing missing", but not a package that can't be installed at all.
+    public func summary(privateCount: Int) -> String {
+        let state: String
+        if let problem { state = problem }
+        else if sources.contains(where: { !$0.reachable }) { state = "using copies" }
+        else { state = keptDescription.lowercased() }
+        return "\(privateCount) private · \(state)"
+    }
+    private var problem: String? {
+        let removed = projects.reduce(0) { $0 + $1.removed.count }
+        if removed > 0 { return "\(removed) removed" }
+        let missing = projects.reduce(0) { $0 + $1.missing }
+        return missing > 0 ? "\(missing) missing" : nil
     }
 }
 extension V2Client {
