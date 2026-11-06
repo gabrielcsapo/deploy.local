@@ -1171,6 +1171,7 @@ export const history = sqliteTable(
   }),
 );
 
+// Definitions retained here for Drizzle/rollback schema compatibility. Runtime uses requests.db.
 export const requestLogs = sqliteTable(
   'request_logs',
   {
@@ -1202,7 +1203,7 @@ export const requestLogs = sqliteTable(
 
 // 1-minute rollups of request_logs, upserted by the log-flush transaction.
 // Fleet-wide and long-range chart queries read these instead of scanning raw
-// per-request rows; raw rows are kept (90d) for per-path detail and exact
+// per-request rows; raw rows are kept (84d) for per-path detail and exact
 // percentiles.
 export const requestLogs1m = sqliteTable(
   'request_logs_1m',

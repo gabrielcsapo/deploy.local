@@ -1,3 +1,4 @@
+import { getRequestsSqlite } from './requests-db.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, generateKeyPairSync } from 'node:crypto';
@@ -187,6 +188,11 @@ describe('encrypted Home recovery bundle', () => {
       'hosted package bytes',
     );
     writeFileSync(join(root, 'home', 'packages', 'cache', 'fixture'), 'refetchable bytes');
+    getRequestsSqlite()
+      .prepare(`INSERT INTO request_logs
+      (deployment_name,method,path,status,duration,timestamp)
+      VALUES ('calendar','GET','/recovery-history',200,7,?)`)
+      .run(Date.now());
     const bundlePath = join(root, 'recovery.bundle');
     const passphrase = 'correct horse suitcase battery';
     const created = await recovery.createRecoveryBundle({ outputPath: bundlePath, passphrase });
@@ -224,6 +230,12 @@ describe('encrypted Home recovery bundle', () => {
     assert.equal(existsSync(join(replacement, 'packages', 'cache')), false);
     assert.deepEqual(readFileSync(join(replacement, 'certs', 'ca.key')), fleetCaKey);
     assert.deepEqual(readFileSync(join(replacement, 'certs', 'ca.crt')), fleetCaCertificate);
+    const requests = new Database(join(replacement, 'requests.db'), { readonly: true });
+    assert.equal(
+      (requests.prepare('SELECT path FROM request_logs').get() as { path: string }).path,
+      '/recovery-history',
+    );
+    requests.close();
     const database = new Database(join(replacement, 'deploy.db'), { readonly: true });
     try {
       const app = database

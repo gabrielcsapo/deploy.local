@@ -12,12 +12,11 @@ import { trackCiWorker } from './ci-fence.ts';
  * INSERT + rollup-upsert transaction off the event loop.
  */
 
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
-import { deployDataPath } from './data-directory.ts';
+import { openRequestsDb, requestsDbFile } from './requests-db.ts';
+import { packageWorkerFile } from './packages/worker-file.ts';
 
 export interface RequestEntry {
   method: string;
@@ -36,7 +35,7 @@ export interface RequestEntry {
 }
 
 function resolveDbFile(): string {
-  return deployDataPath('deploy.db');
+  return requestsDbFile();
 }
 
 const REQUEST_LOG_BUFFER: Array<{ name: string; entry: RequestEntry }> = [];
@@ -93,17 +92,24 @@ function getLogWorker(dbFile: string): Worker | null {
     // entry; dev (tsx) loads the .ts source. The old code hardcoded the .ts
     // URL, which silently never resolved from inside the dist bundle — the
     // worker was disabled in production without anyone noticing.
-    const jsUrl = new URL('./log-worker.js', import.meta.url);
-    const workerUrl = existsSync(fileURLToPath(jsUrl))
-      ? jsUrl
-      : new URL('./log-worker.ts', import.meta.url);
+    const workerUrl = packageWorkerFile(import.meta.url, 'log-worker.js', './log-worker.ts');
     // Forward only module-loading flags (tsx/TS stripping) — without them,
     // .ts worker URLs fail to load under tsx. Forwarding ALL of execArgv
     // breaks spawn entirely: NODE_OPTIONS-derived flags like
     // --tls-cipher-list are rejected as invalid Worker execArgv.
-    const tsFlags = process.execArgv.filter((a) =>
-      /strip-types|transform-types|--loader|--import|--require|--experimental/.test(a),
-    );
+    const tsFlags: string[] = [];
+    for (let i = 0; i < process.execArgv.length; i++) {
+      const flag = process.execArgv[i];
+      if (/^--(?:import|require|loader|experimental-loader)$/.test(flag)) {
+        tsFlags.push(flag, process.execArgv[++i]);
+      } else if (
+        /^--(?:import=|require=|loader=|experimental-loader=|experimental-strip-types$|experimental-transform-types$)/.test(
+          flag,
+        )
+      ) {
+        tsFlags.push(flag);
+      }
+    }
     logWorker = trackCiWorker(
       new Worker(workerUrl, {
         workerData: { dbFile },
@@ -112,13 +118,16 @@ function getLogWorker(dbFile: string): Worker | null {
     );
     // The worker must not keep the process alive on its own — servers hold
     // their own handles, and test runners need to exit when suites finish.
+    const current = logWorker;
     logWorker.unref();
     logWorker.on('error', (err) => {
+      if (logWorker !== current) return;
       console.error('[request-log] worker errored, falling back to in-process flush:', err);
       logWorker = null;
       logWorkerDisabled = true;
     });
     logWorker.on('exit', (code) => {
+      if (logWorker !== current) return;
       if (code !== 0) {
         console.warn(`[request-log] worker exited with code ${code}`);
       }
@@ -142,10 +151,7 @@ let _fallbackTx: ((items: Array<{ name: string; entry: RequestEntry }>) => void)
 
 function ensureFallbackTx(dbFile: string) {
   if (_fallbackTx) return _fallbackTx;
-  const sqlite = new Database(dbFile);
-  sqlite.pragma('journal_mode = WAL');
-  sqlite.pragma('synchronous = NORMAL');
-  sqlite.pragma('busy_timeout = 5000');
+  const sqlite = openRequestsDb(dbFile);
   _fallbackDb = sqlite;
 
   const insert = sqlite.prepare(
@@ -223,4 +229,13 @@ export function flushRequestLogs() {
     // acceptable; pinning the event loop on a failing transaction is not.
     console.error('[request-log] flush failed:', err);
   }
+}
+
+/** Test/store teardown must close every writer, including buffered old-directory rows. */
+export function resetRequestLogWriter() {
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
+  REQUEST_LOG_BUFFER.length = 0;
+  resetForDbChange('');
+  activeDbFile = null;
 }

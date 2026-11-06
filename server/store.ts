@@ -60,7 +60,9 @@ import {
 } from './schema.ts';
 import { type RawContainerStats } from './docker.ts';
 import { isCrashLooping } from './crash-tracker.ts';
-import { ROLLUP_BACKFILL_SQL } from './rollup.ts';
+import { getRequestsDb, getRequestsSqlite } from './requests-db.ts';
+import { resetRequestStorage } from './requests-lifecycle.ts';
+import { resetRequestLogWriter } from './request-log.ts';
 import { notifyRouteChanged } from './ipc.ts';
 import { decryptSecret, encryptSecret, loadOrCreateSecretKey } from './secrets.ts';
 import { deployDataDirectory, deployDataPath } from './data-directory.ts';
@@ -80,8 +82,7 @@ export function getDb() {
 
   _sqlite = new Database(DB_FILE);
   _sqlite.pragma('journal_mode = WAL');
-  // Multiple connections write to this DB (main thread, log-worker thread,
-  // and — post edge-split — a second process). Without a busy timeout a
+  // Multiple control-plane connections write to this DB. Without a busy timeout a
   // colliding write transaction throws SQLITE_BUSY instead of waiting.
   _sqlite.pragma('busy_timeout = 5000');
   // Incremental auto-vacuum reclaims space without the multi-second global lock
@@ -98,29 +99,6 @@ export function getDb() {
   // doesn't leave _db in an un-migrated state
   migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') });
 
-  // One-time rollup backfill: aggregate existing raw request_logs into
-  // request_logs_1m the first time we open a DB that has raw rows but an
-  // empty rollup table. A few seconds for 90 days of logs, once.
-  try {
-    const rollupCount = (
-      _sqlite.prepare('SELECT count(*) AS c FROM request_logs_1m').get() as { c: number }
-    ).c;
-    if (rollupCount === 0) {
-      const rawCount = (
-        _sqlite.prepare('SELECT count(*) AS c FROM request_logs').get() as { c: number }
-      ).c;
-      if (rawCount > 0) {
-        const start = Date.now();
-        _sqlite.prepare(ROLLUP_BACKFILL_SQL).run();
-        console.log(
-          `[store] Backfilled request_logs_1m from ${rawCount} raw rows in ${Date.now() - start}ms`,
-        );
-      }
-    }
-  } catch (err) {
-    console.warn('[store] rollup backfill failed (will retry next start):', err);
-  }
-
   _db = db;
   backfillApplicationRevisionArtifacts();
   return _db;
@@ -132,6 +110,8 @@ export function getSqlite() {
 }
 
 export function _resetDb() {
+  resetRequestLogWriter();
+  resetRequestStorage();
   if (_sqlite) _sqlite.close();
   _sqlite = null;
   _db = null;
@@ -1872,7 +1852,7 @@ export function getRequestLogs(
     toTimestamp?: number;
   },
 ) {
-  const db = getDb();
+  const db = getRequestsDb();
   const page = options?.page || 1;
   const limit = options?.limit || 100;
   const offset = (page - 1) * limit;
@@ -1942,7 +1922,7 @@ export function getRequestSummary(
   name: string,
   options?: { fromTimestamp?: number; toTimestamp?: number },
 ) {
-  const db = getDb();
+  const db = getRequestsDb();
 
   let conditions = [eq(requestLogs.deploymentName, name)];
 
@@ -2169,7 +2149,7 @@ export function getDashboardAggregate(): DashboardAggregate {
 
   // Request aggregates per app over last 60s. Single query, GROUP BY app.
   // Force the time index so missing planner statistics cannot cause a full scan for GROUP BY.
-  const reqRows = sqlite
+  const reqRows = getRequestsSqlite()
     .prepare(
       `SELECT deployment_name as deploymentName,
               count(*) as total,
@@ -2184,7 +2164,7 @@ export function getDashboardAggregate(): DashboardAggregate {
   // p95 per app — separate query (fetch durations, sort in JS). Bounded by
   // 60s of data; cheap for typical deployments. For huge volumes we'd switch
   // to a t-digest, but at home-PaaS scale this is fine.
-  const p95Stmt = sqlite.prepare(
+  const p95Stmt = getRequestsSqlite().prepare(
     `SELECT duration FROM request_logs
      WHERE deployment_name = ? AND timestamp >= ?
      ORDER BY duration`,
@@ -2540,7 +2520,7 @@ export function getCurrentHealth(name: string): CurrentHealth {
 
   // Requests in the last minute → rps + err pct
   const oneMinAgo = Date.now() - 60_000;
-  const reqAgg = db
+  const reqAgg = getRequestsDb()
     .select({
       total: sql<number>`count(*)`,
       errors: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
@@ -2557,7 +2537,7 @@ export function getCurrentHealth(name: string): CurrentHealth {
   // Bounded by 60s of traffic — cheap; for huge volumes we'd want a t-digest.
   let p95Ms: number | null = null;
   if (total > 0) {
-    const durations = db
+    const durations = getRequestsDb()
       .select({ duration: requestLogs.duration })
       .from(requestLogs)
       .where(and(eq(requestLogs.deploymentName, name), gte(requestLogs.timestamp, oneMinAgo)))
@@ -2654,7 +2634,7 @@ export function getRequestSeries(
   fromMs: number,
   toMs: number,
 ): { bucketMs: number; series: RequestSeriesPoint[] } {
-  const db = getDb();
+  const db = getRequestsDb();
   const bucketMs = pickBucketMs(toMs - fromMs);
 
   // Aggregate counts by bucket + status class in a single query.

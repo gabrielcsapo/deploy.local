@@ -93,6 +93,6 @@ Codex implements on its own branch. Claude verifies, measures against step 1 and
 The owner confirmed the Mac app is the Electron app. The rest were left open, so this plan takes the choice that loses nothing:
 
 1. **Wander and Groffee migrations:** kept. Both apps still exist on SER.
-2. **Request logs:** raw logs stay at 84 days. Step 6 moves them without shortening that.
+2. **Request logs:** raw logs stay at the 90-day setting (84 days exist today). Step 6 moves them without shortening that.
 3. **Old backups:** nothing is deleted without the owner's word.
 4. **`/api/discover` and `embed/computers`:** removed if a final search finds no caller.

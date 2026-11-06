@@ -14,7 +14,7 @@
  * loop is never blocked by request-log flushes.
  */
 import { parentPort, workerData } from 'node:worker_threads';
-import Database from 'better-sqlite3';
+import { openRequestsDb } from './requests-db.ts';
 import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
 
 interface RequestEntry {
@@ -40,12 +40,7 @@ interface FlushMessage {
 
 const { dbFile } = workerData as { dbFile: string };
 
-const sqlite = new Database(dbFile);
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('synchronous = NORMAL');
-// Wait out concurrent writers (main thread / other process) instead of
-// throwing SQLITE_BUSY and dropping the batch.
-sqlite.pragma('busy_timeout = 5000');
+const sqlite = openRequestsDb(dbFile);
 
 const insert = sqlite.prepare<
   [

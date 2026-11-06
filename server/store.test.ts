@@ -1,3 +1,4 @@
+import { getRequestsSqlite } from './requests-db.ts';
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -810,7 +811,7 @@ describe('store – dashboard aggregate', () => {
     for (const name of ['alpha', 'beta', 'idle']) {
       store.saveDeployment({ name, username: 'alice', port: 3001 });
     }
-    const insert = store.getSqlite().prepare(
+    const insert = getRequestsSqlite().prepare(
       `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp)
        VALUES (?, 'GET', '/', ?, 10, ?)`,
     );
@@ -893,14 +894,14 @@ describe('store – request_logs_1m rollups', () => {
     }
     store.flushRequestLogs();
 
-    const sqlite = store.getSqlite();
+    const sqlite = getRequestsSqlite();
     const deadline = Date.now() + 5000;
-    let rows = [];
+    let rows: Array<Record<string, number>> = [];
     while (rows.length < 2 && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 50));
       rows = sqlite
         .prepare('SELECT * FROM request_logs_1m WHERE deployment_name = ? ORDER BY bucket_ms')
-        .all('rollapp');
+        .all('rollapp') as Array<Record<string, number>>;
     }
 
     assert.equal(rows.length, 2);
@@ -930,10 +931,60 @@ describe('store – request_logs_1m rollups', () => {
       await new Promise((r) => setTimeout(r, 50));
       updated = sqlite
         .prepare('SELECT * FROM request_logs_1m WHERE deployment_name = ? AND bucket_ms = ?')
-        .get('rollapp', base);
+        .get('rollapp', base) as Record<string, number>;
     }
     assert.equal(updated.count, 4);
     assert.equal(updated.errors_5xx, 2);
     assert.equal(updated.duration_min, 5);
+  });
+});
+
+describe('store – request series and health in requests.db', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+  it('keeps status buckets, filters, percentiles and health values', async (t) => {
+    const fixedNow = Math.floor(Date.now() / 60_000) * 60_000 + 30_000;
+    t.mock.method(Date, 'now', () => fixedNow);
+    const store = await loadStore();
+    store.saveDeployment({ name: 'series', username: 'alice', port: 3001 });
+    const now = Date.now();
+    const base = Math.floor((now - 60_000) / 60_000) * 60_000;
+    const insert = getRequestsSqlite().prepare(`INSERT INTO request_logs
+      (deployment_name,method,path,status,duration,timestamp) VALUES('series','GET',?,?,?,?)`);
+    insert.run('/old', 200, 5, base + 1);
+    insert.run('/ok', 200, 10, now - 2);
+    insert.run('/redirect', 302, 20, now - 2);
+    insert.run('/client', 404, 30, now - 1);
+    insert.run('/error', 500, 40, now - 1);
+    const series = store.getRequestSeries('series', base, now);
+    assert.equal(series.bucketMs, 60_000);
+    const last = series.series.at(-1);
+    assert.deepEqual(last, {
+      bucket: Math.floor(now / 60_000) * 60_000,
+      s2xx: 1,
+      s3xx: 1,
+      s4xx: 1,
+      s5xx: 1,
+      p50: 30,
+      p95: 40,
+      p99: 40,
+      count: 4,
+    });
+    assert.equal(
+      series.series.reduce((n: number, p: { count: number }) => n + p.count, 0),
+      5,
+    );
+    assert.equal(store.getRequestLogs('series', { statusFilter: '5xx' }).logs[0].path, '/error');
+    const health = store.getCurrentHealth('series');
+    assert.equal(health.rps, 4 / 60);
+    assert.equal(health.errPct, 25);
+    assert.equal(health.p95Ms, 40);
+    assert.equal(store.getRequestSummary('missing').total, 0);
+    assert.equal(
+      store
+        .getRequestSeries('missing', base, now)
+        .series.every((p: { count: number }) => p.count === 0),
+      true,
+    );
   });
 });

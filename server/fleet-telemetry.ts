@@ -1,3 +1,4 @@
+import { getRequestsSqlite } from './requests-db.ts';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -282,7 +283,7 @@ export async function collectLocalFleetTelemetry(input: {
       artifactDigests,
     });
   }
-  const rollups = sqlite
+  const rollups = getRequestsSqlite()
     .prepare('SELECT * FROM request_logs_1m ORDER BY deployment_name, bucket_ms')
     .all() as Array<Record<string, unknown>>;
   for (const row of rollups) {

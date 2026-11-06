@@ -59,6 +59,12 @@ await build({
   outfile: resolve(root, 'dist/log-worker.js'),
 });
 
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/requests-copy-worker.ts')],
+  outfile: resolve(root, 'dist/requests-copy-worker.js'),
+});
+
 for (const [entry, name] of [
   ['pipeline-worker', 'workspace-pipeline-worker'],
   ['recovery', 'workspace-recovery'],

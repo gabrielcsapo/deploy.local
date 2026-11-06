@@ -1,3 +1,4 @@
+import { getRequestsSqlite } from './requests-db.ts';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,10 +24,12 @@ it('uses DEPLOY_DATA_DIR for the database, volumes, backups, and content state',
   const volumes = await import(`./volumes.ts?data-directory=${Date.now()}`);
   const dataDirectory = await import(`./data-directory.ts?data-directory=${Date.now()}`);
   store.getSqlite();
+  getRequestsSqlite();
   const volume = volumes.getVolumeDir('notes');
   const backup = volumes.getBackupDir('notes');
   assert.equal(volume, join(root, 'volumes', 'notes'));
   assert.equal(backup, join(root, 'backups', 'notes'));
   assert.equal(dataDirectory.deployDataPath('blobs'), join(root, 'blobs'));
   assert.equal(existsSync(join(root, 'deploy.db')), true);
+  assert.equal(existsSync(join(root, 'requests.db')), true);
 });
