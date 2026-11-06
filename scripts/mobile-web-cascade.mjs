@@ -20,7 +20,6 @@ export const legacyFiles = [
   'app/routes/dashboard/workspace.css',
   'app/native-workspace.css',
   'app/routes/dashboard/workspace-rail.css',
-  'app/routes/dashboard/repository-management.css',
   'app/routes/dashboard/repository-workbench.css',
   'app/components/ui/ui.css',
 ];

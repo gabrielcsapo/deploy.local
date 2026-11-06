@@ -1,6 +1,5 @@
 /* Motion is a semantic part of design-tokens.json, shared by React and Tailwind. */
 :is(.ui-button, .btn, .wr-action, .wr-brand, .ui-select, .ui-input),
-.project-workspace :is(.ui-button, .btn),
 .ds-context-links :is(a, button),
 .ds-resource-table tbody tr {
   transition:
@@ -20,13 +19,10 @@
 .ds-motion-enter {
   animation: ds-reveal var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
 }
-.ds-dialog-surface,
-.pw-project-dialog[open],
-.project-workspace [role='dialog'] {
+.ds-dialog-surface {
   animation: ds-overlay-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
 }
-.ds-dialog-backdrop,
-.pw-project-dialog::backdrop {
+.ds-dialog-backdrop {
   animation: ds-fade-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
 }
 :is(.pw-model-popover, .wr-account-popover):popover-open,
@@ -44,11 +40,6 @@
 @supports (appearance: base-select) {
   .ui-select::picker(select) {
     animation: ds-overlay-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
-  }
-}
-@media (max-width: 760px) {
-  .project-workspace.show-sidebar > .pw-sidebar {
-    animation: ds-drawer-in var(--ds-motion-duration-drawer) var(--ds-motion-easing-enter) both;
   }
 }
 @keyframes ds-fade-in {

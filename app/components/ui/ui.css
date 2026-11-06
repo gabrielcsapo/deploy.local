@@ -1,6 +1,5 @@
 /* Shared React primitives. Colors and dimensions resolve to design-tokens.json. */
 .ui-switch,
-.project-workspace button.ui-switch,
 .dashboard-shell button.ui-switch {
   display: inline-flex;
   align-items: center;
@@ -15,7 +14,6 @@
   background: transparent;
   cursor: pointer;
 }
-.project-workspace button.ui-switch:hover,
 .dashboard-shell button.ui-switch:hover {
   background: transparent;
 }
@@ -50,7 +48,6 @@
 }
 @media (pointer: coarse), (width < 640px) {
   .ui-switch,
-  .project-workspace button.ui-switch,
   .dashboard-shell button.ui-switch {
     min-height: var(--ds-size-touchControl);
   }
@@ -61,7 +58,6 @@
   }
 }
 .ui-select,
-.project-workspace select.ui-select,
 .dashboard-shell select.ui-select {
   min-width: 0;
   max-width: 100%;
@@ -147,8 +143,7 @@
     color: var(--ds-accent);
   }
 }
-.ui-button,
-.project-workspace .ui-button {
+.ui-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -162,33 +157,27 @@
   font: 600 var(--ds-form-fontSize)/1.4 var(--ds-font);
   cursor: pointer;
 }
-.ui-button:hover,
-.project-workspace .ui-button:hover {
+.ui-button:hover {
   background: var(--ds-hover);
 }
-.ui-button-primary,
-.project-workspace .ui-button-primary {
+.ui-button-primary {
   background: var(--ds-action);
   color: var(--ds-onAction);
   border-color: transparent;
 }
-.ui-button-primary:hover,
-.project-workspace .ui-button-primary:hover {
+.ui-button-primary:hover {
   background: var(--ds-actionHover);
 }
-.ui-button-quiet,
-.project-workspace .ui-button-quiet {
+.ui-button-quiet {
   background: transparent;
   border-color: transparent;
 }
-.ui-button-danger,
-.project-workspace .ui-button-danger {
+.ui-button-danger {
   color: var(--ds-danger);
 }
 /* Tertiary actions are quiet text, never boxes: secondary at rest, ink and an underline on
    hover or focus (docs/design-system.md, Action hierarchy). */
-.ui-button-link,
-.project-workspace .ui-button-link {
+.ui-button-link {
   min-height: auto;
   padding: 0;
   border-color: transparent;
@@ -199,14 +188,12 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
-.ui-button-link:is(:hover, :focus-visible),
-.project-workspace .ui-button-link:is(:hover, :focus-visible) {
+.ui-button-link:is(:hover, :focus-visible) {
   background: transparent;
   color: var(--ds-ink);
   text-decoration: underline;
 }
-.ui-button:disabled,
-.project-workspace .ui-button:disabled {
+.ui-button:disabled {
   background: var(--ds-hover);
   color: var(--ds-muted);
   border-color: var(--ds-line);
@@ -214,8 +201,7 @@
   opacity: 1;
   cursor: default;
 }
-.ui-button-link:disabled,
-.project-workspace .ui-button-link:disabled {
+.ui-button-link:disabled {
   background: transparent;
   border-color: transparent;
   color: var(--ds-muted);
@@ -304,12 +290,10 @@
 /* Controls keep their desktop size on phones; 44px controls read as oversized and crowd a
    row. Touch gets the 44px target invisibly: the button's hit area extends past its edges. */
 @media (pointer: coarse) {
-  .ui-button,
-  .project-workspace .ui-button {
+  .ui-button {
     position: relative;
   }
-  .ui-button::before,
-  .project-workspace .ui-button::before {
+  .ui-button::before {
     content: '';
     position: absolute;
     inset: calc((var(--ds-size-desktopControl) - var(--ds-size-touchControl)) / 2) 0;
@@ -545,11 +529,6 @@
   padding: var(--ds-space-2);
   color: var(--ds-secondary);
 }
-.ui-overflow-menu > .ui-copy-menu-row {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-2);
-}
 .ui-copy-menu-item {
   display: flex;
   align-items: center;
@@ -574,10 +553,6 @@
 }
 
 /* Shared resource pages. The link stretches behind sibling utilities. */
-.ui-list-page-header .ui-list-header-end,
-.ui-list-header-end {
-  margin-left: auto;
-}
 .ui-list-header {
   display: flex;
   align-items: center;
@@ -732,17 +707,6 @@
 }
 /* Keyboard shortcut hints name hardware keys. Touch-first devices have none, so the hint
    is hidden there; the action itself stays available. */
-.ui-kbd {
-  color: var(--ds-muted);
-  font: inherit;
-  font-size: var(--ds-type-meta);
-  white-space: nowrap;
-}
-@media (hover: none) and (pointer: coarse) {
-  .ui-kbd {
-    display: none;
-  }
-}
 
 /* Horizontally scrolling strips (section tabs, chips) fade at whichever edge has more
    content, so a clipped last item reads as "scroll for more" rather than a cut-off label. */
@@ -770,37 +734,6 @@
   }
   to {
     --ui-strip-end: 0px;
-  }
-}
-.ui-scroll-strip {
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  mask-image: linear-gradient(
-    to right,
-    transparent,
-    black var(--ui-strip-start),
-    black calc(100% - var(--ui-strip-end)),
-    transparent
-  );
-}
-.ui-scroll-strip::-webkit-scrollbar {
-  display: none;
-}
-@supports (animation-timeline: scroll()) {
-  .ui-scroll-strip {
-    animation-name: ui-strip-start, ui-strip-end;
-    animation-timing-function: linear;
-    animation-fill-mode: both;
-    animation-timeline: scroll(self inline);
-    animation-range:
-      0 var(--ds-space-8),
-      calc(100% - var(--ds-space-8)) 100%;
-  }
-}
-@media (forced-colors: active) {
-  .ui-scroll-strip {
-    mask-image: none;
   }
 }
 
