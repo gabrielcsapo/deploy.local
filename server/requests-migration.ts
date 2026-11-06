@@ -290,6 +290,19 @@ export function compactLegacyRequests(
     source.exec('VACUUM');
     source.pragma('wal_checkpoint(TRUNCATE)');
     source.prepare('UPDATE request_log_archive SET vacuum_pending=0 WHERE singleton=1').run();
+    // Copying newest first leaves pages half full. Compacting once now halves the file; on a
+    // production-sized copy this took about 6 seconds. It can fail without losing anything.
+    try {
+      const targetBytes =
+        Number(target.pragma('page_count', { simple: true })) *
+        Number(target.pragma('page_size', { simple: true }));
+      if (freeBytes() >= 2 * targetBytes + 64 * 1024 * 1024) {
+        target.exec('VACUUM');
+        target.pragma('wal_checkpoint(TRUNCATE)');
+      } else log('[requests] Skipping requests.db VACUUM: not enough free disk space');
+    } catch (error) {
+      log(`[requests] Skipping requests.db VACUUM: ${error}`);
+    }
     log(
       `[requests] Legacy DELETE/VACUUM completed in ${(performance.now() - start).toFixed(1)}ms; deploy.db=${bytes()} bytes`,
     );
