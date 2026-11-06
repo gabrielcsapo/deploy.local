@@ -387,41 +387,53 @@ export class CopyWarmer {
 }
 
 /** Installs pin immediately, before responding. Only the active job receives these pins. */
-export function pinComputerInstall(owner: string, computerId: string, key: string) {
+type InstallPin = { projectId: string; releaseId: string; reason: string };
+// A big install asks for hundreds of tarballs, and reading every job for each one would stall
+// the server. What's running changes far more slowly than that.
+const installPinCache = new Map<string, { at: number; pins: InstallPin[] }>();
+function computerInstallPins(owner: string, computerId: string): InstallPin[] {
+  const cacheKey = JSON.stringify([owner, computerId]);
+  const cached = installPinCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < 5000) return cached.pins;
   // Concurrent builds share a computer's key, so retain the union for each active
   // release. This is conservative; it cannot evict something a live release needs.
-  for (const record of list('v2-release', owner).filter((r) => r.release.state === 'running')) {
-    const pin = db().prepare(
-      "INSERT OR IGNORE INTO package_pins VALUES('npm',?,?,?,'release-installed')",
-    );
-    pin.run(key, record.release.projectId, record.id);
-    pin.run(key.slice(0, key.lastIndexOf('@')), record.release.projectId, record.id);
-  }
+  const pins: InstallPin[] = list('v2-release', owner)
+    .filter((r) => r.release?.state === 'running')
+    .map((r) => ({ projectId: r.release.projectId, releaseId: r.id, reason: 'release-installed' }));
   if (computerId === 'coordinator') {
     const row = db()
       .prepare("SELECT value FROM system_settings WHERE key='packages.selfUpdateContext'")
       .get() as any;
     const context = row ? JSON.parse(row.value) : null;
-    if (context?.owner === owner && context.state === 'running') {
-      const pin = db().prepare(
-        "INSERT OR IGNORE INTO package_pins VALUES('npm',?,?,?,'self-release')",
-      );
-      pin.run(key, context.projectId, context.to);
-      pin.run(key.slice(0, key.lastIndexOf('@')), context.projectId, context.to);
-    }
+    if (context?.owner === owner && context.state === 'running')
+      pins.push({ projectId: context.projectId, releaseId: context.to, reason: 'self-release' });
   }
-
+  // A queued job has no computer yet.
   for (const job of list('job', owner).filter(
-    (j) => workerComputerId(owner, j.workerId) === computerId && j.status === 'running',
+    (j) =>
+      j.status === 'running' && j.workerId && workerComputerId(owner, j.workerId) === computerId,
   )) {
     const projectId = job.pipelineId
       ? list('pipeline-run', owner).find((p) => p.id === job.pipelineId)?.projectId
       : list('task', owner).find((t) => t.id === job.taskId)?.projectId;
-    if (projectId) {
-      const pin = db().prepare("INSERT OR IGNORE INTO package_pins VALUES('npm',?,?,?,'job')");
-      pin.run(key, projectId, job.id);
-      pin.run(key.slice(0, key.lastIndexOf('@')), projectId, job.id);
+    if (projectId) pins.push({ projectId, releaseId: job.id, reason: 'job' });
+  }
+  installPinCache.set(cacheKey, { at: Date.now(), pins });
+  return pins;
+}
+/** Bookkeeping must never fail an install: a missing pin only risks fetching a file again. */
+export function pinComputerInstall(owner: string, computerId: string, key: string) {
+  try {
+    const pin = db().prepare("INSERT OR IGNORE INTO package_pins VALUES('npm',?,?,?,?)");
+    const name = key.slice(0, key.lastIndexOf('@'));
+    for (const { projectId, releaseId, reason } of computerInstallPins(owner, computerId)) {
+      pin.run(key, projectId, releaseId, reason);
+      pin.run(name, projectId, releaseId, reason);
     }
+  } catch (error: any) {
+    console.error('Could not pin a computer install', {
+      type: error instanceof TypeError ? 'TypeError' : 'Error',
+    });
   }
 }
 export function finishJobPins(jobId: string) {

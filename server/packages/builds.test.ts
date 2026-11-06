@@ -598,3 +598,13 @@ test('worker restart clears abandoned install configuration before accepting ano
     runner.shutdown();
   }
 });
+
+test('a queued job with no computer can not fail an install, and running jobs are pinned', async () => {
+  const { pinComputerInstall } = await import('./copies.ts');
+  save('job', 'build-owner', { id: 'queued-no-worker', status: 'queued', taskId: 'none' });
+  save('job', 'build-owner', { id: 'broken-record', status: 'running' });
+  assert.doesNotThrow(() => pinComputerInstall('build-owner', 'pin-computer', 'left-pad@1.3.0'));
+  // Nor can bad data elsewhere: a release record with no release inside is skipped.
+  save('v2-release', 'build-owner', { id: 'no-release-inside' });
+  assert.doesNotThrow(() => pinComputerInstall('build-owner', 'pin-computer-2', 'left-pad@1.3.0'));
+});
