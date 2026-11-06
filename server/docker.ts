@@ -1,4 +1,4 @@
-import { computerInstallConfig } from './packages/builds.ts';
+import { packageHooks } from './workspace/package-hooks.ts';
 import { preparePackageInstall, secretOutput } from '../shared/package-install.mjs';
 import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
 import { withApplicationMutation } from './ci-fence.ts';
@@ -403,7 +403,9 @@ export async function buildImage(
   const generated = generatedNodeDirectories.has(resolve(dir));
   const install = await preparePackageInstall(
     useBuildx && generated && options?.owner
-      ? await computerInstallConfig(options.owner, 'local', options.projectId).catch(() => null)
+      ? await packageHooks
+          .installConfig(options.owner, 'local', options.projectId)
+          .catch(() => null)
       : null,
     {
       cwd: dir,

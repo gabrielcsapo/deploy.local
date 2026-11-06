@@ -1,6 +1,4 @@
-import { finishJobPins } from '../packages/copies.ts';
-import { computerInstallConfig } from '../packages/builds.ts';
-import { revokeComputerPackageKey } from '../packages/keys.ts';
+import { packageHooks } from './package-hooks.ts';
 import { terminalRelay } from './terminal-service.ts';
 import { workerUpdate } from './worker-update.ts';
 import { coordinatorDockerReachable } from '../metrics-collector.ts';
@@ -145,7 +143,7 @@ export function revokeWorker(owner: string, workerId: string) {
     throw new Error('Turn the managed worker off in Settings instead');
   const worker = get('worker', owner, workerId);
   remove('worker-credential', owner, workerId);
-  revokeComputerPackageKey(owner, workerComputerId(owner, workerId));
+  packageHooks.revokeComputer(owner, workerComputerId(owner, workerId));
   remove('terminal-permission', owner, workerId);
   terminalRelay.disable(owner, workerId);
   remove('interactive-worker', owner, workerId);
@@ -434,7 +432,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
         worker.instanceId !== body.instanceId
       )
         throw new Error('Stale agent assignment');
-      return computerInstallConfig(owner, workerId, get('task', owner, run.taskId).projectId);
+      return packageHooks.installConfig(owner, workerId, get('task', owner, run.taskId).projectId);
     }
     const job = get('job', owner, body.jobId);
     if (
@@ -447,7 +445,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
     const projectId = job.pipelineId
       ? get('pipeline-run', owner, job.pipelineId).projectId
       : get('task', owner, job.taskId).projectId;
-    return computerInstallConfig(owner, workerId, projectId);
+    return packageHooks.installConfig(owner, workerId, projectId);
   }
 
   return db
@@ -511,7 +509,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
       if (action === 'update' || action === 'complete') {
         if (action === 'complete' && !terminal.includes(body.status))
           throw new Error('Invalid job terminal status');
-        if (action === 'complete') finishJobPins(job.id);
+        if (action === 'complete') packageHooks.finishJob(job.id);
         const result = save('job', owner, {
           ...job,
           output: String(body.output || '').slice(-64000),

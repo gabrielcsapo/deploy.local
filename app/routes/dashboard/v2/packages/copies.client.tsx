@@ -76,9 +76,6 @@ export function Copies() {
               <span className="dl-c packages-count">
                 {project.removed.length ? 'Removed' : `${project.missing} missing`}
               </span>
-              <span className="dl-chev">
-                <Icon name="chevron" size={14} />
-              </span>
             </a>
           ))}
           {!!ready.length && (

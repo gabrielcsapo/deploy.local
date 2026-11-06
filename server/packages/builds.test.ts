@@ -21,6 +21,7 @@ const root = await mkdtemp(join(tmpdir(), 'package-builds-'));
 process.env.DEPLOY_DATA_DIR = root;
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
 const { registerUser, getSqlite, _resetDb, authenticate } = await import('../store.ts');
+await import('./hooks.ts');
 const { db: workspace, save } = await import('../workspace/store.ts');
 const { computerPackageKey, listKeys, registryIdentity, revokeComputerPackageKey } =
   await import('./keys.ts');

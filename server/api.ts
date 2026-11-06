@@ -1,3 +1,4 @@
+import './packages/hooks.ts';
 import { npmRegistry } from './packages/npm.ts';
 import {
   consumeAgentUpload,

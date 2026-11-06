@@ -281,6 +281,12 @@ Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<sl
 
 Each step adds its own part of a screen, so nothing claims what doesn't exist yet. The boards are the finished state, and the app matches them fully once step 7 lands.
 
+**What builds actually do, checked on SER (Docker 29.8.1).** A job container reaches the registry with `--add-host deploy.local:host-gateway`, and so does a build with the default driver. deploy.local's own builder uses the `docker-container` driver, which refuses `host-gateway`, so it gets the bridge network's gateway address instead. A generated Dockerfile retries against the public registry if an install through deploy.local fails. Three things stay on the public registry:
+
+- a project's own Dockerfile, which deploy.local doesn't edit
+- app builds on computers other than SER, whose build code runs outside the server
+- Yarn classic, because its lockfile stores full tarball URLs
+
 ### What still comes from outside
 
 The owner's goal: "all the content should go through that and cache so we can have some insulation from upstream issues". The registry only covers what clients fetch from the registry, so these stay outside it. Checked on 2026-11-05 against this repository's dependencies and on SER.

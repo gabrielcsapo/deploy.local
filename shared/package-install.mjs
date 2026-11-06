@@ -90,6 +90,7 @@ export async function preparePackageInstall(
     const url = new URL(config.registry);
     const ca = join(directory, 'ca.crt');
     const npmrc = join(directory, 'npmrc');
+    // In a container, keep npm's five-minute default from stalling a build while the registry hangs.
     await writeFile(ca, config.ca || '', { mode: 0o600, flag: 'wx' });
     // Host jobs retain personal scoped registries and credentials. Containers never do.
     const userConfig = container
@@ -105,7 +106,7 @@ export async function preparePackageInstall(
       .join('\n');
     await writeFile(
       npmrc,
-      `${inherited ? inherited.replace(/\n?$/, '\n') : ''}registry=${url.href}\n${config.key ? `//${url.host}${url.pathname}:_authToken=${config.key}\n` : ''}${config.ca ? `cafile=${target}/ca.crt\n` : ''}`,
+      `${inherited ? inherited.replace(/\n?$/, '\n') : ''}${container && config.key ? 'fetch-timeout=120000\nfetch-retries=1\n' : ''}registry=${url.href}\n${config.key ? `//${url.host}${url.pathname}:_authToken=${config.key}\n` : ''}${config.ca ? `cafile=${target}/ca.crt\n` : ''}`,
       { mode: 0o600, flag: 'wx' },
     );
     const env = { NPM_CONFIG_USERCONFIG: `${target}/npmrc` };

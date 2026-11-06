@@ -11,6 +11,7 @@ import { agentLaunch } from './agent-launch.ts';
 const root = await mkdtemp(join(tmpdir(), 'agent-packages-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { save, get, db } = await import('./store.ts');
+await import('../packages/hooks.ts');
 const { registerUser, _resetDb } = await import('../store.ts');
 registerUser('owner', 'test-password-long');
 const key = 'dlp_' + 'r'.repeat(43);

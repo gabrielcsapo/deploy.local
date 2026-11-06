@@ -84,6 +84,7 @@ export class NpmCopy {
   readonly settings: RegistrySettings;
   readonly startupCleanup: Promise<void>;
   reachable = true;
+  private warnedAt = 0;
   failures = 0;
   downSince: string | null = null;
   copiesServed = 0;
@@ -163,9 +164,13 @@ export class NpmCopy {
       this.state(true);
       return response;
     } catch (error: any) {
-      console.warn(
-        `[packages] npmjs.org request failed: ${url.pathname} ${error?.cause?.code || error?.message}`,
-      );
+      // An outage fails every request, so say why once a minute rather than for each one.
+      if (Date.now() - this.warnedAt >= 60000) {
+        this.warnedAt = Date.now();
+        console.warn(
+          `[packages] npmjs.org request failed: ${url.pathname} ${error?.cause?.code || error?.message}`,
+        );
+      }
       this.state(false);
       fail('npmjs.org is unreachable and this package has not been kept.', 503);
     } finally {
