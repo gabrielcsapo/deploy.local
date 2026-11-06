@@ -196,8 +196,8 @@ public actor V2Client {
             return V2AnswerResult(item: item, alreadyAnswered: true)
         }
     }
-    public func events(after: Int, wait: Bool = true) async throws -> V2EventPage {
-        try await client.request("/api/v2/events?after=\(after)&waitMs=\(wait ? 10000 : 0)", timeout: 20)
+    public func events(after: Int, waitMs: Int = 10000) async throws -> V2EventPage {
+        try await client.request("/api/v2/events?after=\(after)&waitMs=\(waitMs)", timeout: 20)
     }
     public func live() async throws -> V2Live { try await client.request("/api/v2/live") }
     public func liveApp(_ id: String) async throws -> V2LiveDetail { try await client.request("/api/v2/live/\(Self.segment(id))") }
