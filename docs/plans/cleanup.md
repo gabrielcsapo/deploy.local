@@ -102,6 +102,7 @@ Measured on SER against the start of this plan. Timings are medians of 5 reads.
 | Live connections per browser tab | up to 4          | 1                       |
 | `server/api.ts`                  | 6,295 lines      | 201 lines               |
 | `server/store.ts`                | 3,356 lines      | 126 lines               |
+| Free disk on SER                 | 143 GB           | 390 GB                  |
 
 ## Decisions
 
@@ -109,5 +110,5 @@ The owner confirmed the Mac app is the Electron app. The rest were left open, so
 
 1. **Wander and Groffee migrations:** kept. Both apps still exist on SER.
 2. **Request logs:** raw logs stay at the 90-day setting. Step 6 moved them without shortening that.
-3. **Old backups:** nothing is deleted without the owner's word.
+3. **Old backups:** the owner approved deleting the 12 older `deploy-*.db` copies and their workspace copies (36 GB) and 59 old release folders (about 220 GB). Releases had grown to 11 GB because each one fetched the repository's whole history again; the updater now fetches only what's new and keeps the newest three releases.
 4. **`/api/discover` and `embed/computers`:** removed if a final search finds no caller.
