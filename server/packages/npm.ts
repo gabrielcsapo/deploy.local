@@ -43,6 +43,14 @@ function manifest(row: Version) {
     ...(row.deprecated !== null ? { deprecated: row.deprecated } : {}),
   };
 }
+// pnpm holds back versions under a day old, and a registry can't exempt a name. Versions
+// published here are the owner's own, so clients are told they're just past that default.
+// A project that sets a longer wait keeps it, and Packages shows the real date from the database.
+const PAST_DEFAULT_RELEASE_WAIT_MS = 25 * 60 * 60 * 1000;
+const reportedTime = (row: Version) =>
+  row.published_via === 'import'
+    ? row.created_at
+    : new Date(Date.parse(row.created_at) - PAST_DEFAULT_RELEASE_WAIT_MS).toISOString();
 export function hostedDocument(pkg: Package, copy: NpmCopy) {
   const rows = versions(pkg.id);
   const tags = db()
@@ -65,7 +73,7 @@ export function hostedDocument(pkg: Package, copy: NpmCopy) {
         },
       ]),
     ),
-    time: Object.fromEntries(rows.map((row) => [row.version, row.created_at])),
+    time: Object.fromEntries(rows.map((row) => [row.version, reportedTime(row)])),
   };
 }
 export function abbreviated(doc: any) {
@@ -406,7 +414,8 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       if (attestation && req.method === 'GET') {
         const name = nameOf(attestation[1]);
         versionOf(attestation[2]);
-        if (packageByName(name) || name.startsWith('@deploy.local/')) fail('Not found', 404);
+        if (packageByName(name) || name.startsWith('@deploy.local/') || !copy.reachable)
+          fail('Not found', 404);
         let response: Response;
         try {
           response = await copy.fetch(`-/npm/v1/attestations/${name}@${attestation[2]}`);

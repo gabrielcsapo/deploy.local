@@ -89,16 +89,21 @@ struct V2SettingsGroup<Content: View>: View {
 struct V2SettingsRow<Accessory: View>: View {
     var list = false
     let title: String
+    var monoTitle = false
     var subtitle: String? = nil
     var icon: String? = "square.grid.2x2"
     var glyph: WorkspaceGlyphName? = nil
     var avatar: String? = nil
     var identity: V2AgentAvatar? = nil
+    var attention = false
     @ViewBuilder var accessory: Accessory
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 14) {
-            if let identity { AgentAvatar(glyph: identity.glyph, color: identity.color) } else if let avatar {
+            if attention {
+                Image(systemName: "exclamationmark.circle").font(.system(size: 18))
+                    .foregroundStyle(WorkspaceStyle.warning(scheme)).accessibilityHidden(true)
+            } else if let identity { AgentAvatar(glyph: identity.glyph, color: identity.color) } else if let avatar {
                 Text(String(avatar.prefix(1)).uppercased()).font(.system(size: 17, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .background(WorkspaceStyle.selected(scheme), in: RoundedRectangle(cornerRadius: 12))
@@ -113,7 +118,7 @@ struct V2SettingsRow<Accessory: View>: View {
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: list || identity != nil || avatar != nil ? 17 : 16, weight: avatar == nil ? .medium : .semibold))
+                Text(title).font(monoTitle ? .system(size: 15, weight: .medium, design: .monospaced) : .system(size: list || identity != nil || avatar != nil ? 17 : 16, weight: avatar == nil ? .medium : .semibold))
                     .frame(minHeight: 22, alignment: .leading)
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))

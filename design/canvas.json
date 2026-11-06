@@ -2285,7 +2285,7 @@
       "y": 73720,
       "w": 390,
       "h": 844,
-      "title": "iPhone — Packages from Settings: what is hosted, and whether anything is missing"
+      "title": "iPhone — Packages, a sheet from Settings: what is hosted, and whether anything is missing"
     },
     "PageLoading.html": {
       "x": 2520,
@@ -2294,6 +2294,55 @@
       "h": 900,
       "title": "Moving between pages: the sidebar stays, only the page waits",
       "expand": "fill"
+    },
+    "PackageVersionsPhone.html": {
+      "x": 10030,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a package’s versions, opened in a sheet"
+    },
+    "PackagesEmptyPhone.html": {
+      "x": 10440,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Packages with nothing published yet"
+    },
+    "PackagesErrorPhone.html": {
+      "x": 10850,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Packages could not be refreshed: pull down to try again"
+    },
+    "PackagesUnreachablePhone.html": {
+      "x": 11260,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Packages while npmjs.org cannot be reached"
+    },
+    "SettingsPackagesRowPhone.html": {
+      "x": 11670,
+      "y": 73720,
+      "w": 390,
+      "h": 900,
+      "title": "iPhone — the Settings row for Packages, in every state"
+    },
+    "PackageVersionsErrorPhone.html": {
+      "x": 12080,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a package’s versions could not be refreshed"
+    },
+    "PackagesLongNamePhone.html": {
+      "x": 12490,
+      "y": 73720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Packages with a long name and a long version"
     }
   },
   "order": [
@@ -2601,7 +2650,14 @@
     "TaskPublish.html",
     "PipelineRun.html",
     "CliPackages.html",
-    "PackagesPhone.html"
+    "PackagesPhone.html",
+    "PackageVersionsPhone.html",
+    "PackagesEmptyPhone.html",
+    "PackagesErrorPhone.html",
+    "PackagesUnreachablePhone.html",
+    "SettingsPackagesRowPhone.html",
+    "PackageVersionsErrorPhone.html",
+    "PackagesLongNamePhone.html"
   ],
   "notes": {
     "intro": {
@@ -3821,6 +3877,13 @@
       "x": 4040,
       "y": 4320,
       "text": "PageLoading.html\nMoving to a page that is not ready yet. The sidebar stays where it is, with the page you clicked already selected, and only the page area shows skeleton rows. It uses the same skeleton as the rest of the app and says nothing until 10 s, when it says what is slow (see States).\n\nAt 600 px and below the sidebar is hidden, so the header stays with its menu button: you can always leave a page that is still loading. This board's 700 px render shows the design system's older 820 px breakpoint; the app keeps the sidebar at 700. Same on web and in the Mac app; the iPhone app is native and does not have this."
+    },
+    "packages-phone-first-run": {
+      "fill": "yellow",
+      "w": 760,
+      "x": 9620,
+      "y": 74670,
+      "text": "Drawn after the iPhone screens were first seen running.\n\n• Packages and a package’s versions both open as sheets, like every other Settings destination.\n• The two parts load separately: if one fails, the other still shows. A failed part with nothing to show says it could not be refreshed. One with rows keeps them.\n• Storage reads like web: gigabytes of 1024³, then the limit (6.2 GB of 20 GB).\n• Version dates carry the year. Today’s reads Today, 7:57 AM.\n• Kept on SER opens nothing, so it has no chevron.\n• A latest version over 12 characters is capped at 96 pt and shortened in the middle, so it can’t squeeze the name. The versions sheet shows it in full."
     }
   },
   "starts": {}

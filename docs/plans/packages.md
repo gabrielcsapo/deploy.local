@@ -271,9 +271,10 @@ Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<sl
    - the task status line and panel row
    - iPhone Packages
 6. **Switch over:**
-   - bring over every react-flight-router version on npmjs.org
-   - publish 0.12.2 from deploy.local
-   - point other projects that use it at Packages
+   - bring over every react-flight-router version on npmjs.org (done 2026-11-06: 35 versions, each matching npmjs.org's hash)
+   - publish 0.12.2 from deploy.local (done 2026-11-06, with `deploy packages publish --claim`, because a pipeline can't claim a name)
+   - the root `deploy.yaml` tests the router on every change to it and publishes a new version. The first version a pipeline uploads will be the next one after 0.12.2.
+   - point other projects that use it at Packages. Jobs on updated computers already install through deploy.local. forma is on 0.12.1 and moves with a version bump (question 8).
 7. **Cargo:**
    - the private registry and the crates.io copy
    - per-computer `CARGO_HOME`, job containers and app builds
@@ -325,6 +326,13 @@ Not tested: SER's own server cut off from npmjs.org, as opposed to the simulated
 - **Auth matrix.** Each credential is tested against each action, including a task's 403 on publish.
 - **Board parity.** Each screen is checked at 1440 and 700 (web) and 390 (iPhone).
 
+### Checked on a sealed copy of the server (2026-11-06)
+
+The real server, repository and router ran in a container on SER with its own Docker, so nothing reached the real registry: claiming, a pipeline upload, a pull request check followed by a merge, and an outage of npmjs.org that hangs instead of refusing. The test is kept with the session notes rather than the test suite, because it needs a privileged container.
+
+- **Outages that hang.** Once the source is known to be down, kept documents answer from the copy without asking it. A name it never kept still tries, so one brief failure can't refuse it.
+- **Docker on SER's worker.** Spawning from root drops supplementary groups. The managed worker now keeps the docker group only, and only when its account is in that group. Docker access amounts to root on that computer, so any job on the worker has it.
+
 ### Questions for the owner
 
 1. **npmjs.org.** Stop publishing react-flight-router there after 0.12.1 (proposed), or keep mirroring each release for outside users?
@@ -338,5 +346,5 @@ Not tested: SER's own server cut off from npmjs.org, as opposed to the simulated
    - Bump by hand in each project, as now.
    - A `deploy packages update <name>` command that updates a project's version and lockfile, run by a person or an agent.
    - When a new version publishes, deploy.local starts a task in each project using it, which opens a pull request. The owner still merges. This contradicts the approved `Package` board's "deploy.local does not open pull requests for new versions", so it needs a design change.
-9. **Freshly published versions and pnpm's waiting period.** pnpm's `minimumReleaseAge` applies to private packages too, so a project with that setting can't install a new private version until the period passes. The real-client tests set it to 0 to get around this. pnpm 11 turns this on by default, for one day, and applies it to locked installs too, so it affects every pnpm project. Should private names be excluded, per project or for all of them?
+9. **Freshly published versions and pnpm's waiting period.** Decided 2026-11-06: versions published on deploy.local skip it. pnpm 11 holds back anything under a day old by default, including for locked installs, and a registry can't exempt a name. So the registry reports these versions' `time` 25 hours earlier than they were published, which needs no settings on any computer, job or build. The Packages screens show the real date. Copies from npmjs.org and brought-over versions keep their real times and the wait. A project that sets a wait of its own longer than a day keeps it.
 10. **Deprecating from the web, and search on Packages.** The plan offers deprecate on version rows, and the boards draw a search button, but no board draws either interaction. The CLI and API can deprecate. Draw them, or leave them out?

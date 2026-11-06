@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.2] (2026-11-06)
+
+### Other
+
+- Pipelines publish packages, so nobody releases one by hand ([f2036b8](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=f2036b859877a5d75606cc76eeefe39a86b6ab9a&path=packages/react-flight-router))
+- Each page loads only the stylesheets its route uses ([fd0a819](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=fd0a8194c3d0672f1a7a3e53d8e6ef0f4908a7a8&path=packages/react-flight-router))
+- Pages left open across a release load again instead of mixing builds ([f3034fa](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=f3034fa841857356e6ff70950f9e5c378186a516&path=packages/react-flight-router))
+- Format react-flight-router with oxfmt ([af612c2](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=af612c2ff51f51785cb29b05d6a7c7ec1f97d57c&path=packages/react-flight-router))
+- Replace router publishing with a local changelog generator ([ba5c0bc](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=ba5c0bca3a78f208c423c88dd1bd72403c8d5191&path=packages/react-flight-router))
+- Prepare router docs as a deploy.local static application ([ca094d2](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=ca094d2de46b200d95eb0c150ff3413f57ab6bcc&path=packages/react-flight-router))
+- Resolve the router nested oxlint schema from the workspace ([a450363](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=a450363779ab155e792782ddef0c12621a88825a&path=packages/react-flight-router))
+- Build react-flight-router with root TypeScript 7 ([8356831](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=835683196ad381446aa76d278884e69b6450d818&path=packages/react-flight-router))
+- Build the workspace router before its consumers ([16d9a2d](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=16d9a2dc7590de68f5b90cb5f652e374d3819087&path=packages/react-flight-router))
+- Use workspace router and shared dependency catalog ([8b763b7](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=8b763b7ea511a73b9b25e2b6dd89e0d9e1618934&path=packages/react-flight-router))
+
 ## [0.12.1](https://github.com/gabrielcsapo/flight-router/compare/v0.12.0...v0.12.1) (2026-07-31)
 
 ### Bug Fixes

@@ -301,6 +301,10 @@ export class NpmCopy {
         Date.now() - Date.parse(previous.fetched_at) < (this.settings.revalidateMs ?? 300000)
       )
         return previous.removed_at ? null : this.touch('doc', previous);
+      // Once the source is known to be down, answer from the copy at once. Waiting on a source
+      // that hangs for every package would cost an install minutes. The regular check sees it return.
+      if (previous && !force && !this.reachable)
+        return previous.removed_at ? null : this.touch('doc', previous);
       let response: Response;
       try {
         response = await this.fetch(encodeURIComponent(name), {

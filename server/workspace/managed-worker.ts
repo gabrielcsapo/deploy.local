@@ -130,6 +130,45 @@ export function managedWorkerLaunch(
     },
   };
 }
+/**
+ * Spawning with a uid from root drops every supplementary group, so the worker couldn't use
+ * Docker even when its account can. Keep that one group, and only for an account the machine
+ * already trusts with it. Docker access amounts to root on this computer, which is why the
+ * account's other groups (sudo, lxd and so on) still stay behind.
+ */
+export function managedWorkerExec(
+  identity: ReturnType<typeof workerIdentity>,
+  executable: string,
+  system = {
+    isRoot: () => process.getuid?.() === 0,
+    dockerGroup: () => execFileSync('getent', ['group', 'docker'], { encoding: 'utf8' }),
+    setpriv: () => execFileSync('setpriv', ['--version'], { stdio: 'ignore' }),
+  },
+) {
+  const plain = { command: process.execPath, args: [executable], keepIdentity: true };
+  try {
+    if (!system.isRoot()) return plain;
+    const [, , gid, members] = system.dockerGroup().trim().split(':');
+    if (!/^\d+$/.test(gid) || !members?.split(',').includes(identity.username)) return plain;
+    system.setpriv();
+    return {
+      command: 'setpriv',
+      args: [
+        '--reuid',
+        String(identity.uid),
+        '--regid',
+        String(identity.gid),
+        '--groups',
+        gid,
+        process.execPath,
+        executable,
+      ],
+      keepIdentity: false,
+    };
+  } catch {
+    return plain;
+  }
+}
 function start(owner: string, record: any) {
   if (stopping || children.get(owner)?.child || Date.now() < (children.get(owner)?.nextStart || 0))
     return;
@@ -146,8 +185,13 @@ function start(owner: string, record: any) {
       loadOrCreateSecretKey(deployDataDirectory()),
       `managed-worker:${owner}:${record.id}`,
     );
-    const child = spawn(process.execPath, [executable], {
-      ...managedWorkerLaunch(identity, record.id, token, origin),
+    const launch = managedWorkerLaunch(identity, record.id, token, origin);
+    const exec = managedWorkerExec(identity, executable);
+    const child = spawn(exec.command, exec.args, {
+      ...launch,
+      // setpriv changes identity itself, so it has to start with root's.
+      uid: exec.keepIdentity ? launch.uid : undefined,
+      gid: exec.keepIdentity ? launch.gid : undefined,
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     });
     children.set(owner, { child, nextStart: 0 });

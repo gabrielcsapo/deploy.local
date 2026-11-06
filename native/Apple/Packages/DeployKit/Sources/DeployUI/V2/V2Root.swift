@@ -164,7 +164,7 @@ struct V2Tabs: View {
         case "ScoutPhone", "AgentInfoPhone", "AgentMenuPhone": evidenceAgentTask = "scout"; agent = "scout"
         case "ProjectPhone", "ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone": tab = .projects
         case "ComputePhone": tab = .computers
-        case "SettingsPhone", "SettingsApprovalsPhone", "RestorePhone", "PackagesPhone": tab = .settings
+        case "SettingsPhone", "SettingsApprovalsPhone", "RestorePhone", "PackagesPhone", "PackageVersionsPhone", "SettingsPackagesRowPhone": tab = .settings
         default: break
         }
     }
