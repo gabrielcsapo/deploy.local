@@ -28,6 +28,7 @@ export function DesignRail({
   updatePopoverId: string;
   updateTriggerRef: RefObject<HTMLButtonElement | null>;
 }) {
+  const packages = useResource<{ served: boolean }>('/api/v2/packages?sidebar=1');
   const inbox = useInbox();
   const live = useResource<{ summary: LiveSummary }>('/api/v2/live', true);
   const user = useResource<{ username: string }>('/api/user');
@@ -75,6 +76,7 @@ export function DesignRail({
         failing ? 'dot' : undefined,
       )}
       {place('/dashboard/computers', 'computer', 'Computers')}
+      {packages.data?.served && place('/dashboard/packages', 'package', 'Packages')}
       {place('/dashboard/design', 'layers', 'Design')}
       <span className="dz-rail-sep" />
       {place(

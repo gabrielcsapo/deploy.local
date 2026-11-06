@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import { Group, Icon, Seg, Setting } from '@/components/ui';
+import { PackageKeys } from './package-keys.client';
 import { Approvals } from './approvals';
 import { SettingsFrame } from './frame.client';
 export default function Settings() {
@@ -70,6 +71,7 @@ function General() {
           </a>
         </Group>
       </section>
+      <PackageKeys />
       <section className="dl-section">
         <h2 className="dl-section-title">Credits</h2>
         <p className="dl-meta">

@@ -17,6 +17,8 @@ export function stateProps({ disabled, loading }: ComponentState) {
 }
 
 const paths = {
+  copy: 'M9 9h11v11H9zM5 15V5h10',
+  package: 'M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8',
   compose: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   pulse: 'M3 12h4l3-7 4 14 3-7h4',
