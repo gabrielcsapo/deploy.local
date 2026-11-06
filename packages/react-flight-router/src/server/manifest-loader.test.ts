@@ -8,7 +8,13 @@ import { generateBootstrapScript } from '../shared/bootstrap-script.js';
 const directories: string[] = [];
 
 function build(
-  overrides: { client?: object; ssr?: object; actions?: object; css?: string[] } = {},
+  overrides: {
+    client?: object;
+    ssr?: object;
+    actions?: object;
+    css?: string[];
+    cssModules?: Record<string, string[]>;
+  } = {},
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'rfr-manifests-'));
   directories.push(directory);
@@ -19,6 +25,7 @@ function build(
   write('server-actions-manifest.json', overrides.actions ?? {});
   write('build-meta.json', {
     clientEntryUrl: '/assets/entry-same.js',
+    cssModules: overrides.cssModules,
     cssFiles: overrides.css ?? ['/assets/a.css'],
   });
   return loadManifests(directory).buildId;
@@ -40,6 +47,12 @@ describe('buildId', () => {
   it('changes when styles or server actions change', () => {
     expect(build({ css: ['/assets/b.css'] })).not.toBe(build());
     expect(build({ actions: { x: { id: 'x' } } })).not.toBe(build());
+  });
+
+  it('changes when route stylesheet ownership changes', () => {
+    expect(build({ cssModules: { page: ['/assets/a.css'] } })).not.toBe(
+      build({ cssModules: { page: [] } }),
+    );
   });
 
   it('stays when only the server side changes, so open pages are left alone', () => {

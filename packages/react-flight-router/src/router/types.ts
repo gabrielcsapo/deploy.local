@@ -30,6 +30,8 @@ export interface RouteConfig {
 }
 
 export interface RouteModule {
+  /** Build-injected source key for stylesheet selection. */
+  __flight_css_id?: string;
   /** The page/layout component */
   default: ComponentType<{
     params?: Record<string, string>;

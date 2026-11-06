@@ -43,6 +43,7 @@ initialPayloadPromise
           initialSegments={payload.segments}
           initialParams={payload.params}
           initialBoundaryComponents={payload.boundaryComponents}
+          cssOrder={payload.cssOrder}
           createFromReadableStream={(stream: ReadableStream, opts: any) =>
             createFromReadableStream(stream, opts) as Promise<RSCPayload>
           }

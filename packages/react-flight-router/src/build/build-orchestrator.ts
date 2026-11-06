@@ -14,6 +14,7 @@ import { createRSCServerConfig } from './vite-config-rsc.js';
 import { createClientConfig } from './vite-config-client.js';
 import { createSSRConfig } from './vite-config-ssr.js';
 import { generateManifests } from './manifest-generator.js';
+import { routeCSSPlugin, type ModuleGraph } from './route-css.js';
 import {
   type RollupOutput,
   parseRoutes,
@@ -258,7 +259,10 @@ export async function build(opts: BuildOptions): Promise<void> {
     : null;
 
   // Scope plugins to the environments that previously received them.
+  const cssGraph: ModuleGraph = new Map();
   const allPlugins: Plugin[] = [
+    ...scopePlugins([routeCSSPlugin(cssGraph, appRoot, true)], ['rsc']),
+    ...scopePlugins([routeCSSPlugin(cssGraph, appRoot)], ['client']),
     ...scopePlugins(flattenPlugins(rscInline.plugins), ['rsc']),
     ...scopePlugins(flattenPlugins(clientInline.plugins), ['client']),
     ...scopePlugins(flattenPlugins(ssrInline.plugins), ['ssr']),
@@ -270,6 +274,7 @@ export async function build(opts: BuildOptions): Promise<void> {
     configFile: false,
     root: appRoot,
     logLevel: 'silent',
+    resolve: appConfig.resolve,
     plugins: allPlugins,
     environments: {
       rsc: toEnvOptions(rscInline),
@@ -299,6 +304,15 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Now that client modules are known, set the client/ssr entry inputs on the
   // already-resolved environments (verified to be honoured at build time).
+  // Include CSS reached through aliases, packages and server-only modules too.
+  for (const id of cssGraph.keys()) {
+    if (
+      /\.(css|less|sass|scss|styl|stylus)(?:\?.*)?$/.test(id) &&
+      !/[?&](inline|raw|url)(?:&|$)/.test(id) &&
+      !cssEntries.includes(id)
+    )
+      cssEntries.push(id);
+  }
   const realClient = createClientConfig({
     appDir: appRoot,
     outDir,
@@ -327,6 +341,14 @@ export async function build(opts: BuildOptions): Promise<void> {
     appDir: appRoot,
     clientModules,
     serverModules,
+    cssGraph,
+    cssRoots: [
+      clientEntry,
+      ...rscOutput.output.flatMap((chunk) =>
+        chunk.type === 'chunk' && chunk.facadeModuleId ? [chunk.facadeModuleId] : [],
+      ),
+    ],
+    clientEntry,
   });
   printPhase(3, 'Manifests', performance.now() - phaseStart);
 

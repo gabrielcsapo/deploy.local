@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, relative } from 'path';
+import { moduleStylesheets, stylesheetOrder, type ModuleGraph } from './route-css.js';
 import { getModuleId } from './plugin-use-client.js';
 import type { RSCClientManifest, SSRManifest, ServerActionsManifest } from '../shared/types.js';
 
@@ -19,6 +20,9 @@ interface GenerateManifestsOptions {
   appDir: string;
   clientModules: Set<string>;
   serverModules: Set<string>;
+  cssGraph?: ModuleGraph;
+  clientEntry?: string;
+  cssRoots?: string[];
 }
 
 /**
@@ -73,9 +77,25 @@ export function generateManifests(opts: GenerateManifestsOptions): void {
     JSON.stringify(serverActionsManifest, null, 2),
   );
 
+  const cssOrder = stylesheetOrder(cssFiles);
+  const entrySource = clientEntryKey ? resolve(opts.appDir, clientEntryKey) : opts.clientEntry;
+  const cssModules = opts.cssGraph
+    ? moduleStylesheets(
+        opts.cssGraph,
+        viteManifest,
+        opts.appDir,
+        cssOrder,
+        opts.cssRoots && [...opts.cssRoots, ...(entrySource ? [entrySource] : [])],
+      )
+    : undefined;
+  const entryCSS =
+    opts.clientEntry && cssModules
+      ? (cssModules[relative(opts.appDir, opts.clientEntry).replaceAll('\\', '/')] ?? [])
+      : [];
+
   writeFileSync(
     resolve(opts.outDir, 'build-meta.json'),
-    JSON.stringify({ clientEntryUrl, cssFiles }, null, 2),
+    JSON.stringify({ clientEntryUrl, cssFiles: cssOrder, cssModules, entryCSS }, null, 2),
   );
 }
 

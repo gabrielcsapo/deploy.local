@@ -1,4 +1,5 @@
-import { resolve } from 'path';
+import { resolve, relative } from 'path';
+import { createHash } from 'crypto';
 import type { InlineConfig } from 'vite';
 import { useServerPlugin } from './plugin-use-server.js';
 import { getModuleId } from './plugin-use-client.js';
@@ -36,7 +37,9 @@ export function createClientConfig(opts: ClientBuildOptions): InlineConfig {
   // explicitly here.
   if (opts.cssEntries) {
     for (const cssPath of opts.cssEntries) {
-      const name = cssPath.replace(/.*\/app\//, 'app/').replace(/\.css$/, '');
+      const name = cssPath.startsWith(resolve(opts.appDir, 'app') + '/')
+        ? cssPath.replace(/.*\/app\//, 'app/').replace(/\.css$/, '')
+        : `styles/${createHash('sha256').update(relative(opts.appDir, cssPath)).digest('hex').slice(0, 12)}`;
       clientEntries[name] = cssPath;
     }
   }

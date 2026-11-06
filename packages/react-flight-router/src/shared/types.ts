@@ -3,6 +3,10 @@ import type { ReactNode } from 'react';
 /** The RSC payload structure sent over the wire */
 export interface RSCPayload {
   url: string;
+  /** Ordered styles for the full matched tree, including unchanged layouts. */
+  cssFiles?: string[];
+  /** All build styles, in cascade order, for removing styles left by previous routes. */
+  cssOrder?: string[];
   segments: Record<string, ReactNode>;
   params: Record<string, string>;
   /** All segment keys for this URL (present during partial updates for client-side merging) */
@@ -58,6 +62,8 @@ export interface Manifests {
   serverActionsManifest: ServerActionsManifest;
   clientEntryUrl: string;
   cssFiles: string[];
+  cssModules?: Record<string, string[]>;
+  entryCSS?: string[];
 }
 
 /** Module resolution function type (different in dev vs prod) */

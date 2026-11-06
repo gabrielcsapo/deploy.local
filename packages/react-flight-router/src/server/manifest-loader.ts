@@ -25,9 +25,8 @@ export function loadManifests(buildDir: string): Manifests {
     readFileSync(resolve(buildDir, 'server-actions-manifest.json'), 'utf-8'),
   );
 
-  const buildMeta: { clientEntryUrl: string; cssFiles: string[] } = JSON.parse(
-    readFileSync(resolve(buildDir, 'build-meta.json'), 'utf-8'),
-  );
+  const buildMeta: Pick<Manifests, 'clientEntryUrl' | 'cssFiles' | 'cssModules' | 'entryCSS'> =
+    JSON.parse(readFileSync(resolve(buildDir, 'build-meta.json'), 'utf-8'));
 
   // Named after what a page depends on. The entry's own file name is no use here: it can stay the
   // same when the chunks behind it change. A server-only change keeps the ID, so open pages stay.
@@ -38,6 +37,8 @@ export function loadManifests(buildDir: string): Manifests {
         serverActionsManifest,
         buildMeta.clientEntryUrl,
         buildMeta.cssFiles,
+        buildMeta.cssModules,
+        buildMeta.entryCSS,
       ]),
     )
     .digest('hex')
@@ -50,5 +51,7 @@ export function loadManifests(buildDir: string): Manifests {
     serverActionsManifest,
     clientEntryUrl: buildMeta.clientEntryUrl,
     cssFiles: buildMeta.cssFiles,
+    cssModules: buildMeta.cssModules,
+    entryCSS: buildMeta.entryCSS,
   };
 }
