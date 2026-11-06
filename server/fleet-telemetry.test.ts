@@ -31,7 +31,7 @@ after(() => {
 describe('fleet telemetry synchronization', () => {
   it('exchanges selected operational history while keeping raw requests local', async () => {
     const fleet = multisite.ensureFleetIdentity('Telemetry Fleet');
-    const registration = store.registerUser('admin', 'telemetry-password') as { token: string };
+    store.registerUser('admin', 'telemetry-password');
     const pairing = multisite.createSuitcasePairing({
       name: 'Telemetry Suitcase',
       createdBy: 'admin',
@@ -152,36 +152,5 @@ describe('fleet telemetry synchronization', () => {
     const localBackup = noSync.telemetry.find((record) => record.kind === 'backup');
     assert.deepEqual(localBackup?.artifactDigests, []);
     assert.equal(localBackup?.payload.contentLocation, 'origin-site');
-
-    const actions = await import(`../app/actions/deployments.ts?fleet-telemetry=${Date.now()}`);
-    const history = await actions.fetchDeployHistory('admin', registration.token, 'notes');
-    assert.equal(history.length, 2);
-    assert.ok(history.some((entry: Record<string, unknown>) => entry.siteId === suitcase.siteId));
-    const builds = await actions.fetchBuildLogs('admin', registration.token, 'notes');
-    assert.equal(builds.total, 2);
-    assert.ok(
-      builds.logs.some((entry: Record<string, unknown>) => entry.siteId === suitcase.siteId),
-    );
-    const backupInventory = await actions.fetchBackups('admin', registration.token, 'notes');
-    assert.equal(backupInventory.backups.length, 2);
-    assert.ok(
-      backupInventory.backups.some(
-        (entry: Record<string, unknown>) => entry.remote && entry.artifactAvailable,
-      ),
-    );
-    const bucket = Number(requestAggregate?.payload.bucketMs);
-    const fleetSeries = await actions.fetchFleetSeries(
-      'admin',
-      registration.token,
-      bucket - 60_000,
-      bucket + 60_000,
-    );
-    assert.equal(
-      fleetSeries.series.reduce(
-        (total: number, point: { total: number }) => total + point.total,
-        0,
-      ),
-      6,
-    );
   });
 });

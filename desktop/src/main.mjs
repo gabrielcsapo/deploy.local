@@ -416,12 +416,13 @@ async function refresh() {
   if (!current?.credentials) return;
   try {
     const [items, live, computers, workspace] = await Promise.all([
-      current.inbox(),
+      current.inboxSnapshot(inbox.cursor),
       current.live(),
       current.computers(),
       current.workspace().catch(() => null),
     ]);
     if (version !== generation) return;
+    inbox.cursor ??= items.cursor;
     const fresh = inbox.replace(items.items);
     state.live = live;
     state.summary = live?.summary;
@@ -470,7 +471,7 @@ async function poll() {
   if (polling || !client?.credentials || quitting) return;
   polling = true;
   try {
-    if (!state.online) await refresh();
+    if (!state.online || inbox.cursor === null) await refresh();
     const current = client,
       version = generation;
     const page = await current.events(inbox.cursor);

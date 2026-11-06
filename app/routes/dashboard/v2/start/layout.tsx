@@ -1,5 +1,5 @@
 import { V2Layout } from '../../v2-layout.client';
-import { SessionExpired } from './account.client';
+import { SessionExpired } from './SessionExpired';
 export default function Layout() {
   return (
     <>

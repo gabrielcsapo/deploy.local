@@ -48,10 +48,6 @@ Manual verification used an isolated local control/worker fixture in Chrome at d
 ## Changed files
 
 - `app/design-system.css`
-- `app/routes/dashboard/nodes.client.tsx`
-- `app/routes/dashboard/terminal-state.test.ts`
-- `app/routes/dashboard/terminal-state.ts`
-- `app/routes/dashboard/terminal.client.tsx`
 - `app/routes/dashboard/terminal.css`
 - `docs/node-permissions.md`
 - `docs/remote-terminals.md`
@@ -104,8 +100,7 @@ At run creation, visible commands changed since the previous run enter the run p
 
 ### Files changed for task conversations
 
-- Web: `projects.client.tsx`, `task-activity-rail.client.tsx`, `task-split-state.ts`, `terminal.client.tsx`, `terminal-state.ts`, `terminal.css`, `transcript-index.ts`, new `shell-command.client.tsx` and `shell-mode.ts` (all under `app/routes/dashboard/`).
 - Coordinator and prompt context: `server/workspace/api.ts`, `terminal-relay.ts`, `terminal-service.ts`, `terminal-socket.ts`, `service.ts`, new `shell-commands.ts`. `publish.ts`, `checkpoint-commit.ts` and `task-presentation.ts` keep command cards out of publishing-request text.
 - Workers: `server/workspace/remote-worker.ts`, `terminal-worker.ts`, `terminal-pty.ts`, `worker-capabilities.ts`, new `task-shell.ts`.
-- Tests: `server/workspace/terminal-relay.test.ts`, `agent-context.test.ts`, new `task-shell.test.ts`; new `app/routes/dashboard/shell-mode.test.ts` and `task-terminal.test.mjs`.
+- Tests: `server/workspace/terminal-relay.test.ts`, `agent-context.test.ts`, new `task-shell.test.ts`.
 - Documentation: this file. No package dependencies or Swift files changed.

@@ -367,7 +367,6 @@ describe('application graph and configuration HTTP API', () => {
       `/api/deployments/${APPLICATION_NAME}/application-spec`,
       `/api/deployments/${APPLICATION_NAME}/application-runtime?siteId=home`,
       `/api/deployments/${APPLICATION_NAME}/deploy.yaml`,
-      `/api/deployments/${APPLICATION_NAME}/deploy.patch.yaml`,
       `/api/deployments/${APPLICATION_NAME}/configuration?siteId=home`,
     ];
 
@@ -783,14 +782,6 @@ describe('application graph and configuration HTTP API', () => {
     );
     assert.equal(compileDeployYaml(rebase.body.manifest).spec.configuration.theme.default, 'light');
     assert.equal(parseRepositoryBaseDigest(rebase.body.manifest), rebase.body.currentDigest);
-
-    const patch = await request(port, `/api/deployments/${APPLICATION_NAME}/deploy.patch.yaml`, {
-      headers: authHeaders('alice', aliceToken),
-    });
-    assert.equal(patch.status, 200);
-    assert.match(patch.text, /kind: ApplicationPatch/);
-    assert.match(patch.text, new RegExp(`parentDigest: ${compiledManifest.digest}`));
-    assert.match(patch.text, /default: light/);
 
     const exported = await request(port, `/api/deployments/${APPLICATION_NAME}/deploy.yaml`, {
       headers: authHeaders('alice', aliceToken),

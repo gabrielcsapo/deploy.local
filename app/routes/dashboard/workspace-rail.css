@@ -24,91 +24,15 @@
     sans-serif;
   color-scheme: light dark;
 }
-.workspace-rail .wr-action,
-.workspace-rail .wr-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  border: 0;
-  border-radius: 11px;
-  background: transparent;
-  color: inherit;
-  text-decoration: none;
-  cursor: pointer;
-}
-.workspace-rail .wr-brand {
-  color: var(--ds-accent);
-}
 .workspace-rail :not(.ui-icon-button) > .pw-icon {
   display: block;
   width: 20px;
   height: 20px;
   flex-shrink: 0;
 }
-.wr-destinations,
-.wr-account {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.wr-account {
-  margin-top: auto;
-}
-.workspace-rail .wr-action:hover {
-  background: var(--ds-hover);
-  color: var(--ds-ink);
-}
-.workspace-rail .wr-action[aria-current='page'] {
-  background: var(--ds-surface);
-  color: var(--ds-ink);
-  box-shadow:
-    0 1px 3px color-mix(in srgb, var(--ds-shadow) 7.06%, transparent),
-    0 4px 12px color-mix(in srgb, var(--ds-shadow) 3.14%, transparent);
-}
-.workspace-rail .wr-avatar,
-.wr-account-heading .wr-avatar {
-  background: var(--ds-selected);
-  border-radius: 50%;
-  color: var(--ds-secondary);
-}
-.workspace-rail .wr-avatar[aria-expanded='true'] {
-  background: var(--ds-surface);
-  box-shadow: 0 1px 5px color-mix(in srgb, var(--ds-shadow) 12.55%, transparent);
-}
-.wr-online {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ds-statusHealthy);
-  position: absolute;
-  top: 6px;
-  right: 5px;
-  box-shadow: 0 0 0 2px var(--ds-rail);
-}
-.workspace-rail :is(a, button, select, summary):focus-visible,
-.wr-account-popover :is(a, button, select, summary):focus-visible {
+.workspace-rail :is(a, button, select, summary):focus-visible {
   outline: 2px solid var(--ds-accent);
   outline-offset: 3px;
-}
-.wr-account-popover {
-  position: fixed;
-  inset: auto auto 12px 62px;
-  margin: 0;
-  width: min(310px, calc(100vw - 74px));
-  max-height: calc(100dvh - 24px);
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid var(--ds-edge);
-  border-radius: 18px;
-  background: var(--ds-surface);
-  color: var(--ds-ink);
-  box-shadow:
-    0 4px 12px color-mix(in srgb, var(--ds-shadow) 7.06%, transparent),
-    0 20px 60px color-mix(in srgb, var(--ds-shadow) 14.12%, transparent);
 }
 .wr-account-heading {
   display: flex;
@@ -117,12 +41,6 @@
   padding-bottom: 14px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--ds-line);
-}
-.wr-account-heading .wr-avatar {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
 }
 .wr-account-heading strong {
   display: block;
@@ -134,28 +52,6 @@
   color: var(--ds-muted);
   font-size: var(--ds-type-meta);
 }
-.wr-computer-label {
-  display: block;
-  color: var(--ds-secondary);
-  font-size: var(--ds-type-meta);
-  padding: 6px 0;
-}
-.wr-account-popover .wr-computer-label select {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  padding: 7px 8px;
-  margin-top: 4px;
-  background: var(--ds-surface);
-  color: var(--ds-ink);
-  border: 1px solid var(--ds-edge);
-  border-radius: 8px;
-  font: inherit;
-}
-.wr-account-popover .pw-usage {
-  padding: 8px 0 0;
-  margin: 0;
-}
 .dashboard-with-rail {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
@@ -166,41 +62,4 @@
   min-width: 0;
   height: 100%;
   overflow: auto;
-}
-
-.wr-account-popover .wr-sign-out {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 36px;
-  margin-top: 8px;
-  padding: 8px;
-  border: 0;
-  border-top: 1px solid var(--ds-line);
-  border-radius: 0 0 8px 8px;
-  color: var(--ds-secondary);
-  background: transparent;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-}
-.wr-account-popover .wr-sign-out:hover {
-  background: var(--ds-hover);
-  color: var(--ds-ink);
-}
-.wr-account-popover .wr-sign-out:disabled {
-  opacity: 0.5;
-}
-
-.wr-settings-link {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  color: inherit;
-}
-.wr-account-popover .pw-icon {
-  width: 20px;
-  height: 20px;
 }

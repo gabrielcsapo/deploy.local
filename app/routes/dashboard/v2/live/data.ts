@@ -1,20 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { InboxItem, LiveAppResponse, LiveResponse } from '../../../../../shared/v2/contracts';
-import type { V2EventsResponse } from '../../../../../shared/v2/api';
-import { getAuth } from '../../detail/shared';
-import { remember, remembered } from '../data/hooks';
+import { authenticatedFetch, eventFeed, remember, remembered } from '../data/hooks';
 
 export async function liveRequest<T>(
   path: string,
   signal?: AbortSignal,
   body?: unknown,
 ): Promise<T> {
-  const auth = getAuth();
-  const response = await fetch(`/api/v2${path}`, {
+  const response = await authenticatedFetch(`/api/v2${path}`, {
     signal,
     headers: {
-      ...(auth ? { 'x-deploy-username': auth.username, 'x-deploy-token': auth.token } : {}),
       'Content-Type': 'application/json',
     },
     ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
@@ -39,66 +35,79 @@ export function useLive(appId?: string) {
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    const controller = new AbortController();
-    let loading = false;
+    let controller = new AbortController();
+    let loading: Promise<boolean> | undefined;
     let stopped = false;
+    let loaded = false;
     // What Live showed last stays on screen while it refreshes.
     setLive(remembered<LiveResponse>('/api/v2/live'));
     setDetail(detailKey ? remembered<LiveAppResponse>(detailKey) : undefined);
-    async function refresh() {
-      if (loading || stopped) return;
-      loading = true;
+    async function refresh(signal = controller.signal): Promise<boolean> {
+      // An event may arrive during a periodic read. Finish that read, then take another
+      // snapshot; merely sharing its promise could miss the event that triggered us.
+      if (loading) await loading;
+      signal = AbortSignal.any([signal, controller.signal]);
+      if (stopped || signal.aborted) return false;
+      const pending = load(signal);
+      loading = pending;
+      try {
+        return await pending;
+      } finally {
+        if (loading === pending) loading = undefined;
+      }
+    }
+    async function load(signal: AbortSignal) {
       try {
         const [next, inbox, app] = await Promise.all([
-          liveRequest<LiveResponse>('/live', controller.signal),
-          liveRequest<{ items: InboxItem[] }>('/inbox?state=waiting', controller.signal),
+          liveRequest<LiveResponse>('/live', signal),
+          liveRequest<{ items: InboxItem[] }>('/inbox?state=waiting', signal),
           appId
-            ? liveRequest<LiveAppResponse>(`/live/${encodeURIComponent(appId)}`, controller.signal)
+            ? liveRequest<LiveAppResponse>(`/live/${encodeURIComponent(appId)}`, signal)
             : undefined,
         ]);
-        if (stopped) return;
+        if (stopped || signal.aborted) return false;
         remember('/api/v2/live', next);
         if (detailKey) remember(detailKey, app);
         setLive(next);
         setItems(inbox.items);
         setDetail(app);
         setError('');
+        loaded = true;
+        return true;
       } catch (reason) {
-        if (!stopped) setError(reason instanceof Error ? reason.message : 'Live is unavailable.');
-      } finally {
-        loading = false;
+        if (!stopped && !signal.aborted)
+          setError(reason instanceof Error ? reason.message : 'Live is unavailable.');
+        return false;
       }
     }
-    let retryTimer: ReturnType<typeof setTimeout>;
-    async function poll(cursor = 0) {
-      try {
-        const result = await liveRequest<V2EventsResponse>(
-          `/events?after=${cursor}&waitMs=10000`,
-          controller.signal,
-        );
-        if (stopped) return;
-        if (
-          result.events.some((event) =>
-            ['health', 'inbox', 'release', 'rollback'].includes(event.type),
-          )
-        )
-          await refresh();
-        retryTimer = setTimeout(() => void poll(result.cursor), 100);
-      } catch {
-        if (!stopped) {
-          setError('Live updates disconnected. Retrying…');
-          retryTimer = setTimeout(() => void poll(cursor), 3000);
-        }
-      }
-    }
-    void refresh();
-    void poll();
-    const timer = setInterval(() => void refresh(), 15_000);
+    const unsubscribe = eventFeed.subscribe({
+      snapshot: refresh,
+      async events(events, signal) {
+        if (events.some((event) => ['health', 'inbox', 'release', 'rollback'].includes(event.type)))
+          if (!(await refresh(signal))) throw new Error('Snapshot unavailable');
+      },
+      error(_reason, phase) {
+        if (phase === 'connection' || !loaded) setError('Live updates disconnected. Retrying…');
+      },
+      reset() {
+        loaded = false;
+        controller.abort();
+        controller = new AbortController();
+        loading = undefined;
+        setLive(undefined);
+        setDetail(undefined);
+        setItems([]);
+        setError('');
+      },
+    });
+    const timer = setInterval(() => {
+      if (!loading) void refresh();
+    }, 15_000);
     return () => {
       stopped = true;
       controller.abort();
       clearInterval(timer);
-      clearTimeout(retryTimer);
+      unsubscribe();
     };
   }, [appId, detailKey, attempt]);
   return { live, detail, items, error, retry: () => setAttempt((value) => value + 1) };

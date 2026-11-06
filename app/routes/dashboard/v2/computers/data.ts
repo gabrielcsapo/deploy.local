@@ -1,18 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { getAuth } from '../../detail/shared';
+import { authenticatedFetch, onAuthReset } from '../data/hooks';
 export async function computerRequest<T>(
   path: string,
   method = 'GET',
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const auth = getAuth();
-  const response = await fetch(`/api/v2${path}`, {
+  const response = await authenticatedFetch(`/api/v2${path}`, {
     method,
     signal,
     headers: {
-      ...(auth ? { 'x-deploy-username': auth.username, 'x-deploy-token': auth.token } : {}),
       'Content-Type': 'application/json',
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -52,7 +50,14 @@ export function useComputerData<T>(path: string) {
     }
     void refresh();
     const timer = setInterval(() => void refresh(), 10000);
+    const offReset = onAuthReset(() => {
+      controller.abort();
+      setData(undefined);
+      setError('');
+      setAttempt((value) => value + 1);
+    });
     return () => {
+      offReset();
       controller.abort();
       clearInterval(timer);
     };

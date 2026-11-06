@@ -36,7 +36,6 @@ import {
   deployments,
   history,
   requestLogs,
-  requestLogs1m,
   resourceMetrics,
   backups,
   buildLogs,
@@ -59,7 +58,7 @@ import {
   componentServices,
   serviceEndpoints,
 } from './schema.ts';
-import { parseMemoryLimit, type RawContainerStats } from './docker.ts';
+import { type RawContainerStats } from './docker.ts';
 import { isCrashLooping } from './crash-tracker.ts';
 import { ROLLUP_BACKFILL_SQL } from './rollup.ts';
 import { notifyRouteChanged } from './ipc.ts';
@@ -1809,36 +1808,6 @@ export function getAllDeployments() {
   return Array.from(loadDeploymentsCache().values());
 }
 
-export function getAllocatedMemory() {
-  const db = getDb();
-  const all = db
-    .select({
-      name: deployments.name,
-      memoryLimit: deployments.memoryLimit,
-      status: deployments.status,
-    })
-    .from(deployments)
-    .all();
-
-  let totalBytes = 0;
-  const perDeployment: Array<{ name: string; memoryLimit: string; bytes: number; status: string }> =
-    [];
-
-  for (const d of all) {
-    const limit = d.memoryLimit || '4g';
-    const bytes = parseMemoryLimit(limit) || 0;
-    totalBytes += bytes;
-    perDeployment.push({
-      name: d.name,
-      memoryLimit: limit,
-      bytes,
-      status: d.status || 'stopped',
-    });
-  }
-
-  return { totalBytes, perDeployment };
-}
-
 export function getDiscoverableDeployments() {
   // Read directly from SQLite, not `_deploymentsCache` — same rationale as
   // `getDeployments`: the process-local cache goes stale in the RSC action
@@ -1969,40 +1938,6 @@ export function getRequestLogs(
   };
 }
 
-export function getPathAnalytics(
-  name: string,
-  options?: { fromTimestamp?: number; toTimestamp?: number; limit?: number },
-) {
-  const db = getDb();
-
-  let conditions = [eq(requestLogs.deploymentName, name)];
-
-  if (options?.fromTimestamp) {
-    conditions.push(sql`${requestLogs.timestamp} >= ${options.fromTimestamp}`);
-  }
-  if (options?.toTimestamp) {
-    conditions.push(sql`${requestLogs.timestamp} <= ${options.toTimestamp}`);
-  }
-
-  // Strip ?query strings at GROUP BY time so /foo?a=1 and /foo?a=2 collapse.
-  const normalizedPath = sql<string>`CASE WHEN instr(${requestLogs.path}, '?') > 0 THEN substr(${requestLogs.path}, 1, instr(${requestLogs.path}, '?') - 1) ELSE ${requestLogs.path} END`;
-  const limit = Math.min(options?.limit ?? 50, 200);
-
-  return db
-    .select({
-      path: sql<string>`${normalizedPath}`.as('path'),
-      count: sql<number>`count(*)`,
-      avgDuration: sql<number>`round(avg(${requestLogs.duration}))`,
-      errorRate: sql<number>`round(sum(case when ${requestLogs.status} >= 400 then 1.0 else 0.0 end) / count(*) * 100)`,
-    })
-    .from(requestLogs)
-    .where(and(...conditions))
-    .groupBy(normalizedPath)
-    .orderBy(sql`count(*) desc`)
-    .limit(limit)
-    .all();
-}
-
 export function getRequestSummary(
   name: string,
   options?: { fromTimestamp?: number; toTimestamp?: number },
@@ -2080,176 +2015,6 @@ export function getRequestSummary(
   };
 }
 
-// ── Endpoint detail ──────────────────────────────────────────────────────
-
-function chooseBucketInterval(fromTs: number, toTs: number): number {
-  const rangeMs = toTs - fromTs;
-  const HOUR = 3_600_000;
-  const DAY = 86_400_000;
-  if (rangeMs <= 6 * HOUR) return 5 * 60_000; // 5-minute buckets
-  if (rangeMs <= 2 * DAY) return HOUR; // hourly
-  if (rangeMs <= 14 * DAY) return 6 * HOUR; // 6-hour
-  if (rangeMs <= 60 * DAY) return DAY; // daily
-  if (rangeMs <= 365 * DAY) return 7 * DAY; // weekly
-  return 30 * DAY; // monthly
-}
-
-export function getEndpointDetail(
-  name: string,
-  path: string,
-  options?: {
-    fromTimestamp?: number;
-    toTimestamp?: number;
-    page?: number;
-    limit?: number;
-  },
-) {
-  const db = getDb();
-
-  const conditions = [eq(requestLogs.deploymentName, name), eq(requestLogs.path, path)];
-  if (options?.fromTimestamp) {
-    conditions.push(sql`${requestLogs.timestamp} >= ${options.fromTimestamp}`);
-  }
-  if (options?.toTimestamp) {
-    conditions.push(sql`${requestLogs.timestamp} <= ${options.toTimestamp}`);
-  }
-  const where = and(...conditions);
-
-  // ── Summary ── — SQL aggregates instead of materializing every row in JS.
-  const agg = db
-    .select({
-      total: sql<number>`count(*)`,
-      avgDuration: sql<number>`round(avg(${requestLogs.duration}))`,
-      errors: sql<number>`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end)`,
-      s2xx: sql<number>`sum(case when ${requestLogs.status} >= 200 and ${requestLogs.status} < 300 then 1 else 0 end)`,
-      s3xx: sql<number>`sum(case when ${requestLogs.status} >= 300 and ${requestLogs.status} < 400 then 1 else 0 end)`,
-      s4xx: sql<number>`sum(case when ${requestLogs.status} >= 400 and ${requestLogs.status} < 500 then 1 else 0 end)`,
-      s5xx: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
-      requestBytes: sql<number>`coalesce(sum(${requestLogs.requestSize}), 0)`,
-      responseBytes: sql<number>`coalesce(sum(${requestLogs.responseSize}), 0)`,
-    })
-    .from(requestLogs)
-    .where(where)
-    .get();
-
-  const summaryTotal = agg?.total ?? 0;
-  const percentile = (p: number) =>
-    summaryTotal === 0
-      ? 0
-      : (db
-          .select({ duration: requestLogs.duration })
-          .from(requestLogs)
-          .where(where)
-          .orderBy(requestLogs.duration)
-          .limit(1)
-          .offset(Math.min(Math.floor(summaryTotal * p), summaryTotal - 1))
-          .get()?.duration ?? 0);
-
-  const statusCodes: Record<string, number> = {};
-  if (agg?.s2xx) statusCodes['2xx'] = agg.s2xx;
-  if (agg?.s3xx) statusCodes['3xx'] = agg.s3xx;
-  if (agg?.s4xx) statusCodes['4xx'] = agg.s4xx;
-  if (agg?.s5xx) statusCodes['5xx'] = agg.s5xx;
-
-  const summary = {
-    totalRequests: summaryTotal,
-    avgDuration: summaryTotal ? agg!.avgDuration || 0 : 0,
-    p50: percentile(0.5),
-    p95: percentile(0.95),
-    p99: percentile(0.99),
-    errorRate: summaryTotal ? Math.round(((agg!.errors || 0) / summaryTotal) * 100) : 0,
-    statusCodes,
-    totalRequestBytes: agg?.requestBytes ?? 0,
-    totalResponseBytes: agg?.responseBytes ?? 0,
-  };
-
-  // ── Time series ──
-  let fromTs = options?.fromTimestamp;
-  let toTs = options?.toTimestamp ?? Date.now();
-  if (!fromTs) {
-    const range = db
-      .select({
-        minTs: sql<number>`min(${requestLogs.timestamp})`,
-        maxTs: sql<number>`max(${requestLogs.timestamp})`,
-      })
-      .from(requestLogs)
-      .where(where)
-      .get();
-    fromTs = range?.minTs ?? toTs;
-    toTs = range?.maxTs ?? toTs;
-  }
-
-  const intervalMs = chooseBucketInterval(fromTs, toTs);
-
-  const rawBuckets = db
-    .select({
-      bucket: sql<number>`(${requestLogs.timestamp} / ${intervalMs}) * ${intervalMs}`,
-      count: sql<number>`count(*)`,
-      avgDuration: sql<number>`round(avg(${requestLogs.duration}))`,
-      errorCount: sql<number>`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end)`,
-    })
-    .from(requestLogs)
-    .where(where)
-    .groupBy(sql`(${requestLogs.timestamp} / ${intervalMs}) * ${intervalMs}`)
-    .orderBy(sql`(${requestLogs.timestamp} / ${intervalMs}) * ${intervalMs}`)
-    .all();
-
-  // Fill gaps
-  const bucketMap = new Map(rawBuckets.map((b) => [b.bucket, b]));
-  const timeSeries: Array<{
-    bucket: number;
-    count: number;
-    avgDuration: number;
-    errorCount: number;
-  }> = [];
-  const startBucket = Math.floor(fromTs / intervalMs) * intervalMs;
-  const endBucket = Math.floor(toTs / intervalMs) * intervalMs;
-  for (let b = startBucket; b <= endBucket; b += intervalMs) {
-    const existing = bucketMap.get(b);
-    timeSeries.push(existing ?? { bucket: b, count: 0, avgDuration: 0, errorCount: 0 });
-  }
-
-  // ── Recent requests (paginated) ──
-  const page = options?.page || 1;
-  const limit = options?.limit || 20;
-  const offset = (page - 1) * limit;
-
-  const [{ count: total }] = db
-    .select({ count: sql<number>`count(*)` })
-    .from(requestLogs)
-    .where(where)
-    .all();
-
-  const logs = db
-    .select({
-      method: requestLogs.method,
-      path: requestLogs.path,
-      status: requestLogs.status,
-      duration: requestLogs.duration,
-      timestamp: requestLogs.timestamp,
-      ip: requestLogs.ip,
-      userAgent: requestLogs.userAgent,
-      referrer: requestLogs.referrer,
-      requestSize: requestLogs.requestSize,
-      responseSize: requestLogs.responseSize,
-      queryParams: requestLogs.queryParams,
-      username: requestLogs.username,
-    })
-    .from(requestLogs)
-    .where(where)
-    .orderBy(desc(requestLogs.timestamp))
-    .limit(limit)
-    .offset(offset)
-    .all();
-
-  return {
-    summary,
-    timeSeries,
-    recentRequests: { logs, total, page, totalPages: Math.ceil(total / limit) },
-    bucketIntervalMs: intervalMs,
-  };
-}
-
 // ── Resource metrics ───────────────────────────────────────────────────────
 
 export function logMetrics(name: string, metrics: RawContainerStats) {
@@ -2269,26 +2034,6 @@ export function logMetrics(name: string, metrics: RawContainerStats) {
       timestamp: metrics.timestamp,
     })
     .run();
-}
-
-export function getMetricsHistory(name: string, since: number) {
-  const db = getDb();
-  return db
-    .select({
-      cpuPercent: resourceMetrics.cpuPercent,
-      memUsageBytes: resourceMetrics.memUsageBytes,
-      memLimitBytes: resourceMetrics.memLimitBytes,
-      memPercent: resourceMetrics.memPercent,
-      netRxBytes: resourceMetrics.netRxBytes,
-      netTxBytes: resourceMetrics.netTxBytes,
-      blockReadBytes: resourceMetrics.blockReadBytes,
-      blockWriteBytes: resourceMetrics.blockWriteBytes,
-      pids: resourceMetrics.pids,
-      timestamp: resourceMetrics.timestamp,
-    })
-    .from(resourceMetrics)
-    .where(and(eq(resourceMetrics.deploymentName, name), gte(resourceMetrics.timestamp, since)))
-    .all();
 }
 
 export type HealthSeverity = 'healthy' | 'degraded' | 'down' | 'idle' | 'building';
@@ -2517,86 +2262,6 @@ export function getDashboardAggregate(): DashboardAggregate {
   return { totals, perApp };
 }
 
-// ── Fleet-wide series & activity ────────────────────────────────────────────
-// Powers the global dashboard's "command center" panel. Sums across every
-// deployment so the dashboard can show one timeline of total traffic and one
-// timeline of fleet-wide errors. Pure read paths; no caching needed at this
-// scale (SQLite query on indexed timestamp column completes in single-digit
-// ms for ~24h of request logs).
-
-export interface FleetSeriesPoint {
-  bucket: number;
-  total: number;
-  errors: number;
-}
-
-export function getFleetSeries(
-  fromMs: number,
-  toMs: number,
-): { bucketMs: number; series: FleetSeriesPoint[] } {
-  const db = getDb();
-  const bucketMs = pickBucketMs(toMs - fromMs);
-
-  // Reads the 1-minute rollup table instead of raw request_logs — the fleet
-  // series spans every deployment over up to months, which used to scan the
-  // raw table. pickBucketMs always returns a multiple of 60s, so rollup
-  // buckets re-bucket cleanly.
-  const bucketExpr = sql`CAST(${requestLogs1m.bucketMs} / ${bucketMs} AS INTEGER) * ${bucketMs}`;
-  const rows = db
-    .select({
-      bucket: sql<number>`${bucketExpr}`.as('bucket'),
-      total: sql<number>`sum(${requestLogs1m.count})`,
-      errors: sql<number>`sum(${requestLogs1m.errors5xx})`,
-    })
-    .from(requestLogs1m)
-    .where(and(gte(requestLogs1m.bucketMs, fromMs), sql`${requestLogs1m.bucketMs} <= ${toMs}`))
-    .groupBy(bucketExpr)
-    .orderBy(bucketExpr)
-    .all();
-
-  const byBucket = new Map(rows.map((r) => [r.bucket, r]));
-  const startBucket = Math.floor(fromMs / bucketMs) * bucketMs;
-  const endBucket = Math.floor(toMs / bucketMs) * bucketMs;
-  const maxBuckets = 500;
-  const stride = Math.max(1, Math.ceil((endBucket - startBucket) / bucketMs / maxBuckets));
-  const series: FleetSeriesPoint[] = [];
-  for (let t = startBucket; t <= endBucket; t += bucketMs * stride) {
-    const existing = byBucket.get(t);
-    series.push({
-      bucket: t,
-      total: existing?.total ?? 0,
-      errors: existing?.errors ?? 0,
-    });
-  }
-  return { bucketMs: bucketMs * stride, series };
-}
-
-export interface FleetActivityRow {
-  id: number;
-  deploymentName: string;
-  action: string;
-  source: string | null;
-  durationMs: number | null;
-  timestamp: string;
-}
-
-export function getRecentFleetActivity(limit = 20): FleetActivityRow[] {
-  const db = getDb();
-  return db
-    .select({
-      id: history.id,
-      deploymentName: history.deploymentName,
-      action: history.action,
-      source: history.source,
-      durationMs: history.durationMs,
-      timestamp: history.timestamp,
-    })
-    .from(history)
-    .orderBy(desc(history.timestamp))
-    .limit(Math.min(limit, 100))
-    .all();
-}
-
 export function getLatestMetricsAll() {
   const cutoff = Date.now() - 120_000;
 
@@ -2627,94 +2292,6 @@ export function getLatestMetricsAll() {
   }>;
 
   return rows;
-}
-
-// ── Request rate & punchcard ──────────────────────────────────────────────
-
-export function getRequestRateBuckets(
-  name: string,
-  since: number,
-  bucketSizeMs: number,
-): { timestamp: number; count: number }[] {
-  const db = getDb();
-  const now = Date.now();
-
-  // Whole-minute buckets re-aggregate from the rollup table; sub-minute
-  // buckets (windows under an hour) need raw rows.
-  // CAST to INTEGER — parameter-bound bucketSizeMs would otherwise trigger
-  // floating-point division, hashing every row to its own bucket.
-  const useRollups = bucketSizeMs % 60_000 === 0;
-  const rows = useRollups
-    ? db
-        .select({
-          bucket: sql<number>`CAST(${requestLogs1m.bucketMs} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
-          count: sql<number>`sum(${requestLogs1m.count})`,
-        })
-        .from(requestLogs1m)
-        .where(and(eq(requestLogs1m.deploymentName, name), gte(requestLogs1m.bucketMs, since)))
-        .groupBy(
-          sql`CAST(${requestLogs1m.bucketMs} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
-        )
-        .orderBy(
-          sql`CAST(${requestLogs1m.bucketMs} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
-        )
-        .all()
-    : db
-        .select({
-          bucket: sql<number>`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
-          count: sql<number>`count(*)`,
-        })
-        .from(requestLogs)
-        .where(and(eq(requestLogs.deploymentName, name), sql`${requestLogs.timestamp} >= ${since}`))
-        .groupBy(sql`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`)
-        .orderBy(sql`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`)
-        .all();
-
-  // Fill in empty buckets so the sparkline has continuous data
-  const bucketMap = new Map(rows.map((r) => [r.bucket, r.count]));
-  const result: { timestamp: number; count: number }[] = [];
-  const startBucket = Math.floor(since / bucketSizeMs) * bucketSizeMs;
-  const endBucket = Math.floor(now / bucketSizeMs) * bucketSizeMs;
-  for (let t = startBucket; t <= endBucket; t += bucketSizeMs) {
-    result.push({ timestamp: t, count: bucketMap.get(t) || 0 });
-  }
-  return result;
-}
-
-export function getRequestPunchcard(name: string): { day: number; hour: number; count: number }[] {
-  const db = getDb();
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-  // Aggregate from the 1-minute rollups (≤10k rows/app/week) instead of raw
-  // request logs. strftime with 'localtime' matches the previous Date-based
-  // local-timezone semantics.
-  const dayExpr = sql<string>`strftime('%w', ${requestLogs1m.bucketMs} / 1000, 'unixepoch', 'localtime')`;
-  const hourExpr = sql<string>`strftime('%H', ${requestLogs1m.bucketMs} / 1000, 'unixepoch', 'localtime')`;
-  const rows = db
-    .select({
-      day: dayExpr.as('day'),
-      hour: hourExpr.as('hour'),
-      count: sql<number>`sum(${requestLogs1m.count})`,
-    })
-    .from(requestLogs1m)
-    .where(and(eq(requestLogs1m.deploymentName, name), gte(requestLogs1m.bucketMs, sevenDaysAgo)))
-    .groupBy(dayExpr, hourExpr)
-    .all();
-
-  // 7x24 grid: day 0=Sunday through 6=Saturday, hours 0-23
-  const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
-
-  for (const row of rows) {
-    grid[parseInt(row.day, 10)][parseInt(row.hour, 10)] = row.count;
-  }
-
-  const result: { day: number; hour: number; count: number }[] = [];
-  for (let day = 0; day < 7; day++) {
-    for (let hour = 0; hour < 24; hour++) {
-      result.push({ day, hour, count: grid[day][hour] });
-    }
-  }
-  return result;
 }
 
 // ── Backups ─────────────────────────────────────────────────────────────────
@@ -3181,35 +2758,6 @@ export function getRequestSeries(
   }
 
   return { bucketMs: bucketMs * stride, series };
-}
-
-export function getTopErrorPaths(
-  name: string,
-  fromMs: number,
-  limit = 10,
-): Array<{ path: string; total: number; errors: number; errorRate: number }> {
-  const db = getDb();
-  const normalizedPath = sql<string>`CASE WHEN instr(${requestLogs.path}, '?') > 0 THEN substr(${requestLogs.path}, 1, instr(${requestLogs.path}, '?') - 1) ELSE ${requestLogs.path} END`;
-  const rows = db
-    .select({
-      path: sql<string>`${normalizedPath}`.as('path'),
-      total: sql<number>`count(*)`,
-      errors: sql<number>`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end)`,
-    })
-    .from(requestLogs)
-    .where(and(eq(requestLogs.deploymentName, name), gte(requestLogs.timestamp, fromMs)))
-    .groupBy(normalizedPath)
-    .having(sql`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end) > 0`)
-    .orderBy(sql`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end) desc`)
-    .limit(Math.min(limit, 50))
-    .all();
-
-  return rows.map((r) => ({
-    path: r.path,
-    total: r.total ?? 0,
-    errors: r.errors ?? 0,
-    errorRate: r.total ? Math.round(((r.errors ?? 0) / r.total) * 100) : 0,
-  }));
 }
 
 // ── System Settings ─────────────────────────────────────────────────────────

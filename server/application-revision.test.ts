@@ -4,7 +4,6 @@ import { compileDeployYaml } from './application-spec.ts';
 import {
   rebaseApplicationRevision,
   repositoryUploadCanSkipRuntime,
-  renderParentRelativeApplicationPatch,
 } from './application-revision.ts';
 
 const BASE = compileDeployYaml(`apiVersion: deploy.local/v1
@@ -118,21 +117,5 @@ routes:
 
     assert.deepEqual(result.conflicts, ['/components/web/image']);
     assert.equal(result.spec, undefined);
-  });
-
-  it('exports a parent-relative merge patch without resolved values', () => {
-    const target = structuredClone(BASE);
-    target.components.web.instances = 2;
-    const patch = renderParentRelativeApplicationPatch({
-      applicationName: 'notes',
-      parentDigest: `sha256:${'a'.repeat(64)}`,
-      targetDigest: `sha256:${'b'.repeat(64)}`,
-      parent: BASE,
-      target,
-    });
-
-    assert.match(patch, /kind: ApplicationPatch/);
-    assert.match(patch, /parentDigest: sha256:aaaa/);
-    assert.match(patch, /instances: 2/);
   });
 });

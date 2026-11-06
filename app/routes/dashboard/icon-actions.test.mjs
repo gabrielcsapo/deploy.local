@@ -2,25 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { node, values, legacyFiles, phoneFile } from '../../../scripts/mobile-web-cascade.mjs';
 
-const files = [
-  ...legacyFiles,
-  phoneFile,
-  'app/routes/dashboard/task-tree.css',
-  'app/routes/dashboard/attachments.css',
-];
+const files = [...legacyFiles, phoneFile, 'app/routes/dashboard/task-tree.css'];
 test('icon actions retain their quiet surface and token sizes across legacy workspace styles', () => {
   for (const order of [files, files.toReversed()]) {
     for (const width of [390, 1440]) {
-      for (const [container, extra] of [
-        ['pw-activity-header', ''],
-        ['task-tree-project', 'task-tree-add'],
-        ['pw-viewer-actions', ''],
-        ['compact-top-actions', ''],
-        ['pw-media-actions', ''],
-        ['workspace-rail', ''],
-      ]) {
+      for (const [container, extra] of [['task-tree-project', 'task-tree-add']]) {
         const shell = node('dashboard-shell', null);
-        const root = node('project-workspace', shell, 'div', { 'data-phone': '' });
+        const root = node('task-tree', shell);
         const parent = node(container, root);
         const button = node(`ui-icon-button ${extra}`, parent, 'button', {
           'data-size': 'compact',

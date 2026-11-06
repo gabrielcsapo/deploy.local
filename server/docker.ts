@@ -6,7 +6,7 @@ import { assertLegacyMutationAllowed } from './legacy-docker-update.ts';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { rm, writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { isIP, createServer, createConnection, type AddressInfo, type Socket } from 'node:net';
 import http from 'node:http';
@@ -52,12 +52,6 @@ export function getBuildCacheSize(name: string): number {
       else if (entry.isFile()) bytes += statSync(path).size;
     }
   }
-  return bytes;
-}
-
-export async function purgeBuildCache(name: string): Promise<number> {
-  const bytes = getBuildCacheSize(name);
-  await rm(buildCacheDirectory(name), { recursive: true, force: true });
   return bytes;
 }
 
@@ -809,74 +803,6 @@ export async function sweepOrphanedPrevContainers(): Promise<string[]> {
   } catch {
     return [];
   }
-}
-
-function publishedHostPort(info: Awaited<ReturnType<typeof inspectContainer>>): number | null {
-  if (!info) return null;
-  const labeled = Number.parseInt(info.Config.Labels?.['deploy-sh.host-port'] || '', 10);
-  if (Number.isInteger(labeled) && labeled > 0) return labeled;
-  for (const bindings of Object.values(info.NetworkSettings.Ports || {})) {
-    const port = Number.parseInt(bindings?.[0]?.HostPort || '', 10);
-    if (Number.isInteger(port) && port > 0) return port;
-  }
-  return null;
-}
-
-export async function getPreviousRelease(name: string): Promise<{
-  containerName: string;
-  containerId: string;
-  image: string;
-  port: number;
-  createdAt: string;
-} | null> {
-  const canonical = `deploy-sh-${name.toLowerCase()}`;
-  const candidates = (await listDeployContainers())
-    .map((container) => container.Names[0]?.replace(/^\//, ''))
-    .filter((candidate): candidate is string =>
-      Boolean(candidate?.startsWith(`${canonical}-prev-`)),
-    )
-    .sort((a, b) => b.localeCompare(a));
-  for (const containerName of candidates) {
-    const info = await inspectContainer(containerName);
-    const port = publishedHostPort(info);
-    if (info && port) {
-      return {
-        containerName,
-        containerId: info.Id,
-        image: info.Config.Image,
-        port,
-        createdAt: info.Created,
-      };
-    }
-  }
-  return null;
-}
-
-/** Atomically swaps the canonical container with the retained previous release. */
-export async function rollbackContainer(name: string) {
-  return withApplicationMutation(name, async () => {
-    assertWanderLegacyAllowed(name);
-    assertLegacyMutationAllowed(name);
-    const canonical = `deploy-sh-${name.toLowerCase()}`;
-    const previous = await getPreviousRelease(name);
-    if (!previous) throw new Error('No previous release is available');
-    await apiStartContainer(previous.containerName);
-    if (!(await healthCheckPort(previous.port, 30_000))) {
-      await stopContainerByName(previous.containerName);
-      throw new Error('Previous release failed its health check');
-    }
-    const displaced = `${canonical}-prev-${Date.now()}`;
-    await renameContainerByName(canonical, displaced);
-    try {
-      await renameContainerByName(previous.containerName, canonical);
-    } catch (error) {
-      await renameContainerByName(displaced, canonical).catch(() => {});
-      await stopContainerByName(previous.containerName);
-      throw error;
-    }
-    setTimeout(() => stopContainerByName(displaced), 30_000).unref();
-    return { ...previous, containerName: canonical, displacedContainerName: displaced };
-  });
 }
 
 export async function prunePreviousContainers(name: string, keep = 1): Promise<void> {

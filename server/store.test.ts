@@ -709,7 +709,7 @@ describe('store – resource metrics', () => {
   beforeEach(setup);
   afterEach(teardown);
 
-  it('logMetrics inserts and getMetricsHistory retrieves', async () => {
+  it('logMetrics inserts and getLatestMetricsAll retrieves', async () => {
     const store = await loadStore();
     const now = Date.now();
     store.logMetrics('myapp', {
@@ -725,46 +725,12 @@ describe('store – resource metrics', () => {
       timestamp: now,
     });
 
-    const metrics = store.getMetricsHistory('myapp', now - 1000);
+    const metrics = store.getLatestMetricsAll();
     assert.equal(metrics.length, 1);
     assert.equal(metrics[0].cpuPercent, 5.5);
     assert.equal(metrics[0].memUsageBytes, 1024 * 1024 * 100);
-    assert.equal(metrics[0].pids, 12);
+    assert.equal(store.getSqlite().prepare('SELECT pids FROM resource_metrics').get().pids, 12);
     assert.equal(metrics[0].timestamp, now);
-  });
-
-  it('getMetricsHistory filters by since timestamp', async () => {
-    const store = await loadStore();
-    const old = Date.now() - 120_000;
-    const recent = Date.now();
-
-    const base = {
-      cpuPercent: 1,
-      memUsageBytes: 100,
-      memLimitBytes: 1000,
-      memPercent: 10,
-      netRxBytes: 0,
-      netTxBytes: 0,
-      blockReadBytes: 0,
-      blockWriteBytes: 0,
-      pids: 1,
-    };
-
-    store.logMetrics('myapp', { ...base, timestamp: old });
-    store.logMetrics('myapp', { ...base, timestamp: recent });
-
-    const all = store.getMetricsHistory('myapp', old - 1000);
-    assert.equal(all.length, 2);
-
-    const filtered = store.getMetricsHistory('myapp', old + 1000);
-    assert.equal(filtered.length, 1);
-    assert.equal(filtered[0].timestamp, recent);
-  });
-
-  it('returns empty array for app with no metrics', async () => {
-    const store = await loadStore();
-    const metrics = store.getMetricsHistory('nope', 0);
-    assert.deepEqual(metrics, []);
   });
 });
 
@@ -969,10 +935,5 @@ describe('store – request_logs_1m rollups', () => {
     assert.equal(updated.count, 4);
     assert.equal(updated.errors_5xx, 2);
     assert.equal(updated.duration_min, 5);
-
-    // Fleet series reads from rollups
-    const series = store.getFleetSeries(base - minute, base + 2 * minute);
-    const total = series.series.reduce((a: number, p: { total: number }) => a + p.total, 0);
-    assert.equal(total, 5);
   });
 });
