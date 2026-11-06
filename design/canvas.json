@@ -3820,7 +3820,7 @@
       "w": 440,
       "x": 4040,
       "y": 4320,
-      "text": "PageLoading.html\nMoving to a page that is not ready yet. The sidebar stays where it is, with the page you clicked already selected, and only the page area shows skeleton rows. It uses the same skeleton as the rest of the app and says nothing until 10 s, when it says what is slow (see States).\n\nBelow 820 px the sidebar is hidden, so the header stays with its menu button: you can always leave a page that is still loading. Same on web and in the Mac app; the iPhone app is native and does not have this."
+      "text": "PageLoading.html\nMoving to a page that is not ready yet. The sidebar stays where it is, with the page you clicked already selected, and only the page area shows skeleton rows. It uses the same skeleton as the rest of the app and says nothing until 10 s, when it says what is slow (see States).\n\nAt 600 px and below the sidebar is hidden, so the header stays with its menu button: you can always leave a page that is still loading. This board's 700 px render shows the design system's older 820 px breakpoint; the app keeps the sidebar at 700. Same on web and in the Mac app; the iPhone app is native and does not have this."
     }
   },
   "starts": {}
