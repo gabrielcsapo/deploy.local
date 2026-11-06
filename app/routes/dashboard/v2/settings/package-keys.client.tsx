@@ -29,6 +29,7 @@ export function PackageKeys() {
               </span>
             </span>
             <Action
+              variant="quiet"
               onClick={async () => {
                 try {
                   await request('/api/v2/package-keys', {

@@ -17,3 +17,19 @@
 .packages-page .dl-term {
   margin: 0;
 }
+/* Buttons shrink to their content by default, and these rows read like the links beside them. */
+.packages-detail button.dl-item {
+  width: 100%;
+  text-align: left;
+}
+/* The name is what this page is about, so the description gives way first. */
+.dl-head:has(+ .dl-scroll .packages-detail) .dl-t {
+  flex: none;
+  max-width: 60%;
+}
+.dl-head:has(+ .dl-scroll .packages-detail) .dl-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

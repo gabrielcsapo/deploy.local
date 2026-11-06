@@ -133,7 +133,10 @@ export class NpmCopy {
       // A package-level 404 still proves that the registry is reachable.
       this.state(true);
       return response;
-    } catch {
+    } catch (error: any) {
+      console.warn(
+        `[packages] npmjs.org request failed: ${url.pathname} ${error?.cause?.code || error?.message}`,
+      );
       this.state(false);
       fail('npmjs.org is unreachable and this package has not been kept.', 503);
     } finally {

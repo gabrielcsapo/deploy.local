@@ -231,7 +231,9 @@ function PackagePage({ name }: { name: string }) {
                 {!all && data?.versions.length > 3 && (
                   <button className="dl-item" onClick={() => setAll(true)}>
                     <span className="dl-t">All {data.versions.length} versions</span>
-                    <Icon name="chevron" />
+                    <span className="dl-chev">
+                      <Icon name="chevron" size={14} />
+                    </span>
                   </button>
                 )}
               </div>

@@ -11,11 +11,24 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, writeFile, rm, readdir, utimes, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 const exec = promisify(execFile);
-await mkdir('output/packages-npm', { recursive: true });
-const root = await mkdtemp(resolve('output/packages-npm/test-'));
+// Nothing here can rely on ignored folders: a release runs these tests from a clean checkout.
+const root = await mkdtemp(join(tmpdir(), 'packages-test-'));
+const freePort = () =>
+  new Promise<number>((done) => {
+    const probe = createServer();
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address() as { port: number };
+      probe.close(() => done(port));
+    });
+  });
+const port = await freePort(),
+  upstreamPort = await freePort();
+const has = (command: string) => spawnSync(command, ['--version']).status === 0;
 process.env.DEPLOY_DATA_DIR = root;
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
 process.env.NPM_CONFIG_CACHE = join(root, 'cli-npm-cache');
@@ -35,8 +48,8 @@ const aliceKey = createKey('alice', 'MacBook Pro', 'publish');
 const bobKey = createKey('bob', 'bazzite', 'publish');
 const installKey = createKey('alice', 'read-only', 'install');
 const worker = enrollWorker('alice', { workerId: 'packages-test' });
-const origin = 'http://127.0.0.1:5182';
-const upstreamOrigin = 'http://127.0.0.1:5183';
+const origin = `http://127.0.0.1:${port}`;
+const upstreamOrigin = `http://127.0.0.1:${upstreamPort}`;
 const registry = createNpmRegistry({ upstreamBase: upstreamOrigin, publicBase: origin + '/npm/' });
 const docs = new Map<string, any>(),
   tarballs = new Map<string, Buffer>();
@@ -95,8 +108,8 @@ const server = createServer(async (req, res) => {
   res.writeHead(404);
   res.end();
 });
-server.listen(5182, '127.0.0.1');
-upstream.listen(5183, '127.0.0.1');
+server.listen(port, '127.0.0.1');
+upstream.listen(upstreamPort, '127.0.0.1');
 await Promise.all([once(server, 'listening'), once(upstream, 'listening')]);
 after(async () => {
   registry.copy.close();
@@ -536,7 +549,7 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
   const userRc = join(root, 'user.npmrc');
   await writeFile(
     userRc,
-    `//127.0.0.1:5182/npm/:_authToken=${aliceKey.key}\nregistry=${origin}/npm/\n//127.0.0.1:5182/npm/:always-auth=true\n`,
+    `//127.0.0.1:${port}/npm/:_authToken=${aliceKey.key}\nregistry=${origin}/npm/\n//127.0.0.1:${port}/npm/:always-auth=true\n`,
   );
   const env = {
     ...process.env,
@@ -552,8 +565,9 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
     npm_config_package_manager_strict: 'false',
   };
   const yarn = resolve('output/packages-npm/tools/node_modules/yarn/bin/yarn.js');
-  for (const client of ['npm', 'pnpm', 'yarn']) {
-    await t.test(client, async () => {
+  const available = { npm: has('npm'), pnpm: has('pnpm'), yarn: existsSync(yarn) };
+  for (const client of ['npm', 'pnpm', 'yarn'] as const) {
+    await t.test(client, { skip: !available[client] }, async () => {
       const dir = join(root, client + '-publisher');
       await mkdir(dir);
       const name = '@deploy.local/' + client + '-client';
@@ -562,8 +576,7 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
         JSON.stringify({ name, version: '1.0.0', main: 'index.js', license: 'MIT' }),
       );
       await writeFile(join(dir, 'index.js'), 'module.exports = 42;\n');
-      const pnpm = resolve('output/packages-npm/tools/node_modules/pnpm/bin/pnpm.cjs');
-      const command = client === 'npm' ? 'npm' : process.execPath;
+      const command = client === 'yarn' ? process.execPath : client;
       const publishArgs =
         client === 'yarn'
           ? [
@@ -576,7 +589,6 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
               origin + '/npm/',
             ]
           : [
-              ...(client === 'pnpm' ? [pnpm] : []),
               'publish',
               '--registry',
               origin + '/npm/',
@@ -606,7 +618,6 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
               origin + '/npm/',
             ]
           : [
-              ...(client === 'pnpm' ? [pnpm] : []),
               'install',
               '--ignore-scripts',
               ...(client === 'pnpm'
@@ -674,7 +685,7 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
         ).status,
         503,
       );
-      upstream.listen(5183, '127.0.0.1');
+      upstream.listen(upstreamPort, '127.0.0.1');
       await once(upstream, 'listening');
     });
   }
@@ -708,7 +719,7 @@ test('CLI preserves user config, never writes keys to projects, uses pnpm pack a
     home,
     cwd,
     print: (text: string) => messages.push(text),
-    packCommand: resolve('output/packages-npm/tools/node_modules/.bin/pnpm'),
+    packCommand: 'pnpm',
   };
   await runPackages(['login'], {}, context);
   const rc = await readFile(join(home, '.npmrc'), 'utf8');

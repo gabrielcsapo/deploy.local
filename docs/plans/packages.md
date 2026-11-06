@@ -91,6 +91,7 @@ The old repository folder is left as it is. Archiving the GitHub repository is f
   - `PUT /npm/:name`: publish. Only new versions are accepted. A changed `deprecated` field is accepted as a deprecation.
   - `PUT|DELETE /npm/-/package/:name/dist-tags/:tag`
   - `GET /npm/-/whoami` and `GET /npm/-/ping`
+  - `GET /npm/-/npm/v1/attestations/:name@:version`: pnpm reads these. Passed through from npmjs.org. A private name, or the source being down, answers 404.
   - `GET /-/v1/search` (hosted packages only)
 - **Refused, with a message:**
   - Unpublish (`DELETE`): “Versions are never removed. Deprecate it instead.”
@@ -150,6 +151,7 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 
 ### How the copy behaves
 
+- **Documents are prepared once.** The first fetch streams a document to disk and a worker writes the full document, the abbreviated one and a small version index, at most four at a time. Requests stream those files, so serving never parses a large document on the server's main thread.
 - **Packuments and index files** are served from the copy if it was fetched less than 5 minutes ago. Otherwise they are revalidated with ETag. If the source fails (a connection error, a 5 s timeout or a 5xx), the copy is served and the source is marked unreachable. Tarball URLs in packuments are rewritten to `https://deploy.local/npm/…`.
 - **Tarballs and `.crate` files** never change once published, so they are kept by hash and checked against `dist.integrity` (sha512) or `cksum`. A file that fails the check is never stored.
 - **While a source is down**, deploy.local checks it every minute. The Copies tab shows the banner and Unreachable, and the sidebar shows “Using copies”.
@@ -236,7 +238,7 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 
 - Names never mix hosted and upstream versions. Claiming a public name needs an admin.
 - Every upstream file is checked against its published hash before it is stored.
-- Limits: 200 MB per tarball or crate, 10 MB per packument.
+- Limits: 200 MB per tarball or crate, 10 MB for a hosted packument, 256 MB for one from npmjs.org (`typescript`'s full document is 15.9 MB).
 - Keys are hashed, scoped, revocable and show their last use. No key is ever written to a project file.
 - Publishes, deprecations, yanks and key changes go to deploy.local's activity log with who, which credential and from where.
 
@@ -320,5 +322,5 @@ The owner's goal: "all the content should go through that and cache so we can ha
    - Bump by hand in each project, as now.
    - A `deploy packages update <name>` command that updates a project's version and lockfile, run by a person or an agent.
    - When a new version publishes, deploy.local starts a task in each project using it, which opens a pull request. The owner still merges. This contradicts the approved `Package` board's "deploy.local does not open pull requests for new versions", so it needs a design change.
-9. **Freshly published versions and pnpm's waiting period.** pnpm's `minimumReleaseAge` applies to private packages too, so a project with that setting can't install a new private version until the period passes. The real-client tests set it to 0 to get around this. deploy.local has this setting today, so it would affect other projects set up the same way. Should private names be excluded, per project or for all of them?
+9. **Freshly published versions and pnpm's waiting period.** pnpm's `minimumReleaseAge` applies to private packages too, so a project with that setting can't install a new private version until the period passes. The real-client tests set it to 0 to get around this. pnpm 11 turns this on by default, for one day, and applies it to locked installs too, so it affects every pnpm project. Should private names be excluded, per project or for all of them?
 10. **Deprecating from the web, and search on Packages.** The plan offers deprecate on version rows, and the boards draw a search button, but no board draws either interaction. The CLI and API can deprecate. Draw them, or leave them out?
