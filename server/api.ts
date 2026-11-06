@@ -1,3 +1,4 @@
+import './packages/hooks.ts';
 import { npmRegistry } from './packages/npm.ts';
 import {
   consumeAgentUpload,
@@ -2157,7 +2158,10 @@ export function apiMiddleware(
                           username,
                           releaseDirectory,
                           source.digest,
-                          { noCache: fields.noCache === '1' || fields.noCache === 'true' },
+                          {
+                            noCache: fields.noCache === '1' || fields.noCache === 'true',
+                            projectId: repositoryProjectId,
+                          },
                         );
                         legacyResult = {
                           name,
@@ -3237,7 +3241,7 @@ export function apiMiddleware(
                     data: { line, timestamp },
                   });
                 },
-                { noCache },
+                { noCache, owner: username, projectId: repositoryProjectId },
               );
 
               buildLogStream.end();

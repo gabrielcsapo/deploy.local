@@ -1,3 +1,4 @@
+import { agentShellEnvironment } from './agent-packages.ts';
 import { nodeRuntimeEnvironment } from './node-runtime.ts';
 import { coordinationTools } from './coordination-tools.ts';
 import { trustEnvironment } from './tls-trust.ts';
@@ -11,7 +12,7 @@ export function agentModelEnvironment(run: any, environment: NodeJS.ProcessEnv =
     DEPLOY_MODEL_EFFORT: run.effort || undefined,
   };
 }
-export function agentLaunch(run: any) {
+export function agentLaunch(run: any, packages: NodeJS.ProcessEnv = {}) {
   const env = { DEPLOY_AGENT_INSTRUCTIONS: run.agentContext || '' };
 
   if (run.adapter === 'compatible')
@@ -36,6 +37,14 @@ export function agentLaunch(run: any) {
     `developer_instructions=${JSON.stringify(run.agentContext || '')}`,
     // Managed workers use a private CODEX_HOME instead of importing desktop configuration.
     ...(process.env.DEPLOY_MANAGED_WORKER === '1' ? [] : ['--ignore-user-config']),
+    // Include the prepared install environment in Codex's own shell tools without
+    // passing token values on the command line or exposing worker/provider credentials.
+    '-c',
+    'shell_environment_policy.inherit="all"',
+    '-c',
+    'shell_environment_policy.ignore_default_excludes=true',
+    '-c',
+    `shell_environment_policy.include_only=${JSON.stringify(Object.keys(agentShellEnvironment({ ...process.env, ...packages })))}`,
     '--sandbox',
     'workspace-write',
     '-c',

@@ -1,3 +1,5 @@
+import { prepareAgentInstall, agentEnvironment } from './agent-packages.ts';
+import { secretOutput } from '../../shared/package-install.mjs';
 import { executeBaseUpdate, prepareBaseUpdateWorkspace } from './update-base-worker.ts';
 import { claimRemoteWorker } from './remote-worker-lease.ts';
 import { watchWorkerParent } from './worker-process.ts';
@@ -165,6 +167,7 @@ function terminate() {
   } catch {}
 }
 async function start(assignment: any) {
+  let install: Awaited<ReturnType<typeof prepareAgentInstall>> | undefined;
   state = {
     ...assignment,
     workspacePath: resolve(localRoot, 'tasks', assignment.task.id),
@@ -261,25 +264,33 @@ async function start(assignment: any) {
       inputs.attachments || [],
       attachmentImagePaths,
     );
-    const launch = agentLaunch({
-      ...state.run,
-      imagePaths: [...images.paths, ...attachmentImagePaths],
-    });
+    install = await prepareAgentInstall(
+      () =>
+        request(`/workers/${workerId}/jobs/packages`, {
+          runId: state.run.id,
+          generation: state.run.generation,
+        }),
+      {
+        cwd: state.workspacePath,
+        root: resolve(localRoot, 'agent-packages'),
+        log: (line) => emit('provider.output', { text: line + '\n' }),
+      },
+    );
+    if (state.stopRequested) throw new Error('Task stopped during package preparation');
+    const launch = agentLaunch(
+      {
+        ...state.run,
+        imagePaths: [...images.paths, ...attachmentImagePaths],
+      },
+      install.env,
+    );
     child = spawn(launch.executable, launch.args, {
       cwd: state.workspacePath,
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
-        ...Object.fromEntries(
-          Object.entries(process.env).filter(
-            ([key]) =>
-              ![
-                'DEPLOY_WORKER_TOKEN',
-                'DEPLOY_WORKSPACE_TOKEN',
-                'DEPLOY_WORKSPACE_USERNAME',
-              ].includes(key),
-          ),
-        ),
+        ...agentEnvironment(process.env, install.env),
+        ...install.env,
         ...launch.env,
         DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
         DEPLOY_AGENT_URL: origin + '/api/workspace/agent/tools',
@@ -302,7 +313,7 @@ async function start(assignment: any) {
     child.stdin!.end(state.run.prompt + attachmentPrompt);
     let buffer = '',
       stderr = '';
-    child.stdout!.on('data', (chunk) => {
+    const stdout = secretOutput(install.secrets, (chunk) => {
       buffer += chunk;
       let end;
       while ((end = buffer.indexOf('\n')) >= 0) {
@@ -337,12 +348,19 @@ async function start(assignment: any) {
         }
       }
     });
-    child.stderr!.on('data', (chunk) => (stderr = (stderr + chunk).slice(-10000)));
+    const errorOutput = secretOutput(install.secrets, (chunk) => {
+      stderr = (stderr + chunk).slice(-10000);
+    });
+    child.stdout!.on('data', stdout.write);
+    child.stderr!.on('data', errorOutput.write);
     child.once('error', (error) => {
       state.processError = error.message;
       persist();
     });
     child.once('close', async (code) => {
+      stdout.end();
+      errorOutput.end();
+      await install?.cleanup();
       images.cleanup();
       if (state.lastMessage) {
         try {
@@ -369,6 +387,7 @@ async function start(assignment: any) {
       child = null;
     });
   } catch (error: any) {
+    await install?.cleanup();
     preparation = undefined;
     state.terminal = {
       status: state.stopRequested ? 'interrupted' : 'failed',

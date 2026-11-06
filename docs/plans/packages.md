@@ -122,7 +122,8 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------- |
 | **Package key** `dlp_<32 random bytes, base64url>`                               | `deploy packages login` mints it from your CLI sign-in. Listed in Settings → Package keys, with a label, scope and last use. Revoked at once by Remove. | yes                                              | if scoped “Installs and publishes” |
 | CLI session (Basic `username:token`, exactly as Git over HTTPS accepts it today) | `deploy login`                                                                                                                                          | yes                                              | yes                                |
-| Computer key (Basic `workspace-worker.<id>` or worker headers)                   | already on every computer                                                                                                                               | yes                                              | no                                 |
+| Computer install key (`dlp_…`, Bearer)                                           | Created by the server when first needed, separate from the worker credential. Hidden from Settings → Package keys and revoked on computer removal.      | yes                                              | no                                 |
+| Worker enrollment credential                                                     | Only the computer’s control channel; never passed to agent commands, job files or environment.                                                          | no                                               | no                                 |
 | Pipeline token, 30 minutes, scoped to one project's packages (like `ci_` tokens) | minted for a pipeline's publish step only; its jobs never see it                                                                                        | yes                                              | that project's packages only       |
 | Agent run token (`X-Deploy-Agent-Token`)                                         | agent runs                                                                                                                                              | no (agents install through their computer's key) | no                                 |
 
@@ -164,7 +165,7 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 - **This is not a promise that builds work offline.** It covers npm packages and crates. App builds also need their Docker image (see Not covered), and the board says so.
 - **A package its source removes.** npmjs.org can pull a version, for example as malware. When revalidation finds a kept version gone from its packument, deploy.local stops serving it (a 404 that names the source and the date) and keeps the file out of installs, even if it is pinned. The project with that version in its lockfile gets a Removed row, and a rollback that needs it fails and says why. While the source is unreachable this can't be known, so kept versions are still served. A yanked crate is different: Cargo still allows it for existing lockfiles, so it keeps being served.
 - **Pins.** When a release builds, deploy.local records which files it installed. Files needed by the live release, its rollback target, or main's lockfile are pinned, so a rollback never needs the internet.
-- **Keeping and clearing.** Daily, files that are unpinned and unused for 90 days are deleted. The default size limit is 20 GB: past 90% the oldest unpinned files go first, and Storage says so. Both values are settings on the Copies tab.
+- **Keeping and clearing.** Daily, files that are unpinned and unused for 90 days are deleted. The default size limit is 20 GB: past 90% the oldest unpinned files go first, and Storage says so. Both values are server settings (`packages.cache.limitBytes` and `packages.cache.days`). The approved Copies board displays them but draws no editing controls.
 - **Not covered:**
   - git and GitHub tarball dependencies
   - Docker images (app builds pull `node` images)
@@ -176,7 +177,7 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 ### How builds use it
 
 - **Tasks and pipelines on every computer**: `server/workspace/job-runner.ts` and `shell-environment.ts`.
-  - npm: the computer writes a job-scoped `npmrc` (`registry=https://deploy.local/npm/`, `//deploy.local/npm/:_authToken=<computer key>`, `cafile=<SER's CA>`) and sets `NPM_CONFIG_USERCONFIG`. npm, pnpm, Yarn and Bun all read it.
+  - npm: a capable worker requests its own install-only `dlp_` package key on its authenticated control channel, then checks `/npm/-/ping` with a 1.5 second deadline. It writes a mode-0600, job-scoped `npmrc` (`registry=https://deploy.local/npm/`, `//deploy.local/npm/:_authToken=<install-only key>`, `cafile=<coordinator CA>`) and sets `NPM_CONFIG_USERCONFIG`. The file is removed at job completion and keys are redacted from output. npm, pnpm, Yarn classic and Bun support npmrc; Yarn Berry instead gets `YARN_NPM_REGISTRY_SERVER`, `YARN_NPM_AUTH_TOKEN`, `YARN_NPM_ALWAYS_AUTH` and `YARN_HTTPS_CA_FILE_PATH`. Project registry configuration wins and project files are never rewritten. Older workers do not request this configuration and keep installing from public registries. The worker enrollment credential never enters the job environment or configuration.
   - Cargo: each computer gets its own persistent `CARGO_HOME` (`<worker data>/cargo-home`) with a `config.toml` holding the two registries, the source replacement and `http.cainfo`. Its credentials come from `CARGO_REGISTRIES_DEPLOY_LOCAL_TOKEN`.
 - **Job containers** get the CA file and these configs mounted, and `--add-host deploy.local:<SER's address>`. On SER that is `host-gateway`. On other computers it is the address mDNS resolved on the host, because containers don't resolve `.local` names.
 - **App builds**: the Dockerfile generated by `server/docker.ts`. The `npmrc` and CA are passed as BuildKit secrets (`RUN --mount=type=secret,id=npmrc,target=/root/.npmrc pnpm install`), so no key ends up in an image layer.
@@ -185,7 +186,7 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
   - npm rewrites `registry.npmjs.org` resolved URLs to the configured registry by default (`replace-registry-host=npmjs`).
   - Yarn v1 lockfiles keep their `resolved` URLs, so `deploy packages use` rewrites those hosts once, as a one-time lockfile change.
 - **Per project:** Project settings get a Packages group with one switch, Install through deploy.local, on by default. Off means the public registries directly, which helps when debugging.
-- **deploy.local itself.** Its committed files don't point at its own registry, so a fresh machine can still install. `self-update` passes `npm_config_registry=https://deploy.local/npm/` only when `/npm/-/ping` answers, and otherwise installs from npmjs.org.
+- **deploy.local itself.** Its committed files don't point at its own registry, so a fresh machine can still install. `self-update` uses the coordinator’s separate install-only key, provisioned in a mode-0600 file in its data directory outside releases. Its temporary npmrc selects deploy.local only when `/npm/-/ping` answers, otherwise npmjs.org. `deploy-update prepare` passes that npmrc to its install step only; the updater removes it on completion. Manual prepare without this configuration is unchanged.
 - **People's own computers:**
   - `deploy packages login` writes the auth lines to `~/.npmrc` and `~/.cargo/credentials.toml`, and makes sure SER's CA is trusted: `cafile` for npm, `http.cainfo` for Cargo on Linux, the keychain on macOS.
   - `deploy packages use` writes the project's `.npmrc` and `.cargo/config.toml` (shown on the `PackagesSetup` board). These hold addresses only, never keys.
@@ -279,6 +280,12 @@ Each slice gets a Codex worktree (`codex exec -m gpt-6-astra`, branch `codex/<sl
    - `yank`, and Cargo on the Set up, Copies and iPhone screens
 
 Each step adds its own part of a screen, so nothing claims what doesn't exist yet. The boards are the finished state, and the app matches them fully once step 7 lands.
+
+**What builds actually do, checked on SER (Docker 29.8.1).** A job container reaches the registry with `--add-host deploy.local:host-gateway`, and so does a build with the default driver. deploy.local's own builder uses the `docker-container` driver, which refuses `host-gateway`, so it gets the bridge network's gateway address instead. A generated Dockerfile retries against the public registry if an install through deploy.local fails. Three things stay on the public registry:
+
+- a project's own Dockerfile, which deploy.local doesn't edit
+- app builds on computers other than SER, whose build code runs outside the server
+- Yarn classic, because its lockfile stores full tarball URLs
 
 ### What still comes from outside
 

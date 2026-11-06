@@ -1,3 +1,12 @@
+import { CopyWarmer } from '../packages/copies.ts';
+import { npmRegistry } from '../packages/npm.ts';
+import { computerInstallConfig } from '../packages/builds.ts';
+import {
+  writeFile as writePrivateFile,
+  chown as chownPrivateFile,
+  readdir,
+  rm,
+} from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -17,7 +26,7 @@ import { dirname, join } from 'node:path';
 import { userInfo } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SelfUpdateRun, SelfUpdateStatus } from '../../shared/v2/contracts.ts';
-import { isAdmin } from '../store.ts';
+import { isAdmin, getSqlite } from '../store.ts';
 import { list } from '../workspace/store.ts';
 import {
   changesSince,
@@ -148,7 +157,34 @@ function releaseName(config: ReleaseConfig, to: string) {
   }
 }
 
-export function startSelfUpdate(owner: string, to: unknown): SelfUpdateStatus {
+/** Reserve before any asynchronous preparation and release even on validation/write failure. */
+export function selfUpdateStarter<T>(start: (owner: string, to: unknown) => Promise<T>) {
+  let starting = false;
+  return async (owner: string, to: unknown): Promise<T> => {
+    if (starting) fail('An update is already running.', 409);
+    starting = true;
+    try {
+      return await start(owner, to);
+    } finally {
+      starting = false;
+    }
+  };
+}
+export async function boundedScan(scan: Promise<unknown>, timeoutMs = 3000) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      scan.catch(() => {}),
+      new Promise<void>((done) => {
+        timer = setTimeout(done, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+export const startSelfUpdate = selfUpdateStarter(performSelfUpdate);
+async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdateStatus> {
   const found = context(owner);
   if ('reason' in found) fail(found.reason, 409);
   const { config, running, repository } = found;
@@ -164,6 +200,10 @@ export function startSelfUpdate(owner: string, to: unknown): SelfUpdateStatus {
   const directory = stateDirectory(config);
   mkdirSync(directory, { recursive: true, mode: 0o755 });
   chownSync(directory, uid, gid);
+  // No live updater remains (checked above). Remove secrets left by a crash before provisioning.
+  for (const name of await readdir(directory))
+    if (name.startsWith('package-install-') || name.endsWith('.packages.json'))
+      await rm(join(directory, name), { recursive: true, force: true });
   const id = randomUUID();
   const run: SelfUpdateRun & { plan: Record<string, string> } = {
     id,
@@ -186,41 +226,79 @@ export function startSelfUpdate(owner: string, to: unknown): SelfUpdateStatus {
       history: join(directory, 'history.json'),
     },
   };
-  const file = stateFile(config);
-  writeFileSync(`${file}.tmp`, JSON.stringify(run, null, 2), { mode: 0o644 });
-  chownSync(`${file}.tmp`, uid, gid);
-  renameSync(`${file}.tmp`, file);
-  // A transient unit of its own: restarting deploy-server.service must not stop the updater.
-  const result = spawnSync(
-    'systemd-run',
-    [
-      `--unit=${unitName(id)}`,
-      `--uid=${uid}`,
-      `--gid=${gid}`,
-      '--collect',
-      '--quiet',
-      `--working-directory=${home}`,
-      `--setenv=HOME=${home}`,
-      `--setenv=PATH=${dirname(config.node)}:/usr/local/bin:/usr/bin:/bin`,
-      config.node,
-      runner,
-      file,
-    ],
-    { encoding: 'utf8' },
-  );
-  if (result.status !== 0) {
-    writeFileSync(
-      file,
-      JSON.stringify({
-        ...run,
-        state: 'failed',
-        finishedAt: new Date().toISOString(),
-        error: `The updater did not start (${(result.stderr || result.error?.message || 'no reason given').trim()}).`,
-        steps: run.steps.map((step) => ({ ...step, state: 'skipped', detail: 'skipped' })),
-      }),
+  // Only a path enters the public run. The key stays outside every release directory.
+  const packageConfig = join(directory, `${id}.packages.json`);
+  const project = list('project', owner).find((p) => p.repositoryPath === repository.path);
+  if (project) {
+    run.plan.packageProject = project.id;
+    const warmer = new CopyWarmer(npmRegistry.copy);
+    await boundedScan(
+      Promise.all(
+        [run.from, run.to].map((commit) =>
+          warmer.scan(owner, project, commit, commit, 'self-release', false),
+        ),
+      ),
     );
+    getSqlite()!
+      .prepare("INSERT OR REPLACE INTO system_settings VALUES('packages.selfUpdateContext',?,?)")
+      .run(
+        JSON.stringify({
+          owner,
+          projectId: project.id,
+          from: run.from,
+          to: run.to,
+          state: 'running',
+        }),
+        new Date().toISOString(),
+      );
   }
-  return selfUpdateStatus(owner);
+  try {
+    const install = await computerInstallConfig(owner, 'local', project?.id);
+    if (install) {
+      await writePrivateFile(packageConfig, JSON.stringify(install), { mode: 0o600, flag: 'wx' });
+      await chownPrivateFile(packageConfig, uid, gid);
+      run.plan.packageConfig = packageConfig;
+    }
+    const file = stateFile(config);
+    writeFileSync(`${file}.tmp`, JSON.stringify(run, null, 2), { mode: 0o644 });
+    chownSync(`${file}.tmp`, uid, gid);
+    renameSync(`${file}.tmp`, file);
+    // A transient unit of its own: restarting deploy-server.service must not stop the updater.
+    const result = spawnSync(
+      'systemd-run',
+      [
+        `--unit=${unitName(id)}`,
+        `--uid=${uid}`,
+        `--gid=${gid}`,
+        '--collect',
+        '--quiet',
+        `--working-directory=${home}`,
+        `--setenv=HOME=${home}`,
+        `--setenv=PATH=${dirname(config.node)}:/usr/local/bin:/usr/bin:/bin`,
+        config.node,
+        runner,
+        file,
+      ],
+      { encoding: 'utf8' },
+    );
+    if (result.status !== 0) {
+      await rm(packageConfig, { force: true });
+      writeFileSync(
+        file,
+        JSON.stringify({
+          ...run,
+          state: 'failed',
+          finishedAt: new Date().toISOString(),
+          error: `The updater did not start (${(result.stderr || result.error?.message || 'no reason given').trim()}).`,
+          steps: run.steps.map((step) => ({ ...step, state: 'skipped', detail: 'skipped' })),
+        }),
+      );
+    }
+    return selfUpdateStatus(owner);
+  } catch (error) {
+    await rm(packageConfig, { force: true });
+    throw error;
+  }
 }
 
 export function selfUpdateLog(owner: string) {
@@ -269,7 +347,7 @@ export async function selfUpdateApi(req: IncomingMessage, res: ServerResponse, o
     } catch {
       fail('Invalid JSON');
     }
-    return send(startSelfUpdate(owner, input.to), 202);
+    return send(await startSelfUpdate(owner, input.to), 202);
   }
   return send({ error: 'Method not allowed' }, 405);
 }

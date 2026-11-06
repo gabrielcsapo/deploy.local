@@ -535,8 +535,8 @@ export async function workspaceApi(
         return send(
           await baseUpdateWorker(owner, updateWorkerRoute[1], updateWorkerRoute[2], body),
         );
-      const jobRoute = path.match(/^\/workers\/([^/]+)\/jobs\/(poll|update|complete)$/);
-      if (jobRoute) return send(jobCommand(owner, jobRoute[1], jobRoute[2], body));
+      const jobRoute = path.match(/^\/workers\/([^/]+)\/jobs\/(poll|update|complete|packages)$/);
+      if (jobRoute) return send(await jobCommand(owner, jobRoute[1], jobRoute[2], body));
       if (path.startsWith('/workers/') && path !== '/workers/enroll') {
         const result = workerCommand(owner, path, body);
         if (result !== undefined) {

@@ -38,6 +38,8 @@ Packages
   packages use           Install this project through deploy.local
   packages use --off     Remove the project's registry setting
   packages publish       Publish this folder (--tag next, --dry-run, --claim)
+  packages copies        Show copies kept for your projects
+  packages copies fetch  Fetch missing packages for your projects
   packages deprecate     Deprecate <name>@<range> "<message>"
 
 Account   login · logout · whoami · upgrade · version

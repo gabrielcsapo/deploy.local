@@ -425,7 +425,15 @@ function scheduleBackupCron() {
  * - VACUUM every 6 hours to reclaim disk space
  * - rsync backup on cron schedule (if enabled)
  */
-export function startMaintenance() {
+export function startMaintenance(packages?: { warm(): Promise<void>; daily(): Promise<void> }) {
+  if (packages) {
+    const warmTimer = setInterval(() => void packages.warm().catch(() => {}), 5000);
+    warmTimer.unref();
+    new Cron(
+      '0 3 * * *',
+      () => void packages.daily().catch(() => console.error('Package copy maintenance failed')),
+    );
+  }
   console.log('Starting database maintenance - incremental vacuum and data retention every 6h');
 
   // Don't run on startup — both pruneOldData and incremental_vacuum hold write

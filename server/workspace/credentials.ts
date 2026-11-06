@@ -1,3 +1,5 @@
+import { revokeComputerPackageKey } from '../packages/keys.ts';
+import { workerComputerId } from './computer-role-policy.ts';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { terminalRelay } from './terminal-service.ts';
@@ -8,6 +10,7 @@ export function enrollWorker(owner: string, input: any) {
   // A new credential must never inherit an earlier computer's shell consent.
   remove('terminal-permission', owner, input.workerId);
   terminalRelay.disable(owner, input.workerId);
+  revokeComputerPackageKey(owner, workerComputerId(owner, input.workerId));
   const workerToken = randomBytes(32).toString('hex');
   save('worker-credential', owner, {
     id: input.workerId,

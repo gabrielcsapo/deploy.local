@@ -92,6 +92,28 @@ export async function runPackages(
       );
     return;
   }
+  if (command === 'copies') {
+    if (args[1] === 'fetch') {
+      const result = await api('/api/v2/packages/cache/warm', {
+        method: 'POST',
+        body: JSON.stringify(flags.project ? { projectId: flags.project } : {}),
+      });
+      print(flags.json ? JSON.stringify(result) : `Queued ${result.queued} projects.`);
+      return;
+    }
+    const result = await api('/api/v2/packages/cache');
+    if (flags.json) return print(JSON.stringify(result));
+    for (const source of result.sources)
+      print(`${source.name}  ${source.reachable ? 'Reachable' : 'Unreachable · Using copies'}`);
+    for (const project of result.projects)
+      print(
+        `${project.name}  ${project.removed.length ? 'Removed' : project.missing ? project.missing + ' missing' : project.checkedAt ? 'every locked package is kept' : 'Not checked yet'}`,
+      );
+    print(
+      `${(result.storage.bytes / 1024 ** 3).toFixed(1)} GB of ${result.storage.limit / 1024 ** 3} GB · ${result.storage.days} days`,
+    );
+    return;
+  }
   if (command === 'login') {
     if (!config.username || !config.token) throw new Error('Run deploy login first.');
     if ((await lstat(userRc).catch(() => null))?.isSymbolicLink())
@@ -124,8 +146,12 @@ export async function runPackages(
     await chmod(userRc, 0o600);
     print(`  ✓ Package key for ${config.username}         ${key.label} · can publish`);
     print(`  ✓ npm and pnpm                     ~/.npmrc · ${registry}`);
-    if (inKeychain)
-      print('  ✓ Trusts the coordinator’s certificate         already in your keychain');
+    print(
+      '  ✓ Trusts the coordinator’s certificate         ' +
+        (inKeychain
+          ? 'already in your keychain'
+          : values.cafile || 'HTTP connection · no certificate'),
+    );
     return;
   }
   if (command === 'use') {

@@ -427,6 +427,7 @@ export type AgentTracking = {
 };
 
 export type ProjectReleaseSettings = ProjectSettings & {
+  installThroughDeploy: boolean;
   keepReleases: number;
   verifyMigrations: boolean;
 };

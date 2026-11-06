@@ -1,12 +1,21 @@
 import { parse } from 'yaml';
-export type LockfileIndex = Record<string, { versions: string[]; links: string[] }>;
+export type LockfileIndex = Record<
+  string,
+  {
+    versions: string[];
+    links: string[];
+    platforms?: Record<string, { os?: string[]; cpu?: string[] }>;
+  }
+>;
 /** Parse each lockfile once, collecting all package identities and workspace links. */
-export function lockfileIndex(file: string, text: string): LockfileIndex {
+export function lockfileIndex(file: string, text: string, strict = false): LockfileIndex {
   const result: LockfileIndex = Object.create(null);
   const get = (name: string) => (result[name] ||= { versions: [], links: [] });
-  const add = (name: string, version: unknown) => {
+  const add = (name: string, version: unknown, platform?: { os?: string[]; cpu?: string[] }) => {
     if (typeof version !== 'string' || !/^\d+\.\d+\.\d+/.test(version)) return;
     const clean = version.split('(')[0];
+    if (platform?.os || platform?.cpu)
+      (get(name).platforms ||= {})[clean] = { os: platform.os, cpu: platform.cpu };
     if (!get(name).versions.includes(clean)) get(name).versions.push(clean);
   };
   const link = (name: string, path: string) => get(name).links.push(path);
@@ -17,12 +26,12 @@ export function lockfileIndex(file: string, text: string): LockfileIndex {
       for (const [path, value] of Object.entries(doc.packages || {}) as [string, any][]) {
         const name = path.match(/(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/)?.[1];
         if (!name) continue;
-        add(name, value.version);
+        add(name, value.version, value);
         if (value.link && typeof value.resolved === 'string') link(name, value.resolved);
       }
       const walk = (deps: any) => {
         for (const [name, value] of Object.entries(deps || {}) as [string, any][]) {
-          add(name, value.version);
+          add(name, value.version, value);
           walk(value.dependencies);
         }
       };
@@ -31,7 +40,7 @@ export function lockfileIndex(file: string, text: string): LockfileIndex {
       const doc = parse(text);
       for (const key of Object.keys(doc.packages || {})) {
         const match = identity(key.replace(/^\//, ''));
-        if (match) add(match[1], match[2]);
+        if (match) add(match[1], match[2], doc.packages[key]);
       }
       for (const [importer, value] of Object.entries(doc.importers || {}) as [string, any][]) {
         for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
@@ -60,7 +69,8 @@ export function lockfileIndex(file: string, text: string): LockfileIndex {
       }
     }
     return result;
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return Object.create(null);
   }
 }

@@ -1,4 +1,5 @@
 'use client';
+import { Copies } from './copies.client';
 import { useState } from 'react';
 import { useLocation, useSearchParams } from 'react-flight-router/client';
 import { Group, Head, Icon, IconButton, Setting, Tabs, Banner } from '@/components/ui';
@@ -49,10 +50,11 @@ export default function Packages() {
   return name ? (
     <PackagePage key={name} name={name} />
   ) : (
-    <PackageList setup={search.get('tab') === 'setup'} />
+    <PackageList tab={search.get('tab') || 'private'} />
   );
 }
-function PackageList({ setup }: { setup: boolean }) {
+function PackageList({ tab }: { tab: string }) {
+  const setup = tab === 'setup';
   const { data, error } = useData<any>('/api/v2/packages');
   return (
     <>
@@ -60,14 +62,17 @@ function PackageList({ setup }: { setup: boolean }) {
       <div className="dl-scroll">
         <div className="dl-page packages-page">
           <Tabs
-            value={setup ? base + '?tab=setup' : base}
+            value={tab === 'private' ? base : base + '?tab=' + tab}
             items={[
               { label: 'Private', href: base, count: data?.packages.length },
+              { label: 'Copies', href: base + '?tab=copies' },
               { label: 'Set up', href: base + '?tab=setup' },
             ]}
           />
           {error && <Banner kind="danger" title={error} />}
-          {setup ? (
+          {tab === 'copies' ? (
+            <Copies />
+          ) : setup ? (
             <Setup />
           ) : (
             <>
@@ -109,6 +114,20 @@ function Setup() {
   const coordinator = useCoordinatorName();
   return (
     <>
+      <section className="dl-section">
+        <h2 className="dl-section-title">On deploy.local’s computers</h2>
+        <Group>
+          <div className="dl-inset">
+            <Setting
+              label="Tasks, pipelines and releases"
+              description="Install through deploy.local with each computer’s own key. Nothing to set up."
+            >
+              <span className="dl-tag">On</span>
+            </Setting>
+          </div>
+        </Group>
+        <p className="dl-list-note">A project can turn this off in its settings, under Packages.</p>
+      </section>
       <section className="dl-section">
         <h2 className="dl-section-title">On your computer</h2>
         <Group>

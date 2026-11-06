@@ -265,3 +265,28 @@ test('worker builds publish only when they were built from the commit SER now se
     'old',
   );
 });
+
+test('concurrent update starts reserve before awaiting and release on success or failure', async () => {
+  const { selfUpdateStarter, boundedScan } = await import('./self-update.ts');
+  let started = 0;
+  let finishScan!: () => void;
+  const scan = new Promise<void>((done) => {
+    finishScan = done;
+  });
+  let failed = false;
+  const start = selfUpdateStarter(async () => {
+    started++;
+    await boundedScan(scan, 30);
+    if (failed) throw Error('write failed');
+    return 'started';
+  });
+  const first = start('owner', 'commit');
+  await assert.rejects(start('owner', 'commit'), /already running/);
+  assert.equal(await first, 'started', 'slow scan continues in background');
+  assert.equal(started, 1);
+  finishScan();
+  failed = true;
+  await assert.rejects(start('owner', 'commit'), /write failed/);
+  failed = false;
+  assert.equal(await start('owner', 'commit'), 'started', 'failed starts release the guard');
+});

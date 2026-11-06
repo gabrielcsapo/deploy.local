@@ -1,3 +1,6 @@
+import { CopyWarmer, cleanupCopies, queueAllCopies } from './server/packages/copies.ts';
+import './server/packages/hooks.ts';
+import { npmRegistry } from './server/packages/npm.ts';
 import { terminalRelay } from './server/workspace/terminal-service.ts';
 import { startGitSshServer } from './server/workspace/git-ssh.ts';
 import { createServer } from 'node:http';
@@ -208,7 +211,16 @@ async function main() {
       .then(() =>
         startAllContainers().catch((err) => console.error('Error starting containers:', err)),
       );
-    startMaintenance();
+    npmRegistry.copy.startChecks();
+    queueAllCopies();
+    const packageWarmer = new CopyWarmer(npmRegistry.copy);
+    startMaintenance({
+      warm: () => packageWarmer.tick(),
+      daily: async () => {
+        queueAllCopies();
+        await cleanupCopies();
+      },
+    });
   }
 
   if (ROLE === 'control') {

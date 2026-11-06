@@ -1,7 +1,9 @@
 import { environmentImages } from './agent-media.ts';
 import { readCompletion } from './completion-stream.ts';
 import { coordinationTools, callCoordinationTool } from './coordination-tools.ts';
-import { shellEnvironment } from './shell-environment.ts';
+import { agentShellEnvironment } from './agent-packages.ts';
+import { secretOutput } from '../../shared/package-install.mjs';
+import { readFile } from 'node:fs/promises';
 import { compatibleControlTools, controlCall } from './compatible-control-tools.ts';
 // Minimal provider-independent tool loop for explicitly configured compatible endpoints.
 // Runs as an isolated worker child, never in a client process.
@@ -16,6 +18,19 @@ if (!endpoint || !model || !['local', 'api'].includes(billing || ''))
   throw new Error(
     'Compatible inference requires DEPLOY_MODEL_BASE_URL, DEPLOY_MODEL_NAME, DEPLOY_MODEL_BILLING_MODE=local|api',
   );
+const npmrc = await readFile(process.env.NPM_CONFIG_USERCONFIG || '', 'utf8').catch(() => '');
+const installSecrets = [...npmrc.matchAll(/(?:_authToken|_auth|_password)\s*=\s*(.+)/g)].map(
+  (match) => match[1],
+);
+function redact(text: string) {
+  let result = '';
+  const stream = secretOutput(installSecrets, (chunk) => {
+    result += chunk;
+  });
+  stream.write(text);
+  stream.end();
+  return result;
+}
 const sessionFile = process.env.DEPLOY_MODEL_SESSION_FILE;
 if (!sessionFile) throw new Error('Worker must supply a durable model session file');
 const cwd = realpathSync(process.cwd()),
@@ -96,7 +111,8 @@ async function tool(name: string, args: any) {
     }
     return JSON.stringify(result);
   }
-  if (name === 'read_file') return readFileSync(safePath(args.path), 'utf8').slice(0, 256000);
+  if (name === 'read_file')
+    return redact(readFileSync(safePath(args.path), 'utf8').slice(0, 256000));
   if (name === 'write_file') {
     const path = safePath(args.path, true);
     mkdirSync(dirname(path), { recursive: true });
@@ -114,17 +130,19 @@ async function tool(name: string, args: any) {
   } else throw new Error('Unknown tool');
   const result = spawnSync(executable, argv, {
     cwd,
-    env: shellEnvironment(),
+    env: agentShellEnvironment(),
     encoding: 'utf8',
     timeout: 30000,
     maxBuffer: 1024 * 1024,
   });
-  return JSON.stringify({
-    exitCode: result.status,
-    stdout: result.stdout?.slice(0, 64000),
-    stderr: result.stderr?.slice(0, 16000),
-    error: result.error?.message,
-  });
+  return redact(
+    JSON.stringify({
+      exitCode: result.status,
+      stdout: result.stdout?.slice(0, 64000),
+      stderr: result.stderr?.slice(0, 16000),
+      error: result.error?.message,
+    }),
+  );
 }
 let prompt = '';
 for await (const chunk of process.stdin) prompt += chunk;

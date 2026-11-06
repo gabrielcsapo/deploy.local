@@ -107,3 +107,8 @@ copyFileSync(
   resolve(root, 'server/packages/document-worker.mjs'),
   resolve(root, 'dist/package-document-worker.mjs'),
 );
+
+copyFileSync(
+  resolve(root, 'server/packages/index-worker.mjs'),
+  resolve(root, 'dist/package-index-worker.mjs'),
+);

@@ -1,9 +1,15 @@
 #!/usr/bin/env node
+import {
+  preparePackageInstall,
+  secretOutput,
+  registryFallback,
+} from '../shared/package-install.mjs';
 // Updates the coordinator to a commit on its own main: prepare a new release, back up the
 // databases, then `deploy-update activate`. The server starts this as the deploy account in a
 // transient systemd unit, so restarting deploy-server.service does not stop it. Progress goes to
 // the run's JSON file, which the server reads; output goes to the run's log.
 import { spawn } from 'node:child_process';
+import Database from 'better-sqlite3';
 import {
   appendFileSync,
   existsSync,
@@ -74,14 +80,101 @@ export function publishWorkers(data, commit, log = () => {}) {
   }
 }
 
+/** The server provisions the coordinator's install-only key outside the release.
+ * A missing configuration is the original manual prepare path. */
+export async function selfUpdateInstall(plan, log = () => {}) {
+  let config = null;
+  if (plan.packageConfig) {
+    try {
+      config = JSON.parse(readFileSync(plan.packageConfig, 'utf8'));
+    } catch {
+      log(registryFallback + '\n');
+    } finally {
+      rmSync(plan.packageConfig, { force: true });
+    }
+  }
+  return preparePackageInstall(config, {
+    cwd: plan.release,
+    root: dirname(plan.packageConfig || plan.history || plan.release),
+    log: (line) => log(line + '\n'),
+  });
+}
+
+/** Also used at the next start after an uncatchable kill or power loss. */
+export function cleanupUpdatePackages(directory, keep) {
+  for (const name of readdirSync(directory)) {
+    const path = join(directory, name);
+    if (path !== keep && (name.startsWith('package-install-') || name.endsWith('.packages.json')))
+      rmSync(path, { recursive: true, force: true });
+  }
+}
+
+export async function prepareSelfUpdate(plan, installation, exec, log = () => {}) {
+  try {
+    try {
+      return await exec('deploy-update', ['prepare', plan.release], {
+        env: { ...process.env, ...installation.env },
+      });
+    } catch (error) {
+      if (!installation.npmrc) throw error;
+      await installation.cleanup();
+      log('deploy.local package prepare failed; retrying without registry configuration.\n');
+      return await exec('deploy-update', ['prepare', plan.release], { env: { ...process.env } });
+    }
+  } finally {
+    await installation.cleanup();
+  }
+}
+
+/** Keep the running and rollback release pins across updater restarts. No credentials here. */
+export function finishSelfUpdatePins(plan, run, state) {
+  if (!plan.packageProject || !existsSync(join(plan.data, 'deploy.db'))) return;
+  const database = new Database(join(plan.data, 'deploy.db'));
+  try {
+    database.pragma('busy_timeout = 5000');
+    database.transaction(() => {
+      if (state === 'done')
+        database
+          .prepare(
+            "DELETE FROM package_pins WHERE project_id=? AND reason='self-release' AND release_id NOT IN (?,?)",
+          )
+          .run(plan.packageProject, run.to, run.from);
+      else
+        database
+          .prepare(
+            "DELETE FROM package_pins WHERE project_id=? AND reason='self-release' AND release_id=? AND release_id<>?",
+          )
+          .run(plan.packageProject, run.to, run.from);
+      database
+        .prepare(
+          "UPDATE system_settings SET value=?,updated_at=? WHERE key='packages.selfUpdateContext'",
+        )
+        .run(JSON.stringify({ state, projectId: plan.packageProject }), new Date().toISOString());
+    })();
+  } finally {
+    database.close();
+  }
+}
+
 function main(file) {
   let run = JSON.parse(readFileSync(file, 'utf8'));
   const { plan } = run;
+  const updateDirectory = dirname(file);
+  cleanupUpdatePackages(updateDirectory, plan.packageConfig);
+  // Synchronous exit cleanup covers exceptions and catchable signals; next start covers SIGKILL.
+  const cleanup = () => cleanupUpdatePackages(updateDirectory);
+  process.once('exit', cleanup);
+  for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'])
+    process.once(signal, () => {
+      cleanup();
+      process.exit(1);
+    });
   const save = () => {
     writeFileSync(`${file}.tmp`, JSON.stringify(run, null, 2), { mode: 0o644 });
     renameSync(`${file}.tmp`, file);
   };
   const log = (text) => appendFileSync(plan.log, text);
+  let installSecrets = [];
   const exec = (command, args, options = {}) =>
     new Promise((resolve, reject) => {
       log(`$ ${command} ${args.join(' ')}\n`);
@@ -91,8 +184,10 @@ function main(file) {
         output += chunk;
         log(chunk);
       };
-      child.stdout.on('data', take);
-      child.stderr.on('data', take);
+      const redacted = secretOutput(installSecrets, take);
+      child.stdout.on('data', redacted.write);
+      child.stderr.on('data', redacted.write);
+      child.once('close', () => redacted.end());
       child.on('error', reject);
       child.on('close', (code) =>
         code === 0
@@ -111,6 +206,12 @@ function main(file) {
     save();
   };
   const end = (state, error) => {
+    try {
+      finishSelfUpdatePins(plan, run, state);
+    } catch {
+      log('Could not reconcile package pins; existing pins were kept.\n');
+    }
+    if (plan.packageConfig) rmSync(plan.packageConfig, { force: true });
     for (const s of run.steps)
       if (s.state === 'waiting') Object.assign(s, { state: 'skipped', detail: 'skipped' });
     run = { ...run, state, error, finishedAt: new Date().toISOString() };
@@ -143,7 +244,14 @@ function main(file) {
       await exec('git', ['-C', plan.release, 'checkout', '--quiet', '--detach', '--force', run.to]);
       await exec('git', ['-C', plan.release, 'clean', '-fdq']);
       rmSync(join(plan.release, 'dist'), { recursive: true, force: true });
-      output = await exec('deploy-update', ['prepare', plan.release]);
+      const installation = await selfUpdateInstall(plan, log);
+      installSecrets = installation.secrets;
+      try {
+        output = await prepareSelfUpdate(plan, installation, exec, log);
+      } finally {
+        await installation.cleanup();
+        installSecrets = [];
+      }
       finish(
         'prepare',
         'done',

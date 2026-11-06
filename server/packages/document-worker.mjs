@@ -50,7 +50,12 @@ try {
     const target = new URL(value.dist.tarball);
     if (target.origin !== workerData.upstreamOrigin || target.username || target.password)
       throw new Error('Invalid upstream tarball host');
-    index[version] = { tarball: target.href, integrity: value.dist.integrity };
+    index[version] = {
+      tarball: target.href,
+      integrity: value.dist.integrity,
+      os: value.os,
+      cpu: value.cpu,
+    };
     value.dist.tarball =
       workerData.publicBase +
       encodeURIComponent(doc.name) +

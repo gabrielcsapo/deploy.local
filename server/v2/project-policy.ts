@@ -2,10 +2,18 @@ import { db, list, save } from '../workspace/store.ts';
 import { fail } from './inbox.ts';
 import type { Project } from '../../shared/v2/contracts.ts';
 
-export type ProjectReleasePolicy = { keepReleases: number; verifyMigrations: boolean };
+export type ProjectReleasePolicy = {
+  keepReleases: number;
+  verifyMigrations: boolean;
+  installThroughDeploy: boolean;
+};
 export function projectReleasePolicy(owner: string, projectId: string): ProjectReleasePolicy {
   const row = list('v2-project-policy', owner).find((row) => row.id === projectId);
-  return { keepReleases: row?.keepReleases ?? 5, verifyMigrations: row?.verifyMigrations ?? true };
+  return {
+    keepReleases: row?.keepReleases ?? 5,
+    verifyMigrations: row?.verifyMigrations ?? true,
+    installThroughDeploy: row?.installThroughDeploy ?? true,
+  };
 }
 export function assertProjectWritable(owner: string, project: Project) {
   if (list('v2-project-removal', owner).some((row) => row.id === project.id))
@@ -28,7 +36,9 @@ export function putProjectReleasePolicy(owner: string, project: Project, body: a
         typeof body !== 'object' ||
         Array.isArray(body) ||
         !Object.keys(body).length ||
-        Object.keys(body).some((key) => !['keepReleases', 'verifyMigrations'].includes(key))
+        Object.keys(body).some(
+          (key) => !['keepReleases', 'verifyMigrations', 'installThroughDeploy'].includes(key),
+        )
       )
         fail('Invalid release preferences');
       if (
@@ -38,6 +48,8 @@ export function putProjectReleasePolicy(owner: string, project: Project, body: a
         fail('Keep between 1 and 100 earlier releases');
       if (body.verifyMigrations !== undefined && typeof body.verifyMigrations !== 'boolean')
         fail('verifyMigrations must be a boolean');
+      if (body.installThroughDeploy !== undefined && typeof body.installThroughDeploy !== 'boolean')
+        fail('installThroughDeploy must be a boolean');
       const policy = { ...projectReleasePolicy(owner, project.id), ...body };
       save('v2-project-policy', owner, { id: project.id, ...policy });
       retainProjectReleases(owner, project.id, policy.keepReleases);
