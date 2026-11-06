@@ -2,11 +2,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Cron } from 'croner';
 import { deployDataPath } from './data-directory.ts';
-import {
-  createRecoveryBundle,
-  rehearseRecoveryBundle,
-  verifyRecoveryBundle,
-} from './recovery-bundle.ts';
+import { createRecoveryBundle, recoveryWork } from './recovery-bundle.ts';
 import { getSqlite } from './store.ts';
 
 export interface ScheduledRecoveryDependencies {
@@ -32,12 +28,12 @@ export async function runScheduledRecoveryBoundary(input: {
   const stamp = dependencies.now().toISOString().replaceAll(':', '-').replaceAll('.', '-');
   const outputPath = resolve(outputDirectory, `home-recovery-${stamp}.json`);
   const created = await dependencies.create({ outputPath, passphrase: input.passphrase });
-  dependencies.verify({
+  await dependencies.verify({
     bundlePath: outputPath,
     passphrase: input.passphrase,
     bundleId: created.id,
   });
-  dependencies.rehearse({
+  await dependencies.rehearse({
     bundleId: created.id,
     bundlePath: outputPath,
     passphrase: input.passphrase,
@@ -81,8 +77,8 @@ export function startRecoveryBoundaryScheduler(): { stop(): void; configured: bo
 function productionDependencies(): ScheduledRecoveryDependencies {
   return {
     create: createRecoveryBundle,
-    verify: verifyRecoveryBundle,
-    rehearse: rehearseRecoveryBundle,
+    verify: (input) => recoveryWork('verify', input),
+    rehearse: (input) => recoveryWork('rehearse', input),
     now: () => new Date(),
     retain(bundleId, outputPath, keep) {
       const sqlite = getSqlite()!;

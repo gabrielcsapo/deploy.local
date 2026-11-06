@@ -274,6 +274,13 @@
       "when": 1786148403243,
       "tag": "0039_project_release_activation",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1786148403244,
+      "tag": "0040_packages",
+      "breakpoints": true
     }
   ]
 }

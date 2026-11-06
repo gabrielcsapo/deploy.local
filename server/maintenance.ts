@@ -328,6 +328,11 @@ async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number;
         'deploy.db-wal',
         '--exclude',
         'deploy.db-shm',
+        // Hosted packages are durable data; the refetchable copy and incomplete writes are not.
+        '--exclude',
+        '/packages/cache/',
+        '--exclude',
+        '/packages/tmp/',
         source,
         dest,
       ],

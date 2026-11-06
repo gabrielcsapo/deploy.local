@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, generateKeyPairSync } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -172,6 +172,13 @@ describe('encrypted Home recovery bundle', () => {
                  'stale-authority', ?)`,
       )
       .run(suitcases[0]!.siteId, new Date().toISOString());
+    mkdirSync(join(root, 'home', 'packages', 'hosted', 'sha256', 'ab'), { recursive: true });
+    mkdirSync(join(root, 'home', 'packages', 'cache'), { recursive: true });
+    writeFileSync(
+      join(root, 'home', 'packages', 'hosted', 'sha256', 'ab', 'fixture'),
+      'hosted package bytes',
+    );
+    writeFileSync(join(root, 'home', 'packages', 'cache', 'fixture'), 'refetchable bytes');
     const bundlePath = join(root, 'recovery.bundle');
     const passphrase = 'correct horse suitcase battery';
     const created = await recovery.createRecoveryBundle({ outputPath: bundlePath, passphrase });
@@ -195,6 +202,11 @@ describe('encrypted Home recovery bundle', () => {
     });
     assert.equal(restored.fleetId, fleet.id);
     assert.equal(restored.homeSiteId, fleet.homeSiteId);
+    assert.equal(
+      readFileSync(join(replacement, 'packages', 'hosted', 'sha256', 'ab', 'fixture'), 'utf8'),
+      'hosted package bytes',
+    );
+    assert.equal(existsSync(join(replacement, 'packages', 'cache')), false);
     assert.deepEqual(readFileSync(join(replacement, 'certs', 'ca.key')), fleetCaKey);
     assert.deepEqual(readFileSync(join(replacement, 'certs', 'ca.crt')), fleetCaCertificate);
     const database = new Database(join(replacement, 'deploy.db'), { readonly: true });

@@ -1,3 +1,4 @@
+import { Worker } from 'node:worker_threads';
 import {
   createCipheriv,
   createDecipheriv,
@@ -284,7 +285,7 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string): RecoveryF
   // fleet. Keep it inside the encrypted recovery boundary next to the signing
   // identities and secret-store key. `certificates` remains a legacy import
   // path for installations that used the old directory name.
-  for (const directory of ['identities', 'secrets', 'certs', 'certificates']) {
+  for (const directory of ['identities', 'secrets', 'certs', 'certificates', 'packages/hosted']) {
     const sourceRoot = resolve(root, directory);
     if (!existsSync(sourceRoot)) continue;
     const queue = [sourceRoot];
@@ -936,17 +937,28 @@ export async function createRecoveryBundle(input: {
       inventory,
       inventoryDigest: digest(inventory),
       activeSuitcaseCredentials,
-      files: collectRecoveryFiles(deployDataDirectory(), databaseSnapshot),
+      files: [],
     };
-    validatePayload(payload);
-    const envelope = encryptPayload(payload, input.passphrase);
-    const output = resolve(input.outputPath);
-    mkdirSync(dirname(output), { recursive: true, mode: 0o700 });
-    writeFileSync(output, `${JSON.stringify(envelope)}\n`, { mode: 0o600, flag: 'wx' });
-    const artifact = await putArtifactFile(output, {
-      type: 'home-recovery-bundle',
-      mediaType: 'application/vnd.deploy.home-recovery+json',
-      retentionClass: 'recovery',
+    // Hosted packages can be large. Collection, verification, encoding, encryption and
+    // artifact materialization happen in a worker; only the small receipt comes back.
+    const bundled = new URL('./package-recovery-worker.js', import.meta.url);
+    const worker = new Worker(
+      existsSync(bundled) ? bundled : new URL('./packages/recovery-worker.ts', import.meta.url),
+      {
+        workerData: { payload, input, databaseSnapshot, root: deployDataDirectory() },
+      },
+    );
+    const { envelope, artifact } = await new Promise<{
+      envelope: Pick<RecoveryEnvelope, 'kdf' | 'encryption'>;
+      artifact: { digest: string };
+    }>((resolve, reject) => {
+      worker.once('message', (value) =>
+        value.error ? reject(new Error(value.error)) : resolve(value),
+      );
+      worker.once('error', reject);
+      worker.once('exit', (code) => {
+        if (code) reject(new Error('Recovery writer failed'));
+      });
     });
     const id = sortableId('recovery');
     getSqlite()!
@@ -1134,4 +1146,52 @@ export function rehearseRecoveryBundle(input: {
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
+}
+
+/** Worker-only: keep the existing recovery format without buffering package files on control. */
+export async function writeRecoveryPayload(data: {
+  payload: RecoveryPayload;
+  input: { outputPath: string; passphrase: string };
+  databaseSnapshot: string;
+  root: string;
+}) {
+  const payload = {
+    ...data.payload,
+    files: collectRecoveryFiles(data.root, data.databaseSnapshot),
+  };
+  validatePayload(payload);
+  const envelope = encryptPayload(payload, data.input.passphrase);
+  const output = resolve(data.input.outputPath);
+  mkdirSync(dirname(output), { recursive: true, mode: 0o700 });
+  writeFileSync(output, `${JSON.stringify(envelope)}\n`, { mode: 0o600, flag: 'wx' });
+  const artifact = await putArtifactFile(output, {
+    type: 'home-recovery-bundle',
+    mediaType: 'application/vnd.deploy.home-recovery+json',
+    retentionClass: 'recovery',
+  });
+  return {
+    envelope: { kdf: envelope.kdf, encryption: { name: envelope.encryption.name } },
+    artifact: { digest: artifact.digest },
+  };
+}
+
+/** HTTP and scheduled recovery work must not decode whole hosted archives on control. */
+export function recoveryWork(
+  action: 'verify' | 'restore' | 'rehearse',
+  input: unknown,
+): Promise<unknown> {
+  const bundled = new URL('./package-recovery-worker.js', import.meta.url);
+  const worker = new Worker(
+    existsSync(bundled) ? bundled : new URL('./packages/recovery-worker.ts', import.meta.url),
+    { workerData: { action, input } },
+  );
+  return new Promise((resolve, reject) => {
+    worker.once('message', (value) =>
+      value.error ? reject(new Error(value.error)) : resolve(value),
+    );
+    worker.once('error', reject);
+    worker.once('exit', (code) => {
+      if (code) reject(new Error('Recovery worker failed'));
+    });
+  });
 }
