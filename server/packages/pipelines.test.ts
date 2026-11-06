@@ -435,3 +435,17 @@ test('a commit that is not on main never publishes, and Run pipeline only deploy
   assert.match(after.packages.items[0].reason, /isn't on main/);
   assert.equal(after.packages.items[0].jobId, undefined);
 });
+
+test('a real worker registering keeps the publish capability', async () => {
+  const { workerCapabilities } = await import('../workspace/worker-capabilities.ts');
+  const { workerCommand } = await import('../workspace/protocol.ts');
+  assert.ok(workerCapabilities().includes('package-publish-v1'));
+  const worker = workerCommand('owner', '/workers/register', {
+    workerId: 'capability-check',
+    platform: 'linux',
+    architecture: 'x64',
+    capabilities: workerCapabilities(),
+    checkpointJobs: true,
+  });
+  assert.ok(worker.capabilities.includes('package-publish-v1'));
+});

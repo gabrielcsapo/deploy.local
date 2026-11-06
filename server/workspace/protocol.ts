@@ -77,6 +77,7 @@ export function workerCommand(owner: string, path: string, body: any) {
                 'python',
                 'git-lfs',
                 'job-artifacts',
+                'package-publish-v1',
                 'terminal',
                 'task-terminal',
               ].includes(String(c)),

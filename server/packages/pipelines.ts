@@ -208,7 +208,7 @@ export async function advancePipelinePackages(
       // A fresh checkout needs its dependencies; pnpm pack resolves workspace: ranges.
       // prepublishOnly is a publish hook, not a pack hook, so invoke it explicitly.
       const destination = '.deploy-pipeline-package';
-      const command = `${checkOnly ? 'corepack enable && ' : ''}pnpm install --frozen-lockfile && cd ${quote(item.path)} && pnpm run --if-present prepublishOnly && pnpm pack --pack-destination ${quote(destination)}`;
+      const command = `pnpm install --frozen-lockfile && cd ${quote(item.path)} && pnpm run --if-present prepublishOnly && pnpm pack --pack-destination ${quote(destination)}`;
       item.status = 'running';
       item.jobId = jobId;
       workspace.transaction(() => {
@@ -222,11 +222,11 @@ export async function advancePipelinePackages(
           needs: [],
           requirements: {
             os: 'linux',
-            capabilities: ['node', 'package-publish-v1', ...(checkOnly ? ['docker'] : [])],
+            capabilities: ['node', 'package-publish-v1'],
           },
           workerId: null,
           command,
-          container: checkOnly ? 'node:26' : null,
+          container: null,
           timeoutMs: 30 * 60_000,
           digest: run.commit,
           status: 'queued',
