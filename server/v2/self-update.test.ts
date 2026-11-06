@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,7 +22,7 @@ const { changesSince, estimate, findSourceRepository, settleRun } =
   await import('./self-update.ts');
 // The runner is plain JavaScript so it can run without a build.
 const runner = '../../scripts/self-update.mjs';
-const { readPrepare, prepareDetail, publishWorkers } = await import(runner);
+const { readPrepare, prepareDetail, publishWorkers, pruneReleases } = await import(runner);
 
 const git = (cwd: string, ...args: string[]) => {
   const result = spawnSync('git', args, {
@@ -150,10 +153,21 @@ test('prepare output says which step failed and how many tests', () => {
   );
 });
 
-function rehearsal(activate: string) {
+function olderReleases(releases: string) {
+  const names = [1, 2, 3, 4].map((n) => `2026010${n}-main-aaaaaa${n}`);
+  names.forEach((name, index) => {
+    mkdirSync(join(releases, name));
+    const time = new Date(2026, 0, index + 1);
+    utimesSync(join(releases, name), time, time);
+  });
+  return names;
+}
+
+function rehearsal(activate: string, prepareReleases?: (releases: string) => void) {
   const repo = repository();
   const releases = join(repo.root, 'releases');
   mkdirSync(releases);
+  prepareReleases?.(releases);
   const serving = join(releases, 'serving');
   git(repo.root, 'clone', '-q', repo.work, serving);
   git(serving, 'checkout', '-q', '--detach', repo.running);
@@ -223,6 +237,53 @@ test('the runner checks out main in a new release, backs up both databases and a
   }
   assert.equal(history.at(-1).state, 'done');
   assert.equal(history.at(-1).plan, undefined);
+});
+
+test('a release fetches from the running commit and leaves one compact pack', () => {
+  const { repo, releases } = rehearsal('echo Serving; exit 0');
+  const next = join(releases, 'next');
+  assert.match(readFileSync(join(repo.root, 'run.log'), 'utf8'), /--negotiation-tip=HEAD/);
+  const objects = git(next, 'count-objects', '-v');
+  assert.match(objects, /^count: 0$/m);
+  assert.match(objects, /^packs: 1$/m);
+  assert.equal(git(next, 'rev-parse', 'HEAD'), repo.main);
+  git(next, 'fsck', '--connectivity-only');
+});
+
+test('a successful update keeps the newest three updater releases and nothing else changes', () => {
+  let names: string[] = [];
+  const { releases } = rehearsal('echo Serving; exit 0', (dir) => {
+    names = olderReleases(dir);
+    mkdirSync(join(dir, 'workbench-test-tmp'));
+    writeFileSync(join(dir, 'notes.bundle'), 'keep');
+  });
+  assert.deepEqual(
+    names.map((name) => existsSync(join(releases, name))),
+    [false, true, true, true],
+  );
+  for (const name of ['serving', 'next', 'workbench-test-tmp', 'notes.bundle'])
+    assert.equal(existsSync(join(releases, name)), true, name);
+});
+
+test('a failed update removes no releases', () => {
+  let names: string[] = [];
+  const { releases } = rehearsal(
+    'echo "Update failed; restored /releases/serving." >&2; exit 1',
+    (dir) => {
+      names = olderReleases(dir);
+    },
+  );
+  for (const name of names) assert.equal(existsSync(join(releases, name)), true, name);
+});
+
+test('cleanup never removes a protected release, however old', () => {
+  const releases = mkdtempSync(join(tmpdir(), 'self-update-releases-'));
+  const names = olderReleases(releases);
+  const newest = '20260201-main-bbbbbbb-2';
+  mkdirSync(join(releases, newest));
+  const removed = pruneReleases(releases, [join(releases, names[0])]);
+  assert.deepEqual(removed, [join(releases, names[1])]);
+  assert.deepEqual(readdirSync(releases).sort(), [names[0], names[2], names[3], newest].sort());
 });
 
 test('a failed activation that went back says so', () => {

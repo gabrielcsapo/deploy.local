@@ -135,6 +135,29 @@ export async function prepareSelfUpdate(plan, installation, exec, log = () => {}
   }
 }
 
+/** The names `releaseName` gives; anything else in the releases folder is not this updater's. */
+const UPDATER_RELEASE = /^\d{8}-main-[0-9a-f]{7}(-\d+)?$/;
+
+/** Removes all but the newest updater-made releases, never one that `protect` names. */
+export function pruneReleases(releases, protect, keep = 3) {
+  const safe = new Set(protect);
+  const removed = [];
+  readdirSync(releases, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && UPDATER_RELEASE.test(entry.name))
+    .map((entry) => {
+      const path = join(releases, entry.name);
+      return { path, time: statSync(path).mtimeMs };
+    })
+    .sort((a, b) => b.time - a.time)
+    .slice(keep)
+    .filter(({ path }) => !safe.has(path))
+    .forEach(({ path }) => {
+      rmSync(path, { recursive: true, force: true });
+      removed.push(path);
+    });
+  return removed;
+}
+
 /** Keep the running and rollback release pins across updater restarts. No credentials here. */
 export function finishSelfUpdatePins(plan, run, state) {
   if (!plan.packageProject || !existsSync(join(plan.data, 'deploy.db'))) return;
@@ -237,21 +260,30 @@ function main(file) {
     log(`Updating ${short(run.from)} to ${short(run.to)} into ${plan.release}\n`);
     let started = begin('prepare');
     let output = '';
+    // The release a failed activation goes back to, so it outlives the cleanup after a success.
+    const serving = realpathSync(plan.current);
     try {
       if (existsSync(plan.release)) throw new Error(`${plan.release} already exists`);
       // Copying the serving release keeps node_modules, so the install is quick.
-      await exec('cp', ['-a', realpathSync(plan.current), plan.release]);
+      await exec('cp', ['-a', serving, plan.release]);
+      // A release is a detached checkout with no refs. Without the tip, git has nothing to compare
+      // against and fetches the repository's whole history again.
       await exec('git', [
         '-C',
         plan.release,
         'fetch',
         '--no-tags',
         '--quiet',
+        '--negotiation-tip=HEAD',
         plan.repository,
         run.to,
       ]);
       await exec('git', ['-C', plan.release, 'checkout', '--quiet', '--detach', '--force', run.to]);
       await exec('git', ['-C', plan.release, 'clean', '-fdq']);
+      // Housekeeping only: a release with a larger .git still works.
+      await exec('git', ['-C', plan.release, 'gc', '--quiet', '--prune=now']).catch((error) =>
+        log(`Could not compact the release's git data.\n${error.message}\n`),
+      );
       rmSync(join(plan.release, 'dist'), { recursive: true, force: true });
       const installation = await selfUpdateInstall(plan, log);
       installSecrets = installation.secrets;
@@ -344,6 +376,12 @@ function main(file) {
       finish('restart', 'done', `serving ${short(run.to)}`);
       publishWorkers(plan.data, run.to, log);
       finish('check', 'done', 'healthy over HTTPS');
+      try {
+        for (const path of pruneReleases(dirname(plan.release), [plan.release, serving]))
+          log(`Removed old release ${path}\n`);
+      } catch (error) {
+        log(`Could not remove old releases; the update itself is fine.\n${error.stack || error}\n`);
+      }
       return end('done');
     } catch (error) {
       const text = error.output || error.message;
