@@ -10,7 +10,7 @@ import { getDeployment } from '../store.ts';
 import { getRequestsSqlite } from '../requests-db.ts';
 import { readCapture, type CaptureRecord } from '../capture.ts';
 import { list } from '../workspace/store.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import type { Release } from '../../shared/v2/contracts.ts';
 
 const MINUTE = 60_000;

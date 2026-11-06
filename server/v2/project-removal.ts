@@ -33,7 +33,7 @@ import { assertNoApplicationMutations, beginApplicationMutation } from './releas
 import { assertProjectWritable } from './project-policy.ts';
 import { resolveProject } from './projects.ts';
 import { readProjectBody } from './settings.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 export async function removeProjectContainer(name: string, remove = apiRemoveContainer) {
   try {

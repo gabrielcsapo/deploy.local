@@ -1,16 +1,14 @@
+import { gitResultSync, gitStringSync } from '../git.ts';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
-function readGit(cwd: string, args: string[], raw = false) {
-  const r = spawnSync('git', ['-C', cwd, ...args], {
-    encoding: 'utf8',
+const readGit = (cwd: string, args: string[], raw = false) =>
+  gitStringSync(cwd, args, {
     maxBuffer: 16 * 1024 * 1024,
     timeout: 10000,
+    fallback: 'Git review failed',
+    trim: raw ? 'none' : 'end',
   });
-  if (r.status !== 0) throw new Error(r.stderr || 'Git review failed');
-  return raw ? r.stdout : r.stdout.trimEnd();
-}
 export const patchDigest = (base: string, patch: string) =>
   createHash('sha256').update(base).update('\0').update(patch).digest('hex');
 
@@ -75,11 +73,9 @@ export function inspectWorkspace(cwd: string, baseRevision: string, limit = 5120
         excluded.push(file.path);
         continue;
       }
-      const r = spawnSync(
-        'git',
+      const r = gitResultSync(
+        cwd,
         [
-          '-C',
-          cwd,
           'diff',
           '--binary',
           '--full-index',
@@ -91,7 +87,6 @@ export function inspectWorkspace(cwd: string, baseRevision: string, limit = 5120
           file.path,
         ],
         {
-          encoding: 'utf8',
           maxBuffer: 1024 * 1024,
           timeout: 5000,
         },
@@ -154,8 +149,7 @@ export function workspaceFilePatch(
   const args = ['diff', '--binary', '--full-index', '--no-ext-diff', '--no-textconv'];
   let patch = readGit(cwd, [...args, baseRevision, '--', file], true);
   if (!patch && !readGit(cwd, ['ls-files', '--', file])) {
-    const r = spawnSync('git', ['-C', cwd, ...args, '--no-index', '--', '/dev/null', file], {
-      encoding: 'utf8',
+    const r = gitResultSync(cwd, [...args, '--no-index', '--', '/dev/null', file], {
       maxBuffer: limit + 1024 * 1024,
       timeout: 30000,
     });

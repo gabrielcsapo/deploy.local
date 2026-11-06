@@ -3,7 +3,7 @@ import { createReadStream, statSync } from 'node:fs';
 import { getArtifact, putArtifactBytes } from '../content-store.ts';
 import { get, id, list, now, save } from '../workspace/store.ts';
 import { readBytes, sendJson } from './attachments.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 // Files dropped into a pull request's description. Any file is accepted; how it is served and
 // shown depends on what its bytes are, never on the name or type the client claims alone.

@@ -9,7 +9,7 @@ import {
   updateReservation,
   withUpdateAdmission,
 } from './update-admission.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 export const UPDATE_INTERVAL_MS = 10 * 60_000;
 export const UPDATE_UNAVAILABLE =

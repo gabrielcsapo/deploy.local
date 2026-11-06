@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { gitResultSync, gitStringSync } from '../git.ts';
 import { copyFileSync, existsSync, lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -10,17 +10,16 @@ import {
   type FilePatch,
 } from './review.ts';
 
-function git(cwd: string, args: string[], env: Record<string, string> = {}, input?: string) {
-  const r = spawnSync('git', ['-C', cwd, '--literal-pathspecs', ...args], {
-    encoding: 'utf8',
+const git = (cwd: string, args: string[], env: Record<string, string> = {}, input?: string) =>
+  gitStringSync(cwd, args, {
+    literalPathspecs: true,
     maxBuffer: 16 * 1024 * 1024,
     timeout: 30000,
     env: { ...process.env, ...env },
     input,
+    fallback: 'Git checkpoint failed',
+    trim: 'none',
   });
-  if (r.status !== 0) throw new Error(r.stderr || 'Git checkpoint failed');
-  return r.stdout;
-}
 
 /**
  * Record the workspace as a Git tree without touching its index, HEAD or refs.
@@ -61,7 +60,7 @@ function requireCheckpoints(cwd: string, trees: string[]) {
   for (const tree of trees)
     if (
       !checkpointId(tree) ||
-      spawnSync('git', ['-C', cwd, 'cat-file', '-e', `${tree}^{tree}`]).status !== 0
+      gitResultSync(cwd, ['cat-file', '-e', `${tree}^{tree}`]).status !== 0
     )
       throw Object.assign(new Error('Checkpoint is no longer available'), { code: 'missing' });
 }

@@ -96,7 +96,7 @@ test('upload validates size, declared type, contents and file names', async () =
   assert.throws(() => ownedAttachments('owner', Array(9).fill(attachment)), /eight/);
   const owned = ownedAttachments('owner', [{ ...attachment, name: 'forged', bytes: 0 }]);
   assert.equal(owned[0].name, 'picked.png');
-  assert.deepEqual(attachmentBytes('owner', attachment.ref).bytes, png);
+  assert.deepEqual((await attachmentBytes('owner', attachment.ref)).bytes, png);
 });
 test('chat model override and Auto read defaults without writing them', () => {
   save('worker', 'owner', {

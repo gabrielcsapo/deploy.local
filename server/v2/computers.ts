@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import { revokeComputerPackageKey } from '../packages/keys.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
@@ -17,7 +18,7 @@ import {
 } from '../store.ts';
 import { computers as workspaceComputers } from '../workspace/coordination.ts';
 import { db, list, save } from '../workspace/store.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { setAutomaticUpdates } from './fleet-updates.ts';
 import { getUpdates } from './updates.ts';
 
@@ -399,16 +400,12 @@ async function body(req: IncomingMessage) {
 export async function computersApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
   if (path !== '/updates' && path !== '/computers' && !path.startsWith('/computers/')) return false;
-  const send = (value: unknown, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
-    return true;
-  };
+  const send = (value: unknown, status = 200) => sendJson(res, value, status);
   if (path === '/updates' && req.method === 'GET')
-    return send(getUpdates(owner, getComputers(owner)));
+    return send(await getUpdates(owner, getComputers(owner)));
   if (path === '/updates' && req.method === 'PUT') {
     setAutomaticUpdates(owner, (await body(req)).automatic);
-    return send(getUpdates(owner, getComputers(owner)));
+    return send(await getUpdates(owner, getComputers(owner)));
   }
   if (path === '/computers' && req.method === 'GET')
     return send({ computers: getComputers(owner) });

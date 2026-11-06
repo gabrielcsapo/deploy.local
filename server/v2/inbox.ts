@@ -1,11 +1,8 @@
+import { fail } from '../errors.ts';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { answerQuestion, taskQuestions } from '../workspace/questions.ts';
 import { interactiveOperator, interactiveRead } from '../workspace/interactive.ts';
-
-export function fail(message: string, status = 400): never {
-  throw Object.assign(new Error(message), { status });
-}
 
 /** Who did the work: the agent that started the run, else the coding tool it ran with. */
 export function agentId(run: any): string {

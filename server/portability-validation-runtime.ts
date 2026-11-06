@@ -1,10 +1,10 @@
+import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
   rmSync,
   statSync,
@@ -165,7 +165,7 @@ export class RuntimePortabilityValidationAdapter implements PortabilityValidatio
 
   async exerciseReconciliation(input: FrozenValidationInput): Promise<ValidationStepResult> {
     try {
-      const structural = analyzePortability({
+      const structural = await analyzePortability({
         appId: input.appId,
         siteId: input.siteId,
         specDigest: input.specDigest,
@@ -325,7 +325,7 @@ async function snapshotRecoveryArtifact(
 
 async function fileDigest(path: string): Promise<`sha256:${string}`> {
   const hash = createHash('sha256');
-  hash.update(readFileSync(path));
+  hash.update(await readFile(path));
   return `sha256:${hash.digest('hex')}`;
 }
 

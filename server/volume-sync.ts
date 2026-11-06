@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import {
   copyFileSync,
@@ -223,7 +224,7 @@ export async function captureOpaqueVolumeSnapshot(input: {
       const archive = containedPath(dirname(recovery.artifactReference), resource.archive);
       if (!existsSync(archive) || statSync(archive).size !== resource.bytes)
         throw new Error(`Opaque archive for ${resource.resource} is missing or changed`);
-      if (fileDigest(archive) !== resource.digest)
+      if (digestBytes(await readFile(archive)) !== resource.digest)
         throw new Error(`Opaque archive digest mismatch for ${resource.resource}`);
       const existed = Boolean(getArtifact(resource.digest));
       const stored = await putArtifactFile(archive, {
@@ -340,7 +341,10 @@ export async function restoreOpaqueVolumeSnapshot(input: {
     const resources: ColdRecoveryManifest['resources'] = [];
     for (const [index, resource] of manifest.resources.entries()) {
       const artifact = getArtifact(resource.archiveArtifactDigest);
-      if (!artifact || fileDigest(artifact.localPath) !== resource.archiveArtifactDigest) {
+      if (
+        !artifact ||
+        digestBytes(await readFile(artifact.localPath)) !== resource.archiveArtifactDigest
+      ) {
         throw new Error(`Opaque volume artifact ${resource.archiveArtifactDigest} is unavailable`);
       }
       const archive = `${String(index).padStart(4, '0')}.tar.gz`;

@@ -1,6 +1,6 @@
+import { gitResultSync } from '../git.ts';
 import { publishedTaskChecks } from './workspace-checks.ts';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -276,16 +276,12 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
       args.operationId,
       () => {
         revise(get('task', owner, taskId), task.revision);
-        const update = spawnSync(
-          'git',
-          ['-c', 'core.hooksPath=/dev/null', '-C', repo, 'update-ref', '--stdin'],
-          {
-            env: gitEnvironment(),
-            encoding: 'utf8',
-            timeout: 10000,
-            input: `start\nupdate ${ref} ${commit} ${head || '0'.repeat(40)}\ncreate ${receiptRef} ${blob}\nprepare\ncommit\n`,
-          },
-        );
+        const update = gitResultSync(repo, ['update-ref', '--stdin'], {
+          prefix: ['-c', 'core.hooksPath=/dev/null'],
+          env: gitEnvironment(),
+          timeout: 10000,
+          input: `start\nupdate ${ref} ${commit} ${head || '0'.repeat(40)}\ncreate ${receiptRef} ${blob}\nprepare\ncommit\n`,
+        });
         if (update.status !== 0)
           conflict(
             `Branch ${branch} changed while this commit was being written, so nothing was committed. Capture a new checkpoint and commit again.`,

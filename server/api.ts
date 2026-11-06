@@ -1,3 +1,4 @@
+import { sendJson, readBody, RequestBodyTooLargeError } from './http.ts';
 import './packages/hooks.ts';
 import { npmRegistry } from './packages/npm.ts';
 import {
@@ -444,37 +445,15 @@ function resolveStatusBatched(
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-class RequestBodyTooLargeError extends Error {}
-
-function readBody(req: IncomingMessage, maxBytes = 1024 * 1024): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let totalBytes = 0;
-    let rejected = false;
-    req.on('data', (chunk: Buffer) => {
-      if (rejected) return;
-      totalBytes += chunk.length;
-      if (totalBytes > maxBytes) {
-        rejected = true;
-        chunks.length = 0;
-        reject(new RequestBodyTooLargeError(`Request body exceeds the ${maxBytes} byte limit`));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
-}
-
 function json(res: ServerResponse, data: unknown, status = 200) {
-  if (res.writableEnded || res.destroyed) return;
-  res.writeHead(status, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': '*',
+  sendJson(res, data, status, {
+    guard: true,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': '*',
+    },
   });
-  res.end(JSON.stringify(data));
 }
 
 function error(res: ServerResponse, message: string, status = 400) {
@@ -6084,7 +6063,7 @@ export function apiMiddleware(
             ? null
             : isCoordinatorApplicationGraph(d)
               ? null
-              : getVolumeSize(name);
+              : await getVolumeSize(name);
 
         return json(res, { backups: dbBackups, volumeSize });
       }
@@ -6142,8 +6121,8 @@ export function apiMiddleware(
 
         const url = new URL(req.url!, `http://${req.headers.host}`);
         const page = parseInt(url.searchParams.get('page') || '1', 10);
-        const { rows, total, pageSize } = getBuildLogs(name, page);
-        const activeBuild = getActiveBuildLog(name);
+        const { rows, total, pageSize } = await getBuildLogs(name, page);
+        const activeBuild = await getActiveBuildLog(name);
         return json(res, {
           logs: rows,
           total,

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { processResult } from './process.ts';
 import { existsSync, readdirSync, statfsSync } from 'node:fs';
 import { arch, cpus, platform, totalmem } from 'node:os';
 import { dirname } from 'node:path';
@@ -159,7 +159,7 @@ async function exchangeSuitcaseRuntime(
     membershipFile,
     manualSync,
     manualSyncAppIds,
-    capabilities: suitcaseCatalogCapabilities(),
+    capabilities: await suitcaseCatalogCapabilities(),
     telemetry: telemetry.records,
     telemetryArtifacts: telemetry.artifacts,
     projectEvent: projectSuitcaseRuntimeEvent,
@@ -189,8 +189,8 @@ export async function materializeSuitcaseRuntime(membership: SuitcaseMembership)
 }
 
 /** Facts measured inside the portable target and authenticated by its site credential. */
-export function suitcaseCatalogCapabilities(): Record<string, unknown> {
-  const dockerVersion = localDockerVersion();
+export async function suitcaseCatalogCapabilities(): Promise<Record<string, unknown>> {
+  const dockerVersion = await localDockerVersion();
   const operatingSystem = platform();
   const devices = operatingSystem === 'linux' ? localDevices() : [];
   const storageMiB = localStorageMiB();
@@ -209,7 +209,7 @@ export function suitcaseCatalogCapabilities(): Record<string, unknown> {
       memoryMiB: Math.floor(totalmem() / 1024 ** 2),
       storageMiB,
       cpuCores: cpus().length,
-      cachedArtifactDigests: localCachedArtifactDigests(),
+      cachedArtifactDigests: await localCachedArtifactDigests(),
       catalogExecution: dockerVersion !== null,
       privilegedContainers: dockerVersion !== null && operatingSystem === 'linux',
       hostNetwork: dockerVersion !== null && operatingSystem === 'linux',
@@ -222,30 +222,33 @@ export function suitcaseCatalogCapabilities(): Record<string, unknown> {
   };
 }
 
-function localDockerVersion(): string | null {
+async function localDockerVersion(): Promise<string | null> {
   try {
-    const output = execFileSync('docker', ['version', '--format', '{{.Server.Version}}'], {
-      encoding: 'utf8',
-      timeout: 2_000,
+    const result = await processResult('docker', ['version', '--format', '{{.Server.Version}}'], {
       stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2_000,
     });
-    return output.match(/\d+(?:\.\d+){1,2}/)?.[0] ?? null;
+    if (result.status !== 0) return null;
+    return result.stdout.match(/\d+(?:\.\d+){1,2}/)?.[0] ?? null;
   } catch {
     return null;
   }
 }
 
-function localCachedArtifactDigests(): string[] {
+async function localCachedArtifactDigests(): Promise<string[]> {
   try {
+    const result = await processResult(
+      'docker',
+      ['image', 'ls', '--digests', '--format', '{{.Digest}}'],
+      {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 2_000,
+      },
+    );
+    if (result.status !== 0) return [];
     return [
       ...new Set(
-        execFileSync('docker', ['image', 'ls', '--digests', '--format', '{{.Digest}}'], {
-          encoding: 'utf8',
-          timeout: 2_000,
-          stdio: ['ignore', 'pipe', 'ignore'],
-        })
-          .split(/\r?\n/)
-          .filter((value) => /^sha256:[a-f0-9]{64}$/.test(value)),
+        result.stdout.split(/\r?\n/).filter((value) => /^sha256:[a-f0-9]{64}$/.test(value)),
       ),
     ].sort();
   } catch {

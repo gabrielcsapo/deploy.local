@@ -58,7 +58,7 @@ function target() {
 }
 
 describe('suitcase portability analyzer', () => {
-  it('classifies an ordinary SQLite app without an application-specific library', () => {
+  it('classifies an ordinary SQLite app without an application-specific library', async () => {
     const root = join(snapshots, 'safe-sqlite');
     mkdirSync(root, { recursive: true });
     const database = new Database(join(root, 'notes.db'));
@@ -80,7 +80,7 @@ describe('suitcase portability analyzer', () => {
     writeFileSync(join(root, 'photo.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
 
     const compiled = sqliteSpec();
-    const report = portability.analyzePortability({
+    const report = await portability.analyzePortability({
       appId: 'app-notes',
       specDigest: compiled.digest,
       siteId: 'site-suitcase',
@@ -112,7 +112,7 @@ describe('suitcase portability analyzer', () => {
     assert.equal(saved.classification, 'sqlite-replica');
   });
 
-  it('fails closed to Follows one site when a durable table has no key', () => {
+  it('fails closed to Follows one site when a durable table has no key', async () => {
     const root = join(snapshots, 'unsafe-sqlite');
     mkdirSync(root, { recursive: true });
     const database = new Database(join(root, 'legacy.db'));
@@ -120,7 +120,7 @@ describe('suitcase portability analyzer', () => {
     database.close();
 
     const compiled = sqliteSpec();
-    const report = portability.analyzePortability({
+    const report = await portability.analyzePortability({
       appId: 'app-legacy',
       specDigest: compiled.digest,
       siteId: 'site-suitcase',
@@ -138,7 +138,7 @@ describe('suitcase portability analyzer', () => {
     );
   });
 
-  it('fails closed when generic reconciliation discovers multiple SQLite files', () => {
+  it('fails closed when generic reconciliation discovers multiple SQLite files', async () => {
     const root = join(snapshots, 'multiple-sqlite');
     mkdirSync(root, { recursive: true });
     for (const filename of ['notes.db', 'settings.db']) {
@@ -150,7 +150,7 @@ describe('suitcase portability analyzer', () => {
     }
 
     const compiled = sqliteSpec();
-    const report = portability.analyzePortability({
+    const report = await portability.analyzePortability({
       appId: 'app-multiple-sqlite',
       specDigest: compiled.digest,
       siteId: 'site-suitcase',
@@ -170,7 +170,7 @@ describe('suitcase portability analyzer', () => {
     );
   });
 
-  it('applies declared table/path exclusions without treating annotations as a safety bypass', () => {
+  it('applies declared table/path exclusions without treating annotations as a safety bypass', async () => {
     const root = join(snapshots, 'annotated-sqlite');
     mkdirSync(join(root, 'scratch'), { recursive: true });
     const database = new Database(join(root, 'notes.db'));
@@ -202,7 +202,7 @@ describe('suitcase portability analyzer', () => {
         },
       },
     });
-    const report = portability.analyzePortability({
+    const report = await portability.analyzePortability({
       appId: 'app-annotated',
       specDigest: compiled.digest,
       siteId: 'site-suitcase',
@@ -234,12 +234,12 @@ describe('suitcase portability analyzer', () => {
     assert.equal(saved.conflict_policy, 'prefer-home');
   });
 
-  it('classifies uploaded files separately and blocks escaping symlinks', () => {
+  it('classifies uploaded files separately and blocks escaping symlinks', async () => {
     const filesRoot = join(snapshots, 'files');
     mkdirSync(filesRoot, { recursive: true });
     writeFileSync(join(filesRoot, 'upload.txt'), 'hello suitcase');
     const compiled = sqliteSpec('files');
-    const filesReport = portability.analyzePortability({
+    const filesReport = await portability.analyzePortability({
       appId: 'app-files',
       specDigest: compiled.digest,
       siteId: 'site-suitcase',

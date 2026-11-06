@@ -1,6 +1,7 @@
+import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Screenshot } from '../../shared/v2/contracts.ts';
@@ -69,7 +70,7 @@ export async function captureScreenshots(request: {
       await exec('xcrun', ['simctl', 'io', target.device!, 'screenshot', '--type=png', path], {
         timeout: 15000,
       });
-      const bytes = readFileSync(path);
+      const bytes = await readFile(path);
       return [
         {
           type: 'image/png',

@@ -1,9 +1,11 @@
+import { readFile } from 'node:fs/promises';
+import { sendJson } from '../http.ts';
 import { copyHostname } from '../edge/copies.ts';
 import { ensureCertCoversHost } from '../certs.ts';
 import { notifyCertReload } from '../ipc.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { cp, mkdir } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type {
@@ -42,7 +44,7 @@ import { deployDataPath } from '../data-directory.ts';
 import { getBackupDir } from '../volumes.ts';
 import { db, get, list, now, save } from '../workspace/store.ts';
 import { projectsForOwner } from './projects.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { maintenance } from '../maintenance.ts';
 import {
   assertProjectIdle,
@@ -332,7 +334,7 @@ export class CoordinatorBackupRuntime implements BackupRuntime {
       )
         fail('Restore for upgraded profile volumes is not available yet', 422);
       const root = join(getBackupDir(entry.name), entry.backup.filename);
-      const content = readFileSync(join(root, 'recovery-manifest.json'));
+      const content = await readFile(join(root, 'recovery-manifest.json'));
       const expected = entry.backup.filename.match(/-([a-f0-9]{64})\.graph$/)?.[1];
       if (!expected || hash(content) !== `sha256:${expected}`) fail('Backup manifest is corrupt');
       const manifest = JSON.parse(content.toString());
@@ -391,7 +393,7 @@ export class CoordinatorBackupRuntime implements BackupRuntime {
         if (!/^[a-f0-9]+\.tar\.gz$/.test(resource.archive)) fail('Invalid resource archive');
         const archive = join(root, resource.archive);
         if (
-          hash(readFileSync(archive)) !== resource.digest ||
+          hash(await readFile(archive)) !== resource.digest ||
           !(await this.docker.verifyVolumeArchive(archive))
         )
           fail('Backup data is corrupt');
@@ -503,7 +505,7 @@ export class CoordinatorBackupRuntime implements BackupRuntime {
           const artifact = await executor.createRecoveryPoint(copy.context, root, {
             resume: false,
           });
-          const manifest = JSON.parse(readFileSync(artifact.artifactReference, 'utf8'));
+          const manifest = JSON.parse(await readFile(artifact.artifactReference, 'utf8'));
           manifest.applicationId = app.applicationId;
           const content = `${JSON.stringify(manifest, null, 2)}\n`;
           writeFileSync(artifact.artifactReference, content, { mode: 0o600 });
@@ -817,11 +819,7 @@ export async function backupsApi(
 ): Promise<boolean> {
   const path = new URL(req.url!, 'http://localhost').pathname;
   if (!path.startsWith('/api/v2/backups')) return false;
-  const send = (value: unknown, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
-    return true;
-  };
+  const send = (value: unknown, status = 200) => sendJson(res, value, status);
   try {
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Only a signed-in person can restore backups' }, 403);

@@ -1,3 +1,5 @@
+import { processResult } from '../process.ts';
+import { gitStringSync } from '../git.ts';
 import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
 import { workerLoad } from './run-queue.ts';
@@ -21,20 +23,13 @@ import {
   workspacePatch,
   type FilePatch,
 } from './review.ts';
-import { execFile, spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { list, get, save, remove, event, id, now, revise } from './store.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints, turnFilePatch } from './turn-checkpoint.ts';
 import { latestCheckpointSummary } from './checkpoint-publish.ts';
 import { stopRestartedRun } from './run-recovery.ts';
-export function git(cwd: string, args: string[]) {
-  const r = spawnSync('git', ['-C', cwd, ...args], {
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-    timeout: 60000,
-  });
-  if (r.status !== 0) throw new Error(r.stderr || 'Git failed');
-  return r.stdout.trimEnd();
-}
+export const git = (cwd: string, args: string[]) =>
+  gitStringSync(cwd, args, { maxBuffer: 16 * 1024 * 1024, timeout: 60000 });
 export function startRun(owner: string, taskId: string, input: any, answeredQuestionId?: string) {
   const task = get('task', owner, taskId);
   revise(task, input.revision);
@@ -505,18 +500,28 @@ export function turnDiff(owner: string, taskId: string) {
 /**
  * Whether an agent CLI is installed. `/state` is polled for as long as a dashboard is open, so
  * it answers from a cache and refreshes in the background: the answer only changes when someone
- * installs or updates a CLI. Only the first call after a restart spawns a process inline, and
- * that one is bounded so a wedged binary cannot hold up the first load of a task.
+ * installs or updates a CLI. The first calls after a restart share an asynchronous probe,
+ * bounded so a wedged binary cannot hold up the first load of a task indefinitely.
  */
 const cliProbes = new Map<string, { installed: boolean; at: number; refreshing: boolean }>();
 const cliProbeInterval = 60000;
-function cliInstalled(binary: string) {
+const initialProbes = new Map<string, Promise<boolean>>();
+async function cliInstalled(binary: string) {
   const probe = cliProbes.get(binary);
   if (!probe) {
-    const installed =
-      spawnSync(binary, ['--version'], { stdio: 'ignore', timeout: 5000 }).status === 0;
-    cliProbes.set(binary, { installed, at: Date.now(), refreshing: false });
-    return installed;
+    let pending = initialProbes.get(binary);
+    if (!pending) {
+      pending = processResult(binary, ['--version'], { stdio: 'ignore', timeout: 5000 }).then(
+        ({ status }) => {
+          const installed = status === 0;
+          cliProbes.set(binary, { installed, at: Date.now(), refreshing: false });
+          initialProbes.delete(binary);
+          return installed;
+        },
+      );
+      initialProbes.set(binary, pending);
+    }
+    return pending;
   }
   if (!probe.refreshing && Date.now() - probe.at >= cliProbeInterval) {
     probe.refreshing = true;
@@ -528,8 +533,8 @@ function cliInstalled(binary: string) {
   }
   return probe.installed;
 }
-export function capabilities(owner?: string) {
-  const available = cliInstalled('codex');
+export async function capabilities(owner?: string) {
+  const available = await cliInstalled('codex');
   const workers = computers(owner || '');
   return {
     workers: workers.map((worker) =>
@@ -547,7 +552,7 @@ export function capabilities(owner?: string) {
       {
         id: 'claude',
         name: 'Claude Code',
-        available: cliInstalled(process.env.DEPLOY_CLAUDE_BIN || 'claude'),
+        available: await cliInstalled(process.env.DEPLOY_CLAUDE_BIN || 'claude'),
         capabilities: {
           resume: true,
           cancellation: true,

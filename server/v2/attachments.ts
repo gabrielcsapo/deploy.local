@@ -1,42 +1,15 @@
+import { readBytes, readJson, sendJson } from '../http.ts';
+export { readBytes, readJson, sendJson } from '../http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import type { Attachment, ConversationEvent } from '../../shared/v2/contracts.ts';
 import { getArtifact, putArtifactBytes } from '../content-store.ts';
 import { db, get, id, list, save } from '../workspace/store.ts';
 import { repositoryRead } from '../workspace/repositories.ts';
 import { getModels } from './computers.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 export const uploadLimit = 10 * 1024 * 1024;
-export async function readBytes(req: IncomingMessage, limit = uploadLimit) {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-    size += chunk.length;
-    if (size > limit) {
-      req.resume();
-      fail(
-        `File exceeds the ${limit >= 1024 * 1024 ? `${Math.round(limit / 1024 / 1024)} MiB` : `${Math.round(limit / 1024)} KiB`} limit`,
-        413,
-      );
-    }
-    chunks.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
-}
-export async function readJson(req: IncomingMessage, limit = 128 * 1024) {
-  try {
-    return JSON.parse((await readBytes(req, limit)).toString());
-  } catch (error: any) {
-    if (error.status) throw error;
-    fail('Invalid JSON');
-  }
-}
-export function sendJson(res: ServerResponse, value: unknown, status = 200) {
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(value));
-  return true;
-}
 export function validateFile(bytes: Buffer, type: string) {
   if (!bytes.length) fail('The file is empty');
   if (bytes.length > uploadLimit) fail('File exceeds the 10 MiB limit', 413);
@@ -126,7 +99,7 @@ export function attachmentBytes(owner: string, ref: string) {
   const record = attachmentRecord(owner, ref);
   const artifact = getArtifact(record.digest);
   if (!artifact) fail('File unavailable', 404);
-  return { ...record, bytes: readFileSync(artifact.localPath) };
+  return readFile(artifact.localPath).then((bytes) => ({ ...record, bytes }));
 }
 export function chatModel(
   owner: string,
@@ -175,7 +148,7 @@ export async function attachmentsApi(req: IncomingMessage, res: ServerResponse, 
   }
   const file = url.pathname.match(/^\/api\/v2\/attachments\/([a-f0-9-]+)$/);
   if (file && req.method === 'GET') {
-    const record = attachmentBytes(owner, url.pathname);
+    const record = await attachmentBytes(owner, url.pathname);
     res.writeHead(200, {
       'Content-Type': record.type,
       'Content-Length': record.bytes.length,
@@ -258,7 +231,7 @@ export async function sendAgentMessage(owner: string, agentId: string, body: any
   if (!provider) fail('Connect a model endpoint in Computers › Models first.', 503);
   const content: any[] = [{ type: 'text', text: body.text.trim() }];
   for (const a of attachments) {
-    const record = attachmentBytes(owner, a.ref);
+    const record = await attachmentBytes(owner, a.ref);
     if (record.type.startsWith('image/'))
       content.push({
         type: 'image_url',

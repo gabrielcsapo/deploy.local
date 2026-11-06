@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, rename, rm, stat } from 'node:fs/promises';
@@ -53,11 +54,12 @@ export async function serveRepositoryLfs(
   readOnly: boolean,
 ) {
   const send = (value: any, status = 200) => {
-    res.writeHead(status, {
-      'Content-Type': 'application/vnd.git-lfs+json',
-      'Cache-Control': 'no-store',
+    sendJson(res, value, status, {
+      headers: {
+        'Content-Type': 'application/vnd.git-lfs+json',
+        'Cache-Control': 'no-store',
+      },
     });
-    res.end(JSON.stringify(value));
   };
   if (suffix === '/info/lfs/objects/batch' && req.method === 'POST') {
     const input = await body(req);

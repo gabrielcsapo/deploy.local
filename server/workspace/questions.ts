@@ -1,12 +1,10 @@
+import { fail } from '../errors.ts';
 import { createHash } from 'node:crypto';
 import { command, db, event, get, id, list, now, save } from './store.ts';
 import { startRun } from './service.ts';
 import { cancelTaskQuestions } from './question-lifecycle.ts';
 import type { AgentScope } from './coordination.ts';
 
-function fail(message: string, status = 400): never {
-  throw Object.assign(new Error(message), { status });
-}
 function active(owner: string, taskId: string, runId: string) {
   const run = get('run', owner, runId);
   return (

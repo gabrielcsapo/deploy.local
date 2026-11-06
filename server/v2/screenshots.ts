@@ -6,7 +6,7 @@ import { workerAuthentication } from '../workspace/credentials.ts';
 import { workerRole } from '../workspace/computer-roles.ts';
 import { startRun } from '../workspace/service.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import {
   sendAgentMessage,
   attachmentsApi,
@@ -273,10 +273,12 @@ export async function screenshotsApi(
       )
         fail('Run is not assigned to this worker', 403);
       return sendJson(res, {
-        attachments: (run.attachments || []).map((a: any) => {
-          const r = attachmentBytes(worker.owner, a.ref);
-          return { ...a, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
-        }),
+        attachments: await Promise.all(
+          (run.attachments || []).map(async (a: any) => {
+            const r = await attachmentBytes(worker.owner, a.ref);
+            return { ...a, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
+          }),
+        ),
       });
     }
     return sendJson(res, screenshotWorker(worker.owner, worker.workerId, workerRoute[1], body));

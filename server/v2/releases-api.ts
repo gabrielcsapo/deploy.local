@@ -1,3 +1,5 @@
+import { sendJson } from '../http.ts';
+import { readJson } from '../http.ts';
 import { list } from '../workspace/store.ts';
 import type { AppHealth } from '../../shared/v2/contracts.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -13,7 +15,6 @@ import {
 } from './releases.ts';
 import { releaseChoices, validateReleaseChoices } from './releases-plan.ts';
 import { projectsForOwner, resolveProject } from './projects.ts';
-import { fail } from './inbox.ts';
 
 const watchMs = process.env.DEPLOY_RELEASE_WATCH_MS
   ? Number(process.env.DEPLOY_RELEASE_WATCH_MS)
@@ -47,24 +48,6 @@ export async function requestWorkerRollback(owner: string, app: AppHealth, now =
   }
 }
 
-async function readBody(req: IncomingMessage) {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-    size += chunk.length;
-    if (size > 65_536) {
-      req.resume();
-      fail('Request body too large', 413);
-    }
-    chunks.push(Buffer.from(chunk));
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString());
-  } catch {
-    fail('Invalid JSON');
-  }
-}
-
 export async function releasesApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -85,11 +68,7 @@ export async function releasesApi(
     !uploadRoute
   )
     return false;
-  const send = (value: unknown, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
-    return true;
-  };
+  const send = (value: unknown, status = 200) => sendJson(res, value, status);
   try {
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Only a signed-in person can start releases or change approvals' }, 403);
@@ -101,7 +80,17 @@ export async function releasesApi(
     if (path === '/approvals') {
       if (req.method === 'GET') return send({ rules: approvalRules(owner) });
       if (req.method === 'PUT')
-        return send({ rules: putApprovalRules(owner, (await readBody(req)).rules) });
+        return send({
+          rules: putApprovalRules(
+            owner,
+            (
+              await readJson(req, 65536, {
+                tooLarge: 'Request body too large',
+                preserveReadErrors: true,
+              })
+            ).rules,
+          ),
+        });
     }
     if (uploadRoute && req.method === 'GET') {
       const record = list('v2-upload-release', owner).find((entry) => entry.id === uploadRoute[1]);
@@ -121,13 +110,26 @@ export async function releasesApi(
       if (req.method === 'POST' && projectRoute[2] === 'releases/plan')
         return send({ plan: releaseChoices(owner, project) });
       if (req.method === 'POST' && projectRoute[2] === 'releases') {
-        const body = await readBody(req);
+        const body = await readJson(req, 65536, {
+          tooLarge: 'Request body too large',
+          preserveReadErrors: true,
+        });
         if (body.choices !== undefined)
           body.choices = validateReleaseChoices(owner, project, body.choices);
         return send({ release: projectReleaseService.ship(owner, project, body) }, 202);
       }
       if (req.method === 'POST' && projectRoute[2] === 'rollback')
-        return send(projectReleaseService.rollback(owner, project, await readBody(req)), 202);
+        return send(
+          projectReleaseService.rollback(
+            owner,
+            project,
+            await readJson(req, 65536, {
+              tooLarge: 'Request body too large',
+              preserveReadErrors: true,
+            }),
+          ),
+          202,
+        );
     }
     return send({ error: 'Method not allowed' }, 405);
   } catch (error: any) {

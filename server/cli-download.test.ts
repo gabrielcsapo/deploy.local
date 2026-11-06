@@ -47,7 +47,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { serveCliBinary } from './cli-download.ts';
 
-it('coordinator serves only bytes matching the requested build and manifest checksum', () => {
+it('coordinator serves only bytes matching the requested build and manifest checksum', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'served-worker-'));
   const bytes = Buffer.from('fake second worker build');
   const manifest = {
@@ -56,10 +56,10 @@ it('coordinator serves only bytes matching the requested build and manifest chec
       'linux-x64': { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') },
     },
   };
-  const response = (version: string) => {
+  const response = async (version: string) => {
     let status = 0;
     let body: any;
-    serveCliBinary(
+    await serveCliBinary(
       {
         url: `/cli?os=linux&arch=x64&version=${version}`,
         headers: { host: 'deploy.local' },
@@ -79,11 +79,11 @@ it('coordinator serves only bytes matching the requested build and manifest chec
   try {
     writeFileSync(join(directory, 'build-info.json'), JSON.stringify(manifest));
     writeFileSync(join(directory, 'deploy-linux-x64'), bytes);
-    assert.equal(response('first').status, 409);
-    assert.equal(response('second').status, 200);
-    assert.deepEqual(response('second').body, bytes);
+    assert.equal((await response('first')).status, 409);
+    assert.equal((await response('second')).status, 200);
+    assert.deepEqual((await response('second')).body, bytes);
     writeFileSync(join(directory, 'deploy-linux-x64'), 'corrupt');
-    assert.equal(response('second').status, 409);
+    assert.equal((await response('second')).status, 409);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

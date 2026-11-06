@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -53,13 +54,13 @@ export function readCliManifest(directory = cliDirectory()): CliBuildManifest | 
 /**
  * Routes every /cli request: the version manifest or a platform binary.
  */
-export function serveCliRequest(req: IncomingMessage, res: ServerResponse): void {
+export async function serveCliRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const path = (req.url ?? '').split('?')[0];
   if (path === '/cli/version') {
     serveCliVersion(res);
     return;
   }
-  serveCliBinary(req, res);
+  await serveCliBinary(req, res);
 }
 
 /**
@@ -95,11 +96,11 @@ export function serveCliVersion(res: ServerResponse): void {
  * GET /cli?os=<os>&arch=<arch>
  * Serves the standalone SEA binary for the requested platform.
  */
-export function serveCliBinary(
+export async function serveCliBinary(
   req: IncomingMessage,
   res: ServerResponse,
   directory = cliDirectory(),
-): void {
+): Promise<void> {
   const url = new URL(req.url!, `http://${req.headers.host}`);
   const os = url.searchParams.get('os');
   const arch = url.searchParams.get('arch');
@@ -128,7 +129,7 @@ export function serveCliBinary(
   }
 
   try {
-    const binary = readFileSync(binaryPath);
+    const binary = await readFile(binaryPath);
     const manifest = readCliManifest(directory);
     const target = manifest?.targets[`${os}-${arch}`];
     if (

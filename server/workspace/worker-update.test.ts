@@ -75,7 +75,7 @@ test('local and managed workers are always current even with old or incomplete r
   }
 });
 
-test('registration and heartbeat store sanitized reports; older protocol remains compatible', () => {
+test('registration and heartbeat store sanitized reports; older protocol remains compatible', async () => {
   const owner = 'worker-build-owner';
   const body = {
     workerId: 'remote',
@@ -98,7 +98,10 @@ test('registration and heartbeat store sanitized reports; older protocol remains
   assert.equal(update.state, 'outdated');
   assert.ok(update.missingTools.includes('deploy_commit'));
   // /state spreads the capabilities projection; it must preserve update data.
-  assert.deepEqual(capabilities(owner).workers.find((w) => w.id === 'remote')?.update, update);
+  assert.deepEqual(
+    (await capabilities(owner)).workers.find((w) => w.id === 'remote')?.update,
+    update,
+  );
   workerCommand(owner, '/workers/remote/poll', {});
   assert.deepEqual(get('worker', owner, 'remote').agentTools, ['deploy_checkpoint']);
   workerCommand(owner, '/workers/register', { workerId: 'legacy', platform: 'linux', codex: true });

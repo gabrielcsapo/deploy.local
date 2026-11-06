@@ -298,7 +298,7 @@ test('local jobs return artifacts on failure, linked to the task, run and job, w
       stored.find((e: any) => e.path === 'build.log').attachmentId,
     );
     assert.equal(log.mimeType, 'text/plain; charset=utf-8');
-    const text = attachmentBytes(owner, log.id).data.toString('utf8');
+    const text = (await attachmentBytes(owner, log.id)).data.toString('utf8');
     assert.match(text, /build ok/);
     for (const secret of ['hunter2', '"abc"', 'ghp_abcdefghijklmnopqrstuvwxyz123456'])
       assert.ok(!text.includes(secret), secret);
@@ -576,7 +576,7 @@ test('a real remote worker uploads artifacts over its authenticated channel only
       owner,
       done.artifacts.find((e: any) => e.kind === 'image').attachmentId,
     );
-    assert.deepEqual(attachmentBytes(owner, image.id).data, png);
+    assert.deepEqual((await attachmentBytes(owner, image.id)).data, png);
     assert.equal(image.jobId, job.id);
     // The agent reads text through its own tool endpoint, by reference.
     const read = await fetch(origin + '/api/workspace/agent/tools', {

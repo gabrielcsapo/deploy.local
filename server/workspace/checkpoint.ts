@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { gitResultSync } from '../git.ts';
 import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
@@ -182,13 +182,8 @@ export function validateSnapshot(value: Snapshot): Snapshot {
   };
 }
 
-function git(cwd: string, args: string[]) {
-  return spawnSync('git', ['-C', cwd, '--literal-pathspecs', ...args], {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-    timeout: 30000,
-  });
-}
+const git = (cwd: string, args: string[]) =>
+  gitResultSync(cwd, args, { literalPathspecs: true, maxBuffer: 64 * 1024 * 1024, timeout: 30000 });
 
 /** Where a worker records the commit the coordinator prepared this workspace from. It lives in
  * the per-worktree Git directory: never inside the tree, never shared between worktrees, and

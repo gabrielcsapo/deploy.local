@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import { packagesApi } from '../packages/api.ts';
 import { projectRemovalApi } from './project-removal.ts';
 import { startApi } from './start.ts';
@@ -12,7 +13,8 @@ import { settingsApi } from './settings.ts';
 import { agentsApi } from './agents.ts';
 import { releasesApi } from './releases-api.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { answerInbox, fail, syncInbox } from './inbox.ts';
+import { answerInbox, syncInbox } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { tasksApi } from './tasks.ts';
 import { liveApi } from './live.ts';
 import { requestsApi } from './requests.ts';
@@ -24,9 +26,7 @@ type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: st
 
 export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAuth: RequireAuth) {
   const send = (value: unknown, status = 200) => {
-    if (res.destroyed || res.writableEnded) return;
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
+    sendJson(res, value, status, { guard: true });
   };
   try {
     if (await screenshotsApi(req, res, requireAuth)) return;

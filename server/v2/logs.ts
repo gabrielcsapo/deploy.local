@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Project } from '../../shared/v2/contracts.ts';
 import { resolveProject } from './projects.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 export function projectLogSources(project: Project, app: string | null) {
   const selected = app

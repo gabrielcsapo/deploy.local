@@ -1,13 +1,6 @@
 import { createHash } from 'node:crypto';
-import {
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-  unlinkSync,
-  createReadStream,
-  linkSync,
-} from 'node:fs';
-import { open, rm } from 'node:fs/promises';
+import { mkdirSync, writeFileSync, unlinkSync, createReadStream, linkSync } from 'node:fs';
+import { open, rm, readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { sniffVideo, videoLimit, mp4Duration } from './video-files.ts';
@@ -22,7 +15,7 @@ export function taskAttachments(owner: string, taskId: string) {
 export function attachmentBytes(owner: string, attachmentId: string) {
   const row = get('attachment', owner, attachmentId);
   get('task', owner, row.taskId);
-  return { row, data: readFileSync(resolve(root, 'attachments', row.sha256)) };
+  return readFile(resolve(root, 'attachments', row.sha256)).then((data) => ({ row, data }));
 }
 export function validateAttachments(owner: string, taskId: string, ids: unknown = []) {
   if (!Array.isArray(ids) || ids.length > 20 || ids.some((id) => typeof id !== 'string'))
@@ -371,5 +364,5 @@ export async function serveAttachment(
   res.writeHead(200, { ...headers, 'Content-Length': row.size });
   if (req.method === 'HEAD') res.end();
   else if (row.kind === 'video') await pipeline(createReadStream(path), res);
-  else res.end(readFileSync(path));
+  else res.end(await readFile(path));
 }

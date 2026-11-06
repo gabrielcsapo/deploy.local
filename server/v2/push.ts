@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import {
   notificationPreferences,
   putNotificationPreferences,
@@ -10,7 +11,8 @@ import { connect } from 'node:http2';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AppHealth, InboxItem } from '../../shared/v2/contracts.ts';
 import { cursor, db, events, list, save } from '../workspace/store.ts';
-import { fail, syncInbox } from './inbox.ts';
+import { syncInbox } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { getLive } from './live.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
@@ -306,8 +308,7 @@ export async function pushApi(
   const path = new URL(req.url!, 'http://localhost').pathname;
   if (!['/api/v2/devices', '/api/v2/notifications'].includes(path)) return false;
   const send = (body: unknown, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(body));
+    sendJson(res, body, status);
   };
   try {
     const auth = requireAuth(req, res);

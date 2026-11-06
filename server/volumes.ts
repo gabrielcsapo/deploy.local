@@ -1,3 +1,4 @@
+import { execAsync } from './process.ts';
 import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
 import { assertCiMutation } from './ci-fence.ts';
 import { assertLegacyMutationAllowed, legacyUpdateProtected } from './legacy-docker-update.ts';
@@ -50,7 +51,7 @@ export function getBackupDir(deploymentName: string): string {
 
 // ── Backup Operations ───────────────────────────────────────────────────────
 
-export function createBackup(
+export async function createBackup(
   deploymentName: string,
   label?: string,
   onProgress?: (progress: { processedBytes: number; totalBytes: number }) => void,
@@ -59,7 +60,7 @@ export function createBackup(
   assertLegacyMutationAllowed(deploymentName);
   const volumeDir = getVolumeDir(deploymentName);
   const backupDir = getBackupDir(deploymentName);
-  const volumeSizeBytes = getVolumeSize(deploymentName);
+  const volumeSizeBytes = await getVolumeSize(deploymentName);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const labelSuffix = label ? `-${label.replace(/[^a-zA-Z0-9-]/g, '_')}` : '';
@@ -180,13 +181,11 @@ export function deleteVolumes(deploymentName: string): void {
   if (existsSync(volumeDir)) rmSync(volumeDir, { recursive: true, force: true });
 }
 
-export function getVolumeSize(deploymentName: string): number {
+export async function getVolumeSize(deploymentName: string): Promise<number> {
   const volumeDir = getVolumeDir(deploymentName);
 
   try {
-    const result = execSync(`du -sb ${JSON.stringify(volumeDir)}`, { stdio: 'pipe' })
-      .toString()
-      .trim();
+    const result = (await execAsync(`du -sb ${JSON.stringify(volumeDir)}`)).stdout.trim();
     return parseInt(result.split('\t')[0], 10);
   } catch {
     return 0;

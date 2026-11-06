@@ -1,3 +1,5 @@
+import { sendJson } from '../http.ts';
+import { readJson } from '../http.ts';
 import { agentControl, putAgentControl } from './phone-preferences.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
@@ -12,7 +14,8 @@ import type {
 } from '../../shared/v2/contracts.ts';
 import { db, id, list, now, remove, save, events } from '../workspace/store.ts';
 import { providerConnections } from '../workspace/provider-connections.ts';
-import { fail, syncInbox } from './inbox.ts';
+import { syncInbox } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 import { mapConversationEvent } from './events.ts';
 import {
@@ -571,23 +574,6 @@ export function saveAgentReply(
   return { events: agentConversation(owner, agentId), tracking: agentTracking(owner, agentId) };
 }
 
-async function readBody(req: IncomingMessage) {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-    size += chunk.length;
-    if (size > 32768) {
-      req.resume();
-      fail('Request body too large', 413);
-    }
-    chunks.push(Buffer.from(chunk));
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString());
-  } catch {
-    fail('Invalid JSON');
-  }
-}
 export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
   const itemMatch = path.match(/^\/agents\/([^/]+)\/items\/([^/]+)(\/confirm|\/runs|\/run)?$/);
@@ -624,17 +610,21 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
   }
   const match = path.match(/^\/agents\/([^/]+)(\/(?:conversation|control|run))?$/);
   if (path !== '/agents' && path !== '/approvals' && !match) return false;
-  const send = (value: unknown, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
-    return true;
-  };
+  const send = (value: unknown, status = 200) => sendJson(res, value, status);
   if (path === '/approvals') {
     if (req.method === 'GET')
       return send({ rules: rulesForOwner(owner), suggestions: approvalSuggestions(owner) });
     if (req.method === 'PUT')
       return send({
-        rules: putRules(owner, (await readBody(req)).rules),
+        rules: putRules(
+          owner,
+          (
+            await readJson(req, 32768, {
+              tooLarge: 'Request body too large',
+              preserveReadErrors: true,
+            })
+          ).rules,
+        ),
         suggestions: approvalSuggestions(owner),
       });
     return send({ error: 'Method not allowed' }, 405);
@@ -642,9 +632,28 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
   if (req.method === 'GET' && path === '/agents')
     return send({ agents: agentsForOwner(owner), timezone: coordinatorTimezone() });
   if (req.method === 'POST' && path === '/agents/draft')
-    return send({ draft: await draftAgent(owner, await readBody(req)) });
+    return send({
+      draft: await draftAgent(
+        owner,
+        await readJson(req, 32768, {
+          tooLarge: 'Request body too large',
+          preserveReadErrors: true,
+        }),
+      ),
+    });
   if (req.method === 'POST' && path === '/agents')
-    return send({ agent: createAgent(owner, await readBody(req)) }, 201);
+    return send(
+      {
+        agent: createAgent(
+          owner,
+          await readJson(req, 32768, {
+            tooLarge: 'Request body too large',
+            preserveReadErrors: true,
+          }),
+        ),
+      },
+      201,
+    );
   if (match) {
     const agentId = decodeURIComponent(match[1]);
     const agent = agentForOwner(owner, agentId);
@@ -655,7 +664,17 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
     }
     if (match[2] === '/control') {
       if (req.method === 'GET') return send(agentControl(owner, agentId));
-      if (req.method === 'PATCH') return send(putAgentControl(owner, agentId, await readBody(req)));
+      if (req.method === 'PATCH')
+        return send(
+          putAgentControl(
+            owner,
+            agentId,
+            await readJson(req, 32768, {
+              tooLarge: 'Request body too large',
+              preserveReadErrors: true,
+            }),
+          ),
+        );
       return send({ error: 'Method not allowed' }, 405);
     }
     if (match[2]) {
@@ -667,12 +686,30 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
       if (req.method === 'POST') {
         if (agentControl(owner, agentId).paused)
           fail('This agent is paused. Resume it before sending a message.', 409);
-        const content = text((await readBody(req))?.text, 'Message', 12000);
+        const content = text(
+          (
+            await readJson(req, 32768, {
+              tooLarge: 'Request body too large',
+              preserveReadErrors: true,
+            })
+          )?.text,
+          'Message',
+          12000,
+        );
         const { sendAgentMessage } = await import('./attachments.ts');
         return send(await sendAgentMessage(owner, agentId, { text: content }));
       }
     } else if (req.method === 'PATCH')
-      return send({ agent: patchAgent(owner, agentId, await readBody(req)) });
+      return send({
+        agent: patchAgent(
+          owner,
+          agentId,
+          await readJson(req, 32768, {
+            tooLarge: 'Request body too large',
+            preserveReadErrors: true,
+          }),
+        ),
+      });
     if (req.method === 'DELETE') {
       deleteAgent(owner, agent.id);
       return send({ deleted: agent.id });

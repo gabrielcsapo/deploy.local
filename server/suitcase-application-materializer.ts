@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -1385,7 +1386,7 @@ async function verifyPolicyTransitionBackup(
   >,
 ): Promise<PolicyRecoveryManifest> {
   const manifestPath = resolve(evidence.artifactReference);
-  const content = readFileSync(manifestPath);
+  const content = await readFile(manifestPath);
   const digest = `sha256:${createHash('sha256').update(content).digest('hex')}`;
   if (digest !== evidence.artifactDigest || !evidence.verification) {
     throw new Error('Policy transition backup manifest failed digest verification');
@@ -1400,7 +1401,9 @@ async function verifyPolicyTransitionBackup(
     if (archive !== root && !archive.startsWith(`${root}${sep}`)) {
       throw new Error('Policy transition backup archive escapes its durable directory');
     }
-    const archiveDigest = `sha256:${createHash('sha256').update(readFileSync(archive)).digest('hex')}`;
+    const archiveDigest = `sha256:${createHash('sha256')
+      .update(await readFile(archive))
+      .digest('hex')}`;
     if (archiveDigest !== resource.digest) {
       throw new Error(`Policy transition backup archive is corrupt: ${resource.resource}`);
     }

@@ -1,6 +1,7 @@
+import { readFile } from 'node:fs/promises';
 import { withApplicationMutation } from './ci-fence.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { createReadStream, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { createReadStream, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
@@ -1393,7 +1394,7 @@ export class ApplicationGraphExecutor {
   ): Promise<void> {
     return withApplicationMutation(context.applicationId, async () => {
       const manifestPath = resolve(artifact.artifactReference);
-      const content = readFileSync(manifestPath);
+      const content = await readFile(manifestPath);
       if (sha256(content) !== artifact.artifactDigest) {
         throw new Error('Recovery manifest digest does not match the verified recovery point');
       }

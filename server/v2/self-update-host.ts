@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SelfUpdateChange } from '../../shared/v2/contracts.ts';
-import { gitSync } from '../workspace/repository-git.ts';
+import { gitRead } from '../workspace/repository-git.ts';
 
 /** Written once by `scripts/linux-release.mjs install`; its absence means this host has no deploy-update. */
 export type ReleaseConfig = {
@@ -30,32 +30,39 @@ export function runningRevision(config: ReleaseConfig): string | undefined {
 }
 
 /** The project whose main contains what this coordinator runs; deploy.local hosts its own source. */
-export function findSourceRepository(
+export async function findSourceRepository(
   repositories: { name: string; path: string }[],
   running: string,
 ) {
   const candidates = repositories
     .filter(({ path }) => path && existsSync(path))
     .sort((a, b) => Number(b.name === 'deploy.local') - Number(a.name === 'deploy.local'));
-  return candidates.find(
-    ({ path }) =>
-      gitSync(path, ['merge-base', '--is-ancestor', running, 'refs/heads/main']) !== null,
-  );
+  for (const candidate of candidates)
+    if (
+      (await gitRead(candidate.path, [
+        'merge-base',
+        '--is-ancestor',
+        running,
+        'refs/heads/main',
+      ])) !== null
+    )
+      return candidate;
+  return undefined;
 }
-export function changesSince(path: string, running: string) {
-  const main = gitSync(path, ['rev-parse', '--verify', 'refs/heads/main^{commit}']) || '';
+export async function changesSince(path: string, running: string) {
+  const main = (await gitRead(path, ['rev-parse', '--verify', 'refs/heads/main^{commit}'])) || '';
   const ahead = Number(
-    gitSync(path, ['rev-list', '--first-parent', '--count', `${running}..${main}`]) || 0,
+    (await gitRead(path, ['rev-list', '--first-parent', '--count', `${running}..${main}`])) || 0,
   );
   const changes: SelfUpdateChange[] = (
-    gitSync(path, [
+    (await gitRead(path, [
       'log',
       '--first-parent',
       '-n',
       '50',
       '--format=%H%x00%s%x00%cI',
       `${running}..${main}`,
-    ]) || ''
+    ])) || ''
   )
     .split('\n')
     .filter(Boolean)

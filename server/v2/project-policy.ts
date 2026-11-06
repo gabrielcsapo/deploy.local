@@ -1,5 +1,5 @@
 import { db, list, save } from '../workspace/store.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import type { Project } from '../../shared/v2/contracts.ts';
 
 export type ProjectReleasePolicy = {

@@ -216,26 +216,35 @@ async function tick() {
     const attachmentImagePaths: string[] = [];
     try {
       images = materializeImages(
-        (run.attachmentIds || [])
-          .filter(
-            (attachmentId: string) => get('attachment', row.owner, attachmentId).kind === 'image',
-          )
-          .map((attachmentId: string) => {
-            const { row: attachment, data } = attachmentBytes(row.owner, attachmentId);
-            return {
-              id: attachmentId,
-              data: data.toString('base64'),
-              mimeType: attachment.mimeType,
-            };
-          }),
+        await Promise.all(
+          (run.attachmentIds || [])
+            .filter(
+              (attachmentId: string) => get('attachment', row.owner, attachmentId).kind === 'image',
+            )
+            .map(async (attachmentId: string) => {
+              const { row: attachment, data } = await attachmentBytes(row.owner, attachmentId);
+              return {
+                id: attachmentId,
+                data: data.toString('base64'),
+                mimeType: attachment.mimeType,
+              };
+            }),
+        ),
       );
       // v2 composer attachments (files and marked-up screenshots) are written into the workspace.
       attachmentPrompt = prepareAttachmentInput(
         task.workspacePath,
-        (run.attachments || []).map((a: any) => {
-          const r = v2AttachmentBytes(row.owner, a.ref);
-          return { name: a.name, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
-        }),
+        await Promise.all(
+          (run.attachments || []).map(async (a: any) => {
+            const r = await v2AttachmentBytes(row.owner, a.ref);
+            return {
+              name: a.name,
+              type: r.type,
+              data: r.bytes.toString('base64'),
+              markup: r.markup,
+            };
+          }),
+        ),
         attachmentImagePaths,
       );
     } catch (failure: any) {

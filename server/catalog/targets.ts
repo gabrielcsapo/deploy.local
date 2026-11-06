@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { processResult } from '../process.ts';
 import { existsSync, readdirSync, statfsSync } from 'node:fs';
 import { arch, cpus, platform, totalmem } from 'node:os';
 import { dirname } from 'node:path';
@@ -12,15 +12,16 @@ const DEPLOY_LOCAL_VERSION = '1.0.0';
 
 /** Target facts are read from the coordinator or authenticated node heartbeats, never requests. */
 export class DurableCatalogTargetResolver implements CatalogTargetResolver {
-  list(): CatalogTargetProfile[] {
+  async list(): Promise<CatalogTargetProfile[]> {
     ensureCoordinatorNode();
-    const nodes = getNodes().flatMap((node) => {
+    const nodes: CatalogTargetProfile[] = [];
+    for (const node of getNodes()) {
       try {
-        return [node.id === 'coordinator' ? coordinatorProfile() : remoteProfile(node)];
+        nodes.push(node.id === 'coordinator' ? await coordinatorProfile() : remoteProfile(node));
       } catch {
-        return [];
+        // An unavailable target is omitted, as before.
       }
-    });
+    }
     const suitcases = listTopology().sites.flatMap((site) => {
       if (site.kind !== 'suitcase' || site.revoked_at) return [];
       try {
@@ -32,7 +33,7 @@ export class DurableCatalogTargetResolver implements CatalogTargetResolver {
     return [...nodes, ...suitcases];
   }
 
-  resolve(siteId: string): CatalogTargetProfile {
+  async resolve(siteId: string): Promise<CatalogTargetProfile> {
     ensureCoordinatorNode();
     if (siteId === 'coordinator') return coordinatorProfile();
     const node = getNode(siteId);
@@ -89,9 +90,9 @@ function suitcaseProfile(site: TopologySite): CatalogTargetProfile {
   } satisfies CatalogTargetProfile;
 }
 
-function coordinatorProfile(): CatalogTargetProfile {
+async function coordinatorProfile(): Promise<CatalogTargetProfile> {
   const operatingSystem = normalizedOperatingSystem(platform());
-  const dockerVersion = localDockerVersion();
+  const dockerVersion = await localDockerVersion();
   const devices = operatingSystem === 'linux' ? localDevices() : [];
   return {
     siteId: 'coordinator',
@@ -105,7 +106,7 @@ function coordinatorProfile(): CatalogTargetProfile {
     storageMiB: localStorageMiB(),
     cpuCores: cpus().length,
     online: process.env.DEPLOY_OFFLINE !== '1',
-    cachedArtifactDigests: localCachedArtifactDigests(),
+    cachedArtifactDigests: await localCachedArtifactDigests(),
     capabilities: {
       catalogExecution: true,
       privilegedContainers: dockerVersion !== null,
@@ -152,30 +153,33 @@ function remoteProfile(node: ReturnType<typeof getNode> extends infer T ? NonNul
   } satisfies CatalogTargetProfile;
 }
 
-function localDockerVersion(): string | null {
+async function localDockerVersion(): Promise<string | null> {
   try {
-    const output = execFileSync('docker', ['version', '--format', '{{.Server.Version}}'], {
-      encoding: 'utf8',
-      timeout: 2_000,
+    const result = await processResult('docker', ['version', '--format', '{{.Server.Version}}'], {
       stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2_000,
     });
-    return output.match(/\d+(?:\.\d+){1,2}/)?.[0] ?? null;
+    if (result.status !== 0) return null;
+    return result.stdout.match(/\d+(?:\.\d+){1,2}/)?.[0] ?? null;
   } catch {
     return null;
   }
 }
 
-function localCachedArtifactDigests(): string[] {
+async function localCachedArtifactDigests(): Promise<string[]> {
   try {
+    const result = await processResult(
+      'docker',
+      ['image', 'ls', '--digests', '--format', '{{.Digest}}'],
+      {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 2_000,
+      },
+    );
+    if (result.status !== 0) return [];
     return [
       ...new Set(
-        execFileSync('docker', ['image', 'ls', '--digests', '--format', '{{.Digest}}'], {
-          encoding: 'utf8',
-          timeout: 2_000,
-          stdio: ['ignore', 'pipe', 'ignore'],
-        })
-          .split(/\r?\n/)
-          .filter((value) => /^sha256:[a-f0-9]{64}$/.test(value)),
+        result.stdout.split(/\r?\n/).filter((value) => /^sha256:[a-f0-9]{64}$/.test(value)),
       ),
     ].sort();
   } catch {

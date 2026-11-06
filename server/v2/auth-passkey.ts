@@ -8,7 +8,7 @@ import {
 } from '@simplewebauthn/server';
 import { authDb, consume, grant, session, updatePreferences } from './auth-store.ts';
 import { serverIdentity } from './setup.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 type Passkey = {
   id: string;

@@ -1,3 +1,4 @@
+import { gitStringSync } from '../git.ts';
 import { prepareAgentInstall, agentEnvironment } from './agent-packages.ts';
 import { secretOutput } from '../../shared/package-install.mjs';
 import { executeBaseUpdate, prepareBaseUpdateWorkspace } from './update-base-worker.ts';
@@ -130,16 +131,8 @@ const gitEnv = {
     'Authorization: Basic ' +
     Buffer.from('workspace-worker.' + workerId + ':' + token).toString('base64'),
 };
-function git(cwd: string, args: string[]) {
-  const result = spawnSync('git', ['-C', cwd, ...args], {
-    encoding: 'utf8',
-    timeout: 60000,
-    maxBuffer: 1024 * 1024,
-    env: gitEnv,
-  });
-  if (result.status !== 0) throw new Error(result.stderr || 'Git failed');
-  return result.stdout.trim();
-}
+const git = (cwd: string, args: string[]) =>
+  gitStringSync(cwd, args, { timeout: 60000, maxBuffer: 1024 * 1024, env: gitEnv, trim: 'both' });
 function emit(type: string, payload: any) {
   if (!state) return;
   state.events.push({ sequence: ++state.sequence, type, payload });

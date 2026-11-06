@@ -200,7 +200,7 @@ export async function validatePortability(
     temporaryReplica.healthPassed &&
     temporaryReplica.edgeRequestPassed &&
     !requiredExternalDependency;
-  const report = analyzePortability({
+  const report = await analyzePortability({
     appId: input.appId,
     siteId: input.siteId,
     specDigest: input.specDigest,

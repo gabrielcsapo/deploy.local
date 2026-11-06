@@ -1,12 +1,6 @@
+import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import {
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  readlinkSync,
-  realpathSync,
-  statSync,
-} from 'node:fs';
+import { lstatSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 import Database from 'better-sqlite3';
 import type { ApplicationSpec } from './application-spec.ts';
@@ -189,12 +183,14 @@ function digest(value: unknown): string {
   return `sha256:${createHash('sha256').update(canonical(value)).digest('hex')}`;
 }
 
-function fileDigest(path: string): string {
-  return `sha256:${createHash('sha256').update(readFileSync(path)).digest('hex')}`;
+async function fileDigest(path: string): Promise<string> {
+  return `sha256:${createHash('sha256')
+    .update(await readFile(path))
+    .digest('hex')}`;
 }
 
-function isRecognizedUploadedContent(path: string): boolean {
-  const bytes = readFileSync(path).subarray(0, 8192);
+async function isRecognizedUploadedContent(path: string): Promise<boolean> {
+  const bytes = (await readFile(path)).subarray(0, 8192);
   if (bytes.length === 0) return true;
   if (bytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return true;
   if (bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
@@ -467,7 +463,9 @@ function setCapability(
   };
 }
 
-export function analyzePortability(input: PortabilityAnalysisInput): PortabilityReport {
+export async function analyzePortability(
+  input: PortabilityAnalysisInput,
+): Promise<PortabilityReport> {
   const findings: PortabilityFinding[] = [];
   const evidence: PortabilityEvidence[] = [];
   const vector = initialVector();
@@ -769,7 +767,7 @@ export function analyzePortability(input: PortabilityAnalysisInput): Portability
       }
 
       resourceFileCount++;
-      const firstBytes = readFileSync(path).subarray(0, SQLITE_HEADER.length);
+      const firstBytes = (await readFile(path)).subarray(0, SQLITE_HEADER.length);
       if (firstBytes.equals(SQLITE_HEADER)) {
         try {
           sqliteFiles.push(inspectSqlite(resourceKey, rootReal, path, findings));
@@ -795,19 +793,19 @@ export function analyzePortability(input: PortabilityAnalysisInput): Portability
           relativePath,
           kind: 'file',
           byteSize: metadata.size,
-          digest: fileDigest(path),
+          digest: await fileDigest(path),
           role: 'database-sidecar',
         });
         continue;
       }
-      if (resource.dataRole === 'database' && !isRecognizedUploadedContent(path)) {
+      if (resource.dataRole === 'database' && !(await isRecognizedUploadedContent(path))) {
         specialOrOpaque = true;
         files.push({
           resource: resourceKey,
           relativePath,
           kind: 'file',
           byteSize: metadata.size,
-          digest: fileDigest(path),
+          digest: await fileDigest(path),
           role: 'blocked',
         });
         findings.push(
@@ -828,7 +826,7 @@ export function analyzePortability(input: PortabilityAnalysisInput): Portability
           relativePath,
           kind: 'file',
           byteSize: metadata.size,
-          digest: fileDigest(path),
+          digest: await fileDigest(path),
           role: 'uploaded-content',
         });
       }

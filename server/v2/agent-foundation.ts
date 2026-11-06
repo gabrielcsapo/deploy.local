@@ -2,7 +2,7 @@ import { Cron } from 'croner';
 import type { AgentConfiguration, AgentAvatar, LooksAfterItem } from '../../shared/v2/contracts.ts';
 import { agentColors, agentGlyphs, avatarFromId } from '../../shared/v2/agents.ts';
 import { save, event, list } from '../workspace/store.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 export const coordinatorTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 export function validateAvatar(value: any): AgentAvatar {

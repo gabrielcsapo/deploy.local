@@ -81,13 +81,13 @@ test('installation rechecks idleness after reserving and always releases the res
     false,
   );
 });
-test('update target comes from the current project release; failed Watch is never propagated', () => {
+test('update target comes from the current project release; failed Watch is never propagated', async () => {
   save('v2-release', 'owner', { id: release.id, release });
   save('v2-project-current', 'owner', { id: release.projectId, releaseId: release.id });
-  assert.equal(getUpdates('owner', [computer]).latestRelease?.id, 'new');
-  assert.equal(getUpdates('other', [computer]).latestRelease, undefined);
+  assert.equal((await getUpdates('owner', [computer])).latestRelease?.id, 'new');
+  assert.equal((await getUpdates('other', [computer])).latestRelease, undefined);
   save('v2-release', 'owner', { id: release.id, release: { ...release, state: 'failed' } });
-  assert.equal(getUpdates('owner', [computer]).latestRelease, undefined);
+  assert.equal((await getUpdates('owner', [computer])).latestRelease, undefined);
 });
 test('Restarting is static, escaped, no-store, and retries without coordinator assets', () => {
   const html = restartingHtml('SER', '7f3b2d4');

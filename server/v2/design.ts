@@ -1,3 +1,5 @@
+import { gitResultSync, gitStringSync, tryGitText as reviewGit } from '../git.ts';
+import { readFile as readDiskFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -6,7 +8,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
-  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -27,11 +28,12 @@ import {
 } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
-import { gitEnvironment, gitSync, gitText, repositoryGit } from '../workspace/repository-git.ts';
+import { gitEnvironment, gitSync, gitRead, repositoryGit } from '../workspace/repository-git.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { readJson, sendJson } from './attachments.ts';
-import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.ts';
+import { createInboxItem, registerInboxSource, syncInbox } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
 import { queueMessage, queuedMessage } from '../workspace/queued-message.ts';
 import {
@@ -103,17 +105,19 @@ function validRef(ref: string) {
 }
 
 /** The commit a request means: `task` (the branch that task commits to), `ref`, or main. */
-function resolveCommit(owner: string, projectId: string, repo: string, url: URL) {
+async function resolveCommit(owner: string, projectId: string, repo: string, url: URL) {
   const taskId = url.searchParams.get('task');
   let ref = url.searchParams.get('ref') || 'HEAD';
   if (taskId) {
     const task = get('task', owner, taskId);
     if (task.projectId !== projectId) fail('That task belongs to another project', 404);
     const branch = `refs/heads/${currentTaskBranch(task)}`;
-    ref = gitSync(repo, ['rev-parse', '--verify', '--quiet', branch]) ? branch : task.baseRevision;
+    ref = (await gitRead(repo, ['rev-parse', '--verify', '--quiet', branch]))
+      ? branch
+      : task.baseRevision;
   }
   if (!validRef(ref)) fail('Invalid ref');
-  const commit = gitSync(repo, [
+  const commit = await gitRead(repo, [
     'rev-parse',
     '--verify',
     '--quiet',
@@ -146,7 +150,7 @@ function parseLibrary(text: string | null | undefined): Library | null {
 
 /** Which boards hold instances of each component, at a commit. */
 function componentUsage(repo: string, commit: string) {
-  const out =
+  return parseComponentUsage(
     gitSync(repo, [
       'grep',
       '-o',
@@ -155,7 +159,23 @@ function componentUsage(repo: string, commit: string) {
       commit,
       '--',
       'design/boards',
-    ]) ?? '';
+    ]) ?? '',
+  );
+}
+async function componentUsageAsync(repo: string, commit: string) {
+  return parseComponentUsage(
+    (await gitRead(repo, [
+      'grep',
+      '-o',
+      '-I',
+      'data-component="[a-z0-9-]*"',
+      commit,
+      '--',
+      'design/boards',
+    ])) ?? '',
+  );
+}
+function parseComponentUsage(out: string) {
   const usage: Record<string, string[]> = {};
   for (const line of out.split('\n')) {
     const match = /^[^:]+:design\/boards\/([^:]+):data-component="([^"]+)"$/.exec(line);
@@ -257,9 +277,8 @@ function mergedWrites(
 }
 /** A file's whole text at a commit, last newline kept. */
 function showFile(repo: string, commit: string, path: string) {
-  const result = spawnSync('git', ['-C', repo, 'show', `${commit}:${path}`], {
+  const result = gitResultSync(repo, ['show', `${commit}:${path}`], {
     env: gitEnvironment(),
-    encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
   });
   return result.status === 0 ? result.stdout : '';
@@ -276,21 +295,25 @@ async function readCanvas(repo: string, commit: string): Promise<Canvas | null> 
   }
 }
 
-function designBranches(repo: string) {
-  const out = gitSync(repo, [
+async function designBranches(repo: string) {
+  const out = await gitRead(repo, [
     'for-each-ref',
     '--sort=-committerdate',
     '--count=40',
     '--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)%09%(committername)',
     'refs/heads/design/',
   ]);
-  const main = mainBranch(repo);
-  return (out ? out.split('\n') : []).map((line) => {
-    const [name, commit, updatedAt, by] = line.split('\t');
-    // Edits: the branch's own commits since it left main.
-    const edits = Number(gitSync(repo, ['rev-list', '--count', `${main}..${commit}`]) ?? 0);
-    return { name, commit, updatedAt, by, edits };
-  });
+  const main = (await gitRead(repo, ['symbolic-ref', '--short', 'HEAD'])) || 'main';
+  return Promise.all(
+    (out ? out.split('\n') : []).map(async (line) => {
+      const [name, commit, updatedAt, by] = line.split('\t');
+      // Edits: the branch's own commits since it left main.
+      const edits = Number(
+        (await gitRead(repo, ['rev-list', '--count', `${main}..${commit}`])) ?? 0,
+      );
+      return { name, commit, updatedAt, by, edits };
+    }),
+  );
 }
 
 function branchSlug(name: string) {
@@ -341,16 +364,15 @@ function copyPaths(
     GIT_COMMITTER_NAME: input.by,
     GIT_COMMITTER_EMAIL: `${input.by}@deploy.local`,
   };
-  const git = (args: string[], input?: string) => {
-    const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-C', repo, ...args], {
+  const git = (args: string[], input?: string) =>
+    gitStringSync(repo, args, {
+      prefix: ['-c', 'core.hooksPath=/dev/null'],
       env,
-      encoding: 'utf8',
       timeout: 30000,
       input,
+      fallback: `git ${args[0]} failed`,
+      trim: 'both',
     });
-    if (result.status !== 0) throw new Error(result.stderr || `git ${args[0]} failed`);
-    return result.stdout.trim();
-  };
   try {
     git(['read-tree', input.target]);
     for (const path of input.paths) {
@@ -692,14 +714,6 @@ function buildReviewSummary(
     stale: conflicts.length > 0,
     conflicts,
   };
-}
-
-async function reviewGit(repo: string, args: string[]) {
-  try {
-    return await gitText(repo, args, { limit: 4 * 1024 * 1024 });
-  } catch {
-    return null;
-  }
 }
 
 async function reviewTree(repo: string, commit: string) {
@@ -1208,12 +1222,12 @@ const renderFiles = 600;
 let rendersWritten = 0;
 const renderPath = (key: string) =>
   join(deployDataPath('design-renders'), createHash('sha256').update(key).digest('hex'));
-function readRender(key: string): BoardRender | null {
+async function readRender(key: string): Promise<BoardRender | null> {
   try {
     const path = renderPath(key);
     return {
-      png: readFileSync(`${path}.png`),
-      ...JSON.parse(readFileSync(`${path}.json`, 'utf8')),
+      png: await readDiskFile(`${path}.png`),
+      ...JSON.parse(await readDiskFile(`${path}.json`, 'utf8')),
     };
   } catch {
     return null;
@@ -1335,7 +1349,7 @@ export async function renderBoardLayout(
   if (cached) return cached;
   const pending = rendering.get(key);
   if (pending) return pending;
-  const stored = draw === drawBoard ? readRender(key) : null;
+  const stored = draw === drawBoard ? await readRender(key) : null;
   const job = stored
     ? Promise.resolve(stored)
     : draw(repo, commit, board, width, height, scale).then((rendered) => {
@@ -1673,8 +1687,12 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         let boards = 0;
         try {
           boards = Object.keys(
-            (await readCanvas(row.repositoryPath, `refs/heads/${mainBranch(row.repositoryPath)}`))
-              ?.boards ?? {},
+            (
+              await readCanvas(
+                row.repositoryPath,
+                `refs/heads/${(await gitRead(row.repositoryPath, ['symbolic-ref', '--short', 'HEAD'])) || 'main'}`,
+              )
+            )?.boards ?? {},
           ).length;
         } catch {
           // A canvas that is not valid JSON counts as no design.
@@ -1697,14 +1715,14 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   const sub = route[2] ?? '';
 
   if (sub === '' && req.method === 'GET') {
-    const { ref, commit } = resolveCommit(owner, project.id, repo, url);
+    const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
     const canvas = await readCanvas(repo, commit);
     const open = comments(owner, project.id).filter((comment) => !comment.resolved);
     return sendJson(res, {
       ref,
       commit,
       canvas,
-      branches: designBranches(repo),
+      branches: await designBranches(repo),
       openComments: open.length,
     });
   }
@@ -1795,7 +1813,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   // Every link between boards at a commit, for Prototype's lines and Play: which layer of which
   // board opens which board. Sidebar links are marked; nearly every board repeats them.
   if (sub === '/links' && req.method === 'GET') {
-    const { commit } = resolveCommit(owner, project.id, repo, url);
+    const { commit } = await resolveCommit(owner, project.id, repo, url);
     const key = `${repo}:${commit}`;
     let links = linkCache.get(key);
     if (!links) {
@@ -1815,10 +1833,10 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   }
 
   if (sub === '/changes' && req.method === 'GET') {
-    const { commit } = resolveCommit(owner, project.id, repo, url);
+    const { commit } = await resolveCommit(owner, project.id, repo, url);
     const base = url.searchParams.get('base') || 'HEAD';
     if (!validRef(base)) fail('Invalid base');
-    const baseCommit = gitSync(repo, [
+    const baseCommit = await gitRead(repo, [
       'rev-parse',
       '--verify',
       '--quiet',
@@ -1826,8 +1844,8 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       `${base}^{commit}`,
     ]);
     if (!baseCommit) fail(`No commit named ${base} in this project`, 404);
-    const mergeBase = gitSync(repo, ['merge-base', baseCommit, commit]) || baseCommit;
-    const out = gitSync(repo, [
+    const mergeBase = (await gitRead(repo, ['merge-base', baseCommit, commit])) || baseCommit;
+    const out = await gitRead(repo, [
       'diff',
       '--name-status',
       '--no-renames',
@@ -1858,7 +1876,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   }
 
   if (sub === '/render' && req.method === 'GET') {
-    const { commit } = resolveCommit(owner, project.id, repo, url);
+    const { commit } = await resolveCommit(owner, project.id, repo, url);
     const board = String(url.searchParams.get('board') ?? '');
     if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
     const width = Number(url.searchParams.get('width') ?? 1440);
@@ -1889,11 +1907,11 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       const componentId = String(body.component);
       if (!text || text.length > 8000)
         fail('Say what you want changed, in at most 8000 characters');
-      const { ref, commit } = resolveCommit(owner, project.id, repo, url);
+      const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
       const library = parseLibrary((await readFile(repo, commit, libraryPath))?.toString());
       const component = library?.components.find((item) => item.id === componentId);
       if (!component) fail(`The design system has no component ${componentId}`, 404);
-      const used = componentUsage(repo, commit)[componentId] ?? [];
+      const used = (await componentUsageAsync(repo, commit))[componentId] ?? [];
       const task = queueTask(owner, {
         projectId: project.id,
         title: `Design: ${component!.name} component`,
@@ -1923,7 +1941,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
     if (layer !== null && !layerPattern.test(layer)) fail('Invalid layer');
     if (!text || text.length > 8000) fail('Say what you want changed, in at most 8000 characters');
-    const { ref, commit } = resolveCommit(owner, project.id, repo, url);
+    const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
     const html = await readFile(repo, commit, `design/boards/${board}`);
     if (!html) fail(`design/boards/${board} is missing at this commit`, 404);
     const snippet = layer ? layerSnippet(html.toString(), layer) : null;
@@ -1955,7 +1973,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   if (sub === '/components' && req.method === 'GET') {
     const ref = url.searchParams.get('ref') || 'HEAD';
     if (!validRef(ref)) fail('Invalid ref');
-    const commit = gitSync(repo, [
+    const commit = await gitRead(repo, [
       'rev-parse',
       '--verify',
       '--quiet',
@@ -1964,7 +1982,11 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     ]);
     if (!commit) fail(`No commit named ${ref} in this project`, 404);
     const library = parseLibrary((await readFile(repo, commit!, libraryPath))?.toString());
-    return sendJson(res, { commit, library, usage: library ? componentUsage(repo, commit!) : {} });
+    return sendJson(res, {
+      commit,
+      library,
+      usage: library ? await componentUsageAsync(repo, commit!) : {},
+    });
   }
 
   // Direct edits from the properties panel and the canvas, committed to a design branch.

@@ -1,5 +1,5 @@
+import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 import {
   ApplicationGraphExecutor,
@@ -225,7 +225,7 @@ async function verifyBackup(
   >,
 ): Promise<void> {
   const manifestPath = resolve(evidence.artifactReference);
-  const content = readFileSync(manifestPath);
+  const content = await readFile(manifestPath);
   const digest = `sha256:${createHash('sha256').update(content).digest('hex')}`;
   if (digest !== evidence.artifactDigest || !evidence.verification) {
     throw new Error('Home policy transition backup manifest failed verification');
@@ -243,7 +243,9 @@ async function verifyBackup(
     if (archive !== root && !archive.startsWith(`${root}${sep}`)) {
       throw new Error('Home policy transition backup archive escapes its durable directory');
     }
-    const archiveDigest = `sha256:${createHash('sha256').update(readFileSync(archive)).digest('hex')}`;
+    const archiveDigest = `sha256:${createHash('sha256')
+      .update(await readFile(archive))
+      .digest('hex')}`;
     if (archiveDigest !== resource.digest) {
       throw new Error(`Home policy transition backup is corrupt: ${resource.resource}`);
     }

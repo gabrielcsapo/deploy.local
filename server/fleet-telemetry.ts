@@ -1,6 +1,7 @@
+import { readFile } from 'node:fs/promises';
 import { getRequestsSqlite } from './requests-db.ts';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { putArtifactFile } from './content-store.ts';
 import { canonicalFleetPayload } from './multisite.ts';
@@ -216,7 +217,7 @@ export async function collectLocalFleetTelemetry(input: {
     let output = String(row.output || '');
     if (!output) {
       const path = buildLogFilePath(Number(row.id));
-      if (existsSync(path)) output = readFileSync(path, 'utf8');
+      if (existsSync(path)) output = await readFile(path, 'utf8');
     }
     candidates.push({
       fleetId: input.fleetId,

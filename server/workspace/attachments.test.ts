@@ -96,7 +96,7 @@ test('sniffs supported formats and dimensions from content, rejects names and un
   assert.throws(() => upload({ name: 'photo.png' }, Buffer.from('<svg></svg>')), /PNG/);
   assert.equal(upload({ name: 'photo.svg' }).mimeType, 'image/png');
 });
-test('content addressed store deduplicates bytes, isolates owners, replays identical operations and refuses conflicts', () => {
+test('content addressed store deduplicates bytes, isolates owners, replays identical operations and refuses conflicts', async () => {
   const a = upload({ operationId: 'retry', name: 'picture.png' });
   const retry = upload({ operationId: 'retry', name: 'picture.png' });
   assert.equal(a.id, retry.id);
@@ -104,7 +104,7 @@ test('content addressed store deduplicates bytes, isolates owners, replays ident
   const b = upload();
   assert.equal(a.sha256, b.sha256);
   assert.notEqual(a.id, b.id);
-  assert.deepEqual(attachmentBytes('alice', a.id).data, png);
+  assert.deepEqual((await attachmentBytes('alice', a.id)).data, png);
   assert.throws(() => attachmentBytes('bob', a.id), /Not found/);
   assert.throws(() => upload({}, png, task.id, 'bob'), /Not found/);
 });
@@ -289,7 +289,7 @@ test('per-run agent endpoint accepts uploads and reads only image input assigned
   assert.equal((await call('deploy_attachment_read', { id: unrelated.id })).status, 403);
 });
 
-test('Claude CLI adapter writes stream-json image content to the provider process', () => {
+test('Claude CLI adapter writes stream-json image content to the provider process', async () => {
   const fake = join(directory, 'claude-image-provider');
   const capture = join(directory, 'claude-image-input.json');
   writeFileSync(

@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authDb, preferences, updatePreferences } from './auth-store.ts';
 import {
@@ -17,7 +18,7 @@ import {
 } from './auth-passkey.ts';
 import { cliLoginStart, cliApprove, cliPoll } from './auth-cli.ts';
 import { devices, pairDevice, exchangeDevice, removeDevice } from './devices.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
 function cookie(username: string, token: string) {
@@ -36,11 +37,7 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
   const url = new URL(req.url!, 'http://localhost');
   const path = url.pathname.slice('/api/v2'.length);
   if (!/^\/(setup|auth|devices|apps-home)(\/|$)/.test(path)) return false;
-  const send = (data: unknown, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(data));
-    return true;
-  };
+  const send = (data: unknown, status = 200) => sendJson(res, data, status);
   if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
     fail('Sign in as a person to manage accounts.', 403);
   if (req.method === 'GET' && path === '/auth/trust') return send({ trusted: true });

@@ -50,7 +50,10 @@ export function updateState(
     reason: 'Idle. An update-capable runtime is required to install this release.',
   };
 }
-export function getUpdates(owner: string, computers: Computer[]): ComputerUpdateOverview {
+export async function getUpdates(
+  owner: string,
+  computers: Computer[],
+): Promise<ComputerUpdateOverview> {
   const record = currentProjectReleases(owner).find((r) =>
     r.release.apps.some((a) => a.appId === 'deploy.local'),
   );
@@ -68,13 +71,15 @@ export function getUpdates(owner: string, computers: Computer[]): ComputerUpdate
   const selfUpdating = !!releaseConfig;
   const coordinatorRevision = releaseConfig ? runningRevision(releaseConfig) : undefined;
   const ownSource = coordinatorRevision
-    ? findSourceRepository(
+    ? await findSourceRepository(
         list('project', owner).map((p) => ({ name: p.name, path: p.repositoryPath })),
         coordinatorRevision,
       )
     : undefined;
   const coordinatorAhead =
-    ownSource && coordinatorRevision ? changesSince(ownSource.path, coordinatorRevision).ahead : 0;
+    ownSource && coordinatorRevision
+      ? (await changesSince(ownSource.path, coordinatorRevision)).ahead
+      : 0;
   return {
     currentVersion: computers.find((c) => c.roles.includes('coordinator'))?.version,
     latestRelease,

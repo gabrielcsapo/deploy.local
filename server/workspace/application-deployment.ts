@@ -1,13 +1,6 @@
+import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import {
-  mkdtempSync,
-  rmSync,
-  readFileSync,
-  statSync,
-  openSync,
-  readSync,
-  closeSync,
-} from 'node:fs';
+import { mkdtempSync, rmSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve as resolvePath, join, isAbsolute } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -75,7 +68,7 @@ export async function checkpointBundle(
 export async function directoryBundle(directory: string, name?: string) {
   let source: string;
   try {
-    source = readFileSync(join(directory, 'deploy.yaml'), 'utf8');
+    source = await readFile(join(directory, 'deploy.yaml'), 'utf8');
   } catch {
     throw new Error(`deploy.yaml is required at application root`);
   }
@@ -89,7 +82,7 @@ export async function directoryBundle(directory: string, name?: string) {
     const absolute = join(directory, file);
     archive.entry(
       { name: file, mode: statSync(absolute).mode & 0o777, mtime: new Date(0) },
-      readFileSync(absolute),
+      await readFile(absolute),
     );
   }
   archive.finalize();

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import {
@@ -23,7 +24,7 @@ import { parseStoredApplicationSpec, type ApplicationSpec } from './application-
 import {
   createDataChangeset,
   createDataCheckpoint,
-  createFileManifest,
+  createFileManifestAsync,
   loadFileManifestArtifact,
   materializeFileManifest,
 } from './data-reconciliation.ts';
@@ -238,7 +239,7 @@ export async function restoreSuitcaseCheckpoint(input: {
       recoveryResources.push({
         resource,
         archive,
-        digest: fileDigest(archivePath),
+        digest: await fileDigest(archivePath),
         bytes,
       });
     }
@@ -333,7 +334,7 @@ export async function captureSuitcaseDataBranch(input: {
     copyProfiledUploads(profile, raw, filesRoot);
 
     const filesPresent = profile.uploadPaths.length > 0;
-    if (branchMatchesCheckpoint({ checkpoint, databasePath, filesRoot, filesPresent })) {
+    if (await branchMatchesCheckpoint({ checkpoint, databasePath, filesRoot, filesPresent })) {
       return { status: 'unchanged' };
     }
     const changeset = await createDataChangeset({
@@ -612,8 +613,8 @@ function containedResourcePath(root: string, resource: string, child: string): s
   return destination;
 }
 
-function parseRecoveryManifest(artifact: GraphRecoveryArtifact): RecoveryManifest {
-  const content = readFileSync(artifact.artifactReference);
+async function parseRecoveryManifest(artifact: GraphRecoveryArtifact): Promise<RecoveryManifest> {
+  const content = await readFile(artifact.artifactReference);
   if (bufferDigest(content) !== artifact.artifactDigest) {
     throw new Error('Cold capture manifest digest changed after graph restart');
   }
@@ -629,7 +630,7 @@ async function extractRecoveryCapture(
   destinationRoot: string,
 ): Promise<string> {
   mkdirSync(destinationRoot, { recursive: true, mode: 0o700 });
-  const manifest = parseRecoveryManifest(artifact);
+  const manifest = await parseRecoveryManifest(artifact);
   for (const resource of manifest.resources) {
     const destination = resolve(destinationRoot, safeSegment(resource.resource));
     mkdirSync(destination, { recursive: true, mode: 0o700 });
@@ -655,25 +656,25 @@ function copyProfiledUploads(
   }
 }
 
-function branchMatchesCheckpoint(input: {
+async function branchMatchesCheckpoint(input: {
   checkpoint: CheckpointRecord;
   databasePath?: string;
   filesRoot: string;
   filesPresent: boolean;
-}): boolean {
+}): Promise<boolean> {
   const databaseMatches = input.databasePath
-    ? input.checkpoint.databaseArtifactDigest === fileDigest(input.databasePath)
+    ? input.checkpoint.databaseArtifactDigest === (await fileDigest(input.databasePath))
     : !input.checkpoint.databaseArtifactDigest;
   const filesMatches = input.filesPresent
     ? Boolean(input.checkpoint.filesystemArtifactDigest) &&
       loadFileManifestArtifact(input.checkpoint.filesystemArtifactDigest!).rootDigest ===
-        createFileManifest(input.filesRoot).rootDigest
+        (await createFileManifestAsync(input.filesRoot)).rootDigest
     : !input.checkpoint.filesystemArtifactDigest;
   return databaseMatches && filesMatches;
 }
 
-function fileDigest(path: string): `sha256:${string}` {
-  return bufferDigest(readFileSync(path));
+async function fileDigest(path: string): Promise<`sha256:${string}`> {
+  return bufferDigest(await readFile(path));
 }
 
 function bufferDigest(value: Buffer): `sha256:${string}` {

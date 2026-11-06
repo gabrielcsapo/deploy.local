@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import { spawn } from 'node:child_process';
 import { coordinationApi } from './coordination-api.ts';
 import { workerAuthentication } from './credentials.ts';
@@ -26,9 +27,8 @@ if (!existsSync(credentials)) {
 }
 createServer(async (req, res) => {
   const url = new URL(req.url!, 'http://localhost');
-  const send = (data: any, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(data));
+  const send = (data: unknown, status = 200) => {
+    sendJson(res, data, status, { headers: { 'Content-Type': 'application/json' } });
   };
   try {
     if (req.method === 'OPTIONS') {

@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import { updateBase } from './update-base.ts';
 import { applicationTool } from './application-deployment.ts';
 import { createRepository } from './repository-creation.ts';
@@ -13,8 +14,7 @@ import { authenticateAgent, coordinationTool } from './coordination.ts';
 import { snapshotRequestLimit } from './checkpoint.ts';
 export async function coordinationApi(req: IncomingMessage, res: ServerResponse) {
   const send = (body: any, status: number) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(body));
+    sendJson(res, body, status);
   };
   try {
     const scope = authenticateAgent(String(req.headers['x-deploy-agent-token'] || ''));
@@ -55,7 +55,7 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
         return send({ error: 'Attachment is not input for this run' }, 403);
       if (row.kind === 'video')
         return send({ id: row.id, kind: 'video', name: row.name, duration: row.duration }, 200);
-      const { data } = attachmentBytes(scope.owner, row.id);
+      const { data } = await attachmentBytes(scope.owner, row.id);
       return send({ id: row.id, mimeType: row.mimeType, data: data.toString('base64') }, 200);
     }
     if (body.name === 'deploy_attach')

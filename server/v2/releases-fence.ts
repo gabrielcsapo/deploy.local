@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { db, id, list, save } from '../workspace/store.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 const operation = new AsyncLocalStorage<string>();
 export const withinProjectRelease = <T>(operationId: string, work: () => T): T =>

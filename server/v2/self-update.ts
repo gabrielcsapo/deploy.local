@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import { CopyWarmer } from '../packages/copies.ts';
 import { npmRegistry } from '../packages/npm.ts';
 import { computerInstallConfig } from '../packages/builds.ts';
@@ -7,7 +8,7 @@ import {
   readdir,
   rm,
 } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
+import { processResult } from '../process.ts';
 import { randomUUID } from 'node:crypto';
 import {
   chownSync,
@@ -35,7 +36,7 @@ import {
   runningRevision,
   type ReleaseConfig,
 } from './self-update-host.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { getComputers } from './computers.ts';
 
 export {
@@ -57,8 +58,8 @@ const readJson = <T>(path: string): T | undefined => {
   }
 };
 const unitName = (id: string) => `deploy-self-update-${id.slice(0, 8)}`;
-function unitActive(id: string) {
-  return spawnSync('systemctl', ['is-active', '--quiet', unitName(id)]).status === 0;
+async function unitActive(id: string) {
+  return (await processResult('systemctl', ['is-active', '--quiet', unitName(id)])).status === 0;
 }
 /** A run whose updater process is gone without finishing: done if the target is serving. */
 export function settleRun(
@@ -96,13 +97,13 @@ export function estimate(history: SelfUpdateRun[] = []) {
 type Context =
   | { reason: string }
   | { config: ReleaseConfig; running: string; repository: { name: string; path: string } };
-function context(owner: string): Context {
+async function context(owner: string): Promise<Context> {
   if (!isAdmin(owner)) return { reason: 'Only an administrator can update deploy.local.' };
   const config = readReleaseConfig();
   if (!config) return { reason: 'This computer was not set up with deploy-update.' };
   const running = runningRevision(config);
   if (!running) return { reason: 'The running release has no verified revision.' };
-  const repository = findSourceRepository(
+  const repository = await findSourceRepository(
     list('project', owner).map((project) => ({
       name: project.name,
       path: project.repositoryPath,
@@ -122,17 +123,25 @@ function withoutPlan(run?: SelfUpdateRun & { plan?: unknown }): SelfUpdateRun | 
   const { plan: _plan, ...rest } = run;
   return rest;
 }
-export function selfUpdateStatus(owner: string): SelfUpdateStatus {
-  const found = context(owner);
+export async function selfUpdateStatus(owner: string): Promise<SelfUpdateStatus> {
+  const found = await context(owner);
   if ('reason' in found) return { supported: false, reason: found.reason };
   const { config, running, repository } = found;
   const directory = stateDirectory(config);
+  const computer = getComputers(owner).find((c) => c.roles.includes('coordinator'))?.name || 'SER';
+  const changes = await changesSince(repository.path, running);
+  const run = withoutPlan(readJson<SelfUpdateRun>(stateFile(config)));
+  const checkedAt = Date.now();
+  const active =
+    run?.state === 'running' && checkedAt - Date.parse(run.startedAt) >= STARTUP_GRACE_MS
+      ? await unitActive(run.id)
+      : true;
   return {
     supported: true,
-    computer: getComputers(owner).find((c) => c.roles.includes('coordinator'))?.name || 'SER',
+    computer,
     running,
-    ...changesSince(repository.path, running),
-    run: settleRun(withoutPlan(readJson(stateFile(config))), running, unitActive),
+    ...changes,
+    run: settleRun(run, running, () => active, checkedAt),
     estimateMs: estimate(readJson<SelfUpdateRun[]>(join(directory, 'history.json'))),
   };
 }
@@ -185,10 +194,10 @@ export async function boundedScan(scan: Promise<unknown>, timeoutMs = 3000) {
 }
 export const startSelfUpdate = selfUpdateStarter(performSelfUpdate);
 async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdateStatus> {
-  const found = context(owner);
+  const found = await context(owner);
   if ('reason' in found) fail(found.reason, 409);
   const { config, running, repository } = found;
-  const status = selfUpdateStatus(owner);
+  const status = await selfUpdateStatus(owner);
   if (!status.supported) fail(status.reason, 409);
   if (status.run?.state === 'running') fail('An update is already running.', 409);
   if (typeof to !== 'string' || to !== status.main)
@@ -264,7 +273,7 @@ async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdate
     chownSync(`${file}.tmp`, uid, gid);
     renameSync(`${file}.tmp`, file);
     // A transient unit of its own: restarting deploy-server.service must not stop the updater.
-    const result = spawnSync(
+    const result = await processResult(
       'systemd-run',
       [
         `--unit=${unitName(id)}`,
@@ -279,7 +288,7 @@ async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdate
         runner,
         file,
       ],
-      { encoding: 'utf8' },
+      {},
     );
     if (result.status !== 0) {
       await rm(packageConfig, { force: true });
@@ -301,8 +310,8 @@ async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdate
   }
 }
 
-export function selfUpdateLog(owner: string) {
-  const found = context(owner);
+export async function selfUpdateLog(owner: string) {
+  const found = await context(owner);
   if ('reason' in found) fail(found.reason, 409);
   const run = readJson<SelfUpdateRun>(stateFile(found.config));
   if (!run) return { text: '' };
@@ -323,13 +332,9 @@ export function selfUpdateLog(owner: string) {
 export async function selfUpdateApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
   if (path !== '/self-update' && path !== '/self-update/log') return false;
-  const send = (value: unknown, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
-    return true;
-  };
-  if (path === '/self-update/log' && req.method === 'GET') return send(selfUpdateLog(owner));
-  if (path === '/self-update' && req.method === 'GET') return send(selfUpdateStatus(owner));
+  const send = (value: unknown, status = 200) => sendJson(res, value, status);
+  if (path === '/self-update/log' && req.method === 'GET') return send(await selfUpdateLog(owner));
+  if (path === '/self-update' && req.method === 'GET') return send(await selfUpdateStatus(owner));
   if (path === '/self-update' && req.method === 'POST') {
     const chunks: Buffer[] = [];
     let bytes = 0;

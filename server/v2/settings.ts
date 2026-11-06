@@ -15,7 +15,7 @@ import {
   secretAddress,
   projectSecretAddress,
 } from '../secrets.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { addProjectApplication, resolveProject } from './projects.ts';
 import { logsApi } from './logs.ts';
 

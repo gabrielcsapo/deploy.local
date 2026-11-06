@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { parseWantedRoles, type WantedRoles } from './computer-roles.ts';
 import { hasActiveAgentExecSessions } from './agent-exec.ts';
 import {
@@ -2348,6 +2349,18 @@ function hydrateBuildOutput<T extends { id: number; output: string }>(row: T): T
   }
   return row;
 }
+async function hydrateBuildOutputAsync<T extends { id: number; output: string }>(
+  row: T,
+): Promise<T> {
+  if (row.output) return row;
+  try {
+    const p = resolve(BUILD_LOGS_DIR, `${row.id}.log`);
+    if (existsSync(p)) return { ...row, output: await readFile(p, 'utf8') };
+  } catch {
+    // unreadable file → keep empty output
+  }
+  return row;
+}
 
 export function createBuildLog(deploymentName: string): number {
   const db = getDb();
@@ -2378,7 +2391,7 @@ export function completeBuildLog(id: number, log: { success: boolean; duration: 
     .run();
 }
 
-export function getActiveBuildLog(deploymentName: string) {
+export async function getActiveBuildLog(deploymentName: string) {
   const db = getDb();
   const row =
     db
@@ -2388,10 +2401,10 @@ export function getActiveBuildLog(deploymentName: string) {
       .orderBy(desc(buildLogs.timestamp))
       .limit(1)
       .get() ?? null;
-  return row ? hydrateBuildOutput(row) : null;
+  return row ? hydrateBuildOutputAsync(row) : null;
 }
 
-export function getBuildLogs(deploymentName: string, page = 1, pageSize = 20) {
+export async function getBuildLogs(deploymentName: string, page = 1, pageSize = 20) {
   const db = getDb();
   const offset = (page - 1) * pageSize;
   const rows = db
@@ -2407,7 +2420,7 @@ export function getBuildLogs(deploymentName: string, page = 1, pageSize = 20) {
     .from(buildLogs)
     .where(eq(buildLogs.deploymentName, deploymentName))
     .all();
-  return { rows: rows.map(hydrateBuildOutput), total, page, pageSize };
+  return { rows: await Promise.all(rows.map(hydrateBuildOutputAsync)), total, page, pageSize };
 }
 
 /** Read an exact deployment attempt without hydrating its potentially large output. */

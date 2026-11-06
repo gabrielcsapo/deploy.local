@@ -44,7 +44,7 @@ describe('fleet and suitcase identity', () => {
     assert.equal(topology.applications[0].replica_count, 1);
   });
 
-  it('pairs distinct suitcase identities with an explicit safe default policy', () => {
+  it('pairs distinct suitcase identities with an explicit safe default policy', async () => {
     const pairing = multisite.createSuitcasePairing({
       name: 'Vacation Suitcase',
       createdBy: 'alice',
@@ -80,7 +80,7 @@ describe('fleet and suitcase identity', () => {
         },
       },
     });
-    const target = new catalogTargets.DurableCatalogTargetResolver().resolve(redeemed.siteId);
+    const target = await new catalogTargets.DurableCatalogTargetResolver().resolve(redeemed.siteId);
     assert.equal(target.siteId, redeemed.siteId);
     assert.equal(target.siteKind, 'suitcase');
     assert.equal(target.architecture, 'arm64');

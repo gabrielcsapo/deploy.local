@@ -18,7 +18,8 @@ import type {
   RollbackDataLoss,
 } from '../../shared/v2/contracts.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
-import { createInboxItem, fail, registerInboxAction, withdrawInboxItems } from './inbox.ts';
+import { createInboxItem, registerInboxAction, withdrawInboxItems } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 export interface ReleasePlan {
   apps: Release['apps'];

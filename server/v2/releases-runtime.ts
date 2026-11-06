@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { dispatchReleaseNodeJob, type ReleaseNodeTransport } from './releases-remote.ts';
 import type { ReleaseNodePhase, ReleaseNodePayload, ReleaseNodeResult } from './releases-worker.ts';
 import { createAgentGraphPayload } from '../agent-graph-payload.ts';
@@ -10,7 +11,6 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { get } from '../workspace/store.ts';
 import { inspectUploadArchive } from '../upload-archive.ts';
-import { readFileSync } from 'node:fs';
 import { getBackupDir } from '../volumes.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -47,7 +47,7 @@ import { deployDataPath } from '../data-directory.ts';
 import { notifyRouteChanged } from '../ipc.ts';
 import type { ApplicationSpec } from '../application-spec.ts';
 import type { ReleaseBackup, ReleasePlan, ReleaseRuntime } from './releases.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -220,7 +220,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       const reverse: Record<string, string[]> = {};
       try {
         const metadata = JSON.parse(
-          readFileSync(join(directory, 'release-migrations.json'), 'utf8'),
+          await readFile(join(directory, 'release-migrations.json'), 'utf8'),
         );
         for (const [name, command] of Object.entries(metadata.reverse || {})) {
           if (
@@ -453,7 +453,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
               throw new Error('A graph backup is required to verify the rollback copy');
             const backupRoot = join(getBackupDir(app.name), entry.backup.filename);
             const manifest = JSON.parse(
-              readFileSync(join(backupRoot, 'recovery-manifest.json'), 'utf8'),
+              await readFile(join(backupRoot, 'recovery-manifest.json'), 'utf8'),
             );
             const resourceArchive = manifest.resources.find(
               (row: { resource: string }) => row.resource === resource,
@@ -461,7 +461,9 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
             if (!resourceArchive || !/^[a-f0-9]+\.tar\.gz$/.test(resourceArchive.archive))
               throw new Error(`Backup is missing ${resource}`);
             const archive = join(backupRoot, resourceArchive.archive);
-            const digest = `sha256:${createHash('sha256').update(readFileSync(archive)).digest('hex')}`;
+            const digest = `sha256:${createHash('sha256')
+              .update(await readFile(archive))
+              .digest('hex')}`;
             if (
               digest !== resourceArchive.digest ||
               !(await this.docker.verifyVolumeArchive(archive))

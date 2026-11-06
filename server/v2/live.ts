@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import type {
@@ -23,7 +24,8 @@ import {
 } from '../store.ts';
 import { db, event, list, save } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
-import { createInboxItem, fail } from './inbox.ts';
+import { createInboxItem } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { currentProjectReleases, projectRollbacks, releaseById } from './releases.ts';
 import { requestWorkerRollback } from './releases-api.ts';
 import {
@@ -370,9 +372,7 @@ export async function liveApi(
   )
     return false;
   const send = (value: unknown, status = 200) => {
-    if (res.destroyed || res.writableEnded) return;
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
+    sendJson(res, value, status, { guard: true });
   };
   try {
     if (path === '/api/v2/health/report') {

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { getDb, getSqlite } from '../store.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 
 export function authDb() {
   getDb();

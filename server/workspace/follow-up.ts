@@ -1,5 +1,5 @@
+import { gitResultSync } from '../git.ts';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { refreshCommitBaseline } from './commit-baseline.ts';
 import { gitEnvironment, gitText } from './repository-git.ts';
 import { patchDigest } from './review.ts';
@@ -150,11 +150,12 @@ const changedCounts = new Map<string, number>();
 
 /** Path to `mode object` for every blob in a commit, or null when the commit is unknown. */
 function treeEntries(repo: string, commit: string) {
-  const listing = spawnSync(
-    'git',
-    ['-c', 'core.hooksPath=/dev/null', '-C', repo, 'ls-tree', '-r', '-z', '--full-tree', commit],
-    { env: gitEnvironment(), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 10000 },
-  );
+  const listing = gitResultSync(repo, ['ls-tree', '-r', '-z', '--full-tree', commit], {
+    prefix: ['-c', 'core.hooksPath=/dev/null'],
+    env: gitEnvironment(),
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 10000,
+  });
   if (listing.status !== 0) return null;
   const tree = new Map<string, string>();
   for (const entry of listing.stdout.split('\0').filter(Boolean)) {

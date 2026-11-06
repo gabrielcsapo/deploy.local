@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { deployDataPath } from '../data-directory.ts';
 import { registerUser, getDiscoverableDeployments, getNodes } from '../store.ts';
 import { authDb, consume, grant, updatePreferences } from './auth-store.ts';
-import { fail } from './inbox.ts';
+import { fail } from '../errors.ts';
 import { list } from '../workspace/store.ts';
 import { supportedBlueprintContents } from '../catalog/supported-blueprints.ts';
 import { validationBlueprintContents } from '../catalog/validation-blueprints.ts';

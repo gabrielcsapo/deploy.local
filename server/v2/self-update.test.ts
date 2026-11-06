@@ -54,10 +54,10 @@ function repository(seed = '1') {
   return { root, work, bare, running, main: git(work, 'rev-parse', 'HEAD') };
 }
 
-test('finds the repository whose main contains the running version and lists what is newer', () => {
+test('finds the repository whose main contains the running version and lists what is newer', async () => {
   const repo = repository();
   const other = repository('other');
-  const found = findSourceRepository(
+  const found = await findSourceRepository(
     [
       { name: 'Tally', path: other.bare },
       { name: 'deploy.local', path: repo.bare },
@@ -65,7 +65,7 @@ test('finds the repository whose main contains the running version and lists wha
     repo.running,
   );
   assert.equal(found?.path, repo.bare);
-  const { main, ahead, changes } = changesSince(repo.bare, repo.running);
+  const { main, ahead, changes } = await changesSince(repo.bare, repo.running);
   assert.equal(main, repo.main);
   assert.equal(ahead, 2);
   assert.deepEqual(
@@ -73,7 +73,7 @@ test('finds the repository whose main contains the running version and lists wha
     ['Third', 'Second'],
   );
   assert.equal(
-    findSourceRepository([{ name: 'Tally', path: other.bare }], repo.running),
+    await findSourceRepository([{ name: 'Tally', path: other.bare }], repo.running),
     undefined,
   );
 });

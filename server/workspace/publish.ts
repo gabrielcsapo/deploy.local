@@ -1,3 +1,4 @@
+import { gitResultSync } from '../git.ts';
 import { publishedTaskChecks } from './workspace-checks.ts';
 import { buildCheckpointCommit } from './checkpoint-commit.ts';
 import { publishCheckpoint } from './checkpoint-publish.ts';
@@ -5,7 +6,6 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { command, commandReplay, event, get, id, list, now, revise, save } from './store.ts';
 import { activeCheck } from './checks.ts';
 import { diff } from './service.ts';
@@ -415,29 +415,21 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
         };
         // Allocate the review number and write the small receipt under the writer lock.
         // The commit and file objects were built above, outside SQLite.
-        const receiptWrite = spawnSync(
-          'git',
-          ['-c', 'core.hooksPath=/dev/null', '-C', repo, 'hash-object', '-w', '--stdin'],
-          {
-            env: gitEnvironment(),
-            encoding: 'utf8',
-            timeout: 10000,
-            input: JSON.stringify(receipt),
-          },
-        );
+        const receiptWrite = gitResultSync(repo, ['hash-object', '-w', '--stdin'], {
+          prefix: ['-c', 'core.hooksPath=/dev/null'],
+          env: gitEnvironment(),
+          timeout: 10000,
+          input: JSON.stringify(receipt),
+        });
         if (receiptWrite.status !== 0)
           throw new Error('Could not write the publish recovery receipt');
         const blob = receiptWrite.stdout.trim();
-        const update = spawnSync(
-          'git',
-          ['-c', 'core.hooksPath=/dev/null', '-C', repo, 'update-ref', '--stdin'],
-          {
-            env: gitEnvironment(),
-            encoding: 'utf8',
-            timeout: 10000,
-            input: `start\nupdate ${ref} ${commit} ${head || '0'.repeat(commit!.length)}\ncreate ${receiptRef} ${blob}\nprepare\ncommit\n`,
-          },
-        );
+        const update = gitResultSync(repo, ['update-ref', '--stdin'], {
+          prefix: ['-c', 'core.hooksPath=/dev/null'],
+          env: gitEnvironment(),
+          timeout: 10000,
+          input: `start\nupdate ${ref} ${commit} ${head || '0'.repeat(commit!.length)}\ncreate ${receiptRef} ${blob}\nprepare\ncommit\n`,
+        });
         if (update.status !== 0)
           conflict(
             `Branch ${branch} changed while this pull request was being published, so nothing was published. Reload the task and publish again.`,

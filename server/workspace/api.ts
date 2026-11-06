@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import { updateBase, baseUpdateWorker } from './update-base.ts';
 import { taskQueue, moveQueuedRun } from './run-queue.ts';
 import { cleanShellMessage } from './shell-commands.ts';
@@ -165,8 +166,7 @@ export async function workspaceApi(
     // Still unread (or the stream was torn down mid-body): don't let the socket be reused.
     if (req.complete === false) headers.Connection = 'close';
     if (res.destroyed || res.headersSent) return;
-    res.writeHead(status, headers);
-    res.end(JSON.stringify(value));
+    sendJson(res, value, status, { headers });
   };
   try {
     if (workerIdentity) {
@@ -378,7 +378,7 @@ export async function workspaceApi(
               waitingForAnswer: waitingForAnswer.has(task.id),
             })))(pendingControlRequests(owner)),
           runs: runs.map((run) => presentRun(owner, run)),
-          ...capabilities(owner),
+          ...(await capabilities(owner)),
         });
       }
       if (path === '/events' && url.searchParams.has('before')) {

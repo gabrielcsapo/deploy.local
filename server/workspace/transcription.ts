@@ -1,3 +1,4 @@
+import { sendJson } from '../http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 const limit = 12 * 1024 * 1024;
 const active = new Set<string>();
@@ -15,8 +16,7 @@ export function transcriptionAvailable() {
 }
 export async function transcribe(req: IncomingMessage, res: ServerResponse, owner: string) {
   const send = (status: number, value: unknown) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(value));
+    sendJson(res, value, status);
   };
   if (!transcriptionAvailable())
     return send(503, { error: 'Voice input is not configured on this coordinator.' });
