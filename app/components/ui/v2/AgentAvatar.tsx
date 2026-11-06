@@ -5,7 +5,8 @@ import glyphsDefinition from '@dicebear/styles/glyphs.json';
 import type { AgentAvatar as Identity } from '../../../../shared/v2/contracts';
 import { avatarFromId } from '../../../../shared/v2/agents';
 import './agent-avatar.css';
-const style = new Style(glyphsDefinition);
+let style: Style | undefined;
+const avatarStyle = () => (style ??= new Style(glyphsDefinition));
 /** Glyphs by Matt Houser, CC BY 4.0. Only the white base changes to our theme surface. */
 export function AgentAvatar({
   avatar,
@@ -20,7 +21,7 @@ export function AgentAvatar({
   const instance = useId().replaceAll(':', '');
   const svg = useMemo(
     () =>
-      new Avatar(style, {
+      new Avatar(avatarStyle(), {
         seed: `${identity.glyph}-${identity.color}`,
         shapeVariant: [identity.glyph as keyof typeof glyphsDefinition.components.shape.variants],
         glyphColor: [identity.color.replace('#', '')],

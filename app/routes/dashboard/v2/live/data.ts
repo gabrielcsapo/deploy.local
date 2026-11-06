@@ -4,6 +4,7 @@ import type { InboxItem, LiveAppResponse, LiveResponse } from '../../../../../sh
 import type { V2EventsResponse } from '../../../../../shared/v2/api';
 import { getAuth } from '../../detail/shared';
 import { remember, remembered } from '../data/hooks';
+import { eventSnapshotCursor } from '../data/event-snapshot';
 
 export async function liveRequest<T>(
   path: string,
@@ -46,7 +47,7 @@ export function useLive(appId?: string) {
     setLive(remembered<LiveResponse>('/api/v2/live'));
     setDetail(detailKey ? remembered<LiveAppResponse>(detailKey) : undefined);
     async function refresh() {
-      if (loading || stopped) return;
+      if (loading || stopped) return false;
       loading = true;
       try {
         const [next, inbox, app] = await Promise.all([
@@ -56,22 +57,30 @@ export function useLive(appId?: string) {
             ? liveRequest<LiveAppResponse>(`/live/${encodeURIComponent(appId)}`, controller.signal)
             : undefined,
         ]);
-        if (stopped) return;
+        if (stopped) return false;
         remember('/api/v2/live', next);
         if (detailKey) remember(detailKey, app);
         setLive(next);
         setItems(inbox.items);
         setDetail(app);
         setError('');
+        return true;
       } catch (reason) {
         if (!stopped) setError(reason instanceof Error ? reason.message : 'Live is unavailable.');
+        return false;
       } finally {
         loading = false;
       }
     }
     let retryTimer: ReturnType<typeof setTimeout>;
-    async function poll(cursor = 0) {
+    async function poll(cursor?: number) {
       try {
+        if (cursor === undefined)
+          cursor = await eventSnapshotCursor(
+            () => liveRequest<V2EventsResponse>('/events?after=latest', controller.signal),
+            refresh,
+            controller.signal,
+          );
         const result = await liveRequest<V2EventsResponse>(
           `/events?after=${cursor}&waitMs=10000`,
           controller.signal,
@@ -91,7 +100,6 @@ export function useLive(appId?: string) {
         }
       }
     }
-    void refresh();
     void poll();
     const timer = setInterval(() => void refresh(), 15_000);
     return () => {

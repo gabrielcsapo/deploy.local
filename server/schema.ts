@@ -1192,7 +1192,6 @@ export const requestLogs = sqliteTable(
     captureId: text('capture_id'),
   },
   (table) => ({
-    deploymentIdx: index('idx_request_logs_deployment').on(table.deploymentName),
     timestampIdx: index('idx_request_logs_timestamp').on(table.deploymentName, table.timestamp),
     // Fleet-wide queries (dashboard aggregate every 5s, fleet series) filter on
     // timestamp alone — the composite (deployment_name, timestamp) index can't

@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { ErrorBoundary, useRouter } from 'react-flight-router/client';
 import { ErrorBanner } from './LoadingState';
 import ErrorPage from '../routes/error';
-import { SessionExpired } from '../routes/dashboard/v2/start/account.client';
+import { SessionExpired } from '../routes/dashboard/v2/start/SessionExpired';
 
 function isUnauthorized(error: Error | null | undefined) {
   return /\bunauthorized\b/i.test(error?.message ?? '');

@@ -355,6 +355,42 @@ export function repositoryClonePath(owner: string, project: { id: string; name: 
     : `/api/workspace/git/${project.id}/${repositoryFolderName(project.name)}.git`;
 }
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+const applicationCache = new Map<
+  string,
+  { path: string; refs: string; application: Promise<string | null> }
+>();
+/** Link seeding needs only the manifest on main, not clone URLs, HEAD, or worker metadata. */
+export async function repositoryApplication(owner: string, projectId: string) {
+  const project = get('project', owner, projectId);
+  if ((project.repositoryStatus || 'ready') !== 'ready') return null;
+  // Let Git resolve loose/packed refs and worktrees; main is the deployment branch,
+  // even when HEAD or the project's defaultBranch points elsewhere.
+  const refs = await gitText(project.repositoryPath, [
+    'for-each-ref',
+    '--format=%(refname)%00%(objectname)',
+    'refs/heads/main',
+  ]);
+  const key = JSON.stringify([owner, projectId]);
+  const cached = applicationCache.get(key);
+  if (cached && cached.path === project.repositoryPath && cached.refs === refs)
+    return cached.application;
+  const entry = {
+    path: project.repositoryPath,
+    refs,
+    application: repositoryDeployment(project.repositoryPath, refs).then((deployment) => {
+      // A failed Git read can be transient; don't retain it until the next commit.
+      if (deployment.error && applicationCache.get(key) === entry) applicationCache.delete(key);
+      return deployment.application || null;
+    }),
+  };
+  applicationCache.set(key, entry);
+  try {
+    return await entry.application;
+  } catch (error) {
+    if (applicationCache.get(key) === entry) applicationCache.delete(key);
+    throw error;
+  }
+}
 export async function repositoryInfo(owner: string, projectId: string) {
   const project = get('project', owner, projectId);
   const service = db.prepare('SELECT heartbeat FROM worker WHERE id=?').get('repositories') as any;
