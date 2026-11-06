@@ -1,9 +1,14 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer, request as httpRequest } from 'node:http';
+import {
+  createServer,
+  request as httpRequest,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, writeFile, rm, readdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm, readdir, utimes, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -38,8 +43,11 @@ const docs = new Map<string, any>(),
 let upstreamHits = 0,
   revalidations = 0,
   sourceDown = false;
+const upstreamHandlers = new Map<string, (req: IncomingMessage, res: ServerResponse) => void>();
 const upstream = createServer((req, res) => {
   upstreamHits++;
+  const handler = upstreamHandlers.get(req.url!);
+  if (handler) return handler(req, res);
   if (sourceDown) {
     res.writeHead(503);
     res.end();
@@ -781,5 +789,528 @@ test('scheduled rsync includes hosted packages and excludes the copy and unfinis
   } finally {
     saveBackupSettings({ enabled: false, destination: '', cron: '0 0 * * *' });
     await rm(destination, { recursive: true, force: true });
+    await rm(join(root, 'packages/tmp/unfinished'), { force: true });
   }
+});
+
+test('review regressions: prepared copies, timeouts, cleanup and private names', async (t) => {
+  await t.test(
+    'upstream documents over 10 MB are prepared once and GETs keep pings responsive',
+    async () => {
+      const name = 'large-upstream';
+      const doc = upstreamPackage(name, ['1.0.0', '2.0.0']);
+      doc.time = { '1.0.0': '2020-01-01T00:00:00.000Z' };
+      doc.readme = 'x'.repeat(40 * 1024 * 1024);
+      const path = join(root, 'large-upstream.json');
+      await writeFile(path, JSON.stringify(doc));
+      let hits = 0;
+      upstreamHandlers.set('/' + name, (req, res) => {
+        assert.ok(!req.headers.accept?.includes('install-v1'));
+        hits++;
+        res.setHeader('ETag', '"large"');
+        createReadStream(path).pipe(res);
+      });
+      const latencies: number[] = [];
+      const progress = { completed: false };
+      // Any large JSON.parse on this thread is a regression, independent of CPU speed.
+      const parse = JSON.parse;
+      const guard = t.mock.method(JSON, 'parse', (text: string, ...args: any[]) => {
+        assert.ok(text.length < 1024 * 1024, 'large JSON must stay in the worker');
+        return parse(text, ...args);
+      });
+      const downloads = (async () => {
+        for (let batch = 0; batch < 3; batch++)
+          await Promise.all(
+            Array.from({ length: 4 }, async () => {
+              const response = await fetch(origin + '/npm/' + name, { headers: auth() });
+              assert.equal(response.status, 200);
+              let size = 0;
+              for await (const chunk of response.body!) size += chunk.length;
+              assert.ok(size > 40 * 1024 * 1024);
+            }),
+          );
+      })().finally(() => {
+        progress.completed = true;
+      });
+      try {
+        while (!progress.completed) {
+          const start = performance.now();
+          await call('-/ping');
+          latencies.push(performance.now() - start);
+          await new Promise((done) => setTimeout(done, 5));
+        }
+        await downloads;
+      } finally {
+        guard.mock.restore();
+      }
+      console.log(
+        `Large copy: 40 MB document, 12 GETs; ${latencies.length} concurrent pings; max ${Math.max(...latencies).toFixed(1)} ms`,
+      );
+      assert.ok(latencies.length > 3);
+      assert.ok(Math.max(...latencies) < 250);
+      assert.equal(hits, 1);
+      const full = await call(name);
+      assert.deepEqual(full.body.time, doc.time);
+      assert.ok(full.body.versions['1.0.0'].dist.tarball.startsWith(origin));
+      const abbreviated = await call(name, {
+        headers: { Accept: 'application/vnd.npm.install-v1+json' },
+      });
+      assert.equal(abbreviated.body.readme, undefined);
+      assert.equal(
+        abbreviated.body.versions['1.0.0'].dist.tarball,
+        full.body.versions['1.0.0'].dist.tarball,
+      );
+      const row = await registry.copy.document(name);
+      assert.ok(row && row.index_size < 2000);
+      assert.ok((await registry.copy.index(row))['1.0.0'].tarball.startsWith(upstreamOrigin));
+      const unchanged = await stat(objectPath('docs', row.sha256));
+      upstreamHandlers.set('/' + name, (req, res) => {
+        assert.equal(req.headers['if-none-match'], '"large"');
+        res.writeHead(304).end();
+      });
+      await registry.copy.document(name, true);
+      assert.equal((await stat(objectPath('docs', row.sha256))).mtimeMs, unchanged.mtimeMs);
+      const hosted = publishDoc('@deploy.local/oversized-document');
+      Object.assign(hosted, { readme: 'x'.repeat(11 * 1024 * 1024) });
+      assert.equal((await publish(hosted.name, hosted)).response.status, 422);
+    },
+  );
+
+  await t.test(
+    '429 serves an existing copy or 503; a package 404 does not mark the source unreachable',
+    async () => {
+      upstreamPackage('throttled-copy');
+      const before = (await call('throttled-copy')).body;
+      for (const name of ['throttled-copy', 'throttled-miss'])
+        upstreamHandlers.set('/' + name, (_req, res) => res.writeHead(429).end());
+      getSqlite()!
+        .prepare(
+          "UPDATE package_cache_entries SET fetched_at='2000-01-01' WHERE key='throttled-copy'",
+        )
+        .run();
+      assert.deepEqual((await call('throttled-copy')).body, before);
+      assert.equal((await call('throttled-miss')).response.status, 503);
+      assert.equal(registry.copy.reachable, false);
+      assert.equal((await call('missing-health')).response.status, 404);
+      assert.equal(registry.copy.reachable, true);
+      await registry.copy.fetch('-/ping').then((r) => r.body?.cancel());
+      assert.equal((await call('missing-health-again')).response.status, 404);
+      assert.equal(registry.copy.reachable, true);
+    },
+  );
+
+  await t.test(
+    'slow shared bodies outlive header timeouts, but idle and total deadlines fail cleanly',
+    async () => {
+      Object.assign(registry.copy.settings, {
+        headerTimeoutMs: 100,
+        bodyIdleTimeoutMs: 150,
+        bodyTotalTimeoutMs: 1500,
+      });
+      try {
+        const bytes = Buffer.from('abcdef');
+        upstreamPackage('slow-body', ['1.0.0'], bytes);
+        let hits = 0;
+        upstreamHandlers.set('/slow-body/-/slow-body-1.0.0.tgz', (_req, res) => {
+          hits++;
+          res.flushHeaders();
+          let index = 0;
+          const timer = setInterval(() => {
+            res.write(bytes.subarray(index, ++index));
+            if (index === bytes.length) {
+              clearInterval(timer);
+              res.end();
+            }
+          }, 50);
+          res.once('close', () => clearInterval(timer));
+        });
+        const url = origin + '/npm/slow-body/-/slow-body-1.0.0.tgz';
+        const disconnected = httpRequest(url, { headers: auth() });
+        disconnected.on('error', () => {});
+        disconnected.end();
+        const download = fetch(url, { headers: auth() });
+        setTimeout(() => disconnected.destroy(), 160);
+        const response = await download;
+        assert.equal(response.status, 200);
+        assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+        assert.equal(hits, 1);
+        for (const mode of ['idle', 'total', 'broken', 'headers']) {
+          const name = 'failed-' + mode;
+          upstreamPackage(name, ['1.0.0'], Buffer.alloc(20, 97));
+          await registry.copy.document(name);
+          registry.copy.settings.bodyIdleTimeoutMs = 80;
+          registry.copy.settings.bodyTotalTimeoutMs = 180;
+          upstreamHandlers.set('/' + name + '/-/' + name + '-1.0.0.tgz', (_req, res) => {
+            if (mode === 'headers') return;
+            res.write('a');
+            if (mode === 'idle') return;
+            if (mode === 'broken') {
+              setTimeout(() => res.destroy(), 10);
+              return;
+            }
+            const timer = setInterval(() => res.write('a'), 20);
+            res.once('close', () => clearInterval(timer));
+          });
+          const result = await fetch(origin + '/npm/' + name + '/-/' + name + '-1.0.0.tgz', {
+            headers: auth(),
+          });
+          assert.equal(result.status, 503, mode + ': ' + (await result.text()));
+          assert.equal(
+            getSqlite()!
+              .prepare("SELECT 1 FROM package_cache_entries WHERE kind='file' AND key=?")
+              .get(name + '@1.0.0'),
+            undefined,
+          );
+          const hash = createHash('sha256').update(Buffer.alloc(20, 97)).digest('hex');
+          await assert.rejects(stat(objectPath('cache', hash)));
+          assert.deepEqual(await readdir(join(root, 'packages/tmp')), []);
+        }
+        upstreamHandlers.set('/stalled-document', (_req, res) => {
+          res.write('{');
+        });
+        assert.equal((await call('stalled-document')).response.status, 503);
+        assert.equal(
+          getSqlite()!
+            .prepare("SELECT 1 FROM package_cache_entries WHERE key='stalled-document'")
+            .get(),
+          undefined,
+        );
+        assert.deepEqual(await readdir(join(root, 'packages/tmp')), []);
+      } finally {
+        delete registry.copy.settings.headerTimeoutMs;
+        delete registry.copy.settings.bodyIdleTimeoutMs;
+        delete registry.copy.settings.bodyTotalTimeoutMs;
+      }
+    },
+  );
+
+  await t.test(
+    'unexpected failures return generic 500 and log locations without credentials',
+    async () => {
+      const errors: unknown[][] = [];
+      const logging = t.mock.method(console, 'error', (...args: unknown[]) => errors.push(args));
+      const fault = t.mock.method(registry.copy, 'document', async () => {
+        throw new Error('Bearer ' + aliceKey.key + ' https://alice:secret@example.com');
+      });
+      try {
+        const result = await call('unexpected-fault');
+        assert.equal(result.response.status, 500);
+        assert.equal(result.body.reason, 'Internal package registry error');
+        assert.equal(errors.length, 1);
+        assert.match(JSON.stringify(errors), /Unexpected package registry error/);
+        assert.ok(!JSON.stringify(errors).includes(aliceKey.key));
+        assert.ok(!JSON.stringify(errors).includes('secret@example'));
+      } finally {
+        fault.mock.restore();
+        logging.mock.restore();
+      }
+      upstreamHandlers.set('/invalid-document', (_req, res) => res.end('{broken'));
+      const before = await readdir(join(root, 'packages/cache/docs'), { recursive: true });
+      assert.equal((await call('invalid-document')).response.status, 502);
+      assert.deepEqual(
+        await readdir(join(root, 'packages/cache/docs'), { recursive: true }),
+        before,
+      );
+      assert.deepEqual(await readdir(join(root, 'packages/tmp')), []);
+    },
+  );
+
+  await t.test(
+    'last use writes are throttled per key and entry, and served writes only once',
+    async () => {
+      const sqlite = getSqlite()!;
+      upstreamPackage('write-count');
+      await call('write-count');
+      await fetch(origin + '/npm/write-count/-/write-count-1.0.0.tgz', { headers: auth() }).then(
+        (r) => r.arrayBuffer(),
+      );
+      sqlite.exec(`CREATE TEMP TABLE package_write_counts(kind TEXT);
+      CREATE TEMP TRIGGER count_key_use AFTER UPDATE OF last_used_at ON package_keys BEGIN INSERT INTO package_write_counts VALUES('key'); END;
+      CREATE TEMP TRIGGER count_copy_use AFTER UPDATE OF last_used_at ON package_cache_entries BEGIN INSERT INTO package_write_counts VALUES('copy'); END;
+      CREATE TEMP TRIGGER count_served BEFORE INSERT ON system_settings WHEN NEW.key='packages.served' BEGIN INSERT INTO package_write_counts VALUES('served'); END;`);
+      try {
+        for (let i = 0; i < 5; i++) {
+          await call('write-count');
+          await fetch(origin + '/npm/write-count/-/write-count-1.0.0.tgz', {
+            headers: auth(),
+          }).then((r) => r.arrayBuffer());
+        }
+        assert.deepEqual(sqlite.prepare('SELECT * FROM package_write_counts').all(), []);
+        sqlite
+          .prepare("UPDATE package_keys SET last_used_at='2000-01-01' WHERE id=?")
+          .run(aliceKey.id);
+        sqlite
+          .prepare(
+            "UPDATE package_cache_entries SET last_used_at='2000-01-01' WHERE key IN ('write-count','write-count@1.0.0')",
+          )
+          .run();
+        sqlite.exec('DELETE FROM package_write_counts');
+        await Promise.all(
+          Array.from({ length: 5 }, () =>
+            fetch(origin + '/npm/write-count/-/write-count-1.0.0.tgz', { headers: auth() }).then(
+              (r) => r.arrayBuffer(),
+            ),
+          ),
+        );
+        assert.deepEqual(
+          sqlite
+            .prepare(
+              'SELECT kind,count(*) AS count FROM package_write_counts GROUP BY kind ORDER BY kind',
+            )
+            .all(),
+          [
+            { kind: 'copy', count: 2 },
+            { kind: 'key', count: 1 },
+          ],
+        );
+      } finally {
+        sqlite.exec(
+          'DROP TRIGGER count_key_use; DROP TRIGGER count_copy_use; DROP TRIGGER count_served; DROP TABLE package_write_counts;',
+        );
+      }
+    },
+  );
+
+  await t.test('removed packages retain an offline tombstone and can later reappear', async () => {
+    const name = 'removed-package';
+    upstreamPackage(name);
+    await registry.copy.tarball(name, name + '-1.0.0.tgz');
+    const before = (await registry.copy.document(name))!;
+    docs.delete(name);
+    assert.equal(await registry.copy.document(name, true), null);
+    for (const hash of [before.sha256, before.abbreviated_sha256, before.index_sha256])
+      await assert.rejects(stat(objectPath('docs', hash)));
+    sourceDown = true;
+    try {
+      assert.equal((await call(name)).response.status, 404);
+      assert.equal((await call(name + '/-/' + name + '-1.0.0.tgz')).response.status, 404);
+      getSqlite()!
+        .prepare(
+          "UPDATE package_cache_entries SET fetched_at='2000-01-01' WHERE kind='doc' AND key=?",
+        )
+        .run(name);
+      assert.equal((await call(name)).response.status, 404);
+    } finally {
+      sourceDown = false;
+    }
+    upstreamPackage(name, ['2.0.0']);
+    assert.ok(await registry.copy.document(name, true));
+    assert.ok((await call(name)).body.versions['2.0.0']);
+  });
+
+  await t.test(
+    'GET survives replacement between looking up a document and opening it',
+    async () => {
+      const name = 'replace-during-get';
+      upstreamPackage(name);
+      await registry.copy.document(name);
+      const original = registry.copy.document.bind(registry.copy);
+      const replacement = t.mock.method(
+        registry.copy,
+        'document',
+        async (...args: Parameters<typeof original>) => {
+          const stale = await original(...args);
+          upstreamPackage(name, ['2.0.0']);
+          await original(name, true);
+          return stale;
+        },
+      );
+      try {
+        const response = await call(name);
+        assert.equal(response.response.status, 200);
+        assert.deepEqual(Object.keys(response.body.versions), ['2.0.0']);
+      } finally {
+        replacement.mock.restore();
+      }
+      const opened = await registry.copy.openDocument(name);
+      try {
+        upstreamPackage(name, ['3.0.0']);
+        await registry.copy.document(name, true);
+        await assert.rejects(stat(objectPath('docs', opened.sha256)));
+        assert.deepEqual(Object.keys(JSON.parse(await opened.handle.readFile('utf8')).versions), [
+          '2.0.0',
+        ]);
+      } finally {
+        await opened.handle.close();
+      }
+    },
+  );
+
+  await t.test(
+    'replacement removes old prepared files but preserves shared references',
+    async () => {
+      upstreamPackage('replace-doc');
+      const first = (await registry.copy.document('replace-doc'))!;
+      const files = [first.sha256, first.abbreviated_sha256, first.index_sha256];
+      // A second row may legitimately share content-addressed outputs.
+      getSqlite()!
+        .prepare(
+          "INSERT INTO package_cache_entries SELECT ecosystem,kind,'shared-doc',sha256,size,abbreviated_sha256,abbreviated_size,index_sha256,index_size,etag,fetched_at,last_used_at,removed_at FROM package_cache_entries WHERE kind='doc' AND key='replace-doc'",
+        )
+        .run();
+      upstreamPackage('replace-doc', ['2.0.0']);
+      const second = (await registry.copy.document('replace-doc', true))!;
+      for (const hash of files) assert.ok((await stat(objectPath('docs', hash))).isFile());
+      // Removing the last referencing row collects all three originals.
+      assert.equal(await registry.copy.document('shared-doc', true), null);
+      for (const hash of files) await assert.rejects(stat(objectPath('docs', hash)));
+      for (const hash of [second.sha256, second.abbreviated_sha256, second.index_sha256])
+        assert.ok((await stat(objectPath('docs', hash))).isFile());
+      upstreamPackage('replace-doc', ['3.0.0']);
+      await registry.copy.document('replace-doc', true);
+      for (const hash of [second.sha256, second.abbreviated_sha256, second.index_sha256])
+        await assert.rejects(stat(objectPath('docs', hash)));
+    },
+  );
+
+  await t.test('startup removes only temporary entries older than one hour', async () => {
+    const folder = join(root, 'packages/tmp');
+    const old = join(folder, 'old'),
+      fresh = join(folder, 'fresh'),
+      directory = join(folder, 'old-worker');
+    await writeFile(old, 'partial');
+    await writeFile(fresh, 'active');
+    await mkdir(directory);
+    await writeFile(join(directory, 'partial'), 'partial');
+    const earlier = new Date(Date.now() - 61 * 60 * 1000);
+    await utimes(old, earlier, earlier);
+    await utimes(directory, earlier, earlier);
+    const startup = createNpmRegistry({
+      upstreamBase: upstreamOrigin,
+      publicBase: origin + '/npm/',
+    });
+    await startup.copy.startupCleanup;
+    startup.copy.close();
+    assert.deepEqual(await readdir(folder), ['fresh']);
+    await rm(fresh);
+  });
+
+  await t.test(
+    'private names never go upstream for documents, tarballs or publish checks',
+    async () => {
+      const hits = upstreamHits;
+      assert.equal(
+        (await call(encodeURIComponent('@deploy.local/not-hosted'))).response.status,
+        404,
+      );
+      assert.equal(
+        (await call(encodeURIComponent('@deploy.local/not-hosted') + '/-/not-hosted-1.0.0.tgz'))
+          .response.status,
+        404,
+      );
+      // Local publishing also succeeds when upstream health is known to be down.
+      sourceDown = true;
+      await registry.copy.fetch('-/ping').catch(() => {});
+      const privateHits = upstreamHits;
+      try {
+        assert.equal((await publish('@deploy.local/private-new')).response.status, 201);
+        assert.equal(upstreamHits, privateHits);
+        assert.equal(privateHits, hits + 1);
+      } finally {
+        sourceDown = false;
+      }
+    },
+  );
+});
+
+test('usage indexes parse lockfiles once per repository commit, single-flight and bounded', async () => {
+  const { LockfileCache, readLockfile, usedBy } = await import('./projects.ts');
+  const { repositoryGit } = await import('../workspace/repository-git.ts');
+  const repository = join(root, 'usage-repository');
+  await mkdir(repository);
+  const git = (args: string[]) => repositoryGit(repository, args, { identity: 'test' });
+  await git(['init', '-b', 'main']);
+  const lock = (version: string) =>
+    JSON.stringify({
+      packages: {
+        'node_modules/@s/a': { version },
+        'node_modules/b': { version: '2.0.0' },
+        'node_modules/local': { link: true, resolved: 'local' },
+      },
+    });
+  await writeFile(join(repository, 'package-lock.json'), lock('1.0.0'));
+  await mkdir(join(repository, 'local'));
+  await writeFile(
+    join(repository, 'local/package.json'),
+    JSON.stringify({ name: 'local', version: '3.0.0' }),
+  );
+  await git(['add', '.']);
+  await git(['commit', '-m', 'fixture']);
+  save('project', 'alice', {
+    id: 'usage-fixture',
+    owner: 'alice',
+    name: 'usage-fixture',
+    repositoryPath: repository,
+  });
+  let reads = 0,
+    parses = 0;
+  const cache = new LockfileCache(
+    async (...args) => {
+      reads++;
+      return repositoryGit(...args);
+    },
+    async (...args) => {
+      parses++;
+      return readLockfile(...args);
+    },
+  );
+  const first = await usedBy('alice', '@s/a', cache);
+  assert.equal(first[0].id, 'usage-fixture');
+  assert.deepEqual(first[0].versions, ['1.0.0']);
+  assert.equal(parses, 1);
+  assert.equal(reads, 4);
+  assert.deepEqual((await usedBy('alice', 'b', cache))[0].versions, ['2.0.0']);
+  assert.equal((await usedBy('alice', 'local', cache))[0].sameRepository, true);
+  assert.deepEqual((await usedBy('alice', 'local', cache))[0].versions, ['3.0.0']);
+  assert.equal(parses, 1);
+  assert.equal(reads, 4);
+  assert.deepEqual(await usedBy('alice', 'constructor', cache), []);
+  await writeFile(join(repository, 'package-lock.json'), lock('1.1.0'));
+  await git(['add', '.']);
+  await git(['commit', '-m', 'new fixture commit']);
+  const second = await Promise.all(
+    Array.from({ length: 10 }, () => usedBy('alice', '@s/a', cache)),
+  );
+  assert.ok(second.every((rows) => rows[0].versions[0] === '1.1.0'));
+  assert.equal(parses, 2);
+  assert.equal(reads, 8);
+  const pnpm = await readLockfile(
+    'pnpm-lock.yaml',
+    `packages:
+  '@s/a@1.2.3': {}
+  'b@2.0.0(peer@1.0.0)': {}
+importers:
+  app:
+    dependencies:
+      local:
+        version: link:../local
+`,
+  );
+  assert.deepEqual(pnpm['@s/a'].versions, ['1.2.3']);
+  assert.deepEqual(pnpm.b.versions, ['2.0.0']);
+  assert.deepEqual(pnpm.local.links, ['app/../local']);
+  const yarn = await readLockfile(
+    'yarn.lock',
+    '"@s/a@^1.0.0", "@s/a@~1.2.0":\n  version "1.2.3"\n"b@npm:^2.0.0":\n  version: 2.0.1\n',
+  );
+  assert.deepEqual(yarn['@s/a'].versions, ['1.2.3']);
+  assert.deepEqual(yarn.b.versions, ['2.0.1']);
+  const bun = await readLockfile(
+    'bun.lock',
+    '{"packages":{"@s/a":["@s/a@1.2.3"],"b":["b@2.0.1"],},}',
+  );
+  assert.deepEqual(bun['@s/a'].versions, ['1.2.3']);
+  assert.deepEqual(bun.b.versions, ['2.0.1']);
+  let evictions = 0;
+  const bounded = new LockfileCache(
+    async () => Buffer.from('{}'),
+    async () => {
+      evictions++;
+      return {};
+    },
+    2,
+  );
+  for (const revision of ['one', 'two', 'one', 'three', 'one', 'two'])
+    await bounded.read(repository, revision, 'bun.lock');
+  assert.equal(evictions, 4);
 });

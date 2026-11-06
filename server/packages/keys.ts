@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import { authenticate, isAdmin } from '../store.ts';
 import { workerAuthentication } from '../workspace/credentials.ts';
 import { event } from '../workspace/store.ts';
-import { db, fail, now } from './store.ts';
+import { db, fail, now, recentlyUsed } from './store.ts';
 export type Identity = {
   username: string;
   publish: boolean;
@@ -61,10 +61,13 @@ export function registryIdentity(req: IncomingMessage): Identity | null {
   const token = authorization.replace(/^Bearer /i, '');
   if (/^dlp_[A-Za-z0-9_-]{43}$/.test(token)) {
     const key = db()
-      .prepare('SELECT id,username,scope FROM package_keys WHERE hash=?')
-      .get(hash(token)) as { id: string; username: string; scope: string } | undefined;
+      .prepare('SELECT id,username,scope,last_used_at FROM package_keys WHERE hash=?')
+      .get(hash(token)) as
+      | { id: string; username: string; scope: string; last_used_at: string | null }
+      | undefined;
     if (!key) return null;
-    db().prepare('UPDATE package_keys SET last_used_at=? WHERE id=?').run(now(), key.id);
+    if (!recentlyUsed(key.last_used_at))
+      db().prepare('UPDATE package_keys SET last_used_at=? WHERE id=?').run(now(), key.id);
     return {
       username: key.username,
       publish: key.scope === 'publish',

@@ -61,6 +61,11 @@ interface RecoveryFile {
   content: string;
 }
 
+export interface RecoveryReceipt {
+  hostedPackages: { included: boolean; byteSize: number; limitBytes: number };
+}
+const RECOVERY_FILE_LIMIT = 256 * 1024 * 1024;
+
 interface RecoveryPayload {
   formatVersion: 1;
   fleetId: string;
@@ -70,6 +75,7 @@ interface RecoveryPayload {
   inventoryDigest: string;
   /** Added compatibly to format v1; absent in older v1 bundles. */
   activeSuitcaseCredentials?: Array<{ siteId: string; credentialHash: string }>;
+  receipt?: RecoveryReceipt;
   files: RecoveryFile[];
 }
 
@@ -251,7 +257,7 @@ export function buildRecoveryInventory(): RecoveryInventory {
   return buildRecoveryInventoryFromDatabase(getSqlite()!);
 }
 
-function collectRecoveryFiles(root: string, databaseSnapshot: string): RecoveryFile[] {
+function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   const files: Array<{ source: string; path: string }> = [
     { source: databaseSnapshot, path: 'deploy.db' },
   ];
@@ -301,18 +307,41 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string): RecoveryF
       }
     }
   }
-  return files
-    .map(({ source, path }) => {
-      const content = readFileSync(source);
-      return {
-        path,
-        mode: statSync(source).mode & 0o777,
-        byteSize: content.length,
-        digest: digestBytes(content),
-        content: content.toString('base64'),
-      };
-    })
-    .sort((left, right) => left.path.localeCompare(right.path));
+  // Decide before reading or base64-encoding any hosted file. Include all of
+  // hosted or none; database/identity/secret recovery must survive a large registry.
+  const byteSize = files
+    .filter((file) => file.path.startsWith('packages/hosted/'))
+    .reduce((sum, file) => sum + statSync(file.source).size, 0);
+  const total = files.reduce((sum, file) => sum + statSync(file.source).size, 0);
+  const receipt: RecoveryReceipt = {
+    hostedPackages: {
+      included: total <= RECOVERY_FILE_LIMIT,
+      byteSize,
+      limitBytes: RECOVERY_FILE_LIMIT,
+    },
+  };
+  if (!receipt.hostedPackages.included && byteSize)
+    console.warn(
+      'Recovery bundle omitted packages/hosted: total files exceed 256 MB. Scheduled backups still include hosted packages.',
+    );
+  const selected = files.filter(
+    (file) => receipt.hostedPackages.included || !file.path.startsWith('packages/hosted/'),
+  );
+  return {
+    receipt,
+    files: selected
+      .map(({ source, path }) => {
+        const content = readFileSync(source);
+        return {
+          path,
+          mode: statSync(source).mode & 0o777,
+          byteSize: content.length,
+          digest: digestBytes(content),
+          content: content.toString('base64'),
+        };
+      })
+      .sort((left, right) => left.path.localeCompare(right.path)),
+  };
 }
 
 function encryptPayload(payload: RecoveryPayload, passphrase: string): RecoveryEnvelope {
@@ -901,7 +930,12 @@ function auditRestoredRecovery(
 export async function createRecoveryBundle(input: {
   outputPath: string;
   passphrase: string;
-}): Promise<{ id: string; artifactDigest: string; inventoryDigest: string }> {
+}): Promise<{
+  id: string;
+  artifactDigest: string;
+  inventoryDigest: string;
+  receipt: RecoveryReceipt;
+}> {
   ensureApplicationRevisionArtifacts();
   const fleet = ensureFleetIdentity();
   const temporary = mkdtempSync(join(tmpdir(), 'deploy-recovery-create-'));
@@ -948,7 +982,8 @@ export async function createRecoveryBundle(input: {
         workerData: { payload, input, databaseSnapshot, root: deployDataDirectory() },
       },
     );
-    const { envelope, artifact } = await new Promise<{
+    const { envelope, artifact, receipt } = await new Promise<{
+      receipt: RecoveryReceipt;
       envelope: Pick<RecoveryEnvelope, 'kdf' | 'encryption'>;
       artifact: { digest: string };
     }>((resolve, reject) => {
@@ -973,11 +1008,20 @@ export async function createRecoveryBundle(input: {
         fleet.id,
         RECOVERY_FORMAT_VERSION,
         artifact.digest,
-        JSON.stringify({ kdf: envelope.kdf, encryption: { name: envelope.encryption.name } }),
+        JSON.stringify({
+          kdf: envelope.kdf,
+          encryption: { name: envelope.encryption.name },
+          receipt,
+        }),
         payload.inventoryDigest,
         payload.createdAt,
       );
-    return { id, artifactDigest: artifact.digest, inventoryDigest: payload.inventoryDigest };
+    return {
+      id,
+      artifactDigest: artifact.digest,
+      inventoryDigest: payload.inventoryDigest,
+      receipt,
+    };
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
@@ -987,7 +1031,13 @@ export function verifyRecoveryBundle(input: {
   bundlePath: string;
   passphrase: string;
   bundleId?: string;
-}): { fleetId: string; homeSiteId: string; inventoryDigest: string; files: number } {
+}): {
+  fleetId: string;
+  homeSiteId: string;
+  inventoryDigest: string;
+  files: number;
+  receipt?: RecoveryReceipt;
+} {
   const payload = decryptEnvelope(input.bundlePath, input.passphrase);
   validatePayload(payload);
   const temporary = mkdtempSync(join(tmpdir(), 'deploy-recovery-verify-'));
@@ -1013,6 +1063,7 @@ export function verifyRecoveryBundle(input: {
     homeSiteId: payload.homeSiteId,
     inventoryDigest: payload.inventoryDigest,
     files: payload.files.length,
+    receipt: payload.receipt,
   };
 }
 
@@ -1020,7 +1071,12 @@ export function restoreRecoveryBundle(input: {
   bundlePath: string;
   passphrase: string;
   destinationDataDirectory: string;
-}): { fleetId: string; homeSiteId: string; inventory: RecoveryInventory } {
+}): {
+  fleetId: string;
+  homeSiteId: string;
+  inventory: RecoveryInventory;
+  receipt?: RecoveryReceipt;
+} {
   const destination = resolve(input.destinationDataDirectory);
   if (destination === resolve(deployDataDirectory()))
     throw new Error(
@@ -1085,7 +1141,12 @@ export function restoreRecoveryBundle(input: {
     rmSync(destination, { recursive: true, force: true });
     throw error;
   }
-  return { fleetId: payload.fleetId, homeSiteId: payload.homeSiteId, inventory: payload.inventory };
+  return {
+    fleetId: payload.fleetId,
+    homeSiteId: payload.homeSiteId,
+    inventory: payload.inventory,
+    receipt: payload.receipt,
+  };
 }
 
 export function rehearseRecoveryBundle(input: {
@@ -1157,7 +1218,7 @@ export async function writeRecoveryPayload(data: {
 }) {
   const payload = {
     ...data.payload,
-    files: collectRecoveryFiles(data.root, data.databaseSnapshot),
+    ...collectRecoveryFiles(data.root, data.databaseSnapshot),
   };
   validatePayload(payload);
   const envelope = encryptPayload(payload, data.input.passphrase);
@@ -1172,6 +1233,7 @@ export async function writeRecoveryPayload(data: {
   return {
     envelope: { kdf: envelope.kdf, encryption: { name: envelope.encryption.name } },
     artifact: { digest: artifact.digest },
+    receipt: payload.receipt,
   };
 }
 

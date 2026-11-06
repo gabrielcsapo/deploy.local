@@ -1,18 +1,28 @@
 import { parse } from 'yaml';
-export function lockfileVersions(file: string, text: string, name: string): string[] {
-  const versions = new Set<string>();
-  const add = (v: unknown) => {
-    if (typeof v === 'string' && /^\d+\.\d+\.\d+/.test(v)) versions.add(v.split('(')[0]);
+export type LockfileIndex = Record<string, { versions: string[]; links: string[] }>;
+/** Parse each lockfile once, collecting all package identities and workspace links. */
+export function lockfileIndex(file: string, text: string): LockfileIndex {
+  const result: LockfileIndex = Object.create(null);
+  const get = (name: string) => (result[name] ||= { versions: [], links: [] });
+  const add = (name: string, version: unknown) => {
+    if (typeof version !== 'string' || !/^\d+\.\d+\.\d+/.test(version)) return;
+    const clean = version.split('(')[0];
+    if (!get(name).versions.includes(clean)) get(name).versions.push(clean);
   };
+  const link = (name: string, path: string) => get(name).links.push(path);
+  const identity = (key: string) => key.match(/^(@[^/]+\/[^@/]+|[^@/]+)[@/](.+)$/);
   try {
     if (file === 'package-lock.json') {
       const doc = JSON.parse(text);
-      for (const [key, value] of Object.entries(doc.packages || {}) as [string, any][])
-        if (key === 'node_modules/' + name || key.endsWith('/node_modules/' + name))
-          add(value.version);
+      for (const [path, value] of Object.entries(doc.packages || {}) as [string, any][]) {
+        const name = path.match(/(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/)?.[1];
+        if (!name) continue;
+        add(name, value.version);
+        if (value.link && typeof value.resolved === 'string') link(name, value.resolved);
+      }
       const walk = (deps: any) => {
-        for (const [key, value] of Object.entries(deps || {}) as [string, any][]) {
-          if (key === name) add(value.version);
+        for (const [name, value] of Object.entries(deps || {}) as [string, any][]) {
+          add(name, value.version);
           walk(value.dependencies);
         }
       };
@@ -20,58 +30,43 @@ export function lockfileVersions(file: string, text: string, name: string): stri
     } else if (file === 'pnpm-lock.yaml') {
       const doc = parse(text);
       for (const key of Object.keys(doc.packages || {})) {
-        const normalized = key.replace(/^\//, '');
-        if (normalized.startsWith(name + '@')) add(normalized.slice(name.length + 1));
-        if (normalized.startsWith(name + '/')) add(normalized.slice(name.length + 1));
+        const match = identity(key.replace(/^\//, ''));
+        if (match) add(match[1], match[2]);
       }
-    } else if (file === 'bun.lock') {
-      // Bun's text lockfile is JSONC with trailing commas. Match package identities,
-      // not arbitrary mentions in dependency descriptions.
-      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      for (const match of text.matchAll(new RegExp('"' + escaped + '@([0-9][^"\\s]*)"', 'g')))
-        add(match[1]);
-    } else {
-      // Both Yarn classic's quoted multi-selectors and Berry's npm: selectors.
-      let selected = false;
-      for (const line of text.split('\n')) {
-        if (/^\S/.test(line) && line.endsWith(':'))
-          selected = line
-            .split(/,\s*/)
-            .some((selector) => selector.replace(/^["']/, '').startsWith(name + '@'));
-        if (selected) {
-          const match = line.match(/^\s+version\s*:?\s+["']?([^"'\s]+)/);
-          if (match) add(match[1]);
+      for (const [importer, value] of Object.entries(doc.importers || {}) as [string, any][]) {
+        for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+          for (const [name, dependency] of Object.entries(value[section] || {}) as [
+            string,
+            any,
+          ][]) {
+            if (typeof dependency.version === 'string' && dependency.version.startsWith('link:'))
+              link(name, importer + '/' + dependency.version.slice(5));
+          }
         }
       }
-    }
-  } catch {
-    /* A malformed lockfile supplies no usage claim. */
-  }
-  return [...versions];
-}
-
-/** Local workspace links are resolved against their importer, never against the host filesystem. */
-export function lockfileLinks(file: string, text: string, name: string): string[] {
-  const links: string[] = [];
-  if (file === 'pnpm-lock.yaml') {
-    const doc = parse(text);
-    for (const [importer, value] of Object.entries(doc.importers || {}) as [string, any][]) {
-      for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-        const version = value[section]?.[name]?.version;
-        if (typeof version === 'string' && version.startsWith('link:'))
-          links.push(importer + '/' + version.slice(5));
+    } else if (file === 'bun.lock') {
+      for (const match of text.matchAll(/"((?:@[^/"\s]+\/)?[^@"\s]+)@([0-9][^"\s]*)"/g))
+        add(match[1], match[2]);
+    } else {
+      let names: string[] = [];
+      for (const line of text.split('\n')) {
+        if (/^\S/.test(line) && line.endsWith(':'))
+          names = line.split(/,\s*/).flatMap((selector) => {
+            const match = identity(selector.replace(/^["']/, ''));
+            return match ? [match[1]] : [];
+          });
+        const match = line.match(/^\s+version\s*:?\s+["']?([^"'\s]+)/);
+        if (match) for (const name of names) add(name, match[1]);
       }
     }
-  } else if (file === 'package-lock.json') {
-    const doc = JSON.parse(text);
-    for (const [path, value] of Object.entries(doc.packages || {}) as [string, any][]) {
-      if (
-        (path === 'node_modules/' + name || path.endsWith('/node_modules/' + name)) &&
-        value.link &&
-        typeof value.resolved === 'string'
-      )
-        links.push(value.resolved);
-    }
+    return result;
+  } catch {
+    return Object.create(null);
   }
-  return links;
+}
+export function lockfileVersions(file: string, text: string, name: string): string[] {
+  return lockfileIndex(file, text)[name]?.versions || [];
+}
+export function lockfileLinks(file: string, text: string, name: string): string[] {
+  return lockfileIndex(file, text)[name]?.links || [];
 }

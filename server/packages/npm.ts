@@ -1,7 +1,7 @@
-import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { NpmCopy, type RegistrySettings } from './cache.ts';
@@ -15,6 +15,7 @@ import {
   nameOf,
   now,
   packageByName,
+  objectPath,
   sendFile,
   served,
   storeFile,
@@ -170,15 +171,21 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       const claim = req.headers['x-deploy-package-claim'] === 'true';
       if (claim && !identity.admin) fail('Only an admin can claim a name from npmjs.org.', 403);
       let upstream: any;
-      if (!existing) {
-        upstream = await copy.document(name, true);
+      if (!existing && !name.startsWith('@deploy.local/')) {
+        const prepared = await copy.document(name, true);
+        const index = prepared ? await copy.index(prepared) : {};
+        upstream = { versions: index };
         if (!copy.reachable)
           fail('Cannot check whether this name exists on npmjs.org while it is unreachable.', 503);
-        if (upstream && !upstream._removed && Object.keys(upstream.versions).length && !claim)
+        if (Object.keys(index).length && !claim)
           fail(
             'This name exists on npmjs.org. An admin must use deploy packages publish --claim.',
             409,
           );
+        if (prepared && claim && req.headers['x-deploy-package-import'] === 'true') {
+          if (prepared.size > MAX_DOC) fail('Packument exceeds 10 MB.', 413);
+          upstream = JSON.parse(await readFile(objectPath('docs', prepared.sha256), 'utf8'));
+        }
       }
       if (upstream?.versions?.[version])
         fail(`${version} is already published. Nothing changed.`, 409);
@@ -333,7 +340,7 @@ export function createNpmRegistry(settings?: RegistrySettings) {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-store',
           });
-          await pipeline(Readable.fromWeb(response.body as any), res);
+          await pipeline(copy.body(response), res);
         } catch {
           if (res.headersSent) {
             res.destroy();
@@ -409,11 +416,18 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         return true;
       }
       if (req.method === 'GET') {
-        const document = pkg ? hostedDocument(pkg, copy) : await copy.document(name);
-        if (!document || document._removed) fail('Package not found', 404);
-        const rewritten = pkg ? document : copy.rewritten(document);
         const abridged = req.headers.accept?.includes('application/vnd.npm.install-v1+json');
-        send(res, abridged ? abbreviated(rewritten) : rewritten);
+        if (pkg) {
+          const document = hostedDocument(pkg, copy);
+          send(res, abridged ? abbreviated(document) : document);
+        } else {
+          const file = await copy.openDocument(name, abridged);
+          try {
+            await sendFile(req, res, 'docs', file, 'application/json', file.handle);
+          } finally {
+            await file.handle.close();
+          }
+        }
         served();
         return true;
       }
@@ -423,17 +437,36 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       }
       fail('Method not allowed', 405);
     } catch (error: any) {
+      if (
+        res.destroyed &&
+        ['ERR_STREAM_PREMATURE_CLOSE', 'ECONNRESET', 'EPIPE'].includes(error.code)
+      )
+        return true;
+      if (!error.status) {
+        // Error messages may contain credentials or request bodies. Log only the
+        // exception class and source locations, never arbitrary error text.
+        console.error('Unexpected package registry error', {
+          type: error instanceof TypeError ? 'TypeError' : 'Error',
+          locations:
+            error instanceof Error
+              ? error.stack
+                  ?.split('\n')
+                  .filter((line) => /^\s+at /.test(line))
+                  .flatMap((line) => line.match(/file:\/\/\/[^\s()]+:\d+:\d+/g) || [])
+              : [],
+        });
+      }
       if (!res.headersSent && error.status === 413) res.setHeader('Connection', 'close');
       if (res.headersSent) res.destroy();
       else
         send(
           res,
           {
-            error: error.status ? error.message : 'Invalid package request',
-            code: error.status === 409 ? 'EPUBLISHCONFLICT' : 'E' + (error.status || 400),
-            reason: error.status ? error.message : 'Invalid package request',
+            error: error.status ? error.message : 'Internal package registry error',
+            code: error.status === 409 ? 'EPUBLISHCONFLICT' : 'E' + (error.status || 500),
+            reason: error.status ? error.message : 'Internal package registry error',
           },
-          error.status || 400,
+          error.status || 500,
         );
       return true;
     }

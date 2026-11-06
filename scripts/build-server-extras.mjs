@@ -102,3 +102,8 @@ await build({
   entryPoints: [resolve(root, 'server/packages/recovery-worker.ts')],
   outfile: resolve(root, 'dist/package-recovery-worker.js'),
 });
+
+copyFileSync(
+  resolve(root, 'server/packages/document-worker.mjs'),
+  resolve(root, 'dist/package-document-worker.mjs'),
+);

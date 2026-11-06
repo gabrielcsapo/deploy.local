@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, generateKeyPairSync } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  truncateSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -191,6 +199,12 @@ describe('encrypted Home recovery bundle', () => {
       passphrase,
       bundleId: created.id,
     });
+    assert.equal(created.receipt.hostedPackages.included, true);
+    assert.equal(
+      created.receipt.hostedPackages.byteSize,
+      Buffer.byteLength('hosted package bytes'),
+    );
+    assert.deepEqual(verified.receipt, created.receipt);
     assert.equal(verified.fleetId, fleet.id);
     assert.ok(verified.files >= 3);
 
@@ -200,6 +214,7 @@ describe('encrypted Home recovery bundle', () => {
       passphrase,
       destinationDataDirectory: replacement,
     });
+    assert.deepEqual(restored.receipt, created.receipt);
     assert.equal(restored.fleetId, fleet.id);
     assert.equal(restored.homeSiteId, fleet.homeSiteId);
     assert.equal(
@@ -537,6 +552,52 @@ describe('encrypted Home recovery bundle', () => {
       )
       .get(created.id) as { verification_status: string; rehearsal_status: string };
     assert.deepEqual(record, { verification_status: 'verified', rehearsal_status: 'passed' });
+  });
+
+  it('omits all hosted files over the cap while preserving verified, restorable core recovery', async () => {
+    const folder = join(root, 'home', 'packages', 'hosted');
+    mkdirSync(folder, { recursive: true });
+    const large = join(folder, 'large-sparse');
+    writeFileSync(large, '');
+    truncateSync(large, 256 * 1024 * 1024 + 1);
+    const bundlePath = join(root, 'without-hosted.bundle');
+    const passphrase = 'correct horse suitcase battery';
+    try {
+      const created = await recovery.createRecoveryBundle({ outputPath: bundlePath, passphrase });
+      assert.equal(created.receipt.hostedPackages.included, false);
+      assert.ok(created.receipt.hostedPackages.byteSize > 256 * 1024 * 1024);
+      assert.equal(created.receipt.hostedPackages.limitBytes, 256 * 1024 * 1024);
+      const row = store
+        .getSqlite()!
+        .prepare('SELECT encryption_metadata FROM fleet_recovery_bundles WHERE id=?')
+        .get(created.id) as { encryption_metadata: string };
+      assert.deepEqual(JSON.parse(row.encryption_metadata).receipt, created.receipt);
+      const verified = recovery.verifyRecoveryBundle({
+        bundlePath,
+        passphrase,
+        bundleId: created.id,
+      });
+      assert.deepEqual(verified.receipt, created.receipt);
+      const destination = join(root, 'without-hosted-restored');
+      const restored = recovery.restoreRecoveryBundle({
+        bundlePath,
+        passphrase,
+        destinationDataDirectory: destination,
+      });
+      assert.deepEqual(restored.receipt, created.receipt);
+      assert.equal(existsSync(join(destination, 'packages', 'hosted')), false);
+      assert.deepEqual(
+        readFileSync(join(destination, 'certs', 'ca.key')),
+        readFileSync(join(root, 'home', 'certs', 'ca.key')),
+      );
+      assert.ok(existsSync(join(destination, 'deploy.db')));
+      assert.equal(
+        recovery.rehearseRecoveryBundle({ bundleId: created.id, bundlePath, passphrase }).passed,
+        true,
+      );
+    } finally {
+      rmSync(large, { force: true });
+    }
   });
 
   it('records a matching verified bundle as failed when restored lineage is broken', async () => {

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, rename, rm } from 'node:fs/promises';
+import { mkdir, rename, rm, readdir, lstat, type FileHandle } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -9,6 +9,7 @@ import { deployDataDirectory } from '../data-directory.ts';
 import type { ServerResponse, IncomingMessage } from 'node:http';
 
 export const MAX_FILE = 200 * 1024 * 1024;
+export const MAX_UPSTREAM_DOC = 256 * 1024 * 1024;
 export const MAX_DOC = 10 * 1024 * 1024;
 export const db = () => getSqlite()!;
 export const now = () => new Date().toISOString();
@@ -104,7 +105,11 @@ export async function sendFile(
   res: ServerResponse,
   area: 'hosted' | 'cache' | 'docs',
   file: { sha256: string; size: number },
+  contentType = 'application/octet-stream',
+  handle?: FileHandle,
 ) {
+  // Shared downloads finish even if their initiating client has disconnected.
+  if (req.aborted || res.destroyed) return;
   const etag = `"${file.sha256}"`;
   if (req.headers['if-none-match'] === etag) {
     res.writeHead(304);
@@ -112,12 +117,15 @@ export async function sendFile(
     return;
   }
   res.writeHead(200, {
-    'Content-Type': 'application/octet-stream',
+    'Content-Type': contentType,
     'Content-Length': file.size,
     ETag: etag,
     'Cache-Control': 'private, no-cache',
   });
-  await pipeline(createReadStream(objectPath(area, file.sha256)), res);
+  await pipeline(
+    handle ? handle.createReadStream() : createReadStream(objectPath(area, file.sha256)),
+    res,
+  );
 }
 export type Package = {
   id: string;
@@ -149,10 +157,30 @@ export const versions = (id: string) =>
       'SELECT * FROM package_versions WHERE package_id=? ORDER BY created_at DESC, rowid DESC',
     )
     .all(id) as Version[];
+const servedDatabases = new WeakSet<object>();
 export function served() {
-  db()
+  const database = db();
+  if (servedDatabases.has(database)) return;
+  database
     .prepare(
       "INSERT INTO system_settings(key,value,updated_at) VALUES('packages.served','true',?) ON CONFLICT(key) DO NOTHING",
     )
     .run(now());
+  servedDatabases.add(database);
 }
+
+/** Startup best-effort cleanup uses async filesystem calls and never follows links. */
+export async function cleanTemporaryFiles(root = tempRoot(), clock = Date.now()) {
+  const names = await readdir(root).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  for (const name of names) {
+    const path = join(root, name);
+    const metadata = await lstat(path).catch(() => null);
+    if (metadata && clock - metadata.mtimeMs > 60 * 60 * 1000)
+      await rm(path, { recursive: true, force: true });
+  }
+}
+export const recentlyUsed = (timestamp: string | null) =>
+  timestamp !== null && Date.now() - Date.parse(timestamp) < 60000;
