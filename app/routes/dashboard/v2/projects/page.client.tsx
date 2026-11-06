@@ -22,6 +22,7 @@ import { projectPath, projectSegment, projectTabItems } from './routing';
 import { AppOverview, Health, ReleaseList } from './app.client';
 import { ProjectCode, ProjectIssues } from './code.client';
 import { ProjectConfiguration } from './settings.client';
+import { ProjectPipelines } from './pipelines.client';
 import { ProjectLogs } from './logs.client';
 import { AppRequest, AppRequests } from './requests.client';
 import { formatRequestClock, type RequestDetail } from './requests';
@@ -414,7 +415,9 @@ function ProjectPage({
                     action={<Action onClick={history.refresh}>Retry</Action>}
                   />
                 )}
-                {section === 'code' ? (
+                {section === 'pipelines' && data.repository?.deployment?.pipeline ? (
+                  <ProjectPipelines projectId={project.id} />
+                ) : section === 'code' ? (
                   <ProjectCode overview={data} />
                 ) : section === 'issues' ? (
                   <ProjectIssues overview={data} refresh={overview.refresh} />

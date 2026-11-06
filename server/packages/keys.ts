@@ -1,3 +1,4 @@
+import { pipelinePackageIdentity } from './pipeline-auth.ts';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { authenticate, isAdmin } from '../store.ts';
@@ -12,6 +13,14 @@ export type Identity = {
   admin: boolean;
   credential: string;
   computer?: boolean;
+  pipeline?: {
+    projectId: string;
+    pipelineId: string;
+    name: string;
+    version: string;
+    commit: string;
+    pullNumber?: number;
+  };
 };
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export function audit(identity: Identity, action: string, name: string, req?: IncomingMessage) {
@@ -53,6 +62,8 @@ export function registryIdentity(req: IncomingMessage): Identity | null {
   const authorization = req.headers.authorization || '';
   const token = authorization.replace(/^Bearer /i, '');
   if (/^dlp_[A-Za-z0-9_-]{43}$/.test(token)) {
+    const pipeline = pipelinePackageIdentity(token);
+    if (pipeline) return pipeline;
     const computer = db()
       .prepare('SELECT username,computer_id,last_used_at FROM package_computer_keys WHERE hash=?')
       .get(hash(token)) as any;
@@ -95,6 +106,7 @@ export function registryIdentity(req: IncomingMessage): Identity | null {
   return null;
 }
 export function canPublish(identity: Identity, owner?: string) {
+  if (identity.pipeline) return;
   if (identity.computer)
     fail(
       "Tasks can't publish. Set the version in the pull request; the pipeline publishes it when it merges.",

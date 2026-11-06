@@ -467,8 +467,12 @@ export async function repositoryDeployment(
     const { spec } = compileDeployYaml(manifest);
     return {
       ...base,
+      configured: Object.keys(spec.components).length > 0 || !!spec.pipeline?.deploy,
       pipeline: !!spec.pipeline,
-      application: spec.pipeline?.deploy?.application || spec.metadata?.name || null,
+      application:
+        spec.pipeline?.deploy?.application ||
+        (Object.keys(spec.components).length ? spec.metadata?.name : null) ||
+        null,
     };
   } catch {
     // Keep configuration repair reachable; an invalid manifest is not an absent one.

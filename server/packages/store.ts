@@ -151,6 +151,7 @@ export type Version = {
   deprecated: string | null;
   published_by: string;
   published_via: string;
+  commit: string | null;
   created_at: string;
 };
 export const packageByName = (name: string) =>

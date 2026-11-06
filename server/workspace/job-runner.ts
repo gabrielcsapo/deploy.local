@@ -1,3 +1,4 @@
+import { finishPackageJob } from './package-publish.ts';
 import { readdir, rm } from 'node:fs/promises';
 import { preparePackageInstall, secretOutput } from '../../shared/package-install.mjs';
 import { repositoryGit } from './repository-git.ts';
@@ -225,13 +226,40 @@ export class JobRunner {
           if (error) this.state.terminal = { status: 'unknown', error };
         }
         await install?.cleanup();
-        clearTimeout(this.timer);
         // Kill any remaining descendants of the shell before releasing the slot.
         try {
           process.kill(-child.pid!, 'SIGKILL');
         } catch {}
         clearTimeout(this.killTimer);
         this.killTimer = undefined;
+        if (
+          job.packagePublish &&
+          code === 0 &&
+          !spawnError &&
+          !this.state.reason &&
+          !this.state.terminal
+        ) {
+          this.preparation = new AbortController();
+          try {
+            await finishPackageJob(
+              job,
+              cwd,
+              () =>
+                this.request('package-publish', {
+                  jobId: job.id,
+                  generation: job.generation,
+                  instanceId: job.instanceId,
+                }),
+              config?.ca,
+              this.preparation.signal,
+            );
+          } catch (error: any) {
+            this.state.terminal = { status: this.state.reason || 'failed', error: error.message };
+          } finally {
+            this.preparation = undefined;
+          }
+        }
+        clearTimeout(this.timer);
         // Collect on every outcome, before completion, while the job generation is still live.
         if (requests.length) this.state.skippedArtifacts = await this.collect(job, cwd, requests);
         this.state.terminal ||= {

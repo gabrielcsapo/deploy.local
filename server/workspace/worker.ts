@@ -1,3 +1,4 @@
+import '../packages/hooks.ts';
 import { prepareAgentInstall, agentEnvironment } from './agent-packages.ts';
 import { computerInstallConfig } from '../packages/builds.ts';
 import { secretOutput } from '../../shared/package-install.mjs';

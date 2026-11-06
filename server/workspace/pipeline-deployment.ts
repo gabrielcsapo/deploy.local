@@ -169,6 +169,7 @@ export async function advancePipelineDeployment(
   access?: ReleaseAccess,
 ) {
   const run = get('pipeline-run', owner, pipelineId);
+  if (run.specification?.publish?.length && run.packages?.status !== 'succeeded') return;
   if (run.status !== 'succeeded' || !['ready', 'publishing'].includes(run.deployment?.status))
     return;
   let deployment = { ...run.deployment };

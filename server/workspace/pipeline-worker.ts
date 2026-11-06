@@ -1,3 +1,4 @@
+import { advanceAllPipelinePackages } from '../packages/pipelines.ts';
 import { claimWorker } from './worker-lease.ts';
 import { db, now } from './store.ts';
 import { reconcilePipelines, scanPipelineTriggers } from './pipelines.ts';
@@ -17,7 +18,8 @@ const timer = setInterval(async () => {
     await scanPipelineTriggers();
     if (!publishing) {
       publishing = true;
-      void advancePipelineDeployments()
+      void advanceAllPipelinePackages()
+        .then(() => advancePipelineDeployments())
         .catch((error) => console.error('Pipeline release:', error.message))
         .finally(() => {
           publishing = false;

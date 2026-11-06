@@ -1,10 +1,15 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdtemp, mkdir, writeFile, readFile, stat, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { selfUpdateInstall, prepareSelfUpdate, cleanupUpdatePackages } from './self-update.mjs';
+const isolatedHome = await mkdtemp(join(tmpdir(), 'update-packages-home-'));
+process.env.NPM_CONFIG_USERCONFIG = join(isolatedHome, 'npmrc');
+delete process.env.npm_config_userconfig;
+await writeFile(process.env.NPM_CONFIG_USERCONFIG, '');
+after(() => rm(isolatedHome, { recursive: true, force: true }));
 
 test('self-update fallback uses public registry, leaves release unchanged and removes credential material', async () => {
   const root = await mkdtemp(join(tmpdir(), 'self-update-packages-'));
@@ -91,7 +96,7 @@ test('prepare uses the update directory and the installed helper environment; re
   const server = createServer((_req, res) => res.end('{}'));
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   try {
-    for (const outcome of ['success', 'fallback', 'both-fail']) {
+    for (const outcome of ['success', 'fallback', 'both-fail', 'test-fail', 'unknown-fail']) {
       const packageConfig = join(updates, 'run.packages.json');
       const key = 'dlp_' + 'a'.repeat(43);
       await writeFile(
@@ -121,7 +126,15 @@ test('prepare uses the update directory and the installed helper environment; re
           if (calls === 1) {
             assert.equal(options.env.NPM_CONFIG_USERCONFIG, install.npmrc);
             assert.ok((await readFile(install.npmrc, 'utf8')).includes(key));
-            if (outcome !== 'success') throw Error('registry disappeared');
+            if (outcome === 'test-fail')
+              throw Object.assign(Error('tests failed'), {
+                output: 'pnpm install --frozen-lockfile\npnpm test\nCommand failed: pnpm test\n',
+              });
+            if (outcome === 'unknown-fail') throw Error('prepare interrupted');
+            if (outcome !== 'success')
+              throw Object.assign(Error('registry disappeared'), {
+                output: 'Command failed: pnpm install --frozen-lockfile\n',
+              });
           } else {
             assert.equal(options.env.NPM_CONFIG_USERCONFIG, process.env.NPM_CONFIG_USERCONFIG);
             assert.equal(await stat(install.npmrc).catch(() => null), null);
@@ -131,9 +144,11 @@ test('prepare uses the update directory and the installed helper environment; re
         },
         (line) => logs.push(line),
       );
-      if (outcome === 'both-fail') await assert.rejects(prepare, /public install also failed/);
+      if (outcome === 'test-fail') await assert.rejects(prepare, /tests failed/);
+      else if (outcome === 'unknown-fail') await assert.rejects(prepare, /prepare interrupted/);
+      else if (outcome === 'both-fail') await assert.rejects(prepare, /public install also failed/);
       else assert.equal(await prepare, 'prepared');
-      assert.equal(calls, outcome === 'success' ? 1 : 2);
+      assert.equal(calls, ['success', 'test-fail', 'unknown-fail'].includes(outcome) ? 1 : 2);
       assert.equal(logs.length, calls - 1);
       assert.equal(await stat(install.directory).catch(() => null), null);
     }

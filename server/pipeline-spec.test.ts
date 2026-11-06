@@ -86,3 +86,30 @@ test('pipeline paths survive canonical round trips and reject invalid filters', 
     );
   }
 });
+
+test('publish-only pipeline accepts confined distinct folders and round trips', () => {
+  const compiled = compileDeployYaml(source + '  publish: [packages/router, packages/mdns]\n');
+  assert.deepEqual(compiled.spec.pipeline?.publish, ['packages/mdns', 'packages/router']);
+  assert.deepEqual(compiled.spec.components, {});
+  assert.equal(compiled.spec.pipeline?.deploy, undefined);
+  assert.equal(compileApplicationManifest(compiled.spec).digest, compiled.digest);
+  for (const publish of [
+    ['a', 'a'],
+    ['a/../b'],
+    ['../x'],
+    ['/x'],
+    ['a\\b'],
+    ['a\0b'],
+    ['a\nb'],
+    ['a//b'],
+    ['a/'],
+    ['.'],
+    [''],
+    'a',
+    [1],
+  ])
+    assert.throws(
+      () => compileDeployYaml(source + `  publish: ${JSON.stringify(publish)}\n`),
+      /pipeline.publish/,
+    );
+});

@@ -95,3 +95,32 @@ components:
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test('a pipeline without components or deploy does not configure deployment', async () => {
+  const { repositoryDeployment } = await import('./repositories.ts');
+  const repo = join(root, 'pipeline-only');
+  mkdirSync(repo);
+  const git = (args: string[]) => gitText(repo, args);
+  await git(['init', '--initial-branch=main']);
+  await git(['config', 'user.name', 'Test']);
+  await git(['config', 'user.email', 'test@example.invalid']);
+  const manifest =
+    'apiVersion: deploy.local/v1\nkind: Application\nmetadata: {name: should-not-link}\npipeline:\n  jobs:\n    test:\n      run: pnpm test\n      runsOn: {os: linux}\n  publish: [packages/router]\n';
+  for (const suffix of [
+    '',
+    '  deploy: {application: real-app}\n',
+    'components:\n  web: {image: nginx:alpine}\n',
+  ]) {
+    writeFileSync(join(repo, 'deploy.yaml'), manifest + suffix);
+    await git(['add', '.']);
+    await git(['commit', '-m', 'Manifest']);
+    const commit = await git(['rev-parse', 'HEAD']);
+    const result = await repositoryDeployment(repo, `refs/heads/main\0${commit}`);
+    assert.equal(result.pipeline, true);
+    assert.equal(result.configured, !!suffix);
+    assert.equal(
+      result.application,
+      suffix.startsWith('  deploy') ? 'real-app' : suffix ? 'should-not-link' : null,
+    );
+  }
+});

@@ -1,3 +1,4 @@
+import { mergingPackages } from '../packages/pipeline-read.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ConversationEvent } from '../../shared/v2/contracts.ts';
 import { cursor, events, get, list } from '../workspace/store.ts';
@@ -128,6 +129,7 @@ export function taskSnapshot(owner: string, id: string) {
     ],
     screenshots: list('screenshot', owner).filter((shot) => shot.taskId === id),
     releases: [],
+    packages: [] as { name: string; version: string; previousVersion?: string }[],
     // Task sourceRef is its checkout baseline, not the agent's latest published work.
     // Ship a linked PR branch; the project default branch is resolved by tasksApi below.
     ship: project ? { ref: pulls.at(-1)?.sourceBranch } : undefined,
@@ -146,6 +148,7 @@ export async function tasksApi(req: IncomingMessage, res: ServerResponse, owner:
       const pull = snapshot.pulls.at(-1);
       if (pull && pull.status === 'open') {
         const project = get('project', owner, snapshot.project.id);
+        snapshot.packages = await mergingPackages(owner, project, pull);
         const counts = await gitText(project.repositoryPath, [
           'rev-list',
           '--left-right',

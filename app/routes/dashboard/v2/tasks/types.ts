@@ -89,6 +89,7 @@ export type TaskView = {
   checks: TaskCheck[];
   screenshots: (Screenshot & { requestedAt?: string })[];
   releases: Release[];
+  packages?: { name: string; version: string; previousVersion?: string }[];
   ship?: { ref?: string; runsOn?: string; address?: string; access?: string; data?: string };
 };
 export type TaskCheckpoint = {

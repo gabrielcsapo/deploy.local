@@ -1,0 +1,35 @@
+.v2-pipelines {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+.v2-pipeline-list {
+  flex: 1 1 240px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-pipeline-list .dl-nav {
+  height: auto;
+  padding: 8px;
+  align-items: flex-start;
+  text-align: left;
+}
+.v2-pipeline-list .dl-t {
+  white-space: normal;
+}
+.v2-pipeline-list .dl-meta {
+  display: block;
+}
+.v2-pipeline-detail {
+  flex: 999 1 420px;
+  min-width: 0;
+}
+.v2-pipeline-detail .dl-section {
+  margin-top: 28px;
+}
+.v2-pipeline-detail .dl-section-title {
+  margin-bottom: 12px;
+}
