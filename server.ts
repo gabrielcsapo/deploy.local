@@ -1,4 +1,5 @@
 import { CopyWarmer, cleanupCopies, queueAllCopies } from './server/packages/copies.ts';
+import './server/packages/hooks.ts';
 import { npmRegistry } from './server/packages/npm.ts';
 import { terminalRelay } from './server/workspace/terminal-service.ts';
 import { startGitSshServer } from './server/workspace/git-ssh.ts';
