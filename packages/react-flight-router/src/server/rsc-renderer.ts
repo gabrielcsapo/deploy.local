@@ -4,6 +4,8 @@ import { diffSegments } from '../router/segment-diff.js';
 import type { RouteConfig, RouteMatch, RouteModule, SlotMatch } from '../router/types.js';
 import type { RSCClientManifest, ModuleLoader } from '../shared/types.js';
 import type { FlightLogger } from '../shared/logger.js';
+import { routeStylesheets, type RouteModuleLoader } from './route-css.js';
+import type { Manifests } from '../shared/types.js';
 import { RedirectError } from './redirect.js';
 
 // LRU cache for route matching results by pathname.
@@ -113,6 +115,7 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
 }
 
 interface RenderRSCOptions {
+  stylesheets?: Pick<Manifests, 'cssFiles' | 'cssModules' | 'entryCSS'>;
   url: URL;
   routes: RouteConfig[];
   clientManifest: RSCClientManifest;
@@ -157,10 +160,21 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     renderToReadableStream,
     segments,
     previousUrl,
-    loadModule,
     logger,
     signal,
   } = opts;
+
+  // Share imports between CSS discovery and rendering within this request. Custom
+  // loaders must not execute twice, nor be cached across requests with different auth.
+  const modulePromises = new Map<() => Promise<RouteModule>, Promise<RouteModule>>();
+  const loadRouteModule: RouteModuleLoader = (importer) => {
+    let promise = modulePromises.get(importer);
+    if (!promise) {
+      promise = Promise.resolve().then(importer);
+      modulePromises.set(importer, promise);
+    }
+    return promise;
+  };
 
   // A new routes array means the routes module was re-evaluated (dev HMR or a
   // dev-server restart). Every cached match points at the old module's route
@@ -193,9 +207,21 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   const matches = cachedMatch(url.pathname);
   const slotMatches = matchSlots(matches, url.searchParams);
   logger?.timeEnd('matchRoutes');
+  const cssFiles = opts.stylesheets
+    ? await abortable(
+        routeStylesheets(
+          [...matches, ...slotMatches.flatMap((slot) => slot.matches)],
+          opts.stylesheets,
+          loadRouteModule,
+        ),
+        signal,
+      )
+    : undefined;
+  const styles = cssFiles ? { cssFiles, cssOrder: opts.stylesheets!.cssFiles } : {};
 
   if (matches.length === 0) {
     const payload = {
+      ...styles,
       url: url.pathname + url.search,
       segments: {} as Record<string, unknown>,
       params: {},
@@ -276,7 +302,10 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   // the vast majority of apps don't use slots and this runs every request.
   const allMatchesForBoundaries =
     slotMatches.length === 0 ? matches : [...matches, ...slotMatches.flatMap((s) => s.matches)];
-  const boundaryComponentsPromise = buildBoundaryComponents(allMatchesForBoundaries);
+  const boundaryComponentsPromise = buildBoundaryComponents(
+    allMatchesForBoundaries,
+    loadRouteModule,
+  );
   boundaryComponentsPromise.catch(() => {});
 
   // One shared object for every component in this render — the prop is
@@ -289,19 +318,19 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     if (slotMatches.length === 0) {
       // Fast path: no Promise.all wrapping or Object.assign copying.
       segmentMap = await abortable(
-        buildSegmentMap(matches, onlySegmentsSet, searchParams, loadModule, logger),
+        buildSegmentMap(matches, onlySegmentsSet, searchParams, loadRouteModule, logger),
         signal,
       );
     } else {
       const trees = await abortable(
         Promise.all([
-          buildSegmentMap(matches, onlySegmentsSet, searchParams, loadModule, logger),
+          buildSegmentMap(matches, onlySegmentsSet, searchParams, loadRouteModule, logger),
           ...slotMatches.map((s) =>
             buildSegmentMap(
               s.matches,
               slotRenderSets.get(slotMapKey(s)),
               searchParams,
-              loadModule,
+              loadRouteModule,
               logger,
             ),
           ),
@@ -345,6 +374,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   const status = isError ? 500 : isNotFound ? 404 : 200;
 
   const payload: Record<string, unknown> = {
+    ...styles,
     url: url.pathname + url.search,
     segments: segmentMap,
     params: matches[matches.length - 1]?.params ?? {},
@@ -403,7 +433,7 @@ async function buildSegmentMap(
   matches: RouteMatch[],
   onlySegments: Set<string> | undefined,
   searchParams: Record<string, string>,
-  _loadModule: ModuleLoader,
+  loadRouteModule: RouteModuleLoader,
   logger?: FlightLogger,
 ): Promise<Record<string, unknown>> {
   const segmentMap: Record<string, unknown> = {};
@@ -426,7 +456,7 @@ async function buildSegmentMap(
       const match = matches[i];
       const startMs = logger ? performance.now() : 0;
       try {
-        const mod = await match.route.component();
+        const mod = await loadRouteModule(match.route.component);
         const Component = mod.default as (props: {
           params: Record<string, string>;
           searchParams: Record<string, string>;
@@ -488,7 +518,7 @@ async function buildSegmentMap(
       // Load the error handler module
       let errorMod: RouteModule;
       try {
-        errorMod = await handler();
+        errorMod = await loadRouteModule(handler);
       } catch (handlerError) {
         console.warn('[react-flight-router] Error handler module failed to import:', handlerError);
         throw result.error;
@@ -541,10 +571,11 @@ async function loadBoundaryModule(
   importer: (() => Promise<RouteModule>) | undefined,
   kind: string,
   routeId: string,
+  loadRouteModule: RouteModuleLoader,
 ): Promise<RouteModule | null> {
   if (!importer) return null;
   try {
-    return await importer();
+    return await loadRouteModule(importer);
   } catch (err) {
     console.warn(`[react-flight-router] Failed to load ${kind} for "${routeId}":`, err);
     return null;
@@ -553,6 +584,7 @@ async function loadBoundaryModule(
 
 async function buildBoundaryComponents(
   matches: RouteMatch[],
+  loadRouteModule: RouteModuleLoader,
 ): Promise<Record<string, { loading?: unknown; error?: unknown }>> {
   const result: Record<string, { loading?: unknown; error?: unknown }> = {};
 
@@ -568,8 +600,18 @@ async function buildBoundaryComponents(
         // async helper so a *synchronous* throw (Vite's module runner does this
         // once its environment is closed) is caught too, not just a rejection.
         const [loadingMod, errorMod] = await Promise.all([
-          loadBoundaryModule(match.route.loading, 'loading component', match.route.id),
-          loadBoundaryModule(match.route.error, 'error boundary component', match.route.id),
+          loadBoundaryModule(
+            match.route.loading,
+            'loading component',
+            match.route.id,
+            loadRouteModule,
+          ),
+          loadBoundaryModule(
+            match.route.error,
+            'error boundary component',
+            match.route.id,
+            loadRouteModule,
+          ),
         ]);
 
         if (loadingMod?.default) boundaries.loading = createElement(loadingMod.default, {});

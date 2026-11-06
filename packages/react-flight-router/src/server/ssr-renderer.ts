@@ -69,7 +69,6 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     rscStream,
     ssrManifest,
     clientEntryUrl,
-    cssFiles,
     moduleMap,
     buildId,
     createFromReadableStream,
@@ -93,6 +92,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     serverConsumerManifest: ssrManifest,
   })) as RSCPayload;
   logger?.timeEnd('ssr:deserializeRSC');
+  const cssFiles = payload.cssFiles ?? opts.cssFiles;
 
   // Extract root segment and construct the full React tree,
   // mirroring the structure in client/entry.tsx
@@ -114,6 +114,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
         initialSegments: payload.segments,
         initialParams: payload.params ?? {},
         initialBoundaryComponents: payload.boundaryComponents,
+        cssOrder: payload.cssOrder,
         createFromReadableStream: noopCreateFromReadableStream,
         callServer: noopCallServer,
       },

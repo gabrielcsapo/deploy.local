@@ -311,6 +311,7 @@ export async function createServer(opts: CreateServerOptions) {
       url,
       routes,
       clientManifest: manifests.rscClientManifest,
+      stylesheets: manifests,
       renderToReadableStream: rscRenderToReadableStream,
       segments,
       previousUrl,

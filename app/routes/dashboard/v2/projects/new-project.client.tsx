@@ -1,4 +1,5 @@
 'use client';
+import './projects.css';
 import { useState, useSyncExternalStore } from 'react';
 import { Action, Banner, Dialog, Field, Glyph, Group, Icon, Item } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';

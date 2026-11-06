@@ -114,6 +114,27 @@ flightRouter({
 });
 ```
 
+## Stylesheets
+
+Production builds select stylesheets from the matched route modules and their imports,
+including root/layout modules, loading/error/not-found boundaries, and active parallel slots.
+This is the default; no application option is required. Import a shared component's CSS
+where that component is used rather than relying on another route to import it.
+
+The build follows Vite's resolved module graph across server/client boundaries, including
+aliases, workspace packages and CSS modules. Lazy client components' styles are included
+with their owner too: React can cache a lazy component after its stylesheet has been removed,
+so its styles must be available when that owner is revisited. Other lazy server routes are
+selected only when matched. Custom inline loaders without build metadata, and manifests
+from older router versions, conservatively retain the legacy global stylesheet set.
+
+HTML and Flight responses use the same ordered CSS list, including unchanged layouts on
+partial updates. Navigation waits for new sheets to load with inactive media, then enables
+them and removes the previous route's sheets in the React commit before layout effects.
+Failed stylesheet loads fail the navigation instead of displaying an unstyled destination.
+The retained sheets preserve their legacy cascade order (the last occurrence of each sheet
+in the client manifest). Development continues to use Vite's CSS/HMR handling.
+
 ## Documentation
 
 For full documentation — including guides, API reference, and architecture details — visit:

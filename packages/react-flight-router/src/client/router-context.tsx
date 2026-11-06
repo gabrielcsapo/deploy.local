@@ -7,6 +7,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useInsertionEffect,
   useMemo,
   useRef,
   type ReactNode,
@@ -15,6 +16,7 @@ import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from '../shared/constants.js';
 import { reloadForNewBuild } from './build-check.js';
 import { SuspenseSentinel } from './suspense-sentinel.js';
 import { consumePrefetch } from './prefetch-cache.js';
+import { prepareStylesheets } from './route-css.js';
 import { fastPathname } from './fast-pathname.js';
 
 // Cached element to avoid creating a new one on every navigation
@@ -213,6 +215,7 @@ interface RouterProviderProps {
   initialSegments: Record<string, ReactNode>;
   initialParams: Record<string, string>;
   initialBoundaryComponents?: BoundaryComponentMap;
+  cssOrder?: string[];
   createFromReadableStream: (
     stream: ReadableStream,
     opts: { callServer: CallServerFn },
@@ -228,9 +231,15 @@ export function RouterProvider({
   initialSegments,
   initialParams,
   initialBoundaryComponents,
+  cssOrder,
   createFromReadableStream,
   callServer,
 }: RouterProviderProps) {
+  const [styles, setStyles] = useState<Awaited<ReturnType<typeof prepareStylesheets>>>();
+  // Apply styles in the same commit as the segments, before layout measurements/paint.
+  useInsertionEffect(() => {
+    styles?.commit();
+  }, [styles]);
   const [url, setUrl] = useState(initialUrl);
   const [segments, setSegments] = useState(initialSegments);
   const [params, setParams] = useState(initialParams);
@@ -373,6 +382,18 @@ export function RouterProvider({
           return;
         }
 
+        if (payload.cssFiles) {
+          const nextStyles = await prepareStylesheets(
+            payload.cssFiles,
+            payload.cssOrder ?? cssOrder ?? [],
+          );
+          if (navId !== navigationIdRef.current) {
+            nextStyles.dispose();
+            return;
+          }
+          setStyles(nextStyles);
+        }
+
         if (payload.segmentKeys) {
           // Partial update: merge new segments with existing, remove stale keys
           setSegments((prev) => {
@@ -420,13 +441,14 @@ export function RouterProvider({
           // Expected: a newer navigation aborted this one
           return;
         }
+        if (navId !== navigationIdRef.current) return;
         setPendingUrl(null);
         // Store the error so Outlet can throw it during render,
         // making it catchable by the nearest ErrorBoundary.
         setNavigationError(err instanceof Error ? err : new Error(String(err)));
       }
     },
-    [createFromReadableStream, callServer],
+    [createFromReadableStream, callServer, cssOrder],
   );
 
   const refresh = useCallback(async () => {
@@ -468,6 +490,17 @@ export function RouterProvider({
         return;
       }
 
+      if (payload.cssFiles) {
+        const nextStyles = await prepareStylesheets(
+          payload.cssFiles,
+          payload.cssOrder ?? cssOrder ?? [],
+        );
+        if (navId !== navigationIdRef.current) {
+          nextStyles.dispose();
+          return;
+        }
+        setStyles(nextStyles);
+      }
       setSegments(payload.segments);
 
       if (payload.boundaryComponents) {
@@ -480,14 +513,16 @@ export function RouterProvider({
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
+      if (navId !== navigationIdRef.current) return;
       setPendingUrl(null);
       setNavigationError(err instanceof Error ? err : new Error(String(err)));
     }
-  }, [createFromReadableStream, callServer, navigate]);
+  }, [createFromReadableStream, callServer, navigate, cssOrder]);
 
   // Abort in-flight navigation on unmount
   useEffect(() => {
     return () => {
+      navigationIdRef.current++;
       abortControllerRef.current?.abort();
     };
   }, []);
