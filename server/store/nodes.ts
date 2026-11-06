@@ -310,19 +310,25 @@ export function reconcileNodeRuntimePorts(
     const name = typeof app.name === 'string' ? app.name : '';
     const relayPort = Number(app.relayPort);
     if (!name || !Number.isInteger(relayPort) || relayPort <= 0 || relayPort > 65535) continue;
+    // A stopped container's relay is a leftover; it must not become the app's address.
+    if (app.status !== 'running') continue;
     const deployment = db
       .select()
       .from(deployments)
       .where(and(eq(deployments.name, name), eq(deployments.activeNodeId, nodeId)))
       .get();
-    if (!deployment || deployment.port === relayPort) continue;
+    if (!deployment) continue;
+    // A running container on the recorded port still restores 'running' (a release that failed
+    // midway can leave the record 'unknown' while the app keeps serving).
+    const recovers = deployment.status === 'unknown';
+    if (deployment.port === relayPort && !recovers) continue;
     db.update(deployments)
       .set({
         port: relayPort,
         containerId: typeof app.id === 'string' ? app.id : deployment.containerId,
         containerName:
           typeof app.containerName === 'string' ? app.containerName : deployment.containerName,
-        status: app.status === 'running' ? 'running' : deployment.status,
+        status: 'running',
         updatedAt: new Date().toISOString(),
       })
       .where(eq(deployments.name, name))

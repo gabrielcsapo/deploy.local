@@ -93,6 +93,28 @@ function appConfiguration(deployment: NonNullable<ReturnType<typeof getDeploymen
   return { kind, path };
 }
 
+/**
+ * The address the edge routes a remote app to: its ready, published endpoint. The deployment's own
+ * port is only a relay port the agent last reported and can outlive the container behind it.
+ */
+function readyEndpoint(
+  appId: string | null | undefined,
+): { host: string; port: number } | undefined {
+  if (!appId) return;
+  const row = getSqlite()!
+    .prepare(
+      `SELECT se.host, se.port
+         FROM component_services cs
+         JOIN service_endpoints se
+           ON se.service_id = cs.id AND se.admitted_generation = cs.membership_generation
+        WHERE cs.app_id = ? AND cs.published = 1 AND se.readiness = 'ready'
+        ORDER BY cs.id, se.id
+        LIMIT 1`,
+    )
+    .get(appId) as { host: string; port: number } | undefined;
+  return row && isIP(row.host) ? row : undefined;
+}
+
 async function checkHttp(host: string, port: number, path: string): Promise<WebEvidence['check']> {
   if (!isIP(host) || !path.startsWith('/') || path.startsWith('//')) return;
   const start = Date.now();
@@ -242,13 +264,14 @@ async function collectLive(owner: string): Promise<LiveResponse> {
         restarts,
       );
     } else {
+      const endpoint = nodeId === 'coordinator' ? undefined : readyEndpoint(deployment.appId);
+      const target = endpoint ?? {
+        host: nodeId === 'coordinator' ? '127.0.0.1' : (node?.address ?? ''),
+        port: deployment.port,
+      };
       const check =
-        online && deployment.status === 'running' && deployment.port && config.path
-          ? await checkHttp(
-              nodeId === 'coordinator' ? '127.0.0.1' : (node?.address ?? ''),
-              deployment.port,
-              config.path,
-            )
+        online && deployment.status === 'running' && target.port && config.path
+          ? await checkHttp(target.host, target.port, config.path)
           : undefined;
       health = webHealth(
         {
