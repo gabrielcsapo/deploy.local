@@ -28,6 +28,7 @@ import { DesktopUpdateRow } from './v2/DesktopUpdate';
 
 function useSidebarData() {
   return {
+    packages: useResource<{ served: boolean }>('/api/v2/packages?sidebar=1'),
     inbox: useInbox(),
     workspace: useResource<WorkspaceState>('/api/workspace/state'),
     agents: useResource<{ agents: SidebarAgent[] }>('/api/v2/agents', true),
@@ -125,6 +126,15 @@ export function V2Sidebar({
           >
             Computers
           </Nav>
+          {data.packages.data?.served && (
+            <Nav
+              href="/dashboard/packages"
+              active={pathname.startsWith('/dashboard/packages')}
+              lead={<Icon name="package" />}
+            >
+              Packages
+            </Nav>
+          )}
           <Nav
             href="/dashboard/design"
             active={pathname === '/dashboard/design'}

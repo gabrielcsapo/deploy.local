@@ -85,3 +85,25 @@ copyFileSync(
 );
 
 copyFileSync(resolve(root, 'server/wander-data.mjs'), resolve(root, 'dist/wander-data.mjs'));
+
+copyFileSync(
+  resolve(root, 'server/packages/body-worker.mjs'),
+  resolve(root, 'dist/package-body-worker.mjs'),
+);
+
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/packages/lock-worker.ts')],
+  outfile: resolve(root, 'dist/package-lock-worker.js'),
+});
+
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/packages/recovery-worker.ts')],
+  outfile: resolve(root, 'dist/package-recovery-worker.js'),
+});
+
+copyFileSync(
+  resolve(root, 'server/packages/document-worker.mjs'),
+  resolve(root, 'dist/package-document-worker.mjs'),
+);

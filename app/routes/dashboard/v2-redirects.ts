@@ -17,6 +17,7 @@ export const staticRedirects: Record<string, string> = {
 };
 const places = new Set([
   'projects',
+  'packages',
   'live',
   'inbox',
   'computers',
@@ -31,8 +32,11 @@ export function staticRedirect(path: string): string | null {
   const url = new URL(path, 'http://localhost');
   const pathname = url.pathname.replace(/\/+$/, '') || '/';
   const catalog = pathname.match(/^\/dashboard\/catalog\/([^/]+)$/);
+  const packages = pathname === '/packages' || pathname.startsWith('/packages/npm/');
   const target =
-    staticRedirects[pathname] || (catalog ? `/dashboard/discover/${catalog[1]}` : null);
+    (packages ? '/dashboard' + pathname : null) ||
+    staticRedirects[pathname] ||
+    (catalog ? `/dashboard/discover/${catalog[1]}` : null);
   if (!target) return null;
   const destination = new URL(target, url);
   for (const [key, value] of url.searchParams)

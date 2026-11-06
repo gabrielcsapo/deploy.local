@@ -55,3 +55,17 @@ test('an address resolves to one repository: current names before renamed-away o
   assert.equal(projectAtAddress(clash, 'a-b'), null);
   assert.equal(uniqueRepositoryAddress(clash, clash[0]), null);
 });
+
+test('package routes reserve short addresses without changing existing project identities', () => {
+  for (const name of ['npm', 'cargo', 'packages']) {
+    const project = { id: 'existing-' + name, name };
+    assert.equal(repositoryAddress(name), null);
+    assert.equal(uniqueRepositoryAddress([project], project), null);
+    assert.equal(project.name, name);
+    assert.equal(project.id, 'existing-' + name);
+    assert.deepEqual(shortGitRequest('/' + name + '.git/info/refs'), {
+      repository: name,
+      transport: '/info/refs',
+    });
+  }
+});

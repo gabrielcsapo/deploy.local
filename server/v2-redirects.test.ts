@@ -164,3 +164,19 @@ test('repository pages from before v2 open the project, and never shadow a deplo
   ])
     assert.equal(await legacyDestination(page, async () => null), null, page);
 });
+
+test('package bookmarks redirect, including scoped names and setup queries', async () => {
+  for (const path of [
+    '/packages',
+    '/packages?tab=setup',
+    '/packages/npm/react-flight-router',
+    '/packages/npm/%40deploy.local%2Fmdns',
+    '/packages/npm/@deploy.local/mdns',
+  ]) {
+    const destination = await legacyDestination(path, async () => {
+      throw new Error('No project lookup needed');
+    });
+    assert.equal(destination, '/dashboard' + path);
+    assert.ok(matchRoutes(routes, destination!.split('?')[0]).length);
+  }
+});

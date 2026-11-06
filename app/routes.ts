@@ -158,6 +158,21 @@ export const routes: RouteConfig[] = [
           },
         ],
       },
+      {
+        id: 'packages-short',
+        path: 'packages',
+        component: () => import('./routes/dashboard/v2-redirect.js'),
+      },
+      {
+        id: 'package-short',
+        path: 'packages/npm/:name',
+        component: () => import('./routes/dashboard/v2-redirect.js'),
+      },
+      {
+        id: 'package-short-scoped',
+        path: 'packages/npm/:scope/:name',
+        component: () => import('./routes/dashboard/v2-redirect.js'),
+      },
       // The workspace: `/dashboard/...` and repository short addresses share one layout, so moving
       // between tasks and a repository keeps it mounted. Last, so every page above wins.
       {
@@ -364,6 +379,21 @@ export const routes: RouteConfig[] = [
             id: 'v2-devices',
             path: 'settings/devices',
             component: () => import('./routes/dashboard/v2/start/account.js'),
+          },
+          {
+            id: 'v2-packages',
+            path: 'packages',
+            component: () => import('./routes/dashboard/v2/packages/page.js'),
+          },
+          {
+            id: 'v2-package',
+            path: 'packages/npm/:name',
+            component: () => import('./routes/dashboard/v2/packages/page.js'),
+          },
+          {
+            id: 'v2-scoped-package',
+            path: 'packages/npm/:scope/:name',
+            component: () => import('./routes/dashboard/v2/packages/page.js'),
           },
           {
             id: 'v2-settings',

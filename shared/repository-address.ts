@@ -25,6 +25,9 @@ export const reservedRepositoryAddresses = new Set([
   'login',
   'logout',
   'new',
+  'npm',
+  'cargo',
+  'packages',
   'recover',
   'settings',
   'setup',
@@ -32,6 +35,9 @@ export const reservedRepositoryAddresses = new Set([
   'site.webmanifest',
   'ws',
 ]);
+
+/** Existing repositories keep Git transport aliases when new product pages reserve their names. */
+export const packageRepositoryAddresses = new Set(['npm', 'cargo', 'packages']);
 
 /** A folder-safe form of the repository name, used for clone folders and short addresses. */
 export function repositoryFolderName(name: unknown) {
@@ -95,7 +101,12 @@ export function shortGitRequest(pathname: string) {
   const rest = match[2] ?? '';
   const named = segment.toLowerCase().endsWith('.git');
   const repository = named ? segment.slice(0, -4) : segment;
-  if (!repository || reservedRepositoryAddress(repository)) return null;
+  if (
+    !repository ||
+    (reservedRepositoryAddress(repository) &&
+      !packageRepositoryAddresses.has(repository.toLowerCase()))
+  )
+    return null;
   if (named ? rest !== '' && !gitTransport.test(rest) : !gitTransport.test(rest)) return null;
   return { repository, transport: rest };
 }

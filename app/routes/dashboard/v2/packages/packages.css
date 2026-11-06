@@ -1,0 +1,35 @@
+.packages-page {
+  padding-top: var(--ds-space-2);
+}
+.packages-detail {
+  padding-top: var(--ds-space-6);
+}
+.packages-count {
+  min-width: 0;
+  text-align: right;
+}
+.packages-page .dl-section,
+.packages-detail .dl-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+.packages-page .dl-term {
+  margin: 0;
+}
+/* Buttons shrink to their content by default, and these rows read like the links beside them. */
+.packages-detail button.dl-item {
+  width: 100%;
+  text-align: left;
+}
+/* The name is what this page is about, so the description gives way first. */
+.dl-head:has(+ .dl-scroll .packages-detail) .dl-t {
+  flex: none;
+  max-width: 60%;
+}
+.dl-head:has(+ .dl-scroll .packages-detail) .dl-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

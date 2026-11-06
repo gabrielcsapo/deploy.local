@@ -1,10 +1,5 @@
 import { resolve } from 'node:path';
-import {
-  createRecoveryBundle,
-  rehearseRecoveryBundle,
-  restoreRecoveryBundle,
-  verifyRecoveryBundle,
-} from './recovery-bundle.ts';
+import { createRecoveryBundle, recoveryWork } from './recovery-bundle.ts';
 import { evaluateV1ReleaseReadiness } from './release-readiness.ts';
 import { getSqlite } from './store.ts';
 import { createSupportBundle } from './support-bundle.ts';
@@ -76,7 +71,7 @@ export async function handleOperationsRequest(
       const body = record(request.body);
       return {
         status: 200,
-        body: verifyRecoveryBundle({
+        body: await recoveryWork('verify', {
           bundlePath: requiredString(body.bundlePath, 'bundlePath'),
           passphrase: requiredString(body.passphrase, 'passphrase'),
           bundleId: optionalString(body.bundleId),
@@ -93,7 +88,7 @@ export async function handleOperationsRequest(
       const body = record(request.body);
       return {
         status: 201,
-        body: restoreRecoveryBundle({
+        body: await recoveryWork('restore', {
           bundlePath: requiredString(body.bundlePath, 'bundlePath'),
           passphrase: requiredString(body.passphrase, 'passphrase'),
           destinationDataDirectory: requiredString(
@@ -114,7 +109,7 @@ export async function handleOperationsRequest(
       const body = record(request.body);
       return {
         status: 200,
-        body: rehearseRecoveryBundle({
+        body: await recoveryWork('rehearse', {
           bundleId: segments[2],
           bundlePath: requiredString(body.bundlePath, 'bundlePath'),
           passphrase: requiredString(body.passphrase, 'passphrase'),
