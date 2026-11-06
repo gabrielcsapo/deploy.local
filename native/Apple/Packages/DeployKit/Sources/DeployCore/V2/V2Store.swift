@@ -57,6 +57,38 @@ public struct V2Snapshot: Codable, Sendable {
     }
 }
 
+/// Decides when the events loop refreshes the snapshot. Every page asks for a refresh, even an empty
+/// one: new tasks and health are read from the snapshot, and computer availability has no event of
+/// its own. The first page after a quiet spell refreshes at once; a burst waits out `interval`, measured
+/// from the end of the last refresh, and the long poll shortens so the last events are not left
+/// waiting for a page that may be ten seconds away.
+struct V2RefreshPacer {
+    static let longPollMs = 10_000
+    let interval: Duration
+    private var pending = false
+    private var finishedAt: ContinuousClock.Instant?
+
+    init(interval: Duration) { self.interval = interval }
+
+    mutating func pageArrived() { pending = true }
+    /// A refresh reads everything up to now, so only pages after this point ask for another.
+    mutating func refreshStarted() { pending = false }
+    mutating func refreshFinished(at now: ContinuousClock.Instant) { finishedAt = now }
+    func shouldRefresh(at now: ContinuousClock.Instant) -> Bool {
+        pending && remaining(at: now) == .zero
+    }
+    func waitMs(at now: ContinuousClock.Instant) -> Int {
+        guard pending else { return Self.longPollMs }
+        let parts = remaining(at: now).components
+        let ms = parts.seconds * 1000 + (parts.attoseconds + 999_999_999_999_999) / 1_000_000_000_000_000
+        return Int(min(ms, Int64(Self.longPollMs)))
+    }
+    private func remaining(at now: ContinuousClock.Instant) -> Duration {
+        guard let finishedAt else { return .zero }
+        return max(.zero, interval - finishedAt.duration(to: now))
+    }
+}
+
 @Observable @MainActor public final class V2Store {
     public private(set) var snapshot = V2Snapshot()
     public private(set) var online = false
@@ -78,9 +110,11 @@ public struct V2Snapshot: Codable, Sendable {
     private var generation = 0
     private var flushing = false
     private var connectionError: String?
+    @ObservationIgnored private var pacer: V2RefreshPacer
 
-    public init(connection: Connection, client: V2Client? = nil, cacheDirectory: URL? = nil) {
+    public init(connection: Connection, client: V2Client? = nil, cacheDirectory: URL? = nil, refreshInterval: Duration = .seconds(2)) {
         self.connection = connection
+        pacer = V2RefreshPacer(interval: refreshInterval)
         self.client = client ?? V2Client(connection: connection)
         let key = V2Client.notificationScope(connection)
         let directory = cacheDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("deploy.local/v2")
@@ -134,11 +168,14 @@ public struct V2Snapshot: Codable, Sendable {
                 do {
                     if !self.online { await self.refresh() }
                     guard self.online else { try await Task.sleep(for: .seconds(2)); continue }
-                    let page = try await self.client.events(after: self.snapshot.cursor)
+                    let page = try await self.client.events(after: self.snapshot.cursor, waitMs: self.pacer.waitMs(at: .now))
                     guard current == self.generation, !Task.isCancelled else { return }
                     self.apply(page)
                     // Refresh snapshots for new tasks, updated health and computer availability.
-                    await self.refresh()
+                    // In this loop, not beside it: a refresh that started before a page must not
+                    // overwrite what that page just applied.
+                    self.pacer.pageArrived()
+                    if self.pacer.shouldRefresh(at: .now) { await self.refresh() }
                     if page.supportsWait != true { try await Task.sleep(for: .seconds(1)) }
                 } catch {
                     if Task.isCancelled { return }
@@ -170,6 +207,8 @@ public struct V2Snapshot: Codable, Sendable {
         snapshot.inbox.append(item)
     }
     public func refresh() async {
+        pacer.refreshStarted()
+        defer { pacer.refreshFinished(at: .now) }
         do {
             async let workspace = client.workspace()
             async let waiting = client.inbox()
