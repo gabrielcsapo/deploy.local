@@ -104,7 +104,6 @@ import {
   updateDeploymentSettings,
   updateDeploymentStatus,
   recordContainerStart,
-  getDiscoverableDeployments,
   getUploadsDir,
   addDeployEvent,
   getDeployHistory,
@@ -112,9 +111,6 @@ import {
   getRequestLogs,
   getRequestSummary,
   getCurrentHealth,
-  getDashboardAggregate,
-  getRequestSeries,
-  getTopErrorPaths,
   saveBackup,
   getBackups,
   deleteBackupRecord,
@@ -127,7 +123,6 @@ import {
   updateCurrentBuildLogId,
   getDeploymentEnvVars,
   getDeploymentVolumes,
-  getAllocatedMemory,
   getAllDeployments,
   isAdmin,
   createNodeEnrollment,
@@ -245,7 +240,6 @@ import {
   admitRepositoryRevision,
   rebaseApplicationRevision,
   repositoryUploadCanSkipRuntime,
-  renderParentRelativeApplicationPatch,
   RepositoryRevisionConflictError,
 } from './application-revision.ts';
 import { planApplicationExecution } from './application-execution.ts';
@@ -984,34 +978,6 @@ export function apiMiddleware(
           catalogTargets,
         );
         return json(res, response.body, response.status);
-      }
-
-      // ── Public discover API ──────────────────────────────────────────────
-
-      if (path === '/api/discover' && method === 'GET') {
-        const allDeps = getDiscoverableDeployments();
-        const statusMap = await getAllContainerStatuses();
-        const apps = allDeps.map((d) => ({
-          name: d.name,
-          type: d.type,
-          status: resolveStatusBatched(d, statusMap),
-        }));
-        return json(res, apps);
-      }
-
-      if (path === '/api/system/memory' && method === 'GET') {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        const systemBytes = totalmem();
-        const { totalBytes, perDeployment } = getAllocatedMemory();
-        return json(res, {
-          system: {
-            totalBytes: systemBytes,
-            allocatedBytes: totalBytes,
-            availableBytes: Math.max(0, systemBytes - totalBytes),
-          },
-          deployments: perDeployment,
-        });
       }
 
       // ── Auth routes ───────────────────────────────────────────────────────
@@ -4454,38 +4420,6 @@ export function apiMiddleware(
         }
       }
 
-      const deployPatchMatch = path.match(/^\/api\/deployments\/([^/]+)\/deploy\.patch\.yaml$/);
-      if (deployPatchMatch && method === 'GET') {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        const name = deployPatchMatch[1].toLowerCase();
-        const deployment = getDeployment(name);
-        if (!deployment || deployment.username !== auth.username) {
-          return error(res, 'Not found', 404);
-        }
-        const digest = deployment.desiredSpecDigest || deployment.activeSpecDigest;
-        const revision = digest ? getApplicationSpecRevision(name, digest) : null;
-        if (!revision || !digest) return error(res, 'Application manifest not found', 404);
-        const parentRevision = revision.parentDigest
-          ? getApplicationSpecRevision(name, revision.parentDigest)
-          : null;
-        const patch = renderParentRelativeApplicationPatch({
-          applicationName: name,
-          parentDigest: revision.parentDigest,
-          targetDigest: digest,
-          parent: parentRevision ? parseStoredApplicationSpec(parentRevision.normalizedSpec) : null,
-          target: parseStoredApplicationSpec(revision.normalizedSpec),
-        });
-        res.writeHead(200, {
-          'Content-Type': 'application/yaml; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${name}-deploy.patch.yaml"`,
-          'Content-Length': Buffer.byteLength(patch),
-          'Access-Control-Allow-Origin': '*',
-        });
-        res.end(patch);
-        return;
-      }
-
       const deployYamlMatch = path.match(/^\/api\/deployments\/([^/]+)\/deploy\.yaml$/);
       if (deployYamlMatch && method === 'GET') {
         const auth = requireAuth(req, res);
@@ -6065,16 +5999,6 @@ export function apiMiddleware(
 
       // ── Live dashboard data ────────────────────────────────────────────
 
-      // Roll-up of every deployment's current health + load: powers the
-      // global dashboard's aggregate strip and per-app cards in a single
-      // round-trip. Authed only — no per-app authz needed since the user
-      // already sees all their apps on the list anyway.
-      if (path === '/api/deployments/aggregate' && method === 'GET') {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        return json(res, getDashboardAggregate());
-      }
-
       const healthMatch = path.match(/^\/api\/deployments\/([^/]+)\/health$/);
       if (healthMatch && method === 'GET') {
         const auth = requireAuth(req, res);
@@ -6083,33 +6007,6 @@ export function apiMiddleware(
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         return json(res, getCurrentHealth(name));
-      }
-
-      const requestSeriesMatch = path.match(/^\/api\/deployments\/([^/]+)\/requests\/series$/);
-      if (requestSeriesMatch && method === 'GET') {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        const name = requestSeriesMatch[1];
-        const d = getDeployment(name);
-        if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        const url = new URL(req.url!, `http://${req.headers.host}`);
-        const now = Date.now();
-        const fromMs = parseInt(url.searchParams.get('from') || `${now - 3_600_000}`, 10);
-        const toMs = parseInt(url.searchParams.get('to') || `${now}`, 10);
-        return json(res, getRequestSeries(name, fromMs, toMs));
-      }
-
-      const topErrorsMatch = path.match(/^\/api\/deployments\/([^/]+)\/requests\/top-errors$/);
-      if (topErrorsMatch && method === 'GET') {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        const name = topErrorsMatch[1];
-        const d = getDeployment(name);
-        if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        const url = new URL(req.url!, `http://${req.headers.host}`);
-        const fromMs = parseInt(url.searchParams.get('from') || `${Date.now() - 86_400_000}`, 10);
-        const limit = parseInt(url.searchParams.get('limit') || '10', 10);
-        return json(res, getTopErrorPaths(name, fromMs, limit));
       }
 
       // ── Request logs API ───────────────────────────────────────────────

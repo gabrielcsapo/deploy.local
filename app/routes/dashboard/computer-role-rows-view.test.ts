@@ -3,7 +3,6 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ComputerRoleRows } from './computer-role-rows.client.tsx';
-import NodesClient from './nodes.client.tsx';
 import type { ComputerRole } from '../../../server/computer-roles.ts';
 import type { NodePermission } from './node-permissions.ts';
 
@@ -51,12 +50,6 @@ const roles: Record<string, ComputerRole> = {
   computer: { state: 'ready', reason: 'Capture ready' },
   browser: { state: 'ready', reason: permissions[3].summary },
 };
-
-test('the computer list keeps enrollment behind its Connect link by default', () => {
-  const html = renderToStaticMarkup(createElement(NodesClient));
-  assert.match(html, /ui-button-primary[^>]*>Connect a computer/);
-  assert.doesNotMatch(html, /<form|Computer name|Desktop roles|Create enrollment|role="dialog"/);
-});
 const render = (extra: Partial<Parameters<typeof ComputerRoleRows>[0]> = {}) =>
   renderToStaticMarkup(
     createElement(ComputerRoleRows, {

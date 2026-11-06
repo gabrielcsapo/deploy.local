@@ -1,4 +1,3 @@
-import { stringify } from 'yaml';
 import {
   compileApplicationManifest,
   renderRepositoryDeployYaml,
@@ -106,30 +105,6 @@ export function rebaseApplicationRevision(input: {
   };
 }
 
-/** A reviewable RFC-7396-style patch anchored to one immutable parent digest. */
-export function renderParentRelativeApplicationPatch(input: {
-  applicationName: string;
-  parentDigest: string | null;
-  targetDigest: string;
-  parent: ApplicationSpec | null;
-  target: ApplicationSpec;
-}): string {
-  const patch = mergePatch(input.parent ?? {}, input.target);
-  return stringify(
-    {
-      apiVersion: 'deploy.local/v1',
-      kind: 'ApplicationPatch',
-      metadata: {
-        application: input.applicationName,
-        parentDigest: input.parentDigest,
-        targetDigest: input.targetDigest,
-      },
-      patch,
-    },
-    { lineWidth: 0, sortMapEntries: true },
-  );
-}
-
 function mergeValue(
   base: MaybeValue,
   current: MaybeValue,
@@ -162,24 +137,6 @@ function mergeValue(
 
   conflicts.push(pointer(path));
   return cloneMaybe(current);
-}
-
-function mergePatch(before: unknown, after: unknown): unknown {
-  if (same(before, after)) return {};
-  if (!isRecord(before) || !isRecord(after)) return structuredClone(after);
-  const result: Record<string, unknown> = {};
-  for (const key of [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()) {
-    if (!Object.hasOwn(after, key)) {
-      result[key] = null;
-      continue;
-    }
-    if (!Object.hasOwn(before, key)) {
-      result[key] = structuredClone(after[key]);
-      continue;
-    }
-    if (!same(before[key], after[key])) result[key] = mergePatch(before[key], after[key]);
-  }
-  return result;
 }
 
 function cloneMaybe(value: MaybeValue): MaybeValue {

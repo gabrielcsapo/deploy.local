@@ -393,32 +393,3 @@ export function ingestFleetTelemetryRecords(
   transaction.immediate();
   return { acceptedThrough, replayed };
 }
-
-/** Latest revision per site/kind/logical record for admin projections. */
-export function listLatestFleetTelemetry(
-  deploymentName: string,
-  kind?: FleetTelemetryKind,
-): WireFleetTelemetryRecord[] {
-  const conditions = ['records.deployment_name = ?'];
-  const args: unknown[] = [deploymentName];
-  if (kind) {
-    conditions.push('records.kind = ?');
-    args.push(kind);
-  }
-  return (
-    getSqlite()!
-      .prepare(
-        `SELECT records.* FROM fleet_telemetry_records records
-          WHERE ${conditions.join(' AND ')}
-            AND records.origin_sequence = (
-              SELECT MAX(candidate.origin_sequence)
-                FROM fleet_telemetry_records candidate
-               WHERE candidate.origin_site_id = records.origin_site_id
-                 AND candidate.kind = records.kind
-                 AND candidate.logical_key = records.logical_key
-            )
-          ORDER BY records.observed_at DESC`,
-      )
-      .all(...args) as Array<Record<string, unknown>>
-  ).map(wireFromRow);
-}

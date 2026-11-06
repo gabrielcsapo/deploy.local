@@ -275,10 +275,6 @@ export function notifyCertReload() {
   lazySend({ t: 'cert:reload' });
 }
 
-export function notifyCachePurge(name: string) {
-  lazySend({ t: 'cache:purge', name });
-}
-
 /** Test/reset hook: drop the lazy client so the next notify re-dials. */
 export function _resetIpcClient() {
   lazyClient?.close();

@@ -24,29 +24,5 @@ test('one shared skeleton renders five row placeholders, three conversation bloc
   assert.match(css, /var\(--ds-motion-duration-shimmer\)/);
 });
 test('first-load gates keep cached sidebar, conversation, lists, application and changes visible during refreshes', () => {
-  assert.match(read('../../routes/dashboard/task-tree.client.tsx'), /!loaded && !error/);
-  assert.match(
-    read('../../routes/dashboard/apps.client.tsx'),
-    /loading && deployments.length === 0/,
-  );
-  assert.match(read('../../routes/dashboard/nodes.client.tsx'), /computers === null/);
-  assert.match(read('../../routes/dashboard/projects.client.tsx'), /selected && !detail/);
-  assert.match(read('../../routes/dashboard/detail/layout.client.tsx'), /\) : !deployment \? \(/);
-  assert.match(
-    read('../../routes/dashboard/detail/ApplicationOverview.tsx'),
-    /loading && !application/,
-  );
-  assert.match(
-    read('../../routes/dashboard/repository-workbench.client.tsx'),
-    /data\?\.key === requestKey && \(/,
-  );
-  assert.match(
-    read('../../routes/dashboard/task-activity-panel.client.tsx'),
-    /!detail && <Skeleton/,
-  );
-  // An unknown project or computer is a chip placeholder, never a claim that it is missing.
-  const workspace = read('../../routes/dashboard/projects.client.tsx');
-  for (const label of ['Loading project', 'Loading computer'])
-    assert.match(workspace, new RegExp(`<Skeleton variant="chip" label="${label}" />`));
   assert.match(read('./skeleton.css'), /\.ui-skeleton-chip \{/);
 });

@@ -93,7 +93,7 @@ Plan critique before implementation: changing the system font or adding a decora
 
 ## Implementation and verification
 
-Changed web `projects.client.tsx`, `workspace.css`, and the project dialog’s SVG close control in `project-hub.client.tsx`; native `WorkspaceView.swift`, `WorkspaceStyle.swift`, `AgentControls.swift`, and `VoiceInput.swift`. No server, authentication, draft, or transport code changed. The existing selected-task transcript identity and closed-computer-view accessibility guard remain intact.
+Changed web `workspace.css`,; native `WorkspaceView.swift`, `WorkspaceStyle.swift`, `AgentControls.swift`, and `VoiceInput.swift`. No server, authentication, draft, or transport code changed. The existing selected-task transcript identity and closed-computer-view accessibility guard remain intact.
 
 TypeScript typecheck, targeted lint, and targeted formatting passed. Native build and interactive visual acceptance are owned by the parent task; final evidence will be appended after capture. Existing baseline captures remain unchanged.
 

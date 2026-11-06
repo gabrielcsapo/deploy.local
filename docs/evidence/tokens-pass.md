@@ -96,7 +96,7 @@ swift build --package-path native/Apple/Packages/DeployKit \
 
 ## Rendered review
 
-The repository's visual audit ran outside the sandbox against a seeded demo server (`scripts/visual-audit-demo.mjs`). The seed still creates retired portable-site rows that `assertHomeCoordinator` rejects at startup, so a scratch wrapper removed those rows after seeding. The demo fixture needs its own fix.
+The repository's visual audit ran outside the sandbox against a seeded demo server. The seed still creates retired portable-site rows that `assertHomeCoordinator` rejects at startup, so a scratch wrapper removed those rows after seeding.
 
 - Dark, desktop and mobile, against an untouched 3179c28 build: both produced 52 captures, with the same 61 failing flows and 32 browser errors. Those failures come from stale audit flows such as `signal-*`, `topology-zoom` and the inspectors, and none is a regression. Applications and the application overview show the solid action, sentence-case status badges (healthy dot, hollow inactive, amber attention) and neutral surfaces.
 - Light, desktop: the first light ladder made the page lighter than its surfaces, so the composer, selects and secondary buttons rendered as grey fills that read as disabled. The ladder was corrected to the values above. A re-capture shows white composer, field and button surfaces on the light canvas.

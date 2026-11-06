@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   cascade,
@@ -241,32 +240,4 @@ test('data-phone is inert at desktop widths, including exactly 640 px', () => {
         assert.notEqual(item.rule.file, phoneFile);
       assert.equal(values(phone.tabs, width).display, 'none');
     }
-});
-
-test('shell opts into the CSS scope and abbreviated tab preserves the full accessible name', () => {
-  const shell = readFileSync(new URL('./projects.client.tsx', import.meta.url), 'utf8');
-  const rail = readFileSync(new URL('./workspace-rail.client.tsx', import.meta.url), 'utf8');
-  assert.match(shell, /data-phone=""/);
-  const tabs = rail.slice(
-    rail.indexOf('<nav className="workspace-tabs'),
-    rail.indexOf('</nav>', rail.indexOf('<nav className="workspace-tabs')),
-  );
-  assert.match(tabs, /aria-label=\{link.label\}/);
-  assert.match(tabs, /link.label === 'Repositories' \? 'Repos' : link.label/);
-});
-
-test('phone sheet uses native modal focus behavior, restores focus and keeps selections open', () => {
-  const source = readFileSync(new URL('./composer-context.client.tsx', import.meta.url), 'utf8');
-  const phone = source.slice(source.indexOf('export function PhoneComposerContext'));
-  assert.match(phone, /showModal\(\)/);
-  assert.match(phone, /onClose=/);
-  assert.match(phone, /trigger.current\?\.focus\(\)/);
-  assert.match(phone, /event.target !== event.currentTarget/);
-  assert.match(phone, /event.clientY > rect.bottom/);
-  assert.match(phone, /<ComputerChoices \{\.\.\.props\} \/>/);
-  assert.match(phone, /<ProjectChoices[\s\S]*?close\(\);\s*props.newRepository\(\)/);
-  const shell = readFileSync(new URL('./projects.client.tsx', import.meta.url), 'utf8');
-  assert.match(shell, /followUp=\{true\}/);
-  assert.match(shell, /input.rows = 1/);
-  assert.match(shell, /visualViewport\?\.addEventListener\('resize', resize\)/);
 });

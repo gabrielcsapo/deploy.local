@@ -20,7 +20,6 @@
     "test": "node scripts/flight-router.mjs && node scripts/test.mjs",
     "typecheck": "node scripts/flight-router.mjs && tsc --noEmit",
     "audit:visual": "node scripts/visual-audit.mjs",
-    "audit:visual:demo": "node scripts/visual-audit.mjs --demo",
     "audit:visual:install": "playwright install chromium",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
