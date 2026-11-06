@@ -1,11 +1,10 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import type { Release } from '../../../../../shared/v2/contracts';
-import { authenticatedFetch } from '../data/hooks';
-import { requestJson, updateTaskFromEvents, type TaskStreamEvent } from './api';
+import { authenticatedFetch, eventFeed } from '../data/hooks';
+import { requestJson, updateTaskFromEvents } from './api';
 import type { TaskView } from './types';
 
-type Stream = { cursor: number; events: TaskStreamEvent[] };
 export function useTask(id: string) {
   const [view, setView] = useState<TaskView | null>(null);
   const [error, setError] = useState('');
@@ -24,21 +23,7 @@ export function useTask(id: string) {
     [],
   );
   useEffect(() => {
-    const reset = (event: StorageEvent) => {
-      if (event.key !== 'deploy-sh-auth' && event.key !== null) return;
-      setView(null);
-      setError('');
-      refresh();
-    };
-    window.addEventListener('storage', reset);
-    return () => window.removeEventListener('storage', reset);
-  }, [refresh]);
-  useEffect(() => {
-    const controller = new AbortController();
-    const signal = controller.signal;
-    let timer: ReturnType<typeof setTimeout>;
-    let cursor = 0;
-    async function start() {
+    async function start(signal: AbortSignal) {
       try {
         const data = await requestJson<TaskView>(
           authenticatedFetch,
@@ -46,16 +31,16 @@ export function useTask(id: string) {
           { signal },
         );
         if (signal.aborted) return;
-        cursor = data.cursor;
         setView((old) => ({
           ...data,
           releases: old?.task.id === id ? old.releases : data.releases,
         }));
         setError('');
-        void poll();
-        if (data.project) {
+        const project = data.project;
+        async function loadReleases() {
+          if (!project) return;
           const response = await authenticatedFetch(
-            `/api/v2/projects/${encodeURIComponent(data.project.id)}/releases`,
+            `/api/v2/projects/${encodeURIComponent(project.id)}/releases`,
             { signal },
           );
           if (response.ok) {
@@ -76,32 +61,45 @@ export function useTask(id: string) {
               );
           }
         }
+        void loadReleases().catch((reason) => {
+          if (!signal.aborted)
+            setError(reason instanceof Error ? reason.message : 'Task unavailable.');
+        });
       } catch (reason) {
         if (!signal.aborted)
           setError(reason instanceof Error ? reason.message : 'Task unavailable.');
+        return false;
       }
     }
-    async function poll() {
-      try {
-        const page = await requestJson<Stream>(
-          authenticatedFetch,
-          `/api/v2/events?after=${cursor}&waitMs=10000`,
-          { signal },
+    const unsubscribe = eventFeed.subscribe({
+      snapshot: start,
+      events(events) {
+        setView((old) =>
+          old
+            ? updateTaskFromEvents(
+                old,
+                events.filter(
+                  (event) =>
+                    event.type === 'conversation' ||
+                    event.type === 'inbox' ||
+                    event.type === 'release',
+                ),
+              )
+            : old,
         );
-        if (signal.aborted) return;
-        cursor = page.cursor;
-        setView((old) => (old ? updateTaskFromEvents(old, page.events) : old));
         setError('');
-      } catch {
-        if (!signal.aborted) setError('Live updates interrupted. Reconnecting…');
-      }
-      if (!signal.aborted) timer = setTimeout(() => void poll(), 1000);
-    }
-    void start();
+      },
+      error(_reason, phase) {
+        if (phase !== 'snapshot') setError('Live updates interrupted. Reconnecting…');
+      },
+      reset() {
+        setView(null);
+        setError('');
+      },
+    });
     const interval = setInterval(refresh, 15000);
     return () => {
-      controller.abort();
-      clearTimeout(timer);
+      unsubscribe();
       clearInterval(interval);
     };
   }, [id, version, refresh]);

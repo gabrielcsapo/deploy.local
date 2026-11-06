@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { getAuth } from '../../detail/shared';
+import { createEventFeed } from './event-feed';
 import { createInboxStore } from './inbox-store';
 import { readResource } from './sidebar';
 import { agentName } from '../inbox/presentation';
@@ -67,6 +68,7 @@ export const authenticatedFetch: typeof fetch = (input, init) => {
   return fetch(input, { ...init, headers, credentials: 'same-origin' }).then((response) => {
     if (
       response.status === 401 &&
+      !init?.signal?.aborted &&
       !response.url.endsWith('/api/v2/auth/account') &&
       window.location.pathname.startsWith('/dashboard')
     )
@@ -74,16 +76,18 @@ export const authenticatedFetch: typeof fetch = (input, init) => {
     return response;
   });
 };
+export const eventFeed = createEventFeed(authenticatedFetch);
+const authResetListeners = new Set<() => void>();
+export function onAuthReset(listener: () => void) {
+  authResetListeners.add(listener);
+  return () => {
+    authResetListeners.delete(listener);
+  };
+}
+
 const InboxContext = createContext<ReturnType<typeof createInboxStore> | null>(null);
 export function InboxProvider({ children }: { children: ReactNode }) {
-  const [store] = useState(() => createInboxStore(authenticatedFetch));
-  useEffect(() => {
-    const reset = (event: StorageEvent) => {
-      if (event.key === 'deploy-sh-auth' || event.key === null) store.reset();
-    };
-    window.addEventListener('storage', reset);
-    return () => window.removeEventListener('storage', reset);
-  }, [store]);
+  const [store] = useState(() => createInboxStore(authenticatedFetch, eventFeed));
   return <InboxContext.Provider value={store}>{children}</InboxContext.Provider>;
 }
 export function useInbox() {
@@ -104,7 +108,10 @@ export function useInbox() {
 const resources = new Map<string, unknown>();
 if (typeof window !== 'undefined')
   window.addEventListener('storage', (event) => {
-    if (event.key === 'deploy-sh-auth' || event.key === null) resources.clear();
+    if (event.key !== 'deploy-sh-auth' && event.key !== null) return;
+    resources.clear();
+    eventFeed.reset();
+    for (const reset of authResetListeners) reset();
   });
 export const remembered = <T,>(path: string) => resources.get(path) as T | undefined;
 export const remember = (path: string, data: unknown) => resources.set(path, data);
@@ -133,8 +140,7 @@ export function useResource<T>(path: string, optional = false) {
       }
       if (!signal.aborted) timer = setTimeout(() => void refresh(), 10000);
     };
-    const reset = (event: StorageEvent) => {
-      if (event.key !== 'deploy-sh-auth' && event.key !== null) return;
+    const reset = () => {
       controller?.abort();
       clearTimeout(timer);
       setState({ data: null, loading: true, error: false });
@@ -147,11 +153,11 @@ export function useResource<T>(path: string, optional = false) {
       void refresh();
     };
     window.addEventListener('deploy:agents-changed', changed);
-    window.addEventListener('storage', reset);
+    const offReset = onAuthReset(reset);
     return () => {
       controller?.abort();
       clearTimeout(timer);
-      window.removeEventListener('storage', reset);
+      offReset();
       window.removeEventListener('deploy:agents-changed', changed);
     };
   }, [path, optional]);

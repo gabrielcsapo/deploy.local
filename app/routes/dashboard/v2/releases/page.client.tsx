@@ -22,24 +22,18 @@ import type {
   Rollback,
   RollbackDataLoss,
 } from '../../../../../shared/v2/contracts';
-import type { V2EventsResponse } from '../../../../../shared/v2/api';
-import { getAuth } from '../../detail/shared';
+import { authenticatedFetch, eventFeed } from '../data/hooks';
 import './releases.css';
 import { projectPath, projectTabItems } from '../projects/routing';
 import { useData, request as workspaceRequest, type Overview } from '../projects/data';
 import { formatTime } from '../data/time';
-import { eventSnapshotCursor } from '../data/event-snapshot';
 import { missingVariable } from './presentation';
 
-function headers() {
-  const auth = getAuth();
-  return {
-    'Content-Type': 'application/json',
-    ...(auth ? { 'x-deploy-username': auth.username, 'x-deploy-token': auth.token } : {}),
-  };
-}
 async function request(path: string, options: RequestInit = {}) {
-  const response = await fetch(`/api/v2${path}`, { ...options, headers: headers() });
+  const response = await authenticatedFetch(`/api/v2${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json' },
+  });
   const body = await response.json();
   if (!response.ok)
     throw Object.assign(new Error(body.error || 'Request failed'), { dataLoss: body.dataLoss });
@@ -118,20 +112,19 @@ export default function Releases() {
   const overview = useData<Overview>(`/api/v2/projects/${encodeURIComponent(projectKey)}/overview`);
   const apiProject = `/projects/${encodeURIComponent(projectKey)}`;
   useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let loaded = false;
     setReleases(undefined);
     setProject(undefined);
     setError('');
     setDialog(false);
-    async function sync() {
+    async function sync(signal: AbortSignal) {
       try {
         const [projectsResponse, releaseResponse, rollbackResponse] = await Promise.all([
-          request('/projects', { signal: controller.signal }),
-          request(`${apiProject}/releases`, { signal: controller.signal }),
-          request(`${apiProject}/rollbacks`, { signal: controller.signal }),
+          request('/projects', { signal }),
+          request(`${apiProject}/releases`, { signal }),
+          request(`${apiProject}/rollbacks`, { signal }),
         ]);
-        if (controller.signal.aborted) return false;
+        if (signal.aborted) return false;
         const projects: Project[] = projectsResponse.projects;
         const selected =
           projects.find((p) => p.id === projectKey) || projects.find((p) => p.name === projectKey);
@@ -139,43 +132,33 @@ export default function Releases() {
         setReleases(releaseResponse.releases);
         setRollbacks(rollbackResponse.rollbacks);
         setError('');
+        loaded = true;
         return true;
       } catch (error) {
-        if (!controller.signal.aborted)
+        if (!signal.aborted)
           setError(error instanceof Error ? error.message : 'Releases are unavailable');
         return false;
       }
     }
-    async function poll(cursor?: number) {
-      try {
-        if (cursor === undefined)
-          cursor = await eventSnapshotCursor(
-            () => request('/events?after=latest', { signal: controller.signal }),
-            sync,
-            controller.signal,
-          );
-        const response: V2EventsResponse = await request(`/events?after=${cursor}&waitMs=10000`, {
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) return;
-        if (response.events.some((event) => event.type === 'release' || event.type === 'rollback'))
-          await sync();
-        timer = setTimeout(() => void poll(response.cursor), 100);
-      } catch {
-        if (!controller.signal.aborted) {
+    return eventFeed.subscribe({
+      snapshot: sync,
+      async events(events, signal) {
+        if (events.some((event) => event.type === 'release' || event.type === 'rollback'))
+          if (!(await sync(signal))) throw new Error('Snapshot unavailable');
+      },
+      error(_reason, phase) {
+        if (phase === 'connection' || !loaded)
           setError('Live updates are unavailable. Reconnecting…');
-          timer = setTimeout(() => {
-            if (cursor !== undefined) void sync();
-            void poll(cursor);
-          }, 3000);
-        }
-      }
-    }
-    void poll();
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
+      },
+      reset() {
+        loaded = false;
+        setReleases(undefined);
+        setProject(undefined);
+        setRollbacks([]);
+        setError('');
+        setDialog(false);
+      },
+    });
   }, [projectKey, apiProject, retry]);
   const selected =
     releases?.find((release) => release.id === releaseId) ||

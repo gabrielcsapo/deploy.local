@@ -40,7 +40,11 @@ test('one feed serves multiple hook subscribers, consumes cursor and aborts on u
     if (String(url).includes('after=latest'))
       return json({ events: [], cursor: 7, supportsWait: true });
     if (String(url).includes('after=7&'))
-      return json({ events: [{ type: 'inbox', item: answered }], cursor: 42, supportsWait: true });
+      return json({
+        events: [{ type: 'inbox', cursor: 42, item: answered }],
+        cursor: 42,
+        supportsWait: true,
+      });
     eventSignal = init?.signal;
     return pending(init?.signal);
   };
@@ -98,8 +102,8 @@ test('snapshot answer survives stale waiting events; expired decisions leave the
     if (String(url).includes('after=0&'))
       return json({
         events: [
-          { type: 'inbox', item },
-          { type: 'inbox', item: expired },
+          { type: 'inbox', cursor: 1, item },
+          { type: 'inbox', cursor: 3, item: expired },
         ],
         cursor: 3,
       });
@@ -150,7 +154,7 @@ test('account reset clears private data and ignores late responses from the old 
   await tick();
   reset = true;
   store.reset();
-  finish?.(json({ events: [{ type: 'inbox', item: answered }], cursor: 20 }));
+  finish?.(json({ events: [{ type: 'inbox', cursor: 42, item: answered }], cursor: 20 }));
   await tick();
   assert.deepEqual(store.getSnapshot().items, []);
   off();

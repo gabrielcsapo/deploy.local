@@ -1,17 +1,20 @@
 import type { InboxItem } from '../../../../../shared/v2/contracts.ts';
-import type { InboxResponse, V2EventsResponse } from '../../../../../shared/v2/api.ts';
+import type { InboxResponse } from '../../../../../shared/v2/api.ts';
+
+import { createEventFeed, type EventFeed } from './event-feed.ts';
 
 export type InboxSnapshot = { items: InboxItem[]; loading: boolean; error: string | null };
 const initial: InboxSnapshot = { items: [], loading: true, error: null };
 
 /** One subscription and cursor shared by the sidebar, inbox and conversation decisions. */
-export function createInboxStore(request: typeof fetch) {
+export function createInboxStore(
+  request: typeof fetch,
+  feed: EventFeed = createEventFeed(request),
+) {
   let snapshot = initial;
   const listeners = new Set<() => void>();
   let controller: AbortController | undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let cursor = 0;
-  let retryMs = 1000;
+  let unsubscribe: (() => void) | undefined;
   const publish = (next: InboxSnapshot) => {
     snapshot = next;
     for (const listener of listeners) listener();
@@ -44,41 +47,30 @@ export function createInboxStore(request: typeof fetch) {
     );
     if (!signal.aborted) upsert(pages.flatMap((page) => page.items));
   }
-  async function poll(signal: AbortSignal, bootstrap = false) {
-    try {
-      if (bootstrap) {
-        // Take the newest position before the snapshot, so nothing between them is missed and
-        // the history the snapshot already holds is not replayed.
-        if (!cursor)
-          cursor = (await read<V2EventsResponse>('/api/v2/events?after=latest', signal)).cursor;
-        await refresh(signal);
-      }
-      const page = await read<V2EventsResponse>(
-        `/api/v2/events?after=${cursor}&waitMs=10000`,
-        signal,
-      );
-      if (signal.aborted) return;
-      cursor = page.cursor;
-      if (page.events.some((event) => event.type === 'agent') && typeof window !== 'undefined')
-        window.dispatchEvent(new Event('deploy:agents-changed'));
-      upsert(page.events.flatMap((event) => (event.type === 'inbox' ? [event.item] : [])));
-      retryMs = 1000;
-      timer = setTimeout(() => void poll(signal), page.events.length ? 0 : 100);
-    } catch {
-      if (signal.aborted) return;
-      publish({ ...snapshot, loading: false, error: 'Waiting on you is unavailable. Retrying…' });
-      timer = setTimeout(() => void poll(signal, bootstrap), retryMs);
-      retryMs = Math.min(retryMs * 2, 10000);
-    }
-  }
   function stop() {
     controller?.abort();
     controller = undefined;
-    clearTimeout(timer);
+    unsubscribe?.();
+    unsubscribe = undefined;
   }
   function start() {
     controller = new AbortController();
-    void poll(controller.signal, true);
+    unsubscribe = feed.subscribe({
+      snapshot: refresh,
+      events(events) {
+        if (events.some((event) => event.type === 'agent') && typeof window !== 'undefined')
+          window.dispatchEvent(new Event('deploy:agents-changed'));
+        upsert(events.flatMap((event) => (event.type === 'inbox' ? [event.item] : [])));
+      },
+      error() {
+        publish({ ...snapshot, loading: false, error: 'Waiting on you is unavailable. Retrying…' });
+      },
+      reset() {
+        controller?.abort();
+        controller = new AbortController();
+        publish(initial);
+      },
+    });
   }
   return {
     getSnapshot: () => snapshot,
@@ -93,8 +85,6 @@ export function createInboxStore(request: typeof fetch) {
     },
     reset() {
       stop();
-      cursor = 0;
-      retryMs = 1000;
       publish(initial);
       if (listeners.size) start();
     },
