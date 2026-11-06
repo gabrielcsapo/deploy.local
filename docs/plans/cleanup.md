@@ -1,10 +1,10 @@
 # Cleanup: easier to maintain, safer to update, faster to use
 
-Status: approved by the owner on 2026-11-06. In progress.
+Status: done on 2026-11-06. All nine steps are on main and live on SER. See Results.
 
-Starts when Packages is verified, meaning a SER release installs through the registry with no fallback. That isn't true yet: the 3a47324f release failed on `@pnpm/exe` and retried without the registry. Waiting also keeps this work from colliding with the Packages changes.
+Started once a SER release had installed through the registry with no fallback (c086eb71).
 
-Measured on 2026-11-05 against main and SER at 3a47324f. "Audit" marks something read from the code but not yet measured or independently rechecked.
+The findings below were measured on 2026-11-05 against main and SER at 3a47324f. "Audit" marks something read from the code but not yet measured or independently rechecked.
 
 ## What we found
 
@@ -88,11 +88,26 @@ The Mac app is the Electron app in `desktop/`, as on Windows and Linux. Retire t
 
 Codex implements on its own branch. Claude verifies, measures against step 1 and commits. SER releases only on the owner's go-ahead, as today.
 
+## Results
+
+Measured on SER against the start of this plan. Timings are medians of 5 reads.
+
+| Measure                          | Before           | After                   |
+| -------------------------------- | ---------------- | ----------------------- |
+| Web source in `app/`             | 67,504 lines     | 35,709 lines            |
+| Projects list                    | 737 ms           | 76–102 ms               |
+| Stylesheets on a dashboard page  | 44 files, 745 KB | 10–12 files, 255–313 KB |
+| Same, compressed                 | 135 KB           | 45–56 KB                |
+| `deploy.db`                      | 2.7 GB           | 0.31 GB                 |
+| Live connections per browser tab | up to 4          | 1                       |
+| `server/api.ts`                  | 6,295 lines      | 201 lines               |
+| `server/store.ts`                | 3,356 lines      | 126 lines               |
+
 ## Decisions
 
-The owner confirmed the Mac app is the Electron app. The rest were left open, so this plan takes the choice that loses nothing:
+The owner confirmed the Mac app is the Electron app. The rest were left open, so this plan took the choice that loses nothing:
 
 1. **Wander and Groffee migrations:** kept. Both apps still exist on SER.
-2. **Request logs:** raw logs stay at the 90-day setting (84 days exist today). Step 6 moves them without shortening that.
+2. **Request logs:** raw logs stay at the 90-day setting. Step 6 moved them without shortening that.
 3. **Old backups:** nothing is deleted without the owner's word.
 4. **`/api/discover` and `embed/computers`:** removed if a final search finds no caller.
