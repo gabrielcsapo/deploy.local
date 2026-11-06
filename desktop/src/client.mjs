@@ -193,6 +193,11 @@ export class CoordinatorClient {
   inbox() {
     return this.request('/api/v2/inbox?state=waiting');
   }
+  async inboxSnapshot(cursor) {
+    // Capture the position first: decisions arriving during the list read are replayed.
+    const after = cursor ?? (await this.events('latest')).cursor;
+    return { ...(await this.inbox()), cursor: after };
+  }
   async live() {
     try {
       return await this.request('/api/v2/live');
@@ -223,7 +228,9 @@ export class CoordinatorClient {
     });
   }
   events(cursor) {
-    return this.request(`/api/v2/events?after=${encodeURIComponent(cursor)}&waitMs=10000`);
+    return this.request(
+      `/api/v2/events?after=${encodeURIComponent(cursor)}${cursor === 'latest' ? '' : '&waitMs=10000'}`,
+    );
   }
   answer(id, actionId, note) {
     return this.request(`/api/v2/inbox/${encodeURIComponent(id)}/answer`, {

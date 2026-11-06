@@ -446,3 +446,31 @@ test('Mac update subscription strips the IPC event and unsubscribes; other platf
     assert.equal(listeners.has('desktop:update'), false);
   }
 });
+
+test('new desktop inbox takes latest before its snapshot and resumes that cursor', async () => {
+  const client = new CoordinatorClient('https://deploy.local');
+  const paths = [];
+  client.request = async (path) => {
+    paths.push(path);
+    if (path === '/api/v2/events?after=latest') return { events: [], cursor: 42 };
+    if (path === '/api/v2/inbox?state=waiting') return { items: [item] };
+    assert.equal(path, '/api/v2/events?after=42&waitMs=10000');
+    return { events: [{ type: 'inbox', item: { ...item, state: 'answered' } }], cursor: 43 };
+  };
+  const model = new InboxModel();
+  const snapshot = await client.inboxSnapshot(model.cursor);
+  model.cursor = snapshot.cursor;
+  model.replace(snapshot.items);
+  model.apply(await client.events(model.cursor));
+  assert.equal(model.waiting().length, 0);
+  await client.inboxSnapshot(model.cursor);
+  assert.deepEqual(paths, [
+    '/api/v2/events?after=latest',
+    '/api/v2/inbox?state=waiting',
+    '/api/v2/events?after=42&waitMs=10000',
+    '/api/v2/inbox?state=waiting',
+  ]);
+  paths.length = 0;
+  await client.inboxSnapshot(0);
+  assert.deepEqual(paths, ['/api/v2/inbox?state=waiting']);
+});

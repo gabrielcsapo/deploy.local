@@ -7,7 +7,7 @@ import {
 import type { Project } from '../../shared/v2/contracts.ts';
 import { getDeployments, getApplicationSpecRevision, getSqlite } from '../store.ts';
 import { list } from '../workspace/store.ts';
-import { repositoryInfo } from '../workspace/repositories.ts';
+import { repositoryApplication } from '../workspace/repositories.ts';
 import { parseStoredApplicationSpec } from '../application-spec.ts';
 import { fail } from './inbox.ts';
 
@@ -33,14 +33,12 @@ export function groupProjects(
 
 export async function projectsForOwner(owner: string): Promise<Project[]> {
   const projects = list('project', owner).map(({ id, name }) => ({ id, name }));
-  // Read every repository at once; one at a time made the list wait on each in turn.
+  // Only inspect manifests when their committed main revision changes.
   const links = (
     await Promise.all(
       projects.map(async (project) => {
-        const repository = await repositoryInfo(owner, project.id);
-        return 'deployment' in repository && repository.deployment.application
-          ? [{ projectId: project.id, application: repository.deployment.application }]
-          : [];
+        const application = await repositoryApplication(owner, project.id);
+        return application ? [{ projectId: project.id, application }] : [];
       }),
     )
   ).flat();
@@ -70,15 +68,25 @@ export async function projectsForOwner(owner: string): Promise<Project[]> {
           .get(link.application, owner),
     ),
   );
-  database.transaction(() => {
-    for (const project of grouped)
-      for (const app of project.apps)
+  const changes = grouped.flatMap((project) =>
+    project.apps
+      .filter(
+        (app) =>
+          !database
+            .prepare('SELECT 1 FROM project_applications WHERE application=? AND owner=?')
+            .get(app.name, owner),
+      )
+      .map((app) => ({ application: app.name, projectId: project.id })),
+  );
+  if (changes.length)
+    database.transaction(() => {
+      for (const change of changes)
         database
           .prepare(
             'INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?) ON CONFLICT(application) DO UPDATE SET owner=excluded.owner,project_id=excluded.project_id,configuration_migrated=0 WHERE owner<>excluded.owner',
           )
-          .run(app.name, owner, project.id);
-  })();
+          .run(change.application, owner, change.projectId);
+    })();
   const persisted = database
     .prepare('SELECT project_id AS projectId, application FROM project_applications WHERE owner=?')
     .all(owner) as { projectId: string; application: string }[];

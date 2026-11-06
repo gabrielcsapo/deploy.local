@@ -2,13 +2,13 @@
 import { formatTime } from '../data/time';
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Action, Banner, Dialog, Field, Group, Item } from '@/components/ui';
+import { Action, Banner, Field, Group, Item } from '@/components/ui';
 import { useLocation } from 'react-flight-router/client';
 import { api, addPasskey, trusted } from '../../../v2-public/client';
 import { offerPasskey } from '../../../v2-public/auth-policy';
-import { SignInForm } from '../../../v2-public/page.client';
 import '../../../v2-public/public.css';
 import './start.css';
+export { SessionExpired } from './SessionExpired';
 import SshKeysSettings from '../../ssh-keys.client';
 import { SettingsFrame } from '../settings/frame.client';
 import { useCoordinatorName } from '../data/hooks';
@@ -64,43 +64,6 @@ export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
       />
       {error && <Banner kind="danger" title={error} />}
     </div>
-  );
-}
-export function SessionExpired({ initiallyExpired = false }: { initiallyExpired?: boolean }) {
-  const [expired, setExpired] = useState(initiallyExpired);
-  const [password, setPassword] = useState(false);
-  useEffect(() => {
-    // The probe catches expiry while preserving the mounted page and unsent drafts.
-    const check = () =>
-      api('/api/v2/auth/account').catch((error) => {
-        if (error.status === 401) setExpired(true);
-      });
-    const listener = () => void check();
-    window.addEventListener('deploy:session-expired', listener);
-    void check();
-    const timer = setInterval(() => void check(), 30_000);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('deploy:session-expired', listener);
-    };
-  }, []);
-  return (
-    <Dialog open={expired} title="Sign in again" onClose={() => {}}>
-      <p className="dl-soft">
-        This browser was signed out after 30 days. After you sign in, you come back to this task.
-      </p>
-      <SignInForm
-        key={String(password)}
-        passwordFirst={password}
-        onDone={() => {
-          setExpired(false);
-          window.dispatchEvent(new Event('deploy:session-restored'));
-        }}
-      />
-      <Action variant="quiet" onClick={() => setPassword(true)}>
-        Use a password
-      </Action>
-    </Dialog>
   );
 }
 function Devices() {

@@ -28,6 +28,7 @@ import './releases.css';
 import { projectPath, projectTabItems } from '../projects/routing';
 import { useData, request as workspaceRequest, type Overview } from '../projects/data';
 import { formatTime } from '../data/time';
+import { eventSnapshotCursor } from '../data/event-snapshot';
 import { missingVariable } from './presentation';
 
 function headers() {
@@ -130,7 +131,7 @@ export default function Releases() {
           request(`${apiProject}/releases`, { signal: controller.signal }),
           request(`${apiProject}/rollbacks`, { signal: controller.signal }),
         ]);
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) return false;
         const projects: Project[] = projectsResponse.projects;
         const selected =
           projects.find((p) => p.id === projectKey) || projects.find((p) => p.name === projectKey);
@@ -138,13 +139,21 @@ export default function Releases() {
         setReleases(releaseResponse.releases);
         setRollbacks(rollbackResponse.rollbacks);
         setError('');
+        return true;
       } catch (error) {
         if (!controller.signal.aborted)
           setError(error instanceof Error ? error.message : 'Releases are unavailable');
+        return false;
       }
     }
-    async function poll(cursor = 0) {
+    async function poll(cursor?: number) {
       try {
+        if (cursor === undefined)
+          cursor = await eventSnapshotCursor(
+            () => request('/events?after=latest', { signal: controller.signal }),
+            sync,
+            controller.signal,
+          );
         const response: V2EventsResponse = await request(`/events?after=${cursor}&waitMs=10000`, {
           signal: controller.signal,
         });
@@ -156,13 +165,13 @@ export default function Releases() {
         if (!controller.signal.aborted) {
           setError('Live updates are unavailable. Reconnecting…');
           timer = setTimeout(() => {
-            void sync();
+            if (cursor !== undefined) void sync();
             void poll(cursor);
           }, 3000);
         }
       }
     }
-    void sync().then(() => poll());
+    void poll();
     return () => {
       controller.abort();
       clearTimeout(timer);

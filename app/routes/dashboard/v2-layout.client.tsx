@@ -29,7 +29,7 @@ import {
 import './v2-shell.css';
 import { DesignRail } from './v2/design/Rail';
 import { sidebarCollapsed, sidebarPreferenceKey } from './v2/data/sidebar-preference';
-import { FirstTask } from './v2/start/page.client';
+import { FirstTask } from './v2/start/FirstTask';
 import { useInAppLinks } from './v2/data/links';
 import { changeDesktopUpdateNavigation, useDesktopUpdate } from './v2/data/desktop-update';
 import { DesktopUpdateRow } from './v2/DesktopUpdate';

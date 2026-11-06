@@ -5,7 +5,7 @@ export function liveLabel(summary) {
 export class InboxModel {
   items = new Map();
   seen = new Set();
-  cursor = 0;
+  cursor = null;
   replace(items) {
     this.items = new Map(items.map((item) => [item.id, item]));
     return this.newWaiting(items);
