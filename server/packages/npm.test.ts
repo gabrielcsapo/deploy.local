@@ -396,6 +396,22 @@ test('npm protocol, auth, isolation, cache and responsiveness', async (t) => {
       ).n,
       1,
     );
+    const stored = new Map(
+      (
+        getSqlite()!
+          .prepare(
+            "SELECT v.version,v.created_at FROM package_versions v JOIN packages p ON p.id=v.package_id WHERE p.name='public-name'",
+          )
+          .all() as { version: string; created_at: string }[]
+      ).map((row) => [row.version, row.created_at]),
+    );
+    const reported = (await call('public-name')).body.time;
+    assert.equal(reported['0.1.0'], stored.get('0.1.0'));
+    // Just past pnpm's one-day default for a version published now, with the database unchanged.
+    assert.equal(
+      Date.parse(stored.get('1.0.0')!) - Date.parse(reported['1.0.0']),
+      25 * 60 * 60 * 1000,
+    );
     upstreamPackage('public-name', ['9.0.0']);
     const hits = upstreamHits;
     assert.equal(
@@ -620,12 +636,53 @@ test('real npm, pnpm and Yarn publish, install and locked offline installs', asy
                   ]
                 : []),
             ];
-      await exec(command, install, { cwd: consumer, env, timeout: 30000, killSignal: 'SIGKILL' });
+      // Only the copied packages below keep pnpm's wait turned off.
+      const hostedInstall = install.filter((arg) => arg !== '--config.minimum-release-age=0');
+      await exec(command, hostedInstall, {
+        cwd: consumer,
+        env,
+        timeout: 30000,
+        killSignal: 'SIGKILL',
+      });
       assert.equal(
         JSON.parse(await readFile(join(consumer, 'node_modules', name, 'package.json'), 'utf8'))
           .version,
         '1.0.0',
       );
+      if (client === 'pnpm') {
+        // With an older version to fall back on, pnpm's default wait would pick that one.
+        getSqlite()!
+          .prepare(
+            "UPDATE package_versions SET created_at='2020-01-01T00:00:00.000Z' WHERE version='1.0.0' AND package_id=(SELECT id FROM packages WHERE name=?)",
+          )
+          .run(name);
+        await writeFile(
+          join(dir, 'package.json'),
+          JSON.stringify({ name, version: '1.1.0', main: 'index.js', license: 'MIT' }),
+        );
+        await exec(command, publishArgs, { cwd: dir, env, timeout: 30000, killSignal: 'SIGKILL' });
+        await writeFile(
+          join(consumer, 'package.json'),
+          JSON.stringify({
+            name: 'consumer',
+            version: '1.0.0',
+            private: true,
+            dependencies: { [name]: '^1.0.0' },
+          }),
+        );
+        await rm(join(consumer, 'node_modules'), { recursive: true, force: true });
+        await rm(join(consumer, 'pnpm-lock.yaml'), { force: true });
+        const fresh = [...hostedInstall, '--config.cache-dir=' + join(root, 'pnpm-fresh-cache')];
+        for (const args of [fresh, [...fresh, '--frozen-lockfile']]) {
+          await exec(command, args, { cwd: consumer, env, timeout: 30000, killSignal: 'SIGKILL' });
+          assert.equal(
+            JSON.parse(await readFile(join(consumer, 'node_modules', name, 'package.json'), 'utf8'))
+              .version,
+            '1.1.0',
+          );
+          await rm(join(consumer, 'node_modules'), { recursive: true, force: true });
+        }
+      }
       // Seed a genuine upstream tarball into the fake source, then install through the copy.
       await writeFile(
         join(dir, 'package.json'),
