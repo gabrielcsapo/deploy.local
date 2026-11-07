@@ -1,3 +1,5 @@
+import { db as workspaceDb } from './workspace/store.ts';
+import { pruneHealthEvents } from './workspace/health-event-retention.ts';
 import {
   getRequestsSqlite,
   pruneRequests,
@@ -357,6 +359,22 @@ export function startMaintenance(packages?: { warm(): Promise<void>; daily(): Pr
       })
       .catch((err) => console.error('Capture pruning failed:', err));
   }, VACUUM_INTERVAL_MS);
+
+  // A short first delay clears legacy heartbeat backlogs soon after startup.
+  // Each pass yields between bounded batches; a busy database retries next minute.
+  let pruningHealth = false;
+  const healthTimer = setInterval(() => {
+    if (pruningHealth) return;
+    pruningHealth = true;
+    void pruneHealthEvents(workspaceDb)
+      .catch((error) => {
+        if (error.code !== 'SQLITE_BUSY') console.error('Health event retention failed:', error);
+      })
+      .finally(() => {
+        pruningHealth = false;
+      });
+  }, 60_000);
+  healthTimer.unref();
 
   // Schedule rsync backup based on saved settings
   scheduleBackupCron();
