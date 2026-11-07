@@ -47,6 +47,22 @@ export async function projectTool(scope: AgentScope, args: any) {
     )
   )
     throw new Error('Unsupported project action');
+  if (args.action === 'merge' || args.action === 'retry-merge') {
+    // Loaded when used, like deploy_design: the release module is only needed to decide this.
+    const { isAllowed } = await import('../v2/releases.ts');
+    // Rules name saved agents and a task keeps its agent across follow-up runs. A conversation a
+    // person started has no agent to hold a rule, so its merge stays with that person. People's
+    // own merges come through the workspace API and never reach this check.
+    if (!task.agentId || !isAllowed(scope.owner, task.agentId, 'merge', projectId))
+      throw Object.assign(
+        new Error(
+          `This agent is not allowed to merge pull requests in this project, so nothing was queued. Tell the person the pull request is ready: they can merge it themselves.${
+            task.agentId ? ' Its merge rule is in Settings, under Agents and approvals.' : ''
+          }`,
+        ),
+        { status: 403 },
+      );
+  }
   return collaborationCommand(
     scope.owner,
     projectId,
