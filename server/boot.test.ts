@@ -4,12 +4,13 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { createServer, connect, type AddressInfo, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 
 const root = process.cwd();
 const dataRoot = mkdtempSync(join(tmpdir(), 'deploy-boot-'));
@@ -165,7 +166,7 @@ async function bootEntry(entry: string, env: Record<string, string>, ready: RegE
     });
   });
   child.removeAllListeners('exit');
-  return { child, output: () => output };
+  return { child, dataDir, output: () => output };
 }
 
 function inspect(child: ChildProcess) {
@@ -233,19 +234,59 @@ for (const entry of ['server.ts', 'server/index.ts']) {
         freePort(),
         freePort(),
       ]);
-      const { child } = await bootEntry(
+      const { child, dataDir } = await bootEntry(
         entry,
         { PORT: String(httpPort), HTTPS_PORT: String(httpsPort), DEPLOY_SSH_PORT: String(sshPort) },
         /running on/,
       );
       try {
         assert.deepEqual(await inspect(child), { ...expectedServices, gitSshPort: sshPort });
+        assert.equal(readFileSync(join(dataDir, 'secrets', 'master.key')).length, 32);
         assert.match(await sshBanner(sshPort), /^SSH-2\.0-/);
         assert.equal(await registryStatus(httpsPort, true), 401);
       } finally {
         assert.equal(await stop(child), 0);
       }
       await assert.rejects(sshBanner(sshPort), /ECONNREFUSED/);
+    },
+  );
+}
+
+for (const entry of ['server.ts', 'server/index.ts']) {
+  test(
+    `${entry} refuses to start when master.key is missing and encrypted data exists`,
+    { timeout: 120_000 },
+    async () => {
+      const dataDir = mkdtempSync(join(dataRoot, 'lost-key-'));
+      mkdirSync(join(dataDir, 'workspace'));
+      const workspace = new Database(join(dataDir, 'workspace', 'workspace.db'));
+      workspace.exec(`CREATE TABLE records(kind TEXT, id TEXT, owner TEXT, data TEXT);
+        INSERT INTO records VALUES
+          ('provider-connection', 'openai', 'admin', '{"secret":"v1:a:b:c"}')`);
+      workspace.close();
+      const keyPath = join(dataDir, 'secrets', 'master.key');
+      const child = spawn(process.execPath, [entry], {
+        cwd: root,
+        env: {
+          ...process.env,
+          DEPLOY_DATA_DIR: dataDir,
+          DEPLOY_SECRET_KEY: '',
+          DEPLOY_MDNS_ADDRESS: '127.0.0.1',
+          DOCKER_HOST: 'unix:///nonexistent/docker.sock',
+          PORT: '0',
+          HTTPS_PORT: '0',
+          DEPLOY_SSH_PORT: '0',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let output = '';
+      child.stdout!.on('data', (chunk: Buffer) => (output += chunk));
+      child.stderr!.on('data', (chunk: Buffer) => (output += chunk));
+      const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+      assert.equal(code, 1, output);
+      assert.ok(output.includes(`The secret-store key is missing: ${keyPath}`), output);
+      assert.match(output, /workspace\/workspace\.db \(provider keys/);
+      assert.equal(existsSync(keyPath), false, 'No new key is created');
     },
   );
 }
