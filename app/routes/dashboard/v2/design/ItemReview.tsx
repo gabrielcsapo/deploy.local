@@ -133,7 +133,9 @@ export function DesignItemReview({
     boards,
     board?.widths.includes(width) ? { file: board.file, width } : undefined,
   );
-  const currentPreview = board ? images.previews[previewKey(board.file, width)] : undefined;
+  // The viewer shows a screen once both of its revisions are here; a tile needs only one.
+  const stored = board ? images.previews[previewKey(board.file, width)] : undefined;
+  const currentPreview = stored?.complete ? stored : undefined;
   const historicalPin =
     selectedDrawing &&
     (![board?.before, board?.after].includes(selectedDrawing.revision) ||

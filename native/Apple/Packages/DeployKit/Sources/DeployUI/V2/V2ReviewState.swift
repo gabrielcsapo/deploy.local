@@ -67,9 +67,19 @@ final class V2ReviewState {
             try Task.checkCancellation()
             review = result
             conflict = result.stale == true
-            for board in V2ReviewModel.canvasBoards(result) {
-                try Task.checkCancellation()
-                await loadPreview(client: client, board: board)
+            // Three screens draw at a time, as on the web: one after another, a 22-screen review
+            // took the sum of every preview and its two images.
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                var remaining = V2ReviewModel.canvasBoards(result).makeIterator()
+                for _ in 0..<3 {
+                    guard let board = remaining.next() else { break }
+                    group.addTask { await self.loadPreview(client: client, board: board) }
+                }
+                while try await group.next() != nil {
+                    try Task.checkCancellation()
+                    guard let board = remaining.next() else { continue }
+                    group.addTask { await self.loadPreview(client: client, board: board) }
+                }
             }
         } catch { if !Task.isCancelled { self.error = coordinatorErrorDescription(error) } }
         loading = false
