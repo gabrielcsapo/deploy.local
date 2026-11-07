@@ -2,7 +2,7 @@
 const ago = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
 const at = ago(12);
 const app = (name, kind = 'web') => ({ id: name, name, kind });
-const projects = [
+const projectRows = [
   { id: 'deploy.local', name: 'deploy.local', apps: [app('deploy.local')] },
   { id: 'home-gym', name: 'home-gym', apps: [app('home-gym'), app('home-gym-sync', 'worker')] },
   { id: 'recipes', name: 'recipes', apps: [app('recipes')] },
@@ -48,7 +48,7 @@ const issues = [
   state: 'open',
   ...(index === 0 ? { taskId: 'checks' } : {}),
 }));
-const liveApps = projects.flatMap((project) =>
+const liveApps = projectRows.flatMap((project) =>
   project.apps.map((a) => ({
     appId: a.id,
     name: a.name,
@@ -129,7 +129,12 @@ const releases = (project) =>
       endedAt: ago(360 + index * 1440),
     })),
   }));
-export async function projectFixture(req, res) {
+export async function projectFixture(req, res, { removalAppCount } = {}) {
+  const projects = projectRows.map((project) =>
+    project.id === 'home-gym' && removalAppCount !== undefined
+      ? { ...project, apps: project.apps.slice(0, removalAppCount) }
+      : project,
+  );
   const url = new URL(req.url, 'http://localhost');
   const path = decodeURIComponent(url.pathname);
   const send = (value, status = 200) => {

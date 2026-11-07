@@ -24,6 +24,7 @@ import {
   apiRemoveNetwork,
   apiRemoveVolume,
   DockerApiError,
+  getDockerSocketPath,
   listContainersByLabel,
   listDeployContainers,
   listNetworkNamesByLabel,
@@ -102,6 +103,79 @@ export class ProjectRemovalDocker extends DockerCliGraphAdapter {
       for (const volume of await listVolumeNamesByLabel(label)) volumes.add(volume);
     }
     return { containers: [...containers], networks: [...networks], volumes: [...volumes] };
+  }
+}
+
+/** Persisted in the retry receipt, so an interrupted attempt cannot later claim it did nothing. */
+interface RemovalProgress {
+  removed: boolean;
+  remaining: string[];
+  changed?: () => void;
+}
+
+class DockerUnavailable extends Error {
+  constructor(cause: unknown) {
+    super('Docker unavailable during project removal', { cause });
+  }
+}
+
+function dockerUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error) || error instanceof DockerApiError) return false;
+  const socket = getDockerSocketPath();
+  const connection = error as NodeJS.ErrnoException & { address?: string; stderr?: string };
+  if (
+    (connection.code === 'ENOENT' || connection.code === 'ECONNREFUSED') &&
+    connection.syscall === 'connect' &&
+    (connection.address === socket || connection.path === socket)
+  )
+    return true;
+  // Older wrappers and CLI diagnostics may retain only the message/stderr. Require a Docker
+  // connection diagnostic, never a generic missing file or refused connection elsewhere.
+  const diagnostic = `${error.message}\n${connection.stderr ?? ''}`;
+  return (
+    diagnostic.includes(`connect ENOENT ${socket}`) ||
+    diagnostic.includes(`connect ECONNREFUSED ${socket}`) ||
+    diagnostic.includes(`dial unix ${socket}: connect: no such file or directory`) ||
+    /Cannot connect to the Docker daemon(?: at |\.|$)/i.test(diagnostic)
+  );
+}
+
+/** Observe successful Docker calls without changing their removal/error semantics. */
+class RemovalAttemptDocker extends ProjectRemovalDocker {
+  private readonly inner: ProjectRemovalDocker;
+  private readonly progress: RemovalProgress;
+  constructor(inner: ProjectRemovalDocker, progress: RemovalProgress) {
+    super();
+    this.inner = inner;
+    this.progress = progress;
+  }
+  private removed(name?: string) {
+    this.progress.removed = true;
+    if (name) this.progress.remaining = this.progress.remaining.filter((entry) => entry !== name);
+    this.progress.changed?.();
+  }
+  override async removeContainer(name: string) {
+    await this.inner.removeContainer(name);
+    this.removed(name);
+  }
+  override async removeNetwork(name: string) {
+    await this.inner.removeNetwork(name);
+    this.removed(name);
+  }
+  override async removeVolume(name: string) {
+    await this.inner.removeVolume(name);
+    this.removed(name);
+  }
+  override async removeLegacyContainers(name: string) {
+    await this.inner.removeLegacyContainers(name);
+    // The legacy helper may silently leave objects behind. Only findLeftovers confirms its result.
+    this.removed();
+  }
+  override async findLeftovers(name: string, applicationIds: readonly string[]) {
+    const left = await this.inner.findLeftovers(name, applicationIds);
+    this.progress.remaining = [...left.containers, ...left.networks, ...left.volumes];
+    this.progress.changed?.();
+    return left;
   }
 }
 
@@ -259,22 +333,46 @@ async function removeFromThisMachine(
     );
 }
 
-export async function stopApp(app: App, jobId: string, docker = new ProjectRemovalDocker()) {
+export async function stopApp(
+  app: App,
+  jobId: string,
+  docker = new ProjectRemovalDocker(),
+  progress: RemovalProgress = { removed: false, remaining: [] },
+) {
   const targets = removalTargets(app);
   if (targets.unreachable.length > 0)
     fail(`This app still has instances on ${targets.unreachable.join(', ')}, out of reach.`, 409);
   // Check every computer first, so one that is offline does not leave a half-removed app.
   for (const nodeId of targets.computers)
     if (!getNode(nodeId)?.online) fail('The computer running this app is offline', 409);
-  for (const nodeId of targets.computers) await removeFromComputer(app, nodeId, jobId);
-  if (targets.local.length > 0) await removeFromThisMachine(app, targets, docker);
+  for (const nodeId of targets.computers) {
+    await removeFromComputer(app, nodeId, jobId);
+    progress.removed = true;
+    progress.changed?.();
+  }
+  if (targets.local.length > 0) {
+    const attempt = new RemovalAttemptDocker(docker, progress);
+    try {
+      // Capture names while Docker is reachable; if it disappears mid-removal these are the
+      // objects not yet confirmed removed. A failed read preserves the previous attempt's names.
+      await attempt.findLeftovers(app.name, targets.applicationIds);
+      await removeFromThisMachine(app, targets, attempt);
+    } catch (error) {
+      if (!dockerUnavailable(error)) throw error;
+      console.error('[project-removal] Docker is unreachable', error);
+      throw new DockerUnavailable(error);
+    }
+  }
 }
 
 export async function removeProject(
   owner: string,
   project: Project,
   confirmation: unknown,
-  runtime = { stopApp },
+  runtime = {
+    stopApp: (app: App, jobId: string, progress: RemovalProgress) =>
+      stopApp(app, jobId, undefined, progress),
+  },
 ) {
   if (confirmation !== project.name) fail('Confirm the project name before removing it');
   const releases: (() => unknown)[] = [];
@@ -325,7 +423,32 @@ export async function removeProject(
       if (existsSync(getBackupDir(member.name)))
         await cp(getBackupDir(member.name), join(archive, String(index)), { recursive: true });
       if (!receipt!.stopped.includes(member.name)) {
-        await runtime.stopApp(app, `${receipt!.archiveId}-${index}`);
+        receipt!.progress ??= {};
+        const progress: RemovalProgress = (receipt!.progress[`app:${member.name}`] ??= {
+          removed: false,
+          remaining: [],
+        });
+        progress.changed = () => save('v2-project-removal', owner, receipt!);
+        try {
+          await runtime.stopApp(app, `${receipt!.archiveId}-${index}`, progress);
+        } catch (error) {
+          if (!(error instanceof DockerUnavailable)) throw error;
+          const partial =
+            receipt!.stopped.length > 0 ||
+            Object.values(receipt!.progress).some((entry) => (entry as RemovalProgress).removed);
+          if (!partial)
+            fail(
+              "Docker isn't running on this computer, so nothing was removed. Start it, then press Remove project.",
+              409,
+            );
+          const remaining = progress.remaining.length > 0 ? progress.remaining : [member.name];
+          fail(
+            `Removal is not finished. Still on this machine: ${remaining.join(', ')}. Start Docker, then press Remove project to try again.`,
+            409,
+          );
+        } finally {
+          delete progress.changed;
+        }
         receipt!.stopped.push(member.name);
         save('v2-project-removal', owner, receipt!);
       }
