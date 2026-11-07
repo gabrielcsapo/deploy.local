@@ -39,8 +39,9 @@ syncBuiltinESMExports();
 
 const root = mkdtempSync(join(tmpdir(), 'design-perf-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { save } = await import('../../server/workspace/store.ts');
+const { get: read, save } = await import('../../server/workspace/store.ts');
 const { v2Api } = await import('../../server/v2/api.ts');
+const { designReview, proposeDesign } = await import('../../server/v2/design.ts');
 
 // The fixture: this repository cloned, main at this commit, design/perf changing 20 boards and adding 2.
 const source = resolve(import.meta.dirname, '../..');
@@ -210,6 +211,22 @@ await timed('Design page: both in parallel (first useful view data)', async () =
 await timed('Open review: GET /review?item (also every 30 s poll)', () =>
   get(`${api.slice(origin.length)}/review?item=${itemPath}`),
 );
+// The review's first computation, as after a restart: the same changes proposed from another
+// branch at a new commit, read directly so that nothing warms it first.
+await timed('Review built for the first time (direct, per revision)', async () => {
+  const branch = `design/perf-cold-${Math.random().toString(36).slice(2, 8)}`;
+  git('checkout', '-q', '-b', branch, 'design/perf');
+  writeFileSync(join(repo, 'design/boards/PerfNewOne.html'), `<!-- ${branch} -->\n`, { flag: 'a' });
+  git('commit', '-qam', 'Another revision');
+  git('checkout', '-q', 'main');
+  const project = read('project', owner, 'deploy-local');
+  const made = proposeDesign(owner, project, { ref: branch });
+  const row = read('v2-inbox-native', owner, made.id);
+  const spawnsBefore = gitSpawns;
+  const started = performance.now();
+  designReview(owner, project, row);
+  return { ms: performance.now() - started, bytes: 0, spawns: gitSpawns - spawnsBefore };
+});
 const review = await json(`${api.slice(origin.length)}/review?item=${itemPath}`);
 
 // The grid, as the web client loads it: three workers, each a preview then its two images.
@@ -266,11 +283,19 @@ await timed(
   ],
 );
 const web = review.boards.find((board) => board.widths.length > 1);
-await timed('Open a screen already in the grid (no new requests)', async () => ({
-  ms: 0,
-  bytes: 0,
-  spawns: 0,
-}));
+// Opening a screen already in the grid needs no request; looking at it marks it seen.
+await timed('Look at a screen: POST /review/seen', async () => {
+  const started = performance.now();
+  const spawnsBefore = gitSpawns;
+  const response = await fetch(`${api}/review/seen`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ item: item.id, board: web.file, revision: review.after }),
+  });
+  const bytes = (await response.arrayBuffer()).byteLength;
+  if (!response.ok) throw new Error(`seen: ${response.status}`);
+  return { ms: performance.now() - started, bytes, spawns: gitSpawns - spawnsBefore };
+});
 await timed(`Switch ${web.file} to ${web.widths[1]} (preview + 2 images)`, async () => {
   const started = performance.now();
   const spawnsBefore = gitSpawns;
@@ -287,6 +312,7 @@ await timed('Task Design tab: GET /changes?task-like ref', () =>
 await timed('Task Design tab: GET /proposals', () => get(`${api.slice(origin.length)}/proposals`));
 
 if (browser) {
+  execFileSync('node', ['scripts/flight-router.mjs'], { cwd: source, stdio: 'ignore' });
   const vite = spawn(
     'pnpm',
     ['exec', 'vite', '--host', '127.0.0.1', '--port', String(vitePort), '--strictPort'],
