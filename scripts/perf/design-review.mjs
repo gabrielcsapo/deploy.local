@@ -19,10 +19,13 @@ const option = (name, fallback) => {
 };
 const samples = Number(option('--samples', 5));
 const scale = Number(option('--scale', 2));
-const browser = args.includes('--browser');
-// --keep leaves the API and Vite running on their ports for a look in a real browser.
-const keep = args.includes('--keep');
+// --keep leaves the API and Vite running on their ports for a look in a real browser; --serve
+// does only that, without measuring.
+const serve = args.includes('--serve');
+const keep = serve || args.includes('--keep');
+const browser = serve || args.includes('--browser');
 const vitePort = Number(option('--vite-port', 5195));
+const throttle = Number(option('--throttle', 0));
 
 // Count the Git processes the server starts per request.
 let gitSpawns = 0;
@@ -98,6 +101,9 @@ const server = createServer(async (req, res) => {
   if (path.startsWith('/api/')) {
     // The shell's own reads, enough for the pages to load in a browser.
     if (path === '/api/v2/events' || path.endsWith('/stream')) {
+      // The newest cursor answers at once, as the server does; a long poll waits like one.
+      if (url.searchParams.get('after') === 'latest')
+        return send({ events: [], cursor: 1, supportsWait: true });
       const timer = setTimeout(() => send({ events: [], cursor: 1, supportsWait: true }), 15000);
       res.on('close', () => clearTimeout(timer));
       return;
@@ -192,124 +198,131 @@ const itemPath = encodeURIComponent(item.id);
 // The proposal warms its renders in the background; wait so the cold grid is measured on its own.
 await new Promise((done) => setTimeout(done, 500));
 
-console.log(
-  `Design review perf: ${changed.length} changed + ${added.length} new boards, scale ${scale}, ${samples} samples (median)`,
-);
-row('', ['time', 'bytes', 'git', '']);
-await timed('Design page: GET /design/reviews', () => get('/api/v2/design/reviews'));
-await timed('Design page: GET /design/projects', () => get('/api/v2/design/projects'));
-await timed('Design page: both in parallel (first useful view data)', async () => {
-  const started = performance.now();
-  const spawnsBefore = gitSpawns;
-  const both = await Promise.all([get('/api/v2/design/reviews'), get('/api/v2/design/projects')]);
-  return {
-    ms: performance.now() - started,
-    bytes: both[0].bytes + both[1].bytes,
-    spawns: gitSpawns - spawnsBefore,
-  };
-});
-await timed('Open review: GET /review?item (also every 30 s poll)', () =>
-  get(`${api.slice(origin.length)}/review?item=${itemPath}`),
-);
-// The review's first computation, as after a restart: the same changes proposed from another
-// branch at a new commit, read directly so that nothing warms it first.
-await timed('Review built for the first time (direct, per revision)', async () => {
-  const branch = `design/perf-cold-${Math.random().toString(36).slice(2, 8)}`;
-  git('checkout', '-q', '-b', branch, 'design/perf');
-  writeFileSync(join(repo, 'design/boards/PerfNewOne.html'), `<!-- ${branch} -->\n`, { flag: 'a' });
-  git('commit', '-qam', 'Another revision');
-  git('checkout', '-q', 'main');
-  const project = read('project', owner, 'deploy-local');
-  const made = proposeDesign(owner, project, { ref: branch });
-  const row = read('v2-inbox-native', owner, made.id);
-  const spawnsBefore = gitSpawns;
-  const started = performance.now();
-  designReview(owner, project, row);
-  return { ms: performance.now() - started, bytes: 0, spawns: gitSpawns - spawnsBefore };
-});
-const review = await json(`${api.slice(origin.length)}/review?item=${itemPath}`);
-
-// The grid, as the web client loads it: three workers, each a preview then its two images.
-async function grid(boards, workers = 3) {
-  const queue = boards.map((board) => ({ file: board.file, width: board.widths[0] }));
-  const started = performance.now();
-  const spawnsBefore = gitSpawns;
-  let requests = 0,
-    bytes = 0,
-    firstTile = 0;
-  const work = async () => {
-    while (queue.length) {
-      const next = queue.shift();
-      const response = await fetch(
-        `${api}/review/preview?item=${itemPath}&board=${encodeURIComponent(next.file)}&width=${next.width}&scale=${scale}`,
-      );
-      const preview = await response.json();
-      if (!response.ok) throw new Error(preview.error);
-      requests++;
-      bytes += JSON.stringify(preview).length;
-      await Promise.all(
-        [preview.before, preview.after].filter(Boolean).map(async (src) => {
-          const image = await fetch(origin + src);
-          bytes += (await image.arrayBuffer()).byteLength;
-          requests++;
-        }),
-      );
-      if (!firstTile) firstTile = performance.now() - started;
-    }
-  };
-  await Promise.all(Array.from({ length: workers }, work));
-  return {
-    ms: performance.now() - started,
-    bytes,
-    requests,
-    firstTile,
-    spawns: gitSpawns - spawnsBefore,
-  };
-}
-const cold = await grid(review.boards);
-row('Grid, cold (renders every screen in Chromium), once', [
-  `${Math.round(cold.ms)} ms`,
-  `${Math.round(cold.bytes / 1024)} KB`,
-  `${cold.spawns} git`,
-  `${cold.requests} req`,
-  `first tile ${Math.round(cold.firstTile)} ms`,
-]);
-await timed(
-  'Grid, warm: every screen at its first width',
-  () => grid(review.boards),
-  (results) => [
-    `${median(results.map((r) => r.requests))} req`,
-    `first tile ${Math.round(median(results.map((r) => r.firstTile)))} ms`,
-  ],
-);
-const web = review.boards.find((board) => board.widths.length > 1);
-// Opening a screen already in the grid needs no request; looking at it marks it seen.
-await timed('Look at a screen: POST /review/seen', async () => {
-  const started = performance.now();
-  const spawnsBefore = gitSpawns;
-  const response = await fetch(`${api}/review/seen`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ item: item.id, board: web.file, revision: review.after }),
-  });
-  const bytes = (await response.arrayBuffer()).byteLength;
-  if (!response.ok) throw new Error(`seen: ${response.status}`);
-  return { ms: performance.now() - started, bytes, spawns: gitSpawns - spawnsBefore };
-});
-await timed(`Switch ${web.file} to ${web.widths[1]} (preview + 2 images)`, async () => {
-  const started = performance.now();
-  const spawnsBefore = gitSpawns;
-  const preview = await json(
-    `${api.slice(origin.length)}/review/preview?item=${itemPath}&board=${encodeURIComponent(web.file)}&width=${web.widths[1]}&scale=${scale}`,
+async function measureApi() {
+  console.log(
+    `Design review perf: ${changed.length} changed + ${added.length} new boards, scale ${scale}, ${samples} samples (median)`,
   );
-  let bytes = JSON.stringify(preview).length;
-  for (const src of [preview.before, preview.after]) if (src) bytes += (await get(src)).bytes;
-  return { ms: performance.now() - started, bytes, spawns: gitSpawns - spawnsBefore };
-});
-await timed('Task Design tab: GET /changes?task-like ref', () =>
-  get(`${api.slice(origin.length)}/changes?ref=design/perf`),
-);
-await timed('Task Design tab: GET /proposals', () => get(`${api.slice(origin.length)}/proposals`));
+  row('', ['time', 'bytes', 'git', '']);
+  await timed('Design page: GET /design/reviews', () => get('/api/v2/design/reviews'));
+  await timed('Design page: GET /design/projects', () => get('/api/v2/design/projects'));
+  await timed('Design page: both in parallel (first useful view data)', async () => {
+    const started = performance.now();
+    const spawnsBefore = gitSpawns;
+    const both = await Promise.all([get('/api/v2/design/reviews'), get('/api/v2/design/projects')]);
+    return {
+      ms: performance.now() - started,
+      bytes: both[0].bytes + both[1].bytes,
+      spawns: gitSpawns - spawnsBefore,
+    };
+  });
+  await timed('Open review: GET /review?item (also every 30 s poll)', () =>
+    get(`${api.slice(origin.length)}/review?item=${itemPath}`),
+  );
+  // The review's first computation, as after a restart: the same changes proposed from another
+  // branch at a new commit, read directly so that nothing warms it first.
+  await timed('Review built for the first time (direct, per revision)', async () => {
+    const branch = `design/perf-cold-${Math.random().toString(36).slice(2, 8)}`;
+    git('checkout', '-q', '-b', branch, 'design/perf');
+    writeFileSync(join(repo, 'design/boards/PerfNewOne.html'), `<!-- ${branch} -->\n`, {
+      flag: 'a',
+    });
+    git('commit', '-qam', 'Another revision');
+    git('checkout', '-q', 'main');
+    const project = read('project', owner, 'deploy-local');
+    const made = proposeDesign(owner, project, { ref: branch });
+    const row = read('v2-inbox-native', owner, made.id);
+    const spawnsBefore = gitSpawns;
+    const started = performance.now();
+    designReview(owner, project, row);
+    return { ms: performance.now() - started, bytes: 0, spawns: gitSpawns - spawnsBefore };
+  });
+  const review = await json(`${api.slice(origin.length)}/review?item=${itemPath}`);
+
+  // The grid, as the web client loads it: three workers, each a preview then its two images.
+  async function grid(boards, workers = 3) {
+    const queue = boards.map((board) => ({ file: board.file, width: board.widths[0] }));
+    const started = performance.now();
+    const spawnsBefore = gitSpawns;
+    let requests = 0,
+      bytes = 0,
+      firstTile = 0;
+    const work = async () => {
+      while (queue.length) {
+        const next = queue.shift();
+        const response = await fetch(
+          `${api}/review/preview?item=${itemPath}&board=${encodeURIComponent(next.file)}&width=${next.width}&scale=${scale}`,
+        );
+        const preview = await response.json();
+        if (!response.ok) throw new Error(preview.error);
+        requests++;
+        bytes += JSON.stringify(preview).length;
+        await Promise.all(
+          [preview.before, preview.after].filter(Boolean).map(async (src) => {
+            const image = await fetch(origin + src);
+            bytes += (await image.arrayBuffer()).byteLength;
+            requests++;
+          }),
+        );
+        if (!firstTile) firstTile = performance.now() - started;
+      }
+    };
+    await Promise.all(Array.from({ length: workers }, work));
+    return {
+      ms: performance.now() - started,
+      bytes,
+      requests,
+      firstTile,
+      spawns: gitSpawns - spawnsBefore,
+    };
+  }
+  const cold = await grid(review.boards);
+  row('Grid, cold (renders every screen in Chromium), once', [
+    `${Math.round(cold.ms)} ms`,
+    `${Math.round(cold.bytes / 1024)} KB`,
+    `${cold.spawns} git`,
+    `${cold.requests} req`,
+    `first tile ${Math.round(cold.firstTile)} ms`,
+  ]);
+  await timed(
+    'Grid, warm: every screen at its first width',
+    () => grid(review.boards),
+    (results) => [
+      `${median(results.map((r) => r.requests))} req`,
+      `first tile ${Math.round(median(results.map((r) => r.firstTile)))} ms`,
+    ],
+  );
+  const web = review.boards.find((board) => board.widths.length > 1);
+  // Opening a screen already in the grid needs no request; looking at it marks it seen.
+  await timed('Look at a screen: POST /review/seen', async () => {
+    const started = performance.now();
+    const spawnsBefore = gitSpawns;
+    const response = await fetch(`${api}/review/seen`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ item: item.id, board: web.file, revision: review.after }),
+    });
+    const bytes = (await response.arrayBuffer()).byteLength;
+    if (!response.ok) throw new Error(`seen: ${response.status}`);
+    return { ms: performance.now() - started, bytes, spawns: gitSpawns - spawnsBefore };
+  });
+  await timed(`Switch ${web.file} to ${web.widths[1]} (preview + 2 images)`, async () => {
+    const started = performance.now();
+    const spawnsBefore = gitSpawns;
+    const preview = await json(
+      `${api.slice(origin.length)}/review/preview?item=${itemPath}&board=${encodeURIComponent(web.file)}&width=${web.widths[1]}&scale=${scale}`,
+    );
+    let bytes = JSON.stringify(preview).length;
+    for (const src of [preview.before, preview.after]) if (src) bytes += (await get(src)).bytes;
+    return { ms: performance.now() - started, bytes, spawns: gitSpawns - spawnsBefore };
+  });
+  await timed('Task Design tab: GET /changes?task-like ref', () =>
+    get(`${api.slice(origin.length)}/changes?ref=design/perf`),
+  );
+  await timed('Task Design tab: GET /proposals', () =>
+    get(`${api.slice(origin.length)}/proposals`),
+  );
+}
+if (!serve) await measureApi();
 
 if (browser) {
   execFileSync('node', ['scripts/flight-router.mjs'], { cwd: source, stdio: 'ignore' });
@@ -320,6 +333,8 @@ if (browser) {
       cwd: source,
       env: { ...process.env, DEPLOY_DEV_API_ORIGIN: origin },
       stdio: ['ignore', 'ignore', 'inherit'],
+      // Its own process group, so stopping it stops Vite itself and not only pnpm.
+      detached: true,
     },
   );
   try {
@@ -331,110 +346,129 @@ if (browser) {
         // Not up yet.
       }
     }
-    const { chromium } = await import('playwright');
-    const browserInstance = await chromium.launch();
-    const context = await browserInstance.newContext({
-      viewport: { width: 1440, height: 900 },
-      deviceScaleFactor: scale,
-    });
-    await context.addInitScript((user) => {
-      localStorage.setItem('deploy-sh-auth', JSON.stringify({ username: user, token: 'perf' }));
-      localStorage.setItem('deploy-v2-first-task-seen', 'yes');
-    }, owner);
-    const page = await context.newPage();
-    const counts = { requests: 0, bytes: 0 };
-    page.on('response', async (response) => {
-      if (!response.url().includes('/api/')) return;
-      counts.requests++;
-      try {
-        counts.bytes += (await response.body()).byteLength;
-      } catch {
-        // Aborted responses have no body.
+    if (!serve) {
+      const { chromium } = await import('playwright');
+      const browserInstance = await chromium.launch();
+      const context = await browserInstance.newContext({
+        viewport: { width: 1440, height: 900 },
+        deviceScaleFactor: scale,
+      });
+      await context.addInitScript((user) => {
+        localStorage.setItem('deploy-sh-auth', JSON.stringify({ username: user, token: 'perf' }));
+        localStorage.setItem('deploy-v2-first-task-seen', 'yes');
+      }, owner);
+      const page = await context.newPage();
+      // --throttle <Mbps> emulates a slower link, like SER over Wi-Fi, with 20 ms of latency.
+      if (throttle) {
+        const session = await context.newCDPSession(page);
+        // Without the browser cache, every sample moves every image over the slow link.
+        await session.send('Network.setCacheDisabled', { cacheDisabled: true });
+        await session.send('Network.emulateNetworkConditions', {
+          offline: false,
+          latency: 20,
+          downloadThroughput: (throttle * 1024 * 1024) / 8,
+          uploadThroughput: (throttle * 1024 * 1024) / 8,
+        });
       }
-    });
-    const reset = () => Object.assign(counts, { requests: 0, bytes: 0 });
-    // Warm Vite's transforms so module serving is not what is measured.
-    await page.goto(`${origin}/dashboard/design?view=review`, { waitUntil: 'load' });
-    await page.waitForSelector('.dl-review-content .dl-item');
-    await page.goto(`${origin}/dashboard/inbox?item=${itemPath}`, { waitUntil: 'load' });
-    await page.waitForSelector('.dl-review-image svg');
-    await page.waitForSelector('text=/You.ve looked at/', { timeout: 120000 });
-    console.log('');
-    console.log('Browser (Vite dev, headless Chromium, 1440×900, API requests only):');
-    row('', ['time', 'bytes', 'req', '']);
-    const nav = async (label, url, ready, after = async () => {}) => {
-      const results = [];
-      for (let i = 0; i < samples; i++) {
-        reset();
-        const started = performance.now();
-        await page.goto(url, { waitUntil: 'commit' });
-        await page.waitForSelector(ready, { timeout: 120000 });
-        const ms = performance.now() - started;
-        await after();
-        results.push({ ms, requests: counts.requests, bytes: counts.bytes });
-      }
-      row(label, [
-        `${Math.round(median(results.map((r) => r.ms)))} ms`,
-        `${Math.round(median(results.map((r) => r.bytes)) / 1024)} KB`,
-        `${median(results.map((r) => r.requests))} req`,
-      ]);
-    };
-    await nav(
-      'Design page: first proposal row visible',
-      `${origin}/dashboard/design?view=review`,
-      '.dl-review-content .dl-item',
-    );
-    await nav(
-      'Review: first tile image visible',
-      `${origin}/dashboard/inbox?item=${itemPath}`,
-      '.dl-review-image svg',
-    );
-    await nav(
-      'Review: every tile loaded, decisions enabled',
-      `${origin}/dashboard/inbox?item=${itemPath}`,
-      'text=/You.ve looked at/',
-    );
-    const stepResults = [];
-    for (let i = 0; i < samples; i++) {
-      await page.goto(`${origin}/dashboard/inbox?item=${itemPath}`, { waitUntil: 'commit' });
+      const counts = { requests: 0, bytes: 0 };
+      page.on('response', async (response) => {
+        if (!response.url().includes('/api/')) return;
+        counts.requests++;
+        try {
+          counts.bytes += (await response.body()).byteLength;
+        } catch {
+          // Aborted responses have no body.
+        }
+      });
+      const reset = () => Object.assign(counts, { requests: 0, bytes: 0 });
+      // Warm Vite's transforms so module serving is not what is measured.
+      await page.goto(`${origin}/dashboard/design?view=review`, { waitUntil: 'load' });
+      await page.waitForSelector('.dl-review-content .dl-item');
+      await page.goto(`${origin}/dashboard/inbox?item=${itemPath}`, { waitUntil: 'load' });
+      await page.waitForSelector('.dl-review-image svg');
       await page.waitForSelector('text=/You.ve looked at/', { timeout: 120000 });
-      const tiles = page.locator('.dl-review-tile');
-      let started = performance.now();
-      await tiles.nth(0).click();
-      await page.waitForSelector('.dl-review-shot-image');
-      const open = performance.now() - started;
-      reset();
-      started = performance.now();
-      await page.click('.dl-review-navigation >> text=Next');
-      await page.waitForFunction(() =>
-        document.querySelector('.dl-review-viewer-head')?.textContent?.includes('2 of'),
+      console.log('');
+      console.log(
+        `Browser (Vite dev, headless Chromium, 1440×900, API requests only${throttle ? `, ${throttle} Mbps` : ''}):`,
       );
-      await page.waitForSelector('.dl-review-shot-image');
-      const next = performance.now() - started;
-      started = performance.now();
-      await page.click('.dl-seg[aria-label="Width"] >> text=700');
-      await page.waitForFunction(
-        () => document.querySelector('.dl-review-shot-image')?.getAttribute('width') === '700',
+      row('', ['time', 'bytes', 'req', '']);
+      const nav = async (label, url, ready, after = async () => {}) => {
+        const results = [];
+        for (let i = 0; i < samples; i++) {
+          reset();
+          const started = performance.now();
+          await page.goto(url, { waitUntil: 'commit' });
+          await page.waitForSelector(ready, { timeout: 120000 });
+          const ms = performance.now() - started;
+          await after();
+          results.push({ ms, requests: counts.requests, bytes: counts.bytes });
+        }
+        row(label, [
+          `${Math.round(median(results.map((r) => r.ms)))} ms`,
+          `${Math.round(median(results.map((r) => r.bytes)) / 1024)} KB`,
+          `${median(results.map((r) => r.requests))} req`,
+        ]);
+      };
+      await nav(
+        'Design page: first proposal row visible',
+        `${origin}/dashboard/design?view=review`,
+        '.dl-review-content .dl-item',
       );
-      const width = performance.now() - started;
-      stepResults.push({ open, next, width, requests: counts.requests, bytes: counts.bytes });
+      await nav(
+        'Review: first tile image visible',
+        `${origin}/dashboard/inbox?item=${itemPath}`,
+        '.dl-review-image svg',
+      );
+      await nav(
+        'Review: every tile loaded, decisions enabled',
+        `${origin}/dashboard/inbox?item=${itemPath}`,
+        'text=/You.ve looked at/',
+      );
+      const stepResults = [];
+      for (let i = 0; i < samples; i++) {
+        await page.goto(`${origin}/dashboard/inbox?item=${itemPath}`, { waitUntil: 'commit' });
+        await page.waitForSelector('text=/You.ve looked at/', { timeout: 120000 });
+        const tiles = page.locator('.dl-review-tile');
+        let started = performance.now();
+        await tiles.nth(0).click();
+        await page.waitForSelector('.dl-review-shot-image');
+        const open = performance.now() - started;
+        reset();
+        started = performance.now();
+        await page.getByRole('button', { name: 'Next', exact: true }).click();
+        await page.waitForSelector('.dl-review-viewer-head .dl-t:text-matches("^2 of")');
+        await page.waitForSelector('.dl-review-shot-image');
+        const next = performance.now() - started;
+        started = performance.now();
+        await page.click('.dl-seg[aria-label="Width"] >> text=700');
+        await page.waitForFunction(
+          () =>
+            document.querySelector('.dl-review-shot-image img')?.getAttribute('width') === '700',
+        );
+        const width = performance.now() - started;
+        stepResults.push({ open, next, width, requests: counts.requests, bytes: counts.bytes });
+      }
+      row('Open the first screen from the grid', [
+        `${Math.round(median(stepResults.map((r) => r.open)))} ms`,
+      ]);
+      row('Next screen', [`${Math.round(median(stepResults.map((r) => r.next)))} ms`]);
+      row('Switch the screen to 700', [
+        `${Math.round(median(stepResults.map((r) => r.width)))} ms`,
+        `${Math.round(median(stepResults.map((r) => r.bytes)) / 1024)} KB`,
+        `${median(stepResults.map((r) => r.requests))} req`,
+      ]);
+      await browserInstance.close();
     }
-    row('Open the first screen from the grid', [
-      `${Math.round(median(stepResults.map((r) => r.open)))} ms`,
-    ]);
-    row('Next screen', [`${Math.round(median(stepResults.map((r) => r.next)))} ms`]);
-    row('Switch the screen to 700', [
-      `${Math.round(median(stepResults.map((r) => r.width)))} ms`,
-      `${Math.round(median(stepResults.map((r) => r.bytes)) / 1024)} KB`,
-      `${median(stepResults.map((r) => r.requests))} req`,
-    ]);
-    await browserInstance.close();
     if (keep) {
       console.log(`Kept running: ${origin}/dashboard/inbox?item=${itemPath} (Ctrl-C to stop)`);
       await new Promise((stop) => process.once('SIGINT', stop));
     }
   } finally {
-    vite.kill('SIGTERM');
+    try {
+      process.kill(-vite.pid, 'SIGTERM');
+    } catch {
+      vite.kill('SIGTERM');
+    }
   }
 }
 
