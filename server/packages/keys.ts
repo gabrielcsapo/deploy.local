@@ -3,8 +3,10 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { authenticate, isAdmin } from '../store.ts';
 import { decryptSecret, encryptSecret, loadOrCreateSecretKey } from '../secrets.ts';
-// Loaded once at service startup, never written in a request.
-const computerSecret = loadOrCreateSecretKey();
+// Boot creates or refuses the key before any request. Importing this file must not, or a lost key
+// surfaces as an uncaught import error and not as the startup failure that explains it.
+let loadedSecret: Buffer | undefined;
+const computerSecret = () => (loadedSecret ??= loadOrCreateSecretKey());
 import { event } from '../workspace/store.ts';
 import { db, fail, now, recentlyUsed } from './store.ts';
 export type Identity = {
@@ -125,13 +127,13 @@ export function computerPackageKey(username: string, computerId: string) {
       const row = db()
         .prepare('SELECT envelope FROM package_computer_keys WHERE username=? AND computer_id=?')
         .get(username, computerId) as any;
-      if (row) return decryptSecret(row.envelope, computerSecret, address);
+      if (row) return decryptSecret(row.envelope, computerSecret(), address);
       const key = 'dlp_' + randomBytes(32).toString('base64url');
       db()
         .prepare(
           'INSERT INTO package_computer_keys(username,computer_id,hash,envelope,created_at) VALUES(?,?,?,?,?)',
         )
-        .run(username, computerId, hash(key), encryptSecret(key, computerSecret, address), now());
+        .run(username, computerId, hash(key), encryptSecret(key, computerSecret(), address), now());
       return key;
     })
     .immediate();

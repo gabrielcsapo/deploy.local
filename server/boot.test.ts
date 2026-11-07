@@ -284,7 +284,12 @@ for (const entry of ['server.ts', 'server/index.ts']) {
       child.stderr!.on('data', (chunk: Buffer) => (output += chunk));
       const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
       assert.equal(code, 1, output);
-      assert.ok(output.includes(`The secret-store key is missing: ${keyPath}`), output);
+      assert.ok(
+        output.includes(
+          `Failed to start server: Error: The secret-store key is missing: ${keyPath}`,
+        ),
+        output,
+      );
       assert.match(output, /workspace\/workspace\.db \(provider keys/);
       assert.equal(existsSync(keyPath), false, 'No new key is created');
     },
