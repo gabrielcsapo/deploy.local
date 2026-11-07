@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { homedir, hostname, platform } from 'node:os';
 import { roles } from './model.mjs';
+import { servicePath, discoverProviderPaths } from './worker-path.mjs';
 // Where `deploy agent join` keeps this computer's enrollment (bin/agent-enrollment.mjs).
 function agentConfigPaths(env = process.env, home = homedir()) {
   if (env.DEPLOY_AGENT_CONFIG) return [env.DEPLOY_AGENT_CONFIG];
@@ -81,7 +82,10 @@ export class WorkerManager {
     const root = join(this.root, enrollment.workerId);
     mkdirSync(root, { recursive: true, mode: 0o700 });
     const env = {
-      PATH: process.env.PATH,
+      PATH:
+        process.platform === 'win32'
+          ? process.env.PATH
+          : servicePath(discoverProviderPaths(), process.env.PATH, homedir()),
       HOME: process.env.HOME,
       USER: process.env.USER,
       SystemRoot: process.env.SystemRoot,

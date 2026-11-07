@@ -3,8 +3,6 @@ import {
   writeFileSync,
   rmSync,
   realpathSync,
-  accessSync,
-  constants,
   statSync,
   linkSync,
   renameSync,
@@ -13,10 +11,15 @@ import {
   mkdirSync,
   readdirSync,
 } from 'node:fs';
-import { dirname, join, resolve, delimiter } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { agentConfigPath } from './agent-enrollment.mjs';
 import { agentUser, ownUserFile, taskWorkerUser, userDirectory } from './agent-user.mjs';
+import {
+  servicePath as sharedServicePath,
+  discoverProviderPaths,
+} from '../desktop/src/worker-path.mjs';
+export { discoverProviderPaths };
 
 /**
  * `agent` is the supervised execution agent service. It runs whenever any role does, because it
@@ -234,39 +237,7 @@ export function servicePath(
   environmentPath = process.env.PATH || '',
   home = agentUser().home,
 ) {
-  return [
-    ...new Set([
-      ...providerPaths.filter(Boolean).map((path) => dirname(path)),
-      join(home, '.local/bin'),
-      join(home, '.npm-global/bin'),
-      join(home, '.cargo/bin'),
-      '/opt/homebrew/bin',
-      '/usr/local/bin',
-      '/usr/bin',
-      '/bin',
-      '/usr/sbin',
-      '/sbin',
-      ...environmentPath.split(delimiter).filter((path) => path.startsWith('/')),
-    ]),
-  ].join(':');
-}
-export function discoverProviderPaths(path = process.env.PATH || '') {
-  return ['codex', 'claude'].flatMap((name) => {
-    const candidate = path
-      .split(delimiter)
-      .filter((dir) => dir.startsWith('/'))
-      .map((dir) => join(dir, name))
-      .find((file) => {
-        try {
-          accessSync(file, constants.X_OK);
-          return true;
-        } catch {
-          return false;
-        }
-      });
-    // Keep both a shim's directory and its real installation directory available.
-    return candidate ? [candidate, realpathSync(candidate)] : [];
-  });
+  return sharedServicePath(providerPaths, environmentPath, home);
 }
 const xml = (value) =>
   String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
