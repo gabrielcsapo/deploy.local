@@ -277,7 +277,9 @@ export function ProjectConfiguration({
         title={`Remove ${project.name}?`}
         actions={
           <>
-            <Action onClick={() => setRemoving(false)}>Cancel</Action>
+            <Action variant="quiet" onClick={() => setRemoving(false)}>
+              Cancel
+            </Action>
             <Action
               variant="danger"
               loading={busy}
