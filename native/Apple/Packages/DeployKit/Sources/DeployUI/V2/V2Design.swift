@@ -107,8 +107,10 @@ struct V2DesignWebView: UIViewRepresentable {
 struct V2DesignLanding: View {
     @Bindable var store: V2Store
     let projectId: String?
-    @State private var proposals: [V2ReviewSummary]?
-    @State private var projects: [V2DesignProject] = []
+    @State private var reviewsRead = V2Read<[V2ReviewSummary]>()
+    private var proposals: [V2ReviewSummary]? { reviewsRead.value }
+    @State private var projectsRead = V2Read<[V2DesignProject]>()
+    private var projects: [V2DesignProject] { projectsRead.value ?? [] }
     @State private var selected: InboxItem?
     @State private var canvas: String?
     @State private var error: String?
@@ -116,35 +118,40 @@ struct V2DesignLanding: View {
     var body: some View {
         Group {
             if proposals?.isEmpty == true, let projectId {
-                V2DesignView(connection: store.connection, projectId: projectId).toolbar(.hidden, for: .navigationBar)
+                VStack(spacing: 0) {
+                    V2LoadNotice(state: reviewsRead.state, copy: .resource("Design", plural: false), lastHeard: store.readDates["design:" + projectId], retry: { await loadReviews() })
+                    V2DesignView(connection: store.connection, projectId: projectId).opacity(reviewsRead.state.failed ? 0.55 : 1)
+                }.toolbar(.hidden, for: .navigationBar)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         Text("To review").font(.largeTitle.bold())
-                        V2Group(title: "Waiting on you") {
-                            if let proposals {
-                                ForEach(proposals) { proposal in
-                                    Button { Task { await open(proposal) } } label: {
-                                        HStack(spacing: 12) {
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                Text(proposal.title).font(.body).foregroundStyle(WorkspaceStyle.text(scheme)).fixedSize(horizontal: false, vertical: true)
-                                                Text("\(proposal.proposer.name) · \(V2ReviewModel.age(proposal.createdAt))").font(.footnote).foregroundStyle(.secondary)
-                                                Text(proposal.stale ? V2ReviewModel.conflictCount(proposal.conflicts) : proposal.counts.label(includeRemoved: false))
-                                                    .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                                            }.frame(maxWidth: .infinity, alignment: .leading)
-                                            V2SettingsChevron()
-                                        }.padding(16)
-                                    }.buttonStyle(.plain)
-                                    if proposal.id != proposals.last?.id { Divider().padding(.leading, 16) }
+                        V2LoadRegion(state: reviewsRead.state, copy: .resource("Design", plural: false), lastHeard: store.readDates["design:" + (projectId ?? "all")], rows: 1, skeleton: AnyView(V2Group { V2Row(title: "Loading designs…", subtitle: " ").redacted(reason: .placeholder).accessibilityHidden(true) }), retry: { await loadReviews() }) {
+                            V2Group(title: "Waiting on you") {
+                                if let proposals {
+                                    ForEach(proposals) { proposal in
+                                        Button { Task { await open(proposal) } } label: {
+                                            HStack(spacing: 12) {
+                                                VStack(alignment: .leading, spacing: 6) {
+                                                    Text(proposal.title).font(.body).foregroundStyle(WorkspaceStyle.text(scheme)).fixedSize(horizontal: false, vertical: true)
+                                                    Text("\(proposal.proposer.name) · \(V2ReviewModel.age(proposal.createdAt))").font(.footnote).foregroundStyle(.secondary)
+                                                    Text(proposal.stale ? V2ReviewModel.conflictCount(proposal.conflicts) : proposal.counts.label(includeRemoved: false))
+                                                        .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                                                }.frame(maxWidth: .infinity, alignment: .leading)
+                                                V2SettingsChevron()
+                                            }.padding(16)
+                                        }.buttonStyle(.plain)
+                                        if proposal.id != proposals.last?.id { Divider().padding(.leading, 16) }
+                                    }
                                 }
-                            } else {
-                                V2Row(title: "Loading designs…", subtitle: " ").redacted(reason: .placeholder)
                             }
                         }
-                        if !projects.isEmpty {
-                            V2Group(title: "Projects with a design") {
-                                ForEach(projects) { project in
-                                    Button { canvas = project.id } label: { V2Row(title: project.name, subtitle: project.description) }
+                        V2LoadRegion(state: projectsRead.state, copy: .resource("Design", plural: false), lastHeard: store.readDates["design-projects"], rows: 1, retry: { await loadProjects() }) {
+                            if !projects.isEmpty {
+                                V2Group(title: "Projects with a design") {
+                                    ForEach(projects) { project in
+                                        Button { canvas = project.id } label: { V2Row(title: project.name, subtitle: project.description) }
+                                    }
                                 }
                             }
                         }
@@ -158,14 +165,21 @@ struct V2DesignLanding: View {
             if let canvas { V2DesignView(connection: store.connection, projectId: canvas) }
         }
         .task(id: projectId) { await load() }
-        .onChange(of: store.snapshot.cursor) { _, _ in Task { await load() } }
+        .onChange(of: store.snapshot.cursor) { _, _ in Task { await load(foreground: false) } }
+        .loadingHeader(title: "Design", reviewsRead.state, projectsRead.state)
+        .refreshable { await load() }
+        .onDisappear { reviewsRead.leave(); projectsRead.leave() }
     }
-    private func load() async {
-        do {
-            proposals = try await store.client.designReviews(project: projectId)
-            projects = try await store.client.designProjects()
-            error = nil
-        } catch { self.error = coordinatorErrorDescription(error) }
+    private func load(foreground: Bool = true) async {
+        async let reviews: Void = loadReviews(foreground: foreground)
+        async let projects: Void = loadProjects(foreground: foreground)
+        _ = await (reviews, projects)
+    }
+    private func loadReviews(foreground: Bool = true) async {
+        await reviewsRead.load(store: store, key: "design:" + (projectId ?? "all"), foreground: foreground) { try await store.client.designReviews(project: projectId) }
+    }
+    private func loadProjects(foreground: Bool = true) async {
+        await projectsRead.load(store: store, key: "design-projects", foreground: foreground) { try await store.client.designProjects() }
     }
     private func open(_ proposal: V2ReviewSummary) async {
         do { selected = try await store.client.designReview(project: proposal.projectId, item: proposal.id).item }

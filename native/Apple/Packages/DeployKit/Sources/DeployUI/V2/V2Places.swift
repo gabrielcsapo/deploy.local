@@ -8,30 +8,38 @@ struct V2InboxView: View {
     @State private var reviewItem: InboxItem?
     @Environment(\.dismiss) private var dismiss
     var body: some View {
-        V2Page(title: "Waiting on you") {
+        V2Page(title: "Waiting on you", loading: [store.loadState(answered ? "answered" : "waiting")]) {
             Picker("Decisions", selection: $answered) {
-                Text("Waiting \(store.waiting.count)").tag(false)
+                Text(store.loadState("waiting").hasData ? "Waiting \(store.waiting.count)" : "Waiting").tag(false)
                 Text("Answered").tag(true)
             }.pickerStyle(.segmented)
-            if answered {
-                ForEach(days, id: \.self) { day in
-                    V2Group(title: day) {
-                        ForEach(store.answered.filter { dayLabel($0.answer?.at ?? $0.createdAt) == day }, id: \.id) { item in
-                            VStack(alignment: .leading, spacing: 0) {
-                                V2Row(title: item.title, subtitle: answerLabel(item), trailing: V2Labels.outcome(item), identity: store.snapshot.agents.first { $0.id == item.from }?.identity ?? .from(id: item.from))
-                                Divider().padding(.leading, 52)
+            V2LoadRegion(state: store.loadState(answered ? "answered" : "waiting"), copy: answered ? .resource("Answered decisions") : .work,
+                         lastHeard: store.snapshot.updatedAt, icons: false,
+                         retry: { await store.refreshResources([answered ? "answered" : "waiting"]) }) {
+                if answered {
+                    ForEach(days, id: \.self) { day in
+                        V2Group(title: day) {
+                            ForEach(store.answered.filter { dayLabel($0.answer?.at ?? $0.createdAt) == day }, id: \.id) { item in
+                                VStack(alignment: .leading, spacing: 0) {
+                                    V2Row(title: item.title, subtitle: answerLabel(item), trailing: V2Labels.outcome(item), identity: store.snapshot.agents.first { $0.id == item.from }?.identity ?? .from(id: item.from))
+                                    Divider().padding(.leading, 52)
+                                }
                             }
                         }
                     }
-                }
-                if store.answered.isEmpty { V2Empty(title: "No answered decisions", message: "Answers from every device appear here.") }
-            } else {
-                ForEach(store.waiting, id: \.id) { item in
-                    if V2DesignReview.project(of: item.id) != nil { Button { reviewItem = item } label: { V2DesignWaitingRow(store: store, item: item) }.buttonStyle(.plain) }
-                    else { V2Decision(item: item, store: store) }
+                    if store.answered.isEmpty { V2Empty(title: "No answered decisions", message: "Answers from every device appear here.") }
+                } else {
+                    ForEach(store.waiting, id: \.id) { item in
+                        if V2DesignReview.project(of: item.id) != nil { Button { reviewItem = item } label: { V2DesignWaitingRow(store: store, item: item) }.buttonStyle(.plain) }
+                        else { V2Decision(item: item, store: store) }
+                    }
                 }
             }
         }.navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
+            .task(id: answered) { await store.refreshResources([answered ? "answered" : "waiting"]) }
+            .onChange(of: answered) { old, _ in store.leaveResources([old ? "answered" : "waiting"]) }
+            .onDisappear { store.leaveResources(["answered", "waiting"]) }
+            .refreshable { await store.refreshResources([answered ? "answered" : "waiting"]) }
             .designReview(item: $reviewItem, store: store)
     }
     private var days: [String] { store.answered.map { dayLabel($0.answer?.at ?? $0.createdAt) }.reduce(into: []) { if !$0.contains($1) { $0.append($1) } } }
@@ -50,78 +58,96 @@ struct V2LiveView: View {
     @Bindable var store: V2Store
     let open: (String) -> Void
     var body: some View {
-        V2Page(title: "Live") {
-            ForEach(store.waiting.filter { $0.kind == .rollback }, id: \.id) { item in V2Decision(item: item, store: store) }
-            ForEach(store.snapshot.live?.computers ?? []) { computer in
-                V2Group(title: "\(computer.name) · \(computer.online ? "online" : "offline")") {
-                    ForEach(computer.apps) { app in
-                        Button { open(app.id) } label: { V2Row(title: app.name, subtitle: app.summary, state: app.state) }
-                        if app.id != computer.apps.last?.id { Divider().padding(.leading, 46) }
+        V2Page(title: "Live", loading: [store.loadState("live")]) {
+            V2LoadRegion(state: store.loadState("live"), copy: .live, lastHeard: store.snapshot.resourceDates["live"], status: true, skeleton: AnyView(V2GroupedSkeleton()),
+                         retry: { await store.refreshResources(["live"]) }) {
+                ForEach(store.waiting.filter { $0.kind == .rollback }, id: \.id) { item in V2Decision(item: item, store: store) }
+                ForEach(store.snapshot.live?.computers ?? []) { computer in
+                    V2Group(title: "\(computer.name) · \(computer.online ? "online" : "offline")") {
+                        ForEach(computer.apps) { app in
+                            Button { open(app.id) } label: { V2Row(title: app.name, subtitle: app.summary, state: app.state) }
+                            if app.id != computer.apps.last?.id { Divider().padding(.leading, 46) }
+                        }
                     }
-                }.opacity(store.online ? 1 : 0.45)
+                }
+                if store.snapshot.live?.computers.isEmpty == true { V2Empty(title: "No apps running", message: "Apps appear here after you start a release.") }
             }
-            if store.snapshot.live?.computers.isEmpty == true { V2Empty(title: "No apps running", message: "Apps appear here after you start a release.") }
-        }.refreshable { await store.refresh() }
+        }.refreshable { await store.refreshResources(["live"]) }
     }
 }
 struct V2WorkerView: View {
     @Bindable var store: V2Store
     let appId: String
-    @State private var detail: V2LiveDetail?
+    @State private var read = V2Read<V2LiveApp>()
+    private var detail: V2LiveApp? { read.value }
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
-    private var app: V2LiveApp? { detail?.app ?? store.snapshot.live?.computers.flatMap(\.apps).first { $0.id == appId } }
+    private var app: V2LiveApp? { detail ?? store.snapshot.live?.computers.flatMap(\.apps).first { $0.id == appId } }
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    if let app {
-                        HStack { V2Status(state: app.state); Text([app.kind.rawValue.capitalized, app.project, app.release].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.secondary) }
-                        V2Group(title: "Health") {
-                            if let jobs = app.jobs { V2Row(title: "Jobs", subtitle: "\(Int(jobs.failRate * 100))% failing · usually \(Int(jobs.baselineFailRate * 100))%", icon: "chart.line.uptrend.xyaxis") }
-                            if let queue = app.queue { Divider(); V2Row(title: "Queue", subtitle: "\(Int(queue.depth).formatted()) waiting · oldest \(Int(queue.oldestSec / 60)) min", icon: "tray") }
-                            if let process = app.restarts { Divider(); V2Row(title: "Process", subtitle: "Restarted \(Int(process.count)) times in \(Int(process.windowSec / 60)) min", icon: "arrow.clockwise") }
-                            if let heartbeat = app.heartbeatAt { Divider(); V2Row(title: "Heartbeat", subtitle: V2Store.date(heartbeat)?.formatted(.relative(presentation: .named)) ?? heartbeat, icon: "checkmark.circle") }
-                            if let http = app.http { V2Row(title: "HTTP \(Int(http.status))", subtitle: "\(Int(http.p95ms)) ms p95 · \(Int(http.reqPerMin)) req/min", icon: "network") }
-                            if app.jobs == nil && app.http == nil { V2Row(title: "Status", subtitle: app.summary, icon: "waveform.path.ecg") }
-                        }
-                        if let release = app.release {
-                            V2Group(title: "Release \(release)") {
-                                ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == app.project && $0.release == release } ?? []) { sibling in V2Row(title: sibling.name, subtitle: sibling.kind == .worker ? "Worker" : "Web app", state: sibling.state) }
+                    V2LoadRegion(state: read.state, copy: .resource("App details"), lastHeard: store.snapshot.updatedAt, status: true, retry: { await load() }) {
+                        if let app {
+                            HStack { V2Status(state: app.state); Text([app.kind.rawValue.capitalized, app.project, app.release].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.secondary) }
+                            V2Group(title: "Health") {
+                                if let jobs = app.jobs { V2Row(title: "Jobs", subtitle: "\(Int(jobs.failRate * 100))% failing · usually \(Int(jobs.baselineFailRate * 100))%", icon: "chart.line.uptrend.xyaxis") }
+                                if let queue = app.queue { Divider(); V2Row(title: "Queue", subtitle: "\(Int(queue.depth).formatted()) waiting · oldest \(Int(queue.oldestSec / 60)) min", icon: "tray") }
+                                if let process = app.restarts { Divider(); V2Row(title: "Process", subtitle: "Restarted \(Int(process.count)) times in \(Int(process.windowSec / 60)) min", icon: "arrow.clockwise") }
+                                if let heartbeat = app.heartbeatAt { Divider(); V2Row(title: "Heartbeat", subtitle: V2Store.date(heartbeat)?.formatted(.relative(presentation: .named)) ?? heartbeat, icon: "checkmark.circle") }
+                                if let http = app.http { V2Row(title: "HTTP \(Int(http.status))", subtitle: "\(Int(http.p95ms)) ms p95 · \(Int(http.reqPerMin)) req/min", icon: "network") }
+                                if app.jobs == nil && app.http == nil { V2Row(title: "Status", subtitle: app.summary, icon: "waveform.path.ecg") }
                             }
+                            if let release = app.release {
+                                V2Group(title: "Release \(release)") {
+                                    ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == app.project && $0.release == release } ?? []) { sibling in V2Row(title: sibling.name, subtitle: sibling.kind == .worker ? "Worker" : "Web app", state: sibling.state) }
+                                }
+                            }
+                            if let decision = store.waiting.first(where: { $0.kind == .rollback && $0.projectId == app.project }) { V2Decision(item: decision, store: store) }
                         }
-                        if let decision = store.waiting.first(where: { $0.kind == .rollback && $0.projectId == app.project }) { V2Decision(item: decision, store: store) }
+                        if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
                     }
-                    if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
-                }.padding(16).opacity(store.online ? 1 : 0.45)
+                }.padding(16)
             }.background(Color(.systemGroupedBackground)).navigationTitle(app?.name ?? appId).navigationBarTitleDisplayMode(.inline)
                 .toolbar { Button("Done") { dismiss() } }
-                .task { do { detail = try await store.client.liveApp(appId) } catch { self.error = coordinatorErrorDescription(error) } }
+                .task(id: appId) { await load() }.refreshable { await load() }
+                .onDisappear { read.leave() }
+                .loadingHeader(title: app?.name ?? appId, read.state)
         }
     }
+    private func load() async {
+        let cached = store.snapshot.live?.computers.flatMap(\.apps).first { $0.id == appId }
+        await read.load(store: store, key: "app:" + appId, initial: cached) { try await store.client.liveApp(appId).app }
+    }
+
 }
 struct V2ProjectsView: View {
     @Bindable var store: V2Store
     @Bindable var workspace: WorkspaceStore
     @State private var selected: V2Project?
+    @State private var detailLoading: [V2LoadState] = []
     var body: some View {
         NavigationStack {
-            V2Page(title: "Projects") {
-                V2Group(title: "Projects") {
-                    ForEach(store.snapshot.projects) { project in
-                        Button { selected = project } label: { V2Row(title: project.name, subtitle: project.summary ?? summary(project.id), icon: "folder") }
-                        if project.id != store.snapshot.projects.last?.id { Divider().padding(.leading, 46) }
+            V2Page(title: "Projects", loading: [store.loadState("projects")] + detailLoading) {
+                V2LoadRegion(state: store.loadState("projects"), copy: .projects, lastHeard: store.snapshot.resourceDates["projects"], icons: false, skeleton: AnyView(V2GroupedSkeleton(projects: true)),
+                             retry: { await store.refreshResources(["projects"]) }) {
+                    V2Group(title: "Projects") {
+                        ForEach(store.snapshot.projects) { project in
+                            Button { selected = project } label: { V2Row(title: project.name, subtitle: project.summary ?? summary(project.id), icon: "folder",
+                                pendingSubtitle: project.summary == nil && !store.loadState("workspace").hasData && !store.loadState("live").hasData && (store.loadState("workspace").showsSkeleton || store.loadState("live").showsSkeleton)) }
+                            if project.id != store.snapshot.projects.last?.id { Divider().padding(.leading, 46) }
+                        }
                     }
+                    if store.snapshot.projects.isEmpty { V2Empty(title: "No projects yet", message: "Describe what you want to build in Work.") }
+                    if let project = selected ?? store.snapshot.projects.first { V2ProjectSection(store: store, project: project, status: { detailLoading = $0 }) }
+                    if let error = store.projectsError { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
                 }
-                if store.snapshot.projects.isEmpty { V2Empty(title: "No projects yet", message: "Describe what you want to build in Work.") }
-                if let project = selected ?? store.snapshot.projects.first { V2ProjectSection(store: store, project: project) }
-                if let error = store.projectsError { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
-            }.opacity(store.online ? 1 : 0.45)
+            }.refreshable { await store.refreshResources(["projects"]) }
         }
     }
     private func summary(_ id: String) -> String {
         let apps = store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == id } ?? []
-        if apps.isEmpty { return "\(store.tasks.filter { $0.projectId == id }.count) tasks" }
+        if apps.isEmpty { return store.loadState("workspace").hasData ? "\(store.tasks.filter { $0.projectId == id }.count) tasks" : "" }
         let failing = apps.filter { $0.state == .failing }.count
         return failing > 0 ? "\(failing) of \(apps.count) apps failing" : "\(apps.count) apps · Live"
     }
@@ -129,23 +155,28 @@ struct V2ProjectsView: View {
 struct V2ComputersView: View {
     @Bindable var store: V2Store
     var body: some View {
-        V2Page(title: "Computers") {
-            if let error = store.computersError { Text(error).font(.system(size: 15)).foregroundStyle(.secondary) }
-            V2Group(title: "\(store.snapshot.computers.filter { $0.online == true }.count) online") {
-                ForEach(store.snapshot.computers) { computer in
-                    V2Row(title: computer.name, subtitle: roles(computer), icon: "desktopcomputer", trailing: computer.online == true ? "Online" : computer.online == false ? "Offline" : "Unavailable")
-                    if computer.id != store.snapshot.computers.last?.id { Divider().padding(.leading, 46) }
-                }
-            }
-            V2Group(title: "Models") {
-                ForEach(store.snapshot.workspace?.workers ?? []) { worker in
-                    ForEach(worker.modelOptions ?? [], id: \.id) { provider in
-                        ForEach(provider.models) { model in V2Row(title: model.name, subtitle: "\(provider.id.capitalized) · \(worker.name)", icon: "cpu") }
+        V2Page(title: "Computers", loading: [store.loadState("computers")]) {
+            V2LoadRegion(state: store.loadState("computers"), copy: .resource("Computers"), lastHeard: store.snapshot.resourceDates["computers"], status: true,
+                         retry: { await store.refreshResources(["computers"]) }) {
+                if let error = store.computersError { Text(error).font(.system(size: 15)).foregroundStyle(.secondary) }
+                V2Group(title: "\(store.snapshot.computers.filter { $0.online == true }.count) online") {
+                    ForEach(store.snapshot.computers) { computer in
+                        V2Row(title: computer.name, subtitle: roles(computer), icon: "desktopcomputer", trailing: computer.online == true ? "Online" : computer.online == false ? "Offline" : "Unavailable")
+                        if computer.id != store.snapshot.computers.last?.id { Divider().padding(.leading, 46) }
                     }
                 }
             }
-            Text("Add or remove computers, and change model defaults, on a computer.").font(.system(size: 13)).foregroundStyle(.secondary)
-        }.opacity(store.online ? 1 : 0.45)
+            V2LoadRegion(state: store.loadState("workspace"), copy: .resource("Computers"), lastHeard: store.snapshot.resourceDates["workspace"], retry: { await store.refreshResources(["workspace"]) }) {
+                V2Group(title: "Models") {
+                    ForEach(store.snapshot.workspace?.workers ?? []) { worker in
+                        ForEach(worker.modelOptions ?? [], id: \.id) { provider in
+                            ForEach(provider.models) { model in V2Row(title: model.name, subtitle: "\(provider.id.capitalized) · \(worker.name)", icon: "cpu") }
+                        }
+                    }
+                }
+                Text("Add or remove computers, and change model defaults, on a computer.").font(.system(size: 13)).foregroundStyle(.secondary)
+            }
+        }.refreshable { await store.refreshResources(["computers", "workspace"]) }
     }
     private func roles(_ computer: V2Computer) -> String {
         if computer.kind == "coordinator" { return "Coordinator" }
@@ -226,7 +257,10 @@ struct V2SettingsView: View {
                     }
                     V2SettingsGroup(title: "Agents and data") {
                         Button { approvals = true } label: {
-                            V2SettingsRow(title: "What agents may do", subtitle: agentSummary, icon: "shield") { V2SettingsChevron() }
+                            V2SettingsRow(title: "What agents may do", subtitle: store.loadState("agents").hasData ? agentSummary : nil, icon: "shield") {
+                                if store.loadState("agents").showsSkeleton { V2Skeleton(width: 90, height: 10) }
+                                V2SettingsChevron()
+                            }
                         }
                         Divider()
                         Button { backups = true } label: {

@@ -6,16 +6,27 @@ struct V2Page<Content: View>: View {
     let title: String
     var action: (() -> Void)? = nil
     var icon = "square.and.pencil"
+    var loading: [V2LoadState]? = nil
     @ViewBuilder var content: Content
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                if let loading {
+                    HStack {
+                        Color.clear.frame(width: 44, height: 44)
+                        Spacer(minLength: 0)
+                        V2LoadingHeader(states: loading)
+                        Spacer(minLength: 0)
+                        if let action { Button(action: action) { Image(systemName: icon).frame(width: 44, height: 44) }.accessibilityLabel(title == "Work" ? "New message" : "Search") }
+                        else { Color.clear.frame(width: 44, height: 44) }
+                    }
+                }
                 HStack {
                     Text(title).font(.system(size: 28, weight: .semibold)).tracking(-0.7)
                     Spacer()
-                    if let action { Button(action: action) { Image(systemName: icon).frame(width: 44, height: 44) }.accessibilityLabel(title == "Work" ? "New message" : "Search") }
-                }.padding(.top, 26)
+                    if loading == nil, let action { Button(action: action) { Image(systemName: icon).frame(width: 44, height: 44) }.accessibilityLabel(title == "Work" ? "New message" : "Search") }
+                }.padding(.top, loading == nil ? 26 : 0)
                 content
             }.padding(.horizontal, 16).padding(.bottom, 24)
         }.background(WorkspaceStyle.canvas(scheme)).scrollIndicators(.hidden)
@@ -46,6 +57,7 @@ struct V2Row: View {
     var identity: V2AgentAvatar? = nil
     var chevron = false
     var compact = false
+    var pendingSubtitle = false
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 12) {
@@ -54,6 +66,7 @@ struct V2Row: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 17)).foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(2)
                 if let subtitle, !subtitle.isEmpty { Text(subtitle).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).lineLimit(2) }
+                else if pendingSubtitle { V2Skeleton(width: 130, height: 9).frame(height: 18) }
             }.multilineTextAlignment(.leading)
             Spacer(minLength: 4)
             if let state { V2Status(state: state) }

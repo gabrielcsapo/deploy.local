@@ -4,38 +4,41 @@ import DeployCore
 
 struct V2BackupsView: View {
     @Bindable var store: V2Store
-    @State private var listing: V2Backups?
+    @State private var read = V2Read<V2Backups>()
+    private var listing: V2Backups? { read.value }
     @State private var project: String?
     @State private var error: String?
     private var groups: [String] { Array(Set(listing?.backups.compactMap(\.projectId) ?? [])).sorted() }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if let listing {
-                    V2Group {
-                        V2Row(title: "Last backup", subtitle: listing.backups.map(\.createdAt).max().map { V2Labels.shortDate($0) } ?? "Unavailable", icon: "arrow.down.to.line")
-                        V2Row(title: "Restore test", subtitle: listing.backups.filter { $0.testedAt != nil }.sorted { ($0.testedAt ?? "") > ($1.testedAt ?? "") }.first.map { "\(V2Labels.shortDate($0.testedAt!)) · \($0.testStatus)" } ?? "Not tested", icon: "checkmark.circle")
-                    }
-                    V2Group(title: "Projects") {
-                        ForEach(groups, id: \.self) { id in
-                            let backup = listing.backups.first { $0.projectId == id }
-                            Button { project = id } label: { V2Row(title: store.snapshot.projects.first { $0.id == id }?.name ?? id, subtitle: [backup?.contents.joined(separator: ", "), backup?.sizeBytes.map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .decimal) }].compactMap { $0 }.joined(separator: " · "), icon: "externaldrive") }
+                V2LoadRegion(state: read.state, copy: .resource("Backups"), lastHeard: store.readDates["backups"], retry: { await load() }) {
+                    if let listing {
+                        V2Group {
+                            V2Row(title: "Last backup", subtitle: listing.backups.map(\.createdAt).max().map { V2Labels.shortDate($0) } ?? "Unavailable", icon: "arrow.down.to.line")
+                            V2Row(title: "Restore test", subtitle: listing.backups.filter { $0.testedAt != nil }.sorted { ($0.testedAt ?? "") > ($1.testedAt ?? "") }.first.map { "\(V2Labels.shortDate($0.testedAt!)) · \($0.testStatus)" } ?? "Not tested", icon: "checkmark.circle")
                         }
+                        V2Group(title: "Projects") {
+                            ForEach(groups, id: \.self) { id in
+                                let backup = listing.backups.first { $0.projectId == id }
+                                Button { project = id } label: { V2Row(title: store.snapshot.projects.first { $0.id == id }?.name ?? id, subtitle: [backup?.contents.joined(separator: ", "), backup?.sizeBytes.map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .decimal) }].compactMap { $0 }.joined(separator: " · "), icon: "externaldrive") }
+                            }
+                        }
+                        if groups.isEmpty { V2Empty(title: "No project backups", message: "Backups appear here after they are recorded on your coordinator.") }
                     }
-                    if groups.isEmpty { V2Empty(title: "No project backups", message: "Backups appear here after they are recorded on your coordinator.") }
+                    if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
                 }
-                if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
             }.padding(16)
         }.navigationTitle("Backups").navigationBarTitleDisplayMode(.inline)
             .task { await load(); if V2Evidence.board == "RestorePhone" { project = "home-gym" } }
             .refreshable { await load() }
+            .loadingHeader(title: "Backups", read.state).onDisappear { read.leave() }
             .sheet(isPresented: Binding(get: { project != nil }, set: { if !$0 { project = nil } })) {
                 if let project { V2RestoreSheet(store: store, project: project) }
             }
     }
     private func load() async {
-        do { listing = try await store.client.backups(); error = nil }
-        catch { self.error = coordinatorErrorDescription(error) }
+        await read.load(store: store, key: "backups") { try await store.client.backups() }
     }
 }
 struct V2RestoreSheet: View {

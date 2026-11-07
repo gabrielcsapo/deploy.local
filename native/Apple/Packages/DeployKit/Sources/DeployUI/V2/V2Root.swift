@@ -26,6 +26,7 @@ public struct DeployV2Root: View {
             guard let connection = workspace.connection else { self.store = nil; return }
             workspace.suspend()
             if V2Evidence.board == nil, let paired = V2PairingVault.load(), paired.connection != connection { V2PairingVault.clear() }
+            await V2Evidence.prepareLoadingCache(connection: connection)
             let next = V2Store(connection: connection, cacheDirectory: V2Evidence.cacheDirectory)
             self.store = next
             await next.start()
@@ -46,9 +47,11 @@ struct V2Tabs: View {
     @Bindable var workspace: WorkspaceStore
     let paired: (Connection) -> Void
     @State private var tab = V2Tab.work
+    @State private var openedTab = false
     @State private var compose = false
     @State private var inbox = false
     @State private var answered = false
+    @State private var workSlowKey: String?
     @State private var task: String?
     @State private var agent: String?
     @State private var newAgent = false
@@ -64,14 +67,21 @@ struct V2Tabs: View {
         VStack(spacing: 0) {
             Group {
                 switch tab {
-                case .work: work
+                case .work: work.task(id: workStates.map(\.pending)) {
+                    // A banner slot only exists while it has something to say, so rows never shift.
+                    while !Task.isCancelled {
+                        workSlowKey = workKeys.first { store.loadState($0).isSlow() }
+                        guard workStates.contains(where: \.pending) else { return }
+                        try? await Task.sleep(for: .seconds(1))
+                    }
+                }
                 case .projects: V2ProjectsView(store: store, workspace: workspace)
                 case .live: V2LiveView(store: store, open: { app = $0 })
                 case .computers: V2ComputersView(store: store)
                 case .settings: V2SettingsView(store: store, workspace: workspace)
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            if tab == .work { composerButton }
+            if tab == .work, !workUnavailable { composerButton }
             Divider()
             HStack(spacing: 0) {
                 ForEach(V2Tab.allCases, id: \.self) { item in
@@ -126,6 +136,27 @@ struct V2Tabs: View {
                 decision = route["inboxItemId"]; app = route["appId"]
                 UserDefaults.standard.removeObject(forKey: "deploy.v2.notificationRoute")
             }
+            .task { openEvidence() }
+            .task(id: tab) {
+                // start() owns the first foreground read. Subsequent visits read only this place.
+                if !openedTab { openedTab = true; return }
+                await store.refreshResources(visibleKeys)
+            }
+            .onChange(of: tab) { old, _ in
+                let keys: [String]
+                switch old {
+                case .work: keys = workKeys
+                case .projects: keys = ["projects"]
+                case .live: keys = ["live"]
+                case .computers: keys = ["computers", "workspace"]
+                case .settings: keys = []
+                }
+                store.leaveResources(keys)
+            }
+            .onChange(of: modalOpen) { _, opened in
+                store.leaveResources(visibleKeys)
+                if !opened { Task { await store.refreshResources(visibleKeys) } }
+            }
             .onChange(of: store.snapshot.updatedAt) { _, _ in openEvidence() }
             .onChange(of: store.selectedTaskId) { _, id in if id != nil { task = id } }
             .onChange(of: store.openedInboxId) { _, id in decision = id }
@@ -136,8 +167,23 @@ struct V2Tabs: View {
                 Task { await store.refresh() }
             }
     }
+    private var modalOpen: Bool { compose || newAgent || inbox || task != nil || agent != nil || app != nil || decision != nil || signIn }
+    private var workKeys: [String] { ["agents", "waiting", "workspace"] }
+    private var visibleKeys: [String] {
+        switch tab {
+        case .work: workKeys
+        case .projects: ["projects"]
+        case .live: ["live"]
+        case .computers: ["computers", "workspace"]
+        case .settings: []
+        }
+    }
+    private var workStates: [V2LoadState] { workKeys.map { store.loadState($0) } }
+    private var workUnavailable: Bool { !workStates.contains(where: \.hasData) && workStates.allSatisfy(\.failed) }
     private func openEvidence() {
         guard !evidenceOpened, let board = V2Evidence.board else { return }
+        // This route represents tapping an already known task, not inventing a task title.
+        if board == "TaskLoadingPhone", !store.loadState("workspace").hasData { return }
         evidenceOpened = true
         if let board = V2Evidence.agentsBoard {
             switch board {
@@ -153,95 +199,104 @@ struct V2Tabs: View {
         case "SignInPhone": signIn = true
         case "ComposePhone": compose = true
         case "NewAgentPhone", "NewAgentDraftPhone": newAgent = true
-        case "TaskPhone": task = "sync"
+        case "TaskPhone", "TaskLoadingPhone": task = "sync"
         case "NewProductPhone", "TaskInfoPhone", "ShipPhone": task = "meal"
         case "AskPhone": task = "ask"
         case "ChangesPhone", "AttachPhone", "AttachedPhone", "ModelPhone": task = "meal"
         case "AnsweredPhone": answered = true; inbox = true
-        case "LivePhone": tab = .live
+        case "LivePhone", "LiveLoadingPhone": tab = .live
         case "WorkerPhone": tab = .live; app = "home-gym-sync"
         case "Phone", "RollbackPhone": evidenceAgentTask = "warden"; agent = "warden"
         case "ScoutPhone", "AgentInfoPhone", "AgentMenuPhone": evidenceAgentTask = "scout"; agent = "scout"
-        case "ProjectPhone", "ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone": tab = .projects
+        case "ProjectsLoadingPhone", "ProjectPhone", "ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone": tab = .projects
         case "ComputePhone": tab = .computers
         case "SettingsPhone", "SettingsApprovalsPhone", "RestorePhone", "PackagesPhone", "PackageVersionsPhone", "SettingsPackagesRowPhone": tab = .settings
         default: break
         }
     }
     private var work: some View {
-        V2Page(title: "Work", action: { compose = true }) {
+        V2Page(title: "Work", action: { compose = true }, loading: workStates) {
             if store.needsAuthentication {
                 Button("Sign in again") { signIn = true }.buttonStyle(V2ActionStyle(primary: true))
-            } else if !store.online {
-                VStack(alignment: .leading, spacing: 5) {
-                    Label("Can’t reach \(coordinator)", systemImage: "cloud")
-                    Text(store.snapshot.updatedAt.map { "Last heard from at \($0.formatted(date: .omitted, time: .shortened)). Retrying." } ?? "Connecting to your home coordinator…").font(.system(size: 13))
-                }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(WorkspaceStyle.warning(scheme).opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(WorkspaceStyle.warning(scheme).opacity(0.25)))
             }
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("Agents").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                    Spacer()
-                    Button { newAgent = true } label: {
-                        Image(systemName: "plus").font(.system(size: 22)).frame(width: 44, height: 44)
-                    }.accessibilityLabel("New agent")
-                }.padding(.leading, 16).padding(.trailing, 4)
-                if store.snapshot.agents.isEmpty {
-                    Text("Give it a name. Teach it in the chat.").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                        .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 8)
-                } else {
-                    V2Group {
-                        ForEach(store.snapshot.agents) { item in
-                            if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
-                            Button { agent = item.id } label: { V2SettingsRow(title: item.name, subtitle: item.lastMessage?.text ?? "Say hello", identity: item.identity) { if let at = item.lastMessage?.at { Text(V2Evidence.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) }; V2SettingsChevron() } }
+            if let key = workKeys.first(where: { store.loadState($0).failed }) ?? workSlowKey {
+                V2LoadNotice(state: store.loadState(key), copy: .work, lastHeard: store.snapshot.resourceDates[key] ?? store.snapshot.updatedAt) { await store.refreshResources(workKeys) }
+            }
+            if !workUnavailable {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text("Agents").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                        Spacer()
+                        if !store.loadState("agents").showsSkeleton {
+                            Button { newAgent = true } label: {
+                                Image(systemName: "plus").font(.system(size: 22)).frame(width: 44, height: 44)
+                            }.accessibilityLabel("New agent")
                         }
-                    }
-                }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(store.online ? "Waiting on you · \(store.waiting.count)" : "Waiting on you · last known").font(.system(size: 13)).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Answered") { answered = true; inbox = true }.font(.system(size: 13))
-                }.padding(.horizontal, 12)
-                if store.waiting.isEmpty { V2Empty(title: "Nothing waiting", message: "Decisions from your tasks and agents appear here.") }
-                else {
-                    V2Group {
-                        ForEach(store.waiting, id: \.id) { item in
-                            Button { decision = item.id } label: {
-                                if V2DesignReview.project(of: item.id) != nil { V2DesignWaitingRow(store: store, item: item) }
-                                else { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Evidence.shortDate(item.createdAt), attention: true) }
+                    }.frame(minHeight: 44).padding(.leading, 16).padding(.trailing, 4)
+                    if store.loadState("agents").showsSkeleton { V2SkeletonRows() }
+                    else if !store.loadState("agents").hasData { EmptyView() }
+                    else if store.snapshot.agents.isEmpty {
+                        Text("Give it a name. Teach it in the chat.").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                            .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 8)
+                    } else {
+                        V2Group {
+                            ForEach(store.snapshot.agents) { item in
+                                if item.id != store.snapshot.agents.first?.id { Divider().padding(.leading, 52) }
+                                Button { agent = item.id } label: { V2SettingsRow(title: item.name, subtitle: item.lastMessage?.text ?? "Say hello", identity: item.identity) { if let at = item.lastMessage?.at { Text(V2Evidence.shortDate(at)).font(.system(size: 13)).foregroundStyle(.secondary) }; V2SettingsChevron() } }
                             }
-                            if item.id != store.waiting.last?.id { Divider().padding(.leading, 46) }
                         }
-                    }.opacity(store.online ? 1 : 0.45)
+                    }
+                }.opacity(store.loadState("agents").failed ? 0.55 : 1)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(!store.loadState("waiting").hasData ? "Waiting on you" : store.loadState("waiting").failed ? "Waiting on you · last known" : "Waiting on you · \(store.waiting.count)").font(.system(size: 13)).foregroundStyle(.secondary)
+                        Spacer()
+                        if !store.loadState("waiting").showsSkeleton {
+                            Button("Answered") { answered = true; inbox = true }.font(.system(size: 13))
+                        }
+                    }.padding(.horizontal, 12)
+                    if store.loadState("waiting").showsSkeleton { V2SkeletonRows(count: 2) }
+                    else if !store.loadState("waiting").hasData { EmptyView() }
+                    else if store.waiting.isEmpty { V2Empty(title: "Nothing waiting", message: "Decisions from your tasks and agents appear here.") }
+                    else {
+                        V2Group {
+                            ForEach(store.waiting, id: \.id) { item in
+                                Button { decision = item.id } label: {
+                                    if V2DesignReview.project(of: item.id) != nil { V2DesignWaitingRow(store: store, item: item) }
+                                    else { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Evidence.shortDate(item.createdAt), attention: true) }
+                                }
+                                if item.id != store.waiting.last?.id { Divider().padding(.leading, 46) }
+                            }
+                        }.opacity(store.loadState("waiting").failed ? 0.55 : 1)
+                    }
                 }
-            }
-            if store.online {
-                if !today.isEmpty {
-                    V2Group(title: "Today") {
-                        ForEach(today) { item in
-                            Button { task = item.id } label: { V2Row(title: item.title, subtitle: taskSubtitle(item), icon: item.status == "running" ? "arrow.trianglehead.2.clockwise.rotate.90" : "checkmark") }
-                            if item.id != today.last?.id { Divider().padding(.leading, 46) }
+                if store.loadState("workspace").showsSkeleton {
+                    V2Group(title: "Today") { V2SkeletonRows(count: 1) }
+                } else if store.loadState("workspace").hasData {
+                    if !today.isEmpty {
+                        V2Group(title: "Today") {
+                            ForEach(today) { item in
+                                Button { task = item.id } label: { V2Row(title: item.title, subtitle: taskSubtitle(item), icon: item.status == "running" ? "arrow.trianglehead.2.clockwise.rotate.90" : "checkmark") }
+                                if item.id != today.last?.id { Divider().padding(.leading, 46) }
+                            }
+                        }.opacity(store.loadState("workspace").failed ? 0.55 : 1)
+                    }
+                }
+                if workStates.contains(where: { $0.failed && $0.hasData }) {
+                    Text("You can read these, but answers need \(coordinator). Anything you write is sent when it’s back.").font(.system(size: 13)).foregroundStyle(.secondary)
+                    Text("deploy.local works on your home network. Away from home, this is what you’ll see.").font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+                if !store.snapshot.drafts.isEmpty {
+                    V2Group(title: "Queued drafts") {
+                        ForEach(store.snapshot.drafts) { draft in
+                            Button { store.recoverDraft(draft.id); compose = true } label: { V2Row(title: draft.text, subtitle: draft.rejected ? "Saved on this iPhone · review draft" : "Sends when connected", icon: "clock") }.disabled(!draft.rejected)
                         }
                     }
                 }
-            } else {
-                Text("You can read these, but answers need \(coordinator). Anything you write is sent when it’s back.").font(.system(size: 13)).foregroundStyle(.secondary)
-                Text("Only on your home network. Away from home, this is what you’ll see.").font(.system(size: 13)).foregroundStyle(.secondary)
+                if let error = store.error, store.online { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
+                if let notice = store.notice { Text(notice).font(.system(size: 13)).foregroundStyle(.secondary) }
             }
-            if !store.snapshot.drafts.isEmpty {
-                V2Group(title: "Queued drafts") {
-                    ForEach(store.snapshot.drafts) { draft in
-                        Button { store.recoverDraft(draft.id); compose = true } label: { V2Row(title: draft.text, subtitle: draft.rejected ? "Saved on this iPhone · review draft" : "Sends when connected", icon: "clock") }.disabled(!draft.rejected)
-                    }
-                }
-            }
-            if let error = store.error, store.online { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
-            if let notice = store.notice { Text(notice).font(.system(size: 13)).foregroundStyle(.secondary) }
-        }.refreshable { await store.refresh() }
+        }.refreshable { await store.refreshResources(workKeys) }
     }
     private var coordinator: String { store.snapshot.live?.computers.first(where: { $0.roles.contains(.coordinator) })?.name ?? "your coordinator" }
     private var today: [V2Task] {
@@ -255,7 +310,7 @@ struct V2Tabs: View {
         Button { compose = true } label: {
             HStack(spacing: 12) {
                 Image(systemName: "plus")
-                Text(store.online ? "Ask, build, or follow up…" : "Sends when \(coordinator) is back").font(.system(size: 15)).foregroundStyle(.secondary)
+                Text(!workStates.contains(where: \.failed) ? "Ask, build, or follow up…" : "Sends when \(coordinator) is back").font(.system(size: 15)).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.up.circle.fill").font(.system(size: 28))
             }.padding(.horizontal, 12).frame(minHeight: 46)
