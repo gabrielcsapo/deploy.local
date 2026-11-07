@@ -93,3 +93,30 @@ test('waitMs is capped at ten seconds without opening sockets', async (t) => {
   assert.equal(finished, true);
   assert.deepEqual(await pending, { events: [], cursor: 0, supportsWait: true });
 });
+
+test('pruned cursor gaps still drain full ignored pages and preserve an all-health owner head', async () => {
+  const { pruneHealthEvents } = await import('../workspace/health-event-retention.ts');
+  const owner = randomUUID();
+  const quiet = randomUUID();
+  event(quiet, '', null, 'v2.health', { app: { appId: 'quiet' } });
+  const head = cursor(quiet);
+  for (let i = 0; i < 2000; i++) {
+    event(owner, '', null, 'v2.health', {});
+    event(owner, '', null, 'ignored', {});
+  }
+  event(owner, 'task', null, 'message', { role: 'user', content: 'after pruning and full pages' });
+  db.prepare("UPDATE events SET createdAt='2020-01-01' WHERE type='v2.health'").run();
+  await pruneHealthEvents(db);
+  assert.equal(cursor(quiet), head);
+  const page = await waitForV2Events(owner, head + 1, 0, new AbortController().signal);
+  assert.equal(page.events.length, 1);
+  assert.equal(page.events[0].type, 'conversation');
+  assert.equal(page.cursor, cursor(owner));
+  const empty = await waitForV2Events(quiet, head, 0, new AbortController().signal);
+  assert.deepEqual(empty, { events: [], cursor: head, supportsWait: true });
+  event(quiet, 'task', null, 'message', { role: 'user', content: 'new' });
+  assert.equal(
+    (await waitForV2Events(quiet, head, 0, new AbortController().signal)).events.length,
+    1,
+  );
+});

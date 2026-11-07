@@ -18,6 +18,7 @@ public struct V2Draft: Codable, Identifiable, Equatable, Sendable {
 }
 public struct V2Snapshot: Codable, Sendable {
     public var inbox: [InboxItem] = []
+    public var inboxPosition = V2InboxPosition()
     public var live: V2Live?
     public var workspace: V2Workspace?
     public var projects: [V2Project] = []
@@ -34,12 +35,13 @@ public struct V2Snapshot: Codable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case inbox, live, workspace, projects, agents, computers, account, events, cursor, updatedAt
+        case inbox, inboxPosition, live, workspace, projects, agents, computers, account, events, cursor, updatedAt
         case drafts, composer, composers, agentTasks
     }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         inbox = try values.decode([InboxItem].self, forKey: .inbox)
+        inboxPosition = try values.decodeIfPresent(V2InboxPosition.self, forKey: .inboxPosition) ?? V2InboxPosition()
         live = try values.decodeIfPresent(V2Live.self, forKey: .live)
         workspace = try values.decodeIfPresent(V2Workspace.self, forKey: .workspace)
         projects = try values.decode([V2Project].self, forKey: .projects)
@@ -57,29 +59,37 @@ public struct V2Snapshot: Codable, Sendable {
     }
 }
 
-/// Decides when the events loop refreshes the snapshot. Every page asks for a refresh, even an empty
-/// one: new tasks and health are read from the snapshot, and computer availability has no event of
-/// its own. The first page after a quiet spell refreshes at once; a burst waits out `interval`, measured
-/// from the end of the last refresh, and the long poll shortens so the last events are not left
-/// waiting for a page that may be ten seconds away.
+/// Relevant events request a paced full refresh. Health events and a 15-second fallback
+/// update only Live and computers, including availability changes with no mapped event.
 struct V2RefreshPacer {
     static let longPollMs = 10_000
     let interval: Duration
     private var pending = false
     private var finishedAt: ContinuousClock.Instant?
+    private var liveFinishedAt: ContinuousClock.Instant?
+    private var pendingLive = false
 
     init(interval: Duration) { self.interval = interval }
 
-    mutating func pageArrived() { pending = true }
+    mutating func pageArrived(relevant: Bool = true, health: Bool = false) {
+        pending = pending || relevant
+        pendingLive = pendingLive || health
+    }
     /// A refresh reads everything up to now, so only pages after this point ask for another.
     mutating func refreshStarted() { pending = false }
-    mutating func refreshFinished(at now: ContinuousClock.Instant) { finishedAt = now }
+    mutating func refreshFinished(at now: ContinuousClock.Instant) { finishedAt = now; liveRefreshFinished(at: now) }
+    mutating func liveRefreshFinished(at now: ContinuousClock.Instant) { liveFinishedAt = now; pendingLive = false }
+    func shouldRefreshLive(at now: ContinuousClock.Instant) -> Bool { liveRemaining(at: now) == .zero }
+    private func liveRemaining(at now: ContinuousClock.Instant) -> Duration {
+        guard let liveFinishedAt else { return .seconds(15) }
+        return max(.zero, (pendingLive ? interval : .seconds(15)) - liveFinishedAt.duration(to: now))
+    }
     func shouldRefresh(at now: ContinuousClock.Instant) -> Bool {
         pending && remaining(at: now) == .zero
     }
     func waitMs(at now: ContinuousClock.Instant) -> Int {
-        guard pending else { return Self.longPollMs }
-        let parts = remaining(at: now).components
+        let wait = min(pending ? remaining(at: now) : .seconds(10), liveRemaining(at: now))
+        let parts = wait.components
         let ms = parts.seconds * 1000 + (parts.attoseconds + 999_999_999_999_999) / 1_000_000_000_000_000
         return Int(min(ms, Int64(Self.longPollMs)))
     }
@@ -170,12 +180,13 @@ struct V2RefreshPacer {
                     guard self.online else { try await Task.sleep(for: .seconds(2)); continue }
                     let page = try await self.client.events(after: self.snapshot.cursor, waitMs: self.pacer.waitMs(at: .now))
                     guard current == self.generation, !Task.isCancelled else { return }
-                    self.apply(page)
-                    // Refresh snapshots for new tasks, updated health and computer availability.
+                    let relevant = self.apply(page)
+                    // Refresh snapshots for task/inbox changes; poll Live separately for health and computers.
                     // In this loop, not beside it: a refresh that started before a page must not
                     // overwrite what that page just applied.
-                    self.pacer.pageArrived()
+                    self.pacer.pageArrived(relevant: relevant, health: page.events.contains { $0.type == "health" })
                     if self.pacer.shouldRefresh(at: .now) { await self.refresh() }
+                    else if self.pacer.shouldRefreshLive(at: .now) { await self.refreshLive() }
                     if page.supportsWait != true { try await Task.sleep(for: .seconds(1)) }
                 } catch {
                     if Task.isCancelled { return }
@@ -186,21 +197,25 @@ struct V2RefreshPacer {
             }
         }
     }
-    public func apply(_ page: V2EventPage) {
+    @discardableResult public func apply(_ page: V2EventPage) -> Bool {
+        var changed = false
+        var relevant = false
         for entry in page.events where entry.cursor > snapshot.cursor {
-            if let item = entry.item { replace(item) }
-            if let release = entry.release { releases[release.id] = release }
-            if let rollback = entry.rollback { rollbacks[rollback.id] = rollback }
+            if entry.type == "agent" { relevant = true }
+            if let item = entry.item, snapshot.inboxPosition.accepts(item, cursor: entry.cursor, at: entry.at, previous: snapshot.inbox.first(where: { $0.id == item.id })) { replace(item); changed = true }
+            if let release = entry.release { releases[release.id] = release; changed = true }
+            if let rollback = entry.rollback { rollbacks[rollback.id] = rollback; changed = true }
             if let conversation = entry.event {
                 // Updated work-log entries replace their earlier version, preserving typed records.
                 snapshot.events.removeAll { $0.taskId == entry.taskId && $0.event?.v2Id == conversation.v2Id }
-                snapshot.events.append(entry)
+                snapshot.events.append(entry); changed = true
             }
         }
         snapshot.cursor = max(snapshot.cursor, page.cursor)
         // Retain decisions; fold/bound old non-decision history without losing pending actions.
         if snapshot.events.count > 4000 { snapshot.events.removeFirst(snapshot.events.count - 4000) }
-        do { try persist() } catch { self.error = error.localizedDescription }
+        if changed { do { try persist() } catch { self.error = error.localizedDescription } }
+        return changed || relevant
     }
     private func replace(_ item: InboxItem) {
         snapshot.inbox.removeAll { $0.id == item.id }
@@ -211,13 +226,23 @@ struct V2RefreshPacer {
         defer { pacer.refreshFinished(at: .now) }
         do {
             async let workspace = client.workspace()
-            async let waiting = client.inbox()
-            async let answered = client.inbox(state: "answered")
+            async let waiting = client.inboxPage()
+            async let answered = client.inboxPage(state: "answered")
             async let live = client.live()
             async let agents = try? client.agents()
             let next = try await (workspace, waiting, answered, live)
             guard !Task.isCancelled else { return }
-            snapshot.workspace = next.0; snapshot.inbox = next.1 + next.2; snapshot.live = next.3
+            snapshot.workspace = next.0; snapshot.live = next.3
+            snapshot.inbox = []
+            snapshot.inboxPosition.items = [:]
+            for page in [next.1, next.2].sorted(by: { ($0.cursor ?? 0) < ($1.cursor ?? 0) }) {
+                for item in page.items {
+                    replace(item)
+                    if let cursor = page.cursor { snapshot.inboxPosition.items[item.id] = cursor }
+                }
+            }
+            snapshot.inboxPosition.waiting = next.1.cursor ?? 0
+            snapshot.inboxPosition.answered = next.2.cursor ?? 0
             if let agents = await agents { snapshot.agents = agents }
             snapshot.updatedAt = Date(); online = true; needsAuthentication = false
             if error == connectionError { error = nil }; connectionError = nil
@@ -229,6 +254,17 @@ struct V2RefreshPacer {
             snapshot.account = try await client.account()
             try persist()
             await flushDrafts()
+        } catch { if !Task.isCancelled { record(error) } }
+    }
+    private func refreshLive() async {
+        defer { pacer.liveRefreshFinished(at: .now) }
+        do {
+            async let live = client.live()
+            async let computers = client.computers()
+            snapshot.live = try await live
+            do { snapshot.computers = try await computers; computersError = nil }
+            catch ClientError.response(403, _) { computersError = "Only an administrator can view these computers." }
+            catch { computersError = "Computers could not be refreshed."; if case ClientError.response(401, _) = error { throw error } }
         } catch { if !Task.isCancelled { record(error) } }
     }
     public func createAgent(_ values: V2NewAgent) async throws -> V2Agent {

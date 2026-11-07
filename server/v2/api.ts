@@ -20,7 +20,7 @@ import { liveApi } from './live.ts';
 import { requestsApi } from './requests.ts';
 import { pushApi } from './push.ts';
 import { waitForV2Events } from './events.ts';
-import { cursor as latestCursor } from '../workspace/store.ts';
+import { db, cursor as latestCursor } from '../workspace/store.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
 
@@ -55,7 +55,16 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (req.method === 'GET' && path === '/inbox') {
       const state = url.searchParams.get('state') ?? 'waiting';
       if (!['waiting', 'answered'].includes(state)) fail('State must be waiting or answered');
-      return send({ items: syncInbox(auth.username).filter((item) => item.state === state) });
+      // Pair each list with the exact event position of its SQLite snapshot. The two
+      // lists may be read at different times; clients retain both boundaries.
+      return send(
+        db
+          .transaction(() => ({
+            items: syncInbox(auth.username).filter((item) => item.state === state),
+            cursor: latestCursor(auth.username),
+          }))
+          .immediate(),
+      );
     }
     if (req.method === 'GET' && path === '/events') {
       // A client that has just loaded a snapshot starts at the newest event instead of replaying history.

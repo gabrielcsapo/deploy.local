@@ -197,3 +197,69 @@ test('sidebar uses latest run state and calendar days, including a month boundar
   );
   assert.equal(dayLabel(task.createdAt, new Date('2026-11-01T12:00:00')), 'Yesterday');
 });
+
+test('irrelevant pages do not publish; cursor ordering permits reopening and rejects older terminal states', async () => {
+  let subscriber: Parameters<import('./event-feed.ts').EventFeed['subscribe']>[0] | undefined;
+  const feed = {
+    subscribe(sub: NonNullable<typeof subscriber>) {
+      subscriber = sub;
+      return () => {};
+    },
+    reset() {},
+  };
+  const store = createInboxStore(
+    async (url) => json({ items: String(url).includes('answered') ? [answered] : [], cursor: 20 }),
+    feed,
+  );
+  let publications = 0;
+  const off = store.subscribe(() => publications++);
+  const signal = new AbortController().signal;
+  await subscriber!.snapshot(signal);
+  const snapshot = store.getSnapshot();
+  const before = publications;
+  await subscriber!.events([], signal);
+  await subscriber!.events(
+    [
+      {
+        type: 'health',
+        cursor: 21,
+        taskId: '',
+        runId: null,
+        at: 'now',
+        app: { appId: 'app', kind: 'worker', state: 'healthy', summary: 'OK' },
+      },
+    ],
+    signal,
+  );
+  assert.equal(publications, before);
+  assert.equal(store.getSnapshot(), snapshot);
+  const deliver = (cursor: number, value: InboxItem) =>
+    subscriber!.events(
+      [{ type: 'inbox', cursor, taskId: '', runId: null, at: 'now', item: value }],
+      signal,
+    );
+  await deliver(19, { ...item, id: 'withdrawn-before-snapshot' });
+  assert.equal(store.getSnapshot().items.length, 1);
+  await deliver(19, item);
+  assert.equal(store.getSnapshot().items[0].state, 'answered');
+  await deliver(22, { ...item, state: 'withdrawn' });
+  assert.equal(store.getSnapshot().items[0].state, 'withdrawn');
+  await deliver(21, answered);
+  assert.equal(store.getSnapshot().items[0].state, 'withdrawn');
+  await deliver(23, item);
+  assert.equal(store.getSnapshot().items[0].state, 'waiting');
+  const beforeBatch = publications;
+  await subscriber!.events(
+    [24, 25].map((cursor) => ({
+      type: 'inbox' as const,
+      cursor,
+      taskId: '',
+      runId: null,
+      at: 'now',
+      item: { ...item, id: `new-${cursor}` },
+    })),
+    signal,
+  );
+  assert.equal(publications, beforeBatch + 1, 'one publication for an inbox page');
+  off();
+});

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { sendJson } from '../http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
@@ -132,12 +133,20 @@ async function checkHttp(host: string, port: number, path: string): Promise<WebE
   return { path, status, at: Date.now(), durationMs: Date.now() - start };
 }
 
+// Heartbeat age is refreshed by Live's periodic reads, not a change notification.
+function reactiveHealth({ heartbeatAt: _, ...app }: AppHealth) {
+  if (app.kind === 'worker' && app.state === 'healthy' && /^Heartbeat \d+ s ago$/.test(app.summary))
+    return { ...app, summary: 'Heartbeat' };
+  return app;
+}
+
 export function publishHealth(owner: string, app: AppHealth) {
   const previous = list('v2-health', owner).find((row) => row.id === app.appId);
   if (JSON.stringify(previous?.app) === JSON.stringify(app)) return;
   db.transaction(() => {
     save('v2-health', owner, { id: app.appId, app });
-    event(owner, '', null, 'v2.health', { app });
+    if (!previous?.app || !isDeepStrictEqual(reactiveHealth(previous.app), reactiveHealth(app)))
+      event(owner, '', null, 'v2.health', { app });
   }).immediate();
 }
 

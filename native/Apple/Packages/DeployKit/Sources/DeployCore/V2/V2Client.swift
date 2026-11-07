@@ -178,9 +178,10 @@ public actor V2Client {
         value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
     }
     public func inbox(state: String = "waiting") async throws -> [InboxItem] {
-        struct Response: Decodable, Sendable { var items: [InboxItem] }
-        let response: Response = try await client.request("/api/v2/inbox?state=\(Self.segment(state))")
-        return response.items
+        try await inboxPage(state: state).items
+    }
+    public func inboxPage(state: String = "waiting") async throws -> V2InboxPage {
+        try await client.request("/api/v2/inbox?state=\(Self.segment(state))")
     }
     public func answer(_ id: String, action: String, note: String? = nil) async throws -> V2AnswerResult {
         struct Body: Encodable { let actionId: String; let on = "iphone"; let note: String? }
