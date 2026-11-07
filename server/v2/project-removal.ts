@@ -253,7 +253,10 @@ async function removeFromThisMachine(
   const left = await docker.findLeftovers(app.name, targets.applicationIds);
   const remaining = [...left.containers, ...left.networks, ...left.volumes];
   if (remaining.length > 0)
-    fail(`Removal is not finished. Still on this machine: ${remaining.join(', ')}.`, 409);
+    fail(
+      `Removal is not finished. Still on this machine: ${remaining.join(', ')}. Press Remove project to try again.`,
+      409,
+    );
 }
 
 export async function stopApp(app: App, jobId: string, docker = new ProjectRemovalDocker()) {
