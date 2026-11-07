@@ -7,6 +7,7 @@ import {
   type ApplicationExecutionPlan,
   type ComponentExecutionPlan,
 } from './application-execution.ts';
+import { isWriterSite } from './application-jobs.ts';
 import type { ApplicationSpec } from './application-spec.ts';
 
 // The same pinned helper the local Docker adapter uses for archives.
@@ -471,7 +472,14 @@ async function runGraphJobs(
     },
   );
   for (const [jobName, job] of orderedJobs) {
-    if (job.execution === 'writerSite' && input.graph.writerSiteId !== input.graph.siteId) continue;
+    if (job.execution === 'writerSite') {
+      if (!input.graph.writerSiteId) {
+        throw new Error(
+          'writerSite job cannot be scheduled until the application writer site is known',
+        );
+      }
+      if (!isWriterSite(input.graph.siteId, input.graph.writerSiteId)) continue;
+    }
     const targets =
       job.execution === 'perInstance'
         ? instances.filter((instance) => instance.component === job.component)

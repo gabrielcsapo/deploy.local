@@ -224,7 +224,7 @@ function graphContext(
     nodeId: 'coordinator',
     projectDirectory: deployment.directory || deployDataDirectory(),
     runtime,
-    writerSiteId: applicationWriterSiteId(applicationId),
+    writerSiteId: applicationWriterSiteId(applicationId, 'coordinator'),
     memoryLimit: deployment.memoryLimit || '4g',
     cpuLimit: deployment.cpuLimit || undefined,
   };

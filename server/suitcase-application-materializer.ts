@@ -1709,7 +1709,7 @@ function graphContext(
     runtime,
     memoryLimit: replica.memoryLimit || '4g',
     cpuLimit: replica.cpuLimit || undefined,
-    writerSiteId: applicationWriterSiteId(replica.appId),
+    writerSiteId: applicationWriterSiteId(replica.appId, replica.siteId),
     healthTimeoutMs,
     drainTimeoutMs,
   };

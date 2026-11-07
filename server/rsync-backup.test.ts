@@ -252,7 +252,10 @@ describe('whole-directory rsync backup', () => {
     mkdirSync(mountPoint);
     const empty = await backUpTo(mountPoint);
     assert.equal(empty.success, false);
-    assert.match(empty.error!, /no \.deploy-backup-destination file.*Nothing was written.*mount it/);
+    assert.match(
+      empty.error!,
+      /no \.deploy-backup-destination file.*Nothing was written.*mount it/,
+    );
     assert.deepEqual(readdirSync(mountPoint), []);
     assert.equal(existsSync(join(home, 'deploy.db.snapshot')), false);
 

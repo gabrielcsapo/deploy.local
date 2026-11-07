@@ -613,7 +613,7 @@ export function wanderAdoptionService(owner: string) {
         nodeId: 'coordinator',
         projectDirectory: j.sourceDirectory,
         runtime: r,
-        writerSiteId: applicationWriterSiteId(j.applicationId),
+        writerSiteId: applicationWriterSiteId(j.applicationId, 'coordinator'),
       });
       if (!result.primaryContainerId) error('Candidate container unavailable');
       return result.primaryContainerId;

@@ -494,7 +494,7 @@ export function resolveLocalDataApplication(
       runtime,
       memoryLimit: row.memory_limit || '4g',
       cpuLimit: row.cpu_limit || undefined,
-      writerSiteId: applicationWriterSiteId(applicationId),
+      writerSiteId: applicationWriterSiteId(applicationId, siteId),
     },
   };
 }

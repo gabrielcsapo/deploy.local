@@ -114,7 +114,7 @@ export async function analyzeApplicationForSuitcase(input: {
       `Portability analysis cannot run during writer transfer ${activeTransfer.id}; let the transfer finish or abort it`,
     );
   }
-  const writerSiteId = applicationWriterSiteId(input.appId);
+  const writerSiteId = applicationWriterSiteId(input.appId, fleet.homeSiteId);
   if (writerSiteId && writerSiteId !== fleet.homeSiteId) {
     throw new Error(
       `Portability analysis must inspect the current writer at ${writerSiteId}; move authority to Home before analyzing another suitcase`,

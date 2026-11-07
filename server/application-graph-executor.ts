@@ -58,6 +58,8 @@ export interface GraphExecutorContext {
   noCache?: boolean;
   forceBuild?: boolean;
   writerSiteId?: string | null;
+  /** Startup and the supervisor: see ApplicationJobOptions.unattended. */
+  unattended?: boolean;
   healthTimeoutMs?: number;
   drainTimeoutMs?: number;
   /** Operator recreate: materialize fresh siblings even when release/configuration are unchanged. */
@@ -1782,9 +1784,23 @@ export class ApplicationGraphExecutor {
         configurationDigest: input.context.runtime.configurationDigest,
         records,
         retryFailed: true,
+        unattended: input.context.unattended,
       },
     );
     if (jobs.blocked) throw new Error(jobs.findings.map((item) => item.message).join('; '));
+    if (jobs.failed.length > 0) {
+      throw new Error(
+        `Lifecycle job ${JSON.stringify(jobs.failed[0])} failed on an earlier attempt; it retries on the next deploy or restart`,
+      );
+    }
+    for (const job of jobs.held) {
+      const held = `${input.context.applicationId}\0${job}\0${input.context.runtime.execution.specDigest}`;
+      if (announcedHeldJobs.has(held)) continue;
+      announcedHeldJobs.add(held);
+      console.log(
+        `${input.context.deploymentName}: writerSite job ${JSON.stringify(job)} has not run; it waits for the next deploy or restart`,
+      );
+    }
     for (const job of jobs.executions) {
       const component = input.context.runtime.execution.components[job.component];
       const now = Date.now();
@@ -1920,6 +1936,8 @@ export class ApplicationGraphExecutor {
     }
   }
 }
+
+const announcedHeldJobs = new Set<string>();
 
 export function offlineBuildProofInputDigest(
   context: GraphExecutorContext,
