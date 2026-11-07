@@ -30,6 +30,10 @@ export interface ApplicationJobPlan {
   trafficGates: Readonly<Record<string, boolean>>;
   findings: readonly RuntimeAdmissionFinding[];
   blocked: boolean;
+  /** Jobs whose last attempt failed and that this plan does not retry. */
+  failed: readonly string[];
+  /** writerSite jobs that have never run here, left for the next owner action. */
+  held: readonly string[];
 }
 
 export interface ApplicationJobOptions {
@@ -39,6 +43,16 @@ export interface ApplicationJobOptions {
   records?: readonly JobExecutionRecord[];
   /** Failed executions are retried with the same idempotency key and an incremented attempt. */
   retryFailed?: boolean;
+  /**
+   * Convergence nobody asked for: startup and the supervisor's repeating tick. It never retries a
+   * failed job, which would run it every tick, and never starts a writerSite job that has no record.
+   */
+  unattended?: boolean;
+}
+
+/** The one comparison deciding whether a graph at siteId may run its writerSite jobs. */
+export function isWriterSite(siteId: string, writerSiteId: string | null | undefined): boolean {
+  return writerSiteId === siteId;
 }
 
 /** Plan scoped one-shot work without claiming fleet-wide exactly-once while sites are disconnected. */
@@ -51,6 +65,8 @@ export function planApplicationJobs(
   const findings: RuntimeAdmissionFinding[] = [];
   const records = new Map((options.records ?? []).map((record) => [record.key, record]));
   const planned: PlannedJobExecution[] = [];
+  const failed: string[] = [];
+  const held: string[] = [];
   const trafficGates: Record<string, boolean> = {};
   for (const componentName of execution.componentOrder) trafficGates[componentName] = true;
 
@@ -76,7 +92,13 @@ export function planApplicationJobs(
       const record = records.get(key);
       if (record?.status === 'succeeded') continue;
       jobComplete = false;
-      if (record?.status === 'running' || (record?.status === 'failed' && !options.retryFailed)) {
+      if (record?.status === 'running') continue;
+      if (record?.status === 'failed' && (!options.retryFailed || options.unattended)) {
+        failed.push(jobName);
+        continue;
+      }
+      if (options.unattended && job.execution === 'writerSite' && !record) {
+        held.push(jobName);
         continue;
       }
       planned.push({
@@ -100,6 +122,8 @@ export function planApplicationJobs(
     trafficGates,
     findings,
     blocked: findings.some((item) => item.severity === 'error'),
+    failed,
+    held,
   };
 }
 
@@ -141,7 +165,7 @@ function jobTargets(
       });
       return [];
     }
-    return options.writerSiteId === options.siteId ? [{}] : [];
+    return isWriterSite(options.siteId, options.writerSiteId) ? [{}] : [];
   }
   return instances
     .filter((instance) => component === instance.component && instance.status !== 'stopped')

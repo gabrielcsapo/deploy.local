@@ -121,7 +121,8 @@ function productionDependencies(): ApplicationGraphSupervisorDependencies {
           nodeId: local,
           projectDirectory: deployment.directory,
           runtime,
-          writerSiteId: applicationWriterSiteId(deployment.appId || deployment.name),
+          writerSiteId: applicationWriterSiteId(deployment.appId || deployment.name, local),
+          unattended: true,
           memoryLimit: deployment.memoryLimit || '4g',
           cpuLimit: deployment.cpuLimit || undefined,
         });

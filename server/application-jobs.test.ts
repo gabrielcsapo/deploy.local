@@ -66,6 +66,54 @@ describe('scoped application lifecycle jobs', () => {
     assert.equal(plan.trafficGates.web, true);
   });
 
+  it('leaves a writer-site job with no record to an owner action when unattended', () => {
+    const plan = planApplicationJobs(execution, spec, instances, {
+      siteId: 'home',
+      writerSiteId: 'home',
+      configurationDigest: 'sha256:config',
+      unattended: true,
+    });
+    assert.deepEqual(plan.held, ['compact']);
+    assert.equal(
+      plan.executions.some((item) => item.job === 'compact'),
+      false,
+    );
+    assert.equal(
+      plan.executions.some((item) => item.job === 'migrate'),
+      true,
+      'per-site jobs keep running unattended, as they always have',
+    );
+  });
+
+  it('never retries a failed job when unattended, and retries it for an owner action', () => {
+    const key = jobExecutionKey({
+      applicationId: 'notes',
+      releaseDigest: execution.specDigest,
+      configurationDigest: 'sha256:config',
+      jobName: 'compact',
+      siteId: 'home',
+    });
+    const options = {
+      siteId: 'home',
+      writerSiteId: 'home',
+      configurationDigest: 'sha256:config',
+      retryFailed: true,
+      records: [{ key, status: 'failed' as const, attempts: 1 }],
+    };
+    const unattended = planApplicationJobs(execution, spec, instances, {
+      ...options,
+      unattended: true,
+    });
+    assert.deepEqual(unattended.failed, ['compact']);
+    assert.equal(
+      unattended.executions.some((item) => item.job === 'compact'),
+      false,
+    );
+    const attended = planApplicationJobs(execution, spec, instances, options);
+    assert.deepEqual(attended.failed, []);
+    assert.equal(attended.executions.find((item) => item.job === 'compact')?.attempt, 2);
+  });
+
   it('blocks writer-site jobs until writer authority is known', () => {
     const plan = planApplicationJobs(execution, spec, instances, {
       siteId: 'home',

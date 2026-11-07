@@ -132,14 +132,16 @@ export async function startAllContainers() {
       }
       console.log(`  Starting application graph ${deployment.name}...`);
       updateDeploymentStatus(deployment.name, 'starting');
+      const siteId = deployment.activeNodeId || deployment.desiredNodeId || 'coordinator';
       const result = await new ApplicationGraphExecutor().converge({
         deploymentName: deployment.name,
         applicationId: deployment.appId || deployment.name,
-        siteId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
-        nodeId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
+        siteId,
+        nodeId: siteId,
         projectDirectory: deployment.directory,
         runtime,
-        writerSiteId: applicationWriterSiteId(deployment.appId || deployment.name),
+        writerSiteId: applicationWriterSiteId(deployment.appId || deployment.name, siteId),
+        unattended: true,
         memoryLimit: deployment.memoryLimit || '4g',
         cpuLimit: deployment.cpuLimit || undefined,
       });

@@ -396,7 +396,7 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
       nodeId: installation.siteId,
       projectDirectory: deployDataDirectory(),
       runtime: graphRuntime,
-      writerSiteId: applicationWriterSiteId(applicationId),
+      writerSiteId: applicationWriterSiteId(applicationId, installation.siteId),
     };
     if (operation.operation === 'rollback') {
       if (

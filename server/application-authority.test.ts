@@ -28,7 +28,28 @@ describe('application writer-site authority', () => {
          VALUES ('authority-app', 'admin', 'app-authority', ?, ?)`,
       )
       .run(now, now);
-    assert.equal(applicationWriterSiteId('app-authority'), fleet.homeSiteId);
+    sqlite
+      .prepare(
+        `INSERT INTO nodes (id, name, kind, capabilities, enrolled_at)
+         VALUES ('computer', 'computer', 'agent', '{}', ?),
+                ('computer-revoked', 'computer-revoked', 'agent', '{}', ?)`,
+      )
+      .run(now, now);
+    sqlite.prepare("UPDATE nodes SET revoked_at = ? WHERE id = 'computer-revoked'").run(now);
+    // Home holds authority, so the place Home converges is the writer, in that graph's own ids.
+    assert.equal(applicationWriterSiteId('app-authority', 'coordinator'), 'coordinator');
+    assert.equal(applicationWriterSiteId('app-authority', 'computer'), 'computer');
+    assert.equal(applicationWriterSiteId('app-authority', fleet.homeSiteId), fleet.homeSiteId);
+    assert.equal(
+      applicationWriterSiteId('app-authority', 'computer-revoked'),
+      fleet.homeSiteId,
+      'a computer Home no longer trusts is not a writer',
+    );
+    assert.equal(
+      applicationWriterSiteId('app-authority', 'site-away'),
+      fleet.homeSiteId,
+      'a suitcase is never the writer while Home holds authority',
+    );
 
     sqlite
       .prepare(
@@ -49,7 +70,12 @@ describe('application writer-site authority', () => {
                  'follows-one-site-writer', 'manual', 0, '{}', ?, ?)`,
       )
       .run(now, now);
-    assert.equal(applicationWriterSiteId('app-authority'), 'site-away');
+    assert.equal(applicationWriterSiteId('app-authority', 'site-away'), 'site-away');
+    assert.equal(
+      applicationWriterSiteId('app-authority', 'coordinator'),
+      'site-away',
+      'this machine is not the writer while another site holds the volume',
+    );
 
     sqlite
       .prepare(
@@ -61,9 +87,13 @@ describe('application writer-site authority', () => {
       )
       .run(fleet.homeSiteId, now, now);
     assert.equal(
-      applicationWriterSiteId('app-authority'),
+      applicationWriterSiteId('app-authority', 'coordinator'),
       'site-away',
       'the source remains authoritative until the handoff commits',
     );
+  });
+
+  it('answers null until Home is known, which blocks writer-only work', () => {
+    assert.equal(applicationWriterSiteId('', 'coordinator'), null);
   });
 });

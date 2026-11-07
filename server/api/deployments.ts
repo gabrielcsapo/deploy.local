@@ -922,7 +922,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                   deploymentName: name,
                   applicationId: deployment.appId || name,
                   siteId,
-                  writerSiteId: applicationWriterSiteId(deployment.appId || name),
+                  writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
                   runtime,
                   runtimeVolumes: getDeploymentVolumes(name),
                 }),
@@ -1003,7 +1003,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               nodeId: siteId,
               projectDirectory: deployment.directory,
               runtime,
-              writerSiteId: applicationWriterSiteId(deployment.appId || name),
+              writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
               memoryLimit: deployment.memoryLimit || '4g',
               cpuLimit: deployment.cpuLimit || undefined,
             });
@@ -1040,7 +1040,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               nodeId: siteId,
               projectDirectory: deployment.directory,
               runtime,
-              writerSiteId: applicationWriterSiteId(deployment.appId || name),
+              writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
               memoryLimit: deployment.memoryLimit || '4g',
               cpuLimit: deployment.cpuLimit || undefined,
             });
@@ -1224,7 +1224,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                     nodeId: siteId,
                     projectDirectory: deployment.directory,
                     runtime,
-                    writerSiteId: applicationWriterSiteId(deployment.appId || name),
+                    writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
                     memoryLimit: deployment.memoryLimit || '4g',
                     cpuLimit: deployment.cpuLimit || undefined,
                   });
@@ -1571,7 +1571,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                 nodeId: targetSiteId,
                 projectDirectory: deployment.directory,
                 runtime,
-                writerSiteId: applicationWriterSiteId(applicationId),
+                writerSiteId: applicationWriterSiteId(applicationId, targetSiteId),
                 memoryLimit: deployment.memoryLimit || '4g',
                 cpuLimit: deployment.cpuLimit || undefined,
               });
@@ -1681,7 +1681,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               nodeId: siteId,
               projectDirectory: deployment.directory,
               runtime,
-              writerSiteId: applicationWriterSiteId(applicationId),
+              writerSiteId: applicationWriterSiteId(applicationId, siteId),
               memoryLimit: deployment.memoryLimit || '4g',
               cpuLimit: deployment.cpuLimit || undefined,
             });
@@ -1739,7 +1739,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             nodeId: siteId,
             projectDirectory: deployment.directory,
             runtime,
-            writerSiteId: applicationWriterSiteId(deployment.appId || name),
+            writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
             memoryLimit: deployment.memoryLimit || '4g',
             cpuLimit: deployment.cpuLimit || undefined,
           };
@@ -1848,7 +1848,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             nodeId: siteId,
             projectDirectory: deployment.directory,
             runtime,
-            writerSiteId: applicationWriterSiteId(deployment.appId || name),
+            writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
             memoryLimit: deployment.memoryLimit || '4g',
             cpuLimit: deployment.cpuLimit || undefined,
           };

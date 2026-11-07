@@ -14,7 +14,6 @@ const store = await import('../store.ts');
 const workspace = await import('../workspace/store.ts');
 const specs = await import('../application-spec.ts');
 const multisite = await import('../multisite.ts');
-const { applicationWriterSiteId } = await import('../application-authority.ts');
 const { graphNetworkName, graphVolumeName } = await import('../graph-docker-adapter.ts');
 const { DockerApiError } = await import('../docker-api.ts');
 const { resolveProject } = await import('./projects.ts');
@@ -199,12 +198,10 @@ async function workerFinishes(
   throw new Error(`No queued delete job for ${name}`);
 }
 
-test('removal finds instances stored under coordinator while the writer site resolves to Home', async () => {
+test('removal finds instances stored under coordinator, not under the Home site id', async () => {
   const { appId, containers } = seedGraphApp('site-owner', 'site-app');
   // The two ids differ on every real coordinator, which is the whole of the bug.
-  const home = multisite.ensureFleetIdentity().homeSiteId;
-  assert.notEqual(home, 'coordinator');
-  assert.equal(applicationWriterSiteId(appId), home);
+  assert.notEqual(multisite.ensureFleetIdentity().homeSiteId, 'coordinator');
 
   const docker = dockerHolding(appId, containers);
   const project = await resolveProject('site-owner', 'app:site-app');
