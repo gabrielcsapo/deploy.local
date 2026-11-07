@@ -32,6 +32,57 @@ export function assertAgentJobAllowed(job, roles) {
   if (roles?.deploy === false && job?.type !== 'self-update')
     throw new Error('Deploy apps is off on this computer.');
 }
+/**
+ * Remove an app's containers and networks from this computer, then look again. `docker rm -f`
+ * exits 0 for a missing container on newer Docker and a failed listing looks like an empty one, so
+ * neither exit code says the app is gone. Only a successful listing with nothing in it does.
+ */
+export function removeAgentDockerObjects({ deploymentName, applicationId, docker }) {
+  const labels = [`deploy-sh.app=${deploymentName}`];
+  if (applicationId) labels.push(`deploy-sh.app-id=${applicationId}`);
+  const list = (args) => {
+    const result = docker(args);
+    if (result.status !== 0)
+      throw new Error(`docker ${args[0]} failed: ${(result.stderr || '').trim() || 'no output'}`);
+    return (result.stdout || '').trim().split('\n').filter(Boolean);
+  };
+  const legacy = `deploy-sh-${deploymentName.toLowerCase()}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const containers = () => [
+    ...new Set([
+      ...labels.flatMap((label) =>
+        list(['ps', '-a', '--filter', `label=${label}`, '--format', '{{.Names}}']),
+      ),
+      ...list([
+        'ps',
+        '-a',
+        '--filter',
+        `name=^/${legacy}(-prev-[0-9]+)?$`,
+        '--format',
+        '{{.Names}}',
+      ]),
+    ]),
+  ];
+  const networks = () => [
+    ...new Set(
+      labels.flatMap((label) =>
+        list(['network', 'ls', '--filter', `label=${label}`, '--format', '{{.Name}}']),
+      ),
+    ),
+  ];
+  const removeAll = (find, command) => {
+    const found = find();
+    if (found.length === 0) return;
+    const removal = docker([...command, ...found]);
+    const still = find();
+    if (still.length > 0)
+      throw new Error(
+        `Could not remove ${still.join(', ')}: ${(removal.stderr || '').trim() || 'no output'}`,
+      );
+  };
+  removeAll(containers, ['rm', '-f']);
+  removeAll(networks, ['network', 'rm']);
+}
+
 export function isFile(path) {
   try {
     return statSync(path).isFile();
