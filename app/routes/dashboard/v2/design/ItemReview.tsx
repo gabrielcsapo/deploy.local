@@ -19,6 +19,7 @@ import {
   nextUnseen,
   openPins,
   reviewCounts,
+  reviewOutcome,
   counted,
 } from './review-model';
 import {
@@ -54,6 +55,11 @@ export const ago = (at: string) => {
         ? `${Math.floor(minutes / 60)} h ago`
         : `${Math.floor(minutes / 1440)} d ago`;
 };
+/** A decision's time in the footer reads "just now" rather than "now". */
+const justNow = (at: string) => {
+  const value = ago(at);
+  return value === 'now' ? 'just now' : value;
+};
 
 export function DesignItemReview({
   item,
@@ -62,7 +68,8 @@ export function DesignItemReview({
   item: InboxItem;
   embedded?: boolean;
 }) {
-  const api = `/api/v2/projects/${encodeURIComponent(item.projectId ?? item.id.split(':')[1])}/design`;
+  const projectId = item.projectId ?? item.id.split(':')[1];
+  const api = `/api/v2/projects/${encodeURIComponent(projectId)}/design`;
   const inbox = useInbox();
   const [data, setData] = useState<DesignReview>();
   const [checking, setChecking] = useState(true);
@@ -146,8 +153,10 @@ export function DesignItemReview({
   const historical = useReviewPinPreview(api, historicalPin);
   const preview = historicalPin ? historical.preview : currentPreview;
   const unresolved = data ? openPins(data) : [];
-  const waiting =
-    (inbox.items.find((entry) => entry.id === item.id) ?? data?.item ?? item).state === 'waiting';
+  const latest = inbox.items.find((entry) => entry.id === item.id) ?? data?.item ?? item;
+  const waiting = latest.state === 'waiting';
+  const answer = latest.answer ?? data?.item.answer ?? item.answer;
+  const task = data?.task ?? item.taskId ?? null;
   const loading = !data || !images.ready || (Boolean(board) && !preview);
   // A conflict's Close and Ask to update wait only for the conflict check, not for previews.
   const disabled = data?.stale
@@ -613,13 +622,26 @@ export function DesignItemReview({
               )}
               {data && data.round === 1 && unresolved.length > 0 && (
                 <section className="dl-review-notice">
-                  <h2>
-                    {unresolved.length} change{unresolved.length === 1 ? '' : 's'} to ask for
-                  </h2>
-                  <p>
-                    Each pin goes to {data.proposer.name} with its screen. You can add more before
-                    sending.
-                  </p>
+                  {!waiting && answer && answer.actionId !== 'approve' ? (
+                    // After Ask for changes the review stays open as the record of what was sent.
+                    <>
+                      <h2>
+                        {counted(unresolved.length, 'change')} sent to {data.proposer.name}
+                      </h2>
+                      <p>
+                        Each pin went to the task with its screen. {data.proposer.name} will propose
+                        again here; your pins stay on the screens until then.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h2>{counted(unresolved.length, 'change')} to ask for</h2>
+                      <p>
+                        Each pin goes to {data.proposer.name} with its screen. You can add more
+                        before sending.
+                      </p>
+                    </>
+                  )}
                   <details className="dl-review-all-pins">
                     <summary>All pins · {pins.length}</summary>
                     {pinRows(pins)}
@@ -827,11 +849,33 @@ export function DesignItemReview({
       )}
       <footer className="dl-review-footer">
         {!waiting ? (
-          <span className="dl-meta">
-            {(data?.item ?? item).answer?.actionId === 'approve'
-              ? 'Approved. This is now the design on main.'
-              : 'Changes requested.'}
-          </span>
+          // The outcome, when, and how far the look got, with one way onward.
+          <>
+            <div className="dl-review-progress">
+              <span className="dl-meta">
+                {answer
+                  ? reviewOutcome(answer, { seen: seenCount, total: boards.length }, task, justNow)
+                  : 'Changes requested.'}
+              </span>
+            </div>
+            {answer?.actionId === 'approve' ? (
+              <a
+                className="dl-btn secondary"
+                href={`/dashboard/design?project=${encodeURIComponent(projectId)}`}
+              >
+                Open in Design
+              </a>
+            ) : (
+              task && (
+                <a
+                  className="dl-btn secondary"
+                  href={`/dashboard/tasks/${encodeURIComponent(task)}`}
+                >
+                  Open the task
+                </a>
+              )
+            )}
+          </>
         ) : data?.stale ? (
           <>
             <a className="dl-btn secondary" href="/dashboard/design?view=review">

@@ -166,3 +166,22 @@ test('drawing paths use their native dimensions, preserve stroke order and rejec
   for (const x of [NaN, Infinity, -Infinity, -1, 1.1])
     assert.equal(validReviewDrawing({ ...drawing, strokes: [[{ x, y: 0 }]] }), false);
 });
+
+test('after a decision the footer names the outcome, when, and how far the look got', async () => {
+  const { reviewOutcome, alsoChanged } = await import('./review-model.ts');
+  const when = () => 'just now';
+  assert.equal(
+    reviewOutcome({ actionId: 'changes', at: 'now' }, { seen: 4, total: 22 }, 'task-1', when),
+    'Changes requested · just now · you looked at 4 of 22',
+  );
+  assert.equal(
+    reviewOutcome({ actionId: 'changes', at: 'now' }, { seen: 4, total: 22 }, null, when),
+    'Changes requested · just now · propose again when the screens are updated.',
+  );
+  assert.equal(
+    reviewOutcome({ actionId: 'approve', at: 'now' }, { seen: 22, total: 22 }, 'task-1', when),
+    'Approved · this is the design on main',
+  );
+  assert.equal(alsoChanged(['Welcome, narrow']), 'Also changed: Welcome, narrow');
+  assert.equal(alsoChanged([]), '');
+});

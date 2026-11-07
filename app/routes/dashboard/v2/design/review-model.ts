@@ -52,3 +52,22 @@ export function initialDesignProject(
 }
 export const openPins = (review: Pick<DesignReview, 'pins'>) =>
   review.pins.filter((pin) => !pin.resolved);
+/**
+ * The footer after a decision names the outcome, when, and how far the look got. Changes asked
+ * from a task go to it; a design you proposed yourself has no task to go to.
+ */
+export function reviewOutcome(
+  answer: { actionId: string; at: string },
+  looked: { seen: number; total: number },
+  task: string | null,
+  when: (at: string) => string,
+) {
+  if (answer.actionId === 'approve') return 'Approved · this is the design on main';
+  const start = `Changes requested · ${when(answer.at)}`;
+  return task
+    ? `${start} · you looked at ${looked.seen} of ${looked.total}`
+    : `${start} · propose again when the screens are updated.`;
+}
+/** The chat card's "Also changed" line: every other changed screen by name. */
+export const alsoChanged = (titles: string[]) =>
+  titles.length ? `Also changed: ${titles.join(', ')}` : '';
