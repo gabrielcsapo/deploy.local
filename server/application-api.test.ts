@@ -92,6 +92,7 @@ async function startServer(
         ...process.env,
         PORT: String(port),
         HTTPS_PORT: String(httpsPort),
+        DEPLOY_SSH_PORT: '0',
         DEPLOY_DATA_DIR: dataDir,
         DEPLOY_MAX_UPLOAD_ARCHIVE_BYTES: '1024',
         ...environment,

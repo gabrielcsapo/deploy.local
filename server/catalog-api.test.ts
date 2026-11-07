@@ -269,6 +269,7 @@ async function startServer(httpPort: number): Promise<ChildProcess> {
         ...process.env,
         PORT: String(httpPort),
         HTTPS_PORT: String(httpsPort),
+        DEPLOY_SSH_PORT: '0',
         DEPLOY_DATA_DIR: dataDirectory,
         DEPLOY_CATALOG_STAGE_ONLY: '1',
         DEPLOY_CATALOG_USE_VALIDATION_FIXTURES: '1',

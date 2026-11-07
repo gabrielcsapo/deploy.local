@@ -64,15 +64,11 @@ test('web host sends HTTP 308 before SSR and resolves legacy apps with the curre
 });
 
 test('both production and development hosts mount the adapter before rendering', () => {
-  const production = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
-  const development = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  // Both entry points render only through the shared boot's client handler.
+  const boot = readFileSync(new URL('./boot.ts', import.meta.url), 'utf8');
   assert.match(
-    production,
-    /async function flightHandler\([^]*?await handleWebRedirect\(req, res\)[^]*?flightApp.fetch/,
-  );
-  assert.match(
-    development,
-    /handler\(req, res, async \(\) => \{\s*if \(await handleWebRedirect\(req, res\)\) return;\s*\/\/ Proxy/,
+    boot,
+    /async function serveClient\([^]*?await handleWebRedirect\(req, res\)[^]*?await client\(req, res\)/,
   );
 });
 

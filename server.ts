@@ -1,82 +1,17 @@
-import { initializeRequestStorage } from './server/requests-lifecycle.ts';
-import { CopyWarmer, cleanupCopies, queueAllCopies } from './server/packages/copies.ts';
-import './server/packages/hooks.ts';
-import { npmRegistry } from './server/packages/npm.ts';
-import { terminalRelay } from './server/workspace/terminal-service.ts';
-import { startGitSshServer } from './server/workspace/git-ssh.ts';
-import { createServer } from 'node:http';
-import { handleWebRedirect } from './server/web-redirects.ts';
-import { createSecureServer as createHttp2Server } from 'node:http2';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+// The built server: dist/server.js, which `pnpm start` runs through dist/supervisor.js. Everything is
+// bootServer's; this file adds only the built web app.
+import { bootServer, type ClientHandler } from './server/boot.ts';
 import { createRequire } from 'node:module';
 import { Readable } from 'node:stream';
-import { apiMiddleware, setHotPathRouteSource } from './server/api.ts';
-import { setupWebSocket, attachWebSocketUpgrade } from './server/ws.ts';
-import { syncContainerStates, startAllContainers } from './server/lifecycle.ts';
-import { startMaintenance } from './server/maintenance.ts';
-import { startManagedWorkers, stopManagedWorkers } from './server/workspace/managed-worker.ts';
-import {
-  cleanupStaleBuildLogs,
-  flushRequestLogs,
-  logRequest,
-  getAllDeployments,
-  getSqlite,
-} from './server/store.ts';
-import { ensureCerts, getTlsOptions, getCaCertBuffer } from './server/certs.ts';
-import {
-  serveInstallScript,
-  serveWindowsInstallScript,
-  serveCliRequest,
-} from './server/cli-download.ts';
-import { isDesktopDownloadPath, serveDesktopRequest } from './server/desktop-download.ts';
 import { createServer as createFlightServer } from 'react-flight-router/server';
-import { installCrashGuard } from './server/crash-guard.ts';
-import { attachAppUpgradeProxy } from './server/edge/upgrade-proxy.ts';
-import { initEdgeRuntime, getDefaultDbFile } from './server/edge/runtime.ts';
-import { startEdgeIpcServer, connectEdgeIpc, getEdgeSockPath } from './server/ipc.ts';
-import { emit } from './server/events.ts';
-import { startApplicationGraphSupervisor } from './server/application-graph-supervisor.ts';
 
 // react-flight-router/server sets globalThis.__webpack_require__ for SSR module
 // loading. The `bindings` package (used by better-sqlite3) checks for this and
 // then expects __non_webpack_require__ to exist. Provide a real require function.
 (globalThis as Record<string, unknown>).__non_webpack_require__ = createRequire(import.meta.url);
 
-installCrashGuard();
-
-// ── Roles ────────────────────────────────────────────────────────────────────
-// 'single'  (default): everything in one process — TLS, proxy, mDNS, API,
-//           dashboard. The edge modules run embedded. This is `pnpm
-//           start:single` and the dev server's topology.
-// 'control' (DEPLOY_ROLE=control, spawned by the supervisor): API, builds,
-//           dashboard, Docker orchestration on plain HTTP at 127.0.0.1:7843.
-//           TLS/proxy/mDNS live in the separate edge process (dist/edge.js);
-//           a control crash or redeploy never interrupts app traffic.
-const ROLE = process.env.DEPLOY_ROLE === 'control' ? 'control' : 'single';
-
-// Env-overridable so tests (and non-root setups) can bind unprivileged ports.
-const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
-const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
-const CONTROL_PORT = parseInt(process.env.CONTROL_PORT || '7843', 10);
-
-function serveCaCert(res: ServerResponse) {
-  const caCert = getCaCertBuffer();
-  res.writeHead(200, {
-    'Content-Type': 'application/x-x509-ca-cert',
-    'Content-Disposition': 'attachment; filename="deploy-local-ca.crt"',
-    'Content-Length': caCert.length,
-  });
-  res.end(caCert);
-}
-
-async function main() {
-  initializeRequestStorage(getSqlite()!);
-  // Generate CA + server certs on first startup, including all known
-  // deployments. Both roles: the control plane owns cert generation; the
-  // edge only reads them.
-  const deploymentNames = getAllDeployments().map((d) => d.name);
-  ensureCerts(deploymentNames);
-
+// RSC, SSR and static files for every request the API does not claim.
+async function createFlightClient(): Promise<ClientHandler> {
   let flightApp: Awaited<ReturnType<typeof createFlightServer>> | null = null;
   try {
     flightApp = await createFlightServer({
@@ -108,12 +43,8 @@ async function main() {
   } catch (err) {
     console.warn('Failed to initialize flight router (dist not built?):', (err as Error).message);
   }
-  const handler = apiMiddleware();
-  const graphSupervisor = startApplicationGraphSupervisor();
 
-  // Non-API request → delegate to react-flight-router for RSC/SSR/static.
-  async function flightHandler(req: IncomingMessage, res: ServerResponse) {
-    if (await handleWebRedirect(req, res)) return;
+  return async (req, res) => {
     if (!flightApp) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');
@@ -200,271 +131,10 @@ async function main() {
       }
       res.end('Internal Server Error');
     }
-  }
-
-  function startupTasks() {
-    startManagedWorkers(
-      ROLE === 'control'
-        ? `http://127.0.0.1:${CONTROL_PORT}`
-        : `https://deploy.local:${HTTPS_PORT}`,
-    );
-    cleanupStaleBuildLogs();
-    syncContainerStates()
-      .catch((err) => console.error('Error syncing container states:', err))
-      .then(() =>
-        startAllContainers().catch((err) => console.error('Error starting containers:', err)),
-      );
-    npmRegistry.copy.startChecks();
-    queueAllCopies();
-    const packageWarmer = new CopyWarmer(npmRegistry.copy);
-    startMaintenance({
-      warm: () => packageWarmer.tick(),
-      daily: async () => {
-        queueAllCopies();
-        await cleanupCopies();
-      },
-    });
-  }
-
-  if (ROLE === 'control') {
-    // ── Control plane: plain HTTP on loopback, fronted by the edge ─────────
-    const controlServer = createServer((req, res) => {
-      // A response sent before its request body was read leaves those bytes on the socket, and
-      // the edge would pool the next request behind them until the idle timeout (~6s). Handlers
-      // that can reject uploads drain first (workspace `send`); this catches the rest.
-      res.once('finish', () => {
-        if (req.complete === false && !req.socket.destroyed) req.socket.end();
-      });
-      if (req.url === '/install') {
-        serveInstallScript(req, res);
-        return;
-      }
-      if (req.url === '/install.ps1') {
-        serveWindowsInstallScript(req, res);
-        return;
-      }
-      if (req.url?.startsWith('/cli')) {
-        serveCliRequest(req, res);
-        return;
-      }
-      if (isDesktopDownloadPath(req.url)) {
-        serveDesktopRequest(req, res);
-        return;
-      }
-      handler(req, res, () => void flightHandler(req, res));
-    });
-
-    setupWebSocket(controlServer);
-    const gitSshServer = await startGitSshServer();
-
-    // Receive edge events (request:logged from the proxy hot path and TCP
-    // proxies) and re-emit them locally so the dashboard WS broadcast and
-    // metrics pipeline see one unified stream.
-    connectEdgeIpc(getEdgeSockPath(), { onEvent: (event) => emit(event) });
-
-    function shutdown(signal: string) {
-      console.log(`\n[control] ${signal} received, shutting down...`);
-      const sshStopped = gitSshServer?.close();
-      flushRequestLogs();
-      terminalRelay.dispose();
-      stopManagedWorkers();
-      // Deployed workloads have an independent lifecycle. A control-plane
-      // restart must not stop them or overwrite their observed status.
-      graphSupervisor.stop();
-      controlServer.close(async () => {
-        await sshStopped;
-        console.log('[control] stopped');
-        process.exit(0);
-      });
-      setTimeout(() => {
-        console.error('[control] forcing shutdown after timeout');
-        process.exit(1);
-      }, 10000);
-    }
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-
-    // Failing to bind must be fatal — without this, the crash guard swallows
-    // the EADDRINUSE exception and control lingers as a zombie that the edge
-    // forwards into forever. Exiting lets the supervisor back off and retry
-    // (and makes a port conflict visible instead of silent).
-    controlServer.on('error', (err: NodeJS.ErrnoException) => {
-      console.error(`[control] failed to bind 127.0.0.1:${CONTROL_PORT} (${err.code})`);
-      process.exit(1);
-    });
-
-    controlServer.listen(CONTROL_PORT, '127.0.0.1', () => {
-      console.log(`[control] listening on http://127.0.0.1:${CONTROL_PORT}`);
-      startupTasks();
-    });
-    return;
-  }
-
-  // ── Single-process mode: embedded edge + TLS + dashboard in one ──────────
-  const tlsOpts = getTlsOptions();
-
-  const httpsServer = createHttp2Server(
-    {
-      key: tlsOpts.key,
-      cert: tlsOpts.cert,
-      ca: tlsOpts.ca,
-      allowHTTP1: true,
-      // Larger initial window so HTTP/2 streams don't stall waiting for
-      // WINDOW_UPDATE during streaming SSR / large asset transfers. 1 MiB is
-      // a sane default; Node's stock 64 KiB is conservative for our LAN use.
-      settings: { initialWindowSize: 1024 * 1024 },
-    },
-    async (rawReq, rawRes) => {
-      const req = rawReq as unknown as IncomingMessage;
-      const res = rawRes as unknown as ServerResponse;
-
-      // Serve CA cert on HTTPS too (convenience)
-      if (req.url === '/ca.crt') {
-        serveCaCert(res);
-        return;
-      }
-      // The CLI's configured server URL is https://, so the installer and
-      // `deploy upgrade` must resolve here too, not only on the port-80 server.
-      if (req.url === '/install') {
-        serveInstallScript(req, res);
-        return;
-      }
-      if (req.url === '/install.ps1') {
-        serveWindowsInstallScript(req, res);
-        return;
-      }
-      if (req.url?.startsWith('/cli')) {
-        serveCliRequest(req, res);
-        return;
-      }
-      if (isDesktopDownloadPath(req.url)) {
-        serveDesktopRequest(req, res);
-        return;
-      }
-
-      handler(req, res, () => void flightHandler(req, res));
-    },
-  );
-
-  // Embedded edge runtime: route table (sees worker-thread mutations via the
-  // IPC socket), mDNS, TCP proxies, cert hot-reload.
-  const edgeRuntime = initEdgeRuntime({
-    dbFile: getDefaultDbFile(),
-    logRequest,
-    emitEvent: emit,
-    onCertReload: () => {
-      const opts = getTlsOptions();
-      httpsServer.setSecureContext({ key: opts.key, cert: opts.cert, ca: opts.ca });
-      console.log('TLS context reloaded');
-    },
-  });
-  const edgeIpc = startEdgeIpcServer(getEdgeSockPath(), edgeRuntime.handlers);
-  setHotPathRouteSource(edgeRuntime.hotPathDeps.getRoute);
-
-  setupWebSocket(httpsServer);
-  // App-host WebSocket upgrades tunnel to the container; must be attached
-  // alongside setupWebSocket so both listeners coordinate (ws.ts skips app
-  // hosts, this skips dashboard /ws).
-  attachAppUpgradeProxy(httpsServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
-
-  // HTTP server on port 80: serve CA cert, handle API requests, redirect browsers to HTTPS
-  const httpServer = createServer((req, res) => {
-    if (req.url === '/ca.crt') {
-      serveCaCert(res);
-      return;
-    }
-    if (req.url === '/install') {
-      serveInstallScript(req, res);
-      return;
-    }
-    if (req.url === '/install.ps1') {
-      serveWindowsInstallScript(req, res);
-      return;
-    }
-    if (req.url?.startsWith('/cli')) {
-      serveCliRequest(req, res);
-      return;
-    }
-    if (isDesktopDownloadPath(req.url)) {
-      serveDesktopRequest(req, res);
-      return;
-    }
-    // Handle API requests over HTTP (for CLI compatibility)
-    if (req.url?.startsWith('/api/')) {
-      handler(req, res, async () => {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not Found');
-      });
-      return;
-    }
-    const host = req.headers.host?.split(':')[0] || 'deploy.local';
-    const portSuffix = actualHttpsPort !== 443 ? `:${actualHttpsPort}` : '';
-    res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
-    res.end();
-  });
-
-  attachWebSocketUpgrade(httpServer);
-  attachAppUpgradeProxy(httpServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
-
-  // Graceful shutdown only stops the control plane. Deployed workloads remain
-  // available while the single-process server restarts.
-  function shutdown(signal: string) {
-    console.log(`\n${signal} received, shutting down...`);
-    flushRequestLogs();
-    terminalRelay.dispose();
-    stopManagedWorkers();
-    graphSupervisor.stop();
-    edgeRuntime.close();
-    edgeIpc.close();
-    httpsServer.close();
-    httpServer.close(() => {
-      console.log('deploy.local stopped');
-      process.exit(0);
-    });
-    setTimeout(() => {
-      console.error('Forcing shutdown after timeout');
-      process.exit(1);
-    }, 10000);
-  }
-
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
-
-  let actualHttpsPort = HTTPS_PORT;
-
-  httpsServer.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
-      actualHttpsPort = 8443;
-      console.warn(
-        `Port ${HTTPS_PORT} unavailable (${err.code}), falling back to port ${actualHttpsPort}`,
-      );
-      httpsServer.listen(actualHttpsPort, () => {
-        console.log(`deploy.local server running on https://deploy.local:${actualHttpsPort}`);
-        startupTasks();
-      });
-    } else {
-      throw err;
-    }
-  });
-
-  httpsServer.listen(HTTPS_PORT, () => {
-    console.log(`deploy.local server running on https://deploy.local:${HTTPS_PORT}`);
-    startupTasks();
-  });
-
-  // The HTTP redirect server is non-critical — losing it (e.g. EACCES on a
-  // non-root run) must not take the HTTPS server down with an unhandled
-  // 'error' event.
-  httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    console.warn(`HTTP redirect server failed to bind port ${HTTP_PORT} (${err.code}) — skipping`);
-  });
-
-  httpServer.listen(HTTP_PORT, () => {
-    console.log(`deploy.local HTTP redirect + CA cert server on http://deploy.local:${HTTP_PORT}`);
-  });
+  };
 }
 
-main().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
+void bootServer({
+  role: process.env.DEPLOY_ROLE === 'control' ? 'control' : 'single',
+  createClient: createFlightClient,
 });
