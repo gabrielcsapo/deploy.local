@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, mkdtemp, rm, copyFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
@@ -72,15 +72,10 @@ test('fixture runtime rejects real coordinators, mDNS and persistent profiles; c
   }
 });
 
-// The served shell links this generated file, which a fresh checkout doesn't have until a build.
-await copyFile(
-  new URL('../../app/design-tokens.css', import.meta.url),
-  new URL('../assets/design-tokens.css', import.meta.url),
-);
-
 test('capture coordinator serves real v2 envelopes, admission and offline errors with no enrollment route', async () => {
-  const fixture = await startFixture();
-  const client = new CoordinatorClient('http://127.0.0.1:5184');
+  // Any free port: this also runs in `pnpm test`, beside other checkouts' runs on one computer.
+  const fixture = await startFixture({ port: 0 });
+  const client = new CoordinatorClient(fixture.origin);
   try {
     await assert.rejects(client.inbox(), /Sign in/);
     await client.login('fixture-owner', 'fixture-password');

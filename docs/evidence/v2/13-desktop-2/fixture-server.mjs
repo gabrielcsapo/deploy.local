@@ -166,7 +166,9 @@ export async function styles() {
       `url(hanken-${weight}.woff2)`,
       `url(data:font/woff2;base64,${(await readFile(new URL(`hanken-${weight}.woff2`, assets))).toString('base64')})`,
     );
-  return `${await readFile(new URL('design-tokens.css', assets), 'utf8')}\n${css}`;
+  // desktop/assets holds a build-time copy of this file, so read the source.
+  const tokens = new URL('../../../../app/design-tokens.css', import.meta.url);
+  return `${await readFile(tokens, 'utf8')}\n${css}`;
 }
 export function notificationContent(value) {
   return `<div class="notification"><span class="mark">d</span><div class="copy"><small>${escape(value.subtitle)}</small><div>${escape(value.title)}</div><p>${escape(value.body)}</p><footer>${value.actions.map((action, i) => `<button class="${i ? '' : 'primary'}">${escape(action.text)}</button>`).join('')}</footer></div></div>`;
@@ -180,7 +182,7 @@ export async function preview(board) {
   return `<!doctype html><html data-ds-theme="light"><meta charset="utf-8"><title>${board}</title><style>${await styles()}${notificationCss}
 body{background:#d2d6df;min-height:900px}.stage{padding:64px 16px;min-height:900px}.frame{width:${width}px;max-width:100%;margin:auto;background:var(--paper);border-radius:12px;box-shadow:0 24px 64px -16px #14121a59;overflow:hidden}.titlebar{height:40px;padding:14px 18px;display:flex;gap:8px}.titlebar i{height:12px;width:12px;border-radius:50%;background:#ff5f57}.titlebar i:nth-child(2){background:#febc2e}.titlebar i:nth-child(3){background:#28c840}.evidence-label{position:fixed;bottom:10px;left:16px;color:#444;font-size:12px}</style><body><div class="stage"><div class="frame">${['Tray', 'Notification'].includes(board) ? '' : '<div class="titlebar"><i></i><i></i><i></i></div>'}${board === 'Notification' ? notificationContent(notification) : render({ ...common, ...boards[board] })}</div></div><small class="evidence-label">Renderer fixture · ${board} · native captures are separate</small></body></html>`;
 }
-export async function startFixture({ previews = false } = {}) {
+export async function startFixture({ previews = false, port = 5184 } = {}) {
   const state = { offline: false, requests: [], computers: structuredClone(computers) };
   const api = http.createServer(async (req, res) => {
     const url = new URL(req.url, common.origin);
@@ -219,7 +221,7 @@ export async function startFixture({ previews = false } = {}) {
       server.once('error', reject);
       server.listen(port, '127.0.0.1', resolve);
     });
-  await listen(api, 5184);
+  await listen(api, port);
   let pages;
   try {
     if (previews) {
@@ -240,6 +242,7 @@ export async function startFixture({ previews = false } = {}) {
   }
   return {
     state,
+    origin: `http://127.0.0.1:${api.address().port}`,
     close: async () => {
       for (const server of [api, pages].filter(Boolean)) {
         server.closeAllConnections();

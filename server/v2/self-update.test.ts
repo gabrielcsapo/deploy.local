@@ -144,6 +144,13 @@ test('prepare output says which step failed and how many tests', () => {
     '2 of 281 tests failed in server/v2/design.test.ts',
   );
   assert.equal(
+    prepareDetail(
+      readPrepare('pnpm test\nℹ fail 1\n  test at /srv/release/desktop/test/main.test.mjs:9:1'),
+      false,
+    ),
+    '1 of 1 tests failed in desktop/test/main.test.mjs',
+  );
+  assert.equal(
     prepareDetail(readPrepare('pnpm install --frozen-lockfile\npnpm typecheck\nerror'), false),
     'pnpm typecheck failed',
   );
