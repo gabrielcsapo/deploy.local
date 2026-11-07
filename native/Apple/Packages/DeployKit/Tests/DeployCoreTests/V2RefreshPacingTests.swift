@@ -8,16 +8,19 @@ private final class PacingServer: @unchecked Sendable {
     private var cursor = 0
     private var queued = 0
     private var refreshes = 0
+    private var liveReads = 0
+    private var computerReads = 0
+    private var eventType = "agent"
     private var waits: [Int] = []
     private var tasks = "[]"
     private var parked: (id: UUID, respond: @Sendable (String) -> Void)?
     private let newTask = #"[{"id":"new","title":"New task","status":"ready","revision":0,"workspacePath":"/fixture","baseRevision":"abc","createdAt":"2026-10-27T14:14:00Z","updatedAt":"2026-10-27T14:14:00Z"}]"#
 
-    func reset() { lock.lock(); defer { lock.unlock() }; cursor = 0; queued = 0; refreshes = 0; waits = []; tasks = "[]"; parked = nil }
-    var counts: (refreshes: Int, waits: [Int]) { lock.lock(); defer { lock.unlock() }; return (refreshes, waits) }
+    func reset() { lock.lock(); defer { lock.unlock() }; cursor = 0; queued = 0; refreshes = 0; liveReads = 0; computerReads = 0; eventType = "agent"; waits = []; tasks = "[]"; parked = nil }
+    var counts: (refreshes: Int, live: Int, computers: Int, waits: [Int]) { lock.lock(); defer { lock.unlock() }; return (refreshes, liveReads, computerReads, waits) }
     /// Queues events. The server learns of a new task with the last of them, as a real one would.
-    func publish(_ count: Int) {
-        lock.lock(); queued += count
+    func publish(_ count: Int, type: String = "agent") {
+        lock.lock(); queued += count; eventType = type
         let waiting = parked; parked = nil
         let body = waiting == nil ? nil : nextEvent()
         lock.unlock()
@@ -41,7 +44,7 @@ private final class PacingServer: @unchecked Sendable {
     private func nextEvent() -> String {
         queued -= 1; cursor += 1
         if queued == 0 { tasks = newTask }
-        return page(#"{"cursor":\#(cursor),"taskId":null,"at":"now","type":"agent","agentId":"x"}"#)
+        return page(#"{"cursor":\#(cursor),"taskId":null,"at":"now","type":"\#(eventType)","agentId":"x"}"#)
     }
     private func page(_ events: String) -> String { #"{"events":[\#(events)],"cursor":\#(cursor),"supportsWait":true}"# }
     func body(path: String) -> String {
@@ -50,8 +53,8 @@ private final class PacingServer: @unchecked Sendable {
         case "/api/workspace/state": refreshes += 1; return #"{"cursor":0,"projects":[],"tasks":\#(tasks),"workers":[]}"#
         case "/api/v2/agents": return #"{"agents":[]}"#
         case "/api/v2/inbox": return #"{"items":[]}"#
-        case "/api/v2/live": return #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"2026-10-27T14:14:00Z"},"computers":[]}"#
-        case "/api/nodes": return #"{"nodes":[]}"#
+        case "/api/v2/live": liveReads += 1; return #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"2026-10-27T14:14:00Z"},"computers":[]}"#
+        case "/api/nodes": computerReads += 1; return #"{"nodes":[]}"#
         case "/api/user": return #"{"username":"gabriel"}"#
         default: return "{}"
         }
@@ -130,6 +133,23 @@ private final class PacingURLProtocol: URLProtocol, @unchecked Sendable {
         while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(condition())
     }
+    @Test @MainActor func healthRefreshesLiveAndComputersPromptlyWithoutAFullRefresh() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let server = PacingURLProtocol.server
+        server.reset()
+        let connection = Connection(origin: "https://pacing.invalid", username: "gabriel", token: "private-token")
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PacingURLProtocol.self]
+        let store = V2Store(connection: connection, client: V2Client(connection: connection, session: URLSession(configuration: config)), cacheDirectory: directory, refreshInterval: .seconds(1))
+        await store.start()
+        defer { store.suspend() }
+        server.publish(1, type: "health")
+        try await wait { server.counts.live == 2 && server.counts.computers == 2 }
+        #expect(store.snapshot.cursor == 1)
+        #expect(server.counts.refreshes == 1)
+    }
+
     @Test @MainActor func aBurstAppliesEveryEventWithFewRefreshesAndTheLastOneIsNotStranded() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -153,5 +173,51 @@ private final class PacingURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(server.counts.refreshes <= 4)
         // Then the loop goes back to waiting in full.
         try await wait { server.counts.waits.last == 10_000 }
+    }
+}
+
+@Suite struct V2IdleRefreshTests {
+    @Test func irrelevantAndEmptyPagesNeverRequestFullRefreshButLiveRemainsFresh() {
+        let start = ContinuousClock.now
+        var pacer = V2RefreshPacer(interval: .seconds(2))
+        pacer.refreshStarted(); pacer.refreshFinished(at: start)
+        var full = 0
+        var light = 0
+        for second in 1...60 {
+            let now = start + .seconds(second)
+            pacer.pageArrived(relevant: false)
+            if pacer.shouldRefresh(at: now) { full += 1; pacer.refreshStarted(); pacer.refreshFinished(at: now) }
+            else if pacer.shouldRefreshLive(at: now) { light += 1; pacer.liveRefreshFinished(at: now) }
+        }
+        #expect(full == 0)
+        #expect(light == 4)
+    }
+    @Test func healthUsesTheLightReadAndNewTasksStillRefreshImmediatelyAfterIdle() {
+        let start = ContinuousClock.now
+        var pacer = V2RefreshPacer(interval: .seconds(2))
+        pacer.refreshStarted(); pacer.refreshFinished(at: start)
+        pacer.pageArrived(relevant: false, health: true)
+        #expect(!pacer.shouldRefresh(at: start + .seconds(2)))
+        #expect(pacer.shouldRefreshLive(at: start + .seconds(2)))
+        pacer.liveRefreshFinished(at: start + .seconds(2))
+        #expect(pacer.waitMs(at: start + .seconds(12)) == 5_000)
+        pacer.pageArrived()
+        #expect(pacer.shouldRefresh(at: start + .seconds(12)))
+    }
+    @Test @MainActor func irrelevantPagesAdvanceInMemoryWithoutRewritingCache() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let connection = Connection(origin: "https://pacing.invalid", username: "gabriel", token: "private-token")
+        let store = V2Store(connection: connection, cacheDirectory: directory)
+        try store.persist()
+        let file = try #require(FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil).first)
+        let before = try Data(contentsOf: file)
+        let date = try FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date
+        let relevant = store.apply(V2EventPage(events: [V2Event(cursor: 1, at: "now", type: "ignored")], cursor: 1, supportsWait: true))
+        store.apply(V2EventPage(events: [], cursor: 1, supportsWait: true))
+        #expect(!relevant)
+        #expect(store.snapshot.cursor == 1)
+        #expect(try Data(contentsOf: file) == before)
+        #expect(try FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date == date)
     }
 }

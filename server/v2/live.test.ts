@@ -10,7 +10,7 @@ const { saveDeployment, updateDeploymentStatus, registerUser, authenticate, getS
   await import('../store.ts');
 const { issueOwnedCiCredential, revokeCiCredential } = await import('../ci-releases.ts');
 const { db, save } = await import('../workspace/store.ts');
-const { acceptWorkerReport, getLive } = await import('./live.ts');
+const { acceptWorkerReport, getLive, publishHealth } = await import('./live.ts');
 const { projectReleaseService, requestWorkerRollback } = await import('./releases-api.ts');
 const { putApprovalRules, projectRollbacks, currentProjectReleases } =
   await import('./releases.ts');
@@ -403,4 +403,100 @@ test('Live exposes project membership, catalog origin and immutable source metad
   ).json();
   assert.deepEqual(detail.release.source, source);
   assert.equal((await fetch(origin + '/live/private', { headers: provenanceHeaders })).status, 404);
+});
+
+test('heartbeat-only reports save fresh records without emitting health; rendered fields still emit', () => {
+  const app = {
+    appId: 'quiet',
+    kind: 'worker' as const,
+    state: 'healthy' as const,
+    summary: 'Heartbeat 0 s ago',
+    heartbeatAt: '2026-11-07T12:00:00Z',
+  };
+  const count = () =>
+    (
+      db.prepare("SELECT count(*) AS n FROM events WHERE owner='quiet-owner'").get() as {
+        n: number;
+      }
+    ).n;
+  publishHealth('quiet-owner', app);
+  const before = count();
+  publishHealth('quiet-owner', {
+    ...app,
+    summary: 'Heartbeat 16 s ago',
+    heartbeatAt: '2026-11-07T12:00:16Z',
+  });
+  assert.equal(count(), before);
+  assert.equal(
+    JSON.parse(
+      (
+        db
+          .prepare("SELECT data FROM records WHERE kind='v2-health' AND owner='quiet-owner'")
+          .get() as { data: string }
+      ).data,
+    ).app.heartbeatAt,
+    '2026-11-07T12:00:16Z',
+  );
+  for (const change of [
+    { state: 'warning' as const },
+    { summary: 'Worker health report is overdue' },
+    { queue: { depth: 2, oldestSec: 1 } },
+    { jobs: { perMin: 4, failRate: 0, baselineFailRate: 0 } },
+    { restarts: { count: 1, windowSec: 60 } },
+    { http: { path: '/', status: 200, p95ms: 3, reqPerMin: 4 } },
+  ]) {
+    const previous = count();
+    publishHealth('quiet-owner', { ...app, ...change });
+    assert.equal(count(), previous + 1);
+  }
+});
+
+test('inbox list responses carry their authoritative event cursor, including withdrawn absence', async () => {
+  const { createInboxItem, withdrawInboxItems } = await import('./inbox.ts');
+  const { cursor } = await import('../workspace/store.ts');
+  createInboxItem(
+    owner,
+    {
+      id: 'snapshot-cursor',
+      kind: 'other',
+      title: 'Test',
+      text: '',
+      from: 'agent',
+      projectId: 'snapshot-project',
+      createdAt: '2026-11-07T12:00:00Z',
+      state: 'waiting',
+      actions: [],
+    },
+    {},
+  );
+  const waiting = await (await fetch(origin + '/inbox?state=waiting', { headers })).json();
+  assert.equal(waiting.cursor, cursor(owner));
+  assert(waiting.items.some((item: any) => item.id === 'snapshot-cursor'));
+  withdrawInboxItems(owner, 'snapshot-project', 'other');
+  const after = await (await fetch(origin + '/inbox?state=waiting', { headers })).json();
+  assert.equal(after.cursor, cursor(owner));
+  assert(after.cursor > waiting.cursor);
+  assert(!after.items.some((item: any) => item.id === 'snapshot-cursor'));
+});
+
+test('13 steady apps generate no continuing heartbeat notifications over four minutes', () => {
+  const owner = 'steady-13';
+  const at = Date.parse('2026-11-07T12:00:00Z');
+  const count = () =>
+    (db.prepare('SELECT count(*) AS n FROM events WHERE owner=?').get(owner) as { n: number }).n;
+  const report = (second: number) => {
+    for (let i = 0; i < 13; i++)
+      publishHealth(owner, {
+        appId: `app-${i}`,
+        kind: 'worker',
+        state: 'healthy',
+        summary: 'Heartbeat 0 s ago',
+        heartbeatAt: new Date(at + Math.floor(second / 16) * 16_000).toISOString(),
+      });
+  };
+  report(0);
+  const initial = count();
+  for (let second = 16; second <= 240; second += 16) report(second);
+  assert.equal(initial, 13);
+  assert.equal(count() - initial, 0);
 });

@@ -383,6 +383,34 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(store.answered == [item])
         #expect(store.snapshot.cursor == 3)
     }
+    @Test @MainActor func snapshotRejectsReplayedWaitingAndWithdrawnHistoryButAllowsNewWaiting() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let answered = try JSONDecoder().decode(InboxItem.self, from: Data(answeredJSON.utf8))
+        var waiting = answered; waiting.state = .waiting; waiting.answer = nil
+        var withdrawn = waiting; withdrawn.id = "old-withdrawn"; withdrawn.state = .withdrawn
+        var responses = routes()
+        responses["GET /api/v2/inbox?state=waiting"] = [(200, #"{"items":[],"cursor":20}"#)]
+        responses["GET /api/v2/inbox?state=answered"] = [(200, #"{"items":[\#(answeredJSON)],"cursor":20}"#)]
+        V2URLProtocol.state.reset(responses)
+        let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
+        // The phone left at cursor zero; snapshot reads newer truth before replay catches up.
+        await store.refresh()
+        store.apply(V2EventPage(events: [V2Event(cursor: 1, at: "now", type: "inbox", item: waiting)], cursor: 1, supportsWait: true))
+        #expect(store.waiting.isEmpty)
+        #expect(store.answered == [answered])
+        store.apply(V2EventPage(events: [V2Event(cursor: 2, at: "now", type: "inbox", item: answered), V2Event(cursor: 3, at: "now", type: "inbox", item: withdrawn)], cursor: 3, supportsWait: true))
+        var oldWaiting = withdrawn; oldWaiting.state = .waiting
+        store.apply(V2EventPage(events: [V2Event(cursor: 4, at: "now", type: "inbox", item: oldWaiting)], cursor: 4, supportsWait: true))
+        #expect(store.waiting.isEmpty)
+        // An actual later reopening (even with the same ID and createdAt) must be accepted.
+        store.apply(V2EventPage(events: [V2Event(cursor: 21, at: "now", type: "inbox", item: waiting)], cursor: 21, supportsWait: true))
+        #expect(store.waiting == [waiting])
+        var fresh = waiting; fresh.id = "new"
+        store.apply(V2EventPage(events: [V2Event(cursor: 22, at: "now", type: "inbox", item: fresh)], cursor: 22, supportsWait: true))
+        #expect(store.waiting.count == 2)
+    }
+
     @Test func eventPagesDecodeEventsWithoutATask() throws {
         // A background job's work log has no task; one such event must not fail the whole page.
         let json = #"{"events":[{"cursor":131,"taskId":null,"runId":null,"at":"2026-10-17T04:54:44.526Z","type":"job"},{"cursor":132,"taskId":"t","at":"now","type":"job"}],"cursor":132,"supportsWait":true}"#

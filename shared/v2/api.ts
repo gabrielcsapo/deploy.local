@@ -6,7 +6,7 @@ export type InboxAnswerRequest = {
   surface?: 'menu-bar';
   note?: string;
 };
-export type InboxResponse = { items: InboxItem[] };
+export type InboxResponse = { items: InboxItem[]; cursor?: number };
 export type V2Event = { cursor: number; taskId: string; runId: string | null; at: string } & (
   | { type: 'agent'; agentId: string }
   | { type: 'inbox'; item: InboxItem }
