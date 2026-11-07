@@ -31,7 +31,22 @@ enum V2Evidence {
     }
     // A fresh cache per launch keeps prior drafts/events and pending sends out of captures.
     private static let captureCache = FileManager.default.temporaryDirectory.appendingPathComponent("agents-p1-" + UUID().uuidString)
-    static var cacheDirectory: URL? { agentsBoard == nil ? nil : captureCache }
+    static var cacheDirectory: URL? { agentsBoard == nil && !loadingBoard ? nil : captureCache }
+    static var loadingBoard: Bool {
+        guard fixtureURL?.port == 5194, let board else { return false }
+        return ["HomeLoadingPhone", "ProjectsLoadingPhone", "TaskLoadingPhone", "LiveLoadingPhone", "HomeLoadingSlowPhone", "HomeRefreshingPhone", "HomeUnavailablePhone", "PackagesPhone", "PackageVersionsPhone"].contains(board)
+    }
+    @MainActor static func prepareLoadingCache(connection: Connection) async {
+        #if DEBUG && targetEnvironment(simulator)
+        guard loadingBoard, board == "HomeRefreshingPhone", let origin = fixtureURL else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: origin.appendingPathComponent("fixture/cache"))
+            let snapshot = try JSONDecoder().decode(V2Snapshot.self, from: data)
+            try FileManager.default.createDirectory(at: captureCache, withIntermediateDirectories: true)
+            try JSONEncoder().encode(snapshot).write(to: captureCache.appendingPathComponent(V2Client.notificationScope(connection) + ".json"))
+        } catch { /* A fixture failure must not touch the user's regular cache. */ }
+        #endif
+    }
     // Keep the canonical web-fixture dates; show its 30 October conversation as Today.
     private static var referenceDate: Date { ISO8601DateFormatter().date(from: "2026-10-30T18:00:00-04:00")! }
     private static var referenceCalendar: Calendar {

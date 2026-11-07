@@ -16,6 +16,7 @@ struct V2ComposerSheet: View {
     var agent = ""
     var askingAgent = false
     var initialText = ""
+    var destinationReady = true
     @State private var mentionClosed = false
     @State private var newAgent = false
     @State private var draft = V2Draft()
@@ -89,7 +90,7 @@ struct V2ComposerSheet: View {
                     Button { focused = false; models = true } label: { HStack(spacing: 3) { Text(modelName); Image(systemName: "chevron.down").font(.system(size: 8)) }.font(.system(size: 13)).frame(minHeight: 44) }
                     Button { send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)) }
                         .buttonStyle(WorkspaceSendStyle()).accessibilityLabel(store.online ? "Send message" : "Queue draft")
-                        .disabled(draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sending || !attachments.isEmpty)
+                        .disabled(!destinationReady || draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sending || !attachments.isEmpty)
                 }
                 if let error = attachmentError { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
                 Spacer(minLength: 0)
@@ -158,6 +159,7 @@ struct V2ComposerSheet: View {
         }.presentationDragIndicator(.visible)
     }
     private func send() {
+        guard destinationReady else { return }
         sending = true
         Task {
             if draft.question, draft.taskId == nil { draft.taskId = store.snapshot.agentTasks[agent] }
@@ -202,6 +204,7 @@ struct V2TaskComposer: View {
     @Bindable var store: V2Store
     let taskId: String
     let expand: () -> Void
+    var destinationReady = true
     @State private var draft = V2Draft()
     @State private var mentionClosed = false
     @State private var sending = false
@@ -249,7 +252,7 @@ struct V2TaskComposer: View {
                 Button(action: expand) { HStack(spacing: 2) { Text(draft.model ?? "Auto"); Image(systemName: "chevron.down").font(.system(size: 8)) }.font(.system(size: 13)).foregroundStyle(.secondary) }
                 Button { send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)) }
                     .buttonStyle(WorkspaceSendStyle()).accessibilityLabel("Send message")
-                    .disabled(draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sending)
+                    .disabled(!destinationReady || draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sending)
             }.padding(.horizontal, 10).padding(.vertical, 4)
                 .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 24))
                 .overlay(RoundedRectangle(cornerRadius: 24).stroke(WorkspaceStyle.line(scheme)))
@@ -267,6 +270,7 @@ struct V2TaskComposer: View {
         mentionClosed = true
     }
     private func send() {
+        guard destinationReady else { return }
         sending = true
         Task {
             if await store.enqueue(draft) { draft = store.composer(taskId: taskId); draft.taskId = taskId; mentionClosed = false }

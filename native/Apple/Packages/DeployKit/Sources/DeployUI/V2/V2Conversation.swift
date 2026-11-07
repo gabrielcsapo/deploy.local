@@ -6,14 +6,25 @@ struct V2ConversationView: View {
     @Bindable var store: V2Store
     var taskId: String?
     var agent: String? = nil
-    @State private var agentEvents: [ConversationEvent] = []
+    @State private var agentRead = V2Read<[ConversationEvent]>()
+    private var agentEvents: [ConversationEvent] { agentRead.value ?? [] }
     @State private var suggestedText = ""
     @State private var editingItem: V2LooksAfterItem?
     @State private var history: V2LooksAfterItem?
     @State private var evidenceOpened = false
     @State private var receiptBusy = false
-    @State private var detail: TaskDetail?
-    @State private var diff: TaskDiff?
+    @State private var historyRead = V2Read<TaskDetail>()
+    @State private var changesRead = V2Read<TaskDiff>()
+    @State private var checksRead = V2Read<TaskDiff>()
+    private var detail: TaskDetail? { historyRead.value }
+    private var diff: TaskDiff? { tab == "Checks" ? checksRead.value : changesRead.value }
+    private var conversationState: V2LoadState {
+        let state = agent == nil ? historyRead.state : agentRead.state
+        return agent == nil && !store.conversation(currentId ?? "").isEmpty ? state.retainingData() : state
+    }
+    private var selectedState: V2LoadState { tab == "Changes" ? changesRead.state : tab == "Checks" ? checksRead.state : conversationState }
+    private var selectedCopy: V2LoadingCopy { tab == "Changes" ? .resource("Changes") : tab == "Checks" ? .resource("Checks") : .conversation }
+    private var resourceKey: String { agent.map { "agent-chat:" + $0 } ?? "task:" + (taskId ?? "") }
     @State private var tab = "Chat"
     @State private var compose = false
     @State private var info = false
@@ -46,15 +57,17 @@ struct V2ConversationView: View {
                 if showSearch { TextField("Search this conversation", text: $search).textFieldStyle(.roundedBorder).padding(.horizontal, 16) }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        if tab == "Chat" { conversation }
-                        else if tab == "Changes" { changes }
-                        else if tab == "Design" { ForEach(designs, id: \.id) { item in V2DesignReviewEntry(store: store, item: item) } }
-                        else { checks }
+                        V2LoadRegion(state: selectedState, copy: selectedCopy, lastHeard: store.readDates[resourceKey], conversation: tab == "Chat", retry: { await load() }) {
+                            if tab == "Chat" { conversation }
+                            else if tab == "Changes" { changes }
+                            else if tab == "Design" { ForEach(designs, id: \.id) { item in V2DesignReviewEntry(store: store, item: item) } }
+                            else { checks }
+                        }
                         if let error { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                }.opacity(store.online ? 1 : 0.45)
+                }
                 if agent == nil, let currentId {
-                    V2TaskComposer(store: store, taskId: currentId, expand: { compose = true })
+                    V2TaskComposer(store: store, taskId: currentId, expand: { compose = true }, destinationReady: conversationState.hasData)
                 } else {
                     Button { compose = true } label: {
                         HStack(spacing: 12) {
@@ -69,11 +82,12 @@ struct V2ConversationView: View {
                     ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }.accessibilityLabel("Back") }
                     ToolbarItem(placement: .principal) {
                         if let savedAgent {
-                            Button { agentMenu.toggle() } label: { V2AgentHeader(agent: savedAgent) }.buttonStyle(.plain)
+                            Button { agentMenu.toggle() } label: { VStack(spacing: 3) { V2AgentHeader(agent: savedAgent); V2LoadingHeader(states: [selectedState]) } }.buttonStyle(.plain)
                         } else {
                             Button { info = true } label: {
                                 VStack(spacing: 3) {
                                     Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                                    V2LoadingHeader(states: [selectedState])
                                     if let project {
                                         Text("\(project.name)\(designs.contains { $0.state == .waiting } ? " · design waiting" : "") ›").font(.system(size: 12)).foregroundStyle(.secondary)
                                     }
@@ -94,7 +108,7 @@ struct V2ConversationView: View {
                         }
                     }
                 }
-                .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "", askingAgent: agent != nil, initialText: suggestedText) }
+                .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "", askingAgent: agent != nil, initialText: suggestedText, destinationReady: conversationState.hasData) }
                 .sheet(item: $editingItem) { item in if let savedAgent { V2LooksAfterEditor(store: store, agent: savedAgent, item: item) } }
                 .navigationDestination(isPresented: Binding(get: { history != nil }, set: { if !$0 { history = nil } })) {
                     if let history, let agent { V2AgentItemHistory(store: store, agent: agent, item: history) }
@@ -126,7 +140,7 @@ struct V2ConversationView: View {
                         designBoards[item.id] = review.boards.count
                     }
                 }
-                .task(id: currentId) {
+                .task(id: resourceKey) {
                     await load()
                     if let board = V2Evidence.agentsBoard {
                         guard !evidenceOpened else { return }
@@ -150,7 +164,10 @@ struct V2ConversationView: View {
                     default: break
                     }
                 }
-                .onChange(of: store.snapshot.cursor) { _, _ in Task { await load() } }
+                .task(id: tab) { if tab == "Changes" || tab == "Checks" { await load() } }
+                .refreshable { await load() }
+                .onDisappear { historyRead.leave(); agentRead.leave(); changesRead.leave(); checksRead.leave() }
+                .onChange(of: store.snapshot.cursor) { _, _ in Task { await load(foreground: false) } }
         }
     }
     private var conversationEvents: [ConversationEvent] {
@@ -172,20 +189,20 @@ struct V2ConversationView: View {
                     .font(.system(size: 13)).frame(minHeight: 44, alignment: .leading)
             }.buttonStyle(.plain)
         }
-        if let savedAgent, agentEvents.isEmpty {
+        if let savedAgent, agentRead.state.hasData, agentEvents.isEmpty {
             VStack(spacing: 16) {
                 AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color, size: 88)
                 Text(savedAgent.name).font(.system(size: 22, weight: .semibold))
                 Text("Tell \(savedAgent.name) what you want it to do. It remembers.").font(.system(size: 17)).multilineTextAlignment(.center)
                 VStack(spacing: 8) {
-                ForEach(["Draft release notes for what merged each week", "Watch my apps and tell me when something fails", "Review my open pull requests", "Research a question for me"], id: \.self) { text in
-                    Button { suggestedText = text; compose = true } label: {
-                        Text(text).font(.system(size: 15)).multilineTextAlignment(.leading)
-                            .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 10))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(WorkspaceStyle.line(scheme)))
-                    }.buttonStyle(.plain)
-                }
+                    ForEach(["Draft release notes for what merged each week", "Watch my apps and tell me when something fails", "Review my open pull requests", "Research a question for me"], id: \.self) { text in
+                        Button { suggestedText = text; compose = true } label: {
+                            Text(text).font(.system(size: 15)).multilineTextAlignment(.leading)
+                                .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 10))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(WorkspaceStyle.line(scheme)))
+                        }.buttonStyle(.plain)
+                    }
                 }
             }.padding(.vertical, 32).frame(maxWidth: .infinity)
         }
@@ -292,14 +309,19 @@ struct V2ConversationView: View {
         guard let agent, !receiptBusy else { return }; receiptBusy = true
         Task { defer { receiptBusy = false }; do { store.updateAgent(try await store.client.confirmAgentItem(agent, item: item.id)) } catch { self.error = coordinatorErrorDescription(error) } }
     }
-    private func load() async {
+    private func load(foreground: Bool = true) async {
         if let agent {
-            do { agentEvents = try await store.client.agentConversation(agent).events; error = nil } catch { self.error = coordinatorErrorDescription(error) }
+            await agentRead.load(store: store, key: resourceKey, foreground: foreground) { try await store.client.agentConversation(agent).events }
             return
         }
-        guard let id = currentId, store.online else { return }
-        do { detail = try await store.client.task(id); diff = try await store.client.diff(id); error = nil }
-        catch { self.error = coordinatorErrorDescription(error) }
+        guard let id = currentId else { return }
+        if tab == "Changes" {
+            await changesRead.load(store: store, key: "changes:" + id, foreground: foreground) { try await store.client.diff(id) }
+        } else if tab == "Checks" {
+            await checksRead.load(store: store, key: "checks:" + id, foreground: foreground) { try await store.client.diff(id) }
+        } else {
+            await historyRead.load(store: store, key: resourceKey, foreground: foreground) { try await store.client.task(id) }
+        }
     }
 }
 #endif

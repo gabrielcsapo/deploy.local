@@ -23,8 +23,8 @@ struct V2ReleaseSteps: View {
 struct V2ReleasesView: View {
     @Bindable var store: V2Store
     let project: V2Project
-    @State private var releases: [Release] = []
-    @State private var loaded = false
+    @State private var read = V2Read<[Release]>()
+    private var releases: [Release] { read.value ?? [] }
     @State private var error: String?
     @State private var selected: String?
     @State private var confirm = false
@@ -35,23 +35,26 @@ struct V2ReleasesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if let current {
-                    V2Group(title: current.state == .running ? "Releasing" : "Live now") { releaseRow(current) }
-                    V2ReleaseContents(store: store, release: current)
-                }
-                if let rollback { V2RollbackProgress(store: store, initial: rollback) }
-                let earlier = releases.filter { $0.id != current?.id }
-                if !earlier.isEmpty { V2Group(title: "Earlier") { ForEach(earlier, id: \.id) { releaseRow($0) } } }
-                if !loaded && error == nil { V2Group { V2Row(title: "Loading releases", subtitle: "Release contents", icon: "shippingbox").redacted(reason: .placeholder) } }
-                if loaded && releases.isEmpty && error == nil { V2Empty(title: "No releases yet", message: "Ship from a task whenever you are ready.") }
-                if let current, let prior, current.state == .live {
-                    Button("Roll back to \(prior.id.prefix(7))…") { confirm = true }.buttonStyle(V2ActionStyle()).disabled(!store.online || busy)
+                V2LoadRegion(state: read.state, copy: .resource("Releases"), lastHeard: store.readDates["releases:" + project.id], rows: 1,
+                             skeleton: AnyView(V2Group { V2Row(title: "Loading releases", subtitle: "Release contents", icon: "shippingbox").redacted(reason: .placeholder).accessibilityHidden(true) }), retry: { await load() }) {
+                    if let current {
+                        V2Group(title: current.state == .running ? "Releasing" : "Live now") { releaseRow(current) }
+                        V2ReleaseContents(store: store, release: current)
+                    }
+                    if let rollback { V2RollbackProgress(store: store, initial: rollback) }
+                    let earlier = releases.filter { $0.id != current?.id }
+                    if !earlier.isEmpty { V2Group(title: "Earlier") { ForEach(earlier, id: \.id) { releaseRow($0) } } }
+                    if read.state.hasData && releases.isEmpty { V2Empty(title: "No releases yet", message: "Ship from a task whenever you are ready.") }
+                    if let current, let prior, current.state == .live {
+                        Button("Roll back to \(prior.id.prefix(7))…") { confirm = true }.buttonStyle(V2ActionStyle()).disabled(!store.online || busy)
+                    }
                 }
                 if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
             }.padding(16)
         }.navigationTitle("\(project.name) releases").navigationBarTitleDisplayMode(.inline)
             .task { await load(); if ["ReleasePhone", "ReleaseFailedPhone"].contains(V2Evidence.board) { selected = releases.first?.id } }
-            .onChange(of: store.snapshot.cursor) { _, _ in Task { await load() } }
+            .onChange(of: store.snapshot.cursor) { _, _ in Task { await load(foreground: false) } }
+            .loadingHeader(title: project.name + " releases", read.state).onDisappear { read.leave() }
             .refreshable { await load() }
             .navigationDestination(isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } })) { if let selected { V2ReleaseDetail(store: store, releaseId: selected) } }
             .confirmationDialog("Roll back every app in \(project.name) to \(prior?.id.prefix(7) ?? "")?", isPresented: $confirm, titleVisibility: .visible) {
@@ -62,10 +65,10 @@ struct V2ReleasesView: View {
     private func releaseRow(_ release: Release) -> some View {
         Button { selected = release.id } label: { V2Row(title: String(release.id.prefix(7)), subtitle: release.source.ref, icon: "shippingbox", trailing: release.state.rawValue.replacingOccurrences(of: "-", with: " ").capitalized) }
     }
-    private func load() async {
-        guard store.online else { return }
-        do { releases = try await store.client.releases(project: project.id); loaded = true; rollback = try await store.client.rollbacks(project: project.id).first; error = nil }
-        catch { self.error = coordinatorErrorDescription(error) }
+    private func load(foreground: Bool = true) async {
+        await read.load(store: store, key: "releases:" + project.id, foreground: foreground) { try await store.client.releases(project: project.id) }
+        // Rollback progress is independent of the release rows and retains its last result.
+        if let next = try? await store.client.rollbacks(project: project.id).first, !Task.isCancelled { rollback = next }
     }
     private func rollBack() async {
         guard let current, let prior, !busy else { return }
@@ -91,37 +94,41 @@ struct V2ReleaseContents: View {
 struct V2ReleaseDetail: View {
     @Bindable var store: V2Store
     let releaseId: String
-    @State private var initial: Release?
+    @State private var read = V2Read<Release>()
+    private var initial: Release? { read.value }
     @State private var error: String?
     @State private var ask = false
     private var release: Release? { store.releases[releaseId] ?? initial }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if let release {
-                    V2Group {
-                        V2Row(title: status(release), subtitle: "\(release.source.ref) · \(release.startedBy)", icon: release.state == .failed ? "xmark.circle" : "shippingbox")
-                    }
-                    if release.state == .failed, release.steps.first(where: { $0.name == .activate })?.state == .skipped {
-                        Text("Nothing changed. The previous release is still serving.").font(.system(size: 15))
-                    }
-                    V2ReleaseSteps(steps: release.steps)
-                    V2ReleaseContents(store: store, release: release)
-                    if release.state == .failed {
-                        Text("Variables are changed on a computer, in the project's settings.").font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button("Ask for a fix") {
-                            var draft = store.composer(taskId: nil)
-                            draft.agent = ""; draft.question = false; draft.projectId = release.projectId
-                            draft.text = "Help me fix release \(release.id) for \(release.projectId). " + (release.steps.first { $0.state == .failed }?.detail ?? "The release failed.")
-                            store.saveComposer(draft, context: "new"); ask = true
-                        }.buttonStyle(V2ActionStyle(primary: true))
+                V2LoadRegion(state: read.state, copy: .resource("Releases"), lastHeard: store.readDates["release:" + releaseId], rows: 1,
+                             skeleton: AnyView(V2Group { V2Row(title: "Loading release", subtitle: "Release progress", icon: "shippingbox").redacted(reason: .placeholder).accessibilityHidden(true) }), retry: { await load() }) {
+                    if let release {
+                        V2Group {
+                            V2Row(title: status(release), subtitle: "\(release.source.ref) · \(release.startedBy)", icon: release.state == .failed ? "xmark.circle" : "shippingbox")
+                        }
+                        if release.state == .failed, release.steps.first(where: { $0.name == .activate })?.state == .skipped {
+                            Text("Nothing changed. The previous release is still serving.").font(.system(size: 15))
+                        }
+                        V2ReleaseSteps(steps: release.steps)
+                        V2ReleaseContents(store: store, release: release)
+                        if release.state == .failed {
+                            Text("Variables are changed on a computer, in the project's settings.").font(.system(size: 13)).foregroundStyle(.secondary)
+                            Button("Ask for a fix") {
+                                var draft = store.composer(taskId: nil)
+                                draft.agent = ""; draft.question = false; draft.projectId = release.projectId
+                                draft.text = "Help me fix release \(release.id) for \(release.projectId). " + (release.steps.first { $0.state == .failed }?.detail ?? "The release failed.")
+                                store.saveComposer(draft, context: "new"); ask = true
+                            }.buttonStyle(V2ActionStyle(primary: true))
+                        }
                     }
                 }
-                if release == nil && error == nil { V2Group { V2Row(title: "Loading release", subtitle: "Release progress", icon: "shippingbox").redacted(reason: .placeholder) } }
                 if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
             }.padding(16)
         }.navigationTitle("Release \(releaseId.prefix(7))").navigationBarTitleDisplayMode(.inline)
-            .task { await load() }.refreshable { await load() }
+            .task(id: releaseId) { await load() }.refreshable { await load() }
+            .loadingHeader(title: "Release " + releaseId.prefix(7), read.state).onDisappear { read.leave() }
             .sheet(isPresented: $ask) { V2ComposerSheet(store: store) }
     }
     private func status(_ release: Release) -> String {
@@ -129,8 +136,7 @@ struct V2ReleaseDetail: View {
         return release.state.rawValue.replacingOccurrences(of: "-", with: " ").capitalized
     }
     private func load() async {
-        do { initial = try await store.client.release(releaseId); error = nil }
-        catch { self.error = coordinatorErrorDescription(error) }
+        await read.load(store: store, key: "release:" + releaseId, initial: release) { try await store.client.release(releaseId) }
     }
 }
 struct V2RollbackProgress: View {

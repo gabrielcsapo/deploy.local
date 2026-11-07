@@ -4,12 +4,11 @@ import DeployCore
 
 struct V2PackagesView: View {
     let store: V2Store
-    @State private var packages: [V2Package]?
-    @State private var copies: V2PackageCopies?
+    @State private var privateRead = V2Read<[V2Package]>()
+    private var packages: [V2Package]? { privateRead.value }
+    @State private var copiesRead = V2Read<V2PackageCopies>()
+    private var copies: V2PackageCopies? { copiesRead.value }
     @State private var selected: V2Package?
-    @State private var packagesFailed = false
-    @State private var copiesFailed = false
-    @State private var loading = true
     @Environment(\.colorScheme) private var scheme
     private var coordinator: String {
         store.snapshot.live?.computers.first(where: { $0.roles.contains(.coordinator) })?.name ?? "your coordinator"
@@ -17,13 +16,20 @@ struct V2PackagesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if loading && packages == nil && copies == nil { ProgressView().frame(maxWidth: .infinity).padding() }
-                privateSection
-                copiesSection
+                VStack(alignment: .leading, spacing: 8) {
+                    if !privateRead.state.hasData { Text("Private").font(.system(size: 13)).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.top, 20) }
+                    V2LoadRegion(state: privateRead.state, copy: .resource("Private packages"), lastHeard: store.readDates["packages"], retry: { await loadPrivate() }) { privateSection }
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    if !copiesRead.state.hasData { Text("Copies").font(.system(size: 13)).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.top, 20) }
+                    V2LoadRegion(state: copiesRead.state, copy: .resource("Package copies"), lastHeard: store.readDates["copies"], retry: { await loadCopies() }) { copiesSection }
+                }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.bottom, 24)
         }.background(WorkspaceStyle.canvas(scheme)).buttonStyle(.plain)
             .navigationTitle("Packages").navigationBarTitleDisplayMode(.inline)
             .task { await load() }.refreshable { await load() }
+            .loadingHeader(title: "Packages", privateRead.state, copiesRead.state)
+            .onDisappear { privateRead.leave(); copiesRead.leave() }
             .sheet(item: $selected) { package in V2PackageVersionsView(store: store, package: package) }
     }
     @ViewBuilder private var privateSection: some View {
@@ -49,8 +55,7 @@ struct V2PackagesView: View {
                     if package.id != packages.last?.id { Divider() }
                 }
             }
-        } else if packagesFailed {
-            V2SettingsGroup(list: true, title: "Private") { failedRow("Packages could not be refreshed") }
+
         }
     }
     @ViewBuilder private var copiesSection: some View {
@@ -62,8 +67,7 @@ struct V2PackagesView: View {
                 }
                 V2SettingsRow(list: true, title: "Kept on \(coordinator)", subtitle: "\(copies.keptDescription) · \(copies.storage.description)", icon: "cylinder.split.1x2") { EmptyView() }
             }
-        } else if copiesFailed {
-            V2SettingsGroup(list: true, title: "Copies") { failedRow("Copies could not be refreshed") }
+
         }
     }
     /// A long version must not squeeze the name; the versions sheet shows it in full.
@@ -73,9 +77,6 @@ struct V2PackagesView: View {
             text.lineLimit(1).truncationMode(.middle).frame(width: 96, alignment: .trailing)
         } else { text.fixedSize() }
     }
-    private func failedRow(_ title: String) -> some View {
-        V2SettingsRow(list: true, title: title, subtitle: "Pull down to try again.", attention: true) { EmptyView() }
-    }
     private func sourceStatus(_ source: V2PackageCopies.Source) -> String {
         guard source.reachable else { return "Unreachable · Using copies" }
         guard let checked = source.checkedAt, let date = ISO8601DateFormatter().date(from: checked) ?? ISO8601DateFormatter.withFractionalSeconds.date(from: checked) else { return "Reachable" }
@@ -84,19 +85,16 @@ struct V2PackagesView: View {
     /// The two parts load apart, so one failing leaves the other on screen. A part that has
     /// rows keeps them when a later refresh fails.
     private func load() async {
-        let client = store.client
-        async let list = Self.attempt { try await client.packages() }
-        async let status = Self.attempt { try await client.packageCopies() }
-        let (nextPackages, nextCopies) = await (list, status)
-        guard !Task.isCancelled else { return }
-        if let nextPackages { packages = nextPackages }
-        packagesFailed = nextPackages == nil
-        if let nextCopies { copies = nextCopies }
-        copiesFailed = nextCopies == nil
-        loading = false
+        async let list: Void = loadPrivate()
+        async let status: Void = loadCopies()
+        _ = await (list, status)
+    }
+    private func loadPrivate() async {
+        await privateRead.load(store: store, key: "packages") { try await store.client.packages() }
         if V2Evidence.board == "PackageVersionsPhone", selected == nil { selected = packages?.first }
     }
-    private static func attempt<Value: Sendable>(_ read: @Sendable () async throws -> Value) async -> Value? { try? await read() }
+    private func loadCopies() async { await copiesRead.load(store: store, key: "copies") { try await store.client.packageCopies() } }
+
 }
 private extension ISO8601DateFormatter {
     static var withFractionalSeconds: ISO8601DateFormatter {
@@ -106,23 +104,21 @@ private extension ISO8601DateFormatter {
 struct V2PackageVersionsView: View {
     let store: V2Store
     let package: V2Package
-    @State private var versions: [V2PackageVersion] = []
-    @State private var failed = false
+    @State private var read = V2Read<[V2PackageVersion]>()
+    private var versions: [V2PackageVersion] { read.value ?? [] }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if failed && versions.isEmpty {
-                        V2SettingsGroup(list: true, title: "Versions") {
-                            V2SettingsRow(list: true, title: "Versions could not be refreshed", subtitle: "Pull down to try again.", attention: true) { EmptyView() }
-                        }
-                    } else if !versions.isEmpty {
-                        V2SettingsGroup(list: true, title: "Versions") {
-                            ForEach(versions) { version in
-                                V2SettingsRow(list: true, title: version.version, monoTitle: true, subtitle: subtitle(version), icon: package.ecosystem == "cargo" ? "briefcase" : "shippingbox") { EmptyView() }
-                                if version.id != versions.last?.id { Divider() }
+                    V2LoadRegion(state: read.state, copy: .resource("Package versions"), lastHeard: store.readDates["versions:" + package.id], icons: false, retry: { await load() }) {
+                        if !versions.isEmpty {
+                            V2SettingsGroup(list: true, title: "Versions") {
+                                ForEach(versions) { version in
+                                    V2SettingsRow(list: true, title: version.version, monoTitle: true, subtitle: subtitle(version), icon: package.ecosystem == "cargo" ? "briefcase" : "shippingbox") { EmptyView() }
+                                    if version.id != versions.last?.id { Divider() }
+                                }
                             }
                         }
                     }
@@ -130,18 +126,15 @@ struct V2PackageVersionsView: View {
             }.background(WorkspaceStyle.canvas(scheme))
                 .navigationTitle(package.name).navigationBarTitleDisplayMode(.inline)
                 .toolbar { Button("Done") { dismiss() } }
-                .task { await load() }.refreshable { await load() }
+                .task(id: package.id) { await load() }.refreshable { await load() }
+                .loadingHeader(title: package.name, read.state).onDisappear { read.leave() }
         }
     }
     private func subtitle(_ version: V2PackageVersion) -> String {
         "\(version.attribution) · \(V2Labels.versionDate(version.createdAt))" + (version.deprecated.map { " · \($0)" } ?? "")
     }
     private func load() async {
-        do { versions = try await store.client.packageVersions(package); failed = false }
-        catch {
-            guard !Task.isCancelled else { return }
-            failed = true
-        }
+        await read.load(store: store, key: "versions:" + package.id) { try await store.client.packageVersions(package) }
     }
 }
 #endif
