@@ -425,14 +425,34 @@ passphrase outside the server data directory and monitor `deploy recovery readin
 ### Whole-directory backup
 
 The rsync backup copies the data directory to a drive, including what a recovery bundle leaves out:
-Git repositories, attachments, app volumes and app backups. It takes one consistent snapshot each of
-`deploy.db`, `requests.db` and `workspace/workspace.db` on its own thread, and copies those instead
-of the live files. Each run mirrors the directory with `--delete`, so the drive holds one copy, not a
-history.
+Git repositories, attachments, app volumes and app backups. Recovery bundles are unchanged. It takes
+one consistent snapshot each of `deploy.db`, `requests.db` and `workspace/workspace.db` on its own
+thread, and copies those instead of the live files.
+
+Each run creates a fresh `deploy-backup-<UTC timestamp>-<UUID>/` folder at the configured destination.
+It uses `rsync -a --numeric-ids --link-dest=<newest complete copy>` to hard link unchanged
+files. Changed files get new inodes; there is no `--delete` and no older copy is written into.
+The normal size-and-mtime quick check avoids reading unchanged file contents on either side.
+`.deploy-backup-complete` is published atomically **inside each copy** only after rsync succeeds
+(exit 24, transient vanished files, is still accepted). Failed or interrupted folders stay incomplete;
+the next run links from the newest complete folder, and restores default to that folder too.
+
+Retention runs **only after a new copy completes**. Keep all complete runs from the last 24 hours,
+the latest complete copy on each of the last **7 UTC dates with copies**, and the latest complete
+copy in each of the last **4 UTC calendar weeks with copies** (weeks start Monday). These sets overlap;
+the newest complete copy is always kept, even after a long gap or a clock change. Only our strictly
+named dated directories are eligible for removal. A complete copy has a valid versioned completion
+marker matching its own name. Incomplete copies older than the newest complete copy are also removed
+after success; incomplete copies with the same or a newer timestamp stay, because a run could be in
+progress. Unrelated files, symlinks and malformed names are never pruned. Partial copies can consume
+space until a later run succeeds; pruning never runs to make room before a backup.
+Hard links save unchanged file data, but this is history, not protection against failure of the drive
+itself or corruption of an inode shared by several copies.
 
 Prepare the drive once. Use ext4, encrypted with LUKS, because the copy holds `secrets/master.key`
-next to everything it decrypts and has to keep each file's owner and mode. exFAT, FAT and NTFS cannot
-store them. Mount the drive, then mark it:
+next to everything it decrypts and has to keep each file's owner and mode. exFAT and FAT cannot
+provide the required hard links and Unix metadata; NTFS is not a supported backup target. Mount the
+drive, then mark its **root** (the marker stays there, outside the dated folders):
 
 ```bash
 cryptsetup luksFormat /dev/<partition>
@@ -443,27 +463,67 @@ touch /mnt/deploy-backup/.deploy-backup-destination
 ```
 
 The backup refuses a destination without `.deploy-backup-destination` and writes nothing. That keeps
-a drive that isn't attached from filling the system disk through its empty mount point, and keeps
-`--delete` from emptying a folder chosen by mistake. Keep the LUKS passphrase somewhere other than
-the drive.
+a drive that isn't attached from filling the system disk through its empty mount point. Keep the
+LUKS passphrase somewhere other than the drive. Before snapshotting, a disposable hard-link probe
+on the destination checks actual filesystem support; it is cleaned up on success or failure. The
+link reference must also be on that same filesystem. A failed probe stops the run rather than
+silently falling back to full copies. Compatibility failures say that the destination cannot make
+hard links and recommend ext4, with technical detail in server logs.
 
 Free space needed: on the data disk, the three databases and their WALs plus 10% (at least 256 MB),
-checked before starting and released when the backup ends. On the drive, the whole data directory,
-plus room for the largest database to be written next to its previous copy.
+checked before snapshotting and released when the backup ends. Before creating the dated folder,
+the destination check budgets the entire first copy, or the new/changed files relative to the last
+complete copy, **including all three database snapshots in full**, plus 10% (at least 256 MiB).
+Directories, symlinks and file allocation rounding are included. Old copies are not deleted to make
+room for a new one. Concurrent writes can still outgrow the allowance; a resulting failure leaves
+older complete copies intact. The space preflight reports the required room and that nothing was
+written; the incomplete-copy error is reserved for rsync running out of room during a copy. Logs
+include required and available capacity. The scan, destination probes, completion marker publication,
+and pruning use asynchronous I/O so a large tree or a sleeping drive does not block the control thread.
+
+For capacity planning, SER currently has **31 GB in 235,000 files**, with about **28 GB unchanged
+between runs** (decimal units here). The first copy needs roughly 31 GB plus the preflight allowance;
+subsequent six-hour copies add about `31 − 28 = 3 GB` each, or `28 × 3 = 84 GB/week` of new file data.
+The rewritten database snapshots (`2 + 0.391 + 0.308 = 2.699 GB/copy`, or 75.572 GB/week) are **part of**
+that 3 GB, not an extra charge. Hard links save unchanged data; no unchanged-file checksum pass is run.
+
+At a steady six-hour cadence the retention policy keeps 11–13 complete copies. If the same 28 GB
+stays shared across the retained history, that is about `28 + (11–13) × 3 = 61–67 GB` stored. The next
+copy must fit **before** pruning: about 64–70 GB occupied, plus roughly 0.3 GB of preflight headroom,
+filesystem metadata/allocation overhead, incomplete runs and growth. If different files change across
+retained days/weeks, the shared 28 GB assumption weakens and history can use more space. These are
+planning estimates, not a disk quota; the actual asynchronous scan budgets file sizes rounded to
+4 KiB, metadata and the full fresh database snapshots plus its allowance on every run.
+
+Recommendation: keep the six-hour schedule and all three databases for self-contained restores.
+A 128 GB destination is a reasonable starting capacity for these sizes; 256 GB gives more room for
+growth and interrupted copies. Monitor available space, especially after failures. If a 24-hour
+recovery point is acceptable, daily copies reduce new file writes to about 21 GB/week (including
+18.893 GB/week of database snapshots). No setting, destination or database inclusion changes here.
 
 To restore, stop the server and run this as root on the replacement, so owners are kept. Restore to
-the original data directory path: repositories and task records store absolute paths.
+the original data directory path: repositories and task records store absolute paths. The offline
+script runs from a server release folder (a full clone with dependencies installed), using plain
+Node 26.5, including after `pnpm build`. Node strips the erasable types in `shared/backup-copies.ts`;
+no loader, TypeScript build step or Node flag is needed for restore. List copies, restore the newest
+complete one, or select a name from the list:
 
 ```bash
+node scripts/restore-backup.mjs /mnt/deploy-backup --list
 node scripts/restore-backup.mjs /mnt/deploy-backup /var/lib/deploy.local/data
+node scripts/restore-backup.mjs /mnt/deploy-backup /var/lib/deploy.local/data --copy <dated-folder-name>
 ```
 
-It refuses a destination that isn't empty and a copy whose last run did not finish
-(`--allow-incomplete` overrides that). By hand, the same steps are:
+It refuses a nonempty destination, unknown copy names, missing database snapshots, and incomplete
+copies. `--allow-incomplete` permits an unfinished copy **only when explicitly named with `--copy`**;
+it never makes an unfinished run the default. Database integrity checks, key warnings, numeric
+ownership and modes, and the original-path warning remain. No drive has used the old flat layout,
+so no flat-layout discovery, migration or fallback was added. By hand, select a complete dated
+folder and run:
 
 ```bash
 rsync -a --numeric-ids --exclude /.deploy-backup-destination --exclude /.deploy-backup-complete \
-  /mnt/deploy-backup/ /var/lib/deploy.local/data/
+  /mnt/deploy-backup/<dated-folder-name>/ /var/lib/deploy.local/data/
 cd /var/lib/deploy.local/data
 mv deploy.db.snapshot deploy.db
 mv requests.db.snapshot requests.db

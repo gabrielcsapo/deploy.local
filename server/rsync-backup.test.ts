@@ -78,6 +78,47 @@ after(() => {
 });
 
 describe('whole-directory rsync backup', () => {
+  it('keeps two dated copies immutable, hard links unchanged files, and restores newest or named copies', async () => {
+    const drive = attachedDrive('dated-round-trip');
+    writeFileSync(join(drive, 'unrelated'), 'leave me');
+    writeFileSync(join(home, 'changed.txt'), 'before');
+    writeFileSync(join(home, 'unchanged.txt'), 'shared');
+    assert.equal((await backUpTo(drive)).success, true);
+    const names = () =>
+      readdirSync(drive)
+        .filter((name) => name.startsWith('deploy-backup-'))
+        .sort();
+    assert.equal(names().length, 1, 'each run must create a dated copy');
+    const first = names()[0];
+    writeFileSync(join(home, 'changed.txt'), 'after!!');
+    assert.equal((await backUpTo(drive)).success, true);
+    assert.equal(names().length, 2);
+    const second = names()[1];
+    assert.equal(readFileSync(join(drive, first, 'changed.txt'), 'utf8'), 'before');
+    assert.equal(readFileSync(join(drive, second, 'changed.txt'), 'utf8'), 'after!!');
+    assert.equal(
+      statSync(join(drive, first, 'unchanged.txt')).ino,
+      statSync(join(drive, second, 'unchanged.txt')).ino,
+    );
+    assert.notEqual(
+      statSync(join(drive, first, 'changed.txt')).ino,
+      statSync(join(drive, second, 'changed.txt')).ino,
+    );
+    assert.equal(readFileSync(join(drive, 'unrelated'), 'utf8'), 'leave me');
+    const listing = restore(drive, '--list');
+    assert.equal(listing.status, 0, listing.stderr);
+    assert.match(listing.stdout, new RegExp(first));
+    assert.match(listing.stdout, new RegExp(second));
+    const latest = join(root, 'dated-latest');
+    const newest = restore(drive, latest);
+    assert.equal(newest.status, 0, newest.stderr);
+    assert.equal(readFileSync(join(latest, 'changed.txt'), 'utf8'), 'after!!');
+    const older = join(root, 'dated-older');
+    const named = restore(drive, older, '--copy', first);
+    assert.equal(named.status, 0, named.stderr);
+    assert.equal(readFileSync(join(older, 'changed.txt'), 'utf8'), 'before');
+  });
+
   it('round trips a running data directory through a backup and a restore', async () => {
     const key = secrets.loadOrCreateSecretKey();
 
@@ -147,29 +188,30 @@ describe('whole-directory rsync backup', () => {
     }
     assert.equal(result.success, true, result.error ?? '');
 
+    const copy = (await rsyncBackup.listBackupCopies(drive)).find((copy) => copy.complete)!.path;
     // The copy has snapshots and no live database files.
     for (const file of rsyncBackup.BACKUP_DATABASES) {
-      assert.equal(existsSync(join(drive, `${file}.snapshot`)), true, `${file}.snapshot`);
+      assert.equal(existsSync(join(copy, `${file}.snapshot`)), true, `${file}.snapshot`);
       for (const live of [file, `${file}-wal`, `${file}-shm`, `${file}.snapshot.tmp`])
-        assert.equal(existsSync(join(drive, live)), false, live);
+        assert.equal(existsSync(join(copy, live)), false, live);
       // Snapshots use the data disk for the length of the backup, not after it.
       assert.equal(existsSync(join(home, `${file}.snapshot`)), false);
     }
     assert.equal(
-      readFileSync(join(drive, 'workspace/repositories/project-1.git/HEAD'), 'utf8'),
+      readFileSync(join(copy, 'workspace/repositories/project-1.git/HEAD'), 'utf8'),
       'ref: refs/heads/main\n',
     );
-    assert.equal(existsSync(join(drive, 'volumes/app/requests.db')), true);
-    assert.equal(existsSync(join(drive, 'packages/tmp')), false);
-    assert.equal(existsSync(join(drive, 'left-from-an-older-backup')), false);
-    // --delete must not remove the marker that lets the next backup run.
+    assert.equal(existsSync(join(copy, 'volumes/app/requests.db')), true);
+    assert.equal(existsSync(join(copy, 'packages/tmp')), false);
+    assert.equal(existsSync(join(drive, 'left-from-an-older-backup')), true);
+    // The destination marker stays at the root; completion belongs to this copy.
     assert.equal(existsSync(join(drive, rsyncBackup.DESTINATION_MARKER)), true);
-    assert.equal(existsSync(join(drive, rsyncBackup.COMPLETE_MARKER)), true);
+    assert.equal(existsSync(join(copy, rsyncBackup.COMPLETE_MARKER)), true);
 
     // Mode and owner of the key survive the copy.
-    const driveKey = join(drive, 'secrets', 'master.key');
+    const driveKey = join(copy, 'secrets', 'master.key');
     assert.equal(mode(driveKey), 0o600);
-    assert.equal(mode(join(drive, 'secrets')), 0o700);
+    assert.equal(mode(join(copy, 'secrets')), 0o700);
     assert.equal(statSync(driveKey).uid, statSync(join(home, 'secrets', 'master.key')).uid);
     assert.deepEqual(readFileSync(driveKey), key);
 
@@ -233,6 +275,88 @@ describe('whole-directory rsync backup', () => {
     // The next backup to the same drive still runs.
     const second = await backUpTo(drive);
     assert.equal(second.success, true, second.error ?? '');
+  });
+
+  it('leaves failed and interrupted runs incomplete and links the next run from the last complete copy', async () => {
+    const drive = attachedDrive('failed-runs');
+    writeFileSync(join(home, 'stable-through-failure'), 'good');
+    assert.equal((await backUpTo(drive)).success, true);
+    const first = (await rsyncBackup.listBackupCopies(drive))[0];
+    const historical = [];
+    for (let day = 0; day < 12; day++) {
+      const path = await rsyncBackup.createCopyDirectory(
+        drive,
+        new Date(Date.now() - (day + 2) * 86400000),
+      );
+      await rsyncBackup.markCopyComplete(home, path);
+      historical.push(path);
+    }
+    const commands = join(root, 'fake-rsync');
+    mkdirSync(commands);
+    writeFileSync(
+      join(commands, 'rsync'),
+      `#!${process.execPath}
+const fs = require('node:fs');
+const path = require('node:path');
+fs.writeFileSync(path.join(process.argv.at(-1), 'partial'), 'bad');
+console.error('injected rsync failure');
+process.exit(23);
+`,
+      { mode: 0o755 },
+    );
+    const oldPath = process.env.PATH;
+    try {
+      process.env.PATH = `${commands}:${oldPath}`;
+      const failed = await backUpTo(drive);
+      assert.equal(failed.success, false);
+      assert.match(failed.error!, /injected rsync failure/);
+    } finally {
+      process.env.PATH = oldPath;
+    }
+    const failed = (await rsyncBackup.listBackupCopies(drive)).find((copy) => !copy.complete)!;
+    assert.ok(failed);
+    for (const path of historical) assert.ok(existsSync(path), 'failure must not prune old copies');
+    assert.equal(existsSync(join(first.path, rsyncBackup.COMPLETE_MARKER)), true);
+    const interrupted = await rsyncBackup.createCopyDirectory(drive);
+    writeFileSync(join(interrupted, 'stable-through-failure'), 'broken');
+    assert.equal((await backUpTo(drive)).success, true);
+    const newest = (await rsyncBackup.listBackupCopies(drive)).find((copy) => copy.complete)!;
+    assert.notEqual(newest.name, first.name);
+    assert.ok(
+      historical.some((path) => !existsSync(path)),
+      'success should prune expired copies',
+    );
+    assert.equal(
+      statSync(join(newest.path, 'stable-through-failure')).ino,
+      statSync(join(first.path, 'stable-through-failure')).ino,
+    );
+    assert.equal(existsSync(failed.path), false, 'later success removes older failed copy');
+    assert.equal(existsSync(interrupted), false, 'later success removes older interrupted copy');
+    const replacement = join(root, 'after-failure');
+    const restored = restore(drive, replacement);
+    assert.equal(restored.status, 0, restored.stderr);
+    assert.equal(readFileSync(join(replacement, 'stable-through-failure'), 'utf8'), 'good');
+    assert.equal(existsSync(join(replacement, 'partial')), false);
+  });
+
+  it('lists copies and refuses unknown names, missing snapshots and implicit incomplete restores', async () => {
+    const drive = attachedDrive('restore-selection');
+    const unfinished = await rsyncBackup.createCopyDirectory(drive);
+    const name = unfinished.split('/').at(-1)!;
+    const listing = restore(drive, '--list');
+    assert.equal(listing.status, 0, listing.stderr);
+    assert.match(listing.stdout, new RegExp(`${name}\\tincomplete`));
+    const replacement = join(root, 'selection-refused');
+    const defaultRestore = restore(drive, replacement, '--allow-incomplete');
+    assert.equal(defaultRestore.status, 1);
+    assert.match(defaultRestore.stderr, /No complete dated copy/);
+    const traversal = restore(drive, replacement, '--copy', '../home');
+    assert.equal(traversal.status, 1);
+    assert.match(traversal.stderr, /No dated copy named/);
+    const missing = restore(drive, replacement, '--copy', name, '--allow-incomplete');
+    assert.equal(missing.status, 1);
+    assert.match(missing.stderr, /deploy.db.snapshot is missing/);
+    assert.equal(existsSync(replacement), false);
   });
 
   it('writes nothing when the destination folder does not exist', async () => {
@@ -320,19 +444,20 @@ describe('whole-directory rsync backup', () => {
     const drive = attachedDrive('drive-cut-short');
     const result = await backUpTo(drive);
     assert.equal(result.success, true, result.error ?? '');
-    rsyncBackup.markCopyStarted(drive);
+    const copy = (await rsyncBackup.listBackupCopies(drive))[0];
+    rmSync(join(copy.path, rsyncBackup.COMPLETE_MARKER));
 
     const replacement = join(root, 'cut-short-replacement');
-    const refused = restore(drive, replacement);
+    const refused = restore(drive, replacement, '--copy', copy.name);
     assert.equal(refused.status, 1);
     assert.match(refused.stderr, /did not finish.*--allow-incomplete/);
     assert.equal(existsSync(replacement), false);
 
-    const allowed = restore(drive, replacement, '--allow-incomplete');
+    const allowed = restore(drive, replacement, '--copy', copy.name, '--allow-incomplete');
     assert.equal(allowed.status, 0, allowed.stderr);
     assert.equal(existsSync(join(replacement, 'deploy.db')), true);
 
-    const notEmpty = restore(drive, replacement, '--allow-incomplete');
+    const notEmpty = restore(drive, replacement, '--copy', copy.name, '--allow-incomplete');
     assert.equal(notEmpty.status, 1);
     assert.match(notEmpty.stderr, /must be empty/);
   });
