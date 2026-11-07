@@ -2343,6 +2343,14 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Packages with a long name and a long version"
+    },
+    "DesignReviewSent.html": {
+      "x": 11900,
+      "y": 50884,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review — 3 changes sent",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2529,6 +2537,7 @@
     "DesignAskPhone.html",
     "DesignReviewNote.html",
     "DesignReviewNotePhone.html",
+    "DesignReviewSent.html",
     "DesignPrototype.html",
     "DesignPlay.html",
     "DesignPlayPad.html",
@@ -3884,6 +3893,14 @@
       "x": 9620,
       "y": 74670,
       "text": "Drawn after the iPhone screens were first seen running.\n\n• Packages and a package’s versions both open as sheets, like every other Settings destination.\n• The two parts load separately: if one fails, the other still shows. A failed part with nothing to show says it could not be refreshed. One with rows keeps them.\n• Storage reads like web: gigabytes of 1024³, then the limit (6.2 GB of 20 GB).\n• Version dates carry the year. Today’s reads Today, 7:57 AM.\n• Kept on SER opens nothing, so it has no chevron.\n• A latest version over 12 characters is capped at 96 pt and shortened in the middle, so it can’t squeeze the name. The versions sheet shows it in full."
+    },
+    "review-sent": {
+      "x": 11900,
+      "y": 51824,
+      "w": 1440,
+      "h": 240,
+      "fill": "blue",
+      "text": "DesignReviewSent.html\nAfter Ask for changes, the review stays open as the record of what was asked. The notice says the changes were sent and to whom, and that the proposer will propose again here; it no longer says “You can add more before sending”. The pins stay on the screens and in All pins. The footer names the outcome, when, and how far the look got, with one way onward: Open the task (web and iPhone). When you proposed it yourself there is no task: “Changes requested · just now · propose again when the screens are updated.” After Approve design the footer reads “Approved · this is the design on main” with Open in Design."
     }
   },
   "starts": {}
