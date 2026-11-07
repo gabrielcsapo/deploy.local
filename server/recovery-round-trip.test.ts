@@ -125,6 +125,24 @@ describe('Home recovery round trip', () => {
     assert.equal(existsSync(outputPath), false);
   });
 
+  it('refuses live databases too big for a bundle before copying any of them', async () => {
+    const requests = join(home, 'requests.db');
+    const size = statSync(requests).size;
+    truncateSync(requests, 2 * 1024 * 1024 * 1024);
+    const outputPath = join(root, 'too-big-live.bundle');
+    const started = Date.now();
+    try {
+      await assert.rejects(
+        recovery.createRecoveryBundle({ outputPath, passphrase }),
+        /Recovery bundle not created: .* over the 128 MB .* requests\.db 2048 MB/,
+      );
+    } finally {
+      truncateSync(requests, size);
+    }
+    assert.ok(Date.now() - started < 1000, 'Nothing was copied first');
+    assert.equal(existsSync(outputPath), false);
+  });
+
   it('carries workspace.db through a bundle made while it has uncommitted WAL pages', async () => {
     const workspace = await import('./workspace/store.ts');
     const key = secrets.loadOrCreateSecretKey();

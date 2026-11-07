@@ -292,6 +292,18 @@ async function snapshotWorkspaceDatabase(root: string, directory: string): Promi
   chmodSync(target, 0o600);
 }
 
+function assertFitsInBundle(files: Array<{ path: string; size: number }>): void {
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total <= RECOVERY_FILE_LIMIT) return;
+  const largest = [...files]
+    .sort((left, right) => right.size - left.size)
+    .slice(0, 3)
+    .map((file) => `${file.path} ${megabytes(file.size)}`);
+  throw new Error(
+    `Recovery bundle not created: its databases and keys are ${megabytes(total)}, over the ${megabytes(RECOVERY_FILE_LIMIT)} a bundle can hold. Largest: ${largest.join(', ')}.`,
+  );
+}
+
 function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   const files: Array<{ source: string; path: string }> = [
     { source: databaseSnapshot, path: 'deploy.db' },
@@ -363,17 +375,11 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
     .filter((file) => file.path.startsWith('packages/hosted/'))
     .reduce((sum, file) => sum + statSync(file.source).size, 0);
   const total = files.reduce((sum, file) => sum + statSync(file.source).size, 0);
-  if (total - byteSize > RECOVERY_FILE_LIMIT) {
-    const largest = files
+  assertFitsInBundle(
+    files
       .filter((file) => !file.path.startsWith('packages/hosted/'))
-      .map((file) => ({ path: file.path, size: statSync(file.source).size }))
-      .sort((left, right) => right.size - left.size)
-      .slice(0, 3)
-      .map((file) => `${file.path} ${megabytes(file.size)}`);
-    throw new Error(
-      `Recovery bundle not created: its databases and keys are ${megabytes(total - byteSize)}, over the ${megabytes(RECOVERY_FILE_LIMIT)} a bundle can hold. Largest: ${largest.join(', ')}.`,
-    );
-  }
+      .map((file) => ({ path: file.path, size: statSync(file.source).size })),
+  );
   const receipt: RecoveryReceipt = {
     hostedPackages: {
       included: total <= RECOVERY_FILE_LIMIT,
@@ -1023,6 +1029,14 @@ export async function createRecoveryBundle(input: {
   inventoryDigest: string;
   receipt: RecoveryReceipt;
 }> {
+  // Before any snapshot: databases too big to bundle shouldn't first be copied to the temp disk, and
+  // under a busy writer the page-by-page copies below might never finish to reach the worker's check.
+  assertFitsInBundle(
+    ['deploy.db', 'requests.db', WORKSPACE_DATABASE].map((path) => {
+      const file = resolve(deployDataDirectory(), path);
+      return { path, size: existsSync(file) ? statSync(file).size : 0 };
+    }),
+  );
   ensureApplicationRevisionArtifacts();
   const fleet = ensureFleetIdentity();
   const temporary = mkdtempSync(join(tmpdir(), 'deploy-recovery-create-'));
