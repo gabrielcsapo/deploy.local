@@ -1,17 +1,8 @@
-import { gitResultSync, gitStringSync, tryGitText as reviewGit } from '../git.ts';
-import { readFile as readDiskFile } from 'node:fs/promises';
+import { gitString, tryGitText } from '../git.ts';
+import { mkdtemp, readFile as readDiskFile, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { deployDataPath } from '../data-directory.ts';
 import { homeOf, readReleaseConfig } from './self-update-host.ts';
 import { tmpdir } from 'node:os';
@@ -28,7 +19,12 @@ import {
 } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
-import { gitEnvironment, gitSync, gitRead, repositoryGit } from '../workspace/repository-git.ts';
+import { keyedSlots, withRepositoryWrites } from '../workspace/repository-lock.ts';
+import {
+  gitEnvironment,
+  gitRead as readGitOutput,
+  repositoryGit,
+} from '../workspace/repository-git.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { readJson, sendJson } from './attachments.ts';
@@ -68,7 +64,19 @@ import {
  * The Design page reads a project's design/ folder (canvas.json, boards/*.html, ds/) from any ref:
  * main, a design branch, or the branch an agent's task commits to. Boards are served per commit
  * with scripts disabled, so the page can read their layers but nothing in them runs.
+ *
+ * All Git here is awaited, so the server keeps answering while it runs. Reads name a commit, which
+ * never changes, so they need no lock and see one consistent state. Anything that reads a ref,
+ * builds on it and moves it holds withRepositoryWrites from the first read to the last write.
  */
+
+// A review or a canvas full of boards asks for hundreds of files at once, and starting that many
+// Git processes in one go stalls the server by itself (scripts/perf/design-event-loop.ts: 312 took
+// 265 ms). 32 per repository removes the stall; 8 also did, but made a canvas take twice as long.
+const gitSlots = keyedSlots(32);
+const gitRead = (repo: string, args: string[]) => gitSlots(repo, () => readGitOutput(repo, args));
+const reviewGit = (repo: string, args: string[]) => gitSlots(repo, () => tryGitText(repo, args));
+const pickerSlots = keyedSlots(8);
 
 const fileTypes: Record<string, string> = {
   html: 'text/html; charset=utf-8',
@@ -130,7 +138,9 @@ async function resolveCommit(owner: string, projectId: string, repo: string, url
 
 async function readFile(repo: string, commit: string, path: string, limit = 2 * 1024 * 1024) {
   try {
-    return await repositoryGit(repo, ['show', `${commit}:${path}`], { limit });
+    return await gitSlots(repo, () =>
+      repositoryGit(repo, ['show', `${commit}:${path}`], { limit }),
+    );
   } catch {
     return null;
   }
@@ -149,35 +159,18 @@ function parseLibrary(text: string | null | undefined): Library | null {
 }
 
 /** Which boards hold instances of each component, at a commit. */
-function componentUsage(repo: string, commit: string) {
-  return parseComponentUsage(
-    gitSync(repo, [
-      'grep',
-      '-o',
-      '-I',
-      'data-component="[a-z0-9-]*"',
-      commit,
-      '--',
-      'design/boards',
-    ]) ?? '',
-  );
-}
-async function componentUsageAsync(repo: string, commit: string) {
-  return parseComponentUsage(
-    (await gitRead(repo, [
-      'grep',
-      '-o',
-      '-I',
-      'data-component="[a-z0-9-]*"',
-      commit,
-      '--',
-      'design/boards',
-    ])) ?? '',
-  );
-}
-function parseComponentUsage(out: string) {
+async function componentUsage(repo: string, commit: string) {
+  const out = await gitRead(repo, [
+    'grep',
+    '-o',
+    '-I',
+    'data-component="[a-z0-9-]*"',
+    commit,
+    '--',
+    'design/boards',
+  ]);
   const usage: Record<string, string[]> = {};
-  for (const line of out.split('\n')) {
+  for (const line of (out ?? '').split('\n')) {
     const match = /^[^:]+:design\/boards\/([^:]+):data-component="([^"]+)"$/.exec(line);
     if (!match) continue;
     const boards = (usage[match[2]] ??= []);
@@ -191,26 +184,31 @@ function parseComponentUsage(out: string) {
  * component on main updates every board that uses it. Boards the approval copies come from the
  * branch; the rest are as they are on main.
  */
-function instanceWrites(repo: string, target: string, from: string, paths: string[]) {
+async function instanceWrites(repo: string, target: string, from: string, paths: string[]) {
   if (!paths.includes(libraryPath)) return [];
-  const library = parseLibrary(gitSync(repo, ['show', `${from}:${libraryPath}`]));
+  const library = parseLibrary(await gitRead(repo, ['show', `${from}:${libraryPath}`]));
   if (!library) return [];
+  const [onTarget, onFrom] = await Promise.all([
+    componentUsage(repo, target),
+    componentUsage(repo, from),
+  ]);
   const boards = new Set([
-    ...Object.values(componentUsage(repo, target)).flat(),
-    ...Object.values(componentUsage(repo, from))
+    ...Object.values(onTarget).flat(),
+    ...Object.values(onFrom)
       .flat()
       .filter((board) => paths.includes(`design/boards/${board}`)),
   ]);
-  const writes: { path: string; content: string }[] = [];
-  for (const board of boards) {
-    const path = `design/boards/${board}`;
-    const html = gitSync(repo, ['show', `${paths.includes(path) ? from : target}:${path}`]);
-    if (!html) continue;
-    const synced = syncInstances(html, library);
-    // gitSync trims the file's last newline; put it back.
-    if (synced !== html) writes.push({ path, content: `${synced}\n` });
-  }
-  return writes;
+  const writes = await Promise.all(
+    [...boards].map(async (board) => {
+      const path = `design/boards/${board}`;
+      const html = await gitRead(repo, ['show', `${paths.includes(path) ? from : target}:${path}`]);
+      if (!html) return null;
+      const synced = syncInstances(html, library);
+      // gitRead trims the file's last newline; put it back.
+      return synced !== html ? { path, content: `${synced}\n` } : null;
+    }),
+  );
+  return writes.filter((write) => write !== null);
 }
 
 /**
@@ -218,7 +216,7 @@ function instanceWrites(repo: string, target: string, from: string, paths: strin
  * entry by entry, anything else line by line. Approving writes these instead of the branch's copy,
  * so it never undoes what main gained meanwhile. Edits to the same lines stop the approval.
  */
-function mergedWrites(
+async function mergedWrites(
   repo: string,
   input: {
     base: string;
@@ -230,18 +228,20 @@ function mergedWrites(
   },
 ) {
   const blob = (commit: string, path: string) =>
-    gitSync(repo, ['rev-parse', '--verify', '--quiet', `${commit}:${path}`]);
+    gitRead(repo, ['rev-parse', '--verify', '--quiet', `${commit}:${path}`]);
   const writes: { path: string; content: string }[] = [];
   for (const path of input.paths) {
-    const [base, target, from] = [input.base, input.target, input.from].map((commit) =>
-      blob(commit, path),
+    const [base, target, from] = await Promise.all(
+      [input.base, input.target, input.from].map((commit) => blob(commit, path)),
     );
     if (target === base || from === base || target === from || !target || !from) continue;
-    const text = (commit: string) => showFile(repo, commit, path);
+    const [baseText, targetText, fromText] = await Promise.all(
+      [input.base, input.target, input.from].map((commit) => showFile(repo, commit, path)),
+    );
     if (path === 'design/canvas.json') {
-      const [was, main, branch] = [input.base, input.target, input.from].map((commit) => {
+      const [was, main, branch] = [baseText, targetText, fromText].map((text) => {
         try {
-          return JSON.parse(text(commit) || 'null') as Canvas | null;
+          return JSON.parse(text || 'null') as Canvas | null;
         } catch {
           return null;
         }
@@ -254,34 +254,41 @@ function mergedWrites(
         continue;
       }
     }
-    const dir = mkdtempSync(join(tmpdir(), 'design-merge-'));
+    const dir = await mkdtemp(join(tmpdir(), 'design-merge-'));
     try {
       const [ours, old, theirs] = ['main', 'base', 'branch'].map((name) => join(dir, name));
-      writeFileSync(ours, text(input.target));
-      writeFileSync(old, text(input.base));
-      writeFileSync(theirs, text(input.from));
-      const merged = spawnSync('git', ['merge-file', '-p', ours, old, theirs], {
-        encoding: 'utf8',
-      });
-      if (merged.status !== 0)
+      await Promise.all([
+        writeFile(ours, targetText),
+        writeFile(old, baseText),
+        writeFile(theirs, fromText),
+      ]);
+      // merge-file exits with the number of conflicts, so any failure stops the approval.
+      const merged = await gitSlots(repo, () =>
+        repositoryGit(dir, ['merge-file', '-p', ours, old, theirs]),
+      ).catch(() => null);
+      if (merged === null)
         fail(
           `${input.main} changed ${path.replace(/^design\//, '')} since ${input.branch} started, on the same lines. Ask for changes so the branch is brought up to date, then approve again.`,
           409,
         );
-      writes.push({ path, content: merged.stdout });
+      writes.push({ path, content: merged.toString() });
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true });
     }
   }
   return writes;
 }
 /** A file's whole text at a commit, last newline kept. */
-function showFile(repo: string, commit: string, path: string) {
-  const result = gitResultSync(repo, ['show', `${commit}:${path}`], {
-    env: gitEnvironment(),
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  return result.status === 0 ? result.stdout : '';
+async function showFile(repo: string, commit: string, path: string) {
+  try {
+    return (
+      await gitSlots(repo, () =>
+        repositoryGit(repo, ['show', `${commit}:${path}`], { limit: 16 * 1024 * 1024 }),
+      )
+    ).toString();
+  } catch {
+    return '';
+  }
 }
 
 async function readCanvas(repo: string, commit: string): Promise<Canvas | null> {
@@ -324,15 +331,24 @@ function branchSlug(name: string) {
     .slice(0, 48);
 }
 
-function createBranch(repo: string, name: string, commit: string) {
+/** Call with withRepositoryWrites held: it picks a free name, then takes it. */
+async function createBranch(repo: string, name: string, commit: string) {
   const slug = branchSlug(name);
   if (!slug) fail('Give the design branch a name');
   let branch = `design/${slug}`;
-  for (let n = 2; gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]); n++)
+  for (
+    let n = 2;
+    await gitRead(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
+    n++
+  )
     branch = `design/${slug}-${n}`;
   if (
-    gitSync(repo, ['update-ref', `refs/heads/${branch}`, commit, '0'.repeat(commit.length)]) ===
-    null
+    (await gitRead(repo, [
+      'update-ref',
+      `refs/heads/${branch}`,
+      commit,
+      '0'.repeat(commit.length),
+    ])) === null
   )
     fail('Could not create the design branch', 500);
   return { name: branch, commit };
@@ -340,9 +356,9 @@ function createBranch(repo: string, name: string, commit: string) {
 
 /**
  * Commit `paths` as they are in `from` on top of `target`, and move `branch` to it unless someone
- * moved it first. Synchronous, so an inbox decision can apply it inside its answer.
+ * moved it first. Call with withRepositoryWrites held, from before `target` was read.
  */
-function copyPaths(
+async function copyPaths(
   repo: string,
   input: {
     target: string;
@@ -355,7 +371,7 @@ function copyPaths(
     writes?: { path: string; content: string }[];
   },
 ) {
-  const dir = mkdtempSync(join(tmpdir(), 'design-copy-'));
+  const dir = await mkdtemp(join(tmpdir(), 'design-copy-'));
   const env = {
     ...gitEnvironment(),
     GIT_INDEX_FILE: join(dir, 'index'),
@@ -365,7 +381,7 @@ function copyPaths(
     GIT_COMMITTER_EMAIL: `${input.by}@deploy.local`,
   };
   const git = (args: string[], input?: string) =>
-    gitStringSync(repo, args, {
+    gitString(repo, args, {
       prefix: ['-c', 'core.hooksPath=/dev/null'],
       env,
       timeout: 30000,
@@ -374,44 +390,48 @@ function copyPaths(
       trim: 'both',
     });
   try {
-    git(['read-tree', input.target]);
+    await git(['read-tree', input.target]);
     for (const path of input.paths) {
-      const entry = git(['ls-tree', input.from, '--', path]);
+      const entry = await git(['ls-tree', input.from, '--', path]);
       if (entry) {
         const [mode, , oid] = entry.split('\t')[0].split(' ');
-        git(['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`]);
+        await git(['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`]);
         // update-index --force-remove needs a work tree; the project's repository may be bare.
-      } else git(['rm', '--cached', '--quiet', '--ignore-unmatch', '--', path]);
+      } else await git(['rm', '--cached', '--quiet', '--ignore-unmatch', '--', path]);
     }
     for (const write of input.writes ?? []) {
-      const oid = git(['hash-object', '-w', '--stdin'], write.content);
-      git(['update-index', '--add', '--cacheinfo', `100644,${oid},${write.path}`]);
+      const oid = await git(['hash-object', '-w', '--stdin'], write.content);
+      await git(['update-index', '--add', '--cacheinfo', `100644,${oid},${write.path}`]);
     }
-    const commit = git([
+    const commit = await git([
       'commit-tree',
-      git(['write-tree']),
+      await git(['write-tree']),
       '-p',
       input.target,
       '-m',
       input.message,
     ]);
-    if (gitSync(repo, ['update-ref', `refs/heads/${input.branch}`, commit, input.target]) === null)
+    if (
+      (await gitRead(repo, ['update-ref', `refs/heads/${input.branch}`, commit, input.target])) ===
+      null
+    )
       fail(`${input.branch} moved meanwhile; try again`, 409);
     return commit;
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true });
   }
 }
 
 /**
  * The design branch an edit lands on. Editing main (or any non-design ref) starts a design
  * branch, so main only changes through review; `expect` guards against editing a stale branch.
+ * Call with withRepositoryWrites held, and keep holding it until the edit is committed.
  */
-function editBranch(repo: string, body: any, name: string) {
+async function editBranch(repo: string, body: any, name: string) {
   let branch = String(body?.ref || 'HEAD');
   if (!validRef(branch)) fail('Invalid ref');
   if (!branch.startsWith('design/')) {
-    const from = gitSync(repo, [
+    const from = await gitRead(repo, [
       'rev-parse',
       '--verify',
       '--quiet',
@@ -419,9 +439,14 @@ function editBranch(repo: string, body: any, name: string) {
       `${branch}^{commit}`,
     ]);
     if (!from) fail(`No commit named ${branch} in this project`, 404);
-    branch = createBranch(repo, `${name} edits`, from).name;
+    branch = (await createBranch(repo, `${name} edits`, from!)).name;
   }
-  const head = gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}^{commit}`]);
+  const head = await gitRead(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}^{commit}`,
+  ]);
   if (!head) fail(`No design branch named ${branch}`, 404);
   if (body?.expect && body.expect !== head && String(body.ref).startsWith('design/'))
     fail('This design branch changed since you loaded it; reload and edit again', 409);
@@ -450,12 +475,12 @@ body{margin:0;min-height:100vh;background:var(--paper);font-family:"Hanken Grote
 }
 
 /** The branch a project's design is approved onto: the repository's default branch. */
-function mainBranch(repo: string) {
-  return gitSync(repo, ['symbolic-ref', '--short', 'HEAD']) || 'main';
+async function mainBranch(repo: string) {
+  return (await gitRead(repo, ['symbolic-ref', '--short', 'HEAD'])) || 'main';
 }
 
 /** What a design branch or a design task would change on main, and where it starts from. */
-function proposalFor(owner: string, project: any, input: { ref?: string; task?: string }) {
+async function proposalFor(owner: string, project: any, input: { ref?: string; task?: string }) {
   const repo = project.repositoryPath as string;
   let branch: string;
   let taskId: string | null = null;
@@ -472,24 +497,37 @@ function proposalFor(owner: string, project: any, input: { ref?: string; task?: 
       fail('Propose a design branch, like design/title-size');
     name = branch.replace(/^design\//, '');
   }
-  const commit = gitSync(repo, [
+  const commit = await gitRead(repo, [
     'rev-parse',
     '--verify',
     '--quiet',
     `refs/heads/${branch}^{commit}`,
   ]);
   if (!commit) fail(`Nothing is committed on ${branch} yet`, 409);
-  const main = mainBranch(repo);
-  const head = gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${main}^{commit}`]);
+  const main = await mainBranch(repo);
+  const head = await gitRead(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${main}^{commit}`,
+  ]);
   if (!head) fail(`${main} has no commits`, 409);
-  const base = gitSync(repo, ['merge-base', head, commit]) || head;
+  const base = (await gitRead(repo, ['merge-base', head!, commit!])) || head!;
   const paths = (
-    gitSync(repo, ['diff', '--name-only', '--no-renames', base, commit, '--', 'design/']) ?? ''
+    (await gitRead(repo, [
+      'diff',
+      '--name-only',
+      '--no-renames',
+      base,
+      commit!,
+      '--',
+      'design/',
+    ])) ?? ''
   )
     .split('\n')
     .filter(Boolean);
   if (!paths.length) fail(`${branch} changes nothing in design/`, 409);
-  return { branch, commit, base, paths, taskId, main, name };
+  return { branch, commit: commit!, base, paths, taskId, main, name };
 }
 
 // Inbox IDs travel as one URL path segment, so the branch's slashes become tildes.
@@ -502,10 +540,10 @@ function designItemId(projectId: string, branch: string, commit: string) {
 /** Links per commit: a commit never changes, so its links are worked out once. */
 const linkCache = new Map<string, (BoardLink & { from: string })[]>();
 
-/** The canvas at a commit, read at once for the line a proposal shows; null when it has none. */
-function canvasAt(repo: string, commit: string): Canvas | null {
+/** The canvas at a commit, for the line a proposal shows; null when it has none. */
+async function canvasAt(repo: string, commit: string): Promise<Canvas | null> {
   try {
-    return JSON.parse(gitSync(repo, ['show', `${commit}:design/canvas.json`]) ?? 'null');
+    return JSON.parse((await gitRead(repo, ['show', `${commit}:design/canvas.json`])) ?? 'null');
   } catch {
     return null;
   }
@@ -591,37 +629,43 @@ const reviewBoardPaths = (context: any) =>
   (context.paths as string[]).filter((path) => path.startsWith('design/boards/'));
 
 /** Compare proposal edits with main by screen, not by main's commit ID. No repository writes.
- * Synchronous because an inbox decision rechecks this immediately before merging. */
-export function reviewMain(repo: string, context: any) {
-  const main = gitSync(repo, [
+ * An inbox decision rechecks this with withRepositoryWrites held, immediately before merging. */
+export async function reviewMain(repo: string, context: any) {
+  const main = await gitRead(repo, [
     'rev-parse',
     '--verify',
     '--quiet',
     `refs/heads/${context.main}^{commit}`,
   ]);
   if (!main) fail('Main could not be checked. Try again.', 409);
-  const diff = gitSync(repo, [
+  const diff = await gitRead(repo, [
     'diff',
     '--name-only',
     '--no-renames',
     context.base,
-    main,
+    main!,
     '--',
     'design/',
   ]);
   if (diff === null) fail('Main could not be checked. Try again.', 409);
   const changed = diff.split('\n');
-  const conflicts = conflictPaths(context.paths, changed)
-    .filter(
-      (path) =>
-        gitSync(repo, ['rev-parse', '--verify', '--quiet', `${main}:${path}`]) !==
-        gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.commit}:${path}`]),
-    )
-    .map(conflictName);
+  const overlapping = conflictPaths(context.paths, changed);
+  const conflicts: string[] = [];
+  if (overlapping.length) {
+    const [mainTree, fromTree] = await Promise.all([
+      reviewTree(repo, main!),
+      reviewTree(repo, context.commit),
+    ]);
+    conflicts.push(
+      ...overlapping.filter((path) => mainTree.get(path) !== fromTree.get(path)).map(conflictName),
+    );
+  }
   if (changed.includes('design/canvas.json') && context.paths.includes('design/canvas.json')) {
-    const base = canvasAt(repo, context.base),
-      target = canvasAt(repo, main),
-      from = canvasAt(repo, context.commit);
+    const [base, target, from] = await Promise.all([
+      canvasAt(repo, context.base),
+      canvasAt(repo, main!),
+      canvasAt(repo, context.commit),
+    ]);
     conflicts.push(...canvasConflicts(base, target, from));
   }
   return { main: main!, conflicts: [...new Set(conflicts)], updated: changed.some(Boolean) };
@@ -670,37 +714,27 @@ function reviewPins(owner: string, context: any): DesignReviewPin[] {
     .sort((a, b) => a.number - b.number);
 }
 
-/** A cheap summary: no Chromium or screenshot work on the landing page. */
-function reviewSummary(owner: string, project: any, row: any): DesignReviewSummary {
-  const { context } = row;
-  const repo = project.repositoryPath;
-  const status = reviewMain(repo, context);
-  const boards = reviewBoardPaths(context).map((path) => {
-    const before = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.base}:${path}`]);
-    const after = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${context.commit}:${path}`]);
-    return { before, after };
-  });
-  return buildReviewSummary(
-    project,
-    row,
-    context.proposer ?? proposalProposer(owner, context.taskId),
-    status.conflicts,
-    boards,
-  );
-}
-
-function buildReviewSummary(
+/**
+ * A cheap summary: no Chromium or screenshot work on the landing page. `status` is main as the
+ * caller already read it, so one review never compares against two different mains.
+ */
+async function reviewSummary(
+  owner: string,
   project: any,
   row: any,
-  proposer: DesignReviewSummary['proposer'],
-  conflicts: string[],
-  boards: { before: string | null; after: string | null }[],
-): DesignReviewSummary {
+  status?: Awaited<ReturnType<typeof reviewMain>>,
+): Promise<DesignReviewSummary> {
   const { context, item } = row;
-  const counts = { screens: boards.length, changed: 0, new: 0, removed: 0 };
-  for (const { before, after } of boards) {
-    counts[!before ? 'new' : !after ? 'removed' : 'changed']++;
-  }
+  const repo = project.repositoryPath;
+  const [{ conflicts }, baseTree, fromTree] = await Promise.all([
+    status ?? reviewMain(repo, context),
+    reviewTree(repo, context.base),
+    reviewTree(repo, context.commit),
+  ]);
+  const paths = reviewBoardPaths(context);
+  const counts = { screens: paths.length, changed: 0, new: 0, removed: 0 };
+  for (const path of paths)
+    counts[!baseTree.has(path) ? 'new' : !fromTree.has(path) ? 'removed' : 'changed']++;
   return {
     id: item.id,
     title: item.title,
@@ -709,7 +743,7 @@ function buildReviewSummary(
     project: project.name ?? project.id,
     branch: context.branch,
     createdAt: item.createdAt,
-    proposer,
+    proposer: context.proposer ?? proposalProposer(owner, context.taskId),
     counts,
     stale: conflicts.length > 0,
     conflicts,
@@ -728,78 +762,37 @@ async function reviewTree(repo: string, commit: string) {
   return tree;
 }
 
-async function reviewCanvas(repo: string, commit: string): Promise<Canvas | null> {
-  try {
-    return JSON.parse((await reviewGit(repo, ['show', `${commit}:design/canvas.json`])) ?? 'null');
-  } catch {
-    return null;
-  }
-}
-
-// The landing list awaits Git so waiting proposals do not block the server's event loop.
-async function reviewSummaryAsync(owner: string, project: any, row: any) {
-  const { context } = row;
-  const repo = project.repositoryPath;
-  const main = await reviewGit(repo, [
-    'rev-parse',
-    '--verify',
-    '--quiet',
-    `refs/heads/${context.main}^{commit}`,
-  ]);
-  if (!main) fail('Main could not be checked. Try again.', 409);
-  const diff = await reviewGit(repo, [
-    'diff',
-    '--name-only',
-    '--no-renames',
-    context.base,
-    main,
-    '--',
-    'design/',
-  ]);
-  if (diff === null) fail('Main could not be checked. Try again.', 409);
-  const changed = diff.split('\n');
-  const [baseTree, fromTree, mainTree] = await Promise.all([
-    reviewTree(repo, context.base),
-    reviewTree(repo, context.commit),
-    reviewTree(repo, main!),
-  ]);
-  const conflicts = conflictPaths(context.paths, changed)
-    .filter((path) => mainTree.get(path) !== fromTree.get(path))
-    .map(conflictName);
-  if (changed.includes('design/canvas.json') && context.paths.includes('design/canvas.json')) {
-    const [base, target, from] = await Promise.all([
-      reviewCanvas(repo, context.base),
-      reviewCanvas(repo, main!),
-      reviewCanvas(repo, context.commit),
-    ]);
-    conflicts.push(...canvasConflicts(base, target, from));
-  }
-  return buildReviewSummary(
-    project,
-    row,
-    context.proposer ?? proposalProposer(owner, context.taskId),
-    [...new Set(conflicts)],
-    reviewBoardPaths(context).map((path) => ({
-      before: baseTree.get(path) ?? null,
-      after: fromTree.get(path) ?? null,
-    })),
-  );
-}
-
 // Preview requests follow the metadata read. Reuse immutable screen metadata instead of
 // repeating every git read for each thumbnail/width. Progress and main checks are never cached.
 const reviewScreens = new Map<string, DesignReviewScreen[]>();
 const reviewScreenKey = (repo: string, row: any) =>
   `${repo}:${row.id}:${row.context.base}:${row.context.previousCommit ?? ''}`;
+// A page opening asks for many previews at once, and they all want the same screens.
+const reviewScreensLoading = new Map<string, Promise<DesignReviewScreen[]>>();
+function loadReviewScreens(owner: string, project: any, row: any) {
+  const key = reviewScreenKey(project.repositoryPath, row);
+  const screens = reviewScreens.get(key);
+  if (screens) return screens;
+  let loading = reviewScreensLoading.get(key);
+  if (!loading) {
+    loading = designReview(owner, project, row)
+      .then((review) => review.boards)
+      .finally(() => reviewScreensLoading.delete(key));
+    reviewScreensLoading.set(key, loading);
+  }
+  return loading;
+}
 
-export function designReview(owner: string, project: any, row: any): DesignReview {
+export async function designReview(owner: string, project: any, row: any): Promise<DesignReview> {
   const { context, item } = row;
   const repo = project.repositoryPath;
-  const status = reviewMain(repo, context);
+  const status = await reviewMain(repo, context);
   const comparison = context.previousCommit ?? context.base;
-  const canvas = canvasAt(repo, context.commit),
-    beforeCanvas = canvasAt(repo, comparison);
-  const originalCanvas = canvasAt(repo, context.base);
+  const [canvas, beforeCanvas, originalCanvas] = await Promise.all([
+    canvasAt(repo, context.commit),
+    canvasAt(repo, comparison),
+    canvasAt(repo, context.base),
+  ]);
   const pages = canvas ? sections(canvas) : [];
   const oldPages = originalCanvas ? sections(originalCanvas) : [];
   // Insert removed boards at their old position relative to surviving neighbours.
@@ -819,70 +812,86 @@ export function designReview(owner: string, project: any, row: any): DesignRevie
     path.startsWith('design/boards/'),
   );
   const seen = list('design-review-seen', owner);
-  const boards: DesignReviewScreen[] = paths.map((path) => {
-    const file = path.slice('design/boards/'.length);
-    const was = showFile(repo, comparison, path),
-      after = showFile(repo, context.commit, path);
-    const original = showFile(repo, context.base, path);
-    const changedSinceReview =
-      !context.previousCommit ||
-      was !== after ||
-      gitSync(repo, ['diff', '--name-only', comparison, context.commit, '--', 'design/ds/']) !== '';
-    const before = context.previousCommit && !changedSinceReview ? original : was;
-    const placed =
-      canvas?.boards[file] ?? beforeCanvas?.boards[file] ?? originalCanvas?.boards[file];
-    const page =
-      pages.find((entry) => entry.boards.includes(file)) ??
-      oldPages.find((entry) => entry.boards.includes(file));
-    const changes =
-      before && after
-        ? layerChanges(before, after).map((change) => ({
-            layer: change.layer,
-            words:
-              context.changeWords?.[file]?.[change.layer] ??
-              layerLabel(
-                change.layer,
-                (
-                  layerSnippet(change.change === 'removed' ? before : after, change.layer) ?? ''
-                ).replace(/<[^>]+>/g, ' '),
-              ),
-          }))
-        : [];
-    return {
-      file,
-      title: placed?.title ?? screenName(file),
-      w: placed?.w ?? 1440,
-      h: Math.max(placed?.h ?? 900, beforeCanvas?.boards[file]?.h ?? 0),
-      widths: reviewWidths(placed?.w ?? 1440),
-      page: page?.title ?? null,
-      pageId: page?.id ?? null,
-      index: page ? page.boards.indexOf(file) + 1 : null,
-      count: page?.boards.length ?? null,
-      notes:
-        showFile(
-          repo,
-          after ? context.commit : comparison,
-          `design/notes/${file.replace(/\.html$/, '.md')}`,
-        ).slice(0, 2000) || null,
-      added: !before,
-      removed: !after,
-      status: !before ? 'new' : !after ? 'removed' : 'changed',
-      before: context.previousCommit && !changedSinceReview ? context.base : comparison,
-      after: context.commit,
-      changes,
-      lines: changes.map((change) => change.words),
-      changedSinceReview,
-      seen: seen.some(
-        (entry) =>
-          entry.board === file &&
-          (entry.itemId === item.id ||
-            (!changedSinceReview &&
-              lineage.includes(entry.itemId) &&
-              showFile(repo, entry.revision, path) === after)),
-      ),
-      conflict: status.conflicts.includes(file),
-    };
-  });
+  // Asked at most once: it is the same answer for every board.
+  let designSystemDiff: Promise<string | null> | undefined;
+  const boards: DesignReviewScreen[] = await Promise.all(
+    paths.map(async (path) => {
+      const file = path.slice('design/boards/'.length);
+      const [was, after, original] = await Promise.all([
+        showFile(repo, comparison, path),
+        showFile(repo, context.commit, path),
+        showFile(repo, context.base, path),
+      ]);
+      const changedSinceReview =
+        !context.previousCommit ||
+        was !== after ||
+        (await (designSystemDiff ??= gitRead(repo, [
+          'diff',
+          '--name-only',
+          comparison,
+          context.commit,
+          '--',
+          'design/ds/',
+        ]))) !== '';
+      const before = context.previousCommit && !changedSinceReview ? original : was;
+      const boardNotes = await showFile(
+        repo,
+        after ? context.commit : comparison,
+        `design/notes/${file.replace(/\.html$/, '.md')}`,
+      );
+      let wasSeen = false;
+      for (const entry of seen) {
+        if (entry.board !== file) continue;
+        wasSeen =
+          entry.itemId === item.id ||
+          (!changedSinceReview &&
+            lineage.includes(entry.itemId) &&
+            (await showFile(repo, entry.revision, path)) === after);
+        if (wasSeen) break;
+      }
+      const placed =
+        canvas?.boards[file] ?? beforeCanvas?.boards[file] ?? originalCanvas?.boards[file];
+      const page =
+        pages.find((entry) => entry.boards.includes(file)) ??
+        oldPages.find((entry) => entry.boards.includes(file));
+      const changes =
+        before && after
+          ? layerChanges(before, after).map((change) => ({
+              layer: change.layer,
+              words:
+                context.changeWords?.[file]?.[change.layer] ??
+                layerLabel(
+                  change.layer,
+                  (
+                    layerSnippet(change.change === 'removed' ? before : after, change.layer) ?? ''
+                  ).replace(/<[^>]+>/g, ' '),
+                ),
+            }))
+          : [];
+      return {
+        file,
+        title: placed?.title ?? screenName(file),
+        w: placed?.w ?? 1440,
+        h: Math.max(placed?.h ?? 900, beforeCanvas?.boards[file]?.h ?? 0),
+        widths: reviewWidths(placed?.w ?? 1440),
+        page: page?.title ?? null,
+        pageId: page?.id ?? null,
+        index: page ? page.boards.indexOf(file) + 1 : null,
+        count: page?.boards.length ?? null,
+        notes: boardNotes.slice(0, 2000) || null,
+        added: !before,
+        removed: !after,
+        status: !before ? 'new' : !after ? 'removed' : 'changed',
+        before: context.previousCommit && !changedSinceReview ? context.base : comparison,
+        after: context.commit,
+        changes,
+        lines: changes.map((change) => change.words),
+        changedSinceReview,
+        seen: wasSeen,
+        conflict: status.conflicts.includes(file),
+      };
+    }),
+  );
   const pageOrder = [...new Set([...pages.map((p) => p.id), ...oldPages.map((p) => p.id)])];
   boards.sort(
     (a, b) =>
@@ -905,11 +914,12 @@ export function designReview(owner: string, project: any, row: any): DesignRevie
   const screenKey = reviewScreenKey(repo, row);
   reviewScreens.set(screenKey, boards);
   if (reviewScreens.size > 128) reviewScreens.delete(reviewScreens.keys().next().value!);
-  const mainTime = status.updated
-    ? gitSync(repo, ['show', '-s', '--format=%cI', status.main])
-    : null;
+  const [mainTime, summary] = await Promise.all([
+    status.updated ? gitRead(repo, ['show', '-s', '--format=%cI', status.main]) : null,
+    reviewSummary(owner, project, row, status),
+  ]);
   return {
-    ...reviewSummary(owner, project, row),
+    ...summary,
     item,
     task: context.taskId
       ? (list('task', owner).find((entry) => entry.id === context.taskId)?.title ?? null)
@@ -927,14 +937,18 @@ export function designReview(owner: string, project: any, row: any): DesignRevie
   };
 }
 
-function mutateReviewPin(owner: string, project: any, method: string, body: any) {
+async function mutateReviewPin(owner: string, project: any, method: string, body: any) {
+  // A transaction cannot wait for Git, so the review is read first; it names commits and so stays
+  // true. Whether the review still waits, and its pins, can change meanwhile, so they are read in it.
+  const waiting = reviewRow(owner, project.id, body?.item);
+  if (waiting.item.state !== 'waiting') fail('This review is no longer waiting', 409);
+  const review = await designReview(owner, project, waiting);
   return db
     .transaction(() => {
       const row = reviewRow(owner, project.id, body?.item);
       if (row.item.state !== 'waiting') fail('This review is no longer waiting', 409);
-      const review = designReview(owner, project, row);
       if (method !== 'POST') {
-        const pin = review.pins.find((pin) => pin.id === body?.id);
+        const pin = reviewPins(owner, row.context).find((pin) => pin.id === body?.id);
         if (!pin) fail('No such pin', 404);
         if (body.drawing !== undefined) fail('A saved drawing cannot change its revision or paths');
         const saved = get('design-comment', owner, pin!.id);
@@ -1014,7 +1028,7 @@ function mutateReviewPin(owner: string, project: any, method: string, body: any)
     .immediate();
 }
 
-export function proposeDesign(
+export async function proposeDesign(
   owner: string,
   project: any,
   input: {
@@ -1028,7 +1042,39 @@ export function proposeDesign(
   const title = optionalWords(input.title, 200);
   const summary = optionalWords(input.summary, 4000);
   const changeWords = validateChangeWords(input.changeWords);
-  const proposal = proposalFor(owner, project, input);
+  // With the lock, a proposal never replaces one that is being approved at that moment.
+  return withRepositoryWrites(project.repositoryPath, async () => {
+    const proposal = await proposalFor(owner, project, input);
+    const canvas = proposal.paths.includes('design/canvas.json');
+    const [before, after] = canvas
+      ? await Promise.all([
+          canvasAt(project.repositoryPath, proposal.base),
+          canvasAt(project.repositoryPath, proposal.commit),
+        ])
+      : [null, null];
+    return recordProposal(owner, project, proposal, canvas, before, after, {
+      title,
+      summary,
+      changeWords,
+    });
+  });
+}
+
+/** The proposal's rows and events, all in one turn of the event loop. */
+function recordProposal(
+  owner: string,
+  project: any,
+  proposal: Awaited<ReturnType<typeof proposalFor>>,
+  canvas: boolean,
+  before: Canvas | null,
+  after: Canvas | null,
+  words: {
+    title: string | null;
+    summary: string | null;
+    changeWords: Record<string, Record<string, string>>;
+  },
+) {
+  const { title, summary, changeWords } = words;
   const history = list('v2-inbox-native', owner)
     .filter(
       (row) =>
@@ -1044,13 +1090,6 @@ export function proposeDesign(
   const boards = proposal.paths
     .filter((path) => path.startsWith('design/boards/'))
     .map((path) => path.slice('design/boards/'.length).replace(/\.html$/, ''));
-  const canvas = proposal.paths.includes('design/canvas.json');
-  const [before, after] = canvas
-    ? [
-        canvasAt(project.repositoryPath, proposal.base),
-        canvasAt(project.repositoryPath, proposal.commit),
-      ]
-    : [null, null];
   const notes = canvas ? noteChanges(before, after) : [];
   const marks = canvas ? markChanges(before, after) : 0;
   // canvas.json carries the boards' places too; it counts as its own change only when nothing on it is named.
@@ -1097,38 +1136,61 @@ export function proposeDesign(
   });
 }
 
-// Approving keeps the existing merge path. Asking sends all unresolved pins and general
-// feedback in the inbox answer transaction, while keeping the board comments in history.
-registerInboxSource('design', (owner, item, body, context) => {
-  const project = requireRepository(owner, context.projectId);
-  const repo = project.repositoryPath as string;
-  const status = reviewMain(repo, context);
+/**
+ * The Git half of a decision: whether main still allows it and, for approving, the commit on main.
+ * It runs before the answer's transaction, with the lock held through both, so the answer's checks
+ * still hold when it records the decision and a second answer finds this one already made.
+ */
+async function prepareDecision(
+  owner: string,
+  repo: string,
+  item: InboxItem,
+  body: any,
+  context: any,
+) {
+  const status = await reviewMain(repo, context);
   if (body.actionId !== 'update' && status.conflicts.length)
     fail('These screens conflict with main. Ask to update before deciding.', 409);
   if (body.actionId === 'update' && !status.conflicts.length)
     fail('This proposal has no conflicts with main. Refresh the review.', 409);
+  if (body.actionId !== 'approve') return { conflicts: status.conflicts };
+  // Use exactly the commit checked above; update-ref below rejects a concurrent main move.
+  const target = status.main;
+  const merged = await mergedWrites(repo, {
+    base: context.base,
+    target,
+    from: context.commit,
+    paths: context.paths,
+    main: context.main,
+    branch: context.branch,
+  });
+  const instances = await instanceWrites(repo, target, context.commit, context.paths);
+  const commit = await copyPaths(repo, {
+    target,
+    from: context.commit,
+    paths: context.paths,
+    writes: [...merged, ...instances],
+    branch: context.main,
+    message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
+    by: owner,
+  });
+  return { conflicts: status.conflicts, commit };
+}
+
+// Approving keeps the existing merge path. Asking sends all unresolved pins and general
+// feedback in the inbox answer transaction, while keeping the board comments in history.
+function decideDesign(
+  owner: string,
+  item: InboxItem,
+  body: any,
+  context: any,
+  prepared?: Awaited<ReturnType<typeof prepareDecision>>,
+) {
+  if (!prepared) throw new Error('Answer design reviews with answerInboxAsync');
+  const project = requireRepository(owner, context.projectId);
+  const status = prepared;
   if (body.actionId === 'approve') {
-    // Use exactly the commit checked above; update-ref below rejects a concurrent main move.
-    const target = status.main;
-    const commit = copyPaths(repo, {
-      target,
-      from: context.commit,
-      paths: context.paths,
-      writes: [
-        ...mergedWrites(repo, {
-          base: context.base,
-          target,
-          from: context.commit,
-          paths: context.paths,
-          main: context.main,
-          branch: context.branch,
-        }),
-        ...instanceWrites(repo, target, context.commit, context.paths),
-      ],
-      branch: context.main,
-      message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
-      by: owner,
-    });
+    const commit = prepared.commit!;
     save('project', owner, {
       ...get('project', owner, project.id),
       head: commit,
@@ -1183,6 +1245,15 @@ registerInboxSource('design', (owner, item, body, context) => {
     pins: pins.map((pin) => pin.id),
     createdAt: now(),
   });
+}
+
+registerInboxSource('design', decideDesign, async ({ owner, body, context, check, answer }) => {
+  check();
+  const repo = requireRepository(owner, context.projectId).repositoryPath as string;
+  return withRepositoryWrites(repo, async () =>
+    // Checked again: another answer may have held the lock while this one waited for it.
+    answer(await prepareDecision(owner, repo, check(), body, context)),
+  );
 });
 
 function presentComment(row: any) {
@@ -1480,7 +1551,7 @@ export async function reviewPreview(
 async function warmReview(owner: string, project: any, repo: string, itemId: string) {
   try {
     const row = reviewRow(owner, project.id, itemId);
-    for (const board of designReview(owner, project, row).boards)
+    for (const board of (await designReview(owner, project, row)).boards)
       for (const scale of [2, 3])
         await reviewPreview(repo, project.id, board, board.widths[0], renderBoardLayout, scale);
   } catch {
@@ -1578,7 +1649,7 @@ function livePresence(owner: string, projectId: string) {
  * It reads and edits design/ in its own workspace and renders with design/tools/render.mjs;
  * this tool shows where it works, handles comments, and asks for review.
  */
-export function designTool(scope: { owner: string; taskId: string }, args: any) {
+export async function designTool(scope: { owner: string; taskId: string }, args: any) {
   const task = get('task', scope.owner, scope.taskId);
   if (!task.projectId) fail('This conversation has no repository project');
   const project = requireRepository(scope.owner, task.projectId);
@@ -1647,7 +1718,7 @@ export function designTool(scope: { owner: string; taskId: string }, args: any) 
       };
     }
     case 'propose': {
-      const item = proposeDesign(scope.owner, project, {
+      const item = await proposeDesign(scope.owner, project, {
         task: task.id,
         title: args.title,
         summary: args.summary,
@@ -1674,7 +1745,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const proposals: DesignReviewSummary[] = [];
     for (const row of rows)
       proposals.push(
-        await reviewSummaryAsync(owner, requireRepository(owner, row.context.projectId), row),
+        await reviewSummary(owner, requireRepository(owner, row.context.projectId), row),
       );
     proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return sendJson(res, { proposals });
@@ -1683,27 +1754,30 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   if (url.pathname === '/api/v2/design/projects' && req.method === 'GET') {
     const projects = list('project', owner).filter((row: any) => row.repositoryPath);
     const designs = await Promise.all(
-      projects.map(async (row: any) => {
-        let boards = 0;
-        try {
-          boards = Object.keys(
-            (
-              await readCanvas(
-                row.repositoryPath,
-                `refs/heads/${(await gitRead(row.repositoryPath, ['symbolic-ref', '--short', 'HEAD'])) || 'main'}`,
-              )
-            )?.boards ?? {},
-          ).length;
-        } catch {
-          // A canvas that is not valid JSON counts as no design.
-        }
-        return {
-          id: row.id,
-          name: row.name ?? row.id,
-          description: row.description ?? null,
-          boards,
-        };
-      }),
+      projects.map((row: any) =>
+        // Each project is its own repository, so the Git limit per repository does not bound this.
+        pickerSlots('picker', async () => {
+          let boards = 0;
+          try {
+            boards = Object.keys(
+              (
+                await readCanvas(
+                  row.repositoryPath,
+                  `refs/heads/${await mainBranch(row.repositoryPath)}`,
+                )
+              )?.boards ?? {},
+            ).length;
+          } catch {
+            // A canvas that is not valid JSON counts as no design.
+          }
+          return {
+            id: row.id,
+            name: row.name ?? row.id,
+            description: row.description ?? null,
+            boards,
+          };
+        }),
+      ),
     );
     return sendJson(res, { projects: designs });
   }
@@ -1752,15 +1826,18 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const body = await readJson(req);
     const from = String(body?.from || 'HEAD');
     if (!validRef(from)) fail('Invalid ref');
-    const commit = gitSync(repo, [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      '--end-of-options',
-      `${from}^{commit}`,
-    ]);
-    if (!commit) fail(`No commit named ${from} in this project`, 404);
-    return sendJson(res, { branch: createBranch(repo, String(body?.name ?? ''), commit) }, 201);
+    const branch = await withRepositoryWrites(repo, async () => {
+      const commit = await gitRead(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        '--end-of-options',
+        `${from}^{commit}`,
+      ]);
+      if (!commit) fail(`No commit named ${from} in this project`, 404);
+      return createBranch(repo, String(body?.name ?? ''), commit!);
+    });
+    return sendJson(res, { branch }, 201);
   }
 
   if (sub === '/comments') {
@@ -1911,7 +1988,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       const library = parseLibrary((await readFile(repo, commit, libraryPath))?.toString());
       const component = library?.components.find((item) => item.id === componentId);
       if (!component) fail(`The design system has no component ${componentId}`, 404);
-      const used = (await componentUsageAsync(repo, commit))[componentId] ?? [];
+      const used = (await componentUsage(repo, commit))[componentId] ?? [];
       const task = queueTask(owner, {
         projectId: project.id,
         title: `Design: ${component!.name} component`,
@@ -1985,7 +2062,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     return sendJson(res, {
       commit,
       library,
-      usage: library ? await componentUsageAsync(repo, commit!) : {},
+      usage: library ? await componentUsage(repo, commit!) : {},
     });
   }
 
@@ -1996,174 +2073,180 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
     const edits = body?.edits;
     if (!Array.isArray(edits) || !edits.length || edits.length > 50) fail('Send 1 to 50 edits');
-    const { branch, head } = editBranch(repo, body, board.replace(/\.html$/, ''));
-    const html = await readFile(repo, head, `design/boards/${board}`);
-    if (!html) fail(`design/boards/${board} is missing on ${branch}`, 404);
-    const main = gitSync(repo, [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      `refs/heads/${mainBranch(repo)}^{commit}`,
-    ]);
-    const base = main ? await readFile(repo, main, `design/boards/${board}`) : null;
-    const library = edits.some((edit: any) => edit.op === 'insert' && edit.component)
-      ? parseLibrary((await readFile(repo, head, libraryPath))?.toString())
-      : undefined;
-    let next: string;
-    try {
-      next = applyEdits(html.toString(), edits, base?.toString(), library ?? undefined);
-    } catch (error) {
-      fail((error as Error).message);
-    }
-    if (next === html.toString()) return sendJson(res, { branch, commit: head, layers: [] });
-    const before = new Set(layerIds(html.toString()));
-    const layers = layerIds(next).filter((layer) => !before.has(layer));
-    const kinds = [
-      ...new Set(
-        edits.map((edit: any) =>
-          edit.op === 'style'
-            ? edit.prop
-            : edit.op === 'insert'
-              ? (edit.shape?.kind ?? edit.component?.id)
-              : edit.op,
+    const result = await withRepositoryWrites(repo, async () => {
+      const { branch, head } = await editBranch(repo, body, board.replace(/\.html$/, ''));
+      const html = await readFile(repo, head, `design/boards/${board}`);
+      if (!html) fail(`design/boards/${board} is missing on ${branch}`, 404);
+      const main = await gitRead(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        `refs/heads/${await mainBranch(repo)}^{commit}`,
+      ]);
+      const base = main ? await readFile(repo, main, `design/boards/${board}`) : null;
+      const library = edits.some((edit: any) => edit.op === 'insert' && edit.component)
+        ? parseLibrary((await readFile(repo, head, libraryPath))?.toString())
+        : undefined;
+      let next: string;
+      try {
+        next = applyEdits(html.toString(), edits, base?.toString(), library ?? undefined);
+      } catch (error) {
+        fail((error as Error).message);
+      }
+      if (next === html.toString()) return { branch, commit: head, layers: [] as string[] };
+      const before = new Set(layerIds(html.toString()));
+      const layers = layerIds(next).filter((layer) => !before.has(layer));
+      const kinds = [
+        ...new Set(
+          edits.map((edit: any) =>
+            edit.op === 'style'
+              ? edit.prop
+              : edit.op === 'insert'
+                ? (edit.shape?.kind ?? edit.component?.id)
+                : edit.op,
+          ),
         ),
-      ),
-    ];
-    const commit = copyPaths(repo, {
-      target: head,
-      from: head,
-      paths: [],
-      branch,
-      message: `Edit ${board.replace(/\.html$/, '')}: ${kinds.slice(0, 4).join(', ')}`,
-      by: owner,
-      writes: [{ path: `design/boards/${board}`, content: next }],
+      ];
+      const commit = await copyPaths(repo, {
+        target: head,
+        from: head,
+        paths: [],
+        branch,
+        message: `Edit ${board.replace(/\.html$/, '')}: ${kinds.slice(0, 4).join(', ')}`,
+        by: owner,
+        writes: [{ path: `design/boards/${board}`, content: next }],
+      });
+      return { branch, commit, layers };
     });
-    return sendJson(res, { branch, commit, layers });
+    return sendJson(res, result);
   }
 
   // The canvas itself: new boards from the frame tool, and sticky notes.
   if (sub === '/canvas' && req.method === 'POST') {
     const body = await readJson(req);
-    const op = body?.op;
-    const { branch, head } = editBranch(repo, body, op === 'board' ? 'new board' : 'notes');
-    const canvas = await readCanvas(repo, head);
-    if (!canvas) fail('This design has no canvas.json', 404);
-    const notes = (canvas!.notes ??= {}) as Record<string, any>;
-    const at = (value: unknown) => {
-      const n = Number(value);
-      if (!Number.isFinite(n) || Math.abs(n) > 1e7) fail('A position is out of bounds');
-      return Math.round(n);
-    };
-    const writes: { path: string; content: string }[] = [];
-    let made: string;
-    if (op === 'note') {
-      const text = String(body.text ?? '').slice(0, 4000);
-      if (body.id) {
-        if (!notes[body.id]) fail(`No note named ${body.id}`, 404);
-        notes[body.id] = {
-          ...notes[body.id],
-          text,
-          ...(body.x !== undefined ? { x: at(body.x), y: at(body.y) } : {}),
-        };
-        made = body.id;
-      } else {
-        made = `note-${randomUUID().slice(0, 8)}`;
-        notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
-      }
-    } else if (op === 'mark') {
-      // A pen mark on the canvas: drawn from its points, then changed a property at a time.
-      const number = (value: unknown, low: number, high: number, name: string) => {
+    const result = await withRepositoryWrites(repo, async () => {
+      const op = body?.op;
+      const { branch, head } = await editBranch(repo, body, op === 'board' ? 'new board' : 'notes');
+      const canvas = await readCanvas(repo, head);
+      if (!canvas) fail('This design has no canvas.json', 404);
+      const notes = (canvas!.notes ??= {}) as Record<string, any>;
+      const at = (value: unknown) => {
         const n = Number(value);
-        if (!Number.isFinite(n) || n < low || n > high) fail(`${name} must be ${low} to ${high}`);
-        return Math.round(n * 10) / 10;
+        if (!Number.isFinite(n) || Math.abs(n) > 1e7) fail('A position is out of bounds');
+        return Math.round(n);
       };
-      if (body.id) {
-        const mark = notes[body.id];
-        if (mark?.kind !== 'mark') fail(`No mark named ${body.id}`, 404);
-        if (body.x !== undefined) mark.x = at(body.x);
-        if (body.y !== undefined) mark.y = at(body.y);
-        if (body.w !== undefined) mark.w = number(body.w, 1, 20000, 'W');
-        if (body.h !== undefined) mark.h = number(body.h, 1, 20000, 'H');
-        if (body.rotate !== undefined) mark.rotate = number(body.rotate, -360, 360, 'Rotation');
-        if (body.width !== undefined) mark.width = number(body.width, 0.5, 40, 'Stroke width');
-        if (body.opacity !== undefined) mark.opacity = number(body.opacity, 0, 1, 'Opacity');
-        if (body.stroke !== undefined) {
-          if (!markColors.includes(String(body.stroke))) fail('Pick a stroke colour token');
-          mark.stroke = String(body.stroke);
+      const writes: { path: string; content: string }[] = [];
+      let made: string;
+      if (op === 'note') {
+        const text = String(body.text ?? '').slice(0, 4000);
+        if (body.id) {
+          if (!notes[body.id]) fail(`No note named ${body.id}`, 404);
+          notes[body.id] = {
+            ...notes[body.id],
+            text,
+            ...(body.x !== undefined ? { x: at(body.x), y: at(body.y) } : {}),
+          };
+          made = body.id;
+        } else {
+          made = `note-${randomUUID().slice(0, 8)}`;
+          notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
         }
-        if (body.arrow !== undefined) mark.arrow = Boolean(body.arrow);
-        if (body.hidden !== undefined) mark.hidden = Boolean(body.hidden);
-        made = body.id;
-      } else {
-        const points = body.points;
-        if (!Array.isArray(points) || points.length < 2 || points.length > 2000)
-          fail('A mark needs 2 to 2000 points');
-        const xy = (points as unknown[]).map((point) => {
-          if (!Array.isArray(point)) fail('A point is [x, y]');
-          return [at((point as number[])[0]), at((point as number[])[1])];
-        });
-        const left = Math.min(...xy.map(([x]) => x));
-        const top = Math.min(...xy.map(([, y]) => y));
-        const pw = Math.max(1, Math.max(...xy.map(([x]) => x)) - left);
-        const ph = Math.max(1, Math.max(...xy.map(([, y]) => y)) - top);
-        const path = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x - left} ${y - top}`).join(' ');
-        made = `mark-${randomUUID().slice(0, 8)}`;
-        notes[made] = {
-          kind: 'mark',
-          x: left,
-          y: top,
-          w: pw,
-          h: ph,
-          pw,
-          ph,
-          path,
-          stroke: markColors.includes(String(body.stroke)) ? String(body.stroke) : 'danger',
-          width: body.width !== undefined ? number(body.width, 0.5, 40, 'Stroke width') : 2.5,
+      } else if (op === 'mark') {
+        // A pen mark on the canvas: drawn from its points, then changed a property at a time.
+        const number = (value: unknown, low: number, high: number, name: string) => {
+          const n = Number(value);
+          if (!Number.isFinite(n) || n < low || n > high) fail(`${name} must be ${low} to ${high}`);
+          return Math.round(n * 10) / 10;
         };
-      }
-    } else if (op === 'start') {
-      // Where Play starts on a page; null goes back to the page's first board.
-      const page = String(body.page ?? '');
-      if (!/^section-[a-z0-9-]{1,60}$/.test(page)) fail('Name a page');
-      const starts = ((canvas as any).starts ??= {}) as Record<string, string>;
-      if (body.board === null) delete starts[page];
-      else {
-        if (!canvas!.boards[String(body.board)]) fail(`No board named ${body.board}`, 404);
-        starts[page] = String(body.board);
-      }
-      made = page;
-    } else if (op === 'remove-note') {
-      if (!notes[body.id] || String(body.id).startsWith('section-')) fail('No such note', 404);
-      delete notes[body.id];
-      made = body.id;
-    } else if (op === 'board') {
-      const phone = body.kind === 'phone';
-      const [w, h] = phone ? [390, 844] : [1440, 900];
-      let n = 1;
-      while (canvas!.boards[`Board${n}.html`]) n++;
-      made = `Board${n}.html`;
-      canvas!.boards[made] = { x: at(body.x), y: at(body.y), w, h, title: `Board ${n}` };
-      if (Array.isArray((canvas as any).order)) (canvas as any).order.push(made);
-      writes.push({ path: `design/boards/${made}`, content: blankBoard(`Board ${n}`, w, h) });
-    } else fail('Unknown canvas edit');
-    writes.push({ path: 'design/canvas.json', content: `${JSON.stringify(canvas, null, 2)}\n` });
-    const commit = copyPaths(repo, {
-      target: head,
-      from: head,
-      paths: [],
-      branch,
-      message:
-        op === 'board'
-          ? `Add ${made!.replace(/\.html$/, '')}`
-          : op === 'mark'
-            ? body.id
-              ? 'Edit a mark on the canvas'
-              : 'Draw a mark on the canvas'
-            : 'Edit canvas notes',
-      by: owner,
-      writes,
+        if (body.id) {
+          const mark = notes[body.id];
+          if (mark?.kind !== 'mark') fail(`No mark named ${body.id}`, 404);
+          if (body.x !== undefined) mark.x = at(body.x);
+          if (body.y !== undefined) mark.y = at(body.y);
+          if (body.w !== undefined) mark.w = number(body.w, 1, 20000, 'W');
+          if (body.h !== undefined) mark.h = number(body.h, 1, 20000, 'H');
+          if (body.rotate !== undefined) mark.rotate = number(body.rotate, -360, 360, 'Rotation');
+          if (body.width !== undefined) mark.width = number(body.width, 0.5, 40, 'Stroke width');
+          if (body.opacity !== undefined) mark.opacity = number(body.opacity, 0, 1, 'Opacity');
+          if (body.stroke !== undefined) {
+            if (!markColors.includes(String(body.stroke))) fail('Pick a stroke colour token');
+            mark.stroke = String(body.stroke);
+          }
+          if (body.arrow !== undefined) mark.arrow = Boolean(body.arrow);
+          if (body.hidden !== undefined) mark.hidden = Boolean(body.hidden);
+          made = body.id;
+        } else {
+          const points = body.points;
+          if (!Array.isArray(points) || points.length < 2 || points.length > 2000)
+            fail('A mark needs 2 to 2000 points');
+          const xy = (points as unknown[]).map((point) => {
+            if (!Array.isArray(point)) fail('A point is [x, y]');
+            return [at((point as number[])[0]), at((point as number[])[1])];
+          });
+          const left = Math.min(...xy.map(([x]) => x));
+          const top = Math.min(...xy.map(([, y]) => y));
+          const pw = Math.max(1, Math.max(...xy.map(([x]) => x)) - left);
+          const ph = Math.max(1, Math.max(...xy.map(([, y]) => y)) - top);
+          const path = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x - left} ${y - top}`).join(' ');
+          made = `mark-${randomUUID().slice(0, 8)}`;
+          notes[made] = {
+            kind: 'mark',
+            x: left,
+            y: top,
+            w: pw,
+            h: ph,
+            pw,
+            ph,
+            path,
+            stroke: markColors.includes(String(body.stroke)) ? String(body.stroke) : 'danger',
+            width: body.width !== undefined ? number(body.width, 0.5, 40, 'Stroke width') : 2.5,
+          };
+        }
+      } else if (op === 'start') {
+        // Where Play starts on a page; null goes back to the page's first board.
+        const page = String(body.page ?? '');
+        if (!/^section-[a-z0-9-]{1,60}$/.test(page)) fail('Name a page');
+        const starts = ((canvas as any).starts ??= {}) as Record<string, string>;
+        if (body.board === null) delete starts[page];
+        else {
+          if (!canvas!.boards[String(body.board)]) fail(`No board named ${body.board}`, 404);
+          starts[page] = String(body.board);
+        }
+        made = page;
+      } else if (op === 'remove-note') {
+        if (!notes[body.id] || String(body.id).startsWith('section-')) fail('No such note', 404);
+        delete notes[body.id];
+        made = body.id;
+      } else if (op === 'board') {
+        const phone = body.kind === 'phone';
+        const [w, h] = phone ? [390, 844] : [1440, 900];
+        let n = 1;
+        while (canvas!.boards[`Board${n}.html`]) n++;
+        made = `Board${n}.html`;
+        canvas!.boards[made] = { x: at(body.x), y: at(body.y), w, h, title: `Board ${n}` };
+        if (Array.isArray((canvas as any).order)) (canvas as any).order.push(made);
+        writes.push({ path: `design/boards/${made}`, content: blankBoard(`Board ${n}`, w, h) });
+      } else fail('Unknown canvas edit');
+      writes.push({ path: 'design/canvas.json', content: `${JSON.stringify(canvas, null, 2)}\n` });
+      const commit = await copyPaths(repo, {
+        target: head,
+        from: head,
+        paths: [],
+        branch,
+        message:
+          op === 'board'
+            ? `Add ${made!.replace(/\.html$/, '')}`
+            : op === 'mark'
+              ? body.id
+                ? 'Edit a mark on the canvas'
+                : 'Draw a mark on the canvas'
+              : 'Edit canvas notes',
+        by: owner,
+        writes,
+      });
+      return { branch, commit, made: made! };
     });
-    return sendJson(res, { branch, commit, made: made! });
+    return sendJson(res, result);
   }
 
   // The design tasks of this project, newest first, for the overlay and the menu.
@@ -2190,53 +2273,69 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (task.projectId !== project.id || !task.design)
       fail('That is not a design task of this project', 404);
     const agentRef = `refs/heads/${currentTaskBranch(task)}`;
-    const agent = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${agentRef}^{commit}`]);
-    if (!agent) fail('The agent has not committed any design changes yet', 409);
-    let into = String(body?.into || 'HEAD');
-    if (!validRef(into)) fail('Invalid branch');
-    if (!into.startsWith('design/')) {
-      const from = gitSync(repo, [
+    const result = await withRepositoryWrites(repo, async () => {
+      const agent = await gitRead(repo, [
         'rev-parse',
         '--verify',
         '--quiet',
-        '--end-of-options',
-        `${into}^{commit}`,
+        `${agentRef}^{commit}`,
       ]);
-      if (!from) fail(`No commit named ${into} in this project`, 404);
-      into = createBranch(repo, task.title.replace(/^Design:\s*/, ''), from).name;
-    }
-    const target = gitSync(repo, [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      `refs/heads/${into}^{commit}`,
-    ]);
-    if (!target) fail(`No design branch named ${into}`, 404);
-    const base = task.design.commit as string;
-    const changed = (
-      gitSync(repo, ['diff', '--name-only', '--no-renames', base, agent, '--', 'design/']) ?? ''
-    )
-      .split('\n')
-      .filter(Boolean);
-    const paths: string[] = Array.isArray(body?.paths) ? body.paths.map(String) : changed;
-    if (!paths.length) fail('Choose at least one change to accept');
-    if (paths.some((path) => !changed.includes(path)))
-      fail('Only the agent’s design changes can be accepted');
-    const commit = copyPaths(repo, {
-      target,
-      from: agent,
-      paths,
-      branch: into,
-      message: `Accept ${paths.length === 1 ? paths[0].replace(/^design\//, '') : `${paths.length} design changes`} from ${task.title}`,
-      by: owner,
+      if (!agent) fail('The agent has not committed any design changes yet', 409);
+      let into = String(body?.into || 'HEAD');
+      if (!validRef(into)) fail('Invalid branch');
+      if (!into.startsWith('design/')) {
+        const from = await gitRead(repo, [
+          'rev-parse',
+          '--verify',
+          '--quiet',
+          '--end-of-options',
+          `${into}^{commit}`,
+        ]);
+        if (!from) fail(`No commit named ${into} in this project`, 404);
+        into = (await createBranch(repo, task.title.replace(/^Design:\s*/, ''), from!)).name;
+      }
+      const target = await gitRead(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        `refs/heads/${into}^{commit}`,
+      ]);
+      if (!target) fail(`No design branch named ${into}`, 404);
+      const base = task.design.commit as string;
+      const changed = (
+        (await gitRead(repo, [
+          'diff',
+          '--name-only',
+          '--no-renames',
+          base,
+          agent!,
+          '--',
+          'design/',
+        ])) ?? ''
+      )
+        .split('\n')
+        .filter(Boolean);
+      const paths: string[] = Array.isArray(body?.paths) ? body.paths.map(String) : changed;
+      if (!paths.length) fail('Choose at least one change to accept');
+      if (paths.some((path) => !changed.includes(path)))
+        fail('Only the agent’s design changes can be accepted');
+      const commit = await copyPaths(repo, {
+        target: target!,
+        from: agent!,
+        paths,
+        branch: into,
+        message: `Accept ${paths.length === 1 ? paths[0].replace(/^design\//, '') : `${paths.length} design changes`} from ${task.title}`,
+        by: owner,
+      });
+      return { branch: into, commit, accepted: paths };
     });
-    return sendJson(res, { branch: into, commit, accepted: paths });
+    return sendJson(res, result);
   }
 
   // Ask for approval of a design branch or a design task, in Waiting on you.
   if (sub === '/propose' && req.method === 'POST') {
     const body = await readJson(req);
-    const item = proposeDesign(owner, project, {
+    const item = await proposeDesign(owner, project, {
       ref: body?.ref,
       task: body?.task,
       title: body?.title,
@@ -2253,7 +2352,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
 
   if (sub === '/review' && req.method === 'GET') {
     const row = reviewRow(owner, project.id, url.searchParams.get('item'));
-    const review = designReview(owner, project, row);
+    const review = await designReview(owner, project, row);
     if (url.searchParams.get('previews') === 'all') {
       for (const board of review.boards) {
         board.previews = {};
@@ -2266,8 +2365,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
 
   if (sub === '/review/preview' && req.method === 'GET') {
     const row = reviewRow(owner, project.id, url.searchParams.get('item'));
-    const boards =
-      reviewScreens.get(reviewScreenKey(repo, row)) ?? designReview(owner, project, row).boards;
+    const boards = await loadReviewScreens(owner, project, row);
     const board = boards.find((entry) => entry.file === url.searchParams.get('board'));
     const width = Number(url.searchParams.get('width'));
     if (!board || !board.widths.includes(width)) fail('Name a screen and one of its widths');
@@ -2280,7 +2378,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   if (sub === '/review/seen' && req.method === 'POST') {
     const body = await readJson(req);
     const row = reviewRow(owner, project.id, body?.item);
-    const review = designReview(owner, project, row);
+    const review = await designReview(owner, project, row);
     const board = review.boards.find((entry) => entry.file === body?.board);
     if (!board || body?.revision !== review.after)
       fail('Name a screen at this proposal revision', 409);
@@ -2296,7 +2394,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
 
   if (sub === '/review/pins' && ['POST', 'PATCH', 'DELETE'].includes(req.method!)) {
     const body = await readJson(req, req.method === 'POST' ? 1024 * 1024 : 128 * 1024);
-    return sendJson(res, mutateReviewPin(owner, project, req.method!, body));
+    return sendJson(res, await mutateReviewPin(owner, project, req.method!, body));
   }
 
   if (sub === '/proposals' && req.method === 'GET') {

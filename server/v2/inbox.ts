@@ -145,25 +145,30 @@ export function syncInbox(owner: string): InboxItem[] {
     .immediate();
 }
 
-export function answerInbox(owner: string, itemId: string, body: any): InboxItem {
+/** The item an answer is for, or why that answer cannot be given. */
+function answerable(owner: string, itemId: string, body: any): InboxItem {
+  const item = syncInbox(owner).find((entry) => entry.id === itemId);
+  if (!item) fail('Not found', 404);
+  if (item.state !== 'waiting')
+    throw Object.assign(new Error('This item is already resolved or no longer active'), {
+      status: 409,
+      answer: item.answer ?? null,
+      item,
+    });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) fail('Answer object required');
+  if (!['web', 'iphone', 'desktop', 'cli'].includes(body.on)) fail('Answer source required');
+  if (body.surface !== undefined && (body.surface !== 'menu-bar' || body.on !== 'desktop'))
+    fail('Menu bar answers require the desktop source');
+  if (body.note !== undefined && (typeof body.note !== 'string' || body.note.length > 4000))
+    fail('Note must contain at most 4000 characters');
+  if (!item.actions.some((action) => action.id === body.actionId)) fail('Unknown answer action');
+  return item;
+}
+
+export function answerInbox(owner: string, itemId: string, body: any, prepared?: unknown) {
   return db
-    .transaction(() => {
-      const item = syncInbox(owner).find((entry) => entry.id === itemId);
-      if (!item) fail('Not found', 404);
-      if (item.state !== 'waiting')
-        throw Object.assign(new Error('This item is already resolved or no longer active'), {
-          status: 409,
-          answer: item.answer ?? null,
-          item,
-        });
-      if (!body || typeof body !== 'object' || Array.isArray(body)) fail('Answer object required');
-      if (!['web', 'iphone', 'desktop', 'cli'].includes(body.on)) fail('Answer source required');
-      if (body.surface !== undefined && (body.surface !== 'menu-bar' || body.on !== 'desktop'))
-        fail('Menu bar answers require the desktop source');
-      if (body.note !== undefined && (typeof body.note !== 'string' || body.note.length > 4000))
-        fail('Note must contain at most 4000 characters');
-      if (!item.actions.some((action) => action.id === body.actionId))
-        fail('Unknown answer action');
+    .transaction((): InboxItem => {
+      const item = answerable(owner, itemId, body);
       const sourceId = item.id.slice(item.id.indexOf(':') + 1);
       const note = body.note?.trim();
       if (item.kind === 'question') {
@@ -191,11 +196,12 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
       if (item.kind !== 'question' && item.kind !== 'control') {
         const row = get('v2-inbox-native', owner, itemId);
         // A producer that shares a kind names itself in its context and gets its own handler.
-        const handler = sourceActions.get(row.context?.source) ?? nativeActions.get(item.kind);
+        const handler =
+          sourceActions.get(row.context?.source)?.handler ?? nativeActions.get(item.kind);
         if (!['not-now', 'keep', 'dismiss'].includes(body.actionId)) {
           if (!handler)
             fail('This action is not available yet. The decision is still waiting.', 501);
-          handler(owner, item, body, row.context);
+          handler(owner, item, body, row.context, prepared);
         }
         const answered = { ...item, state: 'answered' as const, answer };
         save('v2-inbox-native', owner, { ...row, item: answered });
@@ -207,33 +213,59 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
     .immediate();
 }
 
+/**
+ * Answer an item, first doing any awaited work its source declared. A SQLite transaction cannot
+ * wait, so that work happens outside it and hands its result to the source's handler.
+ */
+export async function answerInboxAsync(owner: string, itemId: string, body: any) {
+  const context = list('v2-inbox-native', owner).find((row) => row.id === itemId)?.context;
+  const prepare = sourceActions.get(context?.source)?.prepare;
+  if (!prepare) return answerInbox(owner, itemId, body);
+  return prepare({
+    owner,
+    body,
+    context,
+    check: () => answerable(owner, itemId, body),
+    answer: (prepared) => answerInbox(owner, itemId, body, prepared),
+  });
+}
+
 // Producers keep their execution context private; clients receive only the typed decision.
 // Handlers synchronously persist work in the answer transaction; never perform async lookups.
-const nativeActions = new Map<
-  InboxItem['kind'],
-  (owner: string, item: InboxItem, body: any, context: any) => void
->();
-export function registerInboxAction(
-  kind: InboxItem['kind'],
-  handler: (owner: string, item: InboxItem, body: any, context: any) => void,
-) {
+// A source that must await something first does it in its `prepare`.
+type InboxHandler = (
+  owner: string,
+  item: InboxItem,
+  body: any,
+  context: any,
+  prepared?: any,
+) => void;
+type InboxPreparation = (input: {
+  owner: string;
+  body: any;
+  context: any;
+  /** The answer's own checks; repeat them once anything could have changed. */
+  check: () => InboxItem;
+  /** The answer's transaction, which passes `prepared` to the handler. */
+  answer: (prepared: unknown) => InboxItem;
+}) => Promise<InboxItem>;
+const nativeActions = new Map<InboxItem['kind'], InboxHandler>();
+export function registerInboxAction(kind: InboxItem['kind'], handler: InboxHandler) {
   nativeActions.set(kind, handler);
   return () => {
     if (nativeActions.get(kind) === handler) nativeActions.delete(kind);
   };
 }
-const sourceActions = new Map<
-  string,
-  (owner: string, item: InboxItem, body: any, context: any) => void
->();
+const sourceActions = new Map<string, { handler: InboxHandler; prepare?: InboxPreparation }>();
 /** Handle the decisions whose private context says `source`, whatever their public kind. */
 export function registerInboxSource(
   source: string,
-  handler: (owner: string, item: InboxItem, body: any, context: any) => void,
+  handler: InboxHandler,
+  prepare?: InboxPreparation,
 ) {
-  sourceActions.set(source, handler);
+  sourceActions.set(source, { handler, prepare });
   return () => {
-    if (sourceActions.get(source) === handler) sourceActions.delete(source);
+    if (sourceActions.get(source)?.handler === handler) sourceActions.delete(source);
   };
 }
 export function createInboxItem(owner: string, item: InboxItem, context: unknown): InboxItem {

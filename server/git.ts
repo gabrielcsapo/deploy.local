@@ -177,6 +177,33 @@ export function gitStringSync(cwd: string, args: string[], options: GitOptions =
       ? result.stdout.trim()
       : result.stdout.trimEnd();
 }
+/** Same contract as gitStringSync, including its error text, for callers that can yield. */
+export function gitString(cwd: string, args: string[], options: GitOptions = {}) {
+  return new Promise<string>((resolve, reject) => {
+    const child = execFile(
+      'git',
+      gitArguments(cwd, args, options),
+      {
+        env: options.env,
+        encoding: 'utf8',
+        timeout: options.timeout,
+        maxBuffer: options.maxBuffer ?? 1024 * 1024,
+      },
+      (error, stdout, stderr) => {
+        if (error) return reject(new Error(stderr || options.fallback || 'Git failed'));
+        resolve(
+          options.trim === 'none'
+            ? stdout
+            : options.trim === 'both'
+              ? stdout.trim()
+              : stdout.trimEnd(),
+        );
+      },
+    );
+    child.stdin?.on('error', () => {}); // The exit status reports a rejected command.
+    child.stdin?.end(options.input);
+  });
+}
 /** Same small-read contract as gitSync, for callers that can yield. */
 export async function gitRead(cwd: string, args: string[]): Promise<string | null> {
   return new Promise((resolve) => {

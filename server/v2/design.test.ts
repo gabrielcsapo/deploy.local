@@ -358,7 +358,7 @@ test('accepting an agent’s changes puts them on a design branch, never straigh
 });
 
 test('proposing asks in Waiting on you; approving puts the design on main, asking for changes notes it', async () => {
-  const { answerInbox, syncInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox, syncInbox } = await import('./inbox.ts');
   assert.equal(
     (await call('/propose', { method: 'POST', body: JSON.stringify({ ref: 'main' }) })).status,
     400,
@@ -391,7 +391,7 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   assert.equal(again.item.id, item.id);
 
   const before = await git(['rev-parse', 'main']);
-  answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  await answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
   const approved = await git(['rev-parse', 'main']);
   assert.notEqual(approved, before);
   assert.equal(await git(['rev-parse', `${approved}^`]), before);
@@ -414,14 +414,18 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   ).json();
   assert.equal(forTask.item.taskId, 'ab12cd34-0000');
   save('run', 'alice', { id: 'design-feedback-run', taskId: 'ab12cd34-0000', status: 'running' });
-  answerInbox('alice', forTask.item.id, { actionId: 'changes', on: 'web', note: 'Too big now' });
+  await answerInbox('alice', forTask.item.id, {
+    actionId: 'changes',
+    on: 'web',
+    note: 'Too big now',
+  });
   const notes = await (await call('/comments?board=Welcome.html')).json();
   assert.ok(notes.comments.some((comment: any) => comment.text === 'Too big now'));
   assert.equal(await git(['rev-parse', 'main']), approved);
 });
 
 test('approving a design that removes a board works in a bare repository', async () => {
-  const { answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
   const work = join(root, 'bare-source');
   mkdirSync(join(work, 'design/boards'), { recursive: true });
   const inWork = (args: string[]) => gitText(work, args);
@@ -458,7 +462,7 @@ test('approving a design that removes a board works in a bare repository', async
   const proposal = await proposed.json();
   assert.equal(proposed.status, 201, JSON.stringify(proposal));
   const { item } = proposal;
-  answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  await answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
   const inBare = (args: string[]) => gitText(bare, args);
   const files = await inBare(['ls-tree', '-r', '--name-only', 'main']);
   assert.ok(files.includes('design/boards/Keep.html'));
@@ -482,7 +486,7 @@ test('agents show where they work, comment and resolve through deploy_design', a
     title: 'Design: Welcome › title',
     baseRevision: main,
   });
-  const here = designTool(scope, {
+  const here = await designTool(scope, {
     action: 'presence',
     board: 'Welcome.html',
     layer: 'title',
@@ -498,26 +502,29 @@ test('agents show where they work, comment and resolve through deploy_design', a
     (await (await call('/presence', { owner: 'mallory' })).json?.())?.agents ?? [],
     [],
   );
-  designTool(scope, { action: 'presence' });
+  await designTool(scope, { action: 'presence' });
   assert.deepEqual((await (await call('/presence')).json()).agents, []);
 
-  const { comment } = designTool(scope, {
+  const { comment } = await designTool(scope, {
     action: 'comment',
     board: 'Welcome.html',
     layer: 'title',
     text: 'Bigger now; check 390.',
   });
   assert.deepEqual(comment.agent, { taskId: 'ab12cd34-0000', title: 'Design: Welcome › title' });
-  const open = designTool(scope, { action: 'comments', board: 'Welcome.html' }).comments;
+  const open = (await designTool(scope, { action: 'comments', board: 'Welcome.html' })).comments;
   assert.ok(open.some((row: any) => row.id === comment.id));
-  designTool(scope, { action: 'resolve', commentId: comment.id });
+  await designTool(scope, { action: 'resolve', commentId: comment.id });
   assert.ok(
-    !designTool(scope, { action: 'comments', board: 'Welcome.html' }).comments.some(
+    !(await designTool(scope, { action: 'comments', board: 'Welcome.html' })).comments.some(
       (row: any) => row.id === comment.id,
     ),
   );
-  assert.throws(() => designTool(scope, { action: 'presence', board: '../x' }), /board must be/);
-  assert.throws(() => designTool(scope, { action: 'approve' }), /action must be/);
+  await assert.rejects(
+    () => designTool(scope, { action: 'presence', board: '../x' }),
+    /board must be/,
+  );
+  await assert.rejects(() => designTool(scope, { action: 'approve' }), /action must be/);
 });
 
 test('direct edits commit to a design branch, starting one from main, and refuse a stale head', async () => {
@@ -698,7 +705,7 @@ test('the pen draws marks on the canvas, beside the boards, and they change a pr
 
 test('Assets lists the library and its use, and approving a library change updates every instance', async () => {
   const { spawnSync } = await import('node:child_process');
-  const { answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
   // Commit files onto a branch without touching the checkout.
   const commitFiles = (branch: string, from: string, files: Record<string, string>) => {
     const env = {
@@ -759,7 +766,7 @@ test('Assets lists the library and its use, and approving a library change updat
   const { item } = await (
     await call('/propose', { method: 'POST', body: JSON.stringify({ ref: 'design/tag-style' }) })
   ).json();
-  answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  await answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
   assert.match(
     await git(['show', 'main:design/boards/Welcome.html']),
     /<em data-layer="[^"]+" class="dl-tag" data-props="[^"]+" data-component="tag" data-name="Tag" style="position:absolute;left:10px;top:20px">New<\/em>/,
@@ -767,7 +774,7 @@ test('Assets lists the library and its use, and approving a library change updat
 });
 
 test('approving one design branch keeps what another approval added to main since it started', async () => {
-  const { answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
   // Two branches from the same main: one adds a board, the other a note.
   const board = await (
     await call('/canvas', {
@@ -785,7 +792,7 @@ test('approving one design branch keeps what another approval added to main sinc
     const { item } = await (
       await call('/propose', { method: 'POST', body: JSON.stringify({ ref }) })
     ).json();
-    answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+    await answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
   }
   const canvas = JSON.parse(await git(['show', 'main:design/canvas.json']));
   assert.ok(canvas.boards[board.made], 'the first approval’s board is still on main');
@@ -794,7 +801,7 @@ test('approving one design branch keeps what another approval added to main sinc
 });
 
 test('approving stops when main rewrote the same lines of a board since the branch started', async () => {
-  const { answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
   const edit = async (text: string) =>
     (
       await call('/edit', {
@@ -809,9 +816,9 @@ test('approving stops when main rewrote the same lines of a board since the bran
   const [first, second] = [await edit('Hello there'), await edit('Hi again')];
   const propose = async (ref: string) =>
     (await (await call('/propose', { method: 'POST', body: JSON.stringify({ ref }) })).json()).item;
-  answerInbox('alice', (await propose(first.branch)).id, { actionId: 'approve', on: 'web' });
+  await answerInbox('alice', (await propose(first.branch)).id, { actionId: 'approve', on: 'web' });
   const later = await propose(second.branch);
-  assert.throws(
+  await assert.rejects(
     () => answerInbox('alice', later.id, { actionId: 'approve', on: 'web' }),
     /conflict with main/,
   );
@@ -1382,7 +1389,7 @@ test('unrelated main screens update automatically; overlapping edits block both 
   let review = await f.read(item);
   assert.equal(review.stale, false);
   assert.ok(review.updatedWithMainAt);
-  const { answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
   writeFileSync(
     join(f.path, 'design/boards/Alpha.html'),
     '<h1 data-layer="title">Main rewrote this screen</h1>',
@@ -1390,7 +1397,7 @@ test('unrelated main screens update automatically; overlapping edits block both 
   const main = await f.commit('Same screen');
   // No fresh GET is needed for the server to refuse a decision against stale data.
   for (const actionId of ['approve', 'changes'])
-    assert.throws(
+    await assert.rejects(
       () => answerInbox('alice', item.id, { actionId, on: 'web', note: 'Please adjust' }),
       /conflict with main/,
     );
@@ -1398,7 +1405,7 @@ test('unrelated main screens update automatically; overlapping edits block both 
   review = await f.read(item);
   assert.deepEqual(review.conflicts, ['Alpha.html']);
   assert.equal(review.stale, true);
-  answerInbox('alice', item.id, { actionId: 'update', on: 'web' });
+  await answerInbox('alice', item.id, { actionId: 'update', on: 'web' });
   const feedback = (await import('../workspace/store.ts')).get(
     'design-review-feedback',
     'alice',
@@ -1500,8 +1507,8 @@ test('pins persist as board comments, edits retain positions, deletion never reu
   const store = await import('../workspace/store.ts');
   const row = store.get('v2-inbox-native', 'alice', item.id);
   save('v2-inbox-native', 'alice', { ...row, context: { ...row.context, taskId } });
-  const { answerInbox } = await import('./inbox.ts');
-  const answer = answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const answer = await answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
   assert.equal(answer.answer?.actionId, 'changes');
   const message = store.get('queued-message', 'alice', taskId).content;
   assert.match(message, /Pin 1.*Alpha.html/);
@@ -1509,7 +1516,7 @@ test('pins persist as board comments, edits retain positions, deletion never reu
   assert.match(message, /Keep the name visible while scrolling\. \(drawn on the screen\)/);
   assert.equal(message.match(/Pin 1 ·/g)?.length, 1);
   assert.match(message, /Let it wrap to two lines/);
-  assert.throws(
+  await assert.rejects(
     () => answerInbox('alice', item.id, { actionId: 'changes', on: 'web' }),
     /already resolved/,
   );
@@ -1564,12 +1571,12 @@ test('seen state is owner/revision/screen scoped and round two retains only unch
       ],
     },
   });
-  const { answerInbox } = await import('./inbox.ts');
-  answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  await answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
   const pin = (await f.read(item)).pins[0];
   save('task', 'alice', { id: 'review-resolve-task', projectId: f.project.id });
   const { designTool } = await import('./design.ts');
-  designTool(
+  await designTool(
     { owner: 'alice', taskId: 'review-resolve-task' },
     { action: 'resolve', commentId: pin.id, reply: 'Added the source and date.' },
   );
@@ -1600,7 +1607,7 @@ test('seen state is owner/revision/screen scoped and round two retains only unch
   assert.equal((await f.read(next)).pins[0].resolved, true, 'looking does not change resolution');
   await f.call('/review/pins', { item: next.id, id: pin.id, resolved: false }, 'PATCH');
   assert.equal((await f.read(next)).pins[0].resolved, false);
-  answerInbox('alice', next.id, { actionId: 'approve', on: 'web' });
+  await answerInbox('alice', next.id, { actionId: 'approve', on: 'web' });
   assert.equal((await f.read(next)).pins[0].text, 'Explain the source.', 'approval keeps comments');
 });
 
@@ -1619,7 +1626,7 @@ test('deploy_design propose accepts summary/title and attributes the saved agent
     baseRevision: f.base,
   });
   const { designTool } = await import('./design.ts');
-  const result = designTool(
+  const result = await designTool(
     { owner: 'alice', taskId },
     {
       action: 'propose',
@@ -1656,12 +1663,12 @@ test('round two sends only still-open requests and keeps addressed requests with
       200,
     );
   }
-  const { answerInbox } = await import('./inbox.ts');
-  answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
+  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  await answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
   const pins = (await f.read(item)).pins;
   save('task', 'alice', { id: 'addressed-task', projectId: f.project.id });
   const { designTool } = await import('./design.ts');
-  designTool(
+  await designTool(
     { owner: 'alice', taskId: 'addressed-task' },
     {
       action: 'resolve',
@@ -1675,7 +1682,7 @@ test('round two sends only still-open requests and keeps addressed requests with
   );
   await f.commit('Added the source');
   const next = await f.propose();
-  answerInbox('alice', next.id, { actionId: 'changes', on: 'web' });
+  await answerInbox('alice', next.id, { actionId: 'changes', on: 'web' });
   const feedback = (await import('../workspace/store.ts')).get(
     'design-review-feedback',
     'alice',
@@ -1847,4 +1854,183 @@ test('drawing pins validate native coordinates, side, dimensions and bounded pat
   };
   assert.equal((await f.call('/review/pins', { ...body, drawing: maximum })).status, 200);
   assert.deepEqual((await f.read(item)).pins[0].drawing, maximum);
+});
+
+// Git is awaited, so requests overlap; these would lose work or fail without the repository lock.
+test('concurrent edits to one branch all land, one on top of the other', async () => {
+  const branch = (
+    await (await call('/branches', { method: 'POST', body: '{"name":"racing"}' })).json()
+  ).branch.name as string;
+  const start = await git(['rev-parse', branch]);
+  const post = (path: string, body: object) =>
+    call(path, { method: 'POST', body: JSON.stringify({ ref: branch, ...body }) });
+  const responses = await Promise.all([
+    ...['one', 'two', 'three'].map((text) =>
+      post('/canvas', { op: 'note', x: 0, y: 0, text: `Note ${text}` }),
+    ),
+    ...['first', 'second'].map((value) =>
+      post('/canvas', { op: 'board', x: 0, y: 0, kind: value === 'first' ? 'phone' : 'web' }),
+    ),
+    ...['one', 'two'].map((text) =>
+      post('/canvas', { op: 'note', x: 1, y: 1, text: `Later ${text}` }),
+    ),
+  ]);
+  assert.deepEqual(
+    responses.map((response) => response.status),
+    [200, 200, 200, 200, 200, 200, 200],
+  );
+  const commits = await Promise.all(responses.map((response) => response.json()));
+  // Every commit is on the branch: each was built on the one before, none replaced another.
+  const history = (await git(['rev-list', `${start}..${branch}`])).split('\n');
+  assert.equal(history.length, commits.length);
+  for (const { commit } of commits) assert.ok(history.includes(commit));
+  // And every change is in what the branch ends with.
+  const canvas = JSON.parse(await git(['show', `${branch}:design/canvas.json`]));
+  const notes = Object.values(canvas.notes).map((note: any) => note.text);
+  for (const text of ['Note one', 'Note two', 'Note three', 'Later one', 'Later two'])
+    assert.ok(notes.includes(text), text);
+  const made = commits.flatMap((commit) => (/^Board/.test(commit.made) ? [commit.made] : []));
+  assert.equal(new Set(made).size, 2);
+  for (const board of made) {
+    assert.ok(canvas.boards[board]);
+    await git(['rev-parse', '--verify', `${branch}:design/boards/${board}`]);
+  }
+
+  // An edit that names the commit it was made from still sees a branch that moved under it.
+  const head = await git(['rev-parse', branch]);
+  const stale = await Promise.all(
+    ['Big', 'Bigger'].map((text) =>
+      post('/edit', {
+        board: 'Welcome.html',
+        expect: head,
+        edits: [{ op: 'text', layer: 'title', text }],
+      }),
+    ),
+  );
+  assert.deepEqual(stale.map((response) => response.status).sort(), [200, 409]);
+  assert.match(
+    (await stale.find((response) => response.status === 409)!.json()).error,
+    /changed since you loaded/,
+  );
+  assert.equal(await git(['rev-parse', `${branch}^`]), head);
+});
+
+test('branches made at the same moment get different names', async () => {
+  const made = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      call('/branches', { method: 'POST', body: JSON.stringify({ name: 'same name' }) }),
+    ),
+  );
+  assert.deepEqual(
+    made.map((response) => response.status),
+    [201, 201, 201, 201],
+  );
+  const names = await Promise.all(
+    made.map(async (response) => (await response.json()).branch.name as string),
+  );
+  assert.deepEqual(names.sort(), [
+    'design/same-name',
+    'design/same-name-2',
+    'design/same-name-3',
+    'design/same-name-4',
+  ]);
+});
+
+test('two people approving at once make one commit on main; the other hears it was decided', async () => {
+  await git(['checkout', '-q', '-f', '-B', 'scratch', 'main']);
+  const onlyOnce = 'design/approved-twice';
+  await git(['checkout', '-q', '-b', onlyOnce]);
+  writeFileSync(join(repo, 'design/boards/Twice.html'), '<p data-layer="p">Twice</p>');
+  await git(['add', '.']);
+  await git(['commit', '-qm', 'Add a board']);
+  await git(['checkout', '-q', '-f', 'main']);
+  const { item } = await (
+    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: onlyOnce }) })
+  ).json();
+  const before = await git(['rev-parse', 'main']);
+  const answers = await Promise.all(
+    [1, 2].map(() =>
+      fetch(`${origin}/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-test-owner': 'alice' },
+        body: JSON.stringify({ actionId: 'approve', on: 'web' }),
+      }),
+    ),
+  );
+  assert.deepEqual(answers.map((answer) => answer.status).sort(), [200, 409]);
+  assert.equal(await git(['rev-parse', 'main^']), before);
+  assert.equal(await git(['show', 'main:design/boards/Twice.html']), '<p data-layer="p">Twice</p>');
+});
+
+test('a review and a proposal of the same commit can overlap its approval', async () => {
+  await git(['checkout', '-q', '-f', '-B', 'scratch', 'main']);
+  const name = 'design/approved-beside-edits';
+  await git(['checkout', '-q', '-b', name]);
+  writeFileSync(join(repo, 'design/boards/Beside.html'), '<p data-layer="p">Beside</p>');
+  await git(['add', '.']);
+  await git(['commit', '-qm', 'Add a board']);
+  await git(['checkout', '-q', '-f', 'main']);
+  const { item } = await (
+    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: name }) })
+  ).json();
+  // The proposal's reviewer reads while it is decided: never a half-made answer or a server error.
+  const [answer, review, proposed] = await Promise.all([
+    fetch(`${origin}/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-owner': 'alice' },
+      body: JSON.stringify({ actionId: 'approve', on: 'web' }),
+    }),
+    call(`/review?item=${encodeURIComponent(item.id)}`),
+    // Proposing the same commit while it is decided returns the request as it stands.
+    call('/propose', { method: 'POST', body: JSON.stringify({ ref: name }) }),
+  ]);
+  assert.equal(answer.status, 200);
+  assert.equal(review.status, 200);
+  assert.equal((await review.json()).boards.length, 1);
+  assert.equal(proposed.status, 201);
+  assert.equal(
+    await git(['show', 'main:design/boards/Beside.html']),
+    '<p data-layer="p">Beside</p>',
+  );
+});
+
+test('pins dropped at the same moment get their own numbers', async () => {
+  await git(['checkout', '-q', '-f', '-B', 'scratch', 'main']);
+  const name = 'design/pinned-together';
+  await git(['checkout', '-q', '-b', name]);
+  writeFileSync(join(repo, 'design/boards/Welcome.html'), '<h1 data-layer="title">Pinned</h1>');
+  await git(['add', '.']);
+  await git(['commit', '-qm', 'Pinned']);
+  await git(['checkout', '-q', '-f', 'main']);
+  const { item } = await (
+    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: name }) })
+  ).json();
+  const query = `/review?item=${encodeURIComponent(item.id)}`;
+  const review = await (await call(query)).json();
+  const screen = review.boards[0];
+  const pins = await Promise.all(
+    [1, 2, 3, 4].map((n) =>
+      call('/review/pins', {
+        method: 'POST',
+        body: JSON.stringify({
+          item: item.id,
+          board: screen.file,
+          revision: screen.after,
+          width: screen.widths[0],
+          x: n,
+          y: n,
+          text: `Pin ${n}`,
+        }),
+      }),
+    ),
+  );
+  assert.deepEqual(
+    pins.map((pin) => pin.status),
+    [200, 200, 200, 200],
+  );
+  const after = await (await call(query)).json();
+  assert.deepEqual(
+    after.pins.map((pin: any) => pin.number),
+    [1, 2, 3, 4],
+  );
 });
