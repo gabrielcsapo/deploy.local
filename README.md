@@ -407,6 +407,15 @@ creation, verification, clean-directory rehearsal, and restore are maintenance o
 by Home. Rehearsal restores into an isolated temporary directory and records `passed` only after the
 restored inventory, identity and key material, and application/data lineage validate.
 
+A bundle holds `deploy.db`, `requests.db`, `workspace/workspace.db` (projects, tasks, runs and
+chats), `secrets/master.key`, `identities/`, `certs/`, `ssh_host_ed25519_key`, release journals,
+application revision artifacts and, if they fit, hosted packages. Databases and keys over 128 MB in
+total refuse with an error naming the largest files. Git repositories, attachments, app volumes and
+app backups are not in a bundle; they travel with the whole-directory backup.
+
+A data directory that holds encrypted data but has no `secrets/master.key` will not start. The
+error names the file and how to fix it. Only a directory with no encrypted data gets a new key.
+
 For unattended freshness, set `DEPLOY_RECOVERY_PASSPHRASE` to a dedicated value of at least 12
 characters. Home then creates, independently verifies, rehearses, and retains scheduled bundles
 daily. `DEPLOY_RECOVERY_DIRECTORY`, `DEPLOY_RECOVERY_RETENTION`, and
