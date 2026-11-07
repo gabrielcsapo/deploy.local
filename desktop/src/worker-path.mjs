@@ -1,5 +1,6 @@
-// Shared by the installed task worker and desktop shell. Keep this in src so Electron's
-// existing package files include it alongside worker.mjs.
+// The PATH for task workers, shared by the desktop shell and bin/agent-services.mjs. It lives in
+// desktop/src because Electron only packages this folder and runs it unbundled from the ASAR, while
+// the standalone CLI bundles it with esbuild. Use only Node built-ins here so both keep working.
 import { accessSync, constants, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, delimiter } from 'node:path';
 import { homedir } from 'node:os';
