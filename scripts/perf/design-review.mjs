@@ -229,11 +229,11 @@ async function measureApi() {
     git('commit', '-qam', 'Another revision');
     git('checkout', '-q', 'main');
     const project = read('project', owner, 'deploy-local');
-    const made = proposeDesign(owner, project, { ref: branch });
+    const made = await proposeDesign(owner, project, { ref: branch });
     const row = read('v2-inbox-native', owner, made.id);
     const spawnsBefore = gitSpawns;
     const started = performance.now();
-    designReview(owner, project, row);
+    await designReview(owner, project, row);
     return { ms: performance.now() - started, bytes: 0, spawns: gitSpawns - spawnsBefore };
   });
   const review = await json(`${api.slice(origin.length)}/review?item=${itemPath}`);
