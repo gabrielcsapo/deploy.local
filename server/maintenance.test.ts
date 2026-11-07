@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import Database from 'better-sqlite3';
 
-test('scheduled backup snapshots both databases, including requests still in WAL', async (t) => {
+test('scheduled backup snapshots every database, including requests still in WAL', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'request-backup-'));
   process.env.DEPLOY_DATA_DIR = root;
   const store = await import('./store.ts');
@@ -22,10 +22,16 @@ test('scheduled backup snapshots both databases, including requests still in WAL
       `INSERT INTO request_logs(deployment_name,method,path,status,duration,timestamp) VALUES('app','GET','/snapshot',200,5,?)`,
     )
     .run(Date.now());
+  const workspace = await import('./workspace/store.ts');
+  workspace.save('task', 'admin', { id: 'in-the-wal' });
   await snapshotDatabase();
   const control = new Database(join(root, 'deploy.db.snapshot'), { readonly: true });
   const requests = new Database(join(root, 'requests.db.snapshot'), { readonly: true });
+  const tasks = new Database(join(root, 'workspace', 'workspace.db.snapshot'), { readonly: true });
   try {
+    assert.deepEqual(tasks.prepare("SELECT id FROM records WHERE kind='task'").all(), [
+      { id: 'in-the-wal' },
+    ]);
     assert.equal(
       (control.prepare('SELECT count(*) AS n FROM request_logs').get() as { n: number }).n,
       0,
@@ -36,6 +42,7 @@ test('scheduled backup snapshots both databases, including requests still in WAL
     );
     assert.equal(requests.pragma('integrity_check', { simple: true }), 'ok');
   } finally {
+    tasks.close();
     requests.close();
     control.close();
   }

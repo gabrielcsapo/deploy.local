@@ -12,8 +12,6 @@ import { legacyUpdateProtected } from './legacy-docker-update.ts';
  * - Periodic rsync of .deploy-data/ to external destination (cron-scheduled)
  */
 
-import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { Cron } from 'croner';
 import {
@@ -30,6 +28,16 @@ import { pruneOldCaptures } from './capture.ts';
 import { createCoordinatorApplicationBackup } from './application-backups.ts';
 import { deployDataDirectory } from './data-directory.ts';
 import { startRecoveryBoundaryScheduler } from './recovery-bundle-scheduler.ts';
+import {
+  assertRoomForSnapshots,
+  destinationProblem,
+  markCopyComplete,
+  markCopyStarted,
+  removeSnapshots,
+  rsyncArguments,
+  rsyncFailure,
+  snapshotDatabases,
+} from './rsync-backup.ts';
 
 const DATA_DIR = deployDataDirectory();
 const VACUUM_INTERVAL_MS = 6 * 60 * 60 * 1000; // Run incremental vacuum every 6 hours
@@ -125,20 +133,17 @@ function runIncrementalVacuum() {
 
 // ── rsync backup ─────────────────────────────────────────────────────────────
 
-// Online-backup snapshot of the live DB. rsync-ing `deploy.db` while WAL
-// writers are active can copy torn pages (and we exclude the WAL, dropping
-// committed-but-uncheckpointed data) — the restored copy may be corrupt or
-// stale exactly when it matters. better-sqlite3's backup API produces a
-// transactionally-consistent snapshot file; we ship that instead and exclude
-// the live DB files from the rsync. Restore both *.db.snapshot files to their
-// matching *.db names on an offline replacement.
-const DB_SNAPSHOT_NAME = 'deploy.db.snapshot';
-
-export async function snapshotDatabase(): Promise<void> {
-  const sqlite = getSqlite();
-  if (!sqlite) throw new Error('SQLite not initialized');
-  await sqlite.backup(resolve(DATA_DIR, DB_SNAPSHOT_NAME));
-  await getRequestsSqlite().backup(resolve(DATA_DIR, 'requests.db.snapshot'));
+// Online-backup snapshots of the live databases. rsync-ing a live database can
+// copy torn pages and lose whatever is still in its WAL, so the copy carries
+// consistent `<database>.snapshot` files instead and excludes the live ones. They
+// sit on the data disk only for the length of a backup. README.md and
+// scripts/restore-backup.mjs turn them back into databases.
+export async function snapshotDatabase(root = DATA_DIR): Promise<void> {
+  if (!getSqlite()) throw new Error('SQLite not initialized');
+  getRequestsSqlite();
+  removeSnapshots(root);
+  assertRoomForSnapshots(root);
+  await snapshotDatabases(root);
 }
 
 async function waitForBackupJob(jobId: string, nodeName: string) {
@@ -205,7 +210,9 @@ async function runFleetApplicationBackups() {
   }
 }
 
-async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number; error?: string }> {
+type BackupResult = { success: boolean; durationMs: number; error?: string };
+
+async function runRsyncBackup(): Promise<BackupResult> {
   const settings = getBackupSettings();
 
   if (!settings.enabled) {
@@ -216,88 +223,59 @@ async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number;
     return { success: false, durationMs: 0, error: 'No destination configured' };
   }
 
-  if (!_backupStatus.running) {
-    try {
-      await runFleetApplicationBackups();
-      await snapshotDatabase();
-    } catch (err) {
-      const msg = `DB snapshot failed: ${(err as Error).message}`;
-      console.error(`rsync backup aborted: ${msg}`);
-      _backupStatus = {
-        lastRunAt: new Date().toISOString(),
-        lastSuccess: false,
-        lastDurationMs: 0,
-        lastError: msg,
-        running: false,
-      };
-      return { success: false, durationMs: 0, error: msg };
-    }
+  if (_backupStatus.running) {
+    return { success: false, durationMs: 0, error: 'Backup already in progress' };
   }
 
+  _backupStatus.running = true;
+  const start = Date.now();
+  const finish = (error?: string): BackupResult => {
+    const durationMs = Date.now() - start;
+    if (error) console.error(`rsync backup failed: ${error}`);
+    else console.log(`rsync backup completed in ${durationMs}ms`);
+    _backupStatus = {
+      lastRunAt: new Date().toISOString(),
+      lastSuccess: !error,
+      lastDurationMs: durationMs,
+      lastError: error ?? null,
+      running: false,
+    };
+    return { success: !error, durationMs, error };
+  };
+
+  // Before any work, so a drive that isn't attached costs nothing and writes nothing.
+  const problem = destinationProblem(DATA_DIR, settings.destination);
+  if (problem) return finish(problem);
+
+  try {
+    await runFleetApplicationBackups();
+    await snapshotDatabase();
+  } catch (err) {
+    removeSnapshots(DATA_DIR);
+    return finish(`DB snapshot failed: ${(err as Error).message}`);
+  }
+
+  try {
+    // The steps above can take minutes, and a drive can go away during them.
+    const stillThere = destinationProblem(DATA_DIR, settings.destination);
+    if (stillThere) return finish(stillThere);
+    markCopyStarted(settings.destination);
+    const error = await copyToDestination(settings.destination);
+    if (!error) markCopyComplete(DATA_DIR, settings.destination);
+    return finish(error ?? undefined);
+  } catch (err) {
+    return finish(`Backup failed: ${(err as Error).message}`);
+  } finally {
+    removeSnapshots(DATA_DIR);
+  }
+}
+
+function copyToDestination(destination: string): Promise<string | null> {
   return new Promise((resolvePromise) => {
-    // Check if destination parent directory exists (handle unmounted volumes)
-    const destParent = resolve(settings.destination, '..');
-    if (!existsSync(destParent)) {
-      const msg = `Destination parent does not exist: ${destParent} (volume may not be mounted)`;
-      console.warn(`rsync backup skipped: ${msg}`);
-      _backupStatus = {
-        lastRunAt: new Date().toISOString(),
-        lastSuccess: false,
-        lastDurationMs: 0,
-        lastError: msg,
-        running: false,
-      };
-      resolvePromise({ success: false, durationMs: 0, error: msg });
-      return;
-    }
-
-    if (_backupStatus.running) {
-      resolvePromise({ success: false, durationMs: 0, error: 'Backup already in progress' });
-      return;
-    }
-
-    _backupStatus.running = true;
-    const start = Date.now();
-
-    // Trailing slash on source is important: copies CONTENTS of src into dest
-    const source = DATA_DIR.endsWith('/') ? DATA_DIR : DATA_DIR + '/';
-    const dest = settings.destination.endsWith('/')
-      ? settings.destination
-      : settings.destination + '/';
-
-    console.log(`Starting rsync backup: ${source} -> ${dest}`);
-
-    const proc = spawn(
-      'rsync',
-      [
-        '-a', // archive mode
-        '--delete', // mirror deletions
-        // The live DB files are excluded; deploy.db.snapshot and
-        // requests.db.snapshot are consistent online-backup copies.
-        '--exclude',
-        'deploy.db',
-        '--exclude',
-        'deploy.db-wal',
-        '--exclude',
-        'deploy.db-shm',
-        '--exclude',
-        'requests.db',
-        '--exclude',
-        'requests.db-wal',
-        '--exclude',
-        'requests.db-shm',
-        // Hosted packages are durable data; the refetchable copy and incomplete writes are not.
-        '--exclude',
-        '/packages/cache/',
-        '--exclude',
-        '/packages/tmp/',
-        source,
-        dest,
-      ],
-      {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
+    console.log(`Starting rsync backup: ${DATA_DIR} -> ${destination}`);
+    const proc = spawn('rsync', rsyncArguments(DATA_DIR, destination), {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
 
     let stderr = '';
 
@@ -306,42 +284,12 @@ async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number;
     });
 
     proc.on('error', (err) => {
-      const durationMs = Date.now() - start;
-      const errorMsg = `rsync spawn error: ${err.message}`;
-      console.error(errorMsg);
-      _backupStatus = {
-        lastRunAt: new Date().toISOString(),
-        lastSuccess: false,
-        lastDurationMs: durationMs,
-        lastError: errorMsg,
-        running: false,
-      };
-      resolvePromise({ success: false, durationMs, error: errorMsg });
+      resolvePromise(`rsync spawn error: ${err.message}`);
     });
 
     proc.on('close', (code) => {
-      const durationMs = Date.now() - start;
-      const success = code === 0;
-
-      if (success) {
-        console.log(`rsync backup completed in ${durationMs}ms`);
-      } else {
-        console.error(`rsync backup failed (exit code ${code}): ${stderr}`);
-      }
-
-      _backupStatus = {
-        lastRunAt: new Date().toISOString(),
-        lastSuccess: success,
-        lastDurationMs: durationMs,
-        lastError: success ? null : stderr.trim() || `Exit code ${code}`,
-        running: false,
-      };
-
-      resolvePromise({
-        success,
-        durationMs,
-        error: success ? undefined : stderr.trim() || `Exit code ${code}`,
-      });
+      if (code === 24) console.warn(`rsync backup: files vanished during the copy: ${stderr}`);
+      resolvePromise(rsyncFailure(code, stderr, destination));
     });
   });
 }

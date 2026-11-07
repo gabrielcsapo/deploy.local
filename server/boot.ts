@@ -35,6 +35,8 @@ import { initEdgeRuntime, getDefaultDbFile } from './edge/runtime.ts';
 import { startEdgeIpcServer, connectEdgeIpc, getEdgeSockPath } from './ipc.ts';
 import { emit } from './events.ts';
 import { startApplicationGraphSupervisor } from './application-graph-supervisor.ts';
+import { deployDataDirectory } from './data-directory.ts';
+import { loadOrCreateSecretKey } from './secrets.ts';
 
 /** Serves the pages and assets of the web app: every request the API does not claim. */
 export type ClientHandler = (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
@@ -94,6 +96,9 @@ async function start(options: BootOptions) {
   const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
   const CONTROL_PORT = parseInt(process.env.CONTROL_PORT || '7843', 10);
 
+  // Before anything starts: a data directory that lost its key stops here with the reason, rather
+  // than running with stored secrets it can't open.
+  loadOrCreateSecretKey(deployDataDirectory());
   initializeRequestStorage(getSqlite()!);
   // Generate CA + server certs on first startup, including all known
   // deployments. Both roles: the control plane owns cert generation; the

@@ -578,7 +578,7 @@ describe('encrypted Home recovery bundle', () => {
       const created = await recovery.createRecoveryBundle({ outputPath: bundlePath, passphrase });
       assert.equal(created.receipt.hostedPackages.included, false);
       assert.ok(created.receipt.hostedPackages.byteSize > 256 * 1024 * 1024);
-      assert.equal(created.receipt.hostedPackages.limitBytes, 256 * 1024 * 1024);
+      assert.equal(created.receipt.hostedPackages.limitBytes, 128 * 1024 * 1024);
       const row = store
         .getSqlite()!
         .prepare('SELECT encryption_metadata FROM fleet_recovery_bundles WHERE id=?')

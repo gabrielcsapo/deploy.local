@@ -54,6 +54,8 @@ const INVENTORY_TABLES = [
   'release_candidates',
 ] as const;
 const SHA256_HEX = /^[a-f0-9]{64}$/;
+const WORKSPACE_DATABASE = 'workspace/workspace.db';
+const SSH_HOST_KEY = 'ssh_host_ed25519_key';
 
 interface RecoveryFile {
   path: string;
@@ -66,7 +68,11 @@ interface RecoveryFile {
 export interface RecoveryReceipt {
   hostedPackages: { included: boolean; byteSize: number; limitBytes: number };
 }
-const RECOVERY_FILE_LIMIT = 256 * 1024 * 1024;
+// A bundle is one JSON string with its files base64-encoded twice, so 1.78 characters per byte.
+// JSON.stringify of a string of 2^28 characters aborts the whole process (V8 "Zone Allocation
+// failed", which nothing can catch). That is 144 MiB of files; this leaves room for the inventory.
+const RECOVERY_FILE_LIMIT = 128 * 1024 * 1024;
+const megabytes = (bytes: number) => `${Math.ceil(bytes / (1024 * 1024))} MB`;
 
 interface RecoveryPayload {
   formatVersion: 1;
@@ -259,11 +265,54 @@ export function buildRecoveryInventory(): RecoveryInventory {
   return buildRecoveryInventoryFromDatabase(getSqlite()!);
 }
 
+/**
+ * Worker-only. Copies the whole database in a single backup step, which is one read transaction:
+ * every committed page, WAL included, and nothing uncommitted. Tasks write here from several
+ * connections, and any such write restarts a page-by-page backup, so the default rate might never
+ * finish while an agent is streaming. Off the control thread, the one long step blocks nothing.
+ */
+async function snapshotWorkspaceDatabase(root: string, directory: string): Promise<void> {
+  const target = resolve(directory, 'workspace.db');
+  const database = new Database(resolve(root, WORKSPACE_DATABASE), {
+    readonly: true,
+    fileMustExist: true,
+  });
+  try {
+    await database.backup(target, { progress: () => 0x7fffffff });
+  } finally {
+    database.close();
+  }
+  // The server turns WAL back on when it opens the restored file.
+  const snapshot = new Database(target);
+  try {
+    snapshot.pragma('journal_mode = DELETE');
+  } finally {
+    snapshot.close();
+  }
+  chmodSync(target, 0o600);
+}
+
+function assertFitsInBundle(files: Array<{ path: string; size: number }>): void {
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total <= RECOVERY_FILE_LIMIT) return;
+  const largest = [...files]
+    .sort((left, right) => right.size - left.size)
+    .slice(0, 3)
+    .map((file) => `${file.path} ${megabytes(file.size)}`);
+  throw new Error(
+    `Recovery bundle not created: its databases and keys are ${megabytes(total)}, over the ${megabytes(RECOVERY_FILE_LIMIT)} a bundle can hold. Largest: ${largest.join(', ')}.`,
+  );
+}
+
 function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   const files: Array<{ source: string; path: string }> = [
     { source: databaseSnapshot, path: 'deploy.db' },
     { source: resolve(dirname(databaseSnapshot), 'requests.db'), path: 'requests.db' },
+    { source: resolve(dirname(databaseSnapshot), 'workspace.db'), path: WORKSPACE_DATABASE },
   ];
+  // Git clients pin this key, and the server silently makes a new one when it is missing.
+  if (existsSync(resolve(root, SSH_HOST_KEY)))
+    files.push({ source: resolve(root, SSH_HOST_KEY), path: SSH_HOST_KEY });
   const snapshot = new Database(databaseSnapshot, { readonly: true, fileMustExist: true });
   try {
     const artifacts = snapshot
@@ -294,7 +343,16 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   // fleet. Keep it inside the encrypted recovery boundary next to the signing
   // identities and secret-store key. `certificates` remains a legacy import
   // path for installations that used the old directory name.
-  for (const directory of ['identities', 'secrets', 'certs', 'certificates', 'packages/hosted']) {
+  // `project-releases/journals` belongs with the v2-release records in workspace.db: rollback and
+  // restart recovery of a release read its migration receipts from there.
+  for (const directory of [
+    'identities',
+    'secrets',
+    'certs',
+    'certificates',
+    'project-releases/journals',
+    'packages/hosted',
+  ]) {
     const sourceRoot = resolve(root, directory);
     if (!existsSync(sourceRoot)) continue;
     const queue = [sourceRoot];
@@ -305,7 +363,8 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
         throw new Error(`Recovery material contains an unsupported special file: ${path}`);
       if (metadata.isDirectory()) {
         for (const child of readdirSync(path)) queue.push(resolve(path, child));
-      } else {
+      } else if (!path.endsWith('.tmp')) {
+        // A journal being written is a .tmp that may be renamed away before it is read.
         files.push({ source: path, path: relative(root, path).split(sep).join('/') });
       }
     }
@@ -316,6 +375,11 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
     .filter((file) => file.path.startsWith('packages/hosted/'))
     .reduce((sum, file) => sum + statSync(file.source).size, 0);
   const total = files.reduce((sum, file) => sum + statSync(file.source).size, 0);
+  assertFitsInBundle(
+    files
+      .filter((file) => !file.path.startsWith('packages/hosted/'))
+      .map((file) => ({ path: file.path, size: statSync(file.source).size })),
+  );
   const receipt: RecoveryReceipt = {
     hostedPackages: {
       included: total <= RECOVERY_FILE_LIMIT,
@@ -325,7 +389,7 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   };
   if (!receipt.hostedPackages.included && byteSize)
     console.warn(
-      'Recovery bundle omitted packages/hosted: total files exceed 256 MB. Scheduled backups still include hosted packages.',
+      `Recovery bundle omitted packages/hosted: total files exceed ${megabytes(RECOVERY_FILE_LIMIT)}. Scheduled backups still include hosted packages.`,
     );
   const selected = files.filter(
     (file) => receipt.hostedPackages.included || !file.path.startsWith('packages/hosted/'),
@@ -468,6 +532,19 @@ function extractPayload(payload: RecoveryPayload, destinationDirectory: string):
   }
 }
 
+function assertIntactWorkspaceDatabase(directory: string): void {
+  // Bundles made before workspace.db was included don't have one.
+  const file = resolve(directory, WORKSPACE_DATABASE);
+  if (!existsSync(file)) return;
+  const workspace = new Database(file, { readonly: true, fileMustExist: true });
+  try {
+    if (workspace.pragma('integrity_check', { simple: true }) !== 'ok')
+      throw new Error('Recovered workspace database failed integrity_check');
+  } finally {
+    workspace.close();
+  }
+}
+
 function verifyExtractedDatabase(directory: string, payload: RecoveryPayload): void {
   // Older bundles contain only deploy.db; startup imports their request history.
   const requestsFile = resolve(directory, 'requests.db');
@@ -480,6 +557,7 @@ function verifyExtractedDatabase(directory: string, payload: RecoveryPayload): v
       requests.close();
     }
   }
+  assertIntactWorkspaceDatabase(directory);
   const database = new Database(resolve(directory, 'deploy.db'), {
     readonly: true,
     fileMustExist: true,
@@ -849,6 +927,7 @@ function auditRestoredRecovery(
     if (integrity.length !== 1 || integrity[0]?.integrity_check !== 'ok') {
       throw new Error('Rehearsed control-plane database failed integrity_check');
     }
+    assertIntactWorkspaceDatabase(directory);
     const restoredInventory = buildRecoveryInventoryFromDatabase(database);
     if (
       digest(restoredInventory) !== payload.inventoryDigest ||
@@ -950,6 +1029,14 @@ export async function createRecoveryBundle(input: {
   inventoryDigest: string;
   receipt: RecoveryReceipt;
 }> {
+  // Before any snapshot: databases too big to bundle shouldn't first be copied to the temp disk, and
+  // under a busy writer the page-by-page copies below might never finish to reach the worker's check.
+  assertFitsInBundle(
+    ['deploy.db', 'requests.db', WORKSPACE_DATABASE].map((path) => {
+      const file = resolve(deployDataDirectory(), path);
+      return { path, size: existsSync(file) ? statSync(file).size : 0 };
+    }),
+  );
   ensureApplicationRevisionArtifacts();
   const fleet = ensureFleetIdentity();
   const temporary = mkdtempSync(join(tmpdir(), 'deploy-recovery-create-'));
@@ -1106,6 +1193,10 @@ export function restoreRecoveryBundle(input: {
     throw new Error('Recovery destination must be empty');
   const payload = decryptEnvelope(input.bundlePath, input.passphrase);
   validatePayload(payload);
+  if (!payload.files.some((file) => file.path === WORKSPACE_DATABASE))
+    console.warn(
+      `Recovery bundle has no ${WORKSPACE_DATABASE}. It was made before tasks, runs and chats were included, so ${destination} starts without them.`,
+    );
   try {
     extractPayload(payload, destination);
     verifyExtractedDatabase(destination, payload);
@@ -1236,6 +1327,7 @@ export async function writeRecoveryPayload(data: {
   databaseSnapshot: string;
   root: string;
 }) {
+  await snapshotWorkspaceDatabase(data.root, dirname(data.databaseSnapshot));
   const payload = {
     ...data.payload,
     ...collectRecoveryFiles(data.root, data.databaseSnapshot),
