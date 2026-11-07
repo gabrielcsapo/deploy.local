@@ -26,6 +26,7 @@ import {
   installedServices,
   uninstallServices,
   systemdQuote,
+  removeAgentDockerObjects,
 } from './agent-services.mjs';
 import { loadWorkerConfig, enableWorkerTlsTrust } from './worker-runtime.mjs';
 import { readNodeStatus } from '../server/workspace/node-status.ts';
@@ -2028,12 +2029,11 @@ async function processAgentJob(config, job) {
       );
       result = { [job.type]: true };
     } else if (job.type === 'delete') {
-      const graphContainers = agentGraphContainerNames(job.deploymentName);
-      if (graphContainers.length) {
-        spawnSync('docker', ['rm', '-f', ...graphContainers], { stdio: 'ignore' });
-      }
-      spawnSync('docker', ['rm', '-f', `deploy-sh-${job.deploymentName.toLowerCase()}`], {
-        stdio: 'ignore',
+      removeAgentDockerObjects({
+        deploymentName: job.deploymentName,
+        applicationId: job.payload?.applicationId,
+        docker: (args) =>
+          spawnSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
       });
       if (job.payload?.deleteVolumes !== false) {
         rmSync(resolve(agentConfigPath(), '..', 'data', 'volumes', job.deploymentName), {
@@ -2042,7 +2042,8 @@ async function processAgentJob(config, job) {
         });
       }
       await removeAgentRelay(job.deploymentName);
-      result = { deleted: true };
+      // The coordinator treats anything short of this as not confirmed gone.
+      result = { deleted: true, verified: true };
     } else if (job.type === 'logs') {
       const containerName = resolveAgentContainerName(
         job.deploymentName,

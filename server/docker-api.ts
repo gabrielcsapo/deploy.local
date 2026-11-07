@@ -210,6 +210,41 @@ export function listDeployContainers(): Promise<ApiContainerSummary[]> {
   });
 }
 
+/** All containers (any state) carrying a `key=value` label. */
+export function listContainersByLabel(label: string): Promise<ApiContainerSummary[]> {
+  const filters = encodeURIComponent(JSON.stringify({ label: [label] }));
+  return dockerRequest<ApiContainerSummary[]>({
+    method: 'GET',
+    path: `/containers/json?all=true&filters=${filters}`,
+  });
+}
+
+export async function listNetworkNamesByLabel(label: string): Promise<string[]> {
+  const filters = encodeURIComponent(JSON.stringify({ label: [label] }));
+  const networks = await dockerRequest<{ Name: string }[]>({
+    method: 'GET',
+    path: `/networks?filters=${filters}`,
+  });
+  return networks.map((network) => network.Name);
+}
+
+export async function listVolumeNamesByLabel(label: string): Promise<string[]> {
+  const filters = encodeURIComponent(JSON.stringify({ label: [label] }));
+  const listed = await dockerRequest<{ Volumes: { Name: string }[] | null }>({
+    method: 'GET',
+    path: `/volumes?filters=${filters}`,
+  });
+  return (listed.Volumes ?? []).map((volume) => volume.Name);
+}
+
+export async function apiRemoveNetwork(name: string): Promise<void> {
+  await dockerRequest({ method: 'DELETE', path: `/networks/${encodeURIComponent(name)}` });
+}
+
+export async function apiRemoveVolume(name: string): Promise<void> {
+  await dockerRequest({ method: 'DELETE', path: `/volumes/${encodeURIComponent(name)}` });
+}
+
 export interface ApiContainerInspect {
   Id: string;
   /** Content-addressed image ID used by this exact container. */

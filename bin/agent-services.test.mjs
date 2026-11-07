@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   servicePlan,
   assertAgentJobAllowed,
+  removeAgentDockerObjects,
   workerExecutablePaths,
   supervisedExecutable,
   serviceProgramArguments,
@@ -622,4 +623,84 @@ test('worker run fails safely before starting without enrollment or worker crede
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+// Answers like the Docker CLI for one app's objects, so nothing here reaches a real daemon.
+function fakeAgentDocker({ containers = [], networks = [], refuses = [], listingFails = false }) {
+  const state = { containers: new Set(containers), networks: new Set(networks), calls: [] };
+  state.docker = (args) => {
+    state.calls.push(args.join(' '));
+    if (args[0] === 'ps' || args[1] === 'ls') {
+      if (listingFails) return { status: 1, stdout: '', stderr: 'Cannot connect to the daemon' };
+      const filter = args[args.indexOf('--filter') + 1];
+      const pool = args[0] === 'ps' ? state.containers : state.networks;
+      const found = filter.startsWith('name=')
+        ? [...pool].filter((name) => new RegExp(filter.slice(5)).test(`/${name}`))
+        : filter === 'label=deploy-sh.app=web' || filter === 'label=deploy-sh.app-id=app-1'
+          ? [...pool].filter((name) => name.startsWith('graph-'))
+          : [];
+      return { status: 0, stdout: found.map((name) => `${name}\n`).join(''), stderr: '' };
+    }
+    const pool = args[0] === 'rm' ? state.containers : state.networks;
+    const names = args.slice(2);
+    for (const name of names) if (!refuses.includes(name)) pool.delete(name);
+    const refused = names.some((name) => refuses.includes(name));
+    return { status: refused ? 1 : 0, stdout: '', stderr: refused ? 'has active endpoints' : '' };
+  };
+  return state;
+}
+
+test('removing an app from a computer takes graph and legacy containers, then networks', () => {
+  const state = fakeAgentDocker({
+    containers: ['graph-web-1', 'deploy-sh-web', 'deploy-sh-web-prev-1', 'deploy-sh-web2'],
+    networks: ['graph-private', 'other-network'],
+  });
+  removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker });
+  assert.deepEqual([...state.containers], ['deploy-sh-web2']);
+  assert.deepEqual([...state.networks], ['other-network']);
+  const firstNetworkRemoval = state.calls.findIndex((call) => call.startsWith('network rm'));
+  const lastContainerRemoval = state.calls.findLastIndex((call) => call.startsWith('rm -f'));
+  assert.ok(lastContainerRemoval < firstNetworkRemoval);
+});
+
+test('removing an app from a computer also finds objects by application id', () => {
+  const state = fakeAgentDocker({ containers: ['graph-web-1'], networks: ['graph-private'] });
+  removeAgentDockerObjects({
+    deploymentName: 'renamed',
+    applicationId: 'app-1',
+    docker: state.docker,
+  });
+  assert.equal(state.containers.size, 0);
+  assert.equal(state.networks.size, 0);
+});
+
+test('removing an app with nothing left on the computer succeeds without removing anything', () => {
+  const state = fakeAgentDocker({ containers: ['deploy-sh-web2'] });
+  removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker });
+  assert.equal(
+    state.calls.some((call) => call.startsWith('rm') || call.startsWith('network rm')),
+    false,
+  );
+});
+
+test('anything Docker keeps fails the removal by name', () => {
+  const stuckContainer = fakeAgentDocker({ containers: ['graph-web-1'], refuses: ['graph-web-1'] });
+  assert.throws(
+    () => removeAgentDockerObjects({ deploymentName: 'web', docker: stuckContainer.docker }),
+    /Could not remove graph-web-1/,
+  );
+  const stuckNetwork = fakeAgentDocker({ networks: ['graph-private'], refuses: ['graph-private'] });
+  assert.throws(
+    () => removeAgentDockerObjects({ deploymentName: 'web', docker: stuckNetwork.docker }),
+    /Could not remove graph-private: has active endpoints/,
+  );
+});
+
+test('a daemon that cannot answer is a failure, not an empty computer', () => {
+  const state = fakeAgentDocker({ containers: ['graph-web-1'], listingFails: true });
+  assert.throws(
+    () => removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker }),
+    /Cannot connect to the daemon/,
+  );
+  assert.equal(state.containers.size, 1);
 });
