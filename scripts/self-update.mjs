@@ -47,7 +47,7 @@ export function readPrepare(output) {
     if (total?.[1] === 'pass') pass += Number(total[2]);
     if (total?.[1] === 'fail') failed += Number(total[2]);
     const where = line.match(
-      /^\s*test at (?:file:\/\/)?(?:.*?\/)?((?:server|app|packages|bin|shared|scripts)\/[^:\s]+):\d+/,
+      /^\s*test at (?:file:\/\/)?(?:.*?\/)?((?:server|app|packages|bin|shared|scripts|desktop|examples)\/[^:\s]+):\d+/,
     );
     if (where) files.add(where[1]);
   }
