@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import cronstrue from 'cronstrue';
 import { Action, Banner, Dialog, Empty, Field, Group, Icon, Item, Skeleton } from '@/components/ui';
 import type {
@@ -52,6 +52,7 @@ export default function Backups() {
   const [testPoint, setTestPoint] = useState<BackupPoint>();
   const [passphrase, setPassphrase] = useState('');
   const [notice, setNotice] = useState('');
+  const retry = useRef<() => Promise<void>>(async () => {});
   async function refresh() {
     const result: BackupsResponse = await request('/backups');
     setData(result);
@@ -72,7 +73,12 @@ export default function Backups() {
         const id = new URLSearchParams(window.location.search).get('restore');
         if (id) setSelected(result.backups.find((point) => point.id === id));
       })
-      .catch((error) => active && setError(error.message));
+      .catch((error) => {
+        if (active) {
+          retry.current = async () => {};
+          setError(error.message);
+        }
+      });
     return () => {
       active = false;
     };
@@ -80,7 +86,10 @@ export default function Backups() {
   useEffect(() => {
     if (!data?.restores.some((row) => ['creating', 'switching'].includes(row.state))) return;
     const timer = setInterval(() => {
-      void refresh().catch((error) => setError(error.message));
+      void refresh().catch((error) => {
+        retry.current = async () => {};
+        setError(error.message);
+      });
     }, 3000);
     return () => clearInterval(timer);
   }, [data]);
@@ -88,10 +97,14 @@ export default function Backups() {
     setBusy(true);
     setError('');
     setNotice('');
+    let completed = false;
     try {
       await work();
+      completed = true;
       await refresh();
     } catch (error) {
+      // A failed read must not repeat a mutation that already succeeded.
+      retry.current = completed ? async () => {} : work;
       setError(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
@@ -139,7 +152,11 @@ export default function Backups() {
             <Banner
               kind="danger"
               title="Backups could not complete"
-              action={<Action onClick={() => void act(async () => {})}>Try again</Action>}
+              action={
+                <Action variant="quiet" disabled={busy} onClick={() => void act(retry.current)}>
+                  Try again
+                </Action>
+              }
             >
               {error}
             </Banner>

@@ -319,7 +319,7 @@ export function V2Layout() {
 
 /**
  * A page that is not ready yet waits here, so the sidebar stays. The header stays too, because at
- * 600 px and below its menu button is the only way to the sidebar.
+ * 820 px and below its menu button is the only way to the sidebar.
  */
 function PageLoading() {
   return (
@@ -368,7 +368,12 @@ function V2Shell() {
     window.addEventListener('storage', changed);
     return () => window.removeEventListener('storage', changed);
   }, []);
+  const [open, setOpen] = useState(false);
   const toggleSidebar = useCallback(() => {
+    if (window.matchMedia('(max-width: 820px)').matches) {
+      setOpen((previous) => !previous);
+      return;
+    }
     setNavigation(changeDesktopUpdateNavigation(navigation, 'toggle-sidebar'));
   }, [navigation]);
   const setUpdateOpen = useCallback((open: boolean) => {
@@ -379,12 +384,21 @@ function V2Shell() {
   useEffect(() => {
     if (data.desktopUpdate.status.phase === 'idle') setUpdateOpen(false);
   }, [data.desktopUpdate.status.phase, setUpdateOpen]);
-  const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    const show = () => setOpen(true);
+    const compact = window.matchMedia('(max-width: 820px)');
+    const show = () => {
+      if (compact.matches) setOpen((previous) => !previous);
+    };
+    const resized = () => {
+      if (!compact.matches) setOpen(false);
+    };
+    compact.addEventListener('change', resized);
     window.addEventListener('deploy:v2-sidebar', show);
-    return () => window.removeEventListener('deploy:v2-sidebar', show);
+    return () => {
+      window.removeEventListener('deploy:v2-sidebar', show);
+      compact.removeEventListener('change', resized);
+    };
   }, []);
   useEffect(() => {
     setOpen(false);

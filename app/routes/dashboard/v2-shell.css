@@ -248,7 +248,7 @@
 .dl-design-shell > .dl-main {
   overflow: hidden;
 }
-/* The saved choice stays on the left, including compact windows. */
+/* Above the compact breakpoint, keep the saved list or rail on the left. */
 .dl-app > .dl-side {
   display: flex;
   flex: 0 0 256px;
@@ -264,14 +264,17 @@
     padding-right: 20px;
   }
 }
-/* A phone (the iPhone app's Design page included) gets the phone layout: navigation is a drawer. */
-@media (max-width: 600px) {
+/* Compact windows use a modal navigation drawer on every page. */
+@media (max-width: 820px) {
   .dl-app > .dl-side,
   .dl-app > .dz-rail {
     display: none;
   }
   .dl-app .dl-icon-btn.dl-menu-btn {
     display: inline-flex;
+  }
+  .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-app .dl-head {
+    padding-left: 100px;
   }
 }
 .dz-rail-who {
