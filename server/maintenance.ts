@@ -13,6 +13,7 @@ import { legacyUpdateProtected } from './legacy-docker-update.ts';
  */
 
 import { spawn } from 'node:child_process';
+import { stat } from 'node:fs/promises';
 import { Cron } from 'croner';
 import {
   getSqlite,
@@ -32,7 +33,12 @@ import {
   assertRoomForSnapshots,
   destinationProblem,
   markCopyComplete,
-  markCopyStarted,
+  assertDestinationHardLinks,
+  assertRoomForCopy,
+  copyBytesNeeded,
+  createCopyDirectory,
+  listBackupCopies,
+  pruneBackupCopies,
   removeSnapshots,
   rsyncArguments,
   rsyncFailure,
@@ -248,32 +254,47 @@ async function runRsyncBackup(): Promise<BackupResult> {
   if (problem) return finish(problem);
 
   try {
+    await assertDestinationHardLinks(settings.destination);
     await runFleetApplicationBackups();
     await snapshotDatabase();
-  } catch (err) {
-    removeSnapshots(DATA_DIR);
-    return finish(`DB snapshot failed: ${(err as Error).message}`);
-  }
-
-  try {
     // The steps above can take minutes, and a drive can go away during them.
     const stillThere = destinationProblem(DATA_DIR, settings.destination);
     if (stillThere) return finish(stillThere);
-    markCopyStarted(settings.destination);
-    const error = await copyToDestination(settings.destination);
-    if (!error) markCopyComplete(DATA_DIR, settings.destination);
-    return finish(error ?? undefined);
+    const previous = (await listBackupCopies(settings.destination)).find(
+      (copy) => copy.complete,
+    )?.path;
+    if (previous && (await stat(previous)).dev !== (await stat(settings.destination)).dev) {
+      console.error(
+        `Backup reference ${previous} is on a different filesystem from ${settings.destination}; hard links require the same filesystem.`,
+      );
+      throw new Error(
+        `Backup destination ${settings.destination} can't make hard links, so it can't keep dated copies. Nothing was written. Format the drive as ext4.`,
+      );
+    }
+    const needed = await copyBytesNeeded(DATA_DIR, previous);
+    await assertRoomForCopy(settings.destination, needed);
+    const copy = await createCopyDirectory(settings.destination);
+    const error = await copyToDestination(copy, previous);
+    if (error) return finish(error);
+    await markCopyComplete(DATA_DIR, copy);
+    // A retention failure cannot turn a successfully published copy into an incomplete one.
+    try {
+      await pruneBackupCopies(settings.destination);
+    } catch (err) {
+      console.error(`Backup completed, but retention could not finish: ${(err as Error).message}`);
+    }
+    return finish();
   } catch (err) {
-    return finish(`Backup failed: ${(err as Error).message}`);
+    return finish((err as Error).message);
   } finally {
     removeSnapshots(DATA_DIR);
   }
 }
 
-function copyToDestination(destination: string): Promise<string | null> {
+function copyToDestination(destination: string, previous?: string): Promise<string | null> {
   return new Promise((resolvePromise) => {
     console.log(`Starting rsync backup: ${DATA_DIR} -> ${destination}`);
-    const proc = spawn('rsync', rsyncArguments(DATA_DIR, destination), {
+    const proc = spawn('rsync', rsyncArguments(DATA_DIR, destination, previous), {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

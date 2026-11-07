@@ -829,6 +829,7 @@ test('reserved existing projects keep identity, settings and clone access', asyn
 
 test('scheduled rsync includes hosted packages and excludes the copy and unfinished writes', async () => {
   const { maintenance } = await import('../maintenance.ts');
+  const { listBackupCopies } = await import('../../shared/backup-copies.ts');
   const { saveBackupSettings } = await import('../store.ts');
   const destination = root + '-backup';
   await mkdir(destination);
@@ -838,16 +839,14 @@ test('scheduled rsync includes hosted packages and excludes the copy and unfinis
   try {
     const result = await maintenance.runBackup();
     assert.equal(result.success, true, result.error || 'Backup failed');
+    const copy = (await listBackupCopies(destination)).find((copy) => copy.complete)!.path;
     const version = getSqlite()!
       .prepare("SELECT sha256 FROM package_versions WHERE version='1.0.0' LIMIT 1")
       .get() as { sha256: string };
     const relative = 'packages/hosted/sha256/' + version.sha256.slice(0, 2) + '/' + version.sha256;
-    assert.deepEqual(
-      await readFile(join(destination, relative)),
-      await readFile(join(root, relative)),
-    );
-    await assert.rejects(readdir(join(destination, 'packages/cache')));
-    await assert.rejects(readdir(join(destination, 'packages/tmp')));
+    assert.deepEqual(await readFile(join(copy, relative)), await readFile(join(root, relative)));
+    await assert.rejects(readdir(join(copy, 'packages/cache')));
+    await assert.rejects(readdir(join(copy, 'packages/tmp')));
   } finally {
     saveBackupSettings({ enabled: false, destination: '', cron: '0 0 * * *' });
     await rm(destination, { recursive: true, force: true });
