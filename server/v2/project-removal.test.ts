@@ -1,4 +1,4 @@
-import test, { after } from 'node:test';
+import test, { after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -149,7 +149,7 @@ function dockerHolding(appId: string, containers: string[]) {
 
 function removeWith(owner: string, project: any, docker: FakeDocker) {
   return removeProject(owner, project, project.name, {
-    stopApp: (app: any, jobId: string) => stopApp(app, jobId, docker),
+    stopApp: (app: any, jobId: string, progress?: any) => stopApp(app, jobId, docker, progress),
   });
 }
 
@@ -470,5 +470,169 @@ test('the real adapter treats only a missing object as removed and reads what Do
     assert.ok(requests.includes('DELETE /networks/free'));
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+const dockerUnavailableMessage =
+  "Docker isn't running on this computer, so nothing was removed. Start it, then press Remove project.";
+const unavailableForms = {
+  ENOENT: () =>
+    Object.assign(new Error(`connect ENOENT ${socket}`), {
+      code: 'ENOENT',
+      syscall: 'connect',
+      address: socket,
+    }),
+  ECONNREFUSED: () =>
+    Object.assign(new Error(`connect ECONNREFUSED ${socket}`), {
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: socket,
+    }),
+  'missing socket path': () => new Error(`dial unix ${socket}: connect: no such file or directory`),
+  'CLI daemon message': () =>
+    Object.assign(new Error('Command failed: docker ps'), {
+      stderr: `Cannot connect to the Docker daemon at unix://${socket}. Is the docker daemon running?`,
+    }),
+};
+for (const [form, error] of Object.entries(unavailableForms)) {
+  test(`Docker unavailable (${form}) keeps the project and logs the raw error`, async () => {
+    const owner = `unavailable-${form}`;
+    const name = `unavailable-${Object.keys(unavailableForms).indexOf(form)}`;
+    seedGraphApp(owner, name);
+    const project = await resolveProject(owner, `app:${name}`);
+    const docker = new FakeDocker();
+    const raw = error();
+    docker.findLeftovers = async () => {
+      throw raw;
+    };
+    // The first actual mutation must fail too if the implementation does not preflight.
+    docker.removeContainer = async () => {
+      throw raw;
+    };
+    const log = mock.method(console, 'error', (..._args: unknown[]) => {});
+    try {
+      await assert.rejects(removeWith(owner, project, docker), {
+        message: dockerUnavailableMessage,
+        status: 409,
+      });
+      assert.ok(log.mock.calls.some(({ arguments: args }) => args.includes(raw)));
+      assert.ok(store.getDeployment(name));
+      assert.deepEqual(workspace.list('v2-project-removal', owner)[0].stopped, []);
+      assert.equal(workspace.list('v2-removed-project', owner).length, 0);
+    } finally {
+      log.mock.restore();
+    }
+  });
+}
+
+test('Docker disappearing after a container removal names what remains, including on retry', async () => {
+  const owner = 'partial-docker-owner';
+  const name = 'partial-docker-app';
+  const { appId, containers } = seedGraphApp(owner, name);
+  const project = await resolveProject(owner, `app:${name}`);
+  const docker = dockerHolding(appId, containers);
+  const raw = unavailableForms.ECONNREFUSED();
+  docker.removeVolume = async () => {
+    throw raw;
+  };
+  const expected = `Removal is not finished. Still on this machine: ${graphNetworkName(appId)}, ${graphVolumeName(appId, 'database-data')}. Start Docker, then press Remove project to try again.`;
+  const log = mock.method(console, 'error', (..._args: unknown[]) => {});
+  try {
+    await assert.rejects(removeWith(owner, project, docker), { message: expected, status: 409 });
+    assert.equal(docker.containers.size, 0);
+    docker.findLeftovers = async () => {
+      throw raw;
+    };
+    await assert.rejects(removeWith(owner, project, docker), { message: expected, status: 409 });
+    assert.ok(store.getDeployment(name));
+    assert.equal(workspace.list('v2-removed-project', owner).length, 0);
+    docker.findLeftovers = FakeDocker.prototype.findLeftovers;
+    docker.removeVolume = FakeDocker.prototype.removeVolume;
+    await removeWith(owner, project, docker);
+    assertEmpty(docker);
+  } finally {
+    log.mock.restore();
+  }
+});
+
+test('the real Docker adapter sanitizes a missing socket during project removal', async () => {
+  seedGraphApp('real-unavailable-owner', 'real-unavailable-app');
+  const project = await resolveProject('real-unavailable-owner', 'app:real-unavailable-app');
+  const log = mock.method(console, 'error', (..._args: unknown[]) => {});
+  try {
+    await assert.rejects(removeProject('real-unavailable-owner', project, project.name), {
+      message: dockerUnavailableMessage,
+      status: 409,
+    });
+    assert.ok(
+      log.mock.calls.some(({ arguments: args }) => args.some((arg: any) => arg?.code === 'ENOENT')),
+    );
+  } finally {
+    log.mock.restore();
+  }
+});
+
+test('unrelated ENOENT, refused connections and Docker API errors keep their reason', async () => {
+  const owner = 'unrelated-docker-owner';
+  const name = 'unrelated-docker-app';
+  const { appId, containers } = seedGraphApp(owner, name);
+  const project = await resolveProject(owner, `app:${name}`);
+  const docker = dockerHolding(appId, containers);
+  for (const raw of [
+    Object.assign(new Error('open ENOENT /tmp/config'), {
+      code: 'ENOENT',
+      syscall: 'open',
+      path: '/tmp/config',
+    }),
+    Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 5432,
+    }),
+    new DockerApiError(409, 'volume is in use'),
+  ]) {
+    docker.findLeftovers = async () => {
+      throw raw;
+    };
+    docker.removeContainer = async () => {
+      throw raw;
+    };
+    await assert.rejects(removeWith(owner, project, docker), (error) => error === raw);
+  }
+});
+
+test('Docker unavailable after an earlier app completed never claims nothing was removed', async () => {
+  const owner = 'multi-partial-owner';
+  const first = seedGraphApp(owner, 'multi-first');
+  seedGraphApp(owner, 'multi-second');
+  const project = {
+    id: 'multi-partial',
+    name: 'Multi',
+    apps: ['multi-first', 'multi-second'].map((name) => ({ id: name, name, kind: 'web' as const })),
+  };
+  const docker = dockerHolding(first.appId, first.containers);
+  const removal = () =>
+    removeProject(owner, project, project.name, {
+      stopApp: (app, jobId, progress) => {
+        if (app.name === 'multi-second') {
+          const unavailable = new FakeDocker();
+          unavailable.findLeftovers = async () => {
+            throw unavailableForms.ENOENT();
+          };
+          return stopApp(app, jobId, unavailable, progress);
+        }
+        return stopApp(app, jobId, docker, progress);
+      },
+    });
+  const log = mock.method(console, 'error', (..._args: unknown[]) => {});
+  try {
+    const expected =
+      'Removal is not finished. Still on this machine: multi-second. Start Docker, then press Remove project to try again.';
+    await assert.rejects(removal(), { message: expected });
+    assert.deepEqual(workspace.list('v2-project-removal', owner)[0].stopped, ['multi-first']);
+    await assert.rejects(removal(), { message: expected });
+  } finally {
+    log.mock.restore();
   }
 });
