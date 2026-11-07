@@ -18,6 +18,9 @@ import {
   applicationConfigurationValues,
   applicationSpecRevisions,
   applicationSpecTransitions,
+  applicationAliases,
+  appReplicas,
+  dataSyncPolicies,
 } from '../schema.ts';
 import { eq, inArray } from 'drizzle-orm';
 import { notifyRouteChanged } from '../ipc.ts';
@@ -243,6 +246,18 @@ export function deleteDeployment(name: string) {
     tx.delete(applicationSpecTransitions)
       .where(eq(applicationSpecTransitions.deploymentName, name))
       .run();
+    // Fleet records are keyed by the app's identity, which ends with it. A surviving alias still
+    // claims the name, and the recovery check rejects an alias or policy with no application.
+    const appId = tx
+      .select({ appId: deployments.appId })
+      .from(deployments)
+      .where(eq(deployments.name, name))
+      .get()?.appId;
+    if (appId) {
+      tx.delete(applicationAliases).where(eq(applicationAliases.appId, appId)).run();
+      tx.delete(appReplicas).where(eq(appReplicas.appId, appId)).run();
+      tx.delete(dataSyncPolicies).where(eq(dataSyncPolicies.appId, appId)).run();
+    }
     tx.delete(deployments).where(eq(deployments.name, name)).run();
   });
   _deploymentsCache?.delete(name);
