@@ -13,7 +13,7 @@ import { settingsApi } from './settings.ts';
 import { agentsApi } from './agents.ts';
 import { releasesApi } from './releases-api.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { answerInbox, syncInbox } from './inbox.ts';
+import { answerInboxAsync, syncInbox } from './inbox.ts';
 import { fail } from '../errors.ts';
 import { tasksApi } from './tasks.ts';
 import { liveApi } from './live.ts';
@@ -92,7 +92,9 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
       } catch {
         fail('Invalid JSON');
       }
-      return send({ item: answerInbox(auth.username, decodeURIComponent(answer[1]), body) });
+      return send({
+        item: await answerInboxAsync(auth.username, decodeURIComponent(answer[1]), body),
+      });
     }
     return send({ error: 'Not found' }, 404);
   } catch (error: any) {
