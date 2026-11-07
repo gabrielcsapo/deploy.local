@@ -2367,6 +2367,55 @@
       "h": 1300,
       "title": "Backups: the drive is not attached, so nothing was written",
       "expand": "fill"
+    },
+    "HomeLoadingPhone.html": {
+      "x": 0,
+      "y": 78000,
+      "w": 390,
+      "h": 844,
+      "title": "Work · first load"
+    },
+    "ProjectsLoadingPhone.html": {
+      "x": 430,
+      "y": 78000,
+      "w": 390,
+      "h": 844,
+      "title": "Projects · first load"
+    },
+    "TaskLoadingPhone.html": {
+      "x": 860,
+      "y": 78000,
+      "w": 390,
+      "h": 844,
+      "title": "Task chat · first load"
+    },
+    "LiveLoadingPhone.html": {
+      "x": 1290,
+      "y": 78000,
+      "w": 390,
+      "h": 844,
+      "title": "Live · first load"
+    },
+    "HomeLoadingSlowPhone.html": {
+      "x": 1720,
+      "y": 78000,
+      "w": 390,
+      "h": 844,
+      "title": "Work · waiting after 10 seconds"
+    },
+    "HomeRefreshingPhone.html": {
+      "x": 2150,
+      "y": 78000,
+      "w": 390,
+      "h": 844,
+      "title": "Work · updating saved rows"
+    },
+    "HomeUnavailablePhone.html": {
+      "x": 2580,
+      "y": 78000,
+      "w": 390,
+      "h": 844,
+      "title": "Work · unreachable, no saved data"
     }
   },
   "order": [
@@ -2684,7 +2733,14 @@
     "PackageVersionsErrorPhone.html",
     "PackagesLongNamePhone.html",
     "ProjectRemoveFailed.html",
-    "BackupDriveMissing.html"
+    "BackupDriveMissing.html",
+    "HomeLoadingPhone.html",
+    "ProjectsLoadingPhone.html",
+    "TaskLoadingPhone.html",
+    "LiveLoadingPhone.html",
+    "HomeLoadingSlowPhone.html",
+    "HomeRefreshingPhone.html",
+    "HomeUnavailablePhone.html"
   ],
   "notes": {
     "intro": {
@@ -3923,16 +3979,33 @@
     "project-remove-failed": {
       "fill": "yellow",
       "w": 760,
-      "x": 19960,
-      "y": 18700,
-      "text": "Removing a project reports success only when nothing is left. If it could not finish, the dialog stays open, the project stays, and the error says why. Pressing Remove project again picks up where it stopped.\n\nThe same banner carries the other cases:\n• The computer running this app is offline.\n• This app still has instances on [site], out of reach.\n• This computer needs a newer worker to confirm the app is gone. Update it, then retry removal.\n• The computer could not remove the app: [reason].\n• Still waiting for the computer to remove the app. Retry removal to check again."
+      "x": 21440,
+      "y": 17764,
+      "text": "Removing a project reports success only when nothing is left. If it could not finish, the dialog stays open, the project stays, and the error says why. Pressing Remove project again picks up where it stopped.\n\nThe same banner carries the other cases:\n• The computer running this app is offline.\n• This app still has instances on [site], out of reach.\n• This computer needs a newer worker to confirm the app is gone. Update it, then retry removal.\n• The computer could not remove the app: [reason].\n• Still waiting for the computer to remove the app. Retry removal to check again.\n\nDocker not running (server/v2/project-removal.ts): use the existing danger banner, with the dialog open, confirmation retained and Remove project available. “Docker isn't running on this computer, so nothing was removed. Start it, then press Remove project.” deploy.local keeps the project and waits for you to retry; it does not announce success or auto-remove anything when Docker starts. Raw connect ENOENT /Users/…/docker.sock belongs in Logs, never in the banner. ProjectRemoveFailed keeps its partial-removal example. Docker uses the same layout, so no additional error state is drawn. This “nothing was removed” wording applies when Docker was unavailable before any removal. If some work already completed, keep the existing partial-removal case, naming what remains, and say Docker must be started before pressing Remove project again. Never claim untouched data after partial removal.\n\nExisting partial-removal banner (still drawn here): “Removal is not finished. Still on this machine: deploy-sh-home-gym-web-1, deploy-sh-home-gym-default. Press Remove project to try again.”\n\nApp count controls the wording on web and Mac/Windows/Linux desktop. Names below are fixture names; use the actual app names and count, never guess while the list is loading. Keep backup retention and release guidance as separate existing sentences.\n• One app — dialog: “This would stop home-gym and free its addresses.” Settings row: “Stops the app and frees its addresses.”\n• Two apps — dialog: “This would stop home-gym and home-gym-sync and free their addresses.” Settings row: “Stops the apps and frees their addresses.” For more apps, list their actual names with the existing list formatting and keep plural wording.\n• No apps — dialog: “This project has no apps to stop or addresses to free.” Settings row: “Removes the project. There are no apps to stop or addresses to free.” Removal still requires the project-name confirmation and preserves the existing backup-retention behavior.\n\nThe same dialog and Settings row layouts cover all three counts; no additional boards or product implementation in this proposal.",
+      "h": 2200
     },
     "backup-drive-missing": {
       "fill": "yellow",
       "w": 760,
       "x": 19110,
       "y": 26344,
-      "text": "A backup never writes to a drive that is not there. If the drive is missing, nothing is copied, so it cannot fill the computer’s own disk.\n\nThe same banner carries the other cases:\n• Backup destination [path] has no .deploy-backup-destination file, so it may be an empty mount point on this computer’s own disk. Nothing was written. If the drive is not mounted, mount it.\n• Backup destination [path] overlaps the data directory [path]. Nothing was written.\n• Database snapshots need [size] free on the data disk at [path], and it has [size]. Nothing was copied.\n• Backup destination [path] ran out of space, so this copy is incomplete."
+      "text": "A backup never writes to a drive that is not there. If the drive is missing, nothing is copied, so it cannot fill the computer’s own disk.\n\nThe same banner carries the other cases:\n• Backup destination [path] has no .deploy-backup-destination file, so it may be an empty mount point on this computer’s own disk. Nothing was written. If the drive is not mounted, mount it.\n• Backup destination [path] overlaps the data directory [path]. Nothing was written.\n• Database snapshots need [size] free on the data disk at [path], and it has [size]. Nothing was copied.\n• Backup destination [path] ran out of space, so this copy is incomplete.\n• Backup destination [path] can’t make hard links, so it can’t keep dated copies. Nothing was written. Format the drive as ext4.\n• Backup destination [path] doesn’t have room for this copy, which needs [size]. Nothing was written."
+    },
+    "section-iphone-loading": {
+      "x": 0,
+      "y": 77600,
+      "text": "iPhone · loading and saved data (for approval)",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 4000
+    },
+    "iphone-loading-patterns": {
+      "x": 0,
+      "y": 79000,
+      "w": 1580,
+      "h": 2900,
+      "fill": "yellow",
+      "text": "iPhone loading — proposal, no product implementation\n\nBoards: HomeLoadingPhone, ProjectsLoadingPhone, TaskLoadingPhone and LiveLoadingPhone show first loads at 390 × 844. HomeLoadingSlowPhone shows the same Work request after 10 seconds. HomeRefreshingPhone shows a foreground update over cached rows. HomeUnavailablePhone shows a failed connection with no disk cache; OfflinePhone remains the cached offline pattern. The last three are state variants, not additional destinations.\n\nFirst load: use skeletons only for the requested resource when neither disk cache nor in-memory data exists. Keep the actual header, Back/Done, selected tab and known section names. Unknown names, counts, timestamps, health and computer labels are skeletons, never zero, “online”, “Healthy” or an empty state. Skeleton counts illustrate row geometry, not promised records. Reveal each independently loaded section when it is ready. Only a successful empty response may show the existing empty state, onboarding, zero count or “Unavailable” value. A failed request is a failure, never an empty response. Skeletons are static neutral .dl-skel shapes in the real row/message layout; no page spinner, shimmer, pulse or fake agent activity. Use the same still shapes with Reduce Motion.\n\nCalm update over saved rows: show the cache immediately at full contrast. On opening or returning to a screen, reconnecting, or an explicit refresh, place the static, muted “Updating…” in the existing empty center header slot (HomeRefreshingPhone) as soon as the request starts, with no delay. When the request succeeds, replace it in that same slot with “Updated just now” and keep the timestamp until leaving the screen, so the line never flashes away; do not show a success toast. The timestamp may age to “Updated 1 min ago”. Do not move rows or the large title, hide readable data, disable navigation, or mark cached values as current until confirmed. Pull-to-refresh keeps its native gesture feedback; this line is the only additional refresh indicator. Automatic background polling changes data quietly and never starts this line, motion, shimmer or a completion message. A pending foreground request can update its existing line even if a background poll also finishes. Cancel/reset status on navigation and ignore responses for a previously opened resource.\n\nAfter 10 seconds: name the resource still pending, not a generic “Loading”. Work: “Work is taking longer than usual to load from SER.” Secondary: “Still trying. Your work will appear here when it arrives.” Projects: “Projects are taking longer than usual to load from SER.” Task or agent chat: “This conversation is taking longer than usual to load from SER.” Live: “App status is taking longer than usual to load from SER.” Use the same warning banner above the affected section with “Still trying.” for the secondary line on other destinations. Keep partial results. Over cached rows use this same banner, retain readable rows, and replace the header’s Updating with “Waiting for SER…”. Do not restart the 10-second clock on each retry or poll. Announce status changes once, not on every skeleton row or poll; keep navigation outside aria-busy and hide decorative skeletons from accessibility.\n\nUnreachable: replace the pending/slow state as soon as the request is known to have failed; do not wait for 10 seconds or leave skeletons animating forever. With cached rows, reuse OfflinePhone’s warning, last-known labels and dimmed data exactly; existing offline read/write behavior is unchanged. Without cache, HomeUnavailablePhone says “Can't reach SER” / “Retrying. No saved work on this iPhone.”, offers Try now, and says “Check that this iPhone is on the same network as SER.” Keep navigation; show neither a last-heard timestamp nor fake empty content. Apply resource-specific copy elsewhere: “No saved projects on this iPhone.”, “No saved conversation on this iPhone.” or “No saved app status on this iPhone.” Try now retries the missing resource; success restores content, another failure retains the notice. No new offline send/queue behavior is proposed.\n\nCoverage of the rest of the audit (same patterns, no extra boards):\n• Home Agents and Waiting on you: independent HomeLoadingPhone groups, never empty before the respective response.\n• Answered: ProjectsLoadingPhone grouped rows; “No answered decisions” only after success. Slow: “Answered decisions are taking longer than usual to load from SER.”\n• Computers: LiveLoadingPhone computer rows with skeleton summary and status; no “0 online” before success. Slow: “Computers are taking longer than usual to load from SER.”\n• Project detail: keep its known project title and navigation, use ProjectsLoadingPhone row geometry in each actual section; do not invent app/release tabs before their data establishes they exist. Slow: “Project details are taking longer than usual to load from SER.”\n• App detail: LiveLoadingPhone rows in the app’s actual summary layout; skeleton health/metrics until known. Slow: “App details are taking longer than usual to load from SER.”\n• Backups and Paired devices: ProjectsLoadingPhone grouped rows within the existing page or sheet, preserve Done/Back. Slow: “Backups are taking longer than usual to load from SER.” / “Paired devices are taking longer than usual to load from SER.”\n• Task chat and Agent chat: TaskLoadingPhone conversation lines; keep known title, tabs and local draft, do not show the agent’s onboarding card before a successful empty history. Sending waits until the destination is ready; this proposal does not change queuing. Changes and Checks load independently in their existing row layouts, never “No changes yet” / “No checks yet” while pending. Slow: “Changes are taking longer than usual to load from SER.” / “Checks are taking longer than usual to load from SER.”\n• Settings approvals: skeleton agent summary rows and permission values in the existing groups. “No agents” requires success; “Unavailable” is for a confirmed unavailable capability, not a request still pending. Slow: “Approvals are taking longer than usual to load from SER.”\n• Agent info / learned details: skeleton only the unknown fields and learned rows in the existing sheet; preserve any already known identity. Never “Nothing learned yet” before success. Slow: “Agent details are taking longer than usual to load from SER.”\n• Agent runs: ProjectsLoadingPhone grouped run rows; “No runs yet” only after success. Slow: “Agent runs are taking longer than usual to load from SER.”\n• Packages: replace the page spinner with skeleton package rows in the existing Private and Copies sheet groups. Load the two parts independently as PackagesPhone already specifies; preserve one part when the other is pending or fails. Never fabricate storage zero or registry reachability. Slow per section: “Private packages are taking longer than usual to load from SER.” / “Package copies are taking longer than usual to load from SER.”\n• Package versions: skeleton version/date rows inside the existing versions sheet; keep the known package title and Done. Slow: “Package versions are taking longer than usual to load from SER.”\n• Design and Releases: keep their existing skeleton row layout as the reference pattern; add the same per-resource slow, cache-refresh and failure rules. Slow: “Design is taking longer than usual to load from SER.” / “Releases are taking longer than usual to load from SER.”\n\nAll other cached destinations follow HomeRefreshingPhone; all other failures follow the cache/no-cache split above with the resource named in the notice. No product code, new empty-state copy or new navigation is authorized by these boards. Owner decision: Updating… appears with no delay. The foreground-only rule and the persistent “Updated just now” timestamp are proposed to make arrivals visible without polling motion or flicker."
     }
   },
   "starts": {}
