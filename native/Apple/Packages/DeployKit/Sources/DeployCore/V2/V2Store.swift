@@ -27,6 +27,8 @@ public struct V2Snapshot: Codable, Sendable {
     public var account: V2Account?
     public var events: [V2Event] = []
     public var cursor = 0
+    public var loadedResources: Set<String> = []
+    public var resourceDates: [String: Date] = [:]
     public var updatedAt: Date?
     public var drafts: [V2Draft] = []
     public var composer = V2Draft()
@@ -35,11 +37,14 @@ public struct V2Snapshot: Codable, Sendable {
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
+        case loadedResources, resourceDates
         case inbox, inboxPosition, live, workspace, projects, agents, computers, account, events, cursor, updatedAt
         case drafts, composer, composers, agentTasks
     }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        loadedResources = try values.decodeIfPresent(Set<String>.self, forKey: .loadedResources) ?? []
+        resourceDates = try values.decodeIfPresent([String: Date].self, forKey: .resourceDates) ?? [:]
         inbox = try values.decode([InboxItem].self, forKey: .inbox)
         inboxPosition = try values.decodeIfPresent(V2InboxPosition.self, forKey: .inboxPosition) ?? V2InboxPosition()
         live = try values.decodeIfPresent(V2Live.self, forKey: .live)
@@ -56,6 +61,16 @@ public struct V2Snapshot: Codable, Sendable {
         composer = try values.decode(V2Draft.self, forKey: .composer)
         composers = try values.decode([String: V2Draft].self, forKey: .composers)
         agentTasks = try values.decode([String: String].self, forKey: .agentTasks)
+        // Legacy snapshots only prove the resources that actually contain data. An old
+        // updatedAt does not prove that a swallowed optional request ever succeeded.
+        if workspace != nil { loadedResources.insert("workspace") }
+        if live != nil { loadedResources.insert("live") }
+        if !projects.isEmpty { loadedResources.insert("projects") }
+        if !agents.isEmpty { loadedResources.insert("agents") }
+        if !computers.isEmpty { loadedResources.insert("computers") }
+        if inbox.contains(where: { $0.state == .waiting }) { loadedResources.insert("waiting") }
+        if inbox.contains(where: { $0.state == .answered }) { loadedResources.insert("answered") }
+
     }
 }
 
@@ -101,6 +116,8 @@ struct V2RefreshPacer {
 
 @Observable @MainActor public final class V2Store {
     public private(set) var snapshot = V2Snapshot()
+    public private(set) var loads: [String: V2LoadState] = [:]
+    @ObservationIgnored private var activeReads: [String: UUID] = [:]
     public private(set) var online = false
     public private(set) var needsAuthentication = false
     public private(set) var busy = false
@@ -115,6 +132,8 @@ struct V2RefreshPacer {
     public var rollbacks: [String: Rollback] = [:]
     public let client: V2Client
     public let connection: Connection
+    @ObservationIgnored public var readCache: [String: Any] = [:]
+    @ObservationIgnored public var readDates: [String: Date] = [:]
     private let cacheURL: URL
     private var polling: Task<Void, Never>?
     private var generation = 0
@@ -167,16 +186,37 @@ struct V2RefreshPacer {
         snapshot.composers[context ?? composerKey(draft)] = draft
         do { try persist() } catch { self.error = "Draft could not be saved: \(error.localizedDescription)" }
     }
-    public func suspend() { generation += 1; polling?.cancel(); polling = nil; try? persist() }
+    public func suspend() {
+        generation += 1; polling?.cancel(); polling = nil
+        leaveResources(Array(loads.keys)); try? persist()
+    }
+    public func loadState(_ key: String) -> V2LoadState {
+        let state = loads[key] ?? V2LoadState(hasData: snapshot.loadedResources.contains(key))
+        let known: Bool
+        switch key {
+        case "waiting": known = !waiting.isEmpty
+        case "answered": known = !answered.isEmpty
+        case "agents": known = !snapshot.agents.isEmpty
+        case "projects": known = !snapshot.projects.isEmpty
+        case "computers": known = !snapshot.computers.isEmpty
+        case "workspace": known = snapshot.workspace != nil
+        case "live": known = snapshot.live != nil
+        default: known = false
+        }
+        return known ? state.retainingData() : state
+    }
+    public func leaveResources(_ keys: [String]) {
+        for key in keys { loads[key]?.leave(); activeReads[key] = nil }
+    }
     public func start() async {
         suspend()
         let current = generation
-        await refresh()
+        await refresh(foreground: true)
         guard current == generation, !needsAuthentication, !Task.isCancelled else { return }
         polling = Task { [weak self] in
             while let self, !Task.isCancelled, current == self.generation {
                 do {
-                    if !self.online { await self.refresh() }
+                    if !self.online { await self.refresh(foreground: true) }
                     guard self.online else { try await Task.sleep(for: .seconds(2)); continue }
                     let page = try await self.client.events(after: self.snapshot.cursor, waitMs: self.pacer.waitMs(at: .now))
                     guard current == self.generation, !Task.isCancelled else { return }
@@ -221,51 +261,97 @@ struct V2RefreshPacer {
         snapshot.inbox.removeAll { $0.id == item.id }
         snapshot.inbox.append(item)
     }
-    public func refresh() async {
+    /// Full refreshes remain owned by the event pacer. Navigation and gestures read only
+    /// the displayed resources; automatic polling never starts foreground header status.
+    public func refresh(foreground: Bool = false) async {
+        needsAuthentication = false
         pacer.refreshStarted()
         defer { pacer.refreshFinished(at: .now) }
+        await refreshResources(["workspace", "waiting", "answered", "live", "agents", "projects", "computers", "account"], foreground: foreground)
+        if online { await flushDrafts() }
+    }
+    public func refreshResources(_ keys: [String], foreground: Bool = true) async {
+        await withTaskGroup(of: Void.self) { group in
+            for key in keys { group.addTask { await self.refreshResource(key, foreground: foreground) } }
+        }
+    }
+    private func refreshResource(_ key: String, foreground: Bool) async {
+        if let active = activeReads[key] {
+            if foreground { loads[key]?.promote(active) }
+            return
+        }
+        var state = loadState(key)
+        let ticket = state.begin(foreground: foreground)
+        loads[key] = state; activeReads[key] = ticket
+        defer { if activeReads[key] == ticket { activeReads[key] = nil } }
         do {
-            async let workspace = client.workspace()
-            async let waiting = client.inboxPage()
-            async let answered = client.inboxPage(state: "answered")
-            async let live = client.live()
-            async let agents = try? client.agents()
-            let next = try await (workspace, waiting, answered, live)
-            guard !Task.isCancelled else { return }
-            snapshot.workspace = next.0; snapshot.live = next.3
-            snapshot.inbox = []
-            snapshot.inboxPosition.items = [:]
-            for page in [next.1, next.2].sorted(by: { ($0.cursor ?? 0) < ($1.cursor ?? 0) }) {
-                for item in page.items {
-                    replace(item)
-                    if let cursor = page.cursor { snapshot.inboxPosition.items[item.id] = cursor }
-                }
+            // Fetch before mutating the snapshot. Navigation invalidates the ticket, so
+            // responses from an earlier visit cannot overwrite this visit's data.
+            let apply: () -> Void
+            switch key {
+            case "workspace":
+                let value = try await client.workspace(); apply = { self.snapshot.workspace = value }
+            case "waiting", "answered":
+                let page = try await client.inboxPage(state: key)
+                apply = { self.mergeInbox(page, waiting: key == "waiting") }
+            case "live":
+                let value = try await client.live(); apply = { self.snapshot.live = value }
+            case "agents":
+                let value = try await client.agents(); apply = { self.snapshot.agents = value }
+            case "projects":
+                let value = try await client.projects(fallback: snapshot.workspace?.projects ?? (loadState("projects").hasData ? snapshot.projects : nil))
+                apply = { self.snapshot.projects = value; self.projectsError = nil }
+            case "computers":
+                let value = try await client.computers(); apply = { self.snapshot.computers = value; self.computersError = nil }
+            case "account":
+                let value = try await client.account(); apply = { self.snapshot.account = value }
+            default: return
             }
-            snapshot.inboxPosition.waiting = next.1.cursor ?? 0
-            snapshot.inboxPosition.answered = next.2.cursor ?? 0
-            if let agents = await agents { snapshot.agents = agents }
-            snapshot.updatedAt = Date(); online = true; needsAuthentication = false
-            if error == connectionError { error = nil }; connectionError = nil
-            do { snapshot.projects = try await client.projects(fallback: next.0.projects); projectsError = nil }
-            catch { projectsError = "Projects could not be refreshed."; if case ClientError.response(401, _) = error { throw error } }
-            do { snapshot.computers = try await client.computers(); computersError = nil }
-            catch ClientError.response(403, _) { computersError = "Only an administrator can view these computers." }
-            catch { computersError = "Computers could not be refreshed."; if case ClientError.response(401, _) = error { throw error } }
-            snapshot.account = try await client.account()
+            guard !Task.isCancelled, loads[key]?.succeed(ticket) == true else { return }
+            apply()
+            snapshot.loadedResources.insert(key); snapshot.resourceDates[key] = Date()
+            snapshot.updatedAt = Date()
+            online = ["workspace", "waiting", "live"].allSatisfy { loadState($0).hasData && !loadState($0).failed }
+            if online { if error == connectionError { error = nil }; connectionError = nil }
             try persist()
-            await flushDrafts()
-        } catch { if !Task.isCancelled { record(error) } }
+        } catch {
+            guard !Task.isCancelled, loads[key]?.fail(ticket) == true else { return }
+            if key == "computers", case ClientError.response(403, _) = error { computersError = "Only an administrator can view these computers." }
+            else if key == "projects" { projectsError = "Projects could not be refreshed." }
+            if ["workspace", "waiting", "live"].contains(key) { record(error) }
+            else if key != "agents", case ClientError.response(401, _) = error { record(error) }
+        }
+    }
+    private func mergeInbox(_ page: V2InboxPage, waiting: Bool) {
+        var position = snapshot.inboxPosition
+        let boundary = waiting ? position.waiting : position.answered
+        if let cursor = page.cursor, cursor < boundary { return }
+        let previous = snapshot.inbox
+        var items = previous.filter { item in
+            guard item.state == (waiting ? .waiting : .answered) else { return true }
+            return (position.items[item.id] ?? 0) > (page.cursor ?? 0)
+        }
+        for item in page.items {
+            let old = previous.first { $0.id == item.id }
+            if let cursor = page.cursor {
+                let known = position.items[item.id] ?? 0
+                if known > cursor || (known == cursor && old != nil && old?.state != item.state) { continue }
+                position.items[item.id] = cursor
+            } else {
+                // Old coordinators lack positions. Keep newer event/answered truth rather
+                // than resurrecting a waiting decision from an undated legacy response.
+                if (position.items[item.id] ?? 0) > 0 { continue }
+                if let old, old.state != .waiting, item.state == .waiting, item.createdAt <= old.createdAt { continue }
+            }
+            items.removeAll { $0.id == item.id }; items.append(item)
+        }
+        if waiting { position.waiting = max(boundary, page.cursor ?? 0) }
+        else { position.answered = max(boundary, page.cursor ?? 0) }
+        snapshot.inbox = items; snapshot.inboxPosition = position
     }
     private func refreshLive() async {
         defer { pacer.liveRefreshFinished(at: .now) }
-        do {
-            async let live = client.live()
-            async let computers = client.computers()
-            snapshot.live = try await live
-            do { snapshot.computers = try await computers; computersError = nil }
-            catch ClientError.response(403, _) { computersError = "Only an administrator can view these computers." }
-            catch { computersError = "Computers could not be refreshed."; if case ClientError.response(401, _) = error { throw error } }
-        } catch { if !Task.isCancelled { record(error) } }
+        await refreshResources(["live", "computers"], foreground: false)
     }
     public func createAgent(_ values: V2NewAgent) async throws -> V2Agent {
         let agent = try await client.createAgent(values)

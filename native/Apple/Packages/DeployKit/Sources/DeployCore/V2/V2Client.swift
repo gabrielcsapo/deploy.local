@@ -219,7 +219,7 @@ public actor V2Client {
         let response: Response = try await client.request("/api/v2/agents", method: "POST", body: JSONEncoder().encode(agent))
         return response.agent
     }
-    public func projects(fallback: [V2Project]) async throws -> [V2Project] {
+    public func projects(fallback: [V2Project]?) async throws -> [V2Project] {
         struct Response: Decodable, Sendable {
             let projects: [V2Project]
             private enum CodingKeys: CodingKey { case projects }
@@ -231,7 +231,10 @@ public actor V2Client {
         do {
             let response: Response = try await client.request("/api/v2/projects")
             return response.projects
-        } catch ClientError.response(let status, _) where status == 404 || status == 501 { return fallback }
+        } catch ClientError.response(let status, let message) where status == 404 || status == 501 {
+            guard let fallback else { throw ClientError.response(status, message) }
+            return fallback
+        }
     }
     public func computers() async throws -> [V2Computer] {
         struct Response: Decodable, Sendable { let nodes: [V2Computer] }
