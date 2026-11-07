@@ -2359,6 +2359,14 @@
       "h": 900,
       "title": "Removing a project: it says what is still there when it could not finish",
       "expand": "fill"
+    },
+    "BackupDriveMissing.html": {
+      "x": 19110,
+      "y": 25004,
+      "w": 1440,
+      "h": 1300,
+      "title": "Backups: the drive is not attached, so nothing was written",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2675,7 +2683,8 @@
     "SettingsPackagesRowPhone.html",
     "PackageVersionsErrorPhone.html",
     "PackagesLongNamePhone.html",
-    "ProjectRemoveFailed.html"
+    "ProjectRemoveFailed.html",
+    "BackupDriveMissing.html"
   ],
   "notes": {
     "intro": {
@@ -3917,6 +3926,13 @@
       "x": 19960,
       "y": 18700,
       "text": "Removing a project reports success only when nothing is left. If it could not finish, the dialog stays open, the project stays, and the error says why. Pressing Remove project again picks up where it stopped.\n\nThe same banner carries the other cases:\n• The computer running this app is offline.\n• This app still has instances on [site], out of reach.\n• This computer needs a newer worker to confirm the app is gone. Update it, then retry removal.\n• The computer could not remove the app: [reason].\n• Still waiting for the computer to remove the app. Retry removal to check again."
+    },
+    "backup-drive-missing": {
+      "fill": "yellow",
+      "w": 760,
+      "x": 19110,
+      "y": 26344,
+      "text": "A backup never writes to a drive that is not there. If the drive is missing, nothing is copied, so it cannot fill the computer’s own disk.\n\nThe same banner carries the other cases:\n• Backup destination [path] has no .deploy-backup-destination file, so it may be an empty mount point on this computer’s own disk. Nothing was written. If the drive is not mounted, mount it.\n• Backup destination [path] overlaps the data directory [path]. Nothing was written.\n• Database snapshots need [size] free on the data disk at [path], and it has [size]. Nothing was copied.\n• Backup destination [path] ran out of space, so this copy is incomplete."
     }
   },
   "starts": {}
