@@ -543,10 +543,21 @@ function designItemId(projectId: string, branch: string, commit: string) {
 /** Links per commit: a commit never changes, so its links are worked out once. */
 const linkCache = new Map<string, (BoardLink & { from: string })[]>();
 
-/** The canvas at a commit, for the line a proposal shows; null when it has none. */
+/** The canvas at a commit, for the line a proposal shows; null when it has none.
+ * A commit's canvas never changes, so its text is kept: a review reads three per request. */
+const canvasTexts = new Map<string, Promise<string | null>>();
 async function canvasAt(repo: string, commit: string): Promise<Canvas | null> {
+  const key = `${repo}:${commit}`;
+  let text = canvasTexts.get(key);
+  if (!text) {
+    text = gitRead(repo, ['show', `${commit}:design/canvas.json`]);
+    canvasTexts.set(key, text);
+    if (canvasTexts.size > 32) canvasTexts.delete(canvasTexts.keys().next().value!);
+    // A commit the repository lacks may arrive later; only what was read is kept.
+    text.then((value) => value === null && canvasTexts.delete(key)).catch(() => {});
+  }
   try {
-    return JSON.parse((await gitRead(repo, ['show', `${commit}:design/canvas.json`])) ?? 'null');
+    return JSON.parse((await text) ?? 'null');
   } catch {
     return null;
   }
@@ -727,17 +738,33 @@ async function reviewSummary(
   row: any,
   status?: Awaited<ReturnType<typeof reviewMain>>,
 ): Promise<DesignReviewSummary> {
-  const { context, item } = row;
+  const { context } = row;
   const repo = project.repositoryPath;
   const [{ conflicts }, baseTree, fromTree] = await Promise.all([
     status ?? reviewMain(repo, context),
     reviewTree(repo, context.base),
     reviewTree(repo, context.commit),
   ]);
-  const paths = reviewBoardPaths(context);
-  const counts = { screens: paths.length, changed: 0, new: 0, removed: 0 };
-  for (const path of paths)
-    counts[!baseTree.has(path) ? 'new' : !fromTree.has(path) ? 'removed' : 'changed']++;
+  return summaryOf(
+    owner,
+    project,
+    row,
+    conflicts,
+    reviewBoardPaths(context).map((path) => [baseTree.has(path), fromTree.has(path)]),
+  );
+}
+
+/** The summary's words, given which screens exist at the base and at the proposal. */
+function summaryOf(
+  owner: string,
+  project: any,
+  row: any,
+  conflicts: string[],
+  screens: [before: boolean, after: boolean][],
+): DesignReviewSummary {
+  const { context, item } = row;
+  const counts = { screens: screens.length, changed: 0, new: 0, removed: 0 };
+  for (const [before, after] of screens) counts[!before ? 'new' : !after ? 'removed' : 'changed']++;
   return {
     id: item.id,
     title: item.title,
@@ -772,6 +799,32 @@ const reviewScreenKey = (repo: string, row: any) =>
   `${repo}:${row.id}:${row.context.base}:${row.context.previousCommit ?? ''}`;
 // A page opening asks for many previews at once, and they all want the same screens.
 const reviewScreensLoading = new Map<string, Promise<DesignReviewScreen[]>>();
+// Everything a screen says but seen and conflict is fixed by the proposal's commits, so it is
+// worked out once per revision and kept: marking a screen seen, saving a pin and the review's
+// poll reuse it. Requests that arrive while it is being built share the one build.
+type ReviewBuilt = {
+  screens: Omit<DesignReviewScreen, 'seen' | 'conflict'>[];
+  afterHashes: Map<string, string>;
+  counts: [before: boolean, after: boolean][];
+};
+const reviewBuilt = new Map<string, ReviewBuilt>();
+const reviewBuilding = new Map<string, Promise<ReviewBuilt>>();
+const sha1 = (text: string) => createHash('sha1').update(text).digest('hex');
+// Board notes are rare: one listing per commit says which exist, instead of a read per screen.
+const noteFiles = new Map<string, Promise<Set<string>>>();
+async function boardNote(repo: string, commit: string, path: string) {
+  const key = `${repo}:${commit}`;
+  let listed = noteFiles.get(key);
+  if (!listed) {
+    listed = gitRead(repo, ['ls-tree', '--name-only', '-r', commit, '--', 'design/notes/']).then(
+      (text) => new Set((text ?? '').split('\n')),
+    );
+    noteFiles.set(key, listed);
+    if (noteFiles.size > 64) noteFiles.delete(noteFiles.keys().next().value!);
+    listed.catch(() => noteFiles.delete(key));
+  }
+  return (await listed).has(path) ? (await showFile(repo, commit, path)).slice(0, 2000) : '';
+}
 function loadReviewScreens(owner: string, project: any, row: any) {
   const key = reviewScreenKey(project.repositoryPath, row);
   const screens = reviewScreens.get(key);
@@ -786,45 +839,28 @@ function loadReviewScreens(owner: string, project: any, row: any) {
   return loading;
 }
 
-export async function designReview(owner: string, project: any, row: any): Promise<DesignReview> {
-  const { context, item } = row;
-  const repo = project.repositoryPath;
-  const status = await reviewMain(repo, context);
-  const comparison = context.previousCommit ?? context.base;
-  const [canvas, beforeCanvas, originalCanvas] = await Promise.all([
-    canvasAt(repo, context.commit),
-    canvasAt(repo, comparison),
-    canvasAt(repo, context.base),
-  ]);
+async function buildReviewScreens(
+  repo: string,
+  context: any,
+  comparison: string,
+  paths: string[],
+  canvases: { canvas: Canvas | null; beforeCanvas: Canvas | null; originalCanvas: Canvas | null },
+): Promise<ReviewBuilt> {
+  const { canvas, beforeCanvas, originalCanvas } = canvases;
   const pages = canvas ? sections(canvas) : [];
   const oldPages = originalCanvas ? sections(originalCanvas) : [];
-  // Insert removed boards at their old position relative to surviving neighbours.
-  const order = [...(canvas?.order ?? Object.keys(canvas?.boards ?? {}))];
-  const oldOrder = originalCanvas?.order ?? Object.keys(originalCanvas?.boards ?? {});
-  for (let index = oldOrder.length - 1; index >= 0; index--) {
-    const file = oldOrder[index];
-    if (order.includes(file)) continue;
-    const next = oldOrder.slice(index + 1).find((entry) => order.includes(entry));
-    order.splice(next ? order.indexOf(next) : order.length, 0, file);
-  }
-  const lineage = reviewLineage(owner, context);
-  const previousPaths = lineage.flatMap(
-    (id) => reviewRow(owner, project.id, id).context.paths as string[],
-  );
-  const paths = [...new Set([...(context.paths as string[]), ...previousPaths])].filter((path) =>
-    path.startsWith('design/boards/'),
-  );
-  const seen = list('design-review-seen', owner);
   // Asked at most once: it is the same answer for every board.
   let designSystemDiff: Promise<string | null> | undefined;
-  const boards: DesignReviewScreen[] = await Promise.all(
+  const texts = new Map<string, { original: string; after: string }>();
+  const screens: ReviewBuilt['screens'] = await Promise.all(
     paths.map(async (path) => {
       const file = path.slice('design/boards/'.length);
       const [was, after, original] = await Promise.all([
         showFile(repo, comparison, path),
         showFile(repo, context.commit, path),
-        showFile(repo, context.base, path),
-      ]);
+        comparison === context.base ? null : showFile(repo, context.base, path),
+      ]).then(([was, after, original]) => [was, after, original ?? was]);
+      texts.set(path, { original, after });
       const changedSinceReview =
         !context.previousCommit ||
         was !== after ||
@@ -837,21 +873,11 @@ export async function designReview(owner: string, project: any, row: any): Promi
           'design/ds/',
         ]))) !== '';
       const before = context.previousCommit && !changedSinceReview ? original : was;
-      const boardNotes = await showFile(
+      const boardNotes = await boardNote(
         repo,
         after ? context.commit : comparison,
         `design/notes/${file.replace(/\.html$/, '.md')}`,
       );
-      let wasSeen = false;
-      for (const entry of seen) {
-        if (entry.board !== file) continue;
-        wasSeen =
-          entry.itemId === item.id ||
-          (!changedSinceReview &&
-            lineage.includes(entry.itemId) &&
-            (await showFile(repo, entry.revision, path)) === after);
-        if (wasSeen) break;
-      }
       const placed =
         canvas?.boards[file] ?? beforeCanvas?.boards[file] ?? originalCanvas?.boards[file];
       const page =
@@ -890,9 +916,79 @@ export async function designReview(owner: string, project: any, row: any): Promi
         changes,
         lines: changes.map((change) => change.words),
         changedSinceReview,
-        seen: wasSeen,
-        conflict: status.conflicts.includes(file),
       };
+    }),
+  );
+  return {
+    screens,
+    afterHashes: new Map(paths.map((path) => [path, sha1(texts.get(path)!.after)])),
+    counts: reviewBoardPaths(context).map((path) => [
+      Boolean(texts.get(path)?.original),
+      Boolean(texts.get(path)?.after),
+    ]),
+  };
+}
+
+export async function designReview(owner: string, project: any, row: any): Promise<DesignReview> {
+  const { context, item } = row;
+  const repo = project.repositoryPath;
+  const status = await reviewMain(repo, context);
+  const comparison = context.previousCommit ?? context.base;
+  const [canvas, beforeCanvas, originalCanvas] = await Promise.all([
+    canvasAt(repo, context.commit),
+    canvasAt(repo, comparison),
+    canvasAt(repo, context.base),
+  ]);
+  const pages = canvas ? sections(canvas) : [];
+  const oldPages = originalCanvas ? sections(originalCanvas) : [];
+  // Insert removed boards at their old position relative to surviving neighbours.
+  const order = [...(canvas?.order ?? Object.keys(canvas?.boards ?? {}))];
+  const oldOrder = originalCanvas?.order ?? Object.keys(originalCanvas?.boards ?? {});
+  for (let index = oldOrder.length - 1; index >= 0; index--) {
+    const file = oldOrder[index];
+    if (order.includes(file)) continue;
+    const next = oldOrder.slice(index + 1).find((entry) => order.includes(entry));
+    order.splice(next ? order.indexOf(next) : order.length, 0, file);
+  }
+  const lineage = reviewLineage(owner, context);
+  const previousPaths = lineage.flatMap(
+    (id) => reviewRow(owner, project.id, id).context.paths as string[],
+  );
+  const paths = [...new Set([...(context.paths as string[]), ...previousPaths])].filter((path) =>
+    path.startsWith('design/boards/'),
+  );
+  const seen = list('design-review-seen', owner);
+  const builtKey = `${reviewScreenKey(repo, row)}:${context.commit}:${paths.join(',')}`;
+  let built = reviewBuilt.get(builtKey);
+  if (!built) {
+    let building = reviewBuilding.get(builtKey);
+    if (!building) {
+      building = buildReviewScreens(repo, context, comparison, paths, {
+        canvas,
+        beforeCanvas,
+        originalCanvas,
+      }).finally(() => reviewBuilding.delete(builtKey));
+      reviewBuilding.set(builtKey, building);
+    }
+    built = await building;
+    reviewBuilt.set(builtKey, built);
+    if (reviewBuilt.size > 64) reviewBuilt.delete(reviewBuilt.keys().next().value!);
+  }
+  const revision = built;
+  const boards: DesignReviewScreen[] = await Promise.all(
+    revision.screens.map(async (screen) => {
+      const path = `design/boards/${screen.file}`;
+      let wasSeen = false;
+      for (const entry of seen) {
+        if (entry.board !== screen.file) continue;
+        wasSeen =
+          entry.itemId === item.id ||
+          (!screen.changedSinceReview &&
+            lineage.includes(entry.itemId) &&
+            sha1(await showFile(repo, entry.revision, path)) === revision.afterHashes.get(path));
+        if (wasSeen) break;
+      }
+      return { ...screen, seen: wasSeen, conflict: status.conflicts.includes(screen.file) };
     }),
   );
   const pageOrder = [...new Set([...pages.map((p) => p.id), ...oldPages.map((p) => p.id)])];
@@ -917,12 +1013,11 @@ export async function designReview(owner: string, project: any, row: any): Promi
   const screenKey = reviewScreenKey(repo, row);
   reviewScreens.set(screenKey, boards);
   if (reviewScreens.size > 128) reviewScreens.delete(reviewScreens.keys().next().value!);
-  const [mainTime, summary] = await Promise.all([
-    status.updated ? gitRead(repo, ['show', '-s', '--format=%cI', status.main]) : null,
-    reviewSummary(owner, project, row, status),
-  ]);
+  const mainTime = status.updated
+    ? await gitRead(repo, ['show', '-s', '--format=%cI', status.main])
+    : null;
   return {
-    ...summary,
+    ...summaryOf(owner, project, row, status.conflicts, revision.counts),
     item,
     task: context.taskId
       ? (list('task', owner).find((entry) => entry.id === context.taskId)?.title ?? null)

@@ -220,7 +220,7 @@ async function measureApi() {
   );
   // The review's first computation, as after a restart: the same changes proposed from another
   // branch at a new commit, read directly so that nothing warms it first.
-  await timed('Review built for the first time (direct, per revision)', async () => {
+  const freshRevision = async () => {
     const branch = `design/perf-cold-${Math.random().toString(36).slice(2, 8)}`;
     git('checkout', '-q', '-b', branch, 'design/perf');
     writeFileSync(join(repo, 'design/boards/PerfNewOne.html'), `<!-- ${branch} -->\n`, {
@@ -230,10 +230,21 @@ async function measureApi() {
     git('checkout', '-q', 'main');
     const project = read('project', owner, 'deploy-local');
     const made = await proposeDesign(owner, project, { ref: branch });
-    const row = read('v2-inbox-native', owner, made.id);
+    return { project, row: read('v2-inbox-native', owner, made.id) };
+  };
+  await timed('Review built for the first time (direct, per revision)', async () => {
+    const { project, row } = await freshRevision();
     const spawnsBefore = gitSpawns;
     const started = performance.now();
     await designReview(owner, project, row);
+    return { ms: performance.now() - started, bytes: 0, spawns: gitSpawns - spawnsBefore };
+  });
+  // A page opening reads the review and asks for previews at once: one build for all of them.
+  await timed('Review built for the first time, three reads at once', async () => {
+    const { project, row } = await freshRevision();
+    const spawnsBefore = gitSpawns;
+    const started = performance.now();
+    await Promise.all([1, 2, 3].map(() => designReview(owner, project, row)));
     return { ms: performance.now() - started, bytes: 0, spawns: gitSpawns - spawnsBefore };
   });
   const review = await json(`${api.slice(origin.length)}/review?item=${itemPath}`);
