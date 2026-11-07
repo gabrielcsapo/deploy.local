@@ -10,6 +10,29 @@ struct V2DesignReviewTests {
         let json = #"{"item":\#(item),"branch":"branch","before":"a","after":"b","boards":[\#(boards)],"notes":[{"id":"note","title":"How agents work","before":[{"text":"Before"}],"after":[{"text":"After","added":true}],"changed":1,"total":1}],"round":\#(round),"stale":false,"pins":[],"groups":[{"id":"one","title":"One","boards":["new","changed1"]},{"id":"two","title":"Two","boards":["removed","changed2"]}]}"#
         return try JSONDecoder().decode(V2DesignReview.self, from: Data(json.utf8))
     }
+    @Test func decisionFooterAndSentNoticeKeepTheReviewRecord() throws {
+        var value = try review(round: 2)
+        value.item.answer = .init(actionId: "changes", by: "owner", on: .iphone, at: "2026-11-07T12:00:00Z")
+        value.item.state = .answered
+        value.item.fromName = "Release notes writer"
+        value.pins = [try pin(1, resolved: false)]
+        let now = ISO8601DateFormatter().date(from: "2026-11-07T12:00:00Z")!
+        #expect(V2ReviewModel.outcome(value, now: now) == "Changes requested · just now · propose again when the screens are updated.")
+        #expect(V2ReviewModel.sentNotice(value)?.title == "1 change sent to Release notes writer")
+        value.item.taskId = "task-1"
+        value.boards[0].seen = true
+        #expect(V2ReviewModel.outcome(value, now: now) == "Changes requested · just now · you looked at 1 of 4")
+        value.item.answer?.actionId = "approve"
+        #expect(V2ReviewModel.outcome(value, now: now) == "Approved · this is the design on main")
+        #expect(V2ReviewModel.sentNotice(value) == nil)
+    }
+    @Test func chatCropUsesEachSidesChangeAtTheApprovedZoom() throws {
+        let preview = try JSONDecoder().decode(V2ReviewPreview.self, from: Data(#"{"width":700,"height":900,"areas":[{"layer":"composer","words":"Input","before":{"x":0,"y":600,"w":700,"h":100},"after":{"x":0,"y":200,"w":700,"h":100}}],"crop":{"x":0,"y":0,"w":700,"h":900}}"#.utf8))
+        let before = V2ReviewModel.cardRegion(preview, side: "before", aspect: 1.3)
+        let after = V2ReviewModel.cardRegion(preview, side: "after", aspect: 1.3)
+        #expect(before.w == 700 && before.y > after.y)
+        #expect(before.y + before.h <= 900 && after.y >= 0)
+    }
     private func board(_ file: String, kind: String = "changed", changed: Bool = true) -> String {
         #"{"file":"\#(file)","title":"Human \#(file)","w":390,"h":844,"widths":[390],"added":\#(kind == "new"),"removed":\#(kind == "removed"),"status":"\#(kind)","before":"screen-before","after":"screen-after","lines":[],"seen":false,"changedSinceReview":\#(changed)}"#
     }

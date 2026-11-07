@@ -1,9 +1,14 @@
 'use client';
 import { useState } from 'react';
-import { Icon } from '@/components/ui';
 import { DesignItemReview } from './ItemReview';
-import { reviewHref, counted } from './review-model';
-import type { InboxItem } from '../../../../../shared/v2/contracts';
+import { alsoChanged, reviewCrop, reviewHref, counted } from './review-model';
+import { previewKey, useReviewPreviews, type Preview } from './ReviewPreviews';
+import type {
+  DesignReview,
+  DesignReviewScreen,
+  ConversationEvent,
+  InboxItem,
+} from '../../../../../shared/v2/contracts';
 import { useData } from '../projects/data';
 import { type Canvas, type LayerChange } from './model';
 import './review.css';
@@ -145,20 +150,151 @@ export function DesignReview({
   );
 }
 
-/** The chat card opens the proposal; decisions happen after the preview and conflict checks. */
-export function DesignCard({ design }: { projectId: string; taskId: string; design: TaskDesign }) {
-  const item = design.proposal;
-  if (!item) return null;
+const noScreens: DesignReviewScreen[] = [];
+/** The review's screens in canvas order, as the review lists them. */
+function canvasOrder(review: DesignReview) {
+  const remaining = [...review.boards];
+  const ordered: DesignReviewScreen[] = [];
+  for (const file of review.groups.flatMap((group) => group.boards)) {
+    const index = remaining.findIndex((board) => board.file === file);
+    if (index >= 0) ordered.push(...remaining.splice(index, 1));
+  }
+  return [...ordered, ...remaining];
+}
+
+/**
+ * The chat card shows the first changed screen, Before on main and After on this task, cropped
+ * to the change, and opens the review; decisions happen there, after the preview and conflict
+ * checks.
+ */
+type DesignCardProps = {
+  projectId: string;
+  taskId?: string;
+  design: Pick<TaskDesign, 'api' | 'proposal'>;
+};
+export function DesignCard({
+  events = [],
+  ...props
+}: DesignCardProps & {
+  /** A decision event owns its card; this instance only fills the event-delivery gap. */
+  events?: ConversationEvent[];
+}) {
+  const item = props.design.proposal;
+  if (!item || events.some((event) => event.kind === 'decision' && event.inboxItemId === item.id))
+    return null;
+  return <DesignCardPreview {...props} item={item} />;
+}
+function DesignCardPreview({
+  projectId,
+  taskId,
+  design,
+  item,
+}: DesignCardProps & { item: InboxItem }) {
+  const review = useData<DesignReview>(
+    item ? `${design.api}/review?item=${encodeURIComponent(item.id)}` : undefined,
+  );
+  const screens = review.data ? canvasOrder(review.data) : noScreens;
+  const shown = screens[0];
+  const images = useReviewPreviews(design.api, item?.id ?? '', shown ? [shown] : noScreens);
+  const preview = shown ? images.previews[previewKey(shown.file, shown.widths[0])] : undefined;
+  const more = alsoChanged(screens.slice(1).map((screen) => screen.title));
   return (
-    <section className="dzr-card" aria-label="Design review">
-      <header>
-        <Icon name="layers" size={14} />
-        <b>{item.title}</b>
+    <section className="dzr-card" aria-label="Design change">
+      <header className="dzr-card-head">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          aria-hidden="true"
+        >
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </svg>
+        <b>{shown?.title ?? item.title}</b>
+        {shown && <span className="dl-meta">1 of {counted(screens.length, 'screen')} changed</span>}
       </header>
-      <p className="dl-meta">Design · {counted(design.boards.length, 'screen')}</p>
-      <a className="dl-btn primary" href={reviewHref(item.id)}>
-        Review
-      </a>
+      <div className="dzr-card-pair">
+        {(['before', 'after'] as const).map(
+          (side) =>
+            // A new screen has no Before and a removed one no After: that side is left out.
+            (!preview || preview[side]) && (
+              <figure key={side}>
+                <CardShot preview={preview} side={side} title={shown?.title ?? item.title} />
+                <figcaption>{side === 'before' ? 'Before · main' : 'After · this task'}</figcaption>
+              </figure>
+            ),
+        )}
+      </div>
+      {more && <p className="dzr-card-more">{more}</p>}
+      <footer className="dzr-card-foot">
+        <a className="dl-btn primary" href={reviewHref(item.id)}>
+          Review
+        </a>
+        <a
+          className="dl-btn quiet"
+          href={`/dashboard/design?project=${encodeURIComponent(projectId)}${taskId ? `&task=${encodeURIComponent(taskId)}` : ''}`}
+        >
+          Open in Design
+        </a>
+      </footer>
     </section>
+  );
+}
+
+/** The card's mini is 264 by 165, like the board's; the screen fills it around the change. */
+const cardMini = { width: 264, height: 165 };
+/** The part of a screen the card shows: the change with context, in the mini's proportions. */
+export function cardRegion(
+  preview: Pick<Preview, 'width' | 'height' | 'areas' | 'crop'>,
+  side: 'before' | 'after',
+) {
+  const rects = preview.areas.map((area) => area[side]).filter((rect) => rect !== null);
+  const crop = rects.length ? reviewCrop(preview.width, preview.height, rects) : preview.crop;
+  const aspect = cardMini.width / cardMini.height;
+  // Keep the board's zoom: a changed wrapper must not shrink the screen to a whole-page mini.
+  const w = Math.min(
+    preview.width,
+    preview.height * aspect,
+    preview.width > 500 ? preview.width * 0.52 : preview.width,
+  );
+  const h = w / aspect;
+  const clamp = (value: number, max: number) => Math.min(Math.max(0, max), Math.max(0, value));
+  return {
+    x: clamp(crop.x + crop.w / 2 - w / 2, preview.width - w),
+    y: clamp(crop.y + crop.h / 2 - h / 2, preview.height - h),
+    w,
+    h,
+  };
+}
+
+function CardShot({
+  preview,
+  side,
+  title,
+}: {
+  preview?: Preview;
+  side: 'before' | 'after';
+  title: string;
+}) {
+  const src = side === 'before' ? preview?.beforeSrc : preview?.afterSrc;
+  if (!preview || !src)
+    return <div className="dzr-card-mini dl-skel" aria-label={`Loading ${title}`} />;
+  const region = cardRegion(preview, side);
+  return (
+    <div className="dzr-card-mini">
+      <svg
+        role="img"
+        aria-label={`${title}, ${side === 'before' ? 'before' : 'after'}`}
+        viewBox={`${region.x} ${region.y} ${region.w} ${region.h}`}
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <image href={src} width={preview.width} height={preview.height} />
+      </svg>
+    </div>
   );
 }

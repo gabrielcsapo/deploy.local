@@ -6,13 +6,13 @@ import DeployCore
 struct V2DesignReviewView: View {
     @Bindable var store: V2Store
     let item: InboxItem
-    var completed: (String) -> Void = { _ in }
     @State private var model = V2ReviewState()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
+    @State private var openTask = false
     @State private var active = false
     @ScaledMetric(relativeTo: .title) private var coverHeadingSize = 28
     @ScaledMetric(relativeTo: .largeTitle) private var headingSize = 30
@@ -102,6 +102,7 @@ struct V2DesignReviewView: View {
                 } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("More").disabled(model.drawing)
             }
         }
+        .sheet(isPresented: $openTask) { V2ConversationView(store: store, taskId: review?.task ?? item.taskId) }
         .sheet(isPresented: $model.grid) { gridSheet.presentationDetents([.large]).presentationDragIndicator(.visible) }
         .sheet(isPresented: $model.pinSheet, onDismiss: { model.dismissPinSheet() }) {
             V2ReviewPinSheet(model: model, client: store.client).presentationDetents([.medium, .large]).presentationDragIndicator(.visible).interactiveDismissDisabled(model.saving)
@@ -194,13 +195,24 @@ struct V2DesignReviewView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     Text("You’ve looked at\n\(review.boards.filter { $0.seen == true }.count) of \(review.boards.count)")
                         .font(.system(size: headingSize, weight: .bold)).tracking(-0.6)
+                    if let notice = V2ReviewModel.sentNotice(review) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(notice.title).font(.headline)
+                            Text(notice.body).font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
                     pinList(review, replies: false)
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
             }
             VStack(spacing: 6) {
                 if model.loading || model.checking || !model.loadingKeys.isEmpty { V2ReviewLoadingLine(total: review.boards.count, loaded: review.boards.filter { model.preview($0) != nil }.count) }
                 if let answer = review.item.answer {
-                    Text("\(V2Labels.outcome(review.item)) · \(answer.by)").font(.footnote)
+                    Text(V2ReviewModel.outcome(review)).font(.footnote).foregroundStyle(.secondary)
+                    if answer.actionId == "approve" {
+                        Button("Open in Design") { model.design = true }.buttonStyle(V2ReviewActionStyle(primary: false))
+                    } else if review.task ?? item.taskId != nil {
+                        Button("Open the task") { openTask = true }.buttonStyle(V2ReviewActionStyle(primary: false))
+                    }
                 } else if review.stale == true {
                     Button("Ask to update") { model.conflict = true }.buttonStyle(V2ReviewActionStyle(primary: true))
                     Button("Close") { dismiss() }.frame(minHeight: 44)
@@ -367,45 +379,27 @@ struct V2DesignReviewView: View {
     }
     private func answer(_ action: String, note: String? = nil) {
         Task {
-            if let outcome = await model.answer(client: store.client, action: action, note: note) {
+            if await model.answer(client: store.client, action: action, note: note) != nil {
+                if action == "update" { dismiss(); return }
                 model.conflict = false
-                completed(outcome)
-                dismiss()
+                model.asking = false
+                model.page = .decide
+                await store.refresh()
             }
         }
     }
 }
 
-/// Keep completion feedback on the presenting page, after the review has left.
+/// The decision stays in the review; refresh the presenting page when it closes.
 private struct V2DesignReviewPresentation: ViewModifier {
     @Binding var item: InboxItem?
     let store: V2Store
-    @State private var pendingOutcome: String?
-    @State private var outcome: String?
     func body(content: Content) -> some View {
-        content
-            .fullScreenCover(isPresented: Binding(get: { item != nil }, set: { if !$0 { item = nil } }), onDismiss: {
-                guard let pendingOutcome else { return }
-                outcome = pendingOutcome
-                self.pendingOutcome = nil
-                Task { await store.refresh() }
-            }) {
-                if let item {
-                    NavigationStack {
-                        V2DesignReviewView(store: store, item: item) { pendingOutcome = $0 }
-                    }
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if let outcome {
-                    Text(outcome).font(.footnote).padding(12).background(.regularMaterial, in: Capsule()).padding()
-                        .accessibilityAddTraits(.updatesFrequently)
-                        .task(id: outcome) {
-                            try? await Task.sleep(for: .seconds(5))
-                            if !Task.isCancelled { self.outcome = nil }
-                        }
-                }
-            }
+        content.fullScreenCover(isPresented: Binding(get: { item != nil }, set: { if !$0 { item = nil } }), onDismiss: {
+            Task { await store.refresh() }
+        }) {
+            if let item { NavigationStack { V2DesignReviewView(store: store, item: item) } }
+        }
     }
 }
 extension View {
@@ -539,80 +533,75 @@ struct V2BoardImage: View {
 #endif
 
 #if os(iOS)
-/// A design waiting in a task's chat or in Waiting on you: each changed board, Before and After,
-/// its changes, and the decision. Tapping a board opens the full review.
+/// A changed screen in chat, Before and After. Decisions belong to the full review.
 struct V2DesignCard: View {
-    @AppStorage(V2DesignComparison.modeKey) private var comparisonMode = "slider"
     @Bindable var store: V2Store
     let item: InboxItem
-    @State private var review: V2DesignReview?
-    @State private var after = true
-    @State private var page = 0
+    @State private var model = V2ReviewState()
     @State private var open = false
-    @State private var asking = false
-    @State private var note = ""
+    @State private var after = true
     @Environment(\.colorScheme) private var scheme
-    private var project: String? { V2DesignReview.project(of: item.id) }
+    @Environment(\.displayScale) private var displayScale
     private var current: InboxItem { store.snapshot.inbox.first { $0.id == item.id } ?? item }
+    private var boards: [V2DesignReview.Board] { model.review.map(V2ReviewModel.canvasBoards) ?? [] }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let review, review.boards.indices.contains(page) {
-                let board = review.boards[page]
-                HStack(spacing: 8) {
-                    Image(systemName: "square.grid.2x2").foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                    Text(board.name).font(.system(size: 15, weight: .semibold))
-                    if review.boards.count > 1 {
-                        Text("\(page + 1) of \(review.boards.count)").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                    }
-                    Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "square.grid.2x2").foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                Text(boards.first?.name ?? item.title).font(.system(size: 13, weight: .semibold))
+                if !boards.isEmpty {
+                    Text("1 of \(V2ReviewModel.count(boards.count, "screen")) changed")
+                        .font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                 }
-                TabView(selection: $page) {
-                    ForEach(Array(review.boards.enumerated()), id: \.element.id) { index, item in
-                        V2BoardComparison(store: store, project: project ?? "", board: item, review: review,
-                                          width: item.isPhone ? 390 : 700, caption: false, open: { open = true })
-                            .tag(index)
+                Spacer(minLength: 0)
+            }.padding(.horizontal, 12).padding(.vertical, 10)
+            Divider()
+            if let review = model.review, boards.isEmpty, !review.changedNotes.isEmpty {
+                // Keep the existing note preview for proposals without a changed screen.
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Version", selection: $after) { Text("Before").tag(false); Text("After").tag(true) }
+                        .pickerStyle(.segmented).frame(width: 150)
+                    ForEach(review.changedNotes) { note in
+                        Text(note.title).font(.system(size: 15, weight: .semibold))
+                        V2NoteText(lines: after ? note.after : note.before, after: after).frame(height: 240)
                     }
-                }.tabViewStyle(.page(indexDisplayMode: .never)).frame(height: comparisonMode == "onion" && !board.added && !board.isRemoved ? 370 : 300)
-                if !board.lines.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(board.lines.prefix(4), id: \.self) { line in
-                            Text("• \(line)").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.secondary(scheme))
-                        }
+                }.padding(12)
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    if let board = boards.first {
+                        if !board.added { shot(board, side: "before", caption: "Before · main") }
+                        if !board.isRemoved { shot(board, side: "after", caption: "After · this task") }
+                    } else {
+                        V2ReviewShimmer().frame(height: 120)
                     }
-                }
-            } else if let review, !review.changedNotes.isEmpty {
-                Picker("Version", selection: $after) { Text("Before").tag(false); Text("After").tag(true) }
-                    .pickerStyle(.segmented).frame(width: 150)
-                ForEach(review.changedNotes) { note in
-                    Text(note.title).font(.system(size: 15, weight: .semibold))
-                    V2NoteText(lines: after ? note.after : note.before, after: after).frame(height: 240)
-                }
-            } else { ProgressView().frame(maxWidth: .infinity, minHeight: 120) }
-            if let answer = current.answer {
-                Text("\(V2Labels.outcome(current)) · \(answer.by)").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
-            } else if current.state == .waiting {
-                HStack(spacing: 8) {
-                    Button("Approve") { send("approve") }.buttonStyle(V2ActionStyle(primary: true))
-                    Button("Ask for changes") { asking = true }.buttonStyle(V2ActionStyle(primary: false))
-                }.disabled(!store.online || store.busy)
+                }.padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 10)
             }
-        }.padding(12).background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme), style: StrokeStyle(lineWidth: 1, dash: current.answer == nil ? [] : [4, 3])))
+            Divider()
+            Button("Review") { open = true }.buttonStyle(V2ActionStyle(primary: true)).padding(12)
+        }.background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WorkspaceStyle.line(scheme)))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .contain).accessibilityLabel("Design change")
             .designReview(item: Binding(get: { open ? current : nil }, set: { open = $0 != nil }), store: store)
-            .alert("Ask for changes", isPresented: $asking) {
-                TextField("What should change?", text: $note)
-                Button("Send") { send("changes", note: note) }.disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("Cancel", role: .cancel) {}
-            }
             .task(id: item.id) {
-                guard let project else { return }
-                review = try? await store.client.designReview(project: project, item: item.id)
+                guard let project = item.projectId ?? V2DesignReview.project(of: item.id) else { return }
+                model.displayScale = min(3, max(1, displayScale))
+                model.review = try? await store.client.designReview(project: project, item: item.id)
+                if let board = boards.first {
+                    // The phone board shows a web screen at its narrow width.
+                    model.widths[board.file] = board.previewWidths.contains(700) ? 700 : board.defaultWidth
+                    await model.loadPreview(client: store.client, board: board)
+                }
             }
     }
-    private func send(_ id: String, note: String? = nil) {
-        guard let action = current.actions.first(where: { $0.id == id }) else { return }
-        Task { await store.answer(current, action: action, note: note) }
+    private func shot(_ board: V2DesignReview.Board, side: String, caption: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            V2ReviewCrop(preview: model.preview(board), showChanges: false, side: side, card: true)
+                .frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(WorkspaceStyle.line(scheme)))
+            Text(caption).font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 #endif

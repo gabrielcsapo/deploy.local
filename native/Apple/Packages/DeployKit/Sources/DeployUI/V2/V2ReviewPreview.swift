@@ -4,28 +4,39 @@ import UIKit
 import DeployCore
 
 /// Fit the whole screen width to the tile and pan to the change, like the boards' tiles.
+/// `side` shows one revision on its own, panned to where the change is on that side; without it
+/// the tile shows After, or Before for a removed screen.
 struct V2ReviewCrop: View {
     let preview: V2ReviewState.Preview?
     let showChanges: Bool
+    var side: String? = nil
+    var card = false
     @Environment(\.colorScheme) private var scheme
+    private func image(_ preview: V2ReviewState.Preview) -> UIImage? {
+        switch side {
+        case "before": preview.before
+        case "after": preview.after
+        default: preview.after ?? preview.before
+        }
+    }
     var body: some View {
         GeometryReader { geometry in
-            if let preview, let source = preview.after ?? preview.before {
-                let crop = preview.metadata.crop
+            if let preview, let source = image(preview) {
+                let crop = card ? V2ReviewModel.cardRegion(preview.metadata, side: side ?? "after", aspect: Double(geometry.size.width / max(1, geometry.size.height))) : preview.metadata.crop
                 let width = CGFloat(max(1, preview.metadata.width)), height = CGFloat(max(1, preview.metadata.height))
-                let scale = geometry.size.width / width
+                let scale = geometry.size.width / (card ? CGFloat(crop.w) : width)
                 let top = min(max(0, (crop.y + crop.h / 2) * scale - geometry.size.height / 2), max(0, height * scale - geometry.size.height))
                 ZStack(alignment: .topLeading) {
                     Image(uiImage: source).resizable().frame(width: width * scale, height: height * scale)
                     if showChanges {
                         ForEach(Array(preview.metadata.areas.enumerated()), id: \.offset) { _, area in
-                            if let rect = preview.after == nil ? area.before : area.after {
+                            if let rect = (side ?? (preview.after == nil ? "before" : "after")) == "before" ? area.before : area.after {
                                 Rectangle().stroke(WorkspaceStyle.accent(scheme), lineWidth: 1).frame(width: rect.w * scale, height: rect.h * scale)
                                     .offset(x: rect.x * scale, y: rect.y * scale)
                             }
                         }
                     }
-                }.offset(y: -top)
+                }.offset(x: card ? -crop.x * scale : 0, y: card ? -crop.y * scale : -top)
                     .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading).clipped()
             } else { V2ReviewShimmer() }
         }.background(WorkspaceStyle.surface(scheme)).clipped().accessibilityHidden(true)
