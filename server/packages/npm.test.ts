@@ -831,6 +831,8 @@ test('scheduled rsync includes hosted packages and excludes the copy and unfinis
   const { maintenance } = await import('../maintenance.ts');
   const { saveBackupSettings } = await import('../store.ts');
   const destination = root + '-backup';
+  await mkdir(destination);
+  await writeFile(join(destination, '.deploy-backup-destination'), '');
   saveBackupSettings({ enabled: true, destination, cron: '0 0 * * *' });
   await writeFile(join(root, 'packages/tmp/unfinished'), 'incomplete');
   try {

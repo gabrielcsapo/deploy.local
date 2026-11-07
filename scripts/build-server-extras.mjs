@@ -65,6 +65,12 @@ await build({
   outfile: resolve(root, 'dist/requests-copy-worker.js'),
 });
 
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/backup-snapshot-worker.ts')],
+  outfile: resolve(root, 'dist/backup-snapshot-worker.js'),
+});
+
 for (const [entry, name] of [
   ['pipeline-worker', 'workspace-pipeline-worker'],
   ['recovery', 'workspace-recovery'],

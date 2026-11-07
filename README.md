@@ -422,6 +422,57 @@ daily. `DEPLOY_RECOVERY_DIRECTORY`, `DEPLOY_RECOVERY_RETENTION`, and
 `DEPLOY_RECOVERY_SCHEDULE` override the destination, retained count, and cron schedule. Keep the
 passphrase outside the server data directory and monitor `deploy recovery readiness`.
 
+### Whole-directory backup
+
+The rsync backup copies the data directory to a drive, including what a recovery bundle leaves out:
+Git repositories, attachments, app volumes and app backups. It takes one consistent snapshot each of
+`deploy.db`, `requests.db` and `workspace/workspace.db` on its own thread, and copies those instead
+of the live files. Each run mirrors the directory with `--delete`, so the drive holds one copy, not a
+history.
+
+Prepare the drive once. Use ext4, encrypted with LUKS, because the copy holds `secrets/master.key`
+next to everything it decrypts and has to keep each file's owner and mode. exFAT, FAT and NTFS cannot
+store them. Mount the drive, then mark it:
+
+```bash
+cryptsetup luksFormat /dev/<partition>
+cryptsetup open /dev/<partition> deploy-backup
+mkfs.ext4 -m 0 -L deploy-backup /dev/mapper/deploy-backup
+mount /dev/mapper/deploy-backup /mnt/deploy-backup
+touch /mnt/deploy-backup/.deploy-backup-destination
+```
+
+The backup refuses a destination without `.deploy-backup-destination` and writes nothing. That keeps
+a drive that isn't attached from filling the system disk through its empty mount point, and keeps
+`--delete` from emptying a folder chosen by mistake. Keep the LUKS passphrase somewhere other than
+the drive.
+
+Free space needed: on the data disk, the three databases and their WALs plus 10% (at least 256 MB),
+checked before starting and released when the backup ends. On the drive, the whole data directory,
+plus room for the largest database to be written next to its previous copy.
+
+To restore, stop the server and run this as root on the replacement, so owners are kept. Restore to
+the original data directory path: repositories and task records store absolute paths.
+
+```bash
+node scripts/restore-backup.mjs /mnt/deploy-backup /var/lib/deploy.local/data
+```
+
+It refuses a destination that isn't empty and a copy whose last run did not finish
+(`--allow-incomplete` overrides that). By hand, the same steps are:
+
+```bash
+rsync -a --numeric-ids --exclude /.deploy-backup-destination --exclude /.deploy-backup-complete \
+  /mnt/deploy-backup/ /var/lib/deploy.local/data/
+cd /var/lib/deploy.local/data
+mv deploy.db.snapshot deploy.db
+mv requests.db.snapshot requests.db
+mv workspace/workspace.db.snapshot workspace/workspace.db
+```
+
+Then start the server with `DEPLOY_DATA_DIR` set to that path. If `secrets/master.key` did not come
+back, the server refuses to start and says what to do.
+
 ### Add an execution node
 
 The first registered account is the fleet administrator. Open **Dashboard → Nodes**, name the new
