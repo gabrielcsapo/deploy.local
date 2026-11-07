@@ -392,13 +392,17 @@ if (browser) {
         `Browser (Vite dev, headless Chromium, 1440×900, API requests only${throttle ? `, ${throttle} Mbps` : ''}):`,
       );
       row('', ['time', 'bytes', 'req', '']);
+      const total = (await json(`${api.slice(origin.length)}/review?item=${itemPath}`)).boards
+        .length;
       const nav = async (label, url, ready, after = async () => {}) => {
         const results = [];
         for (let i = 0; i < samples; i++) {
           reset();
           const started = performance.now();
           await page.goto(url, { waitUntil: 'commit' });
-          await page.waitForSelector(ready, { timeout: 120000 });
+          if (typeof ready === 'function')
+            await page.waitForFunction(ready, total, { timeout: 120000 });
+          else await page.waitForSelector(ready, { timeout: 120000 });
           const ms = performance.now() - started;
           await after();
           results.push({ ms, requests: counts.requests, bytes: counts.bytes });
@@ -418,6 +422,11 @@ if (browser) {
         'Review: first tile image visible',
         `${origin}/dashboard/inbox?item=${itemPath}`,
         '.dl-review-image svg',
+      );
+      await nav(
+        'Review: every tile visible (bytes until the grid is whole)',
+        `${origin}/dashboard/inbox?item=${itemPath}`,
+        (count) => document.querySelectorAll('.dl-review-image svg').length >= count,
       );
       await nav(
         'Review: every tile loaded, decisions enabled',
