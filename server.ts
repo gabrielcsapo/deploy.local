@@ -16,16 +16,20 @@ async function createFlightClient(): Promise<ClientHandler> {
   try {
     flightApp = await createFlightServer({
       buildDir: './dist',
-      // Run programmatic server actions (e.g. fetchDeployments, fetchRequestData)
-      // in worker threads. The main thread stays free for RSC/SSR renders and
-      // the reverse proxy hot path — even if a server action does a slow shell
-      // out (docker, tar) only its worker stalls.
+      // Run programmatic server actions (app/actions/deployments.ts is the only
+      // file of them) in a worker thread. The main thread stays free for RSC/SSR
+      // renders and the reverse proxy hot path — even if a server action does a
+      // slow shell out (docker, tar) only its worker stalls.
       //
-      // Module-level mutable state isn't shared between workers; this is fine
+      // One thread is enough: those actions are mostly waiting on I/O, so they
+      // interleave. The default (cpus - 1) spawns eagerly, and every thread loads
+      // the whole server: 23 of them on a 24-core machine for almost no traffic.
+      //
+      // Module-level mutable state isn't shared with the worker; this is fine
       // because we only carry sqlite handles + caches at module scope and
       // sqlite WAL mode permits multiple connections. Worker-side deployment
       // mutations reach the edge via the IPC socket (see ipc.ts).
-      workers: true,
+      workers: { size: 1 },
       // Bound the synchronous render phase. Without this, a stuck server
       // component (e.g. awaiting an unreachable upstream) pins the request
       // slot indefinitely.
