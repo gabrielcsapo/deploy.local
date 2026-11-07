@@ -53,6 +53,7 @@ async function startServer(
         ...process.env,
         PORT: String(port),
         HTTPS_PORT: String(httpsPort),
+        DEPLOY_SSH_PORT: '0',
         DEPLOY_DATA_DIR: dataDir,
         DEPLOY_PUBLIC_ORIGIN: origin,
       },
