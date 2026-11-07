@@ -32,7 +32,7 @@ export function destinationProblem(root: string, destination: string): string | 
     return `Backup destination ${target} does not exist. If it is on a drive, the drive is not mounted. Nothing was written.`;
   const marker = join(target, DESTINATION_MARKER);
   if (!existsSync(marker))
-    return `Backup destination ${target} has no ${DESTINATION_MARKER} file, so it may be an empty mount point on this computer's own disk. Nothing was written. If the drive is not mounted, mount it. If this is the backup drive, mark it once: touch "${marker}"`;
+    return `Backup destination ${target} has no ${DESTINATION_MARKER} file, so it may be an empty mount point on this computer's own disk. Nothing was written. If the drive is not mounted, mount it.`;
   return null;
 }
 
@@ -131,8 +131,10 @@ export function rsyncArguments(root: string, destination: string): string[] {
  */
 export function rsyncFailure(code: number | null, stderr: string, destination: string) {
   if (code === 0 || code === 24) return null;
-  if (/no space left/i.test(stderr))
-    return `Backup destination ${destination} ran out of space, so this copy is incomplete. ${stderr.trim()}`;
+  if (/no space left/i.test(stderr)) {
+    console.error(stderr.trim());
+    return `Backup destination ${destination} ran out of space, so this copy is incomplete.`;
+  }
   return stderr.trim() || `rsync exit code ${code}`;
 }
 
