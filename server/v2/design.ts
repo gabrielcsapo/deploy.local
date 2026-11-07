@@ -125,6 +125,9 @@ async function resolveCommit(owner: string, projectId: string, repo: string, url
       : task.baseRevision;
   }
   if (!validRef(ref)) fail('Invalid ref');
+  // A full commit id names itself: review images ask for one per screen, and a cached render
+  // then needs no Git at all. Reading at a commit the repository lacks still fails below.
+  if (commitPattern.test(ref)) return { ref, commit: ref };
   const commit = await gitRead(repo, [
     'rev-parse',
     '--verify',
