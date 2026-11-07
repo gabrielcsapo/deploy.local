@@ -32,6 +32,17 @@ export function ProjectConfiguration({
   overview: Overview;
 }) {
   const path = `/api/v2/projects/${projectSegment(project.id)}`;
+  const appNames = project.apps.map((app) => app.name);
+  const removalDescription =
+    appNames.length === 0
+      ? 'Removes the project. There are no apps to stop or addresses to free.'
+      : appNames.length === 1
+        ? 'Stops the app and frees its addresses.'
+        : 'Stops the apps and frees their addresses.';
+  const removalConsequence =
+    appNames.length === 0
+      ? 'This project has no apps to stop or addresses to free.'
+      : `This would stop ${appNames.length === 2 ? appNames.join(' and ') : appNames.join(', ')} and free ${appNames.length === 1 ? 'its' : 'their'} addresses.`;
   const settings = useData<ProjectReleaseSettings>(`${path}/settings`);
   const [editing, setEditing] = useState(false);
   const [key, setKey] = useState('');
@@ -263,7 +274,7 @@ export function ProjectConfiguration({
         <Group>
           <Setting
             label={`Remove ${project.name}`}
-            description={`Stops ${project.apps.length === 1 ? 'the app' : 'all apps'} and frees their addresses. Backups stay for 30 days.`}
+            description={`${removalDescription} Backups stay for 30 days.`}
           >
             <Action variant="danger" onClick={() => setRemoving(true)}>
               Remove project
@@ -291,10 +302,7 @@ export function ProjectConfiguration({
           </>
         }
       >
-        <p>
-          This would stop {project.apps.map((app) => app.name).join(', ') || 'this project’s apps'}{' '}
-          and free their addresses.
-        </p>
+        <p>{removalConsequence}</p>
         <p>Backups stay for 30 days. A running release must finish first.</p>
         <Field
           label={`Type ${project.name} to confirm`}

@@ -1,4 +1,9 @@
-// Run: DEPLOY_MDNS_ADDRESS=127.0.0.1 PORT=5188 node docs/evidence/board-parity/fixture-server.mjs
+// Run: DEPLOY_MDNS_ADDRESS=127.0.0.1 PORT=5196 node docs/evidence/board-parity/fixture-server.mjs
+// Removal capture: /dashboard/projects/home-gym/settings?appCount=1&removal=docker
+// At 1440x900 and 700x900: open Remove project, type home-gym, capture the one-app
+// wording; press Remove project and capture the Docker banner with confirmation retained.
+// appCount=0 or 2 covers the other counts; omit removal=docker for the drawn partial case.
+// Add &mac for desktop CSS emulation; native Electron chrome needs a real desktop capture.
 // Synthetic APIs and Vite assets only: no coordinator, database, Docker or real data directory.
 import { createServer } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -13,7 +18,8 @@ import { fixture as taskFixture } from '../v2/3-task/fixtures.mjs';
 if (process.env.DEPLOY_MDNS_ADDRESS !== '127.0.0.1')
   throw new Error('Set DEPLOY_MDNS_ADDRESS=127.0.0.1');
 const port = Number(process.env.PORT || 5188);
-if (port < 5188 || port > 5191) throw new Error('Use port 5188–5191');
+if (![5188, 5189, 5190, 5191, 5196, 5197].includes(port))
+  throw new Error('Use port 5188–5191 or 5196–5197');
 const cacheDir = await mkdtemp(join(tmpdir(), 'deploy-board-parity-'));
 const vite = await createVite({
   configFile: false,
@@ -64,7 +70,9 @@ const server = createServer(async (req, res) => {
     return send(
       {
         error:
-          'Removal is not finished. Still on this machine: deploy-sh-home-gym-web-1, deploy-sh-home-gym-default. Press Remove project to try again.',
+          ref.searchParams.get('removal') === 'docker'
+            ? "Docker isn't running on this computer, so nothing was removed. Start it, then press Remove project."
+            : 'Removal is not finished. Still on this machine: deploy-sh-home-gym-web-1, deploy-sh-home-gym-default. Press Remove project to try again.',
       },
       409,
     );
@@ -113,7 +121,10 @@ const server = createServer(async (req, res) => {
   if (path.startsWith('/api/v2/tasks/'))
     return send({ ...taskFixture('FirstTask'), firstTask: false });
   if (path.startsWith('/api/')) {
-    await projectFixture(req, res);
+    const count = ref.searchParams.get('appCount');
+    await projectFixture(req, res, {
+      removalAppCount: count !== null && /^[0-2]$/.test(count) ? Number(count) : undefined,
+    });
     if (!res.writableEnded) send({}, 404);
     return;
   }
