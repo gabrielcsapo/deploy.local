@@ -16,6 +16,9 @@ const { db, get, list, save } = await import('./store.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
 const { executePullMerge } = await import('./project-collaboration.ts');
 const { projectTool } = await import('./project-tools.ts');
+const { coordinationApi } = await import('./coordination-api.ts');
+const { issueAgentToken } = await import('./coordination.ts');
+const { putAgentControl } = await import('../v2/phone-preferences.ts');
 after(() => {
   db.close();
   rmSync(data, { recursive: true, force: true });
@@ -592,4 +595,198 @@ test('pull presentation uses account names while preserving actor identifiers', 
   const record = (await request(`${f.path}/pulls/${pull.id}`)).body.record;
   assert.equal(record.author, 'alice');
   assert.equal(record.authorName, 'Alice Example');
+});
+
+// A real agent turn reaches deploy_project through the coordinator endpoint with its run
+// credential, the same request the worker's MCP server posts.
+async function agentTool(token: string, args: any) {
+  const req = Object.assign(Readable.from([JSON.stringify({ name: 'deploy_project', args })]), {
+    method: 'POST',
+    url: '/api/workspace/agent/tools',
+    headers: { 'x-deploy-agent-token': token },
+  });
+  let status = 0;
+  let body: any;
+  const res = {
+    writeHead(code: number) {
+      status = code;
+    },
+    end(value: string) {
+      body = JSON.parse(value);
+    },
+  };
+  await coordinationApi(req as unknown as IncomingMessage, res as unknown as ServerResponse);
+  return { status, body };
+}
+function agentTurn(projectId: string, agentId?: string) {
+  const task = createTask('alice', { projectId });
+  if (agentId) save('task', 'alice', { ...get('task', 'alice', task.id), agentId });
+  const run = save('run', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    workerId: 'local',
+    adapter: 'codex',
+    status: 'running',
+    generation: randomUUID(),
+  });
+  return issueAgentToken({ owner: 'alice', taskId: task.id, runId: run.id });
+}
+/** What an agent does: open its own pull request, read its commits, then ask to merge it. */
+async function agentMerge(token: string) {
+  const opened = await agentTool(token, {
+    resource: 'pulls',
+    action: 'create',
+    title: 'My own change',
+    sourceBranch: 'feature',
+    targetBranch: 'main',
+    operationId: randomUUID(),
+  });
+  assert.equal(opened.status, 200, JSON.stringify(opened.body));
+  const pull = opened.body;
+  const diff = await agentTool(token, { resource: 'pulls', action: 'diff', id: pull.id });
+  assert.equal(diff.status, 200, JSON.stringify(diff.body));
+  const merge = await agentTool(token, {
+    resource: 'pulls',
+    action: 'merge',
+    id: pull.id,
+    revision: pull.revision,
+    baseCommit: diff.body.baseCommit,
+    headCommit: diff.body.headCommit,
+    operationId: randomUUID(),
+  });
+  await new RepositoryRunner().tick();
+  return { pull, merge };
+}
+function assertMergeRefused(f: ReturnType<typeof fixture>, attempt: any) {
+  const pull = get('pull-request', 'alice', attempt.pull.id);
+  assert.equal(pull.status, 'open', 'the agent merged its own pull request');
+  assert.equal(git(f.project.repositoryPath, ['rev-parse', 'main']), f.base);
+  assert.equal(pull.mergeOperationId, undefined);
+  assert.equal(attempt.merge.status, 403, JSON.stringify(attempt.merge.body));
+  assert.match(attempt.merge.body.error, /not allowed to merge/);
+}
+function assertMerged(f: ReturnType<typeof fixture>, attempt: any) {
+  assert.equal(attempt.merge.status, 200, JSON.stringify(attempt.merge.body));
+  assert.equal(get('pull-request', 'alice', attempt.pull.id).status, 'merged');
+  assert.equal(git(f.project.repositoryPath, ['rev-parse', 'main']), f.head);
+}
+function mergeRule(agent: string, mode: string, extra = {}) {
+  save('v2-approval', 'alice', { id: randomUUID(), agent, action: 'merge', mode, ...extra });
+}
+
+test('an agent turn cannot merge its own pull request when no rule allows it', async () => {
+  const f = fixture();
+  assertMergeRefused(f, await agentMerge(agentTurn(f.project.id)));
+});
+
+test('a saved agent merges only when its merge rule is Allowed with no limit and it is not paused', async () => {
+  for (const [name, mode, extra] of [
+    ['asking', 'ask', {}],
+    ['forbidden', 'never', {}],
+    ['limited', 'allow', { limit: 'Docs only' }],
+  ] as const) {
+    const f = fixture();
+    const agent = `${name}-${randomUUID()}`;
+    mergeRule(agent, mode, extra);
+    assertMergeRefused(f, await agentMerge(agentTurn(f.project.id, agent)));
+  }
+  const paused = fixture();
+  const sleeping = `paused-${randomUUID()}`;
+  mergeRule(sleeping, 'allow');
+  putAgentControl('alice', sleeping, { paused: true });
+  assertMergeRefused(paused, await agentMerge(agentTurn(paused.project.id, sleeping)));
+
+  const f = fixture();
+  const trusted = `trusted-${randomUUID()}`;
+  mergeRule(trusted, 'allow');
+  assertMerged(f, await agentMerge(agentTurn(f.project.id, trusted)));
+});
+
+test('a project merge rule overrides the global one in both directions for an agent turn', async () => {
+  const narrowed = fixture();
+  const careful = `careful-${randomUUID()}`;
+  mergeRule(careful, 'allow');
+  mergeRule(careful, 'never', { projectId: narrowed.project.id });
+  assertMergeRefused(narrowed, await agentMerge(agentTurn(narrowed.project.id, careful)));
+  const widened = fixture();
+  const scoped = `scoped-${randomUUID()}`;
+  mergeRule(scoped, 'ask');
+  mergeRule(scoped, 'allow', { projectId: widened.project.id });
+  assertMerged(widened, await agentMerge(agentTurn(widened.project.id, scoped)));
+  // A rule belongs to one agent: another agent's Allow lends this one nothing.
+  const other = fixture();
+  assertMergeRefused(other, await agentMerge(agentTurn(other.project.id, 'someone-else')));
+});
+
+test('an agent turn with no saved agent is not covered by a rule naming its coding tool', async () => {
+  const f = fixture();
+  mergeRule('codex', 'allow');
+  assertMergeRefused(f, await agentMerge(agentTurn(f.project.id)));
+  db.prepare(
+    "DELETE FROM records WHERE kind='v2-approval' AND owner='alice' AND json_extract(data,'$.agent')='codex'",
+  ).run();
+});
+
+test('an agent turn cannot restart a failed merge a person queued when no rule allows it', async () => {
+  const f = fixture();
+  const token = agentTurn(f.project.id);
+  const pull = await createPull(f);
+  const queued = await queueMerge(f, pull);
+  const operation = get('repository-operation', 'alice', queued.mergeOperationId);
+  save('repository-operation', 'alice', { ...operation, status: 'failed', error: 'Stopped' });
+  const retried = await agentTool(token, {
+    resource: 'pulls',
+    action: 'retry-merge',
+    id: pull.id,
+    revision: queued.revision,
+    operationId: randomUUID(),
+  });
+  assert.equal(retried.status, 403, JSON.stringify(retried.body));
+  assert.equal(get('repository-operation', 'alice', operation.id).status, 'failed');
+  // The person's own retry still works, and lands the merge.
+  const own = await request(f.path + `/pulls/${pull.id}/retry-merge`, {
+    revision: queued.revision,
+  });
+  assert.equal(own.status, 202, JSON.stringify(own.body));
+  await new RepositoryRunner().tick();
+  assert.equal(git(f.project.repositoryPath, ['rev-parse', 'main']), f.head);
+});
+
+test('a person merges from the app even when the task agent may not', async () => {
+  const f = fixture();
+  const forbidden = `forbidden-${randomUUID()}`;
+  mergeRule(forbidden, 'never');
+  const token = agentTurn(f.project.id, forbidden);
+  const { pull, merge } = await agentMerge(token);
+  assert.equal(merge.status, 403, JSON.stringify(merge.body));
+  const queued = await queueMerge(f, pull);
+  await new RepositoryRunner().tick();
+  assert.equal(get('repository-operation', 'alice', queued.mergeOperationId).status, 'succeeded');
+  assert.equal(git(f.project.repositoryPath, ['rev-parse', 'main']), f.head);
+  assert.equal(get('pull-request', 'alice', pull.id).mergedBy, 'alice');
+});
+
+test('an agent turn can still comment on, edit, close and reopen a pull request', async () => {
+  const f = fixture();
+  const token = agentTurn(f.project.id);
+  const created = await agentTool(token, {
+    resource: 'pulls',
+    action: 'create',
+    title: 'My own change',
+    sourceBranch: 'feature',
+    targetBranch: 'main',
+    operationId: randomUUID(),
+  });
+  const call = (action: string, extra: any) =>
+    agentTool(token, {
+      resource: 'pulls',
+      action,
+      id: created.body.id,
+      operationId: randomUUID(),
+      ...extra,
+    });
+  assert.equal((await call('comment', { body: 'Ready' })).status, 200);
+  assert.equal((await call('update', { revision: 0, title: 'Renamed' })).body.title, 'Renamed');
+  assert.equal((await call('close', { revision: 1 })).body.status, 'closed');
+  assert.equal((await call('reopen', { revision: 2 })).body.status, 'open');
 });
