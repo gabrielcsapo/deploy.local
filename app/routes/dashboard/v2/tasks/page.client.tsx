@@ -405,7 +405,12 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                 }}
               />
               {view.project && design.boards.length > 0 && (
-                <DesignCard projectId={view.project.id} taskId={id} design={design} />
+                <DesignCard
+                  projectId={view.project.id}
+                  taskId={id}
+                  design={design}
+                  events={view.events}
+                />
               )}
               {waiting && !stalled && !failed && !pull && (
                 <div className="dl-task-waiting">

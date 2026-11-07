@@ -212,6 +212,39 @@ public enum V2ReviewModel {
             }
         }
     }
+    public struct SentNotice: Equatable, Sendable {
+        public let title: String
+        public let body: String
+    }
+    public static func sentNotice(_ review: V2DesignReview) -> SentNotice? {
+        guard review.item.answer?.actionId == "changes" else { return nil }
+        let open = (review.pins ?? []).filter { !$0.resolved }.count
+        guard open > 0 else { return nil }
+        let proposer = review.proposer?.name ?? V2Labels.agentName(review.item)
+        return SentNotice(title: "\(count(open, "change")) sent to \(proposer)",
+                          body: "Each pin went to the task with its screen. \(proposer) will propose again here; your pins stay on the screens until then.")
+    }
+    public static func outcome(_ review: V2DesignReview, now: Date = Date()) -> String {
+        guard let answer = review.item.answer else { return "" }
+        if answer.actionId == "approve" { return "Approved · this is the design on main" }
+        guard answer.actionId == "changes" else { return "\(V2Labels.outcome(review.item)) · \(answer.by)" }
+        let start = "Changes requested · \(age(answer.at, now: now))"
+        if review.task ?? review.item.taskId != nil {
+            return "\(start) · you looked at \(review.boards.filter { $0.seen == true }.count) of \(review.boards.count)"
+        }
+        return "\(start) · propose again when the screens are updated."
+    }
+    /// The card fills its mini at a steady zoom, centered separately on each revision's change.
+    /// A moved input therefore stays visible in both halves instead of sharing one vertical crop.
+    public static func cardRegion(_ preview: V2ReviewPreview, side: String, aspect: Double) -> V2ReviewRect {
+        let area = preview.areas.compactMap { side == "before" ? $0.before : $0.after }
+            .max { $0.w * $0.h < $1.w * $1.h } ?? preview.crop
+        let ratio = max(0.1, aspect)
+        let width = Double(max(1, preview.width)), height = Double(max(1, preview.height))
+        let w = min(width, height * ratio), h = w / ratio
+        return V2ReviewRect(x: min(max(0, width - w), max(0, area.x + area.w / 2 - w / 2)),
+                            y: min(max(0, height - h), max(0, area.y + area.h / 2 - h / 2)), w: w, h: h)
+    }
     public static func age(_ value: String, now: Date = Date()) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

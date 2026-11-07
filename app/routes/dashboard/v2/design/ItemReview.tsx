@@ -20,6 +20,7 @@ import {
   openPins,
   reviewCounts,
   reviewOutcome,
+  changesNotice,
   counted,
 } from './review-model';
 import {
@@ -157,6 +158,7 @@ export function DesignItemReview({
   const waiting = latest.state === 'waiting';
   const answer = latest.answer ?? data?.item.answer ?? item.answer;
   const task = data?.task ?? item.taskId ?? null;
+  const notice = changesNotice(data?.round ?? 1, unresolved.length, waiting, answer);
   const loading = !data || !images.ready || (Boolean(board) && !preview);
   // A conflict's Close and Ask to update wait only for the conflict check, not for previews.
   const disabled = data?.stale
@@ -620,9 +622,9 @@ export function DesignItemReview({
                   ))}
                 </div>
               )}
-              {data && data.round === 1 && unresolved.length > 0 && (
+              {data && notice && (
                 <section className="dl-review-notice">
-                  {!waiting && answer && answer.actionId !== 'approve' ? (
+                  {notice === 'sent' ? (
                     // After Ask for changes the review stays open as the record of what was sent.
                     <>
                       <h2>
@@ -648,7 +650,7 @@ export function DesignItemReview({
                   </details>
                 </section>
               )}
-              {data && data.round > 1 && (
+              {data && data.round > 1 && !notice && (
                 <section>
                   <h2>Your pins · {pins.length}</h2>
                   {pinRows(pins)}

@@ -5,6 +5,7 @@ import { Action, Approval, Banner, Dialog, Field, Skeleton, Status } from '@/com
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { useAgentName, useInbox } from '../data/hooks';
 import { formatTime } from '../data/time';
+import { DesignCard } from '../design/Review';
 
 import { QuestionDecision } from './QuestionDecision';
 import { answerDetails, answerLabel } from './presentation';
@@ -68,15 +69,14 @@ function Decision({ item }: { item: InboxItem }) {
   const name = item.fromName || agentName(item.from);
   if (item.id.startsWith('design:') && !closed)
     return (
-      <article className="dl-approval">
-        <div className="dl-approval-head">
-          <SavedAgentAvatar id={item.from} />
-          <h3 className="dl-approval-title">{item.title}</h3>
-        </div>
-        <a className="dl-btn primary" href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}>
-          Review
-        </a>
-      </article>
+      <DesignCard
+        projectId={item.projectId ?? item.id.split(':')[1]}
+        taskId={item.taskId}
+        design={{
+          api: `/api/v2/projects/${encodeURIComponent(item.projectId ?? item.id.split(':')[1])}/design`,
+          proposal: item,
+        }}
+      />
     );
   return (
     <div className="dl-inbox-decision" id={`decision-${item.id}`}>

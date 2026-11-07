@@ -1,12 +1,12 @@
 'use client';
 import { useState } from 'react';
-import { Icon } from '@/components/ui';
 import { DesignItemReview } from './ItemReview';
 import { alsoChanged, reviewCrop, reviewHref, counted } from './review-model';
 import { previewKey, useReviewPreviews, type Preview } from './ReviewPreviews';
 import type {
   DesignReview,
   DesignReviewScreen,
+  ConversationEvent,
   InboxItem,
 } from '../../../../../shared/v2/contracts';
 import { useData } from '../projects/data';
@@ -167,29 +167,54 @@ function canvasOrder(review: DesignReview) {
  * to the change, and opens the review; decisions happen there, after the preview and conflict
  * checks.
  */
+type DesignCardProps = {
+  projectId: string;
+  taskId?: string;
+  design: Pick<TaskDesign, 'api' | 'proposal'>;
+};
 export function DesignCard({
+  events = [],
+  ...props
+}: DesignCardProps & {
+  /** A decision event owns its card; this instance only fills the event-delivery gap. */
+  events?: ConversationEvent[];
+}) {
+  const item = props.design.proposal;
+  if (!item || events.some((event) => event.kind === 'decision' && event.inboxItemId === item.id))
+    return null;
+  return <DesignCardPreview {...props} item={item} />;
+}
+function DesignCardPreview({
   projectId,
   taskId,
   design,
-}: {
-  projectId: string;
-  taskId: string;
-  design: TaskDesign;
-}) {
-  const item = design.proposal;
+  item,
+}: DesignCardProps & { item: InboxItem }) {
   const review = useData<DesignReview>(
     item ? `${design.api}/review?item=${encodeURIComponent(item.id)}` : undefined,
   );
   const screens = review.data ? canvasOrder(review.data) : noScreens;
   const shown = screens[0];
   const images = useReviewPreviews(design.api, item?.id ?? '', shown ? [shown] : noScreens);
-  if (!item) return null;
   const preview = shown ? images.previews[previewKey(shown.file, shown.widths[0])] : undefined;
   const more = alsoChanged(screens.slice(1).map((screen) => screen.title));
   return (
     <section className="dzr-card" aria-label="Design change">
       <header className="dzr-card-head">
-        <Icon name="layers" size={14} />
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          aria-hidden="true"
+        >
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </svg>
         <b>{shown?.title ?? item.title}</b>
         {shown && <span className="dl-meta">1 of {counted(screens.length, 'screen')} changed</span>}
       </header>
@@ -210,10 +235,9 @@ export function DesignCard({
         <a className="dl-btn primary" href={reviewHref(item.id)}>
           Review
         </a>
-        <span className="dl-grow" />
         <a
           className="dl-btn quiet"
-          href={`/dashboard/design?project=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`}
+          href={`/dashboard/design?project=${encodeURIComponent(projectId)}${taskId ? `&task=${encodeURIComponent(taskId)}` : ''}`}
         >
           Open in Design
         </a>
@@ -232,8 +256,12 @@ export function cardRegion(
   const rects = preview.areas.map((area) => area[side]).filter((rect) => rect !== null);
   const crop = rects.length ? reviewCrop(preview.width, preview.height, rects) : preview.crop;
   const aspect = cardMini.width / cardMini.height;
-  // Never closer than the board's own zoom: a 1440 screen shows about half its width.
-  const w = Math.min(preview.width, Math.max(crop.w, crop.h * aspect, preview.width * 0.52));
+  // Keep the board's zoom: a changed wrapper must not shrink the screen to a whole-page mini.
+  const w = Math.min(
+    preview.width,
+    preview.height * aspect,
+    preview.width > 500 ? preview.width * 0.52 : preview.width,
+  );
   const h = w / aspect;
   const clamp = (value: number, max: number) => Math.min(Math.max(0, max), Math.max(0, value));
   return {

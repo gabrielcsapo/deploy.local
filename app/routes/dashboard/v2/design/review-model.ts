@@ -71,3 +71,15 @@ export function reviewOutcome(
 /** The chat card's "Also changed" line: every other changed screen by name. */
 export const alsoChanged = (titles: string[]) =>
   titles.length ? `Also changed: ${titles.join(', ')}` : '';
+
+/** Sent pins remain a record in every round; an approved review has no unsent changes. */
+export function changesNotice(
+  round: number,
+  open: number,
+  waiting: boolean,
+  answer?: { actionId: string },
+): 'sent' | 'draft' | null {
+  if (!open) return null;
+  if (!waiting) return answer?.actionId === 'changes' ? 'sent' : null;
+  return round === 1 ? 'draft' : null;
+}
