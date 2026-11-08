@@ -1,3 +1,7 @@
+import { buildRegistryArgs } from './docker.ts';
+import { registryBuildDocker } from './package-build.ts';
+import { packageHooks } from './workspace/package-hooks.ts';
+import { deployDataPath } from './data-directory.ts';
 import { containerTelemetryEnvironment } from './telemetry-runtime.ts';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -145,7 +149,42 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
     }
     if (input.source.target) args.push('--target', input.source.target);
     args.push(context);
-    await execFileAsync('docker', args, { maxBuffer: 50 * 1024 * 1024 });
+    const docker = registryBuildDocker(
+      {
+        run: async (command) => {
+          try {
+            const result = await execFileAsync('docker', [...command], {
+              maxBuffer: 50 * 1024 * 1024,
+            });
+            return { exitCode: 0, ...result };
+          } catch (error: any) {
+            return {
+              exitCode: typeof error.code === 'number' ? error.code : 1,
+              stdout: error.stdout || '',
+              stderr: error.stderr || error.message,
+            };
+          }
+        },
+      },
+      {
+        root: deployDataPath('packages', 'tmp'),
+        config: () => packageHooks.applicationInstallConfig!(input.applicationId, 'local'),
+        log: (line) => console.log(line),
+        registryArgs: async (install) => {
+          const driver = await execFileAsync(
+            'docker',
+            ['buildx', 'inspect', '--format', '{{.Driver}}'],
+            { timeout: 5000 },
+          )
+            .then((result) => result.stdout.trim())
+            .catch(() => 'docker-container');
+          return buildRegistryArgs(driver, install);
+        },
+      },
+    );
+    const result = await docker.run(args);
+    if (result.exitCode !== 0)
+      throw new Error(result.stderr || result.stdout || 'Docker build failed');
     return tag;
   }
 

@@ -1,3 +1,4 @@
+import { agentBuildInstallConfig } from '../packages/builds.ts';
 import { readBody, RequestBodyTooLargeError } from '../http.ts';
 import {
   error,
@@ -237,6 +238,17 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           error: typeof body.error === 'string' ? body.error : undefined,
         });
         return json(res, { ok: true });
+      }
+
+      const packagesMatch = path.match(/^\/api\/agent\/jobs\/([^/]+)\/packages$/);
+      if (packagesMatch && method === 'POST') {
+        const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
+        const secret = req.headers['x-deploy-node-secret'] as string | undefined;
+        if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
+        const config = await agentBuildInstallConfig(nodeId!, packagesMatch[1]);
+        if (!config) return error(res, 'Build assignment not available', 403);
+        res.setHeader('Cache-Control', 'no-store');
+        return json(res, config);
       }
 
       const agentJobArtifactMatch = path.match(/^\/api\/agent\/jobs\/([^/]+)\/artifact$/);

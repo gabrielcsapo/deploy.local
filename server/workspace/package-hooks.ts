@@ -2,6 +2,7 @@
 // database. Only the server fills these in (server/packages/hooks.ts), so elsewhere they do nothing.
 export type PackageHooks = {
   installConfig(owner: string, computerId: string, projectId?: string): Promise<any> | any;
+  applicationInstallConfig?(application: string, computerId: string): Promise<any>;
   revokeComputer(owner: string, computerId: string): void;
   finishJob(jobId: string): void;
   publishConfig?(owner: string, job: any): Promise<any> | any;
@@ -11,6 +12,8 @@ export function setPackageHooks(value: PackageHooks) {
   hooks = value;
 }
 export const packageHooks: PackageHooks = {
+  applicationInstallConfig: (application, computerId) =>
+    hooks?.applicationInstallConfig?.(application, computerId) ?? Promise.resolve(null),
   publishConfig: (owner, job) => {
     if (!hooks?.publishConfig)
       throw new Error('Package publishing is unavailable on this coordinator');
