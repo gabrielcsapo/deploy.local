@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.3] (2026-11-08)
+
+### Other
+
+- A click reuses a prefetch that is still in flight instead of fetching again ([7e20e4b](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=7e20e4b79578267fecb6d8d63456dc8095762d82&path=packages/react-flight-router))
+- Router's HTML scanner skips text and script bodies with a native search ([c773178](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=c773178e56ab7d4f427ca655ab442d4135044bfb&path=packages/react-flight-router))
+- Router keeps gzipped JS and CSS in its asset cache instead of compressing on every request ([87c831d](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=87c831d7f691e027b2c338327a0ca7af9c772963&path=packages/react-flight-router))
+
 ## [0.12.2] (2026-11-06)
 
 ### Other
