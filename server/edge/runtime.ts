@@ -12,7 +12,7 @@
 import { CopyPreviews } from './copies.ts';
 import { AppStateReader } from './app-state.ts';
 import { RouteTable } from './routes.ts';
-import { registerHost } from '../mdns.ts';
+import { registerHost, stopMdns } from '../mdns.ts';
 import { setTcpProxyHooks, stopAllProxies } from '../tcp-proxy.ts';
 import type { EdgeHandlers } from '../ipc.ts';
 import { purgeDeploymentCache } from './response-cache.ts';
@@ -33,7 +33,7 @@ export interface EdgeRuntime {
   routes: RouteTable;
   handlers: EdgeHandlers;
   hotPathDeps: HotPathDeps;
-  close(): void;
+  close(): Promise<void>;
 }
 
 export function getDefaultDbFile(): string {
@@ -86,6 +86,7 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
       appState.close();
       previews.close();
       unregisterAppPages();
+      return stopMdns();
     },
   };
 }

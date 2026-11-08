@@ -283,11 +283,11 @@ async function start(options: BootOptions) {
     terminalRelay.dispose();
     stopManagedWorkers();
     graphSupervisor.stop();
-    edgeRuntime.close();
+    const mdnsStopped = edgeRuntime.close();
     edgeIpc.close();
     httpsServer.close();
     httpServer.close(async () => {
-      await sshStopped;
+      await Promise.all([sshStopped, mdnsStopped]);
       console.log('deploy.local stopped');
       process.exit(0);
     });

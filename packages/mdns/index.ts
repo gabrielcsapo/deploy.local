@@ -16,12 +16,12 @@ import {
   decodeQuery,
   buildARecordResponse,
   buildNsecResponse,
-  stampTransactionId,
+  buildLegacyResponse,
   encodeResponse,
   encodeQuery,
   TYPE_A,
-  TYPE_AAAA,
   TYPE_ANY,
+  CLASS_IN,
 } from './dns.ts';
 
 import type { RemoteInfo, Socket, SocketType } from 'node:dgram';
@@ -179,40 +179,30 @@ export default function multicastDns(opts?: Options): MulticastDNS {
     const query = decodeQuery(message);
     if (!query) return; // not a query or malformed — skip
 
-    // Check cache for pre-encoded responses
-    let responded = false;
+    // A source port other than the responder's mDNS port identifies a legacy
+    // one-shot resolver, even when it did not set QU (RFC 6762 §6.7).
+    const legacy = rinfo.port !== me.port;
     for (const q of query.questions) {
+      if (q.class !== CLASS_IN && q.class !== 255) continue;
       const queryName = normalizeHostname(q.name);
-      // QU bit → unicast response directly to querier; otherwise multicast
-      const targetPort = q.qu ? rinfo.port : me.port;
-      const targetAddr = q.qu ? rinfo.address : me.address!;
-
-      if (q.type === TYPE_A || q.type === TYPE_ANY) {
-        const cached = responseCache.get(queryName);
-        if (cached) {
-          // Stamp transaction ID and send directly — zero allocation
-          stampTransactionId(cached, query.id);
-          socket.send(cached, 0, cached.length, targetPort, targetAddr);
-          responded = true;
-        }
-      } else if (q.type === TYPE_AAAA) {
-        // Respond with NSEC to signal "no AAAA, only A" — prevents ~5s resolver timeout
-        const cached = nsecCache.get(queryName);
-        if (cached) {
-          stampTransactionId(cached, query.id);
-          socket.send(cached, 0, cached.length, targetPort, targetAddr);
-          responded = true;
-        }
-      }
+      const cached = (q.type === TYPE_A || q.type === TYPE_ANY ? responseCache : nsecCache).get(
+        queryName,
+      );
+      if (!cached) continue;
+      const response = legacy ? buildLegacyResponse(cached, query) : cached;
+      const unicast = legacy || q.qu;
+      socket.send(
+        response,
+        0,
+        response.length,
+        unicast ? rinfo.port : me.port,
+        unicast ? rinfo.address : me.address!,
+      );
     }
 
     // Emit for any additional listeners (e.g., custom record types)
     if (that.listenerCount('query') > 0) {
       that.emit('query', query, rinfo);
-    }
-
-    if (!responded && that.listenerCount('query') === 0) {
-      // No cache hit and no listeners — nothing to do
     }
   });
 
