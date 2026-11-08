@@ -119,3 +119,9 @@ export function withServerTelemetry(
     next(req, res);
   };
 }
+
+/** Old path is only for apps on router 0.13.0; remove once none remain. */
+export function isBrowserTelemetryPath(url: string) {
+  const path = url.split('?')[0];
+  return path === '/__rfr/telemetry' || path === '/__deploy/telemetry';
+}
