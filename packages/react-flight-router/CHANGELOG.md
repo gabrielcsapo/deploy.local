@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.2] (2026-11-08)
+
+### Other
+
+- Router answers HEAD on pages when telemetry is on ([313857a](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=313857ae1d48e218a65b3f16ca53a6b6921b774f&path=packages/react-flight-router))
+
 ## [0.13.1] (2026-11-08)
 
 ### Other
