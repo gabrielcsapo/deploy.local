@@ -367,6 +367,7 @@
     "headings": [
       "`createServer(options)`",
       "Options",
+      "Telemetry options",
       "What it sets up",
       "Usage",
       "How SSR works",
@@ -382,7 +383,7 @@
       "Add to `package.json`",
       "Build output structure"
     ],
-    "content": "Server Exports\nReact Flight Router provides server-side APIs for both production and development. The production server is built on Hono, while the development experience is powered by a Vite plugin.\ncreateServer(options)\nImport: \"react-flight-router/server\"\nCreates a production Hono application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.\nOptions\n Type                                   Description                                                                                                                                                                                                                                                                                                      |\n    |\n string                               Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                                                          |\n boolean                              Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the FLIGHTDEBUG=1 environment variable.                                                                                                                                                         |\n (request: Request) =void           Called before each RSC/SSR render with the incoming Request. The framework automatically populates getRequest() — use this hook for additional per-request setup (logging, tracing, custom AsyncLocalStorage). See the Request Context guide for details.                  |\n (event: RequestTimingEvent) =void  Called after each request completes with structured timing data. Works independently of debug. Events include a cancelled flag when the client disconnected before the response was fully consumed. See the D"
+    "content": "Server Exports\nReact Flight Router provides server-side APIs for both production and development. The production server is built on Hono, while the development experience is powered by a Vite plugin.\ncreateServer(options)\nImport: \"react-flight-router/server\"\nCreates a production Hono application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.\nOptions\n Type                                   Description                                                                                                                                                                                                                                                                                                      |\n    |\n string                               Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                                                          |\n boolean                              Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the FLIGHTDEBUG=1 environment variable.                                                                                                                                                         |\n TelemetryOptions                     Optional collector endpoint, Bearer token and browser beacon path. See below.                                                                                                                                                                                                                                    |\n (request: Request) =void           Called before each RSC/SSR render with the incoming Request. The framework automatically populates getRequest() — use this hook for additional per-request setup (log"
   },
   {
     "title": "`createServer(options)`",
@@ -399,6 +400,14 @@
     "section": "API Reference · Server Exports",
     "headings": [],
     "content": "Type                                   Description                                                                                                                                                                                                                                                                                                      |\n    |\n string                               Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                                                          |\n boolean                              Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the FLIGHTDEBUG=1 environment variable.                                                                                                                        "
+  },
+  {
+    "title": "Telemetry options",
+    "slug": "api-reference/server-exports#telemetry-options",
+    "path": "/docs/api-reference/server-exports#telemetry-options",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Reporting is off without an endpoint. telemetry.endpoint overrides\nRFRTELEMETRYURL; telemetry.token overrides RFRTELEMETRYTOKEN.\nAn explicit empty endpoint disables reporting, and an empty token overrides an\nenvironment token. Server batches use the unchanged v1 format and POST to\n${endpoint}/v1/server with authorization: Bearer <token>.\ntelemetry.beaconPath defaults to /rfr/telemetry. The server supplies it to\nthe browser through bootstrap data. Set it to false to keep server reporting\nand disable browser beacons. The application or host provides that same-origin\nPOST receiver. Workers inherit the parent's resolved opt-in. See\nTelemetry for payloads, limits and privacy."
   },
   {
     "title": "What it sets up",
@@ -1523,7 +1532,8 @@
       "Server Action",
       "What Each Timing Means",
       "Slow Operations",
-      "See also"
+      "See also",
+      "Telemetry"
     ],
     "content": "Debugging & Performance\nReact Flight Router includes opt-in performance logging that shows timing breakdowns for every server request. This helps you identify bottlenecks in module loading, component rendering, RSC serialization, and SSR.\nEnabling Debug Logging\nSet the FLIGHTDEBUG environment variable:\nOr pass debug: true programmatically:\nWhen disabled (the default), all timing callsites are skipped via optional chaining — there is zero overhead.\nProgrammatic Timing Data\nIf you need structured timing data in your application (for dashboards, metrics, or observability), use the onRequestComplete callback instead of or in addition to debug logging:\nThe onRequestComplete callback works independently of debug mode:\n- When debug: true and onRequestComplete are both set, you get both stderr output and the callback.\n- When only onRequestComplete is set (no debug), timing data is collected silently with no stderr output.\n- When neither is set, there is zero timing overhead.\nRequestTimingEvent\nExample: Sending to an observability service\nSample Event Data\nHere is what the onRequestComplete callback receives for each request type:\n{/ SSRJSONSTART /}\nSSR (initial page load)\n{/ SSRJSONEND /}\n{/ RSCJSONSTART /}\nRSC (client-side navigation)\n{/ RSCJSONEND /}\n{/ RSCSLOWJSONSTART /}\nRSC (slow route with async rendering)\nWhen a route has Suspense boundaries or async data fetching, the rsc:stream entry captures the time spent during stream consumption:\n{/ RSCSLOWJSONEND /}\n{/ RSCCANCELLEDJSONSTART /}\nRSC (cancelled — client navigated away)\nWhen the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes cancelled: true:\n{/ RSCCANCELLEDJSONEND /}\n{/ ACTIONJSONSTART /}\nACTION (server action)\n{/ ACTIONJSONEND /}\nExample: In-app performance dashboard\nThe example app includes a live /perf page that collects events via onRequestComplete into an in-memory ring buffer and renders "
   },
@@ -1654,6 +1664,14 @@
     "section": "Guides · Debugging & Performance",
     "headings": [],
     "content": "- Worker Threads — thread pool performance optimization\n- Architecture: Build Pipeline — understanding the build phases"
+  },
+  {
+    "title": "Telemetry",
+    "slug": "guides/debugging#telemetry",
+    "path": "/docs/guides/debugging#telemetry",
+    "section": "Guides · Debugging & Performance",
+    "headings": [],
+    "content": "Pages and RSC responses include Server-Timing with the matched route pattern,\nmatching time and time to response headers. Actions include their action ID and\nexecution time when it is known before headers. This also works without debug logging.\nReporting is off unless a collector endpoint is configured. Set neutral environment variables in the app process (also supported in development):\nProduction servers can override each environment value through createServer:\nEach explicit field wins over its corresponding environment variable. endpoint\nis the collector base URL (RFRTELEMETRYURL fallback); an empty string disables\nall reporting. token is the Bearer token (RFRTELEMETRYTOKEN fallback).\nbeaconPath defaults to /rfr/telemetry; false disables only browser reporting,\nwhile server reporting continues. A token or beacon path alone does not enable reporting.\nWorkers inherit the parent's resolved reporting opt-in and never read telemetry env values.\nThe server POSTs v1 batches to ${endpoint}/"
   },
   {
     "title": "Error Handling",
@@ -2792,6 +2810,7 @@
       "SEO Benefits",
       "Client Hydration",
       "Streaming",
+      "Compression",
       "See also"
     ],
     "content": "Server-Side Rendering (SSR)\nReact Flight Router includes built-in server-side rendering. On initial page load, the server renders your application to full HTML so the browser can display content immediately. The client then hydrates the HTML to make it interactive. No configuration is required.\nHow It Works\nWhen a user requests a page, React Flight Router performs these steps:\n1. RSC rendering -- The server renders your React Server Components into an RSC payload (a serialized representation of the component tree).\n2. HTML generation -- The RSC payload is deserialized and rendered to an HTML stream using react-dom/server.\n3. RSC payload inlining -- The RSC payload is embedded in the HTML as <scripttags so the client does not need a separate fetch to begin hydration.\n4. Streaming to the client -- The HTML is streamed to the browser for fast First Contentful Paint (FCP).\n5. Client hydration -- The client-side React picks up the inlined RSC payload and hydrates the HTML, attaching event handlers and enabling interactivity.\nThis architecture eliminates the client-server waterfall that traditional SSR approaches suffer from. The RSC payload is already in the HTML, so hydration can begin immediately without waiting for additional network requests.\nProduction Builds\nThe react-flight-router build command generates everything needed for SSR automatically:\nThe build pipeline produces:\n- RSC bundle -- Server components bundled with the react-server condition.\n- Client bundle -- Client components optimized for the browser.\n- SSR bundle -- Client components bundled for server-side rendering.\n- Manifests -- Mapping files that connect RSC references to client and SSR chunks.\n- Server entry -- The production server that handles requests and performs SSR.\nStart the production server:\nEvery page request is server-rendered with the full HTML content.\nDev Mode SSR\nSSR also works in development mode. When you run the dev server, initial page loads are server-rendered just like in produc"
@@ -2843,6 +2862,14 @@
     "section": "Guides · SSR",
     "headings": [],
     "content": "React Flight Router streams the HTML response to the client. This means the browser can start parsing and rendering HTML before the entire response is complete. If your components use <Suspenseboundaries, content within those boundaries will be streamed in as it resolves.\nThe <h1>Posts</h1heading and the \"Loading posts...\" fallback are sent immediately, and the actual posts list is streamed in once the data resolves."
+  },
+  {
+    "title": "Compression",
+    "slug": "guides/ssr#compression",
+    "path": "/docs/guides/ssr#compression",
+    "section": "Guides · SSR",
+    "headings": [],
+    "content": "Production HTML and RSC streams negotiate gzip or brotli using Accept-Encoding.\nEach chunk is flushed immediately, so small shells and resolved Suspense boundaries\nkeep streaming. Responses with Content-Encoding already set pass through unchanged.\nAn edge proxy should respect the existing encoding to avoid compressing a response\nagain. Direct requests receive the same compression without needing an edge proxy.\nHosts that cache only unencoded upstream responses will not cache router-compressed HTML."
   },
   {
     "title": "See also",

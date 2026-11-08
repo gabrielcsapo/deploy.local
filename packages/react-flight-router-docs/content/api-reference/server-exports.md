@@ -29,6 +29,12 @@ interface CreateServerOptions {
   buildDir: string;
   /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
   debug?: boolean;
+  /** Optional collector integration; explicit fields override RFR_TELEMETRY_* env values. */
+  telemetry?: {
+    endpoint?: string;
+    token?: string;
+    beaconPath?: string | false;
+  };
   /**
    * Called before each RSC/SSR render with the incoming Request.
    * The framework automatically populates getRequest() — use this hook
@@ -58,10 +64,25 @@ interface CreateServerOptions {
 | ------------------- | ------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `buildDir`          | `string`                              | Yes      | Path to the build output directory. This is the directory produced by `react-flight-router build` (defaults to `./dist`). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                                                          |
 | `debug`             | `boolean`                             | No       | Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the `FLIGHT_DEBUG=1` environment variable.                                                                                                                                                         |
+| `telemetry`         | `TelemetryOptions`                    | No       | Optional collector endpoint, Bearer token and browser beacon path. See below.                                                                                                                                                                                                                                    |
 | `onRequest`         | `(request: Request) => void`          | No       | Called before each RSC/SSR render with the incoming `Request`. The framework automatically populates `getRequest()` — use this hook for additional per-request setup (logging, tracing, custom `AsyncLocalStorage`). See the [Request Context guide](../guides/request-context.md) for details.                  |
 | `onRequestComplete` | `(event: RequestTimingEvent) => void` | No       | Called after each request completes with structured timing data. Works independently of `debug`. Events include a `cancelled` flag when the client disconnected before the response was fully consumed. See the [Debugging & Performance guide](../guides/debugging.mdx) for the event shape and usage examples. |
 | `workers`           | `boolean \| WorkerOptions`            | No       | Enable worker threads for server actions. Pass `true` for default pool size (CPU cores - 1), or `{ size: N }` to set a specific pool size. See the [Worker Threads guide](../guides/worker-threads.md) for benchmark data and details.                                                                           |
 | `mimeTypes`         | `Record<string, string>`              | No       | Additional MIME type mappings for static asset serving. Keys are file extensions (including the leading dot), values are MIME type strings. These are merged with the built-in defaults, so you can override existing entries or add new ones. Example: `{ ".glb": "model/gltf-binary" }`.                       |
+
+### Telemetry options
+
+Reporting is off without an endpoint. `telemetry.endpoint` overrides
+`RFR_TELEMETRY_URL`; `telemetry.token` overrides `RFR_TELEMETRY_TOKEN`.
+An explicit empty endpoint disables reporting, and an empty token overrides an
+environment token. Server batches use the unchanged v1 format and POST to
+`${endpoint}/v1/server` with `authorization: Bearer <token>`.
+
+`telemetry.beaconPath` defaults to `/__rfr/telemetry`. The server supplies it to
+the browser through bootstrap data. Set it to `false` to keep server reporting
+and disable browser beacons. The application or host provides that same-origin
+POST receiver. Workers inherit the parent's resolved opt-in. See
+[Telemetry](../guides/debugging.mdx#telemetry) for payloads, limits and privacy.
 
 ### What it sets up
 
@@ -148,6 +169,7 @@ import {
 | `handleAction(options)`   | Processes a server action request: decodes the action, executes it, and returns an RSC response.                                                                                                                                               |
 | `RequestTimingEvent`      | TypeScript type for the structured performance data passed to `onRequestComplete`.                                                                                                                                                             |
 | `TimingEntry`             | TypeScript type for individual timing measurements within a `RequestTimingEvent`.                                                                                                                                                              |
+| `TelemetryOptions`        | TypeScript type for the optional collector endpoint, token and beacon path.                                                                                                                                                                    |
 | `WorkerOptions`           | TypeScript type for the `workers` configuration object (`{ size?: number; timeout?: number }`).                                                                                                                                                |
 
 ---
