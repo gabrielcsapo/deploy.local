@@ -267,11 +267,19 @@ export async function createServer(opts: CreateServerOptions) {
         }
       };
       if (!response.body || c.req.method === 'HEAD') {
-        if (c.req.method === 'HEAD') void response.body?.cancel().catch(() => {});
+        const unread = response.body;
+        if (c.req.method === 'HEAD') void unread?.cancel().catch(() => {});
         logger.timeEnd('total');
         logger.flush(type);
         finish(false);
-        return response;
+        // Middleware may rebuild the response after next(), which throws on a cancelled body.
+        return c.req.method === 'HEAD'
+          ? new Response(null, {
+              status,
+              statusText: response.statusText,
+              headers: response.headers,
+            })
+          : response;
       }
       // Observe errors without changing the bytes or propagating telemetry failures.
       const reader = response.body.getReader();
