@@ -12,6 +12,7 @@ import { getDeployManifestName, getIgnorePatterns, listBundleFiles } from './bun
 import { agentUser } from './agent-user.mjs';
 import {
   servicePlan,
+  agentHeartbeatCapabilities,
   assertAgentJobAllowed,
   isFile,
   workerExecutablePaths,
@@ -35,6 +36,7 @@ import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
 import { downloadWorkerBuild, installWorkerBuild } from './worker-update.mjs';
+import { ensureWorkerBuild } from './agent-install.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 import { printCertificateFingerprint } from './certificate-fingerprint.mjs';
@@ -987,10 +989,10 @@ function selfProgramArguments() {
   return [executable];
 }
 
-function installExecutionAgentService() {
+function installExecutionAgentService(keepSupervisor = false) {
   // Keep the service executor on an immutable inode, independent of every future worker swap.
   // Reinstalling restarts the service, so this is the one safe moment to move it to the current build.
-  linkWorkerSupervisor(dirname(agentConfigPath()));
+  if (!keepSupervisor) linkWorkerSupervisor(dirname(agentConfigPath()));
   const args = [...programArguments().agent, 'agent', 'run'];
   if (platform() === 'darwin') {
     const label = 'sh.deploy.agent';
@@ -1062,7 +1064,11 @@ function installExecutionAgentService() {
         `${detail}\nThe user agent could not be restarted after 4 attempts. Do not use sudo; wait a moment and retry.`,
       );
     }
-    spawnSync('launchctl', ['kickstart', '-k', serviceTarget], { stdio: 'ignore' });
+    const kicked = spawnSync('launchctl', ['kickstart', '-k', serviceTarget], {
+      encoding: 'utf8',
+    });
+    if (kicked.status !== 0)
+      throw new Error(kicked.stderr || 'launchctl could not start the agent service');
     const started = spawnSync('launchctl', ['print', `${domain}/${label}`], {
       encoding: 'utf8',
     });
@@ -1107,9 +1113,13 @@ WantedBy=multi-user.target
     encoding: 'utf8',
   });
   if (enabled.status !== 0) throw new Error(enabled.stderr || 'systemctl enable failed');
+  const restarted = spawnSync('systemctl', ['restart', 'deploy-local-agent.service'], {
+    encoding: 'utf8',
+  });
+  if (restarted.status !== 0) throw new Error(restarted.stderr || 'systemctl restart failed');
 }
 
-function installRoleServices(config) {
+function installRoleServices(config, { repair = false, rollback = false } = {}) {
   const plan = servicePlan(config.roles);
   if (plan.worker && (!config.workerId || !config.workerToken))
     throw new Error(
@@ -1121,12 +1131,16 @@ function installRoleServices(config) {
     );
   const agentDir = dirname(agentConfigPath());
   // On a Mac the services run the worker app; bare builds from an earlier install are unused.
-  if (workerExecutablePaths(agentDir).app && isFile(workerExecutablePaths(agentDir).executable)) {
+  if (
+    !repair &&
+    workerExecutablePaths(agentDir).app &&
+    isFile(workerExecutablePaths(agentDir).executable)
+  ) {
     const removed = removeBareWorkers(agentDir);
     if (removed.length) console.log(`Removed unused worker builds: ${removed.join(', ')}`);
   }
   // A Mac that ran apps kept its build where the task worker's state directory goes.
-  if (plan.worker) moveClashingWorker(agentDir, workerRoot());
+  if (plan.worker && !rollback) moveClashingWorker(agentDir, workerRoot());
   let agent = plan.agent;
   if (agent && !plan.apps && platform() === 'linux' && process.getuid?.() !== 0) {
     // The execution agent is a system service on Linux; without it the task worker still runs.
@@ -1135,7 +1149,7 @@ function installRoleServices(config) {
       'Automatic updates need the execution agent. Run sudo deploy agent install from this login to add it.',
     );
   }
-  if (agent) installExecutionAgentService();
+  if (agent) installExecutionAgentService(rollback);
   if (plan.worker) installWorkerService(programArguments().worker);
   return plan;
 }
@@ -1147,18 +1161,6 @@ async function downloadWorker(serverUrl, agentDir) {
   const installed = await downloadWorkerBuild(serverUrl, executable, undefined, previous);
   if (app) sealWorkerBundle(app);
   return installed;
-}
-/** Services run the coordinator's worker build, which can update itself in place later. */
-async function ensureWorkerBuild(serverUrl, agentDir) {
-  if (isFile(workerExecutablePaths(agentDir).executable)) return null;
-  try {
-    return await downloadWorker(serverUrl, agentDir);
-  } catch (error) {
-    console.log(
-      `Could not download the coordinator's worker build (${error.message}). Services will run this deploy command and cannot update themselves.`,
-    );
-    return null;
-  }
 }
 function connectionSummary(config, services = installedServices()) {
   const plan = servicePlan(config.roles);
@@ -1222,9 +1224,11 @@ async function cmdAgentInstall() {
     config.roles = roles;
     writeFileSync(agentConfigPath(), JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
   }
-  if (servicePlan(config.roles).agent)
-    await ensureWorkerBuild(config.coordinatorUrl, dirname(agentConfigPath()));
-  installRoleServices(config);
+  if (servicePlan(config.roles).agent) {
+    await ensureWorkerBuild(config.coordinatorUrl, dirname(agentConfigPath()), {
+      restartServices: ({ rollback }) => installRoleServices(config, { repair: true, rollback }),
+    });
+  } else installRoleServices(config);
   console.log(connectionSummary(config));
 }
 function cmdAgentUninstall() {
@@ -1264,11 +1268,7 @@ async function sendAgentHeartbeat(config) {
       architecture: arch(),
       agentVersion: BUILD_INFO.version,
       address: agentLanAddress(),
-      capabilities: {
-        ...agentCapabilities(),
-        selfUpdate: process.env.DEPLOY_WORKER_CHILD && process.connected ? 1 : undefined,
-        runApps: servicePlan(config.roles).apps ? undefined : 0,
-      },
+      capabilities: agentHeartbeatCapabilities(agentCapabilities(), config.roles),
       updateReport: workerUpdateReceipt(resolve(agentConfigPath(), '..', 'data')),
     }),
   });
