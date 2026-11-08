@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { TELEMETRY_SCHEMA } from './telemetry-schema.ts';
 import { deployDataPath } from './data-directory.ts';
 
 export const REQUEST_RETENTION_DAYS = 90;
@@ -13,7 +14,7 @@ CREATE TABLE IF NOT EXISTS request_logs (
  deployment_name TEXT NOT NULL, method TEXT NOT NULL, path TEXT NOT NULL,
  status INTEGER NOT NULL, duration INTEGER NOT NULL, timestamp INTEGER NOT NULL,
  ip TEXT, user_agent TEXT, referrer TEXT, request_size INTEGER, response_size INTEGER,
- query_params TEXT, username TEXT, capture_id TEXT
+ query_params TEXT, username TEXT, capture_id TEXT, route TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(deployment_name, timestamp);
 CREATE INDEX IF NOT EXISTS idx_request_logs_ts ON request_logs(timestamp);
@@ -34,12 +35,33 @@ export function requestsDbFile() {
 
 export function openRequestsDb(file = requestsDbFile()) {
   mkdirSync(dirname(file), { recursive: true });
+  const fresh = !existsSync(file);
   const db = new Database(file);
   try {
     db.pragma('busy_timeout = 5000');
+    // Existing NONE databases need an offline VACUUM to convert; never rewrite them on open.
+    if (fresh) db.pragma('auto_vacuum = INCREMENTAL');
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
     db.exec(REQUEST_SCHEMA);
+    db.transaction(() => {
+      if (
+        !(db.pragma('table_info(request_logs)') as { name: string }[]).some(
+          (row) => row.name === 'route',
+        )
+      )
+        db.exec('ALTER TABLE request_logs ADD COLUMN route TEXT');
+      db.exec(TELEMETRY_SCHEMA);
+      if (
+        !(db.pragma('table_info(telemetry_releases)') as { name: string }[]).some(
+          (row) => row.name === 'finalized',
+        )
+      )
+        db.exec('ALTER TABLE telemetry_releases ADD COLUMN finalized INTEGER NOT NULL DEFAULT 0');
+      db.exec(
+        'CREATE INDEX IF NOT EXISTS telemetry_releases_active ON telemetry_releases(deployment_name,released_at) WHERE finalized=0',
+      );
+    }).immediate();
     // Reserve the legacy ID range before ANY new writer can insert. This also
     // works when the edge opens first. MAX(id) is a primary-key lookup, not a scan.
     const sourceFile = join(dirname(file), 'deploy.db');
@@ -96,12 +118,28 @@ export function resetRequestsDb() {
 }
 
 export function pruneRequests(db = getRequestsSqlite(), now = Date.now()) {
-  return db.transaction(() => ({
-    requests: db
-      .prepare('DELETE FROM request_logs WHERE timestamp < ?')
-      .run(now - REQUEST_RETENTION_DAYS * 86_400_000).changes,
-    rollups: db
-      .prepare('DELETE FROM request_logs_1m WHERE bucket_ms < ?')
-      .run(now - ROLLUP_RETENTION_DAYS * 86_400_000).changes,
-  }))();
+  return db.transaction(() => {
+    const cutoff = now - ROLLUP_RETENTION_DAYS * 86_400_000;
+    db.prepare('DELETE FROM telemetry_routes WHERE bucket_ms < ?').run(cutoff);
+    db.prepare('DELETE FROM telemetry_pages WHERE bucket_ms < ?').run(cutoff);
+    db.prepare('DELETE FROM telemetry_errors WHERE last_seen < ?').run(cutoff);
+    db.prepare('DELETE FROM telemetry_releases WHERE released_at < ?').run(cutoff);
+    return {
+      requests: db
+        .prepare('DELETE FROM request_logs WHERE timestamp < ?')
+        .run(now - REQUEST_RETENTION_DAYS * 86_400_000).changes,
+      rollups: db
+        .prepare('DELETE FROM request_logs_1m WHERE bucket_ms < ?')
+        .run(now - ROLLUP_RETENTION_DAYS * 86_400_000).changes,
+    };
+  })();
+}
+
+/** Fully execute the bounded vacuum pragma using better-sqlite3's pragma API.
+ * NONE databases safely do nothing here. Converting them requires an offline VACUUM.
+ */
+export function vacuumRequests(db = getRequestsSqlite(), pages = 1024) {
+  if (!Number.isInteger(pages) || pages < 1 || pages > 1024)
+    throw new Error('Vacuum pages must be 1..1024');
+  db.pragma(`incremental_vacuum(${pages})`);
 }

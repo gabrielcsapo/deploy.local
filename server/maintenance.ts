@@ -1,7 +1,9 @@
+import { finalizeReleases } from './telemetry.ts';
 import { db as workspaceDb } from './workspace/store.ts';
 import { pruneHealthEvents } from './workspace/health-event-retention.ts';
 import {
   getRequestsSqlite,
+  vacuumRequests,
   pruneRequests,
   REQUEST_RETENTION_DAYS,
   ROLLUP_RETENTION_DAYS,
@@ -99,6 +101,7 @@ function pruneOldData() {
       .prepare('DELETE FROM resource_metrics WHERE timestamp < ?')
       .run(metricsCutoff);
     const pruned = pruneRequests();
+    finalizeReleases(getRequestsSqlite());
     const requestsResult = { changes: pruned.requests };
     const rollupsResult = { changes: pruned.rollups };
 
@@ -129,6 +132,7 @@ function runIncrementalVacuum() {
 
     const start = Date.now();
     sqlite.prepare(`PRAGMA incremental_vacuum(${INCREMENTAL_VACUUM_PAGES})`).run();
+    vacuumRequests(getRequestsSqlite(), INCREMENTAL_VACUUM_PAGES);
     const duration = Date.now() - start;
     if (duration > 100) {
       // Only log when slow — routine runs shouldn't spam the log
@@ -381,6 +385,14 @@ export function startMaintenance(packages?: { warm(): Promise<void>; daily(): Pr
       .catch((err) => console.error('Capture pruning failed:', err));
   }, VACUUM_INTERVAL_MS);
 
+  const comparisonTimer = setInterval(() => {
+    try {
+      finalizeReleases(getRequestsSqlite());
+    } catch (error) {
+      console.error('[telemetry] release comparisons deferred:', error);
+    }
+  }, 60_000);
+  comparisonTimer.unref();
   // A short first delay clears legacy heartbeat backlogs soon after startup.
   // Each pass yields between bounded batches; a busy database retries next minute.
   let pruningHealth = false;

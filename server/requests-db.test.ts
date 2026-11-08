@@ -69,6 +69,8 @@ test('live worker writes only requests.db; readers and named indexes work before
   logRequest('app', {
     method: 'POST',
     path: '/new',
+    route: '/new/:id',
+    phases: { render: 8 },
     status: 201,
     duration: 19,
     timestamp: Date.now(),
@@ -80,6 +82,14 @@ test('live worker writes only requests.db; readers and named indexes work before
   assert.equal(count(f.target), 1);
   assert.equal(count(f.source), 0);
   assert.equal(count(f.target, 'request_logs_1m'), 1);
+  assert.equal(
+    (f.target.prepare('SELECT route FROM request_logs').get() as { route: string }).route,
+    '/new/:id',
+  );
+  assert.equal(
+    (f.target.prepare('SELECT count FROM telemetry_routes').get() as { count: number }).count,
+    1,
+  );
   assert.equal(getRequestsSqlite().name, join(f.root, 'requests.db'));
   assert.equal(f.target.pragma('journal_mode', { simple: true }), 'wal');
   assert.equal(
@@ -127,7 +137,7 @@ test('newest-first copy resumes from disk without gaps, duplicate rows or duplic
   finish(f);
   assert.deepEqual(
     f.target.prepare('SELECT * FROM request_logs ORDER BY id').all(),
-    f.source.prepare('SELECT * FROM request_logs ORDER BY id').all(),
+    f.source.prepare('SELECT *, NULL AS route FROM request_logs ORDER BY id').all(),
   );
   f.source.exec(ROLLUP_BACKFILL_SQL);
   assert.deepEqual(
@@ -374,15 +384,24 @@ test('only a later startup compacts a completed background copy', async (t) => {
   assert.equal(count(f.target), 17);
 });
 
-test('request schema matches the legacy columns and indexes', (t) => {
+test('request schema preserves legacy columns and indexes with an additive nullable route', (t) => {
   const f = fixture(t);
   for (const table of ['request_logs', 'request_logs_1m']) {
     const columns = (db: Database.Database) =>
       (db.prepare(`PRAGMA table_info(${table})`).all() as Record<string, unknown>[]).map((row) => ({
         ...row,
         type: String(row.type).toLowerCase(),
+        name: String(row.name),
       }));
-    assert.deepEqual(columns(f.target), columns(f.source));
+    assert.deepEqual(
+      columns(f.target).filter((row) => row.name !== 'route'),
+      columns(f.source),
+    );
+    if (table === 'request_logs')
+      assert.deepEqual(
+        columns(f.target).find((row) => row.name === 'route'),
+        { cid: 15, name: 'route', type: 'text', notnull: 0, dflt_value: null, pk: 0 },
+      );
     const indexes = (db: Database.Database) =>
       (db.prepare(`PRAGMA index_list(${table})`).all() as { name: string }[])
         .map((row) => row.name)

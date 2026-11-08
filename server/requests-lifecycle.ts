@@ -1,3 +1,4 @@
+import { finalizeReleases } from './telemetry.ts';
 import type Database from 'better-sqlite3';
 import { Worker } from 'node:worker_threads';
 import { trackCiWorker } from './ci-fence.ts';
@@ -14,6 +15,7 @@ export function initializeRequestStorage(source: Database.Database) {
   stopRequestCopy();
   const sourceId = ensureImportSource(source);
   const target = getRequestsSqlite();
+  finalizeReleases(target);
   // Only receipts from a PREVIOUS start are eligible. The worker starts below.
   compactLegacyRequests(source, target, sourceId);
   sourceFile = source.name;

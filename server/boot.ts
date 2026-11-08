@@ -1,3 +1,4 @@
+import { startTelemetryCollector } from './telemetry-runtime.ts';
 /**
  * The one startup path. `server.ts` (the built server) and `server/index.ts`
  * (`pnpm server`, `pnpm dev`) call bootServer and add nothing else, so what
@@ -100,6 +101,9 @@ async function start(options: BootOptions) {
   // than running with stored secrets it can't open.
   loadOrCreateSecretKey(deployDataDirectory());
   initializeRequestStorage(getSqlite()!);
+  await startTelemetryCollector().catch((error) =>
+    console.warn('[telemetry] collector unavailable:', error.message),
+  );
   // Generate CA + server certs on first startup, including all known
   // deployments. Both roles: the control plane owns cert generation; the
   // edge only reads them.

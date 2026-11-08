@@ -1,3 +1,4 @@
+import { writeEdgeTelemetry } from './telemetry.ts';
 /**
  * Background worker for batched request_logs INSERTs.
  *
@@ -17,21 +18,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { openRequestsDb } from './requests-db.ts';
 import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
 
-interface RequestEntry {
-  method: string;
-  path: string;
-  status: number;
-  duration: number;
-  timestamp: number;
-  ip?: string | null;
-  userAgent?: string | null;
-  referrer?: string | null;
-  requestSize?: number | null;
-  responseSize?: number | null;
-  queryParams?: string | null;
-  username?: string | null;
-  captureId?: string | null;
-}
+import type { RequestEntry } from './request-log.ts';
 
 interface FlushMessage {
   type: 'flush';
@@ -42,26 +29,9 @@ const { dbFile } = workerData as { dbFile: string };
 
 const sqlite = openRequestsDb(dbFile);
 
-const insert = sqlite.prepare<
-  [
-    string,
-    string,
-    string,
-    number,
-    number,
-    number,
-    string | null,
-    string | null,
-    string | null,
-    number | null,
-    number | null,
-    string | null,
-    string | null,
-    string | null,
-  ]
->(
-  `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+const insert = sqlite.prepare(
+  `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id, route)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 );
 
 const rollupUpsert = sqlite.prepare(ROLLUP_UPSERT_SQL);
@@ -83,8 +53,10 @@ const flushTx = sqlite.transaction((items: Array<{ name: string; entry: RequestE
       entry.queryParams ?? null,
       entry.username ?? null,
       entry.captureId ?? null,
+      entry.route ?? null,
     );
   }
+  writeEdgeTelemetry(sqlite, items);
   // Same transaction: 1-minute rollups stay exactly consistent with raw rows.
   for (const r of buildRollups(items)) {
     rollupUpsert.run(

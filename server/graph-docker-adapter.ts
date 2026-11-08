@@ -1,3 +1,4 @@
+import { containerTelemetryEnvironment } from './telemetry-runtime.ts';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream, mkdirSync, statSync } from 'node:fs';
@@ -192,7 +193,12 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
   async createContainer(
     request: GraphContainerCreateRequest,
   ): Promise<{ id: string; name: string }> {
-    const args = containerArgs('create', request);
+    const args = containerArgs(
+      'create',
+      request,
+      false,
+      await containerTelemetryEnvironment(request.labels['deploy-sh.app']),
+    );
     const { stdout } = await execFileAsync('docker', args, { maxBuffer: 20 * 1024 * 1024 });
     return { id: stdout.trim(), name: request.name };
   }
@@ -270,7 +276,12 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
     try {
       const { stdout, stderr } = await execFileAsync(
         'docker',
-        containerArgs('run', request, true),
+        containerArgs(
+          'run',
+          request,
+          true,
+          await containerTelemetryEnvironment(request.labels['deploy-sh.app']),
+        ),
         {
           maxBuffer: 20 * 1024 * 1024,
         },
@@ -424,6 +435,7 @@ function containerArgs(
   operation: 'create' | 'run',
   request: GraphContainerCreateRequest,
   remove = false,
+  telemetry: Record<string, string> = {},
 ): string[] {
   const args: string[] = [operation];
   if (remove) args.push('--rm');
@@ -465,7 +477,9 @@ function containerArgs(
   for (const [key, value] of Object.entries(request.labels)) {
     args.push('--label', `${key}=${value}`);
   }
-  args.push(...(request.runArgs ?? []), request.image, ...(request.command ?? []));
+  args.push(...(request.runArgs ?? []));
+  for (const [key, value] of Object.entries(telemetry)) args.push('--env', `${key}=${value}`);
+  args.push(request.image, ...(request.command ?? []));
   return args;
 }
 

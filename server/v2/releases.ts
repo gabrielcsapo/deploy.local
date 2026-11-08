@@ -1,3 +1,4 @@
+import { recordTelemetryRelease } from '../telemetry-runtime.ts';
 import { CopyWarmer, queueCopies } from '../packages/copies.ts';
 import { npmRegistry } from '../packages/npm.ts';
 import { agentControl } from './phone-preferences.ts';
@@ -186,6 +187,12 @@ export function rollbackRule(owner: string, projectId: string) {
 }
 
 function persistRelease(owner: string, record: ReleaseRecord) {
+  const activation = record.release.steps.find((step) => step.name === 'activate');
+  if (record.activated && activation?.startedAt) {
+    for (const app of record.release.apps) {
+      recordTelemetryRelease(app.appId, record.release.id, Date.parse(activation.startedAt));
+    }
+  }
   db.transaction(() => {
     save('v2-release', owner, record);
     event(owner, record.release.projectId, null, 'v2.release', { release: record.release });

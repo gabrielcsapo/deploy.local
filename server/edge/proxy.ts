@@ -1,3 +1,5 @@
+import { parseRouteTiming } from '../telemetry.ts';
+import { handleBrowserTelemetry } from '../telemetry-http.ts';
 /**
  * Reverse-proxy hot path for `<app>.local` hosts.
  *
@@ -58,6 +60,8 @@ export interface ProxyBackendLease {
 }
 
 export interface RequestLogEntry extends Record<string, unknown> {
+  route?: string | null;
+  phases?: Record<string, number>;
   method: string;
   path: string;
   status: number;
@@ -241,6 +245,11 @@ export function proxyToApp(
       const entry: RequestLogEntry = {
         method,
         path: targetPath,
+        ...parseRouteTiming(
+          typeof cached.headers['server-timing'] === 'number'
+            ? undefined
+            : cached.headers['server-timing'],
+        ),
         status: cached.status,
         duration: Date.now() - startTime,
         timestamp: Date.now(),
@@ -328,6 +337,7 @@ export function proxyToApp(
     },
     (proxyRes) => {
       const proxyHeaders = proxyRes.headers;
+      const timing = parseRouteTiming(proxyHeaders['server-timing']);
       let streamedResponseSize = 0;
       const cacheChunks: Buffer[] = [];
       let cacheBytes = 0;
@@ -476,6 +486,7 @@ export function proxyToApp(
             reqBodyTap?.total ??
             (req.headers['content-length'] ? +(req.headers['content-length'] as string) : 0);
           const entry = {
+            ...timing,
             method,
             path: targetPath,
             status,
@@ -656,6 +667,13 @@ export function createHotPathHandler(deps: HotPathDeps) {
           appNotFoundHtml(hostname, (deps.listApps || appPageSource.listApps)?.() || []),
           method === 'HEAD',
         );
+        return true;
+      }
+      if (
+        method === 'POST' &&
+        (rawUrl === '/__deploy/telemetry' || rawUrl.startsWith('/__deploy/telemetry?'))
+      ) {
+        void handleBrowserTelemetry(req, res, d.name);
         return true;
       }
       const unavailable = availability(deps, appName);

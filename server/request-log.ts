@@ -1,3 +1,4 @@
+import { writeEdgeTelemetry } from './telemetry.ts';
 import { trackCiWorker } from './ci-fence.ts';
 /**
  * Buffered request-log writes (moved out of store.ts).
@@ -19,6 +20,8 @@ import { openRequestsDb, requestsDbFile } from './requests-db.ts';
 import { packageWorkerFile } from './packages/worker-file.ts';
 
 export interface RequestEntry {
+  route?: string | null;
+  phases?: Record<string, number>;
   method: string;
   path: string;
   status: number;
@@ -155,8 +158,8 @@ function ensureFallbackTx(dbFile: string) {
   _fallbackDb = sqlite;
 
   const insert = sqlite.prepare(
-    `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id, route)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const rollupUpsert = sqlite.prepare(ROLLUP_UPSERT_SQL);
   _fallbackTx = sqlite.transaction((items: Array<{ name: string; entry: RequestEntry }>) => {
@@ -176,8 +179,10 @@ function ensureFallbackTx(dbFile: string) {
         entry.queryParams || null,
         entry.username || null,
         entry.captureId || null,
+        entry.route ?? null,
       );
     }
+    writeEdgeTelemetry(sqlite, items);
     for (const r of buildRollups(items)) {
       rollupUpsert.run(
         r.deploymentName,
