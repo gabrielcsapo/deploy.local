@@ -276,6 +276,26 @@ describe('production telemetry wiring', () => {
     expect(complete.mock.calls[0][0]).toMatchObject({ status: 200, type: 'SSR' });
   });
 
+  it('lets extend middleware set headers on HEAD pages after the body is dropped', async () => {
+    const complete = vi.fn();
+    const app = await createServer({
+      buildDir: directory,
+      onRequestComplete: complete,
+      extend: ({ app: userApp }) => {
+        userApp.use('*', async (c, next) => {
+          await next();
+          c.header('X-After-Next', 'yes');
+        });
+      },
+    });
+    const response = await app.fetch(request('/photos/private', { method: 'HEAD' }));
+    expect(response.status).toBe(200);
+    expect(response.body).toBeNull();
+    expect(response.headers.get('x-after-next')).toBe('yes');
+    expect(response.headers.get('server-timing')).toMatch(/^route;desc="\/photos\/:id"/);
+    expect(complete).toHaveBeenCalledOnce();
+  });
+
   it('identifies successful actions and includes known execution duration', async () => {
     const app = await createServer({ buildDir: directory });
     const response = await app.fetch(
