@@ -300,6 +300,7 @@ export function proxyToApp(
   // The same IncomingMessage isn't re-used after this function returns, so
   // mutation is safe and avoids one allocation per request.
   const outHeaders = req.headers;
+  const originalHost = outHeaders.host || (outHeaders[':authority'] as string | undefined) || '';
   // Strip HTTP/2 pseudo-headers (`:method`, `:path`, `:scheme`, `:authority`)
   // before forwarding to the HTTP/1.1 backend. Node's http.request rejects
   // any header name starting with `:`. Cheap loop — for HTTP/1.1 requests
@@ -307,7 +308,6 @@ export function proxyToApp(
   for (const key in outHeaders) {
     if (key.charCodeAt(0) === 58 /* ':' */) delete outHeaders[key];
   }
-  const originalHost = outHeaders.host || (req.headers[':authority'] as string | undefined) || '';
   const xff = outHeaders['x-forwarded-for'] as string | undefined;
   const remoteAddr = req.socket.remoteAddress || '';
   outHeaders.host = `${backendHost}:${backendPort}`;
