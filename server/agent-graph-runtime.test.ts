@@ -121,6 +121,39 @@ afterEach(() => {
 });
 
 describe('connected-agent application graph executor', () => {
+  it('remote graph containers and jobs receive platform telemetry after user environment', async () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'deploy-agent-telemetry-'));
+    temporary.push(root);
+    const docker = new FakeDocker();
+    const graph = graphPayload();
+    graph.componentEnvironment = { api: { RFR_TELEMETRY_URL: 'http://wrong' }, web: {} };
+    const telemetryEnvironment = async () => ({
+      RFR_TELEMETRY_URL: 'http://host.lima.internal:5358/__deploy',
+      RFR_TELEMETRY_TOKEN: 'ser-token',
+    });
+    await executeAgentApplicationGraph(
+      {
+        deploymentName: 'forma',
+        jobId: 'telemetry',
+        sourceDirectory: root,
+        volumeDirectory: root,
+        statePath: resolve(root, 'state.json'),
+        artifactSpecDigest: compiled.digest,
+        artifactSpec: compiled.spec,
+        graph,
+        probePort: async () => true,
+        telemetryEnvironment,
+      },
+      docker,
+    );
+    const commands = docker.commands.filter((command) => ['create', 'run'].includes(command[0]));
+    assert.equal(commands.length, 4);
+    for (const command of commands) {
+      assert.ok(command.includes('RFR_TELEMETRY_TOKEN=ser-token'));
+      assert.ok(command.includes('RFR_TELEMETRY_URL=http://host.lima.internal:5358/__deploy'));
+      assert.ok(!command.includes('RFR_TELEMETRY_URL=http://wrong'));
+    }
+  });
   it('materializes components, fixed instances, private discovery, volumes, jobs, and routing', async () => {
     const root = mkdtempSync(resolve(tmpdir(), 'deploy-agent-graph-'));
     temporary.push(root);

@@ -33,7 +33,7 @@ function end(res: ServerResponse, status: number) {
   res.writeHead(status, { 'Cache-Control': 'no-store' });
   res.end();
 }
-async function readBody(req: IncomingMessage, cap: number) {
+export async function readTelemetryBody(req: IncomingMessage, cap: number) {
   const length = req.headers['content-length'];
   if (length && (!/^\d+$/.test(length) || Number(length) > cap)) {
     req.resume();
@@ -67,7 +67,7 @@ export async function handleBrowserTelemetry(
       req.resume();
       return end(res, 429);
     }
-    const body = await readBody(req, 16 * 1024);
+    const body = await readTelemetryBody(req, 16 * 1024);
     ingestBrowser(db(), name, body);
     end(res, 204);
   } catch (error) {
@@ -97,7 +97,7 @@ export function serverTelemetryHandler(
         req.resume();
         return end(res, 401);
       }
-      const body = await readBody(req, 512 * 1024);
+      const body = await readTelemetryBody(req, 512 * 1024);
       ingestServer(db(), name, body);
       end(res, 204);
     } catch (error) {

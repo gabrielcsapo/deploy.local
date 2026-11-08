@@ -4,6 +4,9 @@ CREATE TABLE IF NOT EXISTS telemetry_tokens (
  token_hash TEXT PRIMARY KEY, deployment_name TEXT NOT NULL, created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS telemetry_tokens_deployment ON telemetry_tokens(deployment_name);
+CREATE TABLE IF NOT EXISTS telemetry_remote_tokens (
+ token_hash TEXT PRIMARY KEY, node_id TEXT NOT NULL, owner TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS telemetry_routes (
  deployment_name TEXT NOT NULL, bucket_ms INTEGER NOT NULL, route TEXT NOT NULL,
  source TEXT NOT NULL, count INTEGER NOT NULL, errors_4xx INTEGER NOT NULL,
