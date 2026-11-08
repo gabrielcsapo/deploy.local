@@ -141,9 +141,11 @@ export class HtmlInjectionScanner {
       this.lastWasTagClose = false;
       switch (this.state) {
         case ScanState.Text:
-          if (c === '<') {
-            this.state = ScanState.TagOpen;
-          }
+          // Text cannot affect parser depth. Native substring search avoids
+          // visiting every character of large text nodes and escaped content.
+          i = text.indexOf('<', i);
+          if (i === -1) return;
+          this.state = ScanState.TagOpen;
           break;
 
         case ScanState.TagOpen:
@@ -237,6 +239,14 @@ export class HtmlInjectionScanner {
           break;
 
         case ScanState.RawText: {
+          // Only a '<' can begin the closing tag. Keep partial matches on
+          // the character path so close tags split across chunks still work.
+          if (this.rawMatchPos === 0 && c !== '<') {
+            const next = text.indexOf('<', i);
+            if (next === -1) return;
+            i = next - 1;
+            break;
+          }
           const lower = c.toLowerCase();
           if (this.rawMatchPos === this.rawCloseTarget.length) {
             // Matched "</script" — next char decides if the tag really closes
