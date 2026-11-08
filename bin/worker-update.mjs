@@ -20,6 +20,7 @@ export function installWorkerBuild({
   sha256,
   size,
   version,
+  commit,
   // Where the replaced build is kept for rollback; it must be on the same volume as `path`.
   previous = `${path}.previous`,
   platform = process.platform,
@@ -56,7 +57,7 @@ export function installWorkerBuild({
       if (signed.status !== 0)
         throw new Error('Unable to sign the worker build; the installed build was kept.');
     }
-    probe(staged, version);
+    probe(staged, version, commit);
     if (hadPrevious) {
       rmSync(previous, { force: true });
       linkSync(path, previous);
@@ -65,7 +66,7 @@ export function installWorkerBuild({
     renameSync(staged, path);
     swapped = true;
     syncDirectory();
-    probe(path, version);
+    probe(path, version, commit);
     return { version, previous: hadPrevious ? previous : undefined };
   } catch (error) {
     if (swapped) {
@@ -78,7 +79,7 @@ export function installWorkerBuild({
     rmSync(staged, { force: true });
   }
 }
-function probeWorker(path, version) {
+export function workerBuildInfo(path) {
   const result = spawnSync(path, ['version', '--json'], { encoding: 'utf8', timeout: 30_000 });
   if (result.error || result.status !== 0)
     throw new Error('The worker build failed its startup check.');
@@ -88,27 +89,49 @@ function probeWorker(path, version) {
   } catch {
     throw new Error('The worker build returned an invalid version.');
   }
-  if (info.version !== version)
+  return info;
+}
+function probeWorker(path, version, commit) {
+  const info = workerBuildInfo(path);
+  if (info.version !== version || (commit && info.commit !== commit))
     throw new Error('The worker build does not match the coordinator release.');
 }
-export async function downloadWorkerBuild(serverUrl, path, expectedVersion, previous) {
-  const response = await fetch(`${serverUrl}/cli/version`);
+export async function workerBuildManifest(serverUrl) {
+  const response = await fetch(`${serverUrl}/cli/version`, {
+    signal: AbortSignal.timeout(30_000),
+    redirect: 'error',
+  });
   if (!response.ok) throw new Error('The coordinator worker manifest is unavailable.');
   const manifest = await response.json();
+  if (!manifest || typeof manifest.version !== 'string' || !manifest.version)
+    throw new Error('The coordinator worker manifest is invalid.');
+  return manifest;
+}
+export async function downloadWorkerBuild(
+  serverUrl,
+  path,
+  expectedVersion,
+  previous,
+  { manifest, platform = process.platform, arch = process.arch, install = installWorkerBuild } = {},
+) {
+  manifest ??= await workerBuildManifest(serverUrl);
   if (expectedVersion && manifest.version !== expectedVersion)
     throw new Error('The coordinator release changed. Try again.');
-  const target = manifest.targets?.[`${process.platform}-${process.arch}`];
+  const target = manifest.targets?.[`${platform}-${arch}`];
   if (!target) throw new Error('No matching worker build is available for this computer.');
   const artifact = await fetch(
-    `${serverUrl}/cli?os=${process.platform}&arch=${process.arch}&version=${encodeURIComponent(manifest.version)}`,
+    `${serverUrl}/cli?os=${platform}&arch=${arch}&version=${encodeURIComponent(manifest.version)}`,
+    { signal: AbortSignal.timeout(120_000), redirect: 'error' },
   );
   if (!artifact.ok) throw new Error('The coordinator worker build is unavailable.');
-  return installWorkerBuild({
+  return install({
     path,
     bytes: Buffer.from(await artifact.arrayBuffer()),
     sha256: target.sha256,
     size: target.size,
     version: manifest.version,
+    commit: manifest.commit,
+    platform,
     previous,
   });
 }

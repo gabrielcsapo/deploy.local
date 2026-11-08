@@ -30,6 +30,14 @@ export function servicePlan(roles) {
     worker = roles?.tasks ?? false;
   return { agent: apps || worker, worker, apps };
 }
+/** Only the execution agent's connected supervisor child can accept self-update jobs. */
+export function agentHeartbeatCapabilities(capabilities, roles, runtime = process) {
+  return {
+    ...capabilities,
+    selfUpdate: runtime.env.DEPLOY_WORKER_CHILD && runtime.connected ? 1 : undefined,
+    runApps: servicePlan(roles).apps ? undefined : 0,
+  };
+}
 /** With Deploy apps off, the agent only keeps this computer's own build current. */
 export function assertAgentJobAllowed(job, roles) {
   if (roles?.deploy === false && job?.type !== 'self-update')

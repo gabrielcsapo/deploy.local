@@ -96,8 +96,11 @@ identity, not an ordering. Its own `local` and `managed-*` workers are always cu
 An absent report is **unknown**, which needs an update for agent tasks. No exact missing-tool list
 is inferred from an absent report. Install the latest deploy.local worker on that computer. For
 Linux Node, use the [.deb or AppImage installation path](node-app.md#install-and-run), replacing an
-AppImage at its existing location, then quit and reopen Node. On macOS, update the installed worker
-and restart its worker service; `deploy agent install` can repair the existing enrolled services.
+AppImage at its existing location, then quit and reopen Node. On a CLI computer that isn't updating,
+run `deploy upgrade` then `deploy agent install` from your normal login (without sudo on macOS).
+Repair replaces an outdated worker with the coordinator's verified build and installs its restart
+supervisor. After that, automatic updates keep it current when they're turned on. Linux may ask
+you to run `sudo deploy agent install` from that same login to install the execution agent.
 
 Newer workers consume a coordinator-owned developer-instruction snapshot, which warns about
 missing tools and directs the agent to ask via `deploy_ask_user` before relying on them. Builds
