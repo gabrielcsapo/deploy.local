@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useInsertionEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   type ReactNode,
@@ -17,6 +18,7 @@ import { reloadForNewBuild } from './build-check.js';
 import { SuspenseSentinel } from './suspense-sentinel.js';
 import { takePrefetch } from './prefetch-cache.js';
 import { prepareStylesheets } from './route-css.js';
+import type { NavigationStart, PrefetchSource } from './telemetry.js';
 import { fastPathname } from './fast-pathname.js';
 
 // Cached element to avoid creating a new one on every navigation
@@ -235,6 +237,12 @@ export function RouterProvider({
   createFromReadableStream,
   callServer,
 }: RouterProviderProps) {
+  const pendingTelemetry = useRef<{
+    url: string;
+    route: string;
+    navigation: NavigationStart;
+    prefetch: PrefetchSource;
+  } | null>(null);
   const [styles, setStyles] = useState<Awaited<ReturnType<typeof prepareStylesheets>>>();
   // Apply styles in the same commit as the segments, before layout measurements/paint.
   useInsertionEffect(() => {
@@ -242,6 +250,17 @@ export function RouterProvider({
   }, [styles]);
   const [url, setUrl] = useState(initialUrl);
   const [segments, setSegments] = useState(initialSegments);
+  useLayoutEffect(() => {
+    const pending = pendingTelemetry.current;
+    if (pending?.url === url) {
+      pendingTelemetry.current = null;
+      window.__DEPLOY_METRICS__?.commitNavigation(
+        pending.route,
+        pending.navigation,
+        pending.prefetch,
+      );
+    }
+  }, [url, segments]);
   const [params, setParams] = useState(initialParams);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const [boundaryComponents, setBoundaryComponents] = useState<BoundaryComponentMap>(
@@ -271,7 +290,11 @@ export function RouterProvider({
   }, []);
 
   const navigate = useCallback(
-    async (to: string, options?: NavigateOptions) => {
+    async (to: string, options?: NavigateOptions, continuation?: NavigationStart) => {
+      const telemetry = globalThis.window?.__DEPLOY_METRICS__;
+      const navigation = continuation ?? telemetry?.startNavigation();
+      pendingTelemetry.current = null;
+      let prefetch: PrefetchSource = 'miss';
       const targetUrl = new URL(to, globalThis.location.origin);
       const currentLocator = new URL(urlRef.current, globalThis.location.origin);
       // Send pathname + search so the server can diff parallel-route slots,
@@ -333,6 +356,11 @@ export function RouterProvider({
           targetUrl.pathname,
           targetUrl.search,
           controller.signal,
+          telemetry
+            ? (source) => {
+                prefetch = source;
+              }
+            : undefined,
         );
         const response =
           prefetched ??
@@ -382,7 +410,7 @@ export function RouterProvider({
 
         // A server component called redirect() — follow it client-side.
         if (payload.redirect) {
-          navigate(payload.redirect.url, { replace: true });
+          navigate(payload.redirect.url, { replace: true }, navigation);
           return;
         }
 
@@ -420,6 +448,8 @@ export function RouterProvider({
           }));
         }
 
+        if (navigation && payload.route)
+          pendingTelemetry.current = { url: to, route: payload.route, navigation, prefetch };
         setUrl(to);
         // Sync the ref immediately — it normally updates during render, but a
         // navigation that starts before React flushes (e.g. a popstate right

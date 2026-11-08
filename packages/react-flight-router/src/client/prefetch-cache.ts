@@ -98,12 +98,19 @@ export async function takePrefetch(
   pathname: string,
   search: string,
   signal: AbortSignal,
+  onConsume?: (source: 'hit' | 'inflight' | 'miss') => void,
 ): Promise<Response | null> {
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
   const response = consumePrefetch(pathname, search);
-  if (response) return response;
+  if (response) {
+    onConsume?.('hit');
+    return response;
+  }
   const pending = inflightPrefetches.get(pathname + search);
-  if (!pending) return null;
+  if (!pending) {
+    onConsume?.('miss');
+    return null;
+  }
 
   // Cancelling a navigation stops the wait but leaves the speculative fetch
   // available for a later navigation. Only one caller can consume its body.
@@ -116,5 +123,7 @@ export async function takePrefetch(
     });
   });
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-  return consumePrefetch(pathname, search);
+  const result = consumePrefetch(pathname, search);
+  onConsume?.(result ? 'inflight' : 'miss');
+  return result;
 }

@@ -508,3 +508,56 @@ describe('navigation during prefetch', () => {
     expect(result.current.navigationError).toBeNull();
   });
 });
+
+describe('navigation telemetry', () => {
+  afterEach(() => {
+    cleanup();
+    delete window.__DEPLOY_METRICS__;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('measures redirects from the original click through the committed destination', async () => {
+    cleanup();
+    vi.stubGlobal('location', {
+      origin: 'http://localhost',
+      pathname: '/current',
+      search: '',
+      hash: '',
+    });
+    vi.stubGlobal('history', { state: { key: 'test' }, pushState: vi.fn(), replaceState: vi.fn() });
+    const navigation = { from: '/current', start: performance.now() };
+    const startNavigation = vi.fn().mockReturnValue(navigation);
+    const commitNavigation = vi.fn();
+    window.__DEPLOY_METRICS__ = { startNavigation, commitNavigation, stop() {} };
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ redirect: { url: '/destination/private' } })),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              route: '/destination/:id',
+              segments: { root: 'destination' },
+              params: {},
+            }),
+          ),
+        ),
+    );
+    const { result } = renderHook(() => useRouter(), { wrapper });
+    await act(async () => {
+      await result.current.navigate('/redirect/private');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(result.current.url).toBe('/destination/private');
+    expect(startNavigation).toHaveBeenCalledOnce();
+    expect(commitNavigation).toHaveBeenCalledExactlyOnceWith(
+      '/destination/:id',
+      navigation,
+      'miss',
+    );
+  });
+});

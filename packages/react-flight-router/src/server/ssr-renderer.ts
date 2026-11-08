@@ -53,6 +53,8 @@ interface SSRRenderOptions {
    * background after the 504 has already been sent.
    */
   signal?: AbortSignal;
+  telemetry?: boolean;
+  onError?: (error: unknown) => void;
 }
 
 /**
@@ -127,7 +129,12 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   );
 
   // Build the bootstrap script
-  const bootstrapScript = generateBootstrapScript(moduleMap, true, buildId);
+  const bootstrapScript = generateBootstrapScript(
+    moduleMap,
+    true,
+    buildId,
+    opts.telemetry ? { route: payload.route ?? '__not_found' } : undefined,
+  );
 
   // Render the React tree to HTML
   logger?.time('ssr:renderToHTML');
@@ -136,10 +143,14 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     htmlStream = await renderToReadableStream(app, {
       bootstrapScriptContent: bootstrapScript,
       bootstrapModules: [clientEntryUrl],
-      onError: (err) => console.error('[react-flight-router] SSR error:', err),
+      onError: (err) => {
+        opts.onError?.(err);
+        console.error('[react-flight-router] SSR error:', err);
+      },
       signal,
     });
-  } catch {
+  } catch (error) {
+    opts.onError?.(error);
     // SSR failed — a component threw synchronously during the initial shell
     // render. React's SSR error boundaries only fire for errors inside a
     // Suspense boundary; shell errors reject the entire render. Fall back
@@ -147,7 +158,12 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     // with createRoot, where route-level <ErrorBoundary> components catch
     // the error properly.
     logger?.timeEnd('ssr:renderToHTML');
-    const csrBootstrap = generateBootstrapScript(moduleMap, false, buildId);
+    const csrBootstrap = generateBootstrapScript(
+      moduleMap,
+      false,
+      buildId,
+      opts.telemetry ? { route: payload.route ?? '__not_found' } : undefined,
+    );
     return createCSRFallbackStream(streamForInline, clientEntryUrl, cssFiles, csrBootstrap);
   }
   logger?.timeEnd('ssr:renderToHTML');

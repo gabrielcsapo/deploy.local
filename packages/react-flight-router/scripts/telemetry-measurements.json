@@ -1,0 +1,193 @@
+{
+  "date": "2026-11-07",
+  "runtime": "Node v26.8.1",
+  "baselineCommit": "9e57070f925644f249a28505cdcc86908c80f134",
+  "baselineRouterVersion": "0.12.3",
+  "fixture": "Temporary copy of packages/react-flight-router-example; debug and onRequestComplete disabled; loopback only.",
+  "clientGzip": {
+    "method": "Sum of gzip level 9, mtime 0 bytes of every client JS file, including nested chunks. Off excludes the never-requested lazy telemetry chunk.",
+    "baseline": 87727,
+    "off": 88010,
+    "on": 89892,
+    "offDelta": 283,
+    "onDelta": 2165,
+    "lazyChunk": 1882
+  },
+  "requestWallMs": {
+    "method": "Keep-alive HTTP, identity encoding, 100 warmup requests per server, then 9 alternating rounds of 200 sequential requests per server. Median of round medians. Local fake collector; serialization and flushes included. Differences below observed round-to-round variation.",
+    "baseline": {
+      "median": 0.46624999999994543,
+      "rounds": [
+        0.6693749999999454, 0.8595839999998134, 0.46624999999994543, 0.4747499999998581,
+        0.4447500000001128, 0.6917090000001735, 0.3740829999997004, 0.38799999999991996,
+        0.3777500000001055
+      ]
+    },
+    "telemetryOff": {
+      "median": 0.4808330000000751,
+      "rounds": [
+        0.6573339999999916, 0.8621669999999995, 0.4808330000000751, 0.4400420000001759,
+        0.7404160000000957, 0.3965829999997368, 0.3850000000002183, 0.39249999999992724,
+        0.6801660000000993
+      ]
+    },
+    "telemetryOn": {
+      "median": 0.5223340000000007,
+      "rounds": [
+        0.7295829999999341, 0.8672919999999067, 0.5223340000000007, 0.4306249999999636,
+        0.7756670000003396, 0.40750000000025466, 0.3999170000001868, 0.39170800000010786,
+        0.7074579999998605
+      ]
+    }
+  },
+  "htmlCompression": {
+    "method": "Example home page, 100 requests each, median wire bytes, TTFB and total milliseconds.",
+    "results": [
+      {
+        "request": "5300 gzip, br",
+        "bytes": 12988,
+        "ttfb": 0.6112920000000486,
+        "total": 0.6152920000004087,
+        "encoding": "identity"
+      },
+      {
+        "request": "5301 gzip",
+        "bytes": 3493,
+        "ttfb": 0.48745800000006057,
+        "total": 0.6397910000000593,
+        "encoding": "gzip"
+      },
+      {
+        "request": "5301 br",
+        "bytes": 3477,
+        "ttfb": 0.4709579999998823,
+        "total": 0.654957999999624,
+        "encoding": "br"
+      }
+    ]
+  },
+  "suspense": {
+    "method": "Actual production RSC + SSR fixture, async child resolves after 500 ms, raw HTTP decompressed incrementally, five requests per encoding.",
+    "results": {
+      "identity": {
+        "boundaryMinMs": 503.536917,
+        "boundaryMaxMs": 511.709042,
+        "samples": [
+          {
+            "first": 12.196749999999998,
+            "boundary": 511.709042,
+            "bytes": 4318,
+            "status": 200
+          },
+          {
+            "first": 4.179042000000095,
+            "boundary": 503.536917,
+            "bytes": 4318,
+            "status": 200
+          },
+          {
+            "first": 2.0472919999999704,
+            "boundary": 504.96074999999996,
+            "bytes": 4318,
+            "status": 200
+          },
+          {
+            "first": 2.5305419999999685,
+            "boundary": 504.8399999999999,
+            "bytes": 4318,
+            "status": 200
+          },
+          {
+            "first": 3.0988330000000133,
+            "boundary": 505.09262499999977,
+            "bytes": 4318,
+            "status": 200
+          }
+        ]
+      },
+      "gzip": {
+        "boundaryMinMs": 504.29612499999985,
+        "boundaryMaxMs": 506.1577080000002,
+        "samples": [
+          {
+            "first": 6.252582999999959,
+            "boundary": 506.1577080000002,
+            "bytes": 1757,
+            "status": 200
+          },
+          {
+            "first": 3.6405829999998787,
+            "boundary": 505.5124169999999,
+            "bytes": 1757,
+            "status": 200
+          },
+          {
+            "first": 2.9774579999998423,
+            "boundary": 504.29612499999985,
+            "bytes": 1757,
+            "status": 200
+          },
+          {
+            "first": 3.2722499999999854,
+            "boundary": 505.19854200000054,
+            "bytes": 1757,
+            "status": 200
+          },
+          {
+            "first": 3.6288329999997586,
+            "boundary": 504.83895799999937,
+            "bytes": 1757,
+            "status": 200
+          }
+        ]
+      },
+      "br": {
+        "boundaryMinMs": 501.9617499999995,
+        "boundaryMaxMs": 505.03762499999993,
+        "samples": [
+          {
+            "first": 3.0919169999997393,
+            "boundary": 505.03762499999993,
+            "bytes": 1759,
+            "status": 200
+          },
+          {
+            "first": 2.965499999999338,
+            "boundary": 501.9617499999995,
+            "bytes": 1759,
+            "status": 200
+          },
+          {
+            "first": 2.4156670000002123,
+            "boundary": 504.2510000000002,
+            "bytes": 1759,
+            "status": 200
+          },
+          {
+            "first": 2.542833999999857,
+            "boundary": 504.10741700000017,
+            "bytes": 1759,
+            "status": 200
+          },
+          {
+            "first": 2.4857090000004973,
+            "boundary": 504.541209,
+            "bytes": 1759,
+            "status": 200
+          }
+        ]
+      }
+    }
+  },
+  "commands": {
+    "benchmark": "DEPLOY_MDNS_ADDRESS=127.0.0.1 node packages/react-flight-router/scripts/telemetry-benchmark.mjs",
+    "fixture": "DEPLOY_MDNS_ADDRESS=127.0.0.1 PORT=5306 node packages/react-flight-router/scripts/telemetry-fixture.mjs --telemetry",
+    "browserTests": "pnpm_config_verify_deps_before_run=false pnpm exec playwright test --config packages/react-flight-router/e2e/playwright.config.ts"
+  },
+  "notVerified": [
+    "Browser tests authored and listed (7), not executed: Chromium is unavailable in the sandbox.",
+    "No live deploy.local collector or edge integration. Edge compression and cache behavior reviewed read-only.",
+    "Root pnpm test not run: unrelated suites bind ephemeral ports outside the assigned range and include forbidden Swift builds.",
+    "No release, commits or changelog generation."
+  ]
+}

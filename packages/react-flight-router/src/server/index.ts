@@ -1,18 +1,18 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { compress, COMPRESSIBLE_CONTENT_TYPE_REGEX } from 'hono/compress';
 import { createRequire } from 'module';
 import { readdirSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { resolve, sep } from 'path';
 import { randomUUID } from 'crypto';
-import { createGzip, gzip, constants as zlibConstants } from 'zlib';
+import { gzip } from 'zlib';
 import { promisify } from 'util';
 import { loadManifests } from './manifest-loader.js';
 import { renderRSC } from './rsc-renderer.js';
 import { renderSSR } from './ssr-renderer.js';
 import { handleAction } from './action-handler.js';
 import { getRequestSignal } from './request-signal.js';
-import { createWorkerPool, type WorkerPool } from './worker-pool.js';
+import { createWorkerPool, type WorkerPool, type WorkerCompletion } from './worker-pool.js';
 import { requestStorage } from './request-context.js';
 import { createSSRModuleLoader } from './ssr-module-loader.js';
 import { withRenderTimeout } from './render-timeout.js';
@@ -30,71 +30,20 @@ import type { ExtendHook } from '../shared/extend.js';
 import type { RequestTimingEvent, WorkerOptions } from '../shared/types.js';
 import {
   maybeCreateLogger,
-  maskParams,
+  isDebugEnabled,
   type FlightTimer,
   type FlightLogger,
 } from '../shared/logger.js';
 
+import { compressStreamResponse } from './streaming-compression.js';
+import {
+  createTelemetryReporter,
+  serverTiming,
+  telemetryError,
+  telemetryPhases,
+} from './telemetry.js';
+
 const gzipAsync = promisify(gzip);
-
-/**
- * Creates a TransformStream that gzip-compresses each chunk individually
- * using Z_SYNC_FLUSH. Unlike CompressionStream (which buffers internally),
- * this flushes compressed output after every input chunk, preserving
- * streaming behavior for RSC Suspense while still reducing wire size.
- */
-function createStreamingGzip(): {
-  readable: ReadableStream<Uint8Array>;
-  writable: WritableStream<Uint8Array>;
-  encoding: string;
-} {
-  const gzip = createGzip({ flush: zlibConstants.Z_SYNC_FLUSH });
-  let closed = false;
-
-  const readable = new ReadableStream<Uint8Array>({
-    start(controller) {
-      gzip.on('data', (chunk: Buffer) => {
-        if (!closed) {
-          controller.enqueue(new Uint8Array(chunk));
-        }
-      });
-      gzip.on('end', () => {
-        if (!closed) {
-          closed = true;
-          controller.close();
-        }
-      });
-      gzip.on('error', (err) => {
-        if (!closed) {
-          closed = true;
-          controller.error(err);
-        }
-      });
-    },
-    cancel() {
-      closed = true;
-      gzip.destroy();
-    },
-  });
-
-  const writable = new WritableStream<Uint8Array>({
-    write(chunk) {
-      return new Promise((resolve, reject) => {
-        gzip.write(chunk, (err) => (err ? reject(err) : resolve()));
-      });
-    },
-    close() {
-      return new Promise((resolve) => {
-        gzip.end(() => resolve());
-      });
-    },
-    abort() {
-      gzip.destroy();
-    },
-  });
-
-  return { readable, writable, encoding: 'gzip' };
-}
 
 interface CreateServerOptions {
   /** Path to the build output directory */
@@ -193,7 +142,7 @@ export async function createServer(opts: CreateServerOptions) {
   const buildDir = resolve(opts.buildDir);
   const debugEnabled = opts.debug;
   const onRequestComplete = opts.onRequestComplete;
-  const hasCallback = !!onRequestComplete;
+  const reporter = createTelemetryReporter();
   const renderTimeoutMs = opts.renderTimeoutMs;
   const manifests = loadManifests(buildDir);
 
@@ -220,6 +169,135 @@ export async function createServer(opts: CreateServerOptions) {
     } catch (err) {
       console.error('[react-flight-router] onRequestComplete callback error:', err);
     }
+  }
+
+  interface RequestState {
+    t: number;
+    type: RequestTimingEvent['type'];
+    route: string;
+    pathname: string;
+    match: number;
+    status?: number;
+    errors: Set<unknown>;
+    workerDone?: Promise<WorkerCompletion>;
+  }
+  const requests = new WeakMap<FlightTimer, RequestState>();
+  function reportError(logger: FlightLogger, where: 'rsc' | 'ssr' | 'action', error: unknown) {
+    const state = logger && requests.get(logger);
+    if (
+      !reporter ||
+      !state ||
+      state.errors.has(error) ||
+      (error instanceof Error && error.name === 'AbortError')
+    )
+      return;
+    state.errors.add(error);
+    try {
+      reporter.add(telemetryError(error, state.route, where));
+    } catch {
+      /* Monitoring never fails a user request. */
+    }
+  }
+  function timed(
+    type: RequestTimingEvent['type'],
+    handler: (c: Context, logger: FlightTimer, state: RequestState) => Promise<Response>,
+  ) {
+    return async (c: Context) => {
+      // Server-Timing is unconditional; reuse the existing logger, silently by default.
+      const logger = maybeCreateLogger(debugEnabled, true, !reporter && !onRequestComplete)!;
+      logger.time('total');
+      const state: RequestState = {
+        t: Date.now(),
+        type,
+        route: '__not_found',
+        pathname: new URL(c.req.url).pathname,
+        match: 0,
+        errors: new Set(),
+      };
+      requests.set(logger, state);
+      let response: Response;
+      try {
+        response = await handler(c, logger, state);
+      } catch (error) {
+        reportError(logger, type === 'ACTION' ? 'action' : 'rsc', error);
+        response = new Response('Internal Server Error', { status: 500 });
+      }
+      const entries = logger.getEntries(false);
+      const elapsed = entries.find((entry) => entry.label === 'total')?.durationMs ?? 0;
+      const action = entries.filter(
+        (entry) => entry.label.startsWith('action:execute(') && entry.durationMs !== undefined,
+      );
+      response.headers.set(
+        'Server-Timing',
+        type === 'ACTION'
+          ? serverTiming(
+              state.route,
+              undefined,
+              undefined,
+              action.length
+                ? action.reduce((sum, entry) => sum + (entry.durationMs ?? 0), 0)
+                : undefined,
+            )
+          : serverTiming(state.route, state.match, elapsed),
+      );
+      response = compressStreamResponse(response, c.req.header('Accept-Encoding') ?? '');
+      if (!reporter && !onRequestComplete && !isDebugEnabled(debugEnabled)) return response;
+      const status = response.status;
+      const finish = (aborted: boolean) => {
+        fireRequestComplete(logger, type, state.pathname, state.status ?? status, aborted);
+        if (reporter) {
+          const timings = logger.getEntries();
+          reporter.add({
+            t: state.t,
+            kind: type === 'SSR' ? 'page' : (type.toLowerCase() as 'rsc' | 'action'),
+            route: state.route,
+            status: state.status ?? status,
+            ms: timings.find((entry) => entry.label === 'total')?.durationMs ?? 0,
+            phases: telemetryPhases(timings),
+            build: manifests.buildId ?? null,
+            aborted,
+          });
+        }
+      };
+      if (!response.body || c.req.method === 'HEAD') {
+        if (c.req.method === 'HEAD') void response.body?.cancel().catch(() => {});
+        logger.timeEnd('total');
+        logger.flush(type);
+        finish(false);
+        return response;
+      }
+      // Observe errors without changing the bytes or propagating telemetry failures.
+      const reader = response.body.getReader();
+      const body = new ReadableStream({
+        async pull(controller) {
+          try {
+            const chunk = await reader.read();
+            if (chunk.done) controller.close();
+            else controller.enqueue(chunk.value);
+          } catch (error) {
+            const worker = await state.workerDone;
+            if (!worker?.errorRecord)
+              reportError(
+                logger,
+                type === 'ACTION' ? 'action' : type === 'SSR' ? 'ssr' : 'rsc',
+                error,
+              );
+            controller.error(error);
+          }
+        },
+        cancel: (reason) => reader.cancel(reason),
+      });
+      return new Response(
+        logger.wrapStream(
+          body,
+          `${type} ${state.route}`,
+          finish,
+          type === 'SSR' ? 'ssr:stream' : type === 'RSC' ? 'rsc:stream' : 'action:stream',
+          getRequestSignal(c),
+        ),
+        { status, statusText: response.statusText, headers: response.headers },
+      );
+    };
   }
 
   // Set serverModuleMap to null so that react-server-dom-webpack's
@@ -321,6 +399,16 @@ export async function createServer(opts: CreateServerOptions) {
       loadModule,
       logger,
       signal,
+      telemetry: !!reporter,
+      onMatch: (route, duration) => {
+        const state = logger && requests.get(logger);
+        if (state && state.type !== 'ACTION') {
+          state.route = route;
+          state.match = duration;
+          state.pathname = url.pathname;
+        }
+      },
+      onError: (error) => reportError(logger, 'rsc', error),
     });
   };
 
@@ -349,7 +437,7 @@ export async function createServer(opts: CreateServerOptions) {
   const app = new Hono();
 
   // Enable gzip/deflate compression for responses.
-  // RSC streaming endpoints set Cache-Control: no-transform to opt out,
+  // Framework streams set Cache-Control: no-transform and compress per chunk,
   // preserving chunk-by-chunk streaming for Suspense.
   app.use('*', compress());
 
@@ -634,208 +722,152 @@ export async function createServer(opts: CreateServerOptions) {
   }
 
   // RSC endpoint for client-side navigation
-  app.get(RSC_ENDPOINT, async (c) => {
-    const logger = maybeCreateLogger(debugEnabled, hasCallback);
-    logger?.time('total');
-
-    // Capture the request signal early — before the (potentially slow) render.
-    // If the client disconnects during rendering, the signal is already listening.
-    const requestSignal = getRequestSignal(c);
-
-    const baseOrigin = `http://${c.req.header('host') ?? 'localhost'}`;
-    const targetUrl = new URL(c.req.query('url') ?? '/', baseOrigin);
-
-    const prevSegments = c.req.header(RSC_PREVIOUS_SEGMENTS_HEADER);
-    const segments = prevSegments ? prevSegments.split(',') : undefined;
-
-    const prevUrlHeader = c.req.header(RSC_PREVIOUS_URL_HEADER);
-    const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, baseOrigin) : undefined;
-
-    // Check if the client accepts gzip encoding
-    const acceptsGzip = c.req.header('Accept-Encoding')?.includes('gzip');
-
-    // Use streaming gzip (Z_SYNC_FLUSH) for RSC responses when the client
-    // accepts it. Unlike CompressionStream which buffers small chunks,
-    // Z_SYNC_FLUSH flushes compressed output after every input chunk,
-    // preserving Suspense streaming while reducing wire size.
-    // Falls back to an uncompressed TransformStream otherwise.
-    const streamingGzip = acceptsGzip ? createStreamingGzip() : null;
-    const { readable, writable } = streamingGzip ?? new TransformStream();
-
-    // Server components reading `getRequest()` expect to see the URL of the
-    // page being rendered, not the underlying `/__rsc?url=…` transport URL
-    // that the global middleware stored. Construct a synthetic Request with
-    // the target URL and re-bind it for the duration of this render. The
-    // headers come from the real request so cookies / auth still flow.
-    const syntheticRequest = new Request(targetUrl, {
-      method: c.req.raw.method,
-      headers: c.req.raw.headers,
-    });
-
-    // Render in the background and pipe to the TransformStream.
-    // renderTimeoutMs bounds the blocking phase of this render too (matching
-    // the SSR handler's semantics): the endpoint streams its response
-    // immediately, so instead of racing a 504 we abort the render if it
-    // hasn't produced a stream by the deadline — a hung component otherwise
-    // keeps the pipeline alive indefinitely. Once the stream exists, further
-    // latency is a streaming (Suspense) concern and is not bounded.
-    const renderAbort = new AbortController();
-    const renderTimer = renderTimeoutMs
-      ? setTimeout(() => renderAbort.abort(), renderTimeoutMs)
-      : null;
-
-    (async () => {
-      try {
-        let { stream, params } = await requestStorage.run(syntheticRequest, () =>
-          doRenderRSC(targetUrl, segments, previousUrl, logger, renderAbort.signal),
-        );
-        if (renderTimer) clearTimeout(renderTimer);
-
-        // Wrap the stream to capture the real total time — RSC serialization
-        // happens lazily as the stream is consumed, not when it's created.
-        // The "rsc:stream" label tracks async rendering time inside the stream
-        // (Suspense boundaries, data fetching) that isn't captured by rsc:serialize.
-        if (logger) {
-          stream = logger.wrapStream(
-            stream,
-            `RSC ${maskParams(targetUrl.pathname, params)}`,
-            (cancelled) => fireRequestComplete(logger, 'RSC', targetUrl.pathname, 200, cancelled),
-            'rsc:stream',
-            requestSignal,
-          );
-        }
-
-        await stream.pipeTo(writable).catch(() => {});
-      } catch {
-        try {
-          writable.close();
-        } catch {
-          /* already closed */
-        }
-      } finally {
-        if (renderTimer) clearTimeout(renderTimer);
-      }
-    })();
-
-    // Set Cache-Control: no-transform to prevent Hono's compress middleware
-    // from double-compressing. We handle compression ourselves with
-    // Z_SYNC_FLUSH for proper streaming behavior.
-    return new Response(readable, {
-      headers: {
-        'Content-Type': RSC_CONTENT_TYPE,
-        'Cache-Control': 'no-transform',
-        [RSC_BUILD_HEADER]: manifests.buildId,
-        ...(streamingGzip ? { 'Content-Encoding': 'gzip' } : {}),
-      },
-    });
-  });
-
-  // Server actions endpoint
-  app.post(ACTION_ENDPOINT, async (c) => {
-    const logger = maybeCreateLogger(debugEnabled, hasCallback);
-    logger?.time('total');
-
-    const requestSignal = getRequestSignal(c);
-    const actionUrl = new URL(c.req.raw.headers.get('referer') ?? '/', c.req.url);
-    const actionId = c.req.raw.headers.get(RSC_ACTION_HEADER);
-
-    // Worker path: dispatch programmatic actions (X-RSC-Action header) to
-    // a worker thread so the main thread stays free for page rendering.
-    // Progressive enhancement (form POST without JS) stays on the main
-    // thread because it requires a full page re-render after the action.
-    if (workerPool && actionId) {
-      logger?.time('action:worker-dispatch');
-
-      const taskId = randomUUID();
-      const body = await c.req.raw.arrayBuffer();
-      const contentType = c.req.raw.headers.get('content-type') ?? '';
-
-      const { stream, done } = workerPool.dispatch({
-        taskId,
-        actionId,
-        body,
-        contentType,
-        requestContext: {
-          url: c.req.raw.url,
-          method: c.req.raw.method,
-          headers: [...c.req.raw.headers.entries()],
-        },
+  app.get(
+    RSC_ENDPOINT,
+    timed('RSC', async (c, logger) => {
+      const baseOrigin = new URL(c.req.url).origin;
+      const targetUrl = new URL(c.req.query('url') ?? '/', baseOrigin);
+      const prevSegments = c.req.header(RSC_PREVIOUS_SEGMENTS_HEADER);
+      const previous = c.req.header(RSC_PREVIOUS_URL_HEADER);
+      const syntheticRequest = new Request(targetUrl, {
+        method: c.req.raw.method,
+        headers: c.req.raw.headers,
       });
-
-      logger?.timeEnd('action:worker-dispatch');
-
-      // Propagate client disconnect to the worker
-      if (requestSignal) {
-        requestSignal.addEventListener('abort', () => workerPool!.abort(taskId), { once: true });
-      }
-
-      // Handle worker errors (404, 500, 504) — the done promise resolves
-      // with the status when the worker finishes or errors.
-      done.then(({ status }) => {
-        if (status !== 200 && logger) {
-          fireRequestComplete(logger, 'ACTION', actionUrl.pathname, status);
-        }
-      });
-
-      let responseStream: ReadableStream = stream;
-      if (logger) {
-        responseStream = logger.wrapStream(
-          stream,
-          `ACTION ${actionId} (worker)`,
-          (cancelled) => fireRequestComplete(logger, 'ACTION', actionUrl.pathname, 200, cancelled),
-          undefined,
-          requestSignal,
-        );
-      }
-
-      return new Response(responseStream, {
+      const renderAbort = new AbortController();
+      const result = await withRenderTimeout(
+        requestStorage.run(syntheticRequest, () =>
+          doRenderRSC(
+            targetUrl,
+            prevSegments?.split(','),
+            previous ? new URL(previous, baseOrigin) : undefined,
+            logger,
+            renderAbort.signal,
+          ),
+        ),
+        renderTimeoutMs,
+        () => renderAbort.abort(),
+      );
+      if (result.timedOut) return new Response('Gateway Timeout', { status: 504 });
+      return new Response(result.value.stream, {
+        status: result.value.status,
         headers: {
           'Content-Type': RSC_CONTENT_TYPE,
-          'Transfer-Encoding': 'chunked',
+          'Cache-Control': 'no-transform',
+          [RSC_BUILD_HEADER]: manifests.buildId,
         },
       });
-    }
+    }),
+  );
 
-    // Main-thread path: handles progressive enhancement (form POST)
-    // and all actions when workers are not enabled.
-    //
-    // Worker-based actions enforce their own timeout via WorkerPool,
-    // but the main-thread path has no built-in bound — wrap it in
-    // renderTimeoutMs so a slow action can't pin the request slot.
-    // The timeout abort is merged into the request signal so the action's
-    // post-action re-render also stops when the 504 has been sent.
-    const actionAbort = new AbortController();
-    const actionSignal = requestSignal
-      ? AbortSignal.any([requestSignal, actionAbort.signal])
-      : actionAbort.signal;
-    const actionPromise = handleAction({
-      request: c.req.raw,
-      routes,
-      serverActionsManifest: manifests.serverActionsManifest,
-      clientManifest: manifests.rscClientManifest,
-      loadModule,
-      decodeReply: rscRuntime.decodeReply as any,
-      renderToReadableStream: rscRenderToReadableStream,
-      renderRSC: async (rscUrl, segs) => {
-        const { stream } = await doRenderRSC(rscUrl, segs, undefined, logger, actionSignal);
-        return stream;
-      },
-      logger,
-      onComplete: (status, cancelled) => {
-        if (logger) fireRequestComplete(logger, 'ACTION', actionUrl.pathname, status, cancelled);
-      },
-      requestSignal: actionSignal,
-    });
+  // Server actions endpoint
+  app.post(
+    ACTION_ENDPOINT,
+    timed('ACTION', async (c, logger, state) => {
+      const requestSignal = getRequestSignal(c);
+      const actionUrl = new URL(c.req.raw.headers.get('referer') ?? '/', c.req.url);
+      const actionId = c.req.raw.headers.get(RSC_ACTION_HEADER);
+      state.route = `action:${actionId ?? 'unknown'}`;
+      state.pathname = actionUrl.pathname;
 
-    const raced = await withRenderTimeout(actionPromise, renderTimeoutMs, () =>
-      actionAbort.abort(),
-    );
-    if (raced.timedOut) {
-      if (logger) fireRequestComplete(logger, 'ACTION', actionUrl.pathname, 504);
-      return new Response('Gateway Timeout', { status: 504 });
-    }
-    return raced.value;
-  });
+      // Worker path: dispatch programmatic actions (X-RSC-Action header) to
+      // a worker thread so the main thread stays free for page rendering.
+      // Progressive enhancement (form POST without JS) stays on the main
+      // thread because it requires a full page re-render after the action.
+      if (workerPool && actionId) {
+        logger?.time('action:worker-dispatch');
+
+        const taskId = randomUUID();
+        const body = await c.req.raw.arrayBuffer();
+        const contentType = c.req.raw.headers.get('content-type') ?? '';
+
+        const { stream, done } = workerPool.dispatch({
+          taskId,
+          actionId,
+          body,
+          contentType,
+          requestContext: {
+            url: c.req.raw.url,
+            method: c.req.raw.method,
+            headers: [...c.req.raw.headers.entries()],
+          },
+        });
+
+        logger?.timeEnd('action:worker-dispatch');
+
+        // Propagate client disconnect to the worker
+        if (requestSignal) {
+          requestSignal.addEventListener('abort', () => workerPool!.abort(taskId), { once: true });
+        }
+
+        // Handle worker errors (404, 500, 504) — the done promise resolves
+        // with the status when the worker finishes or errors.
+        state.workerDone = done;
+        done.then(({ status, errorRecord, timings }) => {
+          state.status = status;
+          if (errorRecord) reporter?.add(errorRecord);
+          for (const entry of timings ?? [])
+            logger.record(
+              entry.label,
+              performance.now() - (entry.durationMs ?? 0),
+              entry.durationMs ?? 0,
+            );
+        });
+        const responseStream = stream;
+
+        return new Response(responseStream, {
+          headers: {
+            'Content-Type': RSC_CONTENT_TYPE,
+            'Transfer-Encoding': 'chunked',
+          },
+        });
+      }
+
+      // Main-thread path: handles progressive enhancement (form POST)
+      // and all actions when workers are not enabled.
+      //
+      // Worker-based actions enforce their own timeout via WorkerPool,
+      // but the main-thread path has no built-in bound — wrap it in
+      // renderTimeoutMs so a slow action can't pin the request slot.
+      // The timeout abort is merged into the request signal so the action's
+      // post-action re-render also stops when the 504 has been sent.
+      const actionAbort = new AbortController();
+      const actionSignal = requestSignal
+        ? AbortSignal.any([requestSignal, actionAbort.signal])
+        : actionAbort.signal;
+      const actionPromise = handleAction({
+        request: c.req.raw,
+        routes,
+        serverActionsManifest: manifests.serverActionsManifest,
+        clientManifest: manifests.rscClientManifest,
+        loadModule,
+        decodeReply: rscRuntime.decodeReply as any,
+        renderToReadableStream: rscRenderToReadableStream,
+        renderRSC: async (rscUrl, segs) => {
+          const { stream } = await doRenderRSC(rscUrl, segs, undefined, logger, actionSignal);
+          return stream;
+        },
+        logger,
+        onComplete: (status) => {
+          state.status = status;
+        },
+        deferStreamTiming: true,
+        onError: (error) => reportError(logger, 'action', error),
+        onAction: (id) => {
+          state.route = `action:${id}`;
+        },
+        requestSignal: actionSignal,
+      });
+
+      const raced = await withRenderTimeout(actionPromise, renderTimeoutMs, () =>
+        actionAbort.abort(),
+      );
+      if (raced.timedOut) {
+        state.status = 504;
+        return new Response('Gateway Timeout', { status: 504 });
+      }
+      return raced.value;
+    }),
+  );
 
   // User routes go last among the explicit routes but ahead of the SSR
   // catch-all, so an app can claim any path the framework has not already
@@ -853,112 +885,97 @@ export async function createServer(opts: CreateServerOptions) {
   }
 
   // Initial page load: SSR with inlined RSC stream for hydration
-  app.get('*', async (c) => {
-    const logger = maybeCreateLogger(debugEnabled, hasCallback);
-    logger?.time('total');
+  app.get(
+    '*',
+    timed('SSR', async (c, logger) => {
+      const url = new URL(c.req.url);
 
-    const requestSignal = getRequestSignal(c);
-    const url = new URL(c.req.url);
+      // Bundle the entire pre-stream render phase — RSC render, optional
+      // redirect re-render, SSR shell render — into a single Promise we
+      // can race against the renderTimeoutMs ceiling. Once we have an
+      // htmlStream, the response is returned and any further latency is
+      // a streaming concern, not a blocking-await one.
+      // Aborted by withRenderTimeout below — stops the RSC + SSR renders so a
+      // timed-out request doesn't keep burning CPU/memory after the 504.
+      const renderAbort = new AbortController();
 
-    // Bundle the entire pre-stream render phase — RSC render, optional
-    // redirect re-render, SSR shell render — into a single Promise we
-    // can race against the renderTimeoutMs ceiling. Once we have an
-    // htmlStream, the response is returned and any further latency is
-    // a streaming concern, not a blocking-await one.
-    // Aborted by withRenderTimeout below — stops the RSC + SSR renders so a
-    // timed-out request doesn't keep burning CPU/memory after the 504.
-    const renderAbort = new AbortController();
+      const renderPhase = (async () => {
+        const {
+          stream: rscStream,
+          status,
+          redirect,
+        } = await doRenderRSC(url, undefined, undefined, logger, renderAbort.signal);
 
-    const renderPhase = (async () => {
-      const {
-        stream: rscStream,
-        status,
-        params,
-        redirect,
-      } = await doRenderRSC(url, undefined, undefined, logger, renderAbort.signal);
+        let effectiveStream = rscStream;
+        let effectiveStatus = status;
+        if (redirect) {
+          const redirectUrl = new URL(redirect.url, url.origin);
+          const redirectResult = await doRenderRSC(
+            redirectUrl,
+            undefined,
+            undefined,
+            logger,
+            renderAbort.signal,
+          );
+          effectiveStream = redirectResult.stream;
+          effectiveStatus = redirectResult.status;
+        }
 
-      let effectiveUrl = url;
-      let effectiveStream = rscStream;
-      let effectiveStatus = status;
-      let effectiveParams = params;
-      if (redirect) {
-        const redirectUrl = new URL(redirect.url, url.origin);
-        const redirectResult = await doRenderRSC(
-          redirectUrl,
-          undefined,
-          undefined,
+        // Stream the RSC payload directly into the SSR renderer. The previous
+        // implementation fully buffered the stream here and regex-scanned the
+        // text to build a per-page module map — which forced TTFB to wait for
+        // the entire async render tree (Suspense, awaits) to resolve before SSR
+        // could begin. Instead, we ship the full module map (built once at
+        // server startup, ~bytes-per-client-module — gzips to a few hundred
+        // bytes for typical apps) so the runtime moduleMap lookup is always
+        // satisfied without inspecting the payload. SSR can now stream
+        // concurrently with the RSC render.
+        //
+        // Render to HTML via SSR: deserialize RSC stream → React tree → HTML
+        // The RSC payload is interleaved as script tags for zero-waterfall hydration
+        const htmlStream = await renderSSR({
+          rscStream: effectiveStream,
+          ssrManifest: manifests.ssrManifest,
+          clientEntryUrl: manifests.clientEntryUrl,
+          cssFiles: manifests.cssFiles,
+          moduleMap: fullModuleMap,
+          buildId: manifests.buildId,
+          createFromReadableStream,
+          renderToReadableStream: domRenderToReadableStream,
+          RouterProvider: SSRRouterProvider,
+          OutletDepthContext: SSROutletDepthContext,
+          createElement,
+          StrictMode,
           logger,
-          renderAbort.signal,
-        );
-        effectiveUrl = redirectUrl;
-        effectiveStream = redirectResult.stream;
-        effectiveStatus = redirectResult.status;
-        effectiveParams = redirectResult.params;
-      }
+          signal: renderAbort.signal,
+          telemetry: !!reporter,
+          onError: (error) => reportError(logger, 'ssr', error),
+        });
 
-      // Stream the RSC payload directly into the SSR renderer. The previous
-      // implementation fully buffered the stream here and regex-scanned the
-      // text to build a per-page module map — which forced TTFB to wait for
-      // the entire async render tree (Suspense, awaits) to resolve before SSR
-      // could begin. Instead, we ship the full module map (built once at
-      // server startup, ~bytes-per-client-module — gzips to a few hundred
-      // bytes for typical apps) so the runtime moduleMap lookup is always
-      // satisfied without inspecting the payload. SSR can now stream
-      // concurrently with the RSC render.
-      //
-      // Render to HTML via SSR: deserialize RSC stream → React tree → HTML
-      // The RSC payload is interleaved as script tags for zero-waterfall hydration
-      const htmlStream = await renderSSR({
-        rscStream: effectiveStream,
-        ssrManifest: manifests.ssrManifest,
-        clientEntryUrl: manifests.clientEntryUrl,
-        cssFiles: manifests.cssFiles,
-        moduleMap: fullModuleMap,
-        buildId: manifests.buildId,
-        createFromReadableStream,
-        renderToReadableStream: domRenderToReadableStream,
-        RouterProvider: SSRRouterProvider,
-        OutletDepthContext: SSROutletDepthContext,
-        createElement,
-        StrictMode,
-        logger,
-        signal: renderAbort.signal,
-      });
+        return { effectiveStatus, htmlStream };
+      })();
 
-      return { effectiveUrl, effectiveStatus, effectiveParams, htmlStream };
-    })();
-
-    const raced = await withRenderTimeout(renderPhase, renderTimeoutMs, () => renderAbort.abort());
-    if (raced.timedOut) {
-      if (logger) fireRequestComplete(logger, 'SSR', url.pathname, 504);
-      return new Response('Gateway Timeout', { status: 504 });
-    }
-    const { effectiveUrl, effectiveStatus, effectiveParams, htmlStream } = raced.value;
-
-    let responseStream: ReadableStream = htmlStream;
-    if (logger) {
-      responseStream = logger.wrapStream(
-        htmlStream,
-        `SSR ${maskParams(effectiveUrl.pathname, effectiveParams)}`,
-        (cancelled) =>
-          fireRequestComplete(logger, 'SSR', effectiveUrl.pathname, effectiveStatus, cancelled),
-        'ssr:stream',
-        requestSignal,
+      const raced = await withRenderTimeout(renderPhase, renderTimeoutMs, () =>
+        renderAbort.abort(),
       );
-    }
+      if (raced.timedOut) {
+        return new Response('Gateway Timeout', { status: 504 });
+      }
+      const { effectiveStatus, htmlStream } = raced.value;
 
-    return new Response(responseStream, {
-      status: effectiveStatus,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        // Opt out of Hono's compress middleware — its CompressionStream
-        // buffers chunks internally, which would delay TTFB for streaming
-        // SSR (Suspense fallbacks should reach the browser as soon as the
-        // shell is rendered, not after the slow content resolves).
-        'Cache-Control': 'no-transform',
-      },
-    });
-  });
+      return new Response(htmlStream, {
+        status: effectiveStatus,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          // Opt out of Hono's compress middleware — its CompressionStream
+          // buffers chunks internally, which would delay TTFB for streaming
+          // SSR (Suspense fallbacks should reach the browser as soon as the
+          // shell is rendered, not after the slow content resolves).
+          'Cache-Control': 'no-transform',
+        },
+      });
+    }),
+  );
 
   return app;
 }
