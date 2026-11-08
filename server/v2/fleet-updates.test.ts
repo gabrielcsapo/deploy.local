@@ -194,3 +194,43 @@ test('computers follow the coordinator updating itself once its worker builds ma
     rmSync(host, { recursive: true, force: true });
   }
 });
+
+test('a computer can claim its update when the coordinator updated itself from main', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const host = mkdtempSync(join(tmpdir(), 'fleet-self-claim-'));
+  const current = join(host, 'current');
+  const serve = (revision: string) =>
+    writeFileSync(join(current, '.deploy-release.json'), JSON.stringify({ revision }));
+  mkdirSync(current);
+  serve('abc123');
+  writeFileSync(join(host, 'release.json'), JSON.stringify({ current }));
+  mkdirSync(join(root, 'cli'));
+  writeFileSync(
+    join(root, 'cli', 'build-info.json'),
+    JSON.stringify({ ...manifest, commit: 'abc123', version: 'v-abc', buildTime: '2026-11-08' }),
+  );
+  const cwd = process.cwd();
+  process.env.DEPLOY_RELEASE_CONFIG = join(host, 'release.json');
+  // Only the builds in the data directory: a checkout may hold its own dist/cli.
+  process.chdir(host);
+  try {
+    fleet.setAutomaticUpdates('owner', true);
+    const follows = node('follows main');
+    fleet.produceComputerUpdates('other');
+    const job = store.claimAgentJob(follows);
+    assert.equal(job?.type, 'self-update');
+    assert.equal(JSON.parse(job!.payload).targetVersion, 'v-abc');
+    assert.ok(updateReservation(follows));
+
+    // Still queued when the coordinator moves on: that build is no longer what it serves.
+    const late = node('late');
+    fleet.produceComputerUpdates('other');
+    serve('def456');
+    assert.equal(store.claimAgentJob(late), null);
+    assert.match(store.getRecentAgentJobs(late)[0].error ?? '', /release changed/);
+  } finally {
+    process.chdir(cwd);
+    delete process.env.DEPLOY_RELEASE_CONFIG;
+    rmSync(host, { recursive: true, force: true });
+  }
+});

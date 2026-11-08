@@ -3,9 +3,9 @@ import { db, list, save } from '../workspace/store.ts';
 import { enqueueAgentJob, getAgentJob, getNodes, completeAgentJob, isAdmin } from '../store.ts';
 import { readCliManifest } from '../cli-download.ts';
 import { currentProjectReleases } from './releases.ts';
-import { readReleaseConfig, runningRevision } from './self-update-host.ts';
 import {
   releaseComputerUpdate,
+  selfUpdateTarget,
   updateReservation,
   withUpdateAdmission,
 } from './update-admission.ts';
@@ -43,12 +43,7 @@ export function fleetTarget(
     if (receipt?.state === 'activated' && receipt.version === runtime.version)
       return { id: record.release.id, version: runtime.version! };
   }
-  // The coordinator updating itself from main: computers follow once the worker builds it
-  // published were built from the very commit it now serves.
-  const config = readReleaseConfig();
-  const running = config ? runningRevision(config) : undefined;
-  if (running && manifest?.commit === running)
-    return { id: `self-update-${running}`, version: manifest.version };
+  return selfUpdateTarget(manifest);
 }
 export function produceComputerUpdates(owner: string, manifest = readCliManifest()) {
   if (!automaticUpdates()) return;

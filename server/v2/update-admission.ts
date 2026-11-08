@@ -1,6 +1,17 @@
 import { db, list, save } from '../workspace/store.ts';
+import { readCliManifest } from '../cli-download.ts';
+import { readReleaseConfig, runningRevision } from './self-update-host.ts';
 
 const kind = 'v2-update-reservation';
+/** The coordinator updating itself from main: computers follow once the worker builds it
+ * published were built from the very commit it now serves. */
+export function selfUpdateTarget(manifest = readCliManifest()) {
+  const config = readReleaseConfig();
+  const running = config ? runningRevision(config) : undefined;
+  return running && manifest?.commit === running
+    ? { id: `self-update-${running}`, version: manifest.version }
+    : undefined;
+}
 export function updateReservation(nodeId: string) {
   return list(kind, 'system').find((row) => row.id === nodeId);
 }
@@ -49,6 +60,9 @@ export function releaseComputerUpdate(nodeId: string, jobId: string) {
 
 export function computerUpdateAllowed(payload: { releaseId: string; targetVersion: string }) {
   if (!list('v2-update-settings', 'system').some((row) => row.automatic === true)) return false;
+  const selfUpdate = selfUpdateTarget();
+  if (selfUpdate?.id === payload.releaseId && selfUpdate.version === payload.targetVersion)
+    return true;
   for (const row of db
     .prepare("SELECT owner,data FROM records WHERE kind='v2-project-current'")
     .all() as { owner: string; data: string }[]) {
