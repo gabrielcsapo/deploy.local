@@ -512,7 +512,7 @@ describe('navigation during prefetch', () => {
 describe('navigation telemetry', () => {
   afterEach(() => {
     cleanup();
-    delete window.__DEPLOY_METRICS__;
+    delete window.__RFR_METRICS__;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -529,7 +529,7 @@ describe('navigation telemetry', () => {
     const navigation = { from: '/current', start: performance.now() };
     const startNavigation = vi.fn().mockReturnValue(navigation);
     const commitNavigation = vi.fn();
-    window.__DEPLOY_METRICS__ = { startNavigation, commitNavigation, stop() {} };
+    window.__RFR_METRICS__ = { startNavigation, commitNavigation, stop() {} };
     vi.stubGlobal(
       'fetch',
       vi

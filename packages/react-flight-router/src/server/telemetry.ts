@@ -81,8 +81,29 @@ export function telemetryPhases(entries: TimingEntry[]): RequestRecord['phases']
   return phases;
 }
 
-export function createTelemetryReporter(env: Record<string, string | undefined> = process.env) {
-  const url = env.DEPLOY_TELEMETRY_URL;
+/** Optional collector integration. No reporting occurs without an endpoint. */
+export interface TelemetryOptions {
+  /** Collector base URL; overrides RFR_TELEMETRY_URL. Empty string disables reporting. */
+  endpoint?: string;
+  /** Bearer token; overrides RFR_TELEMETRY_TOKEN. Never included in browser data. */
+  token?: string;
+  /** Same-origin browser receiver path. Defaults to /__rfr/telemetry; false disables only beacons. */
+  beaconPath?: string | false;
+}
+
+export function resolveTelemetryOptions(
+  options: TelemetryOptions = {},
+  env: Record<string, string | undefined> = process.env,
+) {
+  return {
+    endpoint: options.endpoint ?? env.RFR_TELEMETRY_URL,
+    token: options.token ?? env.RFR_TELEMETRY_TOKEN,
+    beaconPath: options.beaconPath ?? '/__rfr/telemetry',
+  };
+}
+
+export function createTelemetryReporter(settings: TelemetryOptions = resolveTelemetryOptions()) {
+  const url = settings.endpoint;
   if (!url) return undefined;
   const endpoint = `${url.replace(/\/+$/, '')}/v1/server`;
   const records: TelemetryRecord[] = [];
@@ -102,7 +123,7 @@ export function createTelemetryReporter(env: Record<string, string | undefined> 
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            authorization: `Bearer ${env.DEPLOY_TELEMETRY_TOKEN ?? ''}`,
+            authorization: `Bearer ${settings.token ?? ''}`,
           },
           body: JSON.stringify({ v: 1, records: batch }),
           signal: controller.signal,

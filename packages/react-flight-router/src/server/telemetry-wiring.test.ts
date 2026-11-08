@@ -26,7 +26,7 @@ vi.mock('./ssr-renderer.js', () => ({
       {},
       true,
       options.buildId,
-      options.telemetry ? { route: payload.route } : undefined,
+      options.telemetry ? { route: payload.route, ...options.telemetry } : undefined,
     );
     return new Response(`<html><script>${bootstrap}</script>shell</html>`).body;
   },
@@ -80,7 +80,7 @@ const request = (path: string, init?: RequestInit) => new Request(`http://localh
 
 describe('production telemetry wiring', () => {
   it('adds masked Server-Timing to pages, RSC and not-found without opting into reporting', async () => {
-    vi.stubEnv('DEPLOY_TELEMETRY_URL', '');
+    vi.stubEnv('RFR_TELEMETRY_URL', '');
     const complete = vi.fn();
     const app = await createServer({ buildDir: directory, onRequestComplete: complete });
     for (const [path, route] of [
@@ -95,7 +95,7 @@ describe('production telemetry wiring', () => {
         ),
       );
       const body = await response.text();
-      expect(body).not.toContain('__DEPLOY_TELEMETRY__');
+      expect(body).not.toContain('__RFR_TELEMETRY__');
     }
     expect(complete).toHaveBeenCalledTimes(3);
   });
@@ -113,14 +113,16 @@ describe('production telemetry wiring', () => {
     ).toBe(true);
   });
   it('reports one finished record, bootstrap opt-in and render/action errors in the same v1 batch', async () => {
-    vi.stubEnv('DEPLOY_TELEMETRY_URL', 'http://127.0.0.1:5301');
-    vi.stubEnv('DEPLOY_TELEMETRY_TOKEN', 'secret');
+    vi.stubEnv('RFR_TELEMETRY_URL', 'http://127.0.0.1:5301');
+    vi.stubEnv('RFR_TELEMETRY_TOKEN', 'secret');
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetcher);
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const app = await createServer({ buildDir: directory });
     const page = await app.fetch(request('/photos/private?token=secret'));
-    expect(await page.text()).toContain('__DEPLOY_TELEMETRY__={"route":"/photos/:id"}');
+    expect(await page.text()).toContain(
+      '__RFR_TELEMETRY__={"route":"/photos/:id","beaconPath":"/__rfr/telemetry"}',
+    );
     const broken = await app.fetch(request('/broken/private'));
     expect(broken.status).toBe(500);
     await broken.text();
@@ -168,8 +170,83 @@ describe('production telemetry wiring', () => {
     expect(records.map((record: any) => record.route).join(' ')).not.toContain('private');
     expect(JSON.stringify(records)).not.toContain('token=');
   });
+  it('explicit telemetry options override neutral environment values and carry an escaped custom beacon path', async () => {
+    vi.stubEnv('RFR_TELEMETRY_URL', 'http://127.0.0.1:5302');
+    vi.stubEnv('RFR_TELEMETRY_TOKEN', 'env-token');
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetcher);
+    const app = await createServer({
+      buildDir: directory,
+      telemetry: {
+        endpoint: 'http://127.0.0.1:5301/',
+        token: 'option-token',
+        beaconPath: '/metrics/<browser',
+      },
+    });
+    const response = await app.fetch(request('/photos/private'));
+    const html = await response.text();
+    expect(html).toContain(
+      '__RFR_TELEMETRY__={"route":"/photos/:id","beaconPath":"/metrics/\\u003cbrowser"}',
+    );
+    expect(html).not.toContain('option-token');
+    process.emit('beforeExit', 0);
+    await Promise.resolve();
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://127.0.0.1:5301/v1/server',
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: 'Bearer option-token' }),
+      }),
+    );
+  });
+  it('falls back per field and lets an explicit empty endpoint turn environment reporting off', async () => {
+    vi.stubEnv('RFR_TELEMETRY_URL', 'http://127.0.0.1:5302');
+    vi.stubEnv('RFR_TELEMETRY_TOKEN', 'env-token');
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetcher);
+    const app = await createServer({ buildDir: directory, telemetry: { token: '' } });
+    await (await app.fetch(request('/photos/private'))).text();
+    process.emit('beforeExit', 0);
+    await Promise.resolve();
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://127.0.0.1:5302/v1/server',
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: 'Bearer ' }),
+      }),
+    );
+    fetcher.mockClear();
+    const disabled = await createServer({ buildDir: directory, telemetry: { endpoint: '' } });
+    const response = await disabled.fetch(request('/photos/private'));
+    expect(await response.text()).not.toContain('__RFR_TELEMETRY__');
+    process.emit('beforeExit', 0);
+    await Promise.resolve();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('beaconPath false disables browser bootstrap but retains server reporting', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetcher);
+    const app = await createServer({
+      buildDir: directory,
+      telemetry: {
+        endpoint: 'http://127.0.0.1:5301',
+        beaconPath: false,
+      },
+    });
+    const response = await app.fetch(request('/photos/private'));
+    expect(await response.text()).not.toContain('__RFR_TELEMETRY__');
+    process.emit('beforeExit', 0);
+    await Promise.resolve();
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(JSON.parse(fetcher.mock.calls[0][1].body).records[0]).toMatchObject({ kind: 'page' });
+  });
+  it('ignores legacy host environment variables', async () => {
+    vi.stubEnv('RFR_TELEMETRY_URL', '');
+    vi.stubEnv('DEP' + 'LOY_TELEMETRY_URL', 'http://127.0.0.1:5301');
+    const app = await createServer({ buildDir: directory });
+    const response = await app.fetch(request('/photos/private'));
+    expect(await response.text()).not.toContain('_TELEMETRY__=');
+  });
   it('marks a cancelled response aborted and completes only once', async () => {
-    vi.stubEnv('DEPLOY_TELEMETRY_URL', 'http://127.0.0.1:5301');
+    vi.stubEnv('RFR_TELEMETRY_URL', 'http://127.0.0.1:5301');
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetcher);
     const complete = vi.fn();

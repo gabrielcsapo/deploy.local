@@ -40,6 +40,8 @@ interface WorkerPoolConfig {
   buildDir: string;
   size?: number;
   timeout?: number;
+  /** Reporting enabled by the parent; workers never resolve telemetry environment values. */
+  telemetry?: boolean;
 }
 
 export interface WorkerPool {
@@ -69,7 +71,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
   function spawnWorker(): Promise<ManagedWorker> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(workerPath, {
-        workerData: { buildDir: config.buildDir },
+        workerData: { buildDir: config.buildDir, telemetry: config.telemetry ?? false },
       });
 
       const managed: ManagedWorker = {

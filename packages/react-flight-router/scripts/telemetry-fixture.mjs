@@ -55,19 +55,32 @@ await build({ appRoot: directory, outDir: output });
 if (process.argv.includes('--build-only')) {
   console.log(`RFR_FIXTURE=${directory}`);
 } else {
-  // A fake local collector: the actual collector is owned by deploy.local's edge.
+  // A fake local collector: the application or host supplies the production receiver.
   const telemetry = process.argv.includes('--telemetry');
   if (telemetry) {
-    process.env.DEPLOY_TELEMETRY_URL = `http://127.0.0.1:${port}`;
-    process.env.DEPLOY_TELEMETRY_TOKEN = 'fixture-only';
-  } else delete process.env.DEPLOY_TELEMETRY_URL;
-  const app = await createServer({ buildDir: output });
+    process.env.RFR_TELEMETRY_URL = `http://127.0.0.1:${port}`;
+    process.env.RFR_TELEMETRY_TOKEN = 'fixture-only';
+  } else delete process.env.RFR_TELEMETRY_URL;
+  const customPath = process.argv
+    .find((arg) => arg.startsWith('--beacon-path='))
+    ?.slice('--beacon-path='.length);
+  const beaconPath = process.argv.includes('--no-beacon') ? false : customPath;
+  const app = await createServer({ buildDir: output, telemetry: { beaconPath } });
+  const batches = [];
   serve({
     hostname: '127.0.0.1',
     port,
-    fetch: (request) => {
+    fetch: async (request) => {
       const pathname = new URL(request.url).pathname;
-      if (request.method === 'POST' && ['/__deploy/telemetry', '/v1/server'].includes(pathname))
+      if (request.method === 'GET' && pathname === '/__fixture/server-records')
+        return Response.json(batches);
+      if (request.method === 'POST' && pathname === '/v1/server') {
+        if (request.headers.get('authorization') !== 'Bearer fixture-only')
+          return new Response(null, { status: 401 });
+        batches.push(await request.json());
+        return new Response(null, { status: 204 });
+      }
+      if (request.method === 'POST' && pathname === (customPath ?? '/__rfr/telemetry'))
         return new Response(null, { status: 204 });
       return app.fetch(request);
     },

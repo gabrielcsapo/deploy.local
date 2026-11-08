@@ -10,7 +10,7 @@ afterEach(() => {
 });
 describe('development request timing', () => {
   it('uses matcher patterns in headers and completes the existing callback once', () => {
-    vi.stubEnv('DEPLOY_TELEMETRY_URL', '');
+    vi.stubEnv('RFR_TELEMETRY_URL', '');
     const complete = vi.fn();
     const response = Object.assign(new EventEmitter(), {
       setHeader: vi.fn(),
@@ -34,6 +34,37 @@ describe('development request timing', () => {
         pathname: '/photos/private',
         status: 200,
       });
+    } finally {
+      timing.close();
+    }
+  });
+  it('uses neutral telemetry environment settings and provides the browser bootstrap path', async () => {
+    vi.stubEnv('RFR_TELEMETRY_URL', 'http://127.0.0.1:5301');
+    vi.stubEnv('RFR_TELEMETRY_TOKEN', 'dev-token');
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetcher);
+    const response = Object.assign(new EventEmitter(), {
+      setHeader: vi.fn(),
+      statusCode: 200,
+      writableFinished: true,
+    });
+    const timing = createDevRequestTiming();
+    try {
+      const logger = timing.begin('SSR', '/photos/private', response as unknown as ServerResponse);
+      expect(timing.hooks(logger)).toMatchObject({
+        telemetry: true,
+        beaconPath: '/__rfr/telemetry',
+      });
+      timing.hooks(logger).onMatch('/photos/:id', 1);
+      response.emit('finish');
+      process.emit('beforeExit', 0);
+      await Promise.resolve();
+      expect(fetcher).toHaveBeenCalledWith(
+        'http://127.0.0.1:5301/v1/server',
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer dev-token' }),
+        }),
+      );
     } finally {
       timing.close();
     }

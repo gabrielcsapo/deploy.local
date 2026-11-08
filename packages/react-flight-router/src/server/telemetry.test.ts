@@ -46,8 +46,8 @@ describe('v1 server telemetry', () => {
       .mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetcher);
     const reporter = createTelemetryReporter({
-      DEPLOY_TELEMETRY_URL: 'http://127.0.0.1:5301/',
-      DEPLOY_TELEMETRY_TOKEN: 'secret',
+      endpoint: 'http://127.0.0.1:5301/',
+      token: 'secret',
     })!;
     try {
       for (let i = 0; i < 100; i++) reporter.add(record(i));
@@ -82,7 +82,7 @@ describe('v1 server telemetry', () => {
         ),
     );
     vi.stubGlobal('fetch', fetcher);
-    const reporter = createTelemetryReporter({ DEPLOY_TELEMETRY_URL: 'http://127.0.0.1:5301' })!;
+    const reporter = createTelemetryReporter({ endpoint: 'http://127.0.0.1:5301' })!;
     try {
       reporter.add(record());
       await vi.advanceTimersByTimeAsync(7000);

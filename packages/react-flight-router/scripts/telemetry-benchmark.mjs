@@ -1,7 +1,7 @@
 // Run after starting the baseline on 5300, telemetry off on 5301, and telemetry on
-// on 5302 (DEPLOY_TELEMETRY_URL=http://127.0.0.1:5303). All should serve the same
+// on 5302 (RFR_TELEMETRY_URL=http://127.0.0.1:5303). All should serve the same
 // example build and disable debug and onRequestComplete. This script supplies a
-// local fake collector on 5303; it does not contact deploy.local.
+// local fake collector on 5303; it does not contact a production host.
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
 import { request, Agent, createServer } from 'node:http';
 const collector = createServer((req, res) => {

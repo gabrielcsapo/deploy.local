@@ -752,7 +752,10 @@ async function devRenderSSR(
   );
 
   // 7. Generate bootstrap script (RSC stream setup + SSR flag)
-  const telemetry = timing?.telemetry ? { route: payload.route ?? '__not_found' } : undefined;
+  const telemetry =
+    timing?.beaconPath !== undefined
+      ? { route: payload.route ?? '__not_found', beaconPath: timing.beaconPath }
+      : undefined;
   const bootstrapScript = generateBootstrapScript({}, true, undefined, telemetry);
 
   // 8. Render the React tree to an HTML stream (NOT buffered — streams Suspense).

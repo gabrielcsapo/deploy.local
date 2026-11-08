@@ -13,8 +13,8 @@ export interface BrowserTelemetry {
 declare global {
   interface Window {
     __RSC_BUILD__?: string;
-    __DEPLOY_TELEMETRY__?: { route: string };
-    __DEPLOY_METRICS__?: BrowserTelemetry;
+    __RFR_TELEMETRY__?: { route: string; beaconPath: string };
+    __RFR_METRICS__?: BrowserTelemetry;
   }
 }
 
@@ -60,7 +60,11 @@ export function fingerprint(input: string): string {
   return hash.map((value) => (value >>> 0).toString(16).padStart(8, '0')).join('');
 }
 
-export function startBrowserTelemetry(initialRoute: string, build: string): BrowserTelemetry {
+export function startBrowserTelemetry(
+  initialRoute: string,
+  build: string,
+  beaconPath: string,
+): BrowserTelemetry {
   let route = initialRoute;
   let events: Record<string, unknown>[] = [];
   let errorCount = 0;
@@ -79,12 +83,12 @@ export function startBrowserTelemetry(initialRoute: string, build: string): Brow
     const payload = body();
     events = [];
     try {
-      if (navigator.sendBeacon?.('/__deploy/telemetry', payload)) return;
+      if (navigator.sendBeacon?.(beaconPath, payload)) return;
     } catch {
       /* keepalive fallback below */
     }
     try {
-      void fetch('/__deploy/telemetry', {
+      void fetch(beaconPath, {
         method: 'POST',
         body: payload,
         keepalive: true,

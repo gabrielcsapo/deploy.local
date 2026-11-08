@@ -254,11 +254,7 @@ export function RouterProvider({
     const pending = pendingTelemetry.current;
     if (pending?.url === url) {
       pendingTelemetry.current = null;
-      window.__DEPLOY_METRICS__?.commitNavigation(
-        pending.route,
-        pending.navigation,
-        pending.prefetch,
-      );
+      window.__RFR_METRICS__?.commitNavigation(pending.route, pending.navigation, pending.prefetch);
     }
   }, [url, segments]);
   const [params, setParams] = useState(initialParams);
@@ -291,7 +287,7 @@ export function RouterProvider({
 
   const navigate = useCallback(
     async (to: string, options?: NavigateOptions, continuation?: NavigationStart) => {
-      const telemetry = globalThis.window?.__DEPLOY_METRICS__;
+      const telemetry = globalThis.window?.__RFR_METRICS__;
       const navigation = continuation ?? telemetry?.startNavigation();
       pendingTelemetry.current = null;
       let prefetch: PrefetchSource = 'miss';

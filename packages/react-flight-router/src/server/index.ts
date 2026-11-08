@@ -38,6 +38,8 @@ import {
 import { compressStreamResponse } from './streaming-compression.js';
 import {
   createTelemetryReporter,
+  resolveTelemetryOptions,
+  type TelemetryOptions,
   serverTiming,
   telemetryError,
   telemetryPhases,
@@ -45,7 +47,11 @@ import {
 
 const gzipAsync = promisify(gzip);
 
+export type { TelemetryOptions } from './telemetry.js';
+
 interface CreateServerOptions {
+  /** Collector integration. Explicit fields override neutral RFR_TELEMETRY_* environment values. */
+  telemetry?: TelemetryOptions;
   /** Path to the build output directory */
   buildDir: string;
   /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
@@ -142,7 +148,8 @@ export async function createServer(opts: CreateServerOptions) {
   const buildDir = resolve(opts.buildDir);
   const debugEnabled = opts.debug;
   const onRequestComplete = opts.onRequestComplete;
-  const reporter = createTelemetryReporter();
+  const telemetry = resolveTelemetryOptions(opts.telemetry);
+  const reporter = createTelemetryReporter(telemetry);
   const renderTimeoutMs = opts.renderTimeoutMs;
   const manifests = loadManifests(buildDir);
 
@@ -431,6 +438,7 @@ export async function createServer(opts: CreateServerOptions) {
       buildDir,
       size: workerOpts.size,
       timeout: workerOpts.timeout,
+      telemetry: !!reporter,
     });
   }
 
@@ -948,7 +956,10 @@ export async function createServer(opts: CreateServerOptions) {
           StrictMode,
           logger,
           signal: renderAbort.signal,
-          telemetry: !!reporter,
+          telemetry:
+            reporter && telemetry.beaconPath !== false
+              ? { beaconPath: telemetry.beaconPath }
+              : undefined,
           onError: (error) => reportError(logger, 'ssr', error),
         });
 
