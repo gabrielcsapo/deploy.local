@@ -74,7 +74,7 @@ export async function handleBrowserTelemetry(
     end(res, (error as { status?: number }).status ?? 503);
   }
 }
-/** Mounted ONLY on a dedicated, private listener, never the public API/edge. */
+/** Edge HTTP ingestion; the real TCP peer must belong to a Docker bridge. */
 export function serverTelemetryHandler(
   allowedPeer: (ip: string) => boolean | Promise<boolean>,
   db: () => Database.Database = getRequestsSqlite,
@@ -83,9 +83,9 @@ export function serverTelemetryHandler(
     try {
       if (!(await allowedPeer(req.socket.remoteAddress ?? ''))) {
         req.resume();
-        return end(res, 403);
+        return end(res, 404);
       }
-      if (req.method !== 'POST' || req.url !== '/v1/server') {
+      if (req.method !== 'POST' || req.url !== '/__deploy/v1/server') {
         req.resume();
         return end(res, 404);
       }
@@ -103,5 +103,19 @@ export function serverTelemetryHandler(
     } catch (error) {
       end(res, (error as { status?: number }).status ?? 503);
     }
+  };
+}
+
+/** Wrap the HTTP listener before host routing or HTTPS redirects. */
+export function withServerTelemetry(
+  telemetry: (req: IncomingMessage, res: ServerResponse) => unknown,
+  next: (req: IncomingMessage, res: ServerResponse) => void,
+) {
+  return (req: IncomingMessage, res: ServerResponse) => {
+    if (req.url?.split('?')[0] === '/__deploy/v1/server') {
+      void telemetry(req, res);
+      return;
+    }
+    next(req, res);
   };
 }

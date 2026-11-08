@@ -1,4 +1,5 @@
-import { startTelemetryCollector } from './telemetry-runtime.ts';
+import { createTelemetryCollector } from './telemetry-runtime.ts';
+import { withServerTelemetry } from './telemetry-http.ts';
 /**
  * The one startup path. `server.ts` (the built server) and `server/index.ts`
  * (`pnpm server`, `pnpm dev`) call bootServer and add nothing else, so what
@@ -101,9 +102,6 @@ async function start(options: BootOptions) {
   // than running with stored secrets it can't open.
   loadOrCreateSecretKey(deployDataDirectory());
   initializeRequestStorage(getSqlite()!);
-  await startTelemetryCollector().catch((error) =>
-    console.warn('[telemetry] collector unavailable:', error.message),
-  );
   // Generate CA + server certs on first startup, including all known
   // deployments. Both roles: the control plane owns cert generation; the
   // edge only reads them.
@@ -253,25 +251,28 @@ async function start(options: BootOptions) {
   let actualHttpsPort = HTTPS_PORT;
 
   // HTTP server on port 80: serve CA cert, handle API requests, redirect browsers to HTTPS
-  const httpServer = createServer((req, res) => {
-    if (req.url === '/ca.crt') {
-      serveCaCert(res);
-      return;
-    }
-    if (serveDownload(req, res)) return;
-    // Handle API requests over HTTP (for CLI compatibility)
-    if (req.url?.startsWith('/api/')) {
-      handler(req, res, async () => {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not Found');
-      });
-      return;
-    }
-    const host = req.headers.host?.split(':')[0] || 'deploy.local';
-    const portSuffix = actualHttpsPort !== 443 ? `:${actualHttpsPort}` : '';
-    res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
-    res.end();
-  });
+  const collector = await createTelemetryCollector();
+  const httpServer = createServer(
+    withServerTelemetry(collector.handler, (req, res) => {
+      if (req.url === '/ca.crt') {
+        serveCaCert(res);
+        return;
+      }
+      if (serveDownload(req, res)) return;
+      // Handle API requests over HTTP (for CLI compatibility)
+      if (req.url?.startsWith('/api/')) {
+        handler(req, res, async () => {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not Found');
+        });
+        return;
+      }
+      const host = req.headers.host?.split(':')[0] || 'deploy.local';
+      const portSuffix = actualHttpsPort !== 443 ? `:${actualHttpsPort}` : '';
+      res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
+      res.end();
+    }),
+  );
 
   attachWebSocketUpgrade(httpServer);
   attachAppUpgradeProxy(httpServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
@@ -289,6 +290,7 @@ async function start(options: BootOptions) {
     graphSupervisor.stop();
     const mdnsStopped = edgeRuntime.close();
     edgeIpc.close();
+    collector.close();
     httpsServer.close();
     httpServer.close(async () => {
       await Promise.all([sshStopped, mdnsStopped]);
