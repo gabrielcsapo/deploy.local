@@ -47,7 +47,7 @@ export interface FlightTimer {
    * Return a copy of the collected timing entries. Closes any still-open entries.
    * The "total" entry is included; filter it out if you only want sub-phases.
    */
-  getEntries(): TimingEntry[];
+  getEntries(closeOpen?: boolean): TimingEntry[];
 }
 
 /** FlightLogger is either a timer or undefined (disabled). Use optional chaining at callsites. */
@@ -116,7 +116,10 @@ export function maskParams(pathname: string, params: Record<string, string>): st
     .join('/');
 }
 
-export function createFlightLogger(options?: { silent?: boolean }): FlightTimer {
+export function createFlightLogger(options?: {
+  silent?: boolean;
+  headersOnly?: boolean;
+}): FlightTimer {
   const silent = options?.silent ?? false;
   const entries: InternalTimingEntry[] = [];
   const active = new Map<string, InternalTimingEntry>();
@@ -131,6 +134,13 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
 
   const timer: FlightTimer = {
     time(label: string) {
+      if (
+        options?.headersOnly &&
+        label !== 'total' &&
+        label !== 'matchRoutes' &&
+        !label.startsWith('action:execute(')
+      )
+        return;
       const entry: InternalTimingEntry = { label, startMs: performance.now(), depth: currentDepth };
       active.set(label, entry);
       entries.push(entry);
@@ -147,6 +157,7 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
     },
 
     record(label: string, startMs: number, durationMs: number) {
+      if (options?.headersOnly) return;
       entries.push({ label, startMs, durationMs, depth: currentDepth, parallel: true });
     },
 
@@ -191,15 +202,28 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
       function finish(cancelled: boolean) {
         if (completed) return;
         completed = true;
+        requestSignal?.removeEventListener('abort', onAbort);
         if (streamLabel) self.timeEnd(streamLabel);
         self.timeEnd('total');
         self.flush(cancelled ? headline + ' [CANCELLED]' : headline);
         onComplete?.(cancelled);
       }
 
+      const onAbort = () => {
+        finish(true);
+        reader.cancel().catch(() => {});
+      };
       const wrapped = new ReadableStream({
         async pull(controller) {
-          const { done, value } = await reader.read();
+          let result;
+          try {
+            result = await reader.read();
+          } catch (error) {
+            finish(requestSignal?.aborted ?? false);
+            controller.error(error);
+            return;
+          }
+          const { done, value } = result;
           if (done) {
             // Stream source exhausted. Check if the client disconnected
             // while the server was still rendering — the request signal
@@ -239,27 +263,21 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
           finish(true);
           reader.cancel().catch(() => {});
         } else {
-          requestSignal.addEventListener(
-            'abort',
-            () => {
-              finish(true);
-              reader.cancel().catch(() => {});
-            },
-            { once: true },
-          );
+          requestSignal.addEventListener('abort', onAbort, { once: true });
         }
       }
 
       return wrapped;
     },
 
-    getEntries(): TimingEntry[] {
-      closeOpenEntries();
+    getEntries(closeOpen = true): TimingEntry[] {
+      if (closeOpen) closeOpenEntries();
       // Use the earliest entry's startMs as the baseline for offset calculation
       const baseMs = entries.length > 0 ? entries[0].startMs : 0;
       return entries.map((e) => ({
         label: e.label,
-        durationMs: e.durationMs,
+        durationMs:
+          e.durationMs ?? (e.label === 'total' ? performance.now() - e.startMs : undefined),
         depth: e.depth,
         offsetMs: e.startMs - baseMs,
         ...(e.parallel ? { parallel: true } : {}),
@@ -283,9 +301,13 @@ export function isDebugEnabled(programmatic?: boolean): boolean {
  * @param programmatic - Explicit debug flag from options
  * @param hasCallback - Whether an onRequestComplete callback is registered
  */
-export function maybeCreateLogger(programmatic?: boolean, hasCallback?: boolean): FlightLogger {
+export function maybeCreateLogger(
+  programmatic?: boolean,
+  hasCallback?: boolean,
+  headersOnly = false,
+): FlightLogger {
   const debugOn = isDebugEnabled(programmatic);
   if (debugOn) return createFlightLogger();
-  if (hasCallback) return createFlightLogger({ silent: true });
+  if (hasCallback) return createFlightLogger({ silent: true, headersOnly });
   return undefined;
 }

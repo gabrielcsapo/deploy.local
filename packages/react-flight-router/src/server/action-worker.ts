@@ -16,6 +16,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { MessagePort } from 'node:worker_threads';
 import type { SerializedRequestContext } from '../shared/types.js';
+import { maybeCreateLogger } from '../shared/logger.js';
+import { telemetryError, type ErrorRecord } from './telemetry.js';
 import { requestStorage } from './request-context.js';
 
 if (!parentPort) {
@@ -94,6 +96,15 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
 
   const ac = new AbortController();
   pendingAborts.set(taskId, ac);
+  const logger = maybeCreateLogger(false, !!process.env.DEPLOY_TELEMETRY_URL);
+  let errorRecord: ErrorRecord | undefined;
+  const reportError = (error: unknown) => {
+    try {
+      if (logger) errorRecord = telemetryError(error, `action:${actionId}`, 'action');
+    } catch {
+      /* best effort */
+    }
+  };
 
   try {
     // Parse actionId: "moduleId#exportName"
@@ -152,7 +163,9 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
 
     // Execute the action within the request context
     const request = reconstructRequest(requestContext);
+    logger?.time('action:execute(worker)');
     const result = await requestStorage.run(request, () => actionFn(...args));
+    logger?.timeEnd('action:execute(worker)');
 
     // Check for abort after execution
     if (ac.signal.aborted) {
@@ -166,7 +179,10 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
       result,
       rscClientManifest,
       {
-        onError: (err: unknown) => console.error('[flight-worker] Action RSC error:', err),
+        onError: (err: unknown) => {
+          reportError(err);
+          console.error('[flight-worker] Action RSC error:', err);
+        },
       },
     );
 
@@ -193,14 +209,21 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
       reader.releaseLock();
     }
 
-    resultPort.postMessage({ type: 'done' });
+    resultPort.postMessage({
+      type: 'done',
+      ...(logger ? { timings: logger.getEntries() } : {}),
+      ...(errorRecord ? { errorRecord } : {}),
+    });
     resultPort.close();
   } catch (err) {
+    reportError(err);
     try {
       resultPort.postMessage({
         type: 'error',
         status: 500,
         message: err instanceof Error ? err.message : 'Internal server error',
+        ...(logger ? { timings: logger.getEntries() } : {}),
+        ...(errorRecord ? { errorRecord } : {}),
       });
       resultPort.close();
     } catch {

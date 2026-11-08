@@ -187,6 +187,38 @@ describe('WorkerPool', () => {
     assert.equal(status, 500);
   });
 
+  it('preserves worker exception names, stacks and fingerprints for telemetry', async () => {
+    const previous = process.env.DEPLOY_TELEMETRY_URL;
+    process.env.DEPLOY_TELEMETRY_URL = 'http://127.0.0.1:5303';
+    try {
+      fixtureDir = createTestFixtures();
+      pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
+      const { stream, done } = pool.dispatch({
+        taskId: 'telemetry-error',
+        actionId: 'test/action#throwingAction',
+        body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+        contentType: 'text/plain',
+        requestContext: { url: 'http://localhost/', method: 'POST', headers: [] },
+      });
+      await assert.rejects(new Response(stream).text(), /Test action error/);
+      const result = await done;
+      assert.ok('errorRecord' in result);
+      const error = result.errorRecord as {
+        name: string;
+        stack: string;
+        fingerprint: string;
+        route: string;
+      };
+      assert.equal(error.name, 'Error');
+      assert.match(error.stack, /throwingAction/);
+      assert.match(error.fingerprint, /^[a-f0-9]{40}$/);
+      assert.equal(error.route, 'action:test/action#throwingAction');
+    } finally {
+      if (previous === undefined) delete process.env.DEPLOY_TELEMETRY_URL;
+      else process.env.DEPLOY_TELEMETRY_URL = previous;
+    }
+  });
+
   it('handles abort', async () => {
     // Create a slow action that waits long enough for the abort to arrive
     fixtureDir = createTestFixtures({

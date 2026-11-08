@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 
 /** The RSC payload structure sent over the wire */
 export interface RSCPayload {
+  /** Masked matcher pattern, present only when deploy telemetry is enabled. */
+  route?: string;
   url: string;
   /** Ordered styles for the full matched tree, including unchanged layouts. */
   cssFiles?: string[];

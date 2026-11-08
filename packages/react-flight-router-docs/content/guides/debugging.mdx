@@ -528,3 +528,41 @@ Operations taking longer than 100ms are highlighted in yellow in the terminal ou
 
 - [Worker Threads](./worker-threads.md) — thread pool performance optimization
 - [Architecture: Build Pipeline](../architecture/build-pipeline.md) — understanding the build phases
+
+## deploy.local telemetry
+
+Pages and RSC responses include `Server-Timing` with the matched route pattern,
+matching time and time to response headers. Actions include their action ID and
+execution time when it is known before headers. This also works without debug logging.
+
+Nothing is sent unless `DEPLOY_TELEMETRY_URL` is set in the app process. To enable it:
+
+```sh
+export DEPLOY_TELEMETRY_URL=http://collector:5300
+export DEPLOY_TELEMETRY_TOKEN=your-token
+```
+
+The server POSTs v1 batches to `${DEPLOY_TELEMETRY_URL}/v1/server`, authenticated
+with the token. Records contain request start time, kind, route pattern, status,
+full stream duration, phase timings, build ID and cancellation state. Render and
+action errors include name, message (up to 500 characters), relative stack (up to
+4,000 characters) and a SHA-1 fingerprint. Development builds use a null build ID.
+
+Batches flush every five seconds or 100 records. The queue holds 1,000 records,
+drops the oldest on overflow and counts drops internally. Sends have a two-second
+timeout, never block a response and are best effort on process exit. Failed
+batches are discarded; warnings are limited to once per ten minutes.
+
+The same opt-in enables a separate browser chunk. It sends load metrics
+(TTFB, FCP, LCP, CLS and worst interaction latency), committed navigation timings
+with prefetch `hit`, `inflight` or `miss`, and deduplicated browser errors (up to
+five per page view). Batches go to the same-origin `/__deploy/telemetry` on hide,
+page exit or 20 events, with a 16 KB limit. deploy.local's edge receives these
+beacons; the app does not need a telemetry route or CORS configuration.
+
+Route identities use matcher patterns such as `/photos/:id`, never parameter
+values, full URLs or query strings. Records contain no user IDs or cookies.
+Error messages come from your application, so avoid putting secrets in exceptions.
+The token stays on the server. Without the URL, no browser observers or beacon
+listeners are installed and the telemetry chunk is not loaded. The existing
+`onRequestComplete` callback continues to work independently.

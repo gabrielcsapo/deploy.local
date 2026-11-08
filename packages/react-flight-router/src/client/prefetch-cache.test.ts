@@ -101,3 +101,25 @@ describe('prefetch consumption', () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 });
+
+describe('prefetch telemetry provenance', () => {
+  it('reports hit, inflight and miss from the consumption that wins the body', async () => {
+    const provenance = vi.fn();
+    fetchMock.mockResolvedValueOnce(new Response('hit'));
+    cache.prefetchRSC('/hit');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await cache.takePrefetch('/hit', '', signal(), provenance);
+    expect(provenance).toHaveBeenLastCalledWith('hit');
+    const pending = deferredResponse();
+    cache.prefetchRSC('/pending');
+    const first = cache.takePrefetch('/pending', '', signal(), provenance);
+    const secondProvenance = vi.fn();
+    const second = cache.takePrefetch('/pending', '', signal(), secondProvenance);
+    pending.resolve(new Response('inflight'));
+    await Promise.all([first, second]);
+    expect(provenance).toHaveBeenLastCalledWith('inflight');
+    expect(secondProvenance).toHaveBeenLastCalledWith('miss');
+    await cache.takePrefetch('/missing', '', signal(), provenance);
+    expect(provenance).toHaveBeenLastCalledWith('miss');
+  });
+});

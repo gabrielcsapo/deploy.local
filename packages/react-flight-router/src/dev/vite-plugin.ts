@@ -28,12 +28,8 @@ import type {
   RSCPayload,
   RequestTimingEvent,
 } from '../shared/types.js';
-import {
-  maybeCreateLogger,
-  maskParams,
-  type FlightTimer,
-  type FlightLogger,
-} from '../shared/logger.js';
+import { type FlightLogger } from '../shared/logger.js';
+import { createDevRequestTiming, type DevTimingHooks } from './request-timing.js';
 import { generateBootstrapScript } from '../shared/bootstrap-script.js';
 import { injectFlightPayload } from '../shared/flight-html-stream.js';
 import { requestStorage } from '../server/request-context.js';
@@ -93,7 +89,6 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const routesFile = opts?.routesFile ?? './app/routes.ts';
   const debugEnabled = opts?.debug;
   const onRequestComplete = opts?.onRequestComplete;
-  const hasCallback = !!onRequestComplete;
   const clientModules = new Set<string>();
   const serverModules = new Set<string>();
   const ssrRequireCache: Record<string, unknown> = {};
@@ -123,31 +118,6 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       '[react-flight-router dev] Vite module runner was replaced (server restart) — ' +
         'cleared module caches and retrying the render.',
     );
-  }
-
-  function fireRequestComplete(
-    logger: FlightTimer,
-    type: RequestTimingEvent['type'],
-    pathname: string,
-    status: number,
-    cancelled?: boolean,
-  ) {
-    if (!onRequestComplete) return;
-    try {
-      const entries = logger.getEntries();
-      const totalEntry = entries.find((e) => e.label === 'total');
-      onRequestComplete({
-        type,
-        pathname,
-        status,
-        totalMs: totalEntry?.durationMs ?? 0,
-        timings: entries.filter((e) => e.label !== 'total'),
-        timestamp: new Date().toISOString(),
-        ...(cancelled ? { cancelled } : {}),
-      });
-    } catch (err) {
-      console.error('[react-flight-router] onRequestComplete callback error:', err);
-    }
   }
 
   return [
@@ -258,6 +228,9 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       },
 
       configureServer(server: ViteDevServer) {
+        const timing = createDevRequestTiming(debugEnabled, onRequestComplete);
+        server.httpServer?.once?.('close', () => timing.close());
+
         // Provide __non_webpack_require__ so native-binding packages (e.g. better-sqlite3)
         // that detect __webpack_require__ don't crash looking for this companion global.
         const appRequireForNative = createRequire(
@@ -327,12 +300,10 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
           // Wrap the entire request handling in requestStorage.run() so that
           // getRequest() works automatically in dev mode — matching production behavior.
           return requestStorage.run(request, async () => {
+            let activeLogger: FlightLogger;
             try {
               // RSC endpoint for client-side navigation
               if (url.pathname === RSC_ENDPOINT) {
-                const logger = maybeCreateLogger(debugEnabled, hasCallback);
-                logger?.time('total');
-
                 // Capture the abort signal early — before the (potentially slow) render.
                 // If the client disconnects during rendering, the signal is already listening.
                 const reqAbort = new AbortController();
@@ -342,6 +313,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
                 const targetPath = url.searchParams.get('url') ?? '/';
                 const targetUrl = new URL(targetPath, url.origin);
+                const logger = (activeLogger = timing.begin('RSC', targetUrl.pathname, res));
                 const prevSegments = req.headers[RSC_PREVIOUS_SEGMENTS_HEADER.toLowerCase()] as
                   | string
                   | undefined;
@@ -351,14 +323,6 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                   | string
                   | undefined;
                 const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, url.origin) : undefined;
-
-                // Send response headers immediately so the connection is active
-                // before the render completes. This allows cancellation detection
-                // for slow server renders (e.g., `await delay(3000)` in a component),
-                // not just streaming Suspense responses. Without this, HTTP/1.1
-                // keep-alive keeps the connection alive for pending requests whose
-                // headers haven't been sent, making res "close" with writableFinished=true.
-                res.writeHead(200, { 'Content-Type': RSC_CONTENT_TYPE });
 
                 // Re-bind the request context to a synthetic Request whose URL
                 // is the *target page URL*, not the underlying /__rsc?url=…
@@ -372,7 +336,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 });
 
                 try {
-                  let { stream, params } = await requestStorage.run(syntheticRequest, () =>
+                  const { stream, status } = await requestStorage.run(syntheticRequest, () =>
                     withStaleModuleRetry(
                       () =>
                         devRenderRSC(
@@ -384,26 +348,22 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                           segments,
                           previousUrl,
                           logger,
+                          { ...timing.hooks(logger), signal: reqAbort.signal },
                         ),
                       evictStaleModules,
                     ),
                   );
 
-                  if (logger) {
-                    stream = logger.wrapStream(
-                      stream,
-                      `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
-                      (cancelled) =>
-                        fireRequestComplete(logger, 'RSC', targetUrl.pathname, 200, cancelled),
-                      'rsc:stream',
-                      reqAbort.signal,
-                    );
-                  }
+                  timing.headers(logger, res);
+                  res.writeHead(status, { 'Content-Type': RSC_CONTENT_TYPE });
 
                   await pipeReadableStreamToResponse(stream, res);
                 } catch (err) {
                   // Headers already sent so we can't change the status code.
                   // Just log the error and end the response.
+                  timing.error(logger, 'rsc', err);
+                  timing.headers(logger, res);
+                  if (!res.headersSent) res.writeHead(500, { 'Content-Type': RSC_CONTENT_TYPE });
                   console.error('[react-flight-router dev] RSC error:', err);
                   if (!res.writableFinished) res.end();
                 }
@@ -412,11 +372,10 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
               // Server actions endpoint
               if (url.pathname === ACTION_ENDPOINT && req.method === 'POST') {
-                const logger = maybeCreateLogger(debugEnabled, hasCallback);
-                logger?.time('total');
-
                 const request = await nodeReqToRequest(req, url);
                 const actionUrl = new URL((req.headers.referer as string) ?? '/', url.origin);
+                const logger = (activeLogger = timing.begin('ACTION', actionUrl.pathname, res));
+                timing.action(logger, request.headers.get('X-RSC-Action') ?? 'unknown');
                 const routes = await withStaleModuleRetry(
                   () => loadRoutes(server, routesFile),
                   evictStaleModules,
@@ -450,20 +409,20 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                           segs,
                           undefined,
                           logger,
+                          timing.hooks(logger),
                         ),
                       evictStaleModules,
                     );
                     return stream;
                   },
                   logger,
-                  onComplete: (status, cancelled) => {
-                    if (logger)
-                      fireRequestComplete(logger, 'ACTION', actionUrl.pathname, status, cancelled);
-                  },
+                  deferStreamTiming: true,
+                  onError: (error) => timing.error(logger, 'action', error),
+                  onAction: (id) => timing.action(logger, id),
                   requestSignal: actionAbort.signal,
                 });
 
-                // Timing is flushed by logger.wrapStream() inside handleAction
+                timing.headers(logger, res);
                 res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
                 if (response.body) {
                   await pipeReadableStreamToResponse(response.body, res);
@@ -484,8 +443,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               }
 
               // Initial page load: SSR with inlined RSC stream (streaming Suspense)
-              const logger = maybeCreateLogger(debugEnabled, hasCallback);
-              logger?.time('total');
+              const logger = (activeLogger = timing.begin('SSR', url.pathname, res));
 
               // Capture the abort signal early — before the (potentially slow) render.
               const ssrAbort = new AbortController();
@@ -498,9 +456,18 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 rscStream: inlineStream,
                 cssUrls,
                 status,
-                params: ssrParams,
               } = await withStaleModuleRetry(
-                () => devRenderSSR(server, routesFile, url, devClientManifest, appRoot, logger),
+                () =>
+                  devRenderSSR(
+                    server,
+                    routesFile,
+                    url,
+                    devClientManifest,
+                    appRoot,
+                    logger,
+                    { ...timing.hooks(logger), signal: ssrAbort.signal },
+                    (error) => timing.error(logger, 'ssr', error),
+                  ),
                 evictStaleModules,
               );
 
@@ -543,22 +510,21 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               // The HTML stream is NOT buffered — Suspense fallbacks are sent immediately,
               // and resolved content streams in as async components complete.
               const injectedStream = injectIntoHead(ssrHtmlStream, headInjection);
-              let finalStream = injectFlightPayload(injectedStream, inlineStream);
+              const finalStream = injectFlightPayload(injectedStream, inlineStream);
 
-              if (logger) {
-                finalStream = logger.wrapStream(
-                  finalStream,
-                  `SSR ${maskParams(url.pathname, ssrParams)} (dev)`,
-                  (cancelled) =>
-                    fireRequestComplete(logger, 'SSR', url.pathname, status, cancelled),
-                  'ssr:stream',
-                  ssrAbort.signal,
-                );
-              }
+              timing.headers(logger, res);
 
               res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
               await pipeReadableStreamToResponse(finalStream, res);
             } catch (err) {
+              if (activeLogger) {
+                timing.error(
+                  activeLogger,
+                  url.pathname === ACTION_ENDPOINT ? 'action' : 'rsc',
+                  err,
+                );
+                timing.headers(activeLogger, res);
+              }
               console.error('[react-flight-router dev] Error:', err);
               next(err);
             }
@@ -649,6 +615,7 @@ async function devRenderRSC(
   segments?: string[],
   previousUrl?: URL,
   logger?: FlightLogger,
+  timing?: DevTimingHooks,
 ): Promise<{ stream: ReadableStream; status: number; params: Record<string, string> }> {
   logger?.time('loadRoutes');
   const routes = await loadRoutes(server, routesFile);
@@ -666,6 +633,7 @@ async function devRenderRSC(
     previousUrl,
     loadModule: (id: string) => server.ssrLoadModule(id),
     logger,
+    ...timing,
   });
 }
 
@@ -685,6 +653,8 @@ async function devRenderSSR(
   clientManifest: RSCClientManifest,
   appRoot: string,
   logger?: FlightLogger,
+  timing?: DevTimingHooks,
+  onSSRError?: (error: unknown) => void,
 ): Promise<{
   htmlStream: ReadableStream;
   rscStream: ReadableStream;
@@ -706,6 +676,7 @@ async function devRenderSSR(
     undefined,
     undefined,
     logger,
+    timing,
   );
   const [streamForSSR, streamForInline] = rscStream.tee();
 
@@ -781,7 +752,8 @@ async function devRenderSSR(
   );
 
   // 7. Generate bootstrap script (RSC stream setup + SSR flag)
-  const bootstrapScript = generateBootstrapScript();
+  const telemetry = timing?.telemetry ? { route: payload.route ?? '__not_found' } : undefined;
+  const bootstrapScript = generateBootstrapScript({}, true, undefined, telemetry);
 
   // 8. Render the React tree to an HTML stream (NOT buffered — streams Suspense).
   // If the shell render fails (a component threw synchronously, outside any
@@ -794,11 +766,18 @@ async function devRenderSSR(
   try {
     htmlStream = await domRenderToReadableStream(app, {
       bootstrapScriptContent: bootstrapScript,
-      onError: (err: unknown) => console.error('[react-flight-router] Dev SSR error:', err),
+      signal: timing?.signal,
+      onError: (err: unknown) => {
+        onSSRError?.(err);
+        console.error('[react-flight-router] Dev SSR error:', err);
+      },
     });
   } catch (err) {
+    onSSRError?.(err);
     console.error('[react-flight-router] Dev SSR shell render failed, falling back to CSR:', err);
-    htmlStream = createDevCSRFallbackStream(generateBootstrapScript({}, false));
+    htmlStream = createDevCSRFallbackStream(
+      generateBootstrapScript({}, false, undefined, telemetry),
+    );
   }
   logger?.timeEnd('ssr:renderToHTML');
 

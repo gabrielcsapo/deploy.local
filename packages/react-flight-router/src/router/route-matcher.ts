@@ -210,3 +210,12 @@ function normalizePath(pathname: string): string {
   if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
   return p;
 }
+
+/** Canonical, parameter-free route identity, derived exclusively from matched configs. */
+export function matchedRoutePattern(matches: RouteMatch[]): string {
+  if (!matches.length || matches.some((match) => match.route.id === '__not-found__'))
+    return '__not_found';
+  return (
+    '/' + matches.flatMap((match) => (match.route.path ?? '').split('/').filter(Boolean)).join('/')
+  );
+}

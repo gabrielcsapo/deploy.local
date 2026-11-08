@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { matchRoutes, matchSlots } from '../router/route-matcher.js';
+import { matchRoutes, matchSlots, matchedRoutePattern } from '../router/route-matcher.js';
 import { diffSegments } from '../router/segment-diff.js';
 import type { RouteConfig, RouteMatch, RouteModule, SlotMatch } from '../router/types.js';
 import type { RSCClientManifest, ModuleLoader } from '../shared/types.js';
@@ -134,6 +134,9 @@ interface RenderRSCOptions {
    * timed-out render doesn't keep consuming CPU/memory after the 504.
    */
   signal?: AbortSignal;
+  telemetry?: boolean;
+  onMatch?: (route: string, duration: number) => void;
+  onError?: (error: unknown) => void;
 }
 
 export interface RenderRSCResult {
@@ -203,10 +206,13 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     return result;
   };
 
+  const matchStarted = performance.now();
   logger?.time('matchRoutes');
   const matches = cachedMatch(url.pathname);
   const slotMatches = matchSlots(matches, url.searchParams);
-  logger?.timeEnd('matchRoutes');
+  const matchMs = logger?.timeEnd('matchRoutes') ?? performance.now() - matchStarted;
+  const route = matchedRoutePattern(matches);
+  opts.onMatch?.(route, matchMs);
   const cssFiles = opts.stylesheets
     ? await abortable(
         routeStylesheets(
@@ -222,6 +228,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   if (matches.length === 0) {
     const payload = {
       ...styles,
+      ...(opts.telemetry ? { route } : {}),
       url: url.pathname + url.search,
       segments: {} as Record<string, unknown>,
       params: {},
@@ -230,7 +237,10 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     return {
       stream: renderToReadableStream(payload, clientManifest, {
         onError: (err) => {
-          if (!isAbortError(err)) console.error('[react-flight-router] RSC render error:', err);
+          if (!isAbortError(err)) {
+            opts.onError?.(err);
+            console.error('[react-flight-router] RSC render error:', err);
+          }
         },
       }),
       status: 404,
@@ -318,13 +328,27 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     if (slotMatches.length === 0) {
       // Fast path: no Promise.all wrapping or Object.assign copying.
       segmentMap = await abortable(
-        buildSegmentMap(matches, onlySegmentsSet, searchParams, loadRouteModule, logger),
+        buildSegmentMap(
+          matches,
+          onlySegmentsSet,
+          searchParams,
+          loadRouteModule,
+          logger,
+          opts.onError,
+        ),
         signal,
       );
     } else {
       const trees = await abortable(
         Promise.all([
-          buildSegmentMap(matches, onlySegmentsSet, searchParams, loadRouteModule, logger),
+          buildSegmentMap(
+            matches,
+            onlySegmentsSet,
+            searchParams,
+            loadRouteModule,
+            logger,
+            opts.onError,
+          ),
           ...slotMatches.map((s) =>
             buildSegmentMap(
               s.matches,
@@ -332,6 +356,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
               searchParams,
               loadRouteModule,
               logger,
+              opts.onError,
             ),
           ),
         ]),
@@ -343,6 +368,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     logger?.timeEnd('buildSegmentMap');
     if (err instanceof RedirectError) {
       const redirectPayload = {
+        ...(opts.telemetry ? { route } : {}),
         url: url.pathname + url.search,
         segments: {},
         params: {},
@@ -375,6 +401,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
 
   const payload: Record<string, unknown> = {
     ...styles,
+    ...(opts.telemetry ? { route } : {}),
     url: url.pathname + url.search,
     segments: segmentMap,
     params: matches[matches.length - 1]?.params ?? {},
@@ -413,7 +440,10 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   logger?.time('rsc:serialize');
   const stream = renderToReadableStream(payload, clientManifest, {
     onError: (err) => {
-      if (!isAbortError(err)) console.error('[react-flight-router] RSC render error:', err);
+      if (!isAbortError(err)) {
+        opts.onError?.(err);
+        console.error('[react-flight-router] RSC render error:', err);
+      }
     },
     signal,
   });
@@ -435,6 +465,7 @@ async function buildSegmentMap(
   searchParams: Record<string, string>,
   loadRouteModule: RouteModuleLoader,
   logger?: FlightLogger,
+  onError?: (error: unknown) => void,
 ): Promise<Record<string, unknown>> {
   const segmentMap: Record<string, unknown> = {};
 
@@ -475,6 +506,7 @@ async function buildSegmentMap(
         };
       } catch (error) {
         if (error instanceof RedirectError) throw error;
+        onError?.(error);
         return {
           index: i,
           rendered: null,

@@ -26,6 +26,10 @@ interface HandleActionOptions {
   onComplete?: (status: number, cancelled?: boolean) => void;
   /** Request abort signal — fires when the client disconnects */
   requestSignal?: AbortSignal;
+  /** Production server measures the final (possibly compressed) stream itself. */
+  deferStreamTiming?: boolean;
+  onError?: (error: unknown) => void;
+  onAction?: (id: string) => void;
 }
 
 /**
@@ -52,6 +56,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
   const referer = request.headers.get('referer') ?? '/';
   const url = new URL(referer, request.url);
   const actionId = request.headers.get(RSC_ACTION_HEADER);
+  if (actionId) opts.onAction?.(actionId);
 
   try {
     if (actionId) {
@@ -102,11 +107,14 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
 
       logger?.time('action:serialize');
       let rscStream: ReadableStream = renderToReadableStream(result, clientManifest, {
-        onError: (err) => console.error('[react-flight-router] Action RSC error:', err),
+        onError: (err) => {
+          opts.onError?.(err);
+          console.error('[react-flight-router] Action RSC error:', err);
+        },
       });
       logger?.timeEnd('action:serialize');
 
-      if (logger) {
+      if (logger && !opts.deferStreamTiming) {
         rscStream = logger.wrapStream(
           rscStream,
           `ACTION ${exportName}`,
@@ -114,7 +122,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
           undefined,
           opts.requestSignal,
         );
-      } else {
+      } else if (!opts.deferStreamTiming) {
         opts.onComplete?.(200);
       }
 
@@ -140,6 +148,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
         }
       }
 
+      if (formActionId) opts.onAction?.(formActionId);
       if (!formActionId) {
         opts.onComplete?.(400);
         return new Response('No action ID found in form data', { status: 400 });
@@ -170,7 +179,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       let rscStream = await renderRSC(url);
       logger?.timeEnd('action:rerender');
 
-      if (logger) {
+      if (logger && !opts.deferStreamTiming) {
         rscStream = logger.wrapStream(
           rscStream,
           `ACTION ${manifestEntry.name} (form)`,
@@ -178,7 +187,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
           undefined,
           opts.requestSignal,
         );
-      } else {
+      } else if (!opts.deferStreamTiming) {
         opts.onComplete?.(200);
       }
 
@@ -193,6 +202,10 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       return new Response('Invalid action request', { status: 400 });
     }
   } catch (err) {
+    for (const entry of logger?.getEntries(false) ?? []) {
+      if (entry.label.startsWith('action:execute(')) logger?.timeEnd(entry.label);
+    }
+    opts.onError?.(err);
     console.error('[react-flight-router] Action error:', err);
     opts.onComplete?.(500);
     return new Response(err instanceof Error ? err.message : 'Internal server error', {

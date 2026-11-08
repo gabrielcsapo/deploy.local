@@ -16,6 +16,7 @@ export function generateBootstrapScript(
   moduleMap: Record<string, string> = {},
   ssr: boolean = true,
   buildId?: string,
+  telemetry?: { route: string },
 ): string {
   // Inline flight-chunk scripts use the array protocol
   //   (self.__RSC_CHUNKS__||(self.__RSC_CHUNKS__=[])).push(chunk)
@@ -25,6 +26,7 @@ export function generateBootstrapScript(
   // stream. See shared/flight-html-stream.ts for the emit side.
   return `
     window.__SSR__ = ${ssr};${buildId ? `window.__RSC_BUILD__ = ${JSON.stringify(buildId)};` : ''}
+    ${telemetry ? `window.__DEPLOY_TELEMETRY__=${JSON.stringify(telemetry).replaceAll('<', '\\u003c')};` : ''}
     window.__MODULE_MAP__ = ${JSON.stringify(moduleMap)};
     var __rscQ = self.__RSC_CHUNKS__ = self.__RSC_CHUNKS__ || [];
     window.__RSC_STREAM__ = new ReadableStream({

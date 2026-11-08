@@ -12,6 +12,19 @@ declare global {
   }
 }
 
+// The implementation is a separate chunk and is never loaded without server opt-in.
+if (window.__DEPLOY_TELEMETRY__) {
+  try {
+    const { startBrowserTelemetry } = await import('./telemetry.js');
+    window.__DEPLOY_METRICS__ = startBrowserTelemetry(
+      window.__DEPLOY_TELEMETRY__.route,
+      window.__RSC_BUILD__ ?? '',
+    );
+  } catch {
+    /* Monitoring must not prevent hydration. */
+  }
+}
+
 // Dynamic imports for CJS modules - Vite pre-bundles them into ESM wrappers
 const reactDomClient = (await import('react-dom/client')) as any;
 const { createRoot, hydrateRoot } = reactDomClient;

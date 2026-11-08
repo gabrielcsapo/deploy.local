@@ -1,6 +1,8 @@
 import { Worker, MessageChannel } from 'node:worker_threads';
 import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import type { ErrorRecord } from './telemetry.js';
+import type { TimingEntry } from '../shared/types.js';
 import type { SerializedRequestContext } from '../shared/types.js';
 
 /** Internal task dispatched to a worker */
@@ -12,12 +14,19 @@ export interface ActionTask {
   requestContext: SerializedRequestContext;
 }
 
+export interface WorkerCompletion {
+  status: number;
+  error?: string;
+  errorRecord?: ErrorRecord;
+  timings?: TimingEntry[];
+}
+
 /** Result of dispatching a task to the worker pool */
 export interface DispatchResult {
   /** Readable stream of RSC chunks from the worker */
   stream: ReadableStream<Uint8Array>;
   /** Resolves with the response status when the worker finishes */
-  done: Promise<{ status: number; error?: string }>;
+  done: Promise<WorkerCompletion>;
 }
 
 interface ManagedWorker {
@@ -149,8 +158,8 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
     // Set up timeout
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    let resolveStatus: (result: { status: number; error?: string }) => void;
-    const done = new Promise<{ status: number; error?: string }>((resolve) => {
+    let resolveStatus: (result: WorkerCompletion) => void;
+    const done = new Promise<WorkerCompletion>((resolve) => {
       resolveStatus = resolve;
     });
 
@@ -173,7 +182,14 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
 
         mainPort.on(
           'message',
-          (msg: { type: string; data?: ArrayBuffer; status?: number; message?: string }) => {
+          (msg: {
+            type: string;
+            data?: ArrayBuffer;
+            status?: number;
+            message?: string;
+            errorRecord?: ErrorRecord;
+            timings?: TimingEntry[];
+          }) => {
             switch (msg.type) {
               case 'chunk':
                 controller.enqueue(new Uint8Array(msg.data!));
@@ -182,13 +198,22 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
                 controller.close();
                 mainPort.close();
                 cleanup();
-                resolveStatus({ status: 200 });
+                resolveStatus({
+                  status: 200,
+                  ...(msg.errorRecord ? { errorRecord: msg.errorRecord } : {}),
+                  ...(msg.timings ? { timings: msg.timings } : {}),
+                });
                 break;
               case 'error':
                 controller.error(new Error(msg.message));
                 mainPort.close();
                 cleanup();
-                resolveStatus({ status: msg.status ?? 500, error: msg.message });
+                resolveStatus({
+                  status: msg.status ?? 500,
+                  error: msg.message,
+                  ...(msg.errorRecord ? { errorRecord: msg.errorRecord } : {}),
+                  ...(msg.timings ? { timings: msg.timings } : {}),
+                });
                 break;
             }
           },
