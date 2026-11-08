@@ -102,6 +102,29 @@ describe('HtmlInjectionScanner', () => {
     expect(charwise.safe).toBe(whole.safe);
     expect(whole.safe).toBe(true); // </div> closed back to body level
   });
+  it('keeps parser safety identical across every split of long text and raw text', () => {
+    const html =
+      '<html><body><div>' +
+      'escaped &lt; text '.repeat(100) +
+      '</div><script>' +
+      'const value = 123;'.repeat(100) +
+      '"</scriptx>";</ScRiPt><!-- marker --><p title="x > y">end</p>';
+    const charwise = new HtmlInjectionScanner();
+    const expected: boolean[] = [];
+    for (const char of html) {
+      charwise.scan(char);
+      expected.push(charwise.safe);
+    }
+    for (let split = 1; split < html.length; split++) {
+      const scanner = new HtmlInjectionScanner();
+      scanner.scan(html.slice(0, split));
+      expect(scanner.safe).toBe(expected[split - 1]);
+      scanner.scan('');
+      expect(scanner.safe).toBe(expected[split - 1]);
+      scanner.scan(html.slice(split));
+      expect(scanner.safe).toBe(true);
+    }
+  });
 });
 
 describe('injectFlightPayload', () => {

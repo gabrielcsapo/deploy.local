@@ -454,3 +454,57 @@ describe('popstate racing a just-applied navigation', () => {
     expect(prevUrlHeaders[1]).toBe('/destination');
   });
 });
+
+describe('navigation during prefetch', () => {
+  beforeEach(() => {
+    vi.stubGlobal('location', { origin: 'http://localhost', pathname: '/current', search: '' });
+    vi.stubGlobal('history', { state: { key: 'test' }, replaceState: vi.fn(), pushState: vi.fn() });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('uses the in-flight prefetch body to complete navigation with one request', async () => {
+    const { prefetchRSC } = await import('./prefetch-cache.js');
+    let respond!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          respond = resolve;
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    prefetchRSC('/prefetched-navigation');
+    const { result } = renderHook(() => useRouter(), { wrapper });
+    await act(async () => {
+      const navigation = result.current.navigate('/prefetched-navigation');
+      respond(new Response(makeStream({ segments: { root: 'prefetched' }, params: { id: '42' } })));
+      await navigation;
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.url).toBe('/prefetched-navigation');
+    expect(result.current.segments.root).toBe('prefetched');
+    expect(result.current.params).toEqual({ id: '42' });
+    expect(result.current.navigationState).toBe('idle');
+  });
+
+  it('falls back to navigation fetch after a failed prefetch', async () => {
+    const { prefetchRSC } = await import('./prefetch-cache.js');
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(new Response(makeStream({ segments: { root: 'fresh' }, params: {} })));
+    vi.stubGlobal('fetch', fetchMock);
+    prefetchRSC('/prefetch-failure');
+    const { result } = renderHook(() => useRouter(), { wrapper });
+    await act(async () => {
+      await result.current.navigate('/prefetch-failure');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.segments.root).toBe('fresh');
+    expect(result.current.navigationError).toBeNull();
+  });
+});

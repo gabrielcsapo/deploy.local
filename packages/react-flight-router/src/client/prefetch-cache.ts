@@ -92,3 +92,29 @@ export function consumePrefetch(pathname: string, search: string): Response | nu
   }
   return entry.response;
 }
+
+/** Take a completed prefetch, or await its headers without issuing a duplicate fetch. */
+export async function takePrefetch(
+  pathname: string,
+  search: string,
+  signal: AbortSignal,
+): Promise<Response | null> {
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  const response = consumePrefetch(pathname, search);
+  if (response) return response;
+  const pending = inflightPrefetches.get(pathname + search);
+  if (!pending) return null;
+
+  // Cancelling a navigation stops the wait but leaves the speculative fetch
+  // available for a later navigation. Only one caller can consume its body.
+  await new Promise<void>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    pending.finally(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    });
+  });
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  return consumePrefetch(pathname, search);
+}
