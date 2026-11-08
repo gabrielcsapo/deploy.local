@@ -3,13 +3,20 @@
 // one hook behaves the same under `vite` and `node dist/server.js`, so the
 // ordering guarantees are asserted here against the real Hono app that
 // createServer builds — see extend-wiring.test.ts in src/dev for the other half.
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
+import { gzip } from 'zlib';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from './index.js';
+import { gunzipSync, inflateSync } from 'node:zlib';
 import { ACTION_ENDPOINT, RSC_ENDPOINT } from '../shared/constants.js';
 import type { ExtendContext } from '../shared/extend.js';
+
+vi.mock('zlib', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('zlib')>();
+  return { ...actual, gzip: vi.fn(actual.gzip) };
+});
 
 // The fixture lives under the package's own node_modules so that
 // createRequire(buildDir/package.json) — which createServer uses to load the
@@ -27,6 +34,11 @@ function writeFixture() {
     writeFileSync(path, contents);
   };
 
+  write(
+    'client/assets/cache-test.js',
+    'export const message = ' + JSON.stringify('asset content '.repeat(500)),
+  );
+  write('client/assets/other.js', 'export default ' + JSON.stringify('other content '.repeat(500)));
   write('package.json', JSON.stringify({ name: 'extend-fixture', type: 'module' }));
   write('rsc-client-manifest.json', '{}');
   write('ssr-manifest.json', '{}');
@@ -214,5 +226,96 @@ describe('extend wiring (production)', () => {
     const response = await app.fetch(new Request('http://localhost/some/page'));
 
     expect(await response.text()).not.toBe('mine');
+  });
+});
+
+describe('static gzip cache', () => {
+  const path = resolve(BUILD_DIR, 'client/assets/cache-test.js');
+  const original = 'export const message = ' + JSON.stringify('asset content '.repeat(500));
+  const request = (encoding?: string, method = 'GET') =>
+    new Request('http://localhost/assets/cache-test.js', {
+      method,
+      headers: encoding ? { 'accept-encoding': encoding } : {},
+    });
+
+  it('serves concurrent and warm gzip requests with unchanged bytes and immutable headers', async () => {
+    const app = await createServer({ buildDir: BUILD_DIR });
+    vi.mocked(gzip).mockClear();
+    const responses = await Promise.all(
+      Array.from({ length: 10 }, () => app.fetch(request('gzip, deflate, br'))),
+    );
+    for (const response of responses) {
+      expect(response.headers.get('content-encoding')).toBe('gzip');
+      expect(response.headers.get('vary')).toBe('Accept-Encoding');
+      expect(response.headers.get('cache-control')).toContain('immutable');
+      expect(gunzipSync(Buffer.from(await response.arrayBuffer())).toString()).toBe(original);
+    }
+    const warm = await app.fetch(request('gzip'));
+    expect(gunzipSync(Buffer.from(await warm.arrayBuffer())).toString()).toBe(original);
+    expect(gzip).toHaveBeenCalledTimes(1);
+    const identity = await app.fetch(request());
+    expect(identity.headers.get('content-encoding')).toBeNull();
+    expect(await identity.text()).toBe(original);
+  });
+
+  it('delegates quality values and deflate to the existing negotiator', async () => {
+    const app = await createServer({ buildDir: BUILD_DIR });
+    const refused = await app.fetch(request('gzip;q=0, deflate;q=0'));
+    expect(refused.headers.get('content-encoding')).toBeNull();
+    expect(await refused.text()).toBe(original);
+    const deflate = await app.fetch(request('gzip;q=0, deflate'));
+    expect(deflate.headers.get('content-encoding')).toBe('deflate');
+    expect(inflateSync(Buffer.from(await deflate.arrayBuffer())).toString()).toBe(original);
+    const head = await app.fetch(request('gzip', 'HEAD'));
+    expect(head.headers.get('content-encoding')).toBeNull();
+    expect(await head.text()).toBe('');
+  });
+
+  it.each([0, 1])('retains uncached reads with a %i byte budget', async (assetCacheBytes) => {
+    const app = await createServer({ buildDir: BUILD_DIR, assetCacheBytes });
+    const initial = await app.fetch(request('gzip'));
+    expect(gunzipSync(Buffer.from(await initial.arrayBuffer())).toString()).toBe(original);
+    try {
+      writeFileSync(path, 'updated');
+      const next = await app.fetch(request('gzip'));
+      expect(gunzipSync(Buffer.from(await next.arrayBuffer())).toString()).toBe('updated');
+    } finally {
+      writeFileSync(path, original);
+    }
+  });
+
+  it('retains the identity cache when both representations cannot fit', async () => {
+    const app = await createServer({
+      buildDir: BUILD_DIR,
+      assetCacheBytes: Buffer.byteLength(original),
+    });
+    await (await app.fetch(request('gzip'))).arrayBuffer();
+    try {
+      writeFileSync(path, 'changed on disk');
+      expect(await (await app.fetch(request())).text()).toBe(original);
+    } finally {
+      writeFileSync(path, original);
+    }
+  });
+
+  it('charges compressed representations to the shared LRU budget', async () => {
+    // Both identities fit, but their gzip variants push the cache over budget.
+    const other = 'export default ' + JSON.stringify('other content '.repeat(500));
+    const app = await createServer({
+      buildDir: BUILD_DIR,
+      assetCacheBytes: Buffer.byteLength(original) + Buffer.byteLength(other),
+    });
+    const first = await app.fetch(request('gzip'));
+    await first.arrayBuffer();
+    const second = await app.fetch(
+      new Request('http://localhost/assets/other.js', { headers: { 'accept-encoding': 'gzip' } }),
+    );
+    await second.arrayBuffer();
+    try {
+      writeFileSync(path, 'reloaded after eviction');
+      expect(await (await app.fetch(request())).text()).toBe('reloaded after eviction');
+    } finally {
+      writeFileSync(path, original);
+    }
   });
 });

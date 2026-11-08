@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import { compress } from 'hono/compress';
+import { compress, COMPRESSIBLE_CONTENT_TYPE_REGEX } from 'hono/compress';
 import { createRequire } from 'module';
 import { readdirSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { resolve, sep } from 'path';
 import { randomUUID } from 'crypto';
-import { createGzip, constants as zlibConstants } from 'zlib';
+import { createGzip, gzip, constants as zlibConstants } from 'zlib';
+import { promisify } from 'util';
 import { loadManifests } from './manifest-loader.js';
 import { renderRSC } from './rsc-renderer.js';
 import { renderSSR } from './ssr-renderer.js';
@@ -33,6 +34,8 @@ import {
   type FlightTimer,
   type FlightLogger,
 } from '../shared/logger.js';
+
+const gzipAsync = promisify(gzip);
 
 /**
  * Creates a TransformStream that gzip-compresses each chunk individually
@@ -422,11 +425,17 @@ export async function createServer(opts: CreateServerOptions) {
   interface AssetEntry {
     /** Stored as ArrayBuffer for unambiguous BodyInit typing across TS lib versions. */
     bytes: ArrayBuffer;
+    gzip?: ArrayBuffer;
     contentType: string;
   }
   const assetCache = new Map<string, AssetEntry>();
   let assetCacheBytes = 0;
   const assetNotFound = new Set<string>();
+  const pendingGzip = new Map<string, Promise<ArrayBuffer>>();
+
+  function assetSize(entry: AssetEntry): number {
+    return entry.bytes.byteLength + (entry.gzip?.byteLength ?? 0);
+  }
 
   function getMimeType(filePath: string): string {
     const dot = filePath.lastIndexOf('.');
@@ -436,17 +445,62 @@ export async function createServer(opts: CreateServerOptions) {
 
   function admitToCache(filePath: string, entry: AssetEntry): void {
     if (assetCacheCap <= 0) return;
-    if (entry.bytes.byteLength > assetCacheCap) return;
+    if (assetSize(entry) > assetCacheCap) return;
+    // Concurrent cold reads may admit the same path more than once.
+    const previous = assetCache.get(filePath);
+    if (previous) assetCacheBytes -= assetSize(previous);
+    assetCache.delete(filePath);
     assetCache.set(filePath, entry);
-    assetCacheBytes += entry.bytes.byteLength;
+    assetCacheBytes += assetSize(entry);
     // Evict oldest entries (Map iteration is insertion-order) until under cap
     while (assetCacheBytes > assetCacheCap) {
       const oldest = assetCache.keys().next().value;
       if (oldest === undefined) break;
       const evicted = assetCache.get(oldest)!;
       assetCache.delete(oldest);
-      assetCacheBytes -= evicted.bytes.byteLength;
+      assetCacheBytes -= assetSize(evicted);
     }
+  }
+
+  async function assetResponse(filePath: string, entry: AssetEntry, request: Request) {
+    const headers: Record<string, string> = {
+      'Content-Type': entry.contentType,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      Vary: 'Accept-Encoding',
+    };
+    const accept = request.headers.get('accept-encoding') ?? '';
+    // Fast path for ordinary browser headers. Let Hono retain responsibility
+    // for quality values, wildcards, deflate and other negotiation cases.
+    // Both representations share assetCacheBytes' LRU budget. Disabled and
+    // oversized caches retain the original streaming compression path.
+    if (
+      request.method !== 'HEAD' &&
+      assetCacheCap > 0 &&
+      entry.bytes.byteLength <= assetCacheCap &&
+      !accept.includes(';') &&
+      /(?:^|,)\s*gzip\s*(?:,|$)/i.test(accept) &&
+      COMPRESSIBLE_CONTENT_TYPE_REGEX.test(entry.contentType)
+    ) {
+      let compressed = entry.gzip;
+      if (!compressed) {
+        let pending = pendingGzip.get(filePath);
+        if (!pending) {
+          pending = (async () => {
+            const buf = await gzipAsync(new Uint8Array(entry.bytes));
+            const bytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+            // Keep representations together so a tight budget cannot evict
+            // identity bytes while retaining a now-unreachable gzip entry.
+            admitToCache(filePath, { ...entry, gzip: bytes });
+            return bytes;
+          })().finally(() => pendingGzip.delete(filePath));
+          pendingGzip.set(filePath, pending);
+        }
+        compressed = await pending;
+      }
+      headers['Content-Encoding'] = 'gzip';
+      return new Response(compressed, { headers });
+    }
+    return new Response(entry.bytes, { headers });
   }
 
   app.get('/assets/*', async (c) => {
@@ -463,12 +517,7 @@ export async function createServer(opts: CreateServerOptions) {
       // Promote to most-recently-used
       assetCache.delete(filePath);
       assetCache.set(filePath, cached);
-      return new Response(cached.bytes, {
-        headers: {
-          'Content-Type': cached.contentType,
-          'Cache-Control': 'public, max-age=31536000, immutable',
-        },
-      });
+      return assetResponse(filePath, cached, c.req.raw);
     }
 
     // Negative cache: previously-missed paths short-circuit to 404 without I/O
@@ -489,15 +538,15 @@ export async function createServer(opts: CreateServerOptions) {
       return new Response('Not Found', { status: 404 });
     }
 
-    const entry: AssetEntry = { bytes, contentType: getMimeType(filePath) };
+    // Another cold request may have finished (and compressed) this asset while
+    // readFile was pending. Retain its representation rather than replacing it.
+    const entry: AssetEntry = assetCache.get(filePath) ?? {
+      bytes,
+      contentType: getMimeType(filePath),
+    };
     admitToCache(filePath, entry);
 
-    return new Response(entry.bytes, {
-      headers: {
-        'Content-Type': entry.contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    });
+    return assetResponse(filePath, entry, c.req.raw);
   });
 
   // Static files copied from `publicDir` at build time (Vite's `publicDir`
