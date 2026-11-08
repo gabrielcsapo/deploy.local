@@ -141,16 +141,22 @@ export function decodeQuery(buf: Buffer): DecodedQuery | null {
   const questions: DnsQuestion[] = [];
   let offset = 12;
 
-  for (let i = 0; i < qdcount && offset < buf.length; i++) {
-    const [name, bytesRead] = decodeName(buf, offset);
-    offset += bytesRead;
+  try {
+    for (let i = 0; i < qdcount; i++) {
+      if (offset >= buf.length) return null;
+      const [name, bytesRead] = decodeName(buf, offset);
+      offset += bytesRead;
 
-    if (offset + 4 > buf.length) break;
-    const type = buf.readUInt16BE(offset);
-    const cls = buf.readUInt16BE(offset + 2);
-    offset += 4;
+      if (offset + 4 > buf.length) return null;
+      const type = buf.readUInt16BE(offset);
+      const cls = buf.readUInt16BE(offset + 2);
+      offset += 4;
 
-    questions.push({ name, type, class: cls & 0x7fff, qu: !!(cls & 0x8000) });
+      questions.push({ name, type, class: cls & 0x7fff, qu: !!(cls & 0x8000) });
+    }
+  } catch {
+    // A malformed datagram must never escape into the UDP event loop.
+    return null;
   }
 
   return { id, questions };
@@ -160,7 +166,7 @@ export function decodeQuery(buf: Buffer): DecodedQuery | null {
 
 /**
  * Pre-build a response buffer template for an A record with NSEC additional.
- * The transaction ID (bytes 0-1) should be stamped at send time.
+ * The transaction ID stays zero for mDNS; legacy replies are built separately.
  *
  * Includes an NSEC additional record denying AAAA, so the resolver gets
  * both the address and "no IPv6" signal in a single packet — preventing
@@ -295,7 +301,7 @@ export function stampTransactionId(buf: Buffer, id: number): Buffer {
 
 export interface OutgoingQuery {
   id?: number;
-  questions: Array<{ name: string; type: string | number }>;
+  questions: Array<{ name: string; type: string | number; class?: number; qu?: boolean }>;
 }
 
 export interface OutgoingResponse {
@@ -349,7 +355,8 @@ export function encodeQuery(q: OutgoingQuery): Buffer {
     encodedNames[i]!.copy(buf, offset);
     offset += encodedNames[i]!.length;
     buf.writeUInt16BE(typeToNumber(questions[i]!.type), offset);
-    buf.writeUInt16BE(CLASS_IN, offset + 2);
+    const question = questions[i]!;
+    buf.writeUInt16BE((question.class ?? CLASS_IN) | (question.qu ? 0x8000 : 0), offset + 2);
     offset += 4;
   }
 
@@ -397,4 +404,42 @@ export function encodeResponse(r: OutgoingResponse): Buffer {
   }
 
   return buf;
+}
+
+/** RFC 6762 §6.7: one-shot clients need a conventional DNS reply. The cached
+ * mDNS packet is immutable; relocate its compression pointers past the echoed
+ * question section and remove mDNS-only cache-flush bits. */
+export function buildLegacyResponse(response: Buffer, query: DecodedQuery): Buffer {
+  const questions = encodeQuery({ questions: query.questions });
+  const shift = questions.length - 12;
+  const packet = Buffer.concat([
+    response.subarray(0, 12),
+    questions.subarray(12),
+    response.subarray(12),
+  ]);
+  packet.writeUInt16BE(query.id, 0);
+  packet.writeUInt16BE(query.questions.length, 4);
+  let offset = 12;
+  const count = response.readUInt16BE(6) + response.readUInt16BE(10);
+  for (let i = 0; i < count; i++) {
+    const nameLength = decodeName(response, offset)[1];
+    if ((response[offset]! & 0xc0) === 0xc0) {
+      packet.writeUInt16BE(
+        0xc000 | ((response.readUInt16BE(offset) & 0x3fff) + shift),
+        offset + shift,
+      );
+    }
+    offset += nameLength;
+    packet.writeUInt16BE(CLASS_IN, offset + shift + 2);
+    packet.writeUInt32BE(Math.min(response.readUInt32BE(offset + 4), 10), offset + shift + 4);
+    const rdata = offset + 10;
+    if (response.readUInt16BE(offset) === TYPE_NSEC && (response[rdata]! & 0xc0) === 0xc0) {
+      packet.writeUInt16BE(
+        0xc000 | ((response.readUInt16BE(rdata) & 0x3fff) + shift),
+        rdata + shift,
+      );
+    }
+    offset = rdata + response.readUInt16BE(offset + 8);
+  }
+  return packet;
 }

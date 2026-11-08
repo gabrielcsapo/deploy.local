@@ -7,6 +7,7 @@ import {
   decodeName,
   decodeQuery,
   buildARecordResponse,
+  buildLegacyResponse,
   buildNsecResponse,
   stampTransactionId,
   TYPE_A,
@@ -135,7 +136,7 @@ describe('mDNS NSEC response for AAAA queries', () => {
 
     mdns = multicastDns({
       socket: sock,
-      port: 5353,
+      port: 5354,
       ip: '127.0.0.1',
       multicast: false,
       bind: false,
@@ -159,7 +160,7 @@ describe('mDNS NSEC response for AAAA queries', () => {
     const rinfo = {
       address: '127.0.0.1',
       family: 'IPv4' as const,
-      port: 12345,
+      port: 5354,
       size: queryBuf.length,
     };
     sock.emit('message', queryBuf, rinfo);
@@ -254,11 +255,11 @@ describe('mDNS NSEC response for AAAA queries', () => {
     assert.equal(response.readUInt16BE(12 + nameLen), TYPE_A);
   });
 
-  it('stamps correct transaction ID on response', () => {
+  it('uses zero transaction ID on mDNS response', () => {
     simulateQuery('testapp.local', 'AAAA', 0xbeef);
 
     assert.equal(sent.length, 1);
-    assert.equal(sent[0]!.readUInt16BE(0), 0xbeef);
+    assert.equal(sent[0]!.readUInt16BE(0), 0);
   });
 
   it('handles both A and AAAA queries for the same host', () => {
@@ -270,13 +271,13 @@ describe('mDNS NSEC response for AAAA queries', () => {
     // First response: A record (with NSEC additional)
     const [, nameLen1] = decodeName(sent[0]!, 12);
     assert.equal(sent[0]!.readUInt16BE(12 + nameLen1), TYPE_A);
-    assert.equal(sent[0]!.readUInt16BE(0), 0x0001);
+    assert.equal(sent[0]!.readUInt16BE(0), 0);
     assert.equal(sent[0]!.readUInt16BE(10), 1); // ARCOUNT = 1 (NSEC additional)
 
     // Second response: standalone NSEC record
     const [, nameLen2] = decodeName(sent[1]!, 12);
     assert.equal(sent[1]!.readUInt16BE(12 + nameLen2), TYPE_NSEC);
-    assert.equal(sent[1]!.readUInt16BE(0), 0x0002);
+    assert.equal(sent[1]!.readUInt16BE(0), 0);
   });
 
   it('stops responding after unregisterResponse', () => {
@@ -287,4 +288,116 @@ describe('mDNS NSEC response for AAAA queries', () => {
 
     assert.equal(sent.length, 0, 'should not respond after unregister');
   });
+});
+
+// All traffic is intercepted: no bind or LAN multicast.
+describe('mDNS response delivery', () => {
+  function fixture() {
+    const socket = dgram.createSocket('udp4');
+    const mdns = multicastDns({
+      socket,
+      port: 5354,
+      ip: '127.0.0.1',
+      multicast: false,
+      bind: false,
+    });
+    mdns.registerResponse('test.local', '10.0.0.42');
+    const sent: { packet: Buffer; port: number; address: string }[] = [];
+    socket.send = ((
+      packet: Buffer,
+      offset: number,
+      length: number,
+      port: number,
+      address: string,
+    ) => {
+      sent.push({ packet: Buffer.from(packet.subarray(offset, offset + length)), port, address });
+    }) as typeof socket.send;
+    return { socket, mdns, sent };
+  }
+  function ask(socket: dgram.Socket, type: string, port: number, qu = false, cls = 1) {
+    const packet = encodeQuery({ id: 42, questions: [{ name: 'test.local', type }] });
+    packet.writeUInt16BE(cls | (qu ? 0x8000 : 0), packet.length - 2);
+    socket.emit('message', packet, {
+      address: '127.0.0.2',
+      port,
+      family: 'IPv4',
+      size: packet.length,
+    });
+  }
+  it('unicasts legacy queries without QU and echoes question with capped TTL and no flush', () => {
+    const { socket, mdns, sent } = fixture();
+    try {
+      for (const type of ['A', 'AAAA', 'ANY']) ask(socket, type, 5355);
+      assert.equal(sent.length, 3);
+      for (const { packet, port, address } of sent) {
+        assert.equal(port, 5355);
+        assert.equal(address, '127.0.0.2');
+        assert.equal(packet.readUInt16BE(0), 42);
+        assert.equal(packet.readUInt16BE(4), 1);
+        const [name, length] = decodeName(packet, 12);
+        assert.equal(name, 'test.local');
+        let offset = 12 + length + 4;
+        for (let i = 0; i < packet.readUInt16BE(6) + packet.readUInt16BE(10); i++) {
+          offset += decodeName(packet, offset)[1];
+          assert.equal(packet.readUInt16BE(offset + 2), 1);
+          assert.equal(packet.readUInt32BE(offset + 4), 10);
+          offset += 10 + packet.readUInt16BE(offset + 8);
+        }
+      }
+    } finally {
+      mdns.destroy();
+    }
+  });
+  it('honors QU and uses zero IDs for multicast DNS responses', () => {
+    const { socket, mdns, sent } = fixture();
+    try {
+      ask(socket, 'A', 5354, true);
+      ask(socket, 'A', 5354);
+      assert.deepEqual(
+        sent.map(({ port, address }) => ({ port, address })),
+        [
+          { port: 5354, address: '127.0.0.2' },
+          { port: 5354, address: '127.0.0.1' },
+        ],
+      );
+      for (const { packet } of sent) assert.equal(packet.readUInt16BE(0), 0);
+    } finally {
+      mdns.destroy();
+    }
+  });
+  it('denies absent host record types with NSEC but ignores other DNS classes', () => {
+    const { socket, mdns, sent } = fixture();
+    try {
+      for (const type of ['PTR', 'SRV', 'TXT']) ask(socket, type, 5354);
+      assert.equal(sent.length, 3);
+      for (const { packet } of sent)
+        assert.equal(packet.readUInt16BE(12 + decodeName(packet, 12)[1]), TYPE_NSEC);
+      ask(socket, 'A', 5354, false, 3);
+      assert.equal(sent.length, 3);
+    } finally {
+      mdns.destroy();
+    }
+  });
+});
+
+it('ignores malformed compression loops instead of throwing in the UDP handler', () => {
+  const packet = Buffer.alloc(18);
+  packet.writeUInt16BE(1, 4);
+  packet.writeUInt16BE(0xc00c, 12);
+  packet.writeUInt16BE(TYPE_A, 14);
+  packet.writeUInt16BE(1, 16);
+  assert.equal(decodeQuery(packet), null);
+});
+
+it('legacy replies echo the original question class and preserve compressed NSEC names', () => {
+  const question = { name: 'test.local', type: TYPE_A, class: 255, qu: false };
+  const source = buildARecordResponse('test.local', '10.0.0.42', 120);
+  const packet = buildLegacyResponse(source, { id: 42, questions: [question] });
+  const length = decodeName(packet, 12)[1];
+  assert.equal(packet.readUInt16BE(12 + length + 2), 255);
+  const answerOffset = 12 + length + 4;
+  const nsecOffset = answerOffset + decodeName(packet, answerOffset)[1] + 14;
+  assert.equal(decodeName(packet, nsecOffset)[0], 'test.local');
+  assert.equal(decodeName(packet, nsecOffset + 12)[0], 'test.local');
+  assert.equal(source.readUInt16BE(4), 0, 'cached mDNS packet stays immutable');
 });
