@@ -1,3 +1,4 @@
+import { writeEdgeTelemetry } from './telemetry.ts';
 /** Resumable, bounded migration. Called in a worker, never on the serving thread. */
 import { randomUUID } from 'node:crypto';
 import { statfsSync } from 'node:fs';
@@ -56,6 +57,7 @@ function saveState(target: Database.Database, source: string, state: ImportState
 }
 
 interface RawRow {
+  route?: string | null;
   id: number;
   deployment_name: string;
   method: string;
@@ -97,6 +99,13 @@ export function copyRequestBatch(
 ) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 5000)
     throw new Error('Batch size must be 1..5000');
+  const copyColumns =
+    columns +
+    ((source.pragma('table_info(request_logs)') as { name: string }[]).some(
+      (row) => row.name === 'route',
+    )
+      ? ',route'
+      : '');
   const started = performance.now();
   let copied = 0;
   // FULL makes the completion receipt durable before a later startup deletes the source.
@@ -156,29 +165,33 @@ export function copyRequestBatch(
         if (!state.rawDone) state.phase = 'raw';
       } else {
         const rows = source
-          .prepare(`SELECT ${columns} FROM request_logs INDEXED BY idx_request_logs_ts
+          .prepare(`SELECT ${copyColumns} FROM request_logs INDEXED BY idx_request_logs_ts
         WHERE (timestamp,id) < (?,?)
         ORDER BY timestamp DESC,id DESC LIMIT ?`)
           .all(state.rawTimestamp, state.rawId, limit) as RawRow[];
         const insert = target.prepare(
-          `INSERT OR IGNORE INTO request_logs (${columns}) VALUES (${Array(15).fill('?').join(',')})`,
+          `INSERT OR IGNORE INTO request_logs (${copyColumns}) VALUES (${Array(copyColumns.split(',').length).fill('?').join(',')})`,
         );
         const remap = target.prepare(
-          `INSERT INTO request_logs (${columns.split(',').slice(1).join(',')}) VALUES (${Array(14).fill('?').join(',')})`,
+          `INSERT INTO request_logs (${copyColumns.split(',').slice(1).join(',')}) VALUES (${Array(
+            copyColumns.split(',').length - 1,
+          )
+            .fill('?')
+            .join(',')})`,
         );
         const inserted: Array<{ name: string; entry: RawRow }> = [];
         for (const row of rows) {
           // Filter IDs after the bounded index read: a rollback tail with old
           // timestamps must not turn one LIMIT query into a scan of 14M rows.
           if (row.id <= state.lowerId || row.id > state.highId) continue;
-          const values = columns.split(',').map((key) => row[key as keyof RawRow]);
+          const values = copyColumns.split(',').map((key) => row[key as keyof RawRow]);
           let changed = insert.run(...values).changes > 0;
           if (!changed) {
             const existing = target
-              .prepare(`SELECT ${columns} FROM request_logs WHERE id=?`)
+              .prepare(`SELECT ${copyColumns} FROM request_logs WHERE id=?`)
               .get(row.id) as RawRow;
             if (
-              columns
+              copyColumns
                 .split(',')
                 .some((key) => existing[key as keyof RawRow] !== row[key as keyof RawRow])
             ) {
@@ -190,6 +203,7 @@ export function copyRequestBatch(
           }
           if (changed) inserted.push({ name: row.deployment_name, entry: row });
         }
+        writeEdgeTelemetry(target, inserted);
         if (!state.useLegacyRollups)
           for (const r of buildRollups(inserted))
             upsert.run(
