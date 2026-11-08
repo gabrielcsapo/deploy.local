@@ -1,3 +1,4 @@
+import { containerTelemetryEnvironment } from './telemetry-runtime.ts';
 import { packageHooks } from './workspace/package-hooks.ts';
 import { preparePackageInstall, secretOutput } from '../shared/package-install.mjs';
 import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
@@ -665,6 +666,7 @@ export async function runContainer(
 
   // Build user env var flags
   const envFlags = buildEnvFlags(envVars);
+  const telemetryFlags = buildEnvFlags(await containerTelemetryEnvironment(name));
   const customVolumeFlags = buildCustomVolumeFlags(customVolumes);
 
   const gpuFlags = gpuEnabled ? ['--gpus', 'all'] : [];
@@ -715,6 +717,7 @@ export async function runContainer(
     '--label',
     `deploy-sh.host-port=${port}`,
     ...customRunArgs,
+    ...telemetryFlags,
     imageTag,
   ];
 

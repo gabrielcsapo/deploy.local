@@ -1,3 +1,4 @@
+import { recordTelemetryRelease } from '../telemetry-runtime.ts';
 import { assertCiMutation } from '../ci-fence.ts';
 import {
   getDb,
@@ -193,6 +194,7 @@ export function recordMaterializedApplicationRuntime(input: {
     .where(eq(deployments.name, input.deploymentName))
     .run();
   refreshDeploymentInCache(input.deploymentName);
+  recordTelemetryRelease(input.deploymentName, `graph:${input.specDigest}`);
 }
 
 export function getDeployments(username: string) {
@@ -336,6 +338,9 @@ export function updateDeploymentStatus(name: string, status: string) {
     .where(eq(deployments.name, name))
     .run();
   refreshDeploymentInCache(name);
+  const app = getDeployment(name);
+  if (status === 'running' && app?.containerId && app.type !== 'application-graph')
+    recordTelemetryRelease(name, `container:${app.containerId}`);
 }
 
 export function recordContainerStart(name: string) {

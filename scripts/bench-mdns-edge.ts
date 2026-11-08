@@ -68,7 +68,11 @@ await new Promise<void>((resolve) => mdns.destroy(resolve));
 
 let connections = 0;
 const upstream = createServer((_req, res) => {
-  res.writeHead(200, { 'content-type': 'text/plain', 'content-length': 2 });
+  res.writeHead(200, {
+    'content-type': 'text/plain',
+    'content-length': 2,
+    'server-timing': 'route;desc="/photos/:id", match;dur=0.12, render;dur=2.34',
+  });
   res.end('ok');
 });
 upstream.on('connection', () => connections++);
@@ -138,7 +142,7 @@ console.log(
       upstreamConnections: connections,
       dnsSourcePort: 5355,
       methodology:
-        '1000 sequential measured requests per path/trial after 200 warmups, 3 alternating-order trials, 2-byte response, HTTP/1.1 keep-alive, no TLS/DB/capture/log writes; DNS timeout 100ms',
+        '1000 sequential measured requests per path/trial after 200 warmups, 3 alternating-order trials, 2-byte response with v1 Server-Timing header, HTTP/1.1 keep-alive, no TLS/DB/capture/log writes; DNS timeout 100ms',
     },
     null,
     2,

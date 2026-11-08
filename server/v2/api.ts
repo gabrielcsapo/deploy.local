@@ -1,3 +1,4 @@
+import { performanceApi } from './performance.ts';
 import { sendJson } from '../http.ts';
 import { packagesApi } from '../packages/api.ts';
 import { projectRemovalApi } from './project-removal.ts';
@@ -52,6 +53,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (await agentsApi(req, res, auth.username)) return;
     if (await releasesApi(req, res, auth.username)) return;
     if (await requestsApi(req, res, auth.username)) return;
+    if (await performanceApi(req, res, auth.username)) return;
     if (req.method === 'GET' && path === '/inbox') {
       const state = url.searchParams.get('state') ?? 'waiting';
       if (!['waiting', 'answered'].includes(state)) fail('State must be waiting or answered');
