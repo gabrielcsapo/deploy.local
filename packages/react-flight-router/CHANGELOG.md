@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] (2026-11-08)
+
+### Other
+
+- Document router telemetry: what is sent, when, and the env that turns it on ([1c2015d](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=1c2015d682a13cd1d94b07699aa7f6d129f6782d&path=packages/react-flight-router))
+- Router reports timings, errors and page experience to deploy.local, and compresses streamed HTML ([3408a93](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=3408a936bb8bf05d4017e873f3fc202290c10293&path=packages/react-flight-router))
+
 ## [0.12.3] (2026-11-08)
 
 ### Other
