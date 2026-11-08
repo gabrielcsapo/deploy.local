@@ -1,18 +1,14 @@
-/** Docker-only collector: bridge gateway on Linux, loopback on Docker Desktop/Mac.
- * No public API route, no wildcard bind, no published Docker port. Linux also
- * checks the TCP peer against Docker bridge subnets (never X-Forwarded-For).
- * https://docs.docker.com/desktop/features/networking/networking-how-tos/
- * https://docs.docker.com/reference/cli/dockerd/#configure-host-gateway-ip
+/** Docker-only server telemetry on the edge's existing HTTP listener.
+ * TCP peers are checked against Docker bridge subnets, never X-Forwarded-For.
+ * Docker Desktop/Mac reaches the host through loopback.
  */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { BlockList, isIP } from 'node:net';
-import { createServer } from 'node:http';
 import { getRequestsSqlite, requestsDbFile } from './requests-db.ts';
 import { registerTelemetryRelease, issueTelemetryToken } from './telemetry.ts';
 import { serverTelemetryHandler } from './telemetry-http.ts';
 const exec = promisify(execFile);
-const PORT = 5359;
 interface DockerNetwork {
   Name: string;
   Driver: string;
@@ -23,8 +19,7 @@ export function collectorNetwork(platform: string, networks: DockerNetwork[]) {
   if (platform === 'darwin') {
     peers.addAddress('127.0.0.1');
     return {
-      bind: '127.0.0.1',
-      url: `http://host.docker.internal:${PORT}`,
+      url: 'http://host.docker.internal/__deploy',
       allowed: (ip: string) => peers.check(ip.replace(/^::ffff:/, '')),
     };
   }
@@ -44,24 +39,21 @@ export function collectorNetwork(platform: string, networks: DockerNetwork[]) {
         peers.addSubnet(address, Number(prefix), 'ipv4');
     }
   return {
-    bind: gateway,
-    url: `http://${gateway}:${PORT}`,
+    url: `http://${gateway}/__deploy`,
     allowed: (ip: string) => peers.check(ip.replace(/^::ffff:/, '')),
   };
 }
-let url: string | undefined;
 let dbFile: string | undefined;
 const credentials = new Map<string, string>();
 /** Generated after user env so apps cannot replace the attribution credential. */
 export async function containerTelemetryEnvironment(
   name: string | undefined,
   resolveEndpoint: () => Promise<string> = async () =>
-    url ??
     collectorNetwork(process.platform, process.platform === 'darwin' ? [] : await dockerNetworks())
       .url,
 ): Promise<Record<string, string>> {
   if (!name) return {};
-  // Release workers have their own module state; the listener lives in bootServer.
+  // Release workers resolve the edge endpoint without starting a listener.
   const endpoint = await resolveEndpoint();
   const file = requestsDbFile();
   if (dbFile !== file) {
@@ -87,21 +79,29 @@ async function dockerNetworks() {
   });
   return JSON.parse(stdout) as DockerNetwork[];
 }
-export async function startTelemetryCollector() {
-  let network = collectorNetwork(
-    process.platform,
-    process.platform === 'darwin' ? [] : await dockerNetworks(),
-  );
+/** Owns the peer allowlist and refresh timer, but opens no listening socket.
+ * Discovery failure disables ingestion without preventing the edge from booting.
+ */
+export async function createTelemetryCollector({
+  platform = process.platform,
+  networks = dockerNetworks,
+}: { platform?: string; networks?: () => Promise<DockerNetwork[]> } = {}) {
+  let network: ReturnType<typeof collectorNetwork> | undefined;
+  try {
+    network = collectorNetwork(platform, platform === 'darwin' ? [] : await networks());
+  } catch (error) {
+    console.warn('[telemetry] collector unavailable:', error);
+  }
   let refreshing: Promise<void> | undefined;
   let lastRefresh = 0;
   const refreshNetworks = () => {
-    if (process.platform === 'darwin') return Promise.resolve();
+    if (platform === 'darwin') return Promise.resolve();
     if (refreshing) return refreshing;
     if (Date.now() - lastRefresh < 1000) return Promise.resolve();
     lastRefresh = Date.now();
-    refreshing = dockerNetworks()
+    refreshing = networks()
       .then((list) => {
-        network = collectorNetwork(process.platform, list);
+        network = collectorNetwork(platform, list);
       })
       .catch(() => {})
       .finally(() => {
@@ -109,41 +109,25 @@ export async function startTelemetryCollector() {
       });
     return refreshing;
   };
-  const server = createServer(
-    serverTelemetryHandler(async (ip) => {
-      if (network.allowed(ip)) return true;
-      // A release can create a bridge between periodic refreshes. Refresh once
-      // before rejecting its first batch; LAN peers still fail the subnet check.
-      await refreshNetworks();
-      return network.allowed(ip);
-    }),
-  );
-  server.requestTimeout = 5000;
-  server.headersTimeout = 5000;
-  server.maxRequestsPerSocket = 100;
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(PORT, network.bind, () => {
-      server.off('error', reject);
-      resolve();
-    });
+  const handler = serverTelemetryHandler(async (ip) => {
+    if (network?.allowed(ip)) return true;
+    // A release can create a bridge between periodic refreshes. Refresh once
+    // before rejecting its first batch; LAN peers still fail the subnet check.
+    await refreshNetworks();
+    return network?.allowed(ip) ?? false;
   });
-  server.on('error', (error) => console.error('[telemetry] collector error:', error));
-  url = network.url;
   const refresh =
-    process.platform === 'darwin'
+    platform === 'darwin'
       ? undefined
       : setInterval(() => {
           void refreshNetworks();
         }, 30_000);
   refresh?.unref();
-  server.unref();
   return {
+    handler,
     close: () => {
-      url = undefined;
       credentials.clear();
       if (refresh) clearInterval(refresh);
-      server.close();
     },
   };
 }

@@ -14,12 +14,13 @@ assert.equal(process.env.DEPLOY_MDNS_ADDRESS, '127.0.0.1');
 const root = mkdtempSync(join(tmpdir(), 'deploy-telemetry-docker-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { getRequestsSqlite, resetRequestsDb } = await import('../server/requests-db.ts');
-const { containerTelemetryEnvironment, startTelemetryCollector } =
+const { containerTelemetryEnvironment, createTelemetryCollector } =
   await import('../server/telemetry-runtime.ts');
+const { withServerTelemetry } = await import('../server/telemetry-http.ts');
 const { createHotPathHandler } = await import('../server/edge/proxy.ts');
 const { writeEdgeTelemetry, readPerformance } = await import('../server/telemetry.ts');
 const db = getRequestsSqlite();
-const collector = await startTelemetryCollector();
+const collector = await createTelemetryCollector();
 const upstream = createServer((_req, res) => {
   res.writeHead(200, { 'server-timing': 'route;desc="/photos/:id", match;dur=0.1, render;dur=2' });
   res.end('fixture');
@@ -29,12 +30,14 @@ const handler = createHotPathHandler({
   logRequest: (name, entry) => writeEdgeTelemetry(db, [{ name, entry }]),
   emitEvent: () => {},
 });
-const edge = createServer((req, res) => {
-  if (!handler(req, res)) {
-    res.writeHead(404);
-    res.end();
-  }
-});
+const edge = createServer(
+  withServerTelemetry(collector.handler, (req, res) => {
+    if (!handler(req, res)) {
+      res.writeHead(404);
+      res.end();
+    }
+  }),
+);
 async function edgeRequest(path: string, method = 'GET', body?: unknown) {
   return new Promise<number>((resolve, reject) => {
     const req = request(
@@ -50,9 +53,16 @@ async function edgeRequest(path: string, method = 'GET', body?: unknown) {
 }
 try {
   upstream.listen(5351, '127.0.0.1');
-  edge.listen(5350, '127.0.0.1');
+  edge.listen(5350, '0.0.0.0');
   await Promise.all([once(upstream, 'listening'), once(edge, 'listening')]);
   const env = await containerTelemetryEnvironment('fixture');
+  const productionUrl = new URL(env.DEPLOY_TELEMETRY_URL);
+  assert.equal(productionUrl.port, '');
+  assert.equal(productionUrl.pathname, '/__deploy');
+  // Exercise the same HTTP handler on an unprivileged fixture port, never
+  // the installed edge on port 80. The app's production URL stays port 80.
+  productionUrl.port = '5350';
+  env.DEPLOY_TELEMETRY_URL = productionUrl.href;
   const code = `const res=await fetch(process.env.DEPLOY_TELEMETRY_URL+'/v1/server',{method:'POST',headers:{authorization:'Bearer '+process.env.DEPLOY_TELEMETRY_TOKEN,'content-type':'application/json'},body:JSON.stringify({v:1,records:[{t:Date.now(),kind:'page',route:'/photos/:id',status:200,ms:100,phases:{match:1,ssr:80,stream:19},build:'fixture',aborted:false},{t:Date.now(),kind:'error',route:'/photos/:id',where:'ssr',name:'Error',message:'fixture exception',stack:'at render (app/page.ts:1:1)',fingerprint:'a'.repeat(40)}]}),signal:AbortSignal.timeout(2000)});if(res.status!==204)throw new Error('collector status '+res.status);`;
   const args = [
     'run',
@@ -87,7 +97,7 @@ try {
   assert.equal(result.routes[0].slowestPhase?.name, 'ssr');
   console.log(
     JSON.stringify(
-      { result: 'passed', privateCollector: env.DEPLOY_TELEMETRY_URL, performance: result },
+      { result: 'passed', fixtureCollector: env.DEPLOY_TELEMETRY_URL, performance: result },
       null,
       2,
     ),

@@ -1,3 +1,5 @@
+import { createTelemetryCollector } from '../telemetry-runtime.ts';
+import { withServerTelemetry } from '../telemetry-http.ts';
 import { isCopyHost } from './copies.ts';
 /**
  * deploy.local edge — the data plane.
@@ -147,27 +149,30 @@ async function main() {
   // HTTP server: CA cert + CLI endpoints, API over HTTP (CLI compatibility),
   // browser redirect to HTTPS.
   let actualHttpsPort = HTTPS_PORT;
-  const httpServer = createServer((req, res) => {
-    if (req.url === '/ca.crt') {
-      serveCaCert(res);
-      return;
-    }
-    if (
-      req.url === '/install' ||
-      req.url === '/install.ps1' ||
-      req.url?.startsWith('/cli') ||
-      isDesktopDownloadPath(req.url) ||
-      req.url?.startsWith('/api/') ||
-      req.url?.startsWith('/npm/')
-    ) {
-      forwardToControl(req, res);
-      return;
-    }
-    const host = req.headers.host?.split(':')[0] || 'deploy.local';
-    const portSuffix = actualHttpsPort !== 443 ? `:${actualHttpsPort}` : '';
-    res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
-    res.end();
-  });
+  const collector = await createTelemetryCollector();
+  const httpServer = createServer(
+    withServerTelemetry(collector.handler, (req, res) => {
+      if (req.url === '/ca.crt') {
+        serveCaCert(res);
+        return;
+      }
+      if (
+        req.url === '/install' ||
+        req.url === '/install.ps1' ||
+        req.url?.startsWith('/cli') ||
+        isDesktopDownloadPath(req.url) ||
+        req.url?.startsWith('/api/') ||
+        req.url?.startsWith('/npm/')
+      ) {
+        forwardToControl(req, res);
+        return;
+      }
+      const host = req.headers.host?.split(':')[0] || 'deploy.local';
+      const portSuffix = actualHttpsPort !== 443 ? `:${actualHttpsPort}` : '';
+      res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
+      res.end();
+    }),
+  );
 
   // Upgrades: app hosts tunnel to the container; dashboard /ws tunnels to the
   // control plane; Vite HMR tunnels to the active local development UI.
@@ -213,6 +218,7 @@ async function main() {
     flushRequestLogs();
     const mdnsStopped = runtime.close();
     ipcServer.close();
+    collector.close();
     httpsServer.close();
     httpServer.close(async () => {
       await mdnsStopped;
