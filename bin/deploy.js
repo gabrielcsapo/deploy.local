@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { registryBuildDocker } from '../server/package-build.ts';
 import * as contracts from './cli-contracts.mjs';
 import { runPackages } from './packages.mjs';
 import {
@@ -1637,6 +1638,26 @@ function runAgentGraphDocker(args, options = {}) {
   });
 }
 
+async function agentBuildPackages(config, job) {
+  return request(`${config.coordinatorUrl}/api/agent/jobs/${job.id}/packages`, {
+    method: 'POST',
+    headers: agentHeaders(config),
+  });
+}
+function agentBuildDocker(config, job) {
+  return registryBuildDocker(
+    { run: runAgentGraphDocker },
+    {
+      root: resolve(agentConfigPath(), '..', 'data', 'packages', 'tmp'),
+      config: () => agentBuildPackages(config, job),
+      log: (line) => {
+        console.log(line);
+        void reportAgentJobProgress(config, job, { output: line + '\n' }).catch(() => {});
+      },
+    },
+  );
+}
+
 async function executeAgentDeploy(config, job) {
   const root = resolve(agentConfigPath(), '..', 'data');
   const appRoot = resolve(root, 'apps', job.deploymentName);
@@ -1725,7 +1746,7 @@ async function executeAgentDeploy(config, job) {
               message,
             }).catch(() => {}),
         },
-        { run: runAgentGraphDocker },
+        agentBuildDocker(config, job),
       );
       await flushBuildOutput();
     } catch (error) {
@@ -1818,6 +1839,8 @@ async function executeAgentDeploy(config, job) {
   try {
     build = await agentBuildImage(job.deploymentName, sourceDir, queueBuildOutput, {
       noCache: payload.noCache === true,
+      installConfig: () => agentBuildPackages(config, job),
+      remoteRegistry: true,
     });
   } finally {
     await flushBuildOutput();
@@ -1995,7 +2018,7 @@ async function processAgentJob(config, job) {
         root: resolve(agentConfigPath(), '..', 'data'),
         job,
         download: (path) => downloadAgentArtifact(config, job, path),
-        docker: { run: runAgentGraphDocker },
+        docker: agentBuildDocker(config, job),
         relay: (name, port, container) => ensureAgentRelay(name, port, undefined, container),
       });
     } else if (job.type === 'deploy') {

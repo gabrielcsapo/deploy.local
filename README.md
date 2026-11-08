@@ -279,6 +279,10 @@ deploy
 
 Your app will be bundled, uploaded, built into a Docker image, and started. Visit `https://<name>.local` to see it running.
 
+For npm and pnpm installs in custom Dockerfiles, see [Packages in app builds](docs/packages.md).
+It documents the optional BuildKit secret mounts for `deploy.yaml` component builds and
+apps without a manifest, including the public-registry fallback.
+
 ## CLI commands
 
 ```

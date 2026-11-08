@@ -2,7 +2,7 @@ import { issuePipelinePackageToken } from './pipeline-auth.ts';
 import { readFile } from 'node:fs/promises';
 import { deployDataPath } from '../data-directory.ts';
 import { setPackageHooks } from '../workspace/package-hooks.ts';
-import { computerInstallConfig } from './builds.ts';
+import { computerInstallConfig, applicationInstallConfig } from './builds.ts';
 import { finishJobPins } from './copies.ts';
 import { revokeComputerPackageKey } from './keys.ts';
 
@@ -14,6 +14,7 @@ setPackageHooks({
     ca: await readFile(deployDataPath('certs', 'ca.crt'), 'utf8').catch(() => ''),
   }),
   installConfig: computerInstallConfig,
+  applicationInstallConfig,
   revokeComputer: revokeComputerPackageKey,
   finishJob: finishJobPins,
 });

@@ -1,5 +1,7 @@
+import { buildRegistryUnavailable, buildSecretsUnsupported } from './package-build.ts';
 import { containerTelemetryEnvironment } from './telemetry-runtime.ts';
 import { packageHooks } from './workspace/package-hooks.ts';
+import type { InstallConfig } from '../shared/package-install.mjs';
 import { preparePackageInstall, secretOutput } from '../shared/package-install.mjs';
 import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
 import { withApplicationMutation } from './ci-fence.ts';
@@ -315,10 +317,11 @@ export async function buildRegistryArgs(
   install: { npmrc?: string; ca?: string; key: string },
   inspect: () => Promise<{ stdout: string }> = () =>
     execFileAsync('docker', ['network', 'inspect', 'bridge'], { timeout: 3000 }),
+  resolvedAddress?: string,
 ): Promise<string[]> {
   if (!install.npmrc) return [];
-  let address = 'host-gateway';
-  if (install.key && driver !== 'docker') {
+  let address = resolvedAddress || 'host-gateway';
+  if (install.key && !resolvedAddress && driver !== 'docker') {
     try {
       const networks = JSON.parse((await inspect()).stdout);
       address = networks[0]?.IPAM?.Config?.map((entry: { Gateway?: string }) => entry.Gateway).find(
@@ -381,7 +384,14 @@ export async function buildImage(
   name: string,
   dir: string,
   onLine?: (line: string, timestamp: string) => void,
-  options?: { noCache?: boolean; timeoutMs?: number; owner?: string; projectId?: string },
+  options?: {
+    noCache?: boolean;
+    timeoutMs?: number;
+    owner?: string;
+    projectId?: string;
+    installConfig?: () => Promise<InstallConfig | null>;
+    remoteRegistry?: boolean;
+  },
 ): Promise<BuildResult> {
   const tag = `deploy-sh-${name.toLowerCase()}`;
   const startTime = Date.now();
@@ -395,12 +405,26 @@ export async function buildImage(
   const cacheDir = buildCacheDirectory(name);
   await mkdir(cacheDir, { recursive: true });
   const useBuildx = await hasBuildx();
+  let registrySupported = useBuildx;
+  if (useBuildx && options?.remoteRegistry) {
+    registrySupported = await execFileAsync('docker', ['buildx', 'build', '--help'], {
+      timeout: 5000,
+    })
+      .then((result) => result.stdout.includes('--secret'))
+      .catch(() => false);
+  }
+  if (!registrySupported && options?.remoteRegistry)
+    onLine?.(buildRegistryUnavailable, new Date().toISOString());
   const generated = generatedNodeDirectories.has(resolve(dir));
   const install = await preparePackageInstall(
-    useBuildx && generated && options?.owner
-      ? await packageHooks
-          .installConfig(options.owner, 'local', options.projectId)
-          .catch(() => null)
+    registrySupported
+      ? options?.installConfig
+        ? await options.installConfig().catch(() => null)
+        : options?.owner
+          ? await packageHooks
+              .installConfig(options.owner, 'local', options.projectId)
+              .catch(() => null)
+          : null
       : null,
     {
       cwd: dir,
@@ -416,10 +440,19 @@ export async function buildImage(
     noCache: options?.noCache,
     useBuildx,
     cacheExists: existsSync(resolve(cacheDir, 'index.json')),
-    registryArgs: useBuildx ? await buildRegistryArgs(buildxDriver, install) : [],
+    registryArgs: useBuildx
+      ? await buildRegistryArgs(
+          buildxDriver,
+          install,
+          undefined,
+          options?.remoteRegistry && install.args.includes('--add-host')
+            ? install.args[install.args.indexOf('--add-host') + 1].replace('deploy.local:', '')
+            : undefined,
+        )
+      : [],
   });
 
-  return new Promise<BuildResult>((resolve) => {
+  const result = await new Promise<BuildResult>((resolve) => {
     const proc = spawn('docker', buildArgs, {
       cwd: dir,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -475,6 +508,20 @@ export async function buildImage(
       resolve({ tag, output: failOutput, success: false, duration });
     });
   }).finally(() => install.cleanup());
+  if (
+    options?.remoteRegistry &&
+    registrySupported &&
+    !result.success &&
+    buildSecretsUnsupported(result.output)
+  ) {
+    onLine?.(buildRegistryUnavailable, new Date().toISOString());
+    return buildImage(name, dir, onLine, {
+      ...options,
+      remoteRegistry: false,
+      installConfig: async () => null,
+    });
+  }
+  return result;
 }
 
 // Canonical definition lives with the TCP proxy that consumes the mappings.
