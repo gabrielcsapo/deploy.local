@@ -22,9 +22,11 @@ const optionalRead = (path) =>
     if (error.code === 'ENOENT') return '';
     throw error;
   });
-export function updateNpmrc(text, values) {
+export function updateNpmrc(text, values, retired = []) {
   const keys = new Set(Object.keys(values));
-  const lines = text.split(/\r?\n/).filter((line) => !keys.has(line.split('=', 1)[0].trim()));
+  const lines = text
+    .split(/\r?\n/)
+    .filter((line) => !keys.has(line.split('=', 1)[0].trim()) && !retired.includes(line.trim()));
   while (lines.at(-1) === '') lines.pop();
   return [...lines, ...Object.entries(values).map(([key, value]) => key + '=' + value), ''].join(
     '\n',
@@ -125,7 +127,11 @@ export async function runPackages(
       body: JSON.stringify({ label: flags.name || hostname(), scope: 'publish' }),
     });
     let inKeychain = false;
-    const values = { [authLine]: key.key, ['//' + origin.host + '/npm/:always-auth']: 'true' };
+    const values = { [authLine]: key.key };
+    const registryKey = '//' + origin.host + '/npm/';
+    const ca = join(home, '.deploy', 'packages', 'ca.crt');
+    // Older logins wrote these. A global cafile replaces the public roots, so npmjs.org stops working.
+    const retired = [`cafile=${ca}`, `${registryKey}:always-auth=true`];
     // Download the CA over the already-validated coordinator connection, never an insecure bootstrap.
     if (origin.protocol === 'https:') {
       const response = await fetch(new URL('/ca.crt', origin));
@@ -136,13 +142,14 @@ export async function runPackages(
       inKeychain =
         process.platform === 'darwin' &&
         getCACertificates('system').some((root) => root.trim() === certificate.trim());
-      const dir = join(home, '.deploy', 'packages');
-      await mkdir(dir, { recursive: true, mode: 0o700 });
-      const ca = join(dir, 'ca.crt');
+      await mkdir(join(home, '.deploy', 'packages'), { recursive: true, mode: 0o700 });
       await writeFile(ca, certificate, { mode: 0o600 });
-      values.cafile = ca;
+      // Scoped to this registry, like the token. pnpm honors it; npm reads NODE_EXTRA_CA_CERTS.
+      values[`${registryKey}:cafile`] = ca;
     }
-    await writeFile(userRc, updateNpmrc(await optionalRead(userRc), values), { mode: 0o600 });
+    await writeFile(userRc, updateNpmrc(await optionalRead(userRc), values, retired), {
+      mode: 0o600,
+    });
     await chmod(userRc, 0o600);
     print(`  ✓ Package key for ${config.username}         ${key.label} · can publish`);
     print(`  ✓ npm and pnpm                     ~/.npmrc · ${registry}`);
@@ -150,8 +157,20 @@ export async function runPackages(
       '  ✓ Trusts the coordinator’s certificate         ' +
         (inKeychain
           ? 'already in your keychain'
-          : values.cafile || 'HTTP connection · no certificate'),
+          : values[`${registryKey}:cafile`] || 'HTTP connection · no certificate'),
     );
+    const usesSystemRoots =
+      inKeychain &&
+      (process.env.NODE_USE_SYSTEM_CA === '1' ||
+        (process.env.NODE_OPTIONS ?? '').includes('--use-system-ca'));
+    if (
+      origin.protocol === 'https:' &&
+      !usesSystemRoots &&
+      process.env.NODE_EXTRA_CA_CERTS !== ca
+    ) {
+      print('  ! npm needs this in your shell profile, pnpm is ready:');
+      print(`    export NODE_EXTRA_CA_CERTS=${ca}`);
+    }
     return;
   }
   if (command === 'use') {

@@ -1,4 +1,25 @@
-# Packages in app builds
+# Packages
+
+## On your computer
+
+`deploy packages login` only adds settings that apply to deploy.local, the same
+way GitHub Packages, Artifactory and Verdaccio are set up. Public npm keeps
+working as before.
+
+- `//deploy.local/npm/:_authToken` holds your package key.
+- `//deploy.local/npm/:cafile` points at deploy.local's certificate, for pnpm.
+- npm ignores a per-registry certificate, so it reads `NODE_EXTRA_CA_CERTS` from
+  your shell profile, which adds to the trusted roots. Login prints the line when
+  you need it. If deploy.local's certificate is in your keychain and
+  `NODE_USE_SYSTEM_CA=1` is set, npm needs nothing more.
+
+Never set a plain `cafile=` for deploy.local: it replaces the public roots, and
+npmjs.org stops working. Logging in again removes one that an older login wrote.
+
+`deploy packages use` adds `registry=` to one project, so that project installs
+everything through deploy.local.
+
+## In app builds
 
 Apps can install from `https://deploy.local/npm/` without a person signing in.
 The build uses the assigned computer's install-only key. It cannot publish. No
