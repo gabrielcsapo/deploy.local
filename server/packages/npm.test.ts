@@ -1515,6 +1515,83 @@ test('login reports the certificate location when it is not in the keychain', as
   assert.ok(!output.join('').includes(installKey.key));
 });
 
+test('login scopes the certificate to the registry and repairs what older logins wrote', async (t) => {
+  const { runPackages } = await import(new URL('../../bin/packages.mjs', import.meta.url).href);
+  const home = join(root, 'scoped-ca-home');
+  await mkdir(home);
+  const ca = join(home, '.deploy', 'packages', 'ca.crt');
+  await writeFile(
+    join(home, '.npmrc'),
+    `cafile=${ca}\n//deploy.local/npm/:always-auth=true\n//registry.npmjs.org/:_authToken=keep\n`,
+  );
+  const certificate =
+    '-----BEGIN CERTIFICATE-----\nfixture-certificate\n-----END CERTIFICATE-----\n';
+  t.mock.method(globalThis, 'fetch', async () => new Response(certificate));
+  const previous = process.env.NODE_EXTRA_CA_CERTS;
+  t.after(() => {
+    if (previous === undefined) delete process.env.NODE_EXTRA_CA_CERTS;
+    else process.env.NODE_EXTRA_CA_CERTS = previous;
+  });
+  delete process.env.NODE_EXTRA_CA_CERTS;
+  const login = async () => {
+    const output: string[] = [];
+    await runPackages(
+      ['login'],
+      {},
+      {
+        serverUrl: 'https://deploy.local',
+        home,
+        cwd: home,
+        config: { username: 'alice', token: 'fixture-session' },
+        api: async () => ({ key: installKey.key, label: 'Fixture' }),
+        print: (line: string) => output.push(line),
+      },
+    );
+    return output.join('\n');
+  };
+  const first = await login();
+  const rc = await readFile(join(home, '.npmrc'), 'utf8');
+  assert.ok(rc.split('\n').includes(`//deploy.local/npm/:cafile=${ca}`));
+  assert.ok(!rc.split('\n').some((line) => line.startsWith('cafile=')));
+  assert.ok(!rc.includes('always-auth'));
+  assert.ok(rc.includes('//registry.npmjs.org/:_authToken=keep'));
+  assert.ok(first.includes(`export NODE_EXTRA_CA_CERTS=${ca}`));
+  process.env.NODE_EXTRA_CA_CERTS = ca;
+  assert.ok(!(await login()).includes('NODE_EXTRA_CA_CERTS'));
+  assert.equal(
+    (await readFile(join(home, '.npmrc'), 'utf8')).match(/:cafile=/g)?.length,
+    1,
+    'a second login does not add another line',
+  );
+});
+
+test('login leaves a global cafile the owner set themselves', async (t) => {
+  const { runPackages } = await import(new URL('../../bin/packages.mjs', import.meta.url).href);
+  const home = join(root, 'own-ca-home');
+  await mkdir(home);
+  await writeFile(join(home, '.npmrc'), 'cafile=/corp/roots.pem\n');
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () => new Response('-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n'),
+  );
+  await runPackages(
+    ['login'],
+    {},
+    {
+      serverUrl: 'https://deploy.local',
+      home,
+      cwd: home,
+      config: { username: 'alice', token: 'fixture-session' },
+      api: async () => ({ key: installKey.key, label: 'Fixture' }),
+      print: () => {},
+    },
+  );
+  assert.ok(
+    (await readFile(join(home, '.npmrc'), 'utf8')).split('\n').includes('cafile=/corp/roots.pem'),
+  );
+});
+
 test('scoped tarball URLs are standard, and older documents are prepared again', async () => {
   const name = '@standard/url-check';
   upstreamPackage(name);
