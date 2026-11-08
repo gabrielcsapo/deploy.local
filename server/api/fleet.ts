@@ -47,6 +47,9 @@ import { allComputerRoles } from '../workspace/coordination.ts';
 import { patchComputerRoles } from '../computer-roles-api.ts';
 import { type IncomingMessage } from 'node:http';
 import { type ApiRouteContext } from './context.ts';
+import { handleRemoteTelemetry, issueRemoteTelemetryToken } from '../telemetry-remote.ts';
+import { getRequestsSqlite } from '../requests-db.ts';
+import { readDeploymentRecord } from '../store.ts';
 
 interface AgentJobActivity {
   stage: string;
@@ -92,6 +95,11 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
   const result = await (async () => {
     try {
       // ── Fleet enrollment and node administration ───────────────────────
+
+      if (path === '/api/agent/telemetry/v1/server' && method === 'POST') {
+        await handleRemoteTelemetry(req, res);
+        return;
+      }
 
       if (path === '/api/agent/enroll' && method === 'POST') {
         const body = JSON.parse((await readBody(req)).toString());
@@ -174,11 +182,29 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           { stage: 'starting' },
           `Started ${job.type} for ${job.deploymentName}`,
         );
+        // Sent only over this computer-authenticated channel. Bind the deployment credential
+        // to both this computer and the current owner so it cannot be used across tenants.
+        let telemetryToken: string | undefined;
+        if (['deploy', 'recreate', 'project-release'].includes(job.type)) {
+          const app = readDeploymentRecord(job.deploymentName);
+          if (app)
+            try {
+              telemetryToken = issueRemoteTelemetryToken(
+                getRequestsSqlite(),
+                app.name,
+                nodeId!,
+                app.username,
+              );
+            } catch (cause) {
+              console.warn('[telemetry] token unavailable:', cause);
+            }
+        }
         return json(res, {
           id: job.id,
           type: job.type,
           deploymentName: job.deploymentName,
           payload: JSON.parse(job.payload),
+          telemetryToken,
           artifactUrl: job.artifactPath ? `/api/agent/jobs/${job.id}/artifact` : null,
         });
       }

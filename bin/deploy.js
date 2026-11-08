@@ -99,6 +99,8 @@ import { inspectUploadArchive } from '../server/upload-archive.ts';
 import { resolveAgentContainerName } from '../server/agent-container-target.ts';
 import { executeReleaseAgentJob } from '../server/v2/releases-worker.ts';
 import { executeAgentApplicationGraph } from '../server/agent-graph-runtime.ts';
+import { startTelemetryRelay } from '../server/telemetry-relay.ts';
+import { configureRemoteTelemetry } from '../server/telemetry-runtime.ts';
 import deployV1Schema from '../deploy.v1.schema.json' with { type: 'json' };
 
 const DEFAULT_URL = 'https://deploy.local';
@@ -1280,6 +1282,8 @@ function agentHeaders(config) {
 }
 
 const agentRelays = new Map();
+let agentTelemetry;
+const agentTelemetryTokens = new Map();
 
 function agentRelayStatePath() {
   return resolve(agentConfigPath(), '..', 'data', 'relays.json');
@@ -1999,6 +2003,7 @@ async function processAgentJob(config, job) {
     if (config.roles?.deploy === false && job.type !== 'self-update')
       config.roles = (await coordinatorRoles(config).catch(() => null)) || config.roles;
     assertAgentJobAllowed(job, config.roles);
+    if (job.telemetryToken) agentTelemetryTokens.set(job.deploymentName, job.telemetryToken);
     if (job.type === 'self-update') {
       if (!process.env.DEPLOY_WORKER_CHILD || !process.send)
         throw new Error('This worker has no restart supervisor.');
@@ -2052,6 +2057,7 @@ async function processAgentJob(config, job) {
       );
       result = { [job.type]: true };
     } else if (job.type === 'delete') {
+      agentTelemetryTokens.delete(job.deploymentName);
       removeAgentDockerObjects({
         deploymentName: job.deploymentName,
         applicationId: job.payload?.applicationId,
@@ -2279,7 +2285,23 @@ async function cmdAgentRun() {
   if (process.env.DEPLOY_WORKER_CHILD && process.connected)
     process.once('disconnect', () => process.exit(1));
   const runApps = servicePlan(config.roles).apps;
+  // Even discovery failure must not fall back to issuing tokens into the worker's own DB.
+  configureRemoteTelemetry(async (name) => {
+    const token = agentTelemetryTokens.get(name);
+    if (!agentTelemetry || !token) return {};
+    return {
+      RFR_TELEMETRY_URL: agentTelemetry.url,
+      RFR_TELEMETRY_TOKEN: token,
+      DEPLOY_TELEMETRY_URL: agentTelemetry.url,
+      DEPLOY_TELEMETRY_TOKEN: token,
+    };
+  });
   if (runApps) {
+    try {
+      agentTelemetry = await startTelemetryRelay(config);
+    } catch (error) {
+      console.warn('[telemetry] relay unavailable:', error.message || error);
+    }
     await restoreAgentRelays();
     await discoverAgentRelays();
   }

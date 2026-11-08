@@ -9,6 +9,7 @@ import {
 } from './application-execution.ts';
 import { isWriterSite } from './application-jobs.ts';
 import type { ApplicationSpec } from './application-spec.ts';
+import { remoteContainerTelemetryEnvironment } from './telemetry-runtime.ts';
 
 // The same pinned helper the local Docker adapter uses for archives.
 const PROBE_HELPER_IMAGE =
@@ -70,6 +71,7 @@ export interface AgentGraphExecutionInput {
    * Docker publishes no ports there, so health is probed from inside each container's network.
    */
   internalNetwork?: boolean;
+  telemetryEnvironment?: (name: string) => Promise<Record<string, string>>;
 }
 
 export interface AgentGraphInstanceResult {
@@ -348,7 +350,12 @@ async function createGraphInstance(input: {
   const containerName = boundedDockerName(
     `deploy-sh-${input.input.deploymentName}-${input.component.name}-${input.index + 1}-${jobSuffix.slice(0, 8)}`,
   );
-  const environment = componentEnvironment(graph, input.component, 'runtime');
+  const environment = {
+    ...componentEnvironment(graph, input.component, 'runtime'),
+    ...(await (input.input.telemetryEnvironment ?? remoteContainerTelemetryEnvironment)(
+      input.input.deploymentName,
+    )),
+  };
   const configurationMounts = writeConfigurationFiles(input.input, input.component);
   const publishedPorts = componentPublishedPorts(graph, input.component);
   const args = [
@@ -518,6 +525,9 @@ async function runGraphJobs(
       const environment = {
         ...componentEnvironment(input.graph, component.plan, 'migration'),
         ...resolveEnvironmentReferences(input.graph, job.environment, 'migration'),
+        ...(await (input.telemetryEnvironment ?? remoteContainerTelemetryEnvironment)(
+          input.deploymentName,
+        )),
       };
       for (const [name, value] of Object.entries(environment))
         args.push('--env', `${name}=${value}`);

@@ -9,7 +9,7 @@ import { getRequestsSqlite, requestsDbFile } from './requests-db.ts';
 import { registerTelemetryRelease, issueTelemetryToken } from './telemetry.ts';
 import { serverTelemetryHandler } from './telemetry-http.ts';
 const exec = promisify(execFile);
-interface DockerNetwork {
+export interface DockerNetwork {
   Name: string;
   Driver: string;
   IPAM?: { Config?: { Subnet?: string; Gateway?: string }[] };
@@ -45,6 +45,15 @@ export function collectorNetwork(platform: string, networks: DockerNetwork[]) {
 }
 let dbFile: string | undefined;
 const credentials = new Map<string, string>();
+type RemoteEnvironment = (name: string) => Promise<Record<string, string>>;
+let remoteEnvironment: RemoteEnvironment | undefined;
+/** Standalone workers must never issue credentials into their own requests.db. */
+export function configureRemoteTelemetry(environment: RemoteEnvironment | undefined) {
+  remoteEnvironment = environment;
+}
+export async function remoteContainerTelemetryEnvironment(name: string) {
+  return remoteEnvironment ? remoteEnvironment(name) : {};
+}
 /** Generated after user env so apps cannot replace the attribution credential. */
 export async function containerTelemetryEnvironment(
   name: string | undefined,
@@ -53,6 +62,7 @@ export async function containerTelemetryEnvironment(
       .url,
 ): Promise<Record<string, string>> {
   if (!name) return {};
+  if (remoteEnvironment) return remoteEnvironment(name);
   // Release workers resolve the edge endpoint without starting a listener.
   const endpoint = await resolveEndpoint();
   const file = requestsDbFile();
@@ -73,7 +83,7 @@ export async function containerTelemetryEnvironment(
     DEPLOY_TELEMETRY_TOKEN: token,
   };
 }
-async function dockerNetworks() {
+export async function dockerNetworks() {
   const { stdout: ids } = await exec(
     'docker',
     ['network', 'ls', '--filter', 'driver=bridge', '--format', '{{.ID}}'],
