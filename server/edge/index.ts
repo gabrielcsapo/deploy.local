@@ -211,10 +211,11 @@ async function main() {
   function shutdown(signal: string) {
     console.log(`\n[edge] ${signal} received, shutting down...`);
     flushRequestLogs();
-    runtime.close();
+    const mdnsStopped = runtime.close();
     ipcServer.close();
     httpsServer.close();
-    httpServer.close(() => {
+    httpServer.close(async () => {
+      await mdnsStopped;
       console.log('[edge] stopped');
       process.exit(0);
     });
