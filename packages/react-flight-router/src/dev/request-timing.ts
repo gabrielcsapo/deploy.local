@@ -3,6 +3,7 @@ import { maybeCreateLogger, type FlightTimer } from '../shared/logger.js';
 import type { RequestTimingEvent } from '../shared/types.js';
 import {
   createTelemetryReporter,
+  resolveTelemetryOptions,
   serverTiming,
   telemetryError,
   telemetryPhases,
@@ -13,7 +14,8 @@ export function createDevRequestTiming(
   debug?: boolean,
   complete?: (event: RequestTimingEvent) => void,
 ) {
-  const reporter = createTelemetryReporter();
+  const telemetry = resolveTelemetryOptions();
+  const reporter = createTelemetryReporter(telemetry);
   const requests = new WeakMap<
     FlightTimer,
     {
@@ -132,6 +134,7 @@ export function createDevRequestTiming(
     hooks(logger: FlightTimer) {
       return {
         telemetry: !!reporter,
+        beaconPath: reporter && telemetry.beaconPath !== false ? telemetry.beaconPath : undefined,
         onMatch(route: string, duration: number) {
           const state = requests.get(logger)!;
           if (state.type !== 'ACTION') {

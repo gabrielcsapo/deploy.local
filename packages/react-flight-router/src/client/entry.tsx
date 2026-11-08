@@ -13,12 +13,13 @@ declare global {
 }
 
 // The implementation is a separate chunk and is never loaded without server opt-in.
-if (window.__DEPLOY_TELEMETRY__) {
+if (window.__RFR_TELEMETRY__) {
   try {
     const { startBrowserTelemetry } = await import('./telemetry.js');
-    window.__DEPLOY_METRICS__ = startBrowserTelemetry(
-      window.__DEPLOY_TELEMETRY__.route,
+    window.__RFR_METRICS__ = startBrowserTelemetry(
+      window.__RFR_TELEMETRY__.route,
       window.__RSC_BUILD__ ?? '',
+      window.__RFR_TELEMETRY__.beaconPath,
     );
   } catch {
     /* Monitoring must not prevent hydration. */

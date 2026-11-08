@@ -114,10 +114,9 @@ The `<h1>Posts</h1>` heading and the `"Loading posts..."` fallback are sent imme
 Production HTML and RSC streams negotiate gzip or brotli using `Accept-Encoding`.
 Each chunk is flushed immediately, so small shells and resolved Suspense boundaries
 keep streaming. Responses with `Content-Encoding` already set pass through unchanged.
-This also prevents deploy.local's edge from compressing them again. Direct requests
-and other hosts receive the same compression without needing an edge proxy.
-deploy.local's current edge response cache admits only unencoded upstream responses,
-so it does not cache router-compressed HTML.
+An edge proxy should respect the existing encoding to avoid compressing a response
+again. Direct requests receive the same compression without needing an edge proxy.
+Hosts that cache only unencoded upstream responses will not cache router-compressed HTML.
 
 ## See also
 

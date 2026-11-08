@@ -135,6 +135,32 @@ Failed stylesheet loads fail the navigation instead of displaying an unstyled de
 The retained sheets preserve their legacy cascade order (the last occurrence of each sheet
 in the client manifest). Development continues to use Vite's CSS/HMR handling.
 
+## Telemetry
+
+Reporting is off unless you provide a collector base URL. In production:
+
+```ts
+const app = await createServer({
+  buildDir: './dist',
+  telemetry: {
+    endpoint: 'http://collector:5300',
+    token: 'your-token',
+    beaconPath: '/metrics/browser',
+  },
+});
+```
+
+`endpoint` and `token` override `RFR_TELEMETRY_URL` and `RFR_TELEMETRY_TOKEN`
+respectively; those neutral environment variables also work in development.
+An empty `endpoint` disables reporting. Server v1 batches POST to
+`${endpoint}/v1/server` with `authorization: Bearer <token>`.
+
+`beaconPath` defaults to `/__rfr/telemetry`. Set it to `false` to disable browser
+beacons while retaining server reporting. The app or host supplies the same-origin
+POST receiver. The server passes the path through `window.__RFR_TELEMETRY__`, and
+the client tracks navigation through `window.__RFR_METRICS__`. The token stays on
+the server. Without an endpoint, no browser telemetry chunk is loaded.
+
 ## Documentation
 
 For full documentation — including guides, API reference, and architecture details — visit:

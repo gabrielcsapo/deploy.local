@@ -24,7 +24,7 @@ if (!parentPort) {
   throw new Error('action-worker.ts must be run as a worker thread');
 }
 
-const { buildDir } = workerData as { buildDir: string };
+const { buildDir, telemetry } = workerData as { buildDir: string; telemetry: boolean };
 
 // --- Initialization (mirrors index.ts setup) ---
 
@@ -96,7 +96,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
 
   const ac = new AbortController();
   pendingAborts.set(taskId, ac);
-  const logger = maybeCreateLogger(false, !!process.env.DEPLOY_TELEMETRY_URL);
+  const logger = maybeCreateLogger(false, telemetry);
   let errorRecord: ErrorRecord | undefined;
   const reportError = (error: unknown) => {
     try {

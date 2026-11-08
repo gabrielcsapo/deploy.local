@@ -53,7 +53,7 @@ interface SSRRenderOptions {
    * background after the 504 has already been sent.
    */
   signal?: AbortSignal;
-  telemetry?: boolean;
+  telemetry?: { beaconPath: string };
   onError?: (error: unknown) => void;
 }
 
@@ -133,7 +133,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     moduleMap,
     true,
     buildId,
-    opts.telemetry ? { route: payload.route ?? '__not_found' } : undefined,
+    opts.telemetry ? { route: payload.route ?? '__not_found', ...opts.telemetry } : undefined,
   );
 
   // Render the React tree to HTML
@@ -162,7 +162,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
       moduleMap,
       false,
       buildId,
-      opts.telemetry ? { route: payload.route ?? '__not_found' } : undefined,
+      opts.telemetry ? { route: payload.route ?? '__not_found', ...opts.telemetry } : undefined,
     );
     return createCSRFallbackStream(streamForInline, clientEntryUrl, cssFiles, csrBootstrap);
   }

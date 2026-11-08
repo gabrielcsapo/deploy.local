@@ -45,7 +45,7 @@ test('HTTP listener answers server telemetry before redirect or proxy regardless
       const req = request(
         {
           hostname: '127.0.0.1',
-          port: 5352,
+          port: 5332,
           path,
           method,
           headers: {
@@ -63,7 +63,7 @@ test('HTTP listener answers server telemetry before redirect or proxy regardless
       req.end(method === 'POST' ? JSON.stringify({ v: 1, records: [] }) : undefined);
     });
   try {
-    server.listen(5352, '127.0.0.1');
+    server.listen(5332, '127.0.0.1');
     await once(server, 'listening');
     for (const host of ['deploy.local', 'app.local', '172.17.0.1', 'unrelated.example']) {
       assert.deepEqual(await send(host, undefined, undefined, `Bearer ${token}`), {

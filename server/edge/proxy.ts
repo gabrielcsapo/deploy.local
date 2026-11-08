@@ -1,5 +1,5 @@
 import { parseRouteTiming } from '../telemetry.ts';
-import { handleBrowserTelemetry } from '../telemetry-http.ts';
+import { handleBrowserTelemetry, isBrowserTelemetryPath } from '../telemetry-http.ts';
 /**
  * Reverse-proxy hot path for `<app>.local` hosts.
  *
@@ -669,10 +669,7 @@ export function createHotPathHandler(deps: HotPathDeps) {
         );
         return true;
       }
-      if (
-        method === 'POST' &&
-        (rawUrl === '/__deploy/telemetry' || rawUrl.startsWith('/__deploy/telemetry?'))
-      ) {
+      if (method === 'POST' && isBrowserTelemetryPath(rawUrl)) {
         void handleBrowserTelemetry(req, res, d.name);
         return true;
       }

@@ -188,11 +188,11 @@ describe('WorkerPool', () => {
   });
 
   it('preserves worker exception names, stacks and fingerprints for telemetry', async () => {
-    const previous = process.env.DEPLOY_TELEMETRY_URL;
-    process.env.DEPLOY_TELEMETRY_URL = 'http://127.0.0.1:5303';
+    const previous = process.env.RFR_TELEMETRY_URL;
+    delete process.env.RFR_TELEMETRY_URL;
     try {
       fixtureDir = createTestFixtures();
-      pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
+      pool = await createWorkerPool({ buildDir: fixtureDir, size: 1, telemetry: true });
       const { stream, done } = pool.dispatch({
         taskId: 'telemetry-error',
         actionId: 'test/action#throwingAction',
@@ -214,8 +214,31 @@ describe('WorkerPool', () => {
       assert.match(error.fingerprint, /^[a-f0-9]{40}$/);
       assert.equal(error.route, 'action:test/action#throwingAction');
     } finally {
-      if (previous === undefined) delete process.env.DEPLOY_TELEMETRY_URL;
-      else process.env.DEPLOY_TELEMETRY_URL = previous;
+      if (previous === undefined) delete process.env.RFR_TELEMETRY_URL;
+      else process.env.RFR_TELEMETRY_URL = previous;
+    }
+  });
+
+  it('keeps worker telemetry disabled when only the environment opts in', async () => {
+    const previous = process.env.RFR_TELEMETRY_URL;
+    process.env.RFR_TELEMETRY_URL = 'http://127.0.0.1:5303';
+    try {
+      fixtureDir = createTestFixtures();
+      pool = await createWorkerPool({ buildDir: fixtureDir, size: 1, telemetry: false });
+      const { stream, done } = pool.dispatch({
+        taskId: 'telemetry-off',
+        actionId: 'test/action#throwingAction',
+        body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+        contentType: 'text/plain',
+        requestContext: { url: 'http://localhost/', method: 'POST', headers: [] },
+      });
+      await assert.rejects(new Response(stream).text(), /Test action error/);
+      const result = await done;
+      assert.equal(result.errorRecord, undefined);
+      assert.equal(result.timings, undefined);
+    } finally {
+      if (previous === undefined) delete process.env.RFR_TELEMETRY_URL;
+      else process.env.RFR_TELEMETRY_URL = previous;
     }
   });
 

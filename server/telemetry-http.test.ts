@@ -192,7 +192,7 @@ test('edge intercepts only exact beacon pathname and POST; header route survives
     res.end('app');
   });
   const handler = createHotPathHandler({
-    getRoute: (name) => (name === 'fixture' ? { name, port: 5351 } : null),
+    getRoute: (name) => (name === 'fixture' ? { name, port: 5331 } : null),
     logRequest: (_name, entry) => logged.push(entry),
     emitEvent: () => {},
   });
@@ -202,8 +202,8 @@ test('edge intercepts only exact beacon pathname and POST; header route survives
       res.end();
     }
   });
-  upstream.listen(5351, '127.0.0.1');
-  edge.listen(5350, '127.0.0.1');
+  upstream.listen(5331, '127.0.0.1');
+  edge.listen(5330, '127.0.0.1');
   await Promise.all([once(upstream, 'listening'), once(edge, 'listening')]);
   try {
     const headers = { host: 'fixture.local' };
@@ -220,8 +220,8 @@ test('edge intercepts only exact beacon pathname and POST; header route survives
         const req = httpRequest(
           {
             host: '127.0.0.1',
-            port: 5350,
-            path: parsed.pathname,
+            port: 5330,
+            path: parsed.pathname + parsed.search,
             method: init.method,
             headers: init.headers,
           },
@@ -240,25 +240,35 @@ test('edge intercepts only exact beacon pathname and POST; header route survives
         req.on('error', reject);
         req.end(init.body);
       });
-    const post = await fetch('http://127.0.0.1:5350/__deploy/telemetry', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ v: 1, build: 'b', events: [] }),
-    });
-    assert.equal(post.status, 204);
+    for (const path of [
+      '/__rfr/telemetry',
+      '/__deploy/telemetry',
+      '/__rfr/telemetry?x=1',
+      '/__deploy/telemetry?x=1',
+    ]) {
+      const post = await fetch('http://127.0.0.1:5330' + path, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ v: 1, build: 'b', events: [] }),
+      });
+      assert.equal(post.status, 204, path);
+    }
     assert.equal(proxied, 0);
     for (const [method, path] of [
+      ['GET', '/__rfr/telemetry'],
+      ['POST', '/__rfr/telemetry/'],
+      ['POST', '/__rfr/telemetry-extra'],
       ['GET', '/__deploy/telemetry'],
       ['POST', '/__deploy/telemetry/'],
       ['POST', '/__deploy/telemetry-extra'],
     ]) {
-      const response = await fetch('http://127.0.0.1:5350' + path, { method, headers });
+      const response = await fetch('http://127.0.0.1:5330' + path, { method, headers });
       assert.equal(await response.text(), 'app');
       assert.match(response.headers.get('server-timing')!, /route/);
     }
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(proxied, 3);
-    assert.equal(logged.length, 3);
+    assert.equal(proxied, 6);
+    assert.equal(logged.length, 6);
     assert.ok(logged.every((row) => row.route === '/photos/:id'));
   } finally {
     edge.closeAllConnections();
@@ -289,6 +299,8 @@ test('container environment is provisioned even in a release worker without boot
       'worker-app',
       async () => collectorNetwork(platform, networks).url,
     );
+    assert.equal(env.RFR_TELEMETRY_URL, expected);
+    assert.equal(env.RFR_TELEMETRY_TOKEN, env.DEPLOY_TELEMETRY_TOKEN);
     assert.equal(env.DEPLOY_TELEMETRY_URL, expected);
     assert.match(env.DEPLOY_TELEMETRY_TOKEN, /^[A-Za-z0-9_-]{43}$/);
   }

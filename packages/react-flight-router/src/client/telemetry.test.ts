@@ -9,7 +9,7 @@ describe('v1 browser beacon', () => {
   it('batches at 20 events and only sends masked route identities', async () => {
     const send = vi.fn().mockReturnValue(true);
     vi.stubGlobal('navigator', { sendBeacon: send });
-    const telemetry = startBrowserTelemetry('/photos/:id', 'build');
+    const telemetry = startBrowserTelemetry('/photos/:id', 'build', '/metrics/browser');
     try {
       for (let i = 0; i < 20; i++)
         telemetry.commitNavigation(
@@ -18,7 +18,7 @@ describe('v1 browser beacon', () => {
           'inflight',
         );
       expect(send).toHaveBeenCalledOnce();
-      expect(send.mock.calls[0][0]).toBe('/__deploy/telemetry');
+      expect(send.mock.calls[0][0]).toBe('/metrics/browser');
       const body = JSON.parse(send.mock.calls[0][1]);
       expect(body).toMatchObject({ v: 1, build: 'build' });
       expect(body.events).toHaveLength(20);
@@ -37,7 +37,7 @@ describe('v1 browser beacon', () => {
     const fetcher = vi.fn().mockResolvedValue(new Response());
     vi.stubGlobal('navigator', { sendBeacon: send });
     vi.stubGlobal('fetch', fetcher);
-    const telemetry = startBrowserTelemetry('/photos/:id', 'build');
+    const telemetry = startBrowserTelemetry('/photos/:id', 'build', '/metrics/browser');
     try {
       window.dispatchEvent(new Event('pagehide'));
       expect(send).toHaveBeenCalledOnce();
@@ -45,7 +45,7 @@ describe('v1 browser beacon', () => {
       expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(16 * 1024);
       expect(JSON.parse(body).events[0]).toMatchObject({ type: 'load', route: '/photos/:id' });
       expect(fetcher).toHaveBeenCalledWith(
-        '/__deploy/telemetry',
+        '/metrics/browser',
         expect.objectContaining({ method: 'POST', keepalive: true, body }),
       );
     } finally {
@@ -55,7 +55,7 @@ describe('v1 browser beacon', () => {
   it('dedupes errors, limits them to five per view and uses SHA-1 fingerprints', async () => {
     const send = vi.fn().mockReturnValue(true);
     vi.stubGlobal('navigator', { sendBeacon: send });
-    const telemetry = startBrowserTelemetry('/photos/:id', 'build');
+    const telemetry = startBrowserTelemetry('/photos/:id', 'build', '/metrics/browser');
     try {
       for (let i = 0; i < 8; i++) {
         const error = new Error('message'.repeat(100));
@@ -99,7 +99,7 @@ describe('browser performance metrics', () => {
     );
     const send = vi.fn().mockReturnValue(true);
     vi.stubGlobal('navigator', { sendBeacon: send });
-    const telemetry = startBrowserTelemetry('/', 'build');
+    const telemetry = startBrowserTelemetry('/', 'build', '/metrics/browser');
     const emit = (type: string, data: object) =>
       callbacks.get(type)!([{ entryType: type, ...data } as PerformanceEntry]);
     try {

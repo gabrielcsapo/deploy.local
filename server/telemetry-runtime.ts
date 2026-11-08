@@ -65,7 +65,13 @@ export async function containerTelemetryEnvironment(
     token = issueTelemetryToken(getRequestsSqlite(), name);
     credentials.set(name, token);
   }
-  return { DEPLOY_TELEMETRY_URL: endpoint, DEPLOY_TELEMETRY_TOKEN: token };
+  return {
+    RFR_TELEMETRY_URL: endpoint,
+    RFR_TELEMETRY_TOKEN: token,
+    // Old names are only for apps on router 0.13.0; remove once none remain.
+    DEPLOY_TELEMETRY_URL: endpoint,
+    DEPLOY_TELEMETRY_TOKEN: token,
+  };
 }
 async function dockerNetworks() {
   const { stdout: ids } = await exec(

@@ -25,7 +25,7 @@ function response(build?: string) {
 
 beforeEach(() => {
   reload.mockReset();
-  vi.stubGlobal('location', { href: 'https://deploy.local/dashboard/design', reload });
+  vi.stubGlobal('location', { href: 'https://example.test/workspace', reload });
   vi.stubGlobal('sessionStorage', storage());
   vi.stubGlobal('__RSC_BUILD__', 'old');
 });
@@ -87,12 +87,12 @@ describe('reloadForNewBuild', () => {
 
 describe('recoverFromChunkError', () => {
   const chunkError = new TypeError(
-    'Failed to fetch dynamically imported module: https://deploy.local/assets/a.js',
+    'Failed to fetch dynamically imported module: https://example.test/assets/a.js',
   );
 
   it.each([
-    'Failed to fetch dynamically imported module: https://deploy.local/assets/a.js',
-    'error loading dynamically imported module: https://deploy.local/assets/a.js',
+    'Failed to fetch dynamically imported module: https://example.test/assets/a.js',
+    'error loading dynamically imported module: https://example.test/assets/a.js',
     'Importing a module script failed.',
   ])('recognizes %s', (message) => {
     expect(isChunkLoadError(new TypeError(message))).toBe(true);

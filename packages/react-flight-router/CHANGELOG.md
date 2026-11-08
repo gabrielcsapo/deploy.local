@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.1] (2026-11-08)
+
+### Other
+
+- react-flight-router AGENTS.md: no application- or host-specific logic in the router ([fb12208](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=fb12208f99e69281e55f9c0bf44a990913da3b65&path=packages/react-flight-router))
+- Router telemetry uses neutral names: a telemetry option, RFR_TELEMETRY_* env and /__rfr/telemetry ([438c688](https://deploy.local/dashboard/projects/67d679c5-003f-45d0-b424-53a99dbb0149/code?ref=438c688506d0841bb75fcf5bc614c6f6de52d2ea&path=packages/react-flight-router))
+
 ## [0.13.0] (2026-11-08)
 
 ### Other

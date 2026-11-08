@@ -20,5 +20,15 @@ export default defineConfig({
       reuseExistingServer: false,
       cwd: new URL('..', import.meta.url).pathname,
     },
+    ...[
+      [5306, '--telemetry --beacon-path=/metrics/browser'],
+      [5307, '--telemetry --no-beacon'],
+    ].map(([port, flags]) => ({
+      command: `DEPLOY_MDNS_ADDRESS=127.0.0.1 PORT=${port} node scripts/telemetry-fixture.mjs ${flags}`,
+      url: `http://127.0.0.1:${port}`,
+      timeout: 60_000,
+      reuseExistingServer: false,
+      cwd: new URL('..', import.meta.url).pathname,
+    })),
   ],
 });
