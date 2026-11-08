@@ -15,7 +15,7 @@ import {
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from '../shared/constants.js';
 import { reloadForNewBuild } from './build-check.js';
 import { SuspenseSentinel } from './suspense-sentinel.js';
-import { consumePrefetch } from './prefetch-cache.js';
+import { takePrefetch } from './prefetch-cache.js';
 import { prepareStylesheets } from './route-css.js';
 import { fastPathname } from './fast-pathname.js';
 
@@ -329,7 +329,11 @@ export function RouterProvider({
         // Check if we have a prefetched response for this URL.
         // Prefetched responses are full renders (no previous URL header),
         // which the client handles correctly via the full update path.
-        const prefetched = consumePrefetch(targetUrl.pathname, targetUrl.search);
+        const prefetched = await takePrefetch(
+          targetUrl.pathname,
+          targetUrl.search,
+          controller.signal,
+        );
         const response =
           prefetched ??
           (await fetch(
