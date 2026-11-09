@@ -311,13 +311,10 @@ export function validReviewAnchor(
 
 /** Keep computed prose short without changing grouping evidence or authored copy. */
 export function reviewPhrases(phrases: string[], icon = false): string {
-  const shortened = phrases.slice(0, 2).map((phrase) => {
-    if (phrase.length <= 40) return phrase;
-    const cut = phrase.slice(0, 41).lastIndexOf(' ');
-    return cut > 0 ? phrase.slice(0, cut) : '…';
-  });
-  let text = shortened.join(', ');
-  if (phrases.length > 2) text += ` and ${phrases.length - 2} more`;
+  // A phrase this long is a whole region's text, not a change of wording: leave it out.
+  const readable = phrases.filter((phrase) => phrase.length <= 40);
+  let text = readable.slice(0, 2).join(', ');
+  if (readable.length > 2) text += ` and ${readable.length - 2} more`;
   if (icon) text += `${text ? ' and ' : ''}an icon`;
   return text;
 }

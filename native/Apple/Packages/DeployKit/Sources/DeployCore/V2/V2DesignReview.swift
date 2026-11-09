@@ -121,12 +121,10 @@ public struct V2ReviewRow: Decodable, Sendable, Identifiable {
             .filter { !$0.1.isEmpty }.map { "\($0.0) \($0.1)." }.joined(separator: " ")
     }
     private static func phrases(_ phrases: [String], icon: Bool) -> String {
-        var text = phrases.prefix(2).map { phrase in
-            guard phrase.count > 40 else { return phrase }
-            let prefix = String(phrase.prefix(41))
-            return prefix.lastIndex(of: " ").map { String(prefix[..<$0]) } ?? "…"
-        }.joined(separator: ", ")
-        if phrases.count > 2 { text += " and \(phrases.count - 2) more" }
+        // A phrase this long is a whole region's text, not a change of wording: leave it out.
+        let readable = phrases.filter { $0.count <= 40 }
+        var text = readable.prefix(2).joined(separator: ", ")
+        if readable.count > 2 { text += " and \(readable.count - 2) more" }
         if icon { text += text.isEmpty ? "an icon" : " and an icon" }
         return text
     }

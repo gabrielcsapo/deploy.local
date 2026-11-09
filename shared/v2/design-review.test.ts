@@ -109,9 +109,9 @@ test('computed descriptions bound phrase count and length without cutting words'
   );
   assert.equal(
     reviewPhrases(['This is a long phrase with complete words beyond forty characters']),
-    'This is a long phrase with complete',
+    '',
   );
-  assert.equal(reviewPhrases(['x'.repeat(60)]), '…');
+  assert.equal(reviewPhrases(['x'.repeat(60), 'Projects'], true), 'Projects and an icon');
   const row = groupReviewChanges([screen('a')])[0];
   row.removedIcon = true;
   assert.match(reviewWords(row), /Removed Project and an icon\./);
