@@ -12,7 +12,10 @@ public struct DeployV2Root: View {
     public init(store: WorkspaceStore, paired: @escaping (Connection) -> Void = { _ in }) { workspace = store; self.paired = paired }
     public var body: some View {
         Group {
-            if let store { V2Tabs(store: store, workspace: workspace, paired: paired) }
+            if let store {
+                if V2Evidence.reviewBoard { V2ReviewEvidenceView(store: store) }
+                else { V2Tabs(store: store, workspace: workspace, paired: paired) }
+            }
             else {
                 VStack(spacing: 24) {
                     Text("deploy.local").font(.system(size: 22, weight: .semibold))

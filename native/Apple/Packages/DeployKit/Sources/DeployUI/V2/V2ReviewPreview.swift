@@ -60,26 +60,25 @@ struct V2ReviewScreenPage: View {
                     V2ReviewZoomPreview(preview: preview, board: board, model: model, change: change,
                                         fitCommand: fitCommand, active: active, viewport: $viewport)
                     if model.peeking { Text("Before").font(.footnote.bold()).padding(.horizontal, 9).padding(.vertical, 4).background(.regularMaterial, in: Capsule()).padding(12) }
-                    if !board.isPhone {
-                        VStack(alignment: .trailing, spacing: 8) {
-                            Spacer()
-                            overview(preview)
-                        }.padding(12)
-                    }
-                    if model.comparing && !model.peeking {
+                    if model.canCompare(board) && model.comparisonMode == "slider" && !model.peeking {
                         GeometryReader { geometry in
                             ZStack(alignment: .topLeading) {
                                 HStack {
-                                    revisionLabel("Before"); Spacer(); revisionLabel("After")
+                                    revisionLabel("Old"); Spacer(); revisionLabel("New")
                                 }.padding(12)
                                 Rectangle().fill(WorkspaceStyle.text(scheme)).frame(width: 2).overlay {
                                     Image(systemName: "arrow.left.and.right").font(.body).frame(width: 44, height: 44)
                                         .background(WorkspaceStyle.surface(scheme), in: Circle()).overlay(Circle().stroke(WorkspaceStyle.text(scheme)))
-                                }.position(x: geometry.size.width * model.divider, y: geometry.size.height / 2)
-                            }.allowsHitTesting(false)
-                        }.accessibilityElement(children: .ignore).accessibilityLabel("Before percentage")
-                            .accessibilityValue("\(Int(model.divider * 100)) percent")
-                            .accessibilityAdjustableAction { direction in model.divider = min(1, max(0, model.divider + (direction == .increment ? 0.05 : -0.05))) }
+                                }.frame(width: 44).contentShape(Rectangle())
+                                    .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("reviewWipe")).onChanged { value in
+                                        model.amount = min(1, max(0, 1 - value.location.x / geometry.size.width))
+                                    })
+                                    .position(x: geometry.size.width * (1 - model.amount), y: geometry.size.height / 2)
+                            }.coordinateSpace(name: "reviewWipe")
+                        }.allowsHitTesting(!model.pinTool && !model.areaTool && !model.drawing)
+                            .accessibilityElement(children: .ignore).accessibilityLabel("Before percentage")
+                            .accessibilityValue("\(Int((1 - model.amount) * 100)) percent")
+                            .accessibilityAdjustableAction { direction in model.amount = min(1, max(0, model.amount + (direction == .increment ? -0.05 : 0.05))) }
                     }
                     if let pin = model.selectedPin, pin.board == board.file, model.showChanges {
                         VStack {
@@ -98,9 +97,6 @@ struct V2ReviewScreenPage: View {
                         }
                     }
                 }.clipped()
-                if !board.isPhone, board.changeKind == "changed", !preview.metadata.areas.isEmpty {
-                    changeBar(preview.metadata)
-                }
             } else {
                 V2ReviewShimmer().overlay {
                     if model.failed.contains(model.key(board)) {
@@ -180,7 +176,7 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         let coordinator = context.coordinator
         if coordinator.parent.active && !active { coordinator.unlockPager() }
         coordinator.parent = self
-        view.modeLocked = active && (model.comparing || model.drawing)
+        view.modeLocked = active && (model.comparing || model.drawing || model.areaTool)
         view.panGestureRecognizer.minimumNumberOfTouches = view.modeLocked ? 2 : 1
         coordinator.layout(); coordinator.draw(); coordinator.lockPager()
         if active && model.comparing && !view.isFirstResponder { view.becomeFirstResponder() }
@@ -203,6 +199,8 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         var marks: [UIView] = []
         var outlines: [CAShapeLayer] = []
         var stroke: [V2ReviewDrawing.Point] = []
+        var areaStart: CGPoint?
+        var areaRect: V2ReviewRect?
         init(_ parent: V2ReviewZoomPreview) { self.parent = parent; super.init() }
         func viewForZooming(in scrollView: UIScrollView) -> UIView? { canvas }
         func scrollViewDidScroll(_ scrollView: UIScrollView) { clipSides(); reportViewport(); lockPager() }
@@ -218,7 +216,7 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
                 canvas.frame = CGRect(x: 0, y: 0, width: metadata.width, height: metadata.height)
                 for side in 0...1 { sides[side].frame = canvas.bounds; images[side].frame = canvas.bounds; images[side].contentMode = .scaleToFill }
                 scroll.contentSize = canvas.bounds.size
-                scroll.minimumZoomScale = parent.board.isPhone ? 1 : min(1, min(scroll.bounds.width / canvas.bounds.width, scroll.bounds.height / canvas.bounds.height))
+                scroll.minimumZoomScale = 1
                 scroll.maximumZoomScale = 4
                 panToChange()
                 initialOffset = scroll.contentOffset
@@ -248,14 +246,19 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         func clipSides() {
             guard let scroll else { return }
             let model = parent.model
-            let split = (scroll.contentOffset.x + scroll.bounds.width * model.divider) / max(0.01, scroll.zoomScale)
+            let paired = parent.preview.before != nil && parent.preview.after != nil && !model.drawing
+            let amount = model.comparing ? 1 - model.divider : model.amount
+            let split = (scroll.contentOffset.x + scroll.bounds.width * (1 - amount)) / max(0.01, scroll.zoomScale)
             CATransaction.begin(); CATransaction.setDisableActions(true)
+            // Before sits above After so Overlay fades the old image over the new one.
+            canvas.bringSubviewToFront(sides[0])
             for side in 0...1 {
                 let showingBefore = model.peeking || parent.preview.after == nil
-                sides[side].isHidden = model.comparing && !model.peeking ? false : (side == 0) != showingBefore
+                sides[side].isHidden = paired && !model.peeking ? false : (side == 0) != showingBefore
+                sides[side].alpha = paired && !model.peeking && model.comparisonMode == "onion" && side == 0 ? 1 - amount : 1
                 let mask = CAShapeLayer()
-                let rect = model.comparing && !model.peeking
-                    ? CGRect(x: side == 0 ? 0 : split, y: 0, width: side == 0 ? split : max(0, canvas.bounds.width - split), height: canvas.bounds.height)
+                let rect = paired && !model.peeking && model.comparisonMode == "slider" && side == 0
+                    ? CGRect(x: 0, y: 0, width: max(0, split), height: canvas.bounds.height)
                     : canvas.bounds
                 mask.path = UIBezierPath(rect: rect).cgPath; sides[side].layer.mask = mask
             }
@@ -278,16 +281,22 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
                         guard drawing.nativeWidth == parent.preview.metadata.width, drawing.nativeHeight == parent.preview.metadata.height else { continue }
                         drawStrokes(drawing.strokes, weight: drawing.weight, side: side)
                     }
+                    if let area = pin.area { drawArea(area, side: side) }
                     addMark(number: pin.number, point: CGPoint(x: pin.x, y: pin.y), side: side, size: pin.drawing == nil ? 30 : 44)
                 }
                 if let draft = parent.model.draft, draft.board == parent.board.file, draft.width == parent.preview.metadata.width, draft.revision == revision {
                     if let drawing = draft.drawing {
                         drawStrokes(drawing.strokes + (stroke.isEmpty ? [] : [stroke]), weight: drawing.weight, side: side)
                     }
+                    if let area = draft.area { drawArea(area, side: side) }
                     if draft.drawing == nil || parent.model.pinSheet { addMark(number: parent.model.draftNumber, point: CGPoint(x: draft.x, y: draft.y), side: side) }
                 }
             }
+            if let areaRect { drawArea(areaRect, side: parent.board.isRemoved ? 0 : 1) }
             clipSides()
+        }
+        func drawArea(_ area: V2ReviewRect, side: Int) {
+            addPath(UIBezierPath(rect: CGRect(x: area.x, y: area.y, width: area.w, height: area.h)), weight: 1.5, side: side)
         }
         func drawStrokes(_ strokes: [[V2ReviewDrawing.Point]], weight: Double, side: Int) {
             for stroke in strokes {
@@ -340,7 +349,7 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
                 ancestor = view.superview
             }
             let initial = abs(scroll.zoomScale - 1) < 0.01 && abs(scroll.contentOffset.x - initialOffset.x) < 1 && abs(scroll.contentOffset.y - initialOffset.y) < 1
-            scroll.passPaging = initial && !parent.model.comparing && !parent.model.drawing
+            scroll.passPaging = initial && !parent.model.comparing && !parent.model.drawing && !parent.model.areaTool
             pager?.isScrollEnabled = scroll.passPaging
             let allowed = scroll.passPaging
             if parent.model.pagingAllowed != allowed {
@@ -353,6 +362,23 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         func unlockPager() { pager?.isScrollEnabled = true }
         @objc func drag(_ gesture: UIPanGestureRecognizer) {
             guard let scroll, parent.active else { return }
+            if parent.model.areaTool {
+                let location = gesture.location(in: canvas)
+                let point = CGPoint(x: min(canvas.bounds.width, max(0, location.x)), y: min(canvas.bounds.height, max(0, location.y)))
+                if gesture.state == .began { areaStart = point }
+                if gesture.state == .cancelled || gesture.state == .failed { areaStart = nil; areaRect = nil; draw(); return }
+                if let start = areaStart {
+                    areaRect = .init(x: min(start.x, point.x), y: min(start.y, point.y), w: abs(start.x - point.x), h: abs(start.y - point.y))
+                }
+                if gesture.state == .ended {
+                    if let area = areaRect, area.w > 1, area.h > 1 {
+                        let revision = parent.board.isRemoved ? parent.board.before ?? parent.model.review?.before : parent.board.after ?? parent.model.review?.after
+                        if let revision { parent.model.drop(board: parent.board.file, width: parent.preview.metadata.width, revision: revision, point: CGPoint(x: area.x + area.w / 2, y: area.y + area.h / 2), area: area) }
+                    }
+                    areaStart = nil; areaRect = nil
+                }
+                draw(); return
+            }
             if parent.model.comparing {
                 parent.model.divider = min(1, max(0, (gesture.location(in: scroll).x - scroll.bounds.minX) / scroll.bounds.width))
                 clipSides(); return
@@ -388,7 +414,7 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
             guard parent.active, !parent.model.drawing else { return }
             let point = gesture.location(in: canvas)
             guard canvas.bounds.contains(point) else { return }
-            let before = parent.model.peeking || parent.board.isRemoved || (parent.model.comparing && point.x < ((scroll?.contentOffset.x ?? 0) + (scroll?.bounds.width ?? 0) * parent.model.divider) / (scroll?.zoomScale ?? 1))
+            let before = parent.model.peeking || parent.board.isRemoved || (parent.model.amount < 0.5 && parent.model.comparisonMode == "onion") || (parent.model.comparisonMode == "slider" && point.x < ((scroll?.contentOffset.x ?? 0) + (scroll?.bounds.width ?? 0) * (1 - parent.model.amount)) / (scroll?.zoomScale ?? 1))
             let revision = before ? parent.board.before ?? parent.model.review?.before : parent.board.after ?? parent.model.review?.after
             if parent.model.pinTool && !parent.model.comparing { drop(at: point) }
             else if parent.model.showChanges, let pin = parent.model.pins.first(where: {
@@ -398,7 +424,7 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         }
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard parent.active else { return false }
-            if gestureRecognizer is UIPanGestureRecognizer { return parent.model.comparing || parent.model.drawing }
+            if gestureRecognizer is UIPanGestureRecognizer { return parent.model.comparing || parent.model.drawing || parent.model.areaTool }
             if gestureRecognizer is UILongPressGestureRecognizer { return !parent.model.comparing && !parent.model.drawing }
             return !parent.model.drawing
         }

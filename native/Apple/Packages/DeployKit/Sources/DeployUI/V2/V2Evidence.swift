@@ -31,7 +31,8 @@ enum V2Evidence {
     }
     // A fresh cache per launch keeps prior drafts/events and pending sends out of captures.
     private static let captureCache = FileManager.default.temporaryDirectory.appendingPathComponent("agents-p1-" + UUID().uuidString)
-    static var cacheDirectory: URL? { agentsBoard == nil && !loadingBoard ? nil : captureCache }
+    static var reviewBoard: Bool { fixtureURL?.port == 5180 && board?.hasPrefix("DesignReview") == true }
+    static var cacheDirectory: URL? { agentsBoard == nil && !loadingBoard && !reviewBoard ? nil : captureCache }
     static var loadingBoard: Bool {
         guard fixtureURL?.port == 5194, let board else { return false }
         return ["HomeLoadingPhone", "ProjectsLoadingPhone", "TaskLoadingPhone", "LiveLoadingPhone", "HomeLoadingSlowPhone", "HomeRefreshingPhone", "HomeUnavailablePhone", "PackagesPhone", "PackageVersionsPhone"].contains(board)

@@ -31,6 +31,15 @@ final class V2ReviewState {
     var pagingAllowed = true
     var comparing = false
     var divider = 0.4
+    var amount = 1.0
+    var comparisonMode = UserDefaults.standard.string(forKey: V2DesignComparison.modeKey) ?? "onion" {
+        didSet { UserDefaults.standard.set(comparisonMode, forKey: V2DesignComparison.modeKey) }
+    }
+    var areaTool = false
+    var approvalCheck = false
+    var approvalRefreshing = false
+    var approvalAwaitingRefresh = false
+    var seenInFlight = Set<String>()
     var peeking = false
     var drawing = false
     var selectedPin: V2ReviewPin?
@@ -52,7 +61,7 @@ final class V2ReviewState {
         if review.stale == true { return !loading && !checking && !saving }
         return !loading && !checking && !saving && loadingKeys.isEmpty && failed.isEmpty && review.boards.allSatisfy { preview($0) != nil }
     }
-    var obscured: Bool { grid || design || conflict || asking || pinSheet }
+    var obscured: Bool { grid || design || conflict || asking || pinSheet || approvalCheck }
     var draftNumber: Int { (pins.map(\.number).max() ?? 0) + 1 }
     func width(_ board: V2DesignReview.Board) -> Int { widths[board.file] ?? board.defaultWidth }
     func key(_ board: V2DesignReview.Board) -> String { "\(board.file)@\(width(board))@\(displayScale)" }
@@ -102,10 +111,19 @@ final class V2ReviewState {
         } catch { if !Task.isCancelled { failed.insert(key); self.error = coordinatorErrorDescription(error) } }
     }
     func markSeen(client: V2Client, file: String) async {
-        guard let review, let index = review.boards.firstIndex(where: { $0.file == file }), review.boards[index].seen != true else { return }
+        guard let review, let row = V2ReviewModel.row(review, file: file), !row.seen, !seenInFlight.contains(row.id) else { return }
+        seenInFlight.insert(row.id)
+        defer { seenInFlight.remove(row.id) }
         do {
-            try await client.reviewSeen(project: project, item: review.item.id, board: file, revision: review.after)
-            self.review?.boards[index].seen = true
+            if review.changes != nil {
+                try await client.reviewSeen(project: project, item: review.item.id, boards: row.screens, revision: review.after)
+            } else {
+                try await client.reviewSeen(project: project, item: review.item.id, board: file, revision: review.after)
+            }
+            for index in self.review?.boards.indices ?? [].indices {
+                if row.screens.contains(self.review!.boards[index].file) { self.review?.boards[index].seen = true }
+            }
+            if let index = self.review?.changes?.firstIndex(where: { $0.id == row.id }) { self.review?.changes?[index].seen = true }
         } catch { if !Task.isCancelled { self.error = coordinatorErrorDescription(error) } }
     }
     func canCompare(_ board: V2DesignReview.Board) -> Bool {
@@ -126,7 +144,7 @@ final class V2ReviewState {
         let revision = board.isRemoved ? board.before ?? review.before : board.after ?? review.after
         draft = .init(item: review.item.id, board: board.file, width: width(board), revision: revision, x: 0, y: 0,
                       drawing: .init(side: side, nativeWidth: preview.metadata.width, nativeHeight: preview.metadata.height, anchor: .init(x: 0, y: 0)))
-        drawingOrigin = crops[key(board)]; drawing = true; comparing = false; peeking = false
+        drawingOrigin = crops[key(board)]; drawing = true; comparing = false; peeking = false; amount = 1; areaTool = false
         editing = nil; selectedPin = nil; sheetText = ""; pinTool = false; error = nil
     }
     func appendStroke(_ points: [V2ReviewDrawing.Point]) {
@@ -167,10 +185,20 @@ final class V2ReviewState {
         let point = CGPoint(x: min(Double(preview.metadata.width), max(0, rect.midX)), y: min(Double(preview.metadata.height), max(0, rect.midY)))
         drop(board: board.file, width: width(board), revision: board.isRemoved ? board.before ?? review.before : board.after ?? review.after, point: point)
     }
-    func drop(board: String, width: Int, revision: String, point: CGPoint, noteId: String? = nil) {
+    func drop(board: String, width: Int, revision: String, point: CGPoint, noteId: String? = nil, area: V2ReviewRect? = nil) {
         guard !drawing, !comparing, let review, review.item.state == .waiting else { return }
         draft = .init(item: review.item.id, board: board, width: width, revision: revision, x: point.x, y: point.y, noteId: noteId)
-        editing = nil; sheetText = ""; pinTool = false; pinSheet = true; error = nil
+        draft?.area = area
+        if let screen = review.boards.first(where: { $0.file == board }), let metadata = preview(screen)?.metadata {
+            let before = revision == (screen.before ?? review.before)
+            let anchor = metadata.areas.compactMap { region -> (String, V2ReviewRect)? in
+                guard let box = before ? region.before : region.after, box.w > 0, box.h > 0,
+                      point.x >= box.x, point.x <= box.x + box.w, point.y >= box.y, point.y <= box.y + box.h else { return nil }
+                return (region.layer, box)
+            }.min { $0.1.w * $0.1.h < $1.1.w * $1.1.h }
+            if let (layer, box) = anchor { draft?.layer = layer; draft?.offset = .init(x: (point.x - box.x) / box.w, y: (point.y - box.y) / box.h) }
+        }
+        editing = nil; sheetText = ""; pinTool = false; areaTool = false; pinSheet = true; error = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
     func edit(_ pin: V2ReviewPin) { error = nil; selectedPin = nil; editing = pin; draft = nil; sheetText = pin.text; pinSheet = true }
@@ -197,9 +225,34 @@ final class V2ReviewState {
         } catch { self.error = coordinatorErrorDescription(error) }
     }
     func finishReview() { page = .decide }
+    func requestApproval() -> Bool {
+        guard let review else { return false }
+        approvalCheck = V2ReviewModel.needsApprovalCheck(review, draft: sheetText)
+        return !approvalCheck
+    }
+    func refreshApproval(client: V2Client) async {
+        guard let review, !approvalRefreshing else { return }
+        approvalRefreshing = true
+        defer { approvalRefreshing = false }
+        do {
+            self.review = try await client.designReview(project: project, item: review.item.id)
+            approvalAwaitingRefresh = false
+            conflict = self.review?.stale == true
+        } catch { self.error = coordinatorErrorDescription(error) }
+    }
+    func undoApproval(client: V2Client) async {
+        guard let review, review.landing?.state == "pending", !saving else { return }
+        saving = true; error = nil
+        defer { saving = false }
+        do {
+            try await client.undoReviewApproval(project: project, item: review.item.id)
+            self.review = try await client.designReview(project: project, item: review.item.id)
+        } catch { self.error = coordinatorErrorDescription(error); await refreshApproval(client: client) }
+    }
+
 
     func answer(client: V2Client, action: String, note: String? = nil) async -> String? {
-        guard decisionsReady, (page == .decide || action == "update"), let review else { return nil }
+        guard decisionsReady, (page == .decide || action == "update" || action == "approve"), let review else { return nil }
         checking = true; error = nil
         defer { checking = false }
         do {
@@ -208,8 +261,12 @@ final class V2ReviewState {
             guard fresh.after == review.after else { throw ClientError.response(409, "This design changed. Open the review again.") }
             self.review = fresh
             if fresh.stale == true && action != "update" { conflict = true; return nil }
-            let result = try await client.answer(fresh.item.id, action: action, note: note)
+            let result = try await client.answer(fresh.item.id, action: action, note: note, delay: action == "approve" ? true : nil)
             self.review?.item = result.item
+            if action == "approve" {
+                approvalCheck = false; page = .decide; approvalAwaitingRefresh = true
+                await refreshApproval(client: client)
+            }
             let outcome: String
             switch result.item.answer?.actionId {
             case "approve": outcome = "Design approved"

@@ -52,6 +52,56 @@ private let reviewJSON = "{\"item\":\(waiting),\"branch\":\"b\",\"before\":\"a\"
         model.previews[model.key(board)] = .init(metadata: metadata, before: added ? nil : UIImage(), after: removed ? nil : UIImage())
         return board
     }
+    @Test func undoRefreshesTheAuthoritativeWaitingReview() async throws {
+        let (model, client) = try setup(status: 200)
+        model.review?.item.state = .answered
+        model.review?.item.answer = .init(actionId: "approve", by: "owner", on: .iphone, at: "now")
+        model.review?.landing = try JSONDecoder().decode(V2ReviewLanding.self, from: Data(#"{"state":"pending","at":"2099-11-09T12:00:30Z"}"#.utf8))
+        await model.undoApproval(client: client)
+        #expect(model.review?.item.state == .waiting && model.review?.item.answer == nil)
+        #expect(model.review?.landing == nil && !model.saving)
+        #expect(ReviewTransport.state.count() == 1)
+    }
+    @Test func comparisonChoiceIsRememberedForTheNextReview() throws {
+        let original = UserDefaults.standard.string(forKey: V2DesignComparison.modeKey)
+        defer { UserDefaults.standard.set(original, forKey: V2DesignComparison.modeKey) }
+        let (model, _) = try setup(status: 200)
+        model.comparisonMode = "slider"
+        #expect(V2ReviewState().comparisonMode == "slider")
+        model.comparisonMode = "onion"
+        #expect(V2ReviewState().comparisonMode == "onion")
+    }
+    @Test func approvalWithNotesWaitsForExplicitChoice() throws {
+        let (model, _) = try setup(status: 200)
+        #expect(model.requestApproval())
+        model.sheetText = "Keep this label"
+        #expect(!model.requestApproval() && model.approvalCheck)
+        #expect(model.review?.item.state == .waiting && ReviewTransport.state.count() == 0)
+        model.sheetText = ""; model.approvalCheck = false
+        model.review?.pins = [try JSONDecoder().decode(V2ReviewPin.self, from: Data(#"{"id":"p","number":1,"board":"Screen.html","width":390,"revision":"c","x":20,"y":20,"text":"Keep it","author":"owner","resolved":false,"createdAt":"now"}"#.utf8))]
+        #expect(!model.requestApproval())
+        model.review?.pins?[0].resolved = true
+        #expect(model.requestApproval())
+    }
+    @Test func groupedSeenIsSentOnceAcrossEveryScreenInTheRow() async throws {
+        let (model, client) = try setup(status: 200)
+        let board = try screen(model)
+        model.review?.changes = [try JSONDecoder().decode(V2ReviewRow.self, from: Data(#"{"id":"header","title":"Header row","status":"changed","screens":["Screen.html","Other.html"],"added":[],"removed":[],"variations":0,"nothingElse":true,"seen":false}"#.utf8))]
+        await model.markSeen(client: client, file: board.file)
+        await model.markSeen(client: client, file: "Other.html")
+        #expect(model.review?.changes?.first?.seen == true && model.review?.boards.first?.seen == true)
+        #expect(ReviewTransport.state.count() == 1)
+    }
+    @Test func areaDraftUsesNativeCoordinatesAndSmallestAvailableLayer() throws {
+        let (model, _) = try setup(status: 200)
+        let board = try screen(model)
+        let metadata = try JSONDecoder().decode(V2ReviewPreview.self, from: Data(#"{"width":390,"height":844,"areas":[{"layer":"head","words":"Header","after":{"x":10,"y":20,"w":100,"h":40}}],"crop":{"x":0,"y":0,"w":390,"h":844}}"#.utf8))
+        model.previews[model.key(board)] = .init(metadata: metadata, before: UIImage(), after: UIImage())
+        model.drop(board: board.file, width: 390, revision: "c", point: CGPoint(x: 60, y: 40), area: .init(x: 20, y: 25, w: 80, h: 30))
+        #expect(model.draft?.layer == "head")
+        #expect(model.draft?.offset == .init(x: 0.5, y: 0.5))
+        #expect(model.draft?.area?.w == 80 && model.pinSheet)
+    }
     @Test func compareRequiresBothImagesAndLeavesOnWidthChange() throws {
         let (model, _) = try setup(status: 200)
         let board = try screen(model)

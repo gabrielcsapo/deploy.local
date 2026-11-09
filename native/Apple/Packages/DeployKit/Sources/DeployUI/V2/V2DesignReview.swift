@@ -3,6 +3,27 @@ import SwiftUI
 import UIKit
 import DeployCore
 
+struct V2ReviewEvidenceView: View {
+    let store: V2Store
+    @State private var item: InboxItem?
+    @State private var error: String?
+    var body: some View {
+        NavigationStack {
+            if let item { V2DesignReviewView(store: store, item: item) }
+            else if let error { Text(error) }
+            else { ProgressView() }
+        }.task {
+            do {
+                let waiting = try await store.client.inbox()
+                let answered = try await store.client.inbox(state: "answered")
+                let items = waiting + answered
+                item = items.first { V2DesignReview.project(of: $0.id) != nil }
+                if item == nil { error = "Reset the review fixture on port 5180 first." }
+            } catch { self.error = coordinatorErrorDescription(error) }
+        }
+    }
+}
+
 struct V2DesignReviewView: View {
     @Bindable var store: V2Store
     let item: InboxItem
@@ -14,7 +35,7 @@ struct V2DesignReviewView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var openTask = false
     @State private var active = false
-    @ScaledMetric(relativeTo: .title) private var coverHeadingSize = 28
+    @ScaledMetric(relativeTo: .title) private var coverHeadingSize = 30
     @ScaledMetric(relativeTo: .largeTitle) private var headingSize = 30
     private var review: V2DesignReview? { model.review }
     private var screens: [V2DesignReview.Board] { review.map(V2ReviewModel.screens) ?? [] }
@@ -70,6 +91,7 @@ struct V2DesignReviewView: View {
             if let error = model.error { Text(error).font(.footnote).foregroundStyle(WorkspaceStyle.danger(scheme)).padding(12) }
         }
         .background(WorkspaceStyle.canvas(scheme))
+        .tint(WorkspaceStyle.text(scheme))
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
         .toolbar(.hidden, for: .tabBar)
@@ -91,7 +113,7 @@ struct V2DesignReviewView: View {
                 Menu {
                     if model.page == .cover { Button("See all screens") { model.grid = true } }
                     else {
-                        Button("Approve design") { model.finishReview() }.disabled(!canDecide)
+                        Button("Approve design") { approve() }.disabled(!canDecide)
                         Button("Ask for changes") { model.finishReview() }.disabled(!canDecide)
                     }
                     if board != nil || note != nil {
@@ -107,6 +129,30 @@ struct V2DesignReviewView: View {
         .sheet(isPresented: $model.pinSheet, onDismiss: { model.dismissPinSheet() }) {
             V2ReviewPinSheet(model: model, client: store.client).presentationDetents([.medium, .large]).presentationDragIndicator(.visible).interactiveDismissDisabled(model.saving)
         }
+        .sheet(isPresented: $model.approvalCheck) {
+            VStack(alignment: .leading, spacing: 8) {
+                let count = model.pins.filter { !$0.resolved }.count + (model.sheetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                Text(count == 1 ? "1 note hasn’t been sent" : "\(count) notes haven’t been sent").font(.headline)
+                Text("Approving puts this on main and drops your note. You can undo for 30 seconds.").font(.subheadline).foregroundStyle(.secondary)
+                Button(count == 1 ? "Send note" : "Send notes") {
+                    Task {
+                        if model.draft != nil && !model.sheetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            await model.savePin(client: store.client)
+                            guard model.draft == nil else { return }
+                        }
+                        model.approvalCheck = false; model.finishReview(); answer("changes")
+                    }
+                }.buttonStyle(V2ReviewActionStyle(primary: true)).disabled(!canDecide)
+                Button("Approve anyway") { model.approvalCheck = false; answer("approve") }
+                    .buttonStyle(V2ReviewActionStyle(primary: false)).disabled(!canDecide)
+            }.padding(20).presentationDetents([.height(260)]).presentationDragIndicator(.visible)
+        }
+        .task(id: "\(review?.landing?.state ?? "")-\(model.approvalAwaitingRefresh)") {
+            while (model.review?.landing?.state == "pending" || model.approvalAwaitingRefresh), !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(1)); try Task.checkCancellation() } catch { return }
+                await model.refreshApproval(client: store.client)
+            }
+        }
         .sheet(isPresented: $model.conflict) { conflictSheet.presentationDetents([.medium, .large]) }
         .fullScreenCover(isPresented: $model.design) { V2DesignView(connection: store.connection, projectId: model.project) }
         .alert("Ask for changes", isPresented: $model.asking) {
@@ -114,7 +160,10 @@ struct V2DesignReviewView: View {
             Button("Send") { answer("changes", note: model.note) }.disabled(model.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !canDecide)
             Button("Cancel", role: .cancel) {}
         }
-        .task(id: "\(item.id)@\(displayScale)") { await model.load(client: store.client, item: item, scale: displayScale) }
+        .task(id: "\(item.id)@\(displayScale)") {
+            await model.load(client: store.client, item: item, scale: displayScale)
+            if V2Evidence.reviewBoard { prepareEvidence() }
+        }
         .task(id: seenKey) {
             let key = seenKey
             guard !key.isEmpty else { return }
@@ -128,7 +177,7 @@ struct V2DesignReviewView: View {
         }
         .onAppear { active = true }
         .onDisappear { active = false }
-        .onChange(of: model.page) { _, _ in model.pinTool = false; model.pagingAllowed = true; model.comparing = false; model.peeking = false; model.selectedPin = nil }
+        .onChange(of: model.page) { _, _ in model.pinTool = false; model.areaTool = false; model.amount = 1; model.pagingAllowed = true; model.comparing = false; model.peeking = false; model.selectedPin = nil }
         .transaction { if reduceMotion { $0.animation = nil; $0.disablesAnimations = true } }
     }
 
@@ -161,18 +210,27 @@ struct V2DesignReviewView: View {
                     else {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("\(review.proposer?.name ?? V2Labels.agentName(review.item)) · \(V2ReviewModel.age(review.createdAt ?? review.item.createdAt))")
-                            Text(review.counts?.label() ?? V2ReviewModel.count(review.boards.count, "screen"))
+                            Text("\(V2ReviewModel.count(review.boards.count, "screen")) · \(V2ReviewModel.count(V2ReviewModel.rows(review).count, "different change"))")
                             if let updated = review.updatedWithMainAt, review.stale != true { Text("Updated with main \(V2ReviewModel.age(updated)) · no conflicts") }
                         }.font(.footnote).foregroundStyle(.secondary)
                         if !review.boards.allSatisfy({ model.preview($0) != nil }) {
                             V2ReviewLoadingLine(total: review.boards.count, loaded: review.boards.filter { model.preview($0) != nil }.count)
                         }
-                        HStack(spacing: 6) {
-                            ForEach(screens.prefix(4)) { board in
-                                Button { model.page = .screen(board.file) } label: { V2ReviewCrop(preview: model.preview(board), showChanges: board.changeKind == "changed") }
-                                    .frame(height: 128).clipShape(RoundedRectangle(cornerRadius: 8)).accessibilityLabel(board.name)
+                        VStack(spacing: 0) {
+                            ForEach(V2ReviewModel.rows(review)) { row in
+                                Button { if let file = row.screens.first { model.page = .screen(file) } } label: {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(row.title).font(.body.weight(.medium)).foregroundStyle(WorkspaceStyle.text(scheme))
+                                            Text(row.subtitle).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                                        }.frame(maxWidth: .infinity, alignment: .leading)
+                                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                                    }.padding(.horizontal, 16).padding(.vertical, 14)
+                                }.buttonStyle(.plain)
+                                if row.id != V2ReviewModel.rows(review).last?.id { Divider().padding(.leading, 16) }
                             }
-                        }
+                        }.background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 12))
+
                     }
                 }.padding(.horizontal, 24).padding(.top, 16)
             }
@@ -193,7 +251,7 @@ struct V2DesignReviewView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    Text("You’ve looked at\n\(review.boards.filter { $0.seen == true }.count) of \(review.boards.count)")
+                    Text("You’ve looked at\n\(V2ReviewModel.progress(review))")
                         .font(.system(size: headingSize, weight: .bold)).tracking(-0.6)
                     if let notice = V2ReviewModel.sentNotice(review) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -206,10 +264,17 @@ struct V2DesignReviewView: View {
             }
             VStack(spacing: 6) {
                 if model.loading || model.checking || !model.loadingKeys.isEmpty { V2ReviewLoadingLine(total: review.boards.count, loaded: review.boards.filter { model.preview($0) != nil }.count) }
-                if let answer = review.item.answer {
-                    Text(V2ReviewModel.outcome(review)).font(.footnote).foregroundStyle(.secondary)
+                if model.approvalAwaitingRefresh {
+                    Text("Loading the review…").font(.footnote).foregroundStyle(.secondary)
+                } else if let answer = review.item.answer {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(V2ReviewModel.outcome(review, now: context.date)).font(.footnote).foregroundStyle(.secondary)
+                    }
                     if answer.actionId == "approve" {
-                        Button("Open in Design") { model.design = true }.buttonStyle(V2ReviewActionStyle(primary: false))
+                        if review.landing?.state == "pending" {
+                            Button("Undo") { Task { await model.undoApproval(client: store.client); await store.refresh() } }
+                                .buttonStyle(V2ReviewActionStyle(primary: false)).disabled(model.saving || (review.landing?.secondsRemaining ?? 0) == 0)
+                        } else { Button("Open in Design") { model.design = true }.buttonStyle(V2ReviewActionStyle(primary: false)) }
                     } else if review.task ?? item.taskId != nil {
                         Button("Open the task") { openTask = true }.buttonStyle(V2ReviewActionStyle(primary: false))
                     }
@@ -218,8 +283,8 @@ struct V2DesignReviewView: View {
                     Button("Close") { dismiss() }.frame(minHeight: 44)
                 } else {
                     let primary = V2ReviewModel.primaryAction(review)
-                    Button(primary.title) { if primary == .approve { answer("approve") } else { askForChanges() } }.buttonStyle(V2ReviewActionStyle(primary: true)).disabled(!canDecide)
-                    Button(primary == .approve ? "Ask for changes" : "Approve design") { if primary == .approve { askForChanges() } else { answer("approve") } }.buttonStyle(V2ReviewActionStyle(primary: false)).disabled(!canDecide)
+                    Button(primary.title) { if primary == .approve { approve() } else { askForChanges() } }.buttonStyle(V2ReviewActionStyle(primary: true)).disabled(!canDecide)
+                    Button(primary == .approve ? "Ask for changes" : "Approve design") { if primary == .approve { askForChanges() } else { approve() } }.buttonStyle(V2ReviewActionStyle(primary: false)).disabled(!canDecide)
                 }
             }.padding(24)
         }
@@ -256,6 +321,38 @@ struct V2DesignReviewView: View {
                     Button("Next") { model.commentOnDrawing() }.bold().frame(minWidth: 60, minHeight: 44).disabled(model.draft?.drawing?.strokes.isEmpty != false)
                 }
                 Text("Draw with your finger. Two fingers to pan.").font(.footnote).foregroundStyle(.secondary).padding(.top, 6)
+            } else if let board, let review, !board.added && !board.isRemoved {
+                if let row = V2ReviewModel.row(review, file: board.file) {
+                    (Text("\(row.title) · \(V2ReviewModel.count(row.screens.count, "screen")). ").bold() + Text(styledWords(row)))
+                        .font(.footnote).frame(maxWidth: .infinity, alignment: .leading).lineLimit(3)
+                }
+                if model.canCompare(board) {
+                    HStack(spacing: 16) {
+                        Text("Old")
+                        Slider(value: $model.amount, in: 0...1).accessibilityLabel("Old to new")
+                            .accessibilityValue("\(Int(model.amount * 100)) percent New")
+                        Text("New")
+                    }.font(.footnote).frame(minHeight: 44)
+                } else { Text(board.added ? "New screen · nothing to compare" : "Removed screen · old only").font(.footnote).foregroundStyle(.secondary) }
+                HStack(spacing: 8) {
+                    tool("Pin", "mappin", selected: model.pinTool) { model.pinTool.toggle(); model.areaTool = false; model.amount = 1 }
+                    tool("Area", "rectangle.dashed", selected: model.areaTool) { model.areaTool.toggle(); model.pinTool = false; model.amount = 1 }
+                    tool("Draw", "pencil") { model.startDrawing(board) }
+                    Spacer()
+                    if model.canCompare(board) {
+                        Menu {
+                            Button("Overlay") { model.comparisonMode = "onion" }
+                            Button("Wipe") { model.comparisonMode = "slider" }
+                        } label: { Text(model.comparisonMode == "onion" ? "Overlay ⌄" : "Wipe ⌄").font(.subheadline).frame(minHeight: 44) }
+                    }
+                }.disabled(review.item.state != .waiting || model.preview(board) == nil)
+                let rows = V2ReviewModel.rows(review)
+                let index = rows.firstIndex { $0.screens.contains(board.file) } ?? 0
+                HStack {
+                    Text("\(index + 1) of \(V2ReviewModel.count(rows.count, "change"))")
+                    Spacer(); Text("Pinch to zoom")
+                }.font(.footnote).foregroundStyle(.secondary)
+                ProgressView(value: Double(index + 1), total: Double(max(1, rows.count))).tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Review position")
             } else {
                 HStack(spacing: 8) {
                     if let board {
@@ -288,6 +385,43 @@ struct V2DesignReviewView: View {
                     .tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Review position").padding(.top, 8)
             }
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12).overlay(alignment: .top) { Divider() }
+    }
+    private func styledWords(_ row: V2ReviewRow) -> AttributedString {
+        var words = AttributedString(row.words)
+        guard row.changeWords == nil else { return words }
+        if let start = words.range(of: "Added ") {
+            let end = words.range(of: ". Removed ")?.lowerBound ?? words.index(beforeCharacter: words.endIndex)
+            if start.upperBound < end { words[start.upperBound..<end].backgroundColor = WorkspaceStyle.accentSoft(scheme) }
+        }
+        if let start = words.range(of: "Removed ") {
+            let end = words.index(beforeCharacter: words.endIndex)
+            if start.upperBound < end {
+                words[start.upperBound..<end].strikethroughStyle = .single
+                words[start.upperBound..<end].foregroundColor = WorkspaceStyle.tertiary(scheme)
+            }
+        }
+        return words
+    }
+    private func prepareEvidence() {
+        guard let review, let state = V2Evidence.board else { return }
+        if state == "DesignReviewPhone" || state == "DesignReviewRound2Phone" { return }
+        model.page = .screen(screens.first?.file ?? "")
+        if state == "DesignReviewNewPhone", let board = screens.first(where: { $0.added }) { model.page = .screen(board.file) }
+        if state == "DesignReviewGridPhone" { model.grid = true }
+        if state == "DesignReviewDecidePhone" || state == "DesignReviewApprovedPhone" { model.page = .decide }
+        if state == "DesignReviewApproveCheckPhone" { model.approvalCheck = true }
+        if state == "DesignReviewHoldPhone" { model.peeking = true }
+        if let board, state == "DesignReviewPinPhone" { model.placePin(board) }
+        if let board, ["DesignReviewDrawPhone", "DesignReviewDrawCommentPhone", "DesignReviewDrawSavedPhone"].contains(state) {
+            model.startDrawing(board)
+            model.appendStroke([.init(x: 0.03, y: 0.08), .init(x: 0.2, y: 0.08)])
+            if state != "DesignReviewDrawPhone" { model.commentOnDrawing(); model.sheetText = "Keep the project name bold." }
+            if state == "DesignReviewDrawSavedPhone" { Task { await model.savePin(client: store.client) } }
+        }
+        if state == "DesignReviewNotePhone", let note = review.changedNotes.first { model.page = .note(note.id) }
+    }
+    private func approve() {
+        if model.requestApproval() { answer("approve") }
     }
     private func compareReason(_ board: V2DesignReview.Board) -> String {
         board.isRemoved ? "No After for this screen" : board.added ? "No Before for this screen" : ""
@@ -325,7 +459,7 @@ struct V2DesignReviewView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 HStack {
-                    Text("\(review?.boards.filter { $0.seen == true }.count ?? 0) of \(review?.boards.count ?? 0) seen").font(.footnote).foregroundStyle(.secondary)
+                    Text("\(review.map(V2ReviewModel.progress) ?? "0 of 0") changes seen").font(.footnote).foregroundStyle(.secondary)
                     Spacer()
                     let next = review.flatMap { V2ReviewModel.nextUnseen($0, after: board?.file) }
                     Button(next == nil ? "All screens seen" : "Next unseen") { if let next { model.page = .screen(next); model.grid = false } }.disabled(next == nil).frame(minHeight: 44)
