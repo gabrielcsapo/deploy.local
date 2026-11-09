@@ -331,6 +331,9 @@ export type DesignReviewPin = {
   id: string;
   number: number;
   drawing?: DesignReviewDrawing;
+  layer?: string;
+  offset?: { x: number; y: number };
+  area?: DesignRect;
   board: string;
   noteId: string | null;
   width: number;
@@ -368,6 +371,23 @@ export type DesignReviewScreen = {
   /** Present with GET review?previews=all; otherwise load /review/preview per viewport. */
   previews?: Record<number, DesignReviewPreview>;
 };
+export type DesignReviewRow = {
+  id: string;
+  title: string;
+  status: 'changed' | 'new' | 'removed' | 'looksSame' | 'pixelsOnly';
+  screens: string[];
+  added: string[];
+  removed: string[];
+  variations: number;
+  nothingElse: boolean;
+  seen: boolean;
+};
+export type DesignApproved = {
+  id: string;
+  title: string;
+  project: string;
+  detail: string;
+};
 export type DesignReviewSummary = {
   id: string;
   title: string;
@@ -390,6 +410,8 @@ export type DesignReview = DesignReviewSummary & {
   updatedWithMainAt: string | null;
   round: number;
   previousItemId: string | null;
+  changes?: DesignReviewRow[];
+  landing?: { at: string; state: 'pending' | 'landed' | 'conflict' };
   boards: DesignReviewScreen[];
   groups: { id: string | null; title: string | null; boards: string[] }[];
   notes: (import('./design').NoteChange & { page: string | null })[];

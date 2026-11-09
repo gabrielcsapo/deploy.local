@@ -1,3 +1,9 @@
+import { reviewEvidence } from '../design/review-evidence.ts';
+import {
+  groupReviewChanges,
+  validReviewAnchor,
+  type ReviewEvidence,
+} from '../../shared/v2/design-review.ts';
 import { gitString, tryGitText } from '../git.ts';
 import { mkdtemp, readFile as readDiskFile, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -717,6 +723,9 @@ function reviewPins(owner: string, context: any): DesignReviewPin[] {
       width: row.position.width,
       revision: row.position.revision,
       ...(row.drawing ? { drawing: row.drawing } : {}),
+      ...(row.layer ? { layer: row.layer } : {}),
+      ...(row.position.offset ? { offset: row.position.offset } : {}),
+      ...(row.position.area ? { area: row.position.area } : {}),
       x: row.position.x,
       y: row.position.y,
       text: row.text,
@@ -803,6 +812,7 @@ const reviewScreensLoading = new Map<string, Promise<DesignReviewScreen[]>>();
 // worked out once per revision and kept: marking a screen seen, saving a pin and the review's
 // poll reuse it. Requests that arrive while it is being built share the one build.
 type ReviewBuilt = {
+  evidence: ReviewEvidence[];
   screens: Omit<DesignReviewScreen, 'seen' | 'conflict'>[];
   afterHashes: Map<string, string>;
   counts: [before: boolean, after: boolean][];
@@ -851,6 +861,7 @@ async function buildReviewScreens(
   const oldPages = originalCanvas ? sections(originalCanvas) : [];
   // Asked at most once: it is the same answer for every board.
   let designSystemDiff: Promise<string | null> | undefined;
+  const evidence: ReviewEvidence[] = [];
   const texts = new Map<string, { original: string; after: string }>();
   const screens: ReviewBuilt['screens'] = await Promise.all(
     paths.map(async (path) => {
@@ -897,7 +908,7 @@ async function buildReviewScreens(
                 ),
             }))
           : [];
-      return {
+      const screen = {
         file,
         title: placed?.title ?? screenName(file),
         w: placed?.w ?? 1440,
@@ -910,16 +921,31 @@ async function buildReviewScreens(
         notes: boardNotes.slice(0, 2000) || null,
         added: !before,
         removed: !after,
-        status: !before ? 'new' : !after ? 'removed' : 'changed',
+        status: (!before ? 'new' : !after ? 'removed' : 'changed') as DesignReviewScreen['status'],
         before: context.previousCommit && !changedSinceReview ? context.base : comparison,
         after: context.commit,
         changes,
         lines: changes.map((change) => change.words),
         changedSinceReview,
       };
+      let rendered;
+      if (before && after) {
+        try {
+          const [a, b] = await Promise.all([
+            renderBoardLayout(repo, screen.before, file, screen.w, screen.h),
+            renderBoardLayout(repo, screen.after, file, screen.w, screen.h),
+          ]);
+          rendered = { before: a, after: b };
+        } catch {
+          /* A review remains usable without Chromium; no pixel claims are made. */
+        }
+      }
+      evidence.push(reviewEvidence(screen, before, after, rendered, context.changeWords?.[file]));
+      return screen;
     }),
   );
   return {
+    evidence,
     screens,
     afterHashes: new Map(paths.map((path) => [path, sha1(texts.get(path)!.after)])),
     counts: reviewBoardPaths(context).map((path) => [
@@ -1029,6 +1055,18 @@ export async function designReview(owner: string, project: any, row: any): Promi
     round: context.round ?? 1,
     previousItemId: context.previousItemId ?? null,
     boards,
+    changes: groupReviewChanges(
+      boards.map((board) => ({
+        ...revision.evidence.find((entry) => entry.file === board.file)!,
+        seen: board.seen,
+      })),
+      [
+        project.name,
+        ...list('app', owner)
+          .filter((app) => app.projectId === project.id)
+          .map((app) => app.name),
+      ],
+    ),
     groups,
     notes,
     pins: reviewPins(owner, context),
@@ -1081,11 +1119,14 @@ async function mutateReviewPin(owner: string, project: any, method: string, body
           !Number.isFinite(width) ||
           x < 0 ||
           y < 0 ||
-          !(board ? board.widths : [1440, 700, 390]).includes(width) ||
+          !Number.isInteger(width) ||
+          width < 320 ||
+          width > 2560 ||
           x > width ||
           y > (board?.h ?? 100000)
         )
           fail('Invalid pin coordinates');
+        if (!validReviewAnchor(body, width, board?.h ?? 100000)) fail('Invalid note anchor');
         if (body.drawing !== undefined) {
           const drawing = body.drawing;
           if (
@@ -1110,12 +1151,20 @@ async function mutateReviewPin(owner: string, project: any, method: string, body
           projectId: project.id,
           reviewItemId: row.id,
           board: board?.file ?? 'canvas.json',
-          layer: null,
+          layer: body.layer ?? null,
           text,
           author: owner,
           commit: revision,
           number: Math.max(0, ...existing.map((entry) => entry.number ?? 0)) + 1,
-          position: { width, revision, x, y, noteId: note ? note.id : null },
+          position: {
+            width,
+            revision,
+            x,
+            y,
+            noteId: note ? note.id : null,
+            offset: body.offset,
+            area: body.area,
+          },
           ...(body.drawing ? { drawing: body.drawing } : {}),
           resolved: false,
           createdAt: now(),
@@ -1382,7 +1431,12 @@ function comments(owner: string, projectId: string, board?: string | null) {
 }
 
 // Renders are keyed by commit, so a cached one never goes stale.
-type BoardRender = { png: Buffer; boxes: Record<string, DesignRect>; textBoxes?: DesignRect[] };
+type BoardRender = {
+  png: Buffer;
+  boxes: Record<string, DesignRect>;
+  textBoxes?: DesignRect[];
+  words?: Record<string, string>;
+};
 const renders = new Map<string, BoardRender>();
 const rendering = new Map<string, Promise<BoardRender>>();
 const renderLimit = 64;
@@ -1409,7 +1463,11 @@ function writeRender(key: string, rendered: BoardRender) {
     writeFileSync(`${path}.png`, rendered.png);
     writeFileSync(
       `${path}.json`,
-      JSON.stringify({ boxes: rendered.boxes, textBoxes: rendered.textBoxes }),
+      JSON.stringify({
+        boxes: rendered.boxes,
+        textBoxes: rendered.textBoxes,
+        words: rendered.words,
+      }),
     );
     if (++rendersWritten % 50 === 0) pruneRenders();
   } catch {
@@ -1574,9 +1632,10 @@ async function drawBoard(
       const tab = await context.newPage();
       await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
       await tab.evaluate(() => document.fonts.ready);
-      const { boxes, textBoxes } = await tab.evaluate(() => {
+      const { boxes, textBoxes, words } = await tab.evaluate(() => {
         const boxes: Record<string, { x: number; y: number; w: number; h: number }> = {};
         const textBoxes = [];
+        const words: Record<string, string> = {};
         for (const element of document.querySelectorAll<HTMLElement>('[data-layer]')) {
           const rect = element.getBoundingClientRect();
           if (
@@ -1591,6 +1650,9 @@ async function drawBoard(
             continue;
           const box = { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
           boxes[element.dataset.layer!] = box;
+          words[element.dataset.layer!] = (element.innerText ?? element.textContent ?? '')
+            .replace(/\s+/g, ' ')
+            .trim();
           if (
             ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName) ||
             Array.from(element.childNodes).some(
@@ -1599,10 +1661,10 @@ async function drawBoard(
           )
             textBoxes.push(box);
         }
-        return { boxes, textBoxes };
+        return { boxes, textBoxes, words };
       });
       const png = await tab.screenshot();
-      return { png, boxes, textBoxes };
+      return { png, boxes, textBoxes, words };
     } finally {
       await context.close();
     }
@@ -2477,16 +2539,25 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const body = await readJson(req);
     const row = reviewRow(owner, project.id, body?.item);
     const review = await designReview(owner, project, row);
-    const board = review.boards.find((entry) => entry.file === body?.board);
-    if (!board || body?.revision !== review.after)
-      fail('Name a screen at this proposal revision', 409);
-    save('design-review-seen', owner, {
-      id: `${row.id}:${board!.file}`,
-      itemId: row.id,
-      board: board!.file,
-      revision: review.after,
-      seenAt: now(),
-    });
+    const files = body?.boards ?? [body?.board];
+    if (
+      !Array.isArray(files) ||
+      !files.length ||
+      files.length > review.boards.length ||
+      files.some((file) => !review.boards.some((board) => board.file === file)) ||
+      body?.revision !== review.after
+    )
+      fail('Name screens at this proposal revision', 409);
+    db.transaction(() => {
+      for (const file of new Set(files))
+        save('design-review-seen', owner, {
+          id: `${row.id}:${file}`,
+          itemId: row.id,
+          board: file,
+          revision: review.after,
+          seenAt: now(),
+        });
+    }).immediate();
     return sendJson(res, { seen: true });
   }
 

@@ -1,5 +1,7 @@
 import type {
   DesignRect,
+  DesignReviewRow,
+  DesignReviewPin,
   DesignReviewDrawing,
   DesignReviewChange,
   DesignReviewPreview,
@@ -171,5 +173,117 @@ export function reviewDrawingPath(
           `${index ? 'L' : 'M'}${point.x * drawing.nativeWidth} ${point.y * drawing.nativeHeight}`,
       )
       .join(' ') + (stroke.length === 1 ? ' l0 0' : '')
+  );
+}
+
+/** Evidence is collected at native width on the server; this grouping has no IO. */
+export type ReviewEvidence = {
+  file: string;
+  title: string;
+  status: DesignReviewRow['status'];
+  regions: { layer: string; title: string; added: string[]; removed: string[] }[];
+  changeWords?: string;
+  nothingElse: boolean;
+  seen: boolean;
+  changedSinceReview?: boolean;
+};
+export function groupReviewChanges(
+  screens: ReviewEvidence[],
+  names: string[] = [],
+): DesignReviewRow[] {
+  const mask = (text: string) => {
+    for (const name of [...names].filter(Boolean).sort((a, b) => b.length - a.length))
+      text = text.split(name).join('{name}');
+    return text.replace(/\s+/g, ' ').trim();
+  };
+  const groups = new Map<string, { row: DesignReviewRow; removals: string[] }>();
+  for (const screen of screens) {
+    const added = [...new Set(screen.regions.flatMap((region) => region.added))];
+    const removed = [...new Set(screen.regions.flatMap((region) => region.removed))];
+    const signature = screen.regions
+      .map((region) => ({
+        layer: region.layer.replace(/-\d+$/, ''),
+        added: region.added.map(mask).sort(),
+      }))
+      .sort((a, b) => a.layer.localeCompare(b.layer));
+    // A second region or unaccounted-for pixels must never hide in a repeated-change row.
+    const canGroup =
+      screen.nothingElse &&
+      screen.regions.length === 1 &&
+      !['new', 'removed', 'pixelsOnly'].includes(screen.status);
+    const key = canGroup
+      ? JSON.stringify([screen.status, screen.changedSinceReview ?? true, signature])
+      : screen.file;
+    const removal = JSON.stringify(removed.map(mask).sort());
+    const existing = groups.get(key);
+    if (existing) {
+      existing.row.screens.push(screen.file);
+      existing.row.seen &&= screen.seen;
+      existing.removals.push(removal);
+    } else
+      groups.set(key, {
+        row: {
+          id: screen.file,
+          title: screen.changeWords || screen.regions[0]?.title || screen.title,
+          status: screen.status,
+          screens: [screen.file],
+          added,
+          removed,
+          variations: 0,
+          nothingElse: screen.nothingElse,
+          seen: screen.seen,
+        },
+        removals: [removal],
+      });
+  }
+  return [...groups.values()].map(({ row, removals }) => {
+    const counts = new Map<string, number>();
+    for (const removal of removals) counts.set(removal, (counts.get(removal) ?? 0) + 1);
+    row.variations = removals.length - Math.max(...counts.values());
+    return row;
+  });
+}
+
+/** Anchors follow the element through reflow. Missing layers retain legacy coordinates. */
+export function reviewNotePosition(
+  pin: Pick<DesignReviewPin, 'x' | 'y' | 'layer' | 'offset'>,
+  boxes: Record<string, DesignRect>,
+) {
+  const box = pin.layer && boxes[pin.layer];
+  return box && pin.offset
+    ? { x: box.x + box.w * pin.offset.x, y: box.y + box.h * pin.offset.y }
+    : { x: pin.x, y: pin.y };
+}
+export function validReviewAnchor(
+  value: { layer?: unknown; offset?: any; area?: any },
+  width: number,
+  height: number,
+) {
+  const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+  if (
+    value.layer !== undefined &&
+    (typeof value.layer !== 'string' || !/^[a-z0-9-]{1,64}$/.test(value.layer))
+  )
+    return false;
+  if (
+    value.offset !== undefined &&
+    (!value.layer ||
+      !value.offset ||
+      ![value.offset.x, value.offset.y].every((n) => finite(n) && n >= 0 && n <= 1))
+  )
+    return false;
+  const a = value.area;
+  return (
+    a === undefined ||
+    !!(
+      a &&
+      [a.x, a.y, a.w, a.h].every(finite) &&
+      a.x >= 0 &&
+      a.y >= 0 &&
+      a.w > 0 &&
+      a.h > 0 &&
+      a.x + a.w <= width &&
+      a.y + a.h <= height
+    )
   );
 }
