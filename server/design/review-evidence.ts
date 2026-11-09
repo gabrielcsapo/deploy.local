@@ -150,6 +150,12 @@ export function reviewEvidence(
         )
         .match(/<svg\b/g) ?? []
     ).length;
+  const changedIcons = (region: string, side: 'added' | 'removed') =>
+    changes.some((change) => {
+      if (change.change !== side || regionFor(change.layer).layer !== region) return false;
+      const snippet = layerSnippet(side === 'added' ? after : before, change.layer) ?? '';
+      return icons(snippet) > 0 && words(snippet) === '';
+    });
   for (const change of changes) {
     const region = regionFor(change.layer);
     if (regions.has(region.layer)) continue;
@@ -178,11 +184,13 @@ export function reviewEvidence(
       added: added ? [added] : [],
       removed: removed ? [removed] : [],
       addedIcon:
+        changedIcons(region.layer, 'added') ||
         icons(layerSnippet(after, region.layer) ?? '') >
-        icons(layerSnippet(before, region.layer) ?? ''),
+          icons(layerSnippet(before, region.layer) ?? ''),
       removedIcon:
+        changedIcons(region.layer, 'removed') ||
         icons(layerSnippet(before, region.layer) ?? '') >
-        icons(layerSnippet(after, region.layer) ?? ''),
+          icons(layerSnippet(after, region.layer) ?? ''),
     });
   }
   let status: ReviewEvidence['status'] = screen.status;

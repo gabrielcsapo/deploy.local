@@ -64,7 +64,7 @@ test('link targets look the same; CSS-only pixels are explicit; missing renders 
 });
 
 test('removed glyphs and added lone SVGs have unnamed icon evidence', () => {
-  const screen = { file: 'A', title: 'A', status: 'changed' as const };
+  const screen = { file: 'A', title: 'A', status: 'changed' as const, changedSinceReview: true };
   const old =
     '<header class="dl-head" data-layer="head"><span data-layer="glyph" class="dl-glyph"><svg></svg></span><b data-layer="label">Project</b></header>';
   const next =
@@ -74,4 +74,16 @@ test('removed glyphs and added lone SVGs have unnamed icon evidence', () => {
     reviewEvidence(screen, next, old.replace('class="dl-glyph"', '')).regions[0].addedIcon,
     true,
   );
+});
+
+test('replacing two textless icon layers records both sides without naming either', () => {
+  const screen = { file: 'A', title: 'A', status: 'changed' as const, changedSinceReview: true };
+  const old =
+    '<header class="dl-head" data-layer="head"><svg data-layer="old-icon"><path d="M0 0"/></svg></header>';
+  const next = old.replace('old-icon', 'new-icon');
+  const region = reviewEvidence(screen, old, next).regions[0];
+  assert.equal(region.addedIcon, true);
+  assert.equal(region.removedIcon, true);
+  assert.deepEqual(region.added, []);
+  assert.deepEqual(region.removed, []);
 });

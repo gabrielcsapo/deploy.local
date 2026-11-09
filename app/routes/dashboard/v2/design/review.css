@@ -1916,5 +1916,5 @@ button.dl-rv-row-top {
   overflow: hidden;
 }
 .dl-rv-addressed {
-  color: var(--success);
+  color: var(--ds-success);
 }
