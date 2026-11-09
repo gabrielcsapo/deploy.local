@@ -141,9 +141,25 @@ const baseline = {
   },
 };
 save('v2-inbox-native', owner, baseline);
+let phoneReady: { board: string; failed: number } | null = null;
 let currentState = 'DesignReview';
 let currentItemId = item.id;
 const reset = (state: string) => {
+  phoneReady = null;
+  if (state.endsWith('Phone')) {
+    state = state.replace(/Phone$/, '');
+    if (
+      [
+        'DesignReviewDrawComment',
+        'DesignReviewDrawSaved',
+        'DesignReviewPin',
+        'DesignReviewGrid',
+        'DesignReviewDecide',
+        'DesignReviewHold',
+      ].includes(state)
+    )
+      state = 'DesignReview';
+  }
   currentState = state;
   currentItemId = item.id;
   for (const kind of [
@@ -158,6 +174,18 @@ const reset = (state: string) => {
     for (const row of list(kind, owner)) remove(kind, owner, row.id);
   git('update-ref', 'refs/heads/main', base);
   save('v2-inbox-native', owner, baseline);
+  if (state === 'DesignReviewWords') {
+    const changeWords = { ...baseline.context.changeWords };
+    delete changeWords['ProjectsPhone.html'];
+    currentItemId = `${item.id}-words`;
+    remove('v2-inbox-native', owner, item.id);
+    save('v2-inbox-native', owner, {
+      ...baseline,
+      id: currentItemId,
+      item: { ...baseline.item, id: currentItemId },
+      context: { ...baseline.context, changeWords },
+    });
+  }
   if (state === 'DesignReviewDiffSeveral')
     save('v2-inbox-native', owner, {
       ...baseline,
@@ -284,6 +312,14 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(value));
   };
   try {
+    if (url.pathname === '/__fixture/native-ready') {
+      phoneReady = {
+        board: url.searchParams.get('board') ?? '',
+        failed: Number(url.searchParams.get('failed') ?? 0),
+      };
+      return send({ ok: true });
+    }
+    if (url.pathname === '/__fixture/native-status') return send(phoneReady);
     if (url.pathname === '/__fixture') {
       reset(url.searchParams.get('state') ?? 'DesignReview');
       const destination =
@@ -310,6 +346,16 @@ const server = createServer(async (req, res) => {
       }
       return send(review);
     }
+    if (url.pathname === '/api/workspace/state')
+      return send({
+        version: 1,
+        cursor: 1,
+        projects: [],
+        tasks: [],
+        workers: [],
+        runs: [],
+        adapters: [],
+      });
     if (url.pathname === '/api/user') return send({ username: owner, role: 'admin' });
     if (url.pathname === '/api/nodes') return send({ nodes: [] });
     if (url.pathname === '/api/v2/auth/account')

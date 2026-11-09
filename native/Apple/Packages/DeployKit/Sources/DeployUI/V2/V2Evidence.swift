@@ -31,6 +31,12 @@ enum V2Evidence {
     }
     // A fresh cache per launch keeps prior drafts/events and pending sends out of captures.
     private static let captureCache = FileManager.default.temporaryDirectory.appendingPathComponent("agents-p1-" + UUID().uuidString)
+    @MainActor static func reviewReady(failed: Int) async {
+        guard reviewBoard, let origin = fixtureURL, let board else { return }
+        var components = URLComponents(url: origin.appendingPathComponent("__fixture/native-ready"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [.init(name: "board", value: board), .init(name: "failed", value: String(failed))]
+        if let url = components.url { _ = try? await URLSession.shared.data(from: url) }
+    }
     static var reviewBoard: Bool { fixtureURL?.port == 5180 && board?.hasPrefix("DesignReview") == true }
     static var cacheDirectory: URL? { agentsBoard == nil && !loadingBoard && !reviewBoard ? nil : captureCache }
     static var loadingBoard: Bool {

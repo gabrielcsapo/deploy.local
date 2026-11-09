@@ -29,7 +29,7 @@ try {
     if (state !== 'loading') {
       await page.locator('.dl-rv-live-surface iframe').last().waitFor({ timeout: 90000 });
       await page.locator('.dl-rv-stage-loading').waitFor({ state: 'hidden', timeout: 30000 });
-      if (state === 'DesignReviewWipe') {
+      if (state === 'DesignReviewWipe' || state === 'DesignReviewWords') {
         if (width <= 820) await page.locator('.dl-rv-pick').click();
         await page
           .getByRole('button', { name: /Projects on iPhone/ })

@@ -48,6 +48,13 @@ struct V2DesignReviewView: View {
         guard case .note(let id) = model.page else { return nil }
         return review?.changedNotes.first { $0.id == id }
     }
+    private var reviewPosition: (value: Double, total: Double) {
+        if let board, let review {
+            let rows = V2ReviewModel.rows(review)
+            return (Double((rows.firstIndex { $0.screens.contains(board.file) } ?? 0) + 1), Double(max(1, rows.count)))
+        }
+        return (Double(pages.firstIndex(of: model.page) ?? 0), Double(max(1, pages.count - 1)))
+    }
     private var canDecide: Bool { model.decisionsReady && store.online && !store.busy && review?.stale != true }
     private var seenKey: String {
         guard active, scenePhase == .active, !model.obscured else { return "" }
@@ -162,7 +169,10 @@ struct V2DesignReviewView: View {
         }
         .task(id: "\(item.id)@\(displayScale)") {
             await model.load(client: store.client, item: item, scale: displayScale)
-            if V2Evidence.reviewBoard { prepareEvidence() }
+            if V2Evidence.reviewBoard {
+                prepareEvidence()
+                await V2Evidence.reviewReady(failed: model.failed.count + (model.review == nil ? 1 : 0))
+            }
         }
         .task(id: seenKey) {
             let key = seenKey
@@ -301,6 +311,7 @@ struct V2DesignReviewView: View {
                             Text(pin.noteId.flatMap { id in review.changedNotes.first { $0.id == id }?.title } ?? review.boards.first { $0.file == pin.board }?.name ?? pin.board).font(.footnote).foregroundStyle(.secondary)
                             if replies {
                                 Label(pin.resolved ? "Addressed" : "Still open", systemImage: pin.resolved ? "checkmark" : "circle").font(.footnote)
+                                    .foregroundStyle(pin.resolved ? WorkspaceStyle.success(scheme) : WorkspaceStyle.secondary(scheme))
                                 if let reply = pin.reply { Text(reply).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading)
@@ -328,7 +339,9 @@ struct V2DesignReviewView: View {
                 }
                 if model.canCompare(board) {
                     HStack(spacing: 16) {
-                        Text("Old")
+                        Text("Old").frame(minHeight: 44)
+                            .onLongPressGesture(minimumDuration: 0.3, pressing: { model.peeking = $0 }, perform: {})
+                            .accessibilityHint("Hold to show Old; release to restore the comparison")
                         Slider(value: $model.amount, in: 0...1).accessibilityLabel("Old to new")
                             .accessibilityValue("\(Int(model.amount * 100)) percent New")
                         Text("New")
@@ -381,7 +394,7 @@ struct V2DesignReviewView: View {
                         Text("\(seen ? "Seen" : "Not seen")\(pins == 0 && board?.changeKind != "changed" ? "" : " · \(V2ReviewModel.count(pins, "pin"))")")
                     }
                 }.font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                ProgressView(value: Double(pages.firstIndex(of: model.page) ?? 0), total: Double(max(1, pages.count - 1)))
+                ProgressView(value: reviewPosition.value, total: reviewPosition.total)
                     .tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Review position").padding(.top, 8)
             }
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12).overlay(alignment: .top) { Divider() }
