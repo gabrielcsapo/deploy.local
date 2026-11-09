@@ -360,12 +360,25 @@ test('accepting an agent’s changes puts them on a design branch, never straigh
 test('proposing asks in Waiting on you; approving puts the design on main, asking for changes notes it', async () => {
   const { answerInboxAsync: answerInbox, syncInbox } = await import('./inbox.ts');
   assert.equal(
-    (await call('/propose', { method: 'POST', body: JSON.stringify({ ref: 'main' }) })).status,
+    (
+      await call('/propose', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'welcome title',
+          summary: 'Update the design for review.',
+          ref: 'main',
+        }),
+      })
+    ).status,
     400,
   );
   const proposed = await call('/propose', {
     method: 'POST',
-    body: JSON.stringify({ ref: 'design/welcome-title' }),
+    body: JSON.stringify({
+      title: 'welcome title',
+      summary: 'Update the design for review.',
+      ref: 'design/welcome-title',
+    }),
   });
   assert.equal(proposed.status, 201);
   const { item } = await proposed.json();
@@ -385,7 +398,11 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   const again = await (
     await call('/propose', {
       method: 'POST',
-      body: JSON.stringify({ ref: 'design/welcome-title' }),
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: 'design/welcome-title',
+      }),
     })
   ).json();
   assert.equal(again.item.id, item.id);
@@ -410,7 +427,14 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
   await git(['branch', '-f', 'task/ab12cd34', 'HEAD']);
   await git(['checkout', '-q', '-f', 'main']);
   const forTask = await (
-    await call('/propose', { method: 'POST', body: JSON.stringify({ task: 'ab12cd34-0000' }) })
+    await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        task: 'ab12cd34-0000',
+      }),
+    })
   ).json();
   assert.equal(forTask.item.taskId, 'ab12cd34-0000');
   save('run', 'alice', { id: 'design-feedback-run', taskId: 'ab12cd34-0000', status: 'running' });
@@ -457,7 +481,11 @@ test('approving a design that removes a board works in a bare repository', async
   const proposed = await fetch(`${origin}/api/v2/projects/bare-site/design/propose`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-test-owner': 'alice' },
-    body: JSON.stringify({ ref: 'design/drop-old' }),
+    body: JSON.stringify({
+      ref: 'design/drop-old',
+      title: 'Remove the old screen',
+      summary: 'Remove the unused screen.',
+    }),
   });
   const proposal = await proposed.json();
   assert.equal(proposed.status, 201, JSON.stringify(proposal));
@@ -764,7 +792,14 @@ test('Assets lists the library and its use, and approving a library change updat
     [path]: library('<em class="dl-tag">{{label}}</em>'),
   });
   const { item } = await (
-    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: 'design/tag-style' }) })
+    await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: 'design/tag-style',
+      }),
+    })
   ).json();
   await answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
   assert.match(
@@ -790,7 +825,14 @@ test('approving one design branch keeps what another approval added to main sinc
   ).json();
   for (const ref of [board.branch, note.branch]) {
     const { item } = await (
-      await call('/propose', { method: 'POST', body: JSON.stringify({ ref }) })
+      await call('/propose', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'welcome title',
+          summary: 'Update the design for review.',
+          ref,
+        }),
+      })
     ).json();
     await answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
   }
@@ -815,7 +857,18 @@ test('approving stops when main rewrote the same lines of a board since the bran
     ).json();
   const [first, second] = [await edit('Hello there'), await edit('Hi again')];
   const propose = async (ref: string) =>
-    (await (await call('/propose', { method: 'POST', body: JSON.stringify({ ref }) })).json()).item;
+    (
+      await (
+        await call('/propose', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: 'welcome title',
+            summary: 'Update the design for review.',
+            ref,
+          }),
+        })
+      ).json()
+    ).item;
   await answerInbox('alice', (await propose(first.branch)).id, { actionId: 'approve', on: 'web' });
   const later = await propose(second.branch);
   await assert.rejects(
@@ -909,7 +962,14 @@ test('a review of a canvas note says so in words and gives its lines before and 
     })
   ).json();
   const { item } = await (
-    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: note.branch }) })
+    await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: note.branch,
+      }),
+    })
   ).json();
   assert.equal(item.text, `The note “Gutters” was added on ${note.branch}.`);
   const review = await (await call(`/review?item=${encodeURIComponent(item.id)}`)).json();
@@ -945,7 +1005,11 @@ test('review identifies new and removed boards and preserves the removed board d
   try {
     const response = await call('/propose', {
       method: 'POST',
-      body: JSON.stringify({ ref: 'design/compare-states' }),
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: 'design/compare-states',
+      }),
     });
     assert.equal(response.status, 201);
     const { item } = await response.json();
@@ -998,7 +1062,11 @@ test('a newer commit withdraws the older request and tells clients, which replay
     const { item } = await (
       await call('/propose', {
         method: 'POST',
-        body: JSON.stringify({ ref: 'design/withdraw-me' }),
+        body: JSON.stringify({
+          title: 'welcome title',
+          summary: 'Update the design for review.',
+          ref: 'design/withdraw-me',
+        }),
       })
     ).json();
     await git(['checkout', 'design/withdraw-me']);
@@ -1077,6 +1145,7 @@ async function reviewFixture(name: string) {
     const response = await callReview('/propose', {
       ref: 'design/review',
       title: 'Agents you make yourself',
+      summary: 'Keep sources beside preferences and let suggestions wrap.',
       ...extra,
     });
     await run(['checkout', '-q', checkedOut]);
@@ -1115,7 +1184,17 @@ test('review stores proposer summary and plain title, returns actual attribution
   assert.equal(landing.proposals[0].title, item.title);
   assert.deepEqual(landing.proposals[0].counts, { screens: 2, changed: 2, new: 0, removed: 0 });
   const other = await reviewFixture('review-legacy');
-  assert.equal((await other.read(await other.propose())).summary, null);
+  const legacy = await other.propose();
+  const legacyRow = (await import('../workspace/store.ts')).get(
+    'v2-inbox-native',
+    'alice',
+    legacy.id,
+  );
+  save('v2-inbox-native', 'alice', {
+    ...legacyRow,
+    context: { ...legacyRow.context, summary: null },
+  });
+  assert.equal((await other.read(legacy)).summary, null);
   assert.equal(
     (await f.call('/propose', { ref: 'design/review', summary: 'x'.repeat(4001) })).status,
     400,
@@ -1863,7 +1942,15 @@ test('concurrent edits to one branch all land, one on top of the other', async (
   ).branch.name as string;
   const start = await git(['rev-parse', branch]);
   const post = (path: string, body: object) =>
-    call(path, { method: 'POST', body: JSON.stringify({ ref: branch, ...body }) });
+    call(path, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: branch,
+        ...body,
+      }),
+    });
   const responses = await Promise.all([
     ...['one', 'two', 'three'].map((text) =>
       post('/canvas', { op: 'note', x: 0, y: 0, text: `Note ${text}` }),
@@ -1945,7 +2032,14 @@ test('two people approving at once make one commit on main; the other hears it w
   await git(['commit', '-qm', 'Add a board']);
   await git(['checkout', '-q', '-f', 'main']);
   const { item } = await (
-    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: onlyOnce }) })
+    await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: onlyOnce,
+      }),
+    })
   ).json();
   const before = await git(['rev-parse', 'main']);
   const answers = await Promise.all(
@@ -1971,7 +2065,14 @@ test('a review and a proposal of the same commit can overlap its approval', asyn
   await git(['commit', '-qm', 'Add a board']);
   await git(['checkout', '-q', '-f', 'main']);
   const { item } = await (
-    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: name }) })
+    await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: name,
+      }),
+    })
   ).json();
   // The proposal's reviewer reads while it is decided: never a half-made answer or a server error.
   const [answer, review, proposed] = await Promise.all([
@@ -1982,7 +2083,14 @@ test('a review and a proposal of the same commit can overlap its approval', asyn
     }),
     call(`/review?item=${encodeURIComponent(item.id)}`),
     // Proposing the same commit while it is decided returns the request as it stands.
-    call('/propose', { method: 'POST', body: JSON.stringify({ ref: name }) }),
+    call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: name,
+      }),
+    }),
   ]);
   assert.equal(answer.status, 200);
   assert.equal(review.status, 200);
@@ -2003,7 +2111,14 @@ test('pins dropped at the same moment get their own numbers', async () => {
   await git(['commit', '-qm', 'Pinned']);
   await git(['checkout', '-q', '-f', 'main']);
   const { item } = await (
-    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: name }) })
+    await call('/propose', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'welcome title',
+        summary: 'Update the design for review.',
+        ref: name,
+      }),
+    })
   ).json();
   const query = `/review?item=${encodeURIComponent(item.id)}`;
   const review = await (await call(query)).json();
@@ -2033,4 +2148,82 @@ test('pins dropped at the same moment get their own numbers', async () => {
     after.pins.map((pin: any) => pin.number),
     [1, 2, 3, 4],
   );
+});
+
+test('web and agent proposals require both meaningful fields', async () => {
+  const f = await reviewFixture('review-required');
+  for (const extra of [
+    {},
+    { title: 'Title' },
+    { summary: 'Summary' },
+    { title: ' ', summary: 'Summary' },
+  ]) {
+    assert.equal((await f.call('/propose', { ref: 'design/review', ...extra })).status, 400);
+  }
+  const { proposeDesign } = await import('./design.ts');
+  await assert.rejects(
+    () => proposeDesign('alice', f.project, { ref: 'design/review', title: 'Title' }),
+    /title and a summary/,
+  );
+});
+
+test('delayed approval persists, undo restores waiting, and a fresh worker lands it once', async () => {
+  const f = await reviewFixture('review-delayed');
+  const item = await f.propose();
+  const { answerInboxAsync } = await import('./inbox.ts');
+  const { landDesignApprovals } = await import('./design.ts');
+  const before = await f.run(['rev-parse', 'main']);
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web', delay: true });
+  const review = await f.read(item);
+  assert.equal(review.landing.state, 'pending');
+  assert.equal(await f.run(['rev-parse', 'main']), before);
+  await landDesignApprovals(Date.parse(review.landing.at) - 1);
+  assert.equal(await f.run(['rev-parse', 'main']), before);
+  assert.equal((await f.call('/review/undo', { item: item.id })).status, 200);
+  await landDesignApprovals(Date.parse(review.landing.at) + 1);
+  assert.equal(await f.run(['rev-parse', 'main']), before);
+  assert.equal((await f.read(item)).item.state, 'waiting');
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web', delay: true });
+  const pending = await f.read(item);
+  // A new process loads only persisted records, as on a server restart.
+  const { execFileSync } = await import('node:child_process');
+  execFileSync(
+    process.execPath,
+    [
+      '--import',
+      'tsx',
+      '--input-type=module',
+      '-e',
+      `const { landDesignApprovals } = await import('./server/v2/design.ts'); await landDesignApprovals(${Date.parse(pending.landing.at) + 1});`,
+    ],
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, DEPLOY_DATA_DIR: root, DEPLOY_MDNS_ADDRESS: '127.0.0.1' },
+    },
+  );
+  const landed = await f.run(['rev-parse', 'main']);
+  assert.notEqual(landed, before);
+  assert.equal((await f.read(item)).landing.state, 'landed');
+  await landDesignApprovals(Date.parse(pending.landing.at) + 1);
+  assert.equal(await f.run(['rev-parse', 'main']), landed);
+  assert.equal((await f.call('/review/undo', { item: item.id })).status, 409);
+});
+
+test('a conflict at delayed landing returns the review to waiting', async () => {
+  const f = await reviewFixture('review-delayed-conflict');
+  const item = await f.propose();
+  const { answerInboxAsync } = await import('./inbox.ts');
+  const { landDesignApprovals } = await import('./design.ts');
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web', delay: true });
+  const pending = await f.read(item);
+  await f.run(['checkout', '-q', 'main']);
+  writeFileSync(
+    join(f.path, 'design/boards/Alpha.html'),
+    '<p data-layer="other">Conflicting main</p>',
+  );
+  await f.commit('Change the same screen on main');
+  await landDesignApprovals(Date.parse(pending.landing.at) + 1);
+  const review = await f.read(item);
+  assert.equal(review.item.state, 'waiting');
+  assert.equal(review.landing.state, 'conflict');
 });

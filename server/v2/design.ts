@@ -31,7 +31,7 @@ import {
   gitRead as readGitOutput,
   repositoryGit,
 } from '../workspace/repository-git.ts';
-import { db, event, get, id, list, now, save } from '../workspace/store.ts';
+import { db, event, get, id, list, now, remove, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { readJson, sendJson } from './attachments.ts';
 import { createInboxItem, registerInboxSource, syncInbox } from './inbox.ts';
@@ -1054,6 +1054,7 @@ export async function designReview(owner: string, project: any, row: any): Promi
     updatedWithMainAt: mainTime,
     round: context.round ?? 1,
     previousItemId: context.previousItemId ?? null,
+    landing: list('design-review-landing', owner).find((entry) => entry.id === row.id),
     boards,
     changes: groupReviewChanges(
       boards.map((board) => ({
@@ -1188,6 +1189,7 @@ export async function proposeDesign(
 ) {
   const title = optionalWords(input.title, 200);
   const summary = optionalWords(input.summary, 4000);
+  if (!title || !summary) fail('A proposal needs a title and a summary');
   const changeWords = validateChangeWords(input.changeWords);
   // With the lock, a proposal never replaces one that is being approved at that moment.
   return withRepositoryWrites(project.repositoryPath, async () => {
@@ -1301,6 +1303,8 @@ async function prepareDecision(
   if (body.actionId === 'update' && !status.conflicts.length)
     fail('This proposal has no conflicts with main. Refresh the review.', 409);
   if (body.actionId !== 'approve') return { conflicts: status.conflicts };
+  if (body.delay === true)
+    return { conflicts: status.conflicts, landingAt: new Date(Date.now() + 30000).toISOString() };
   // Use exactly the commit checked above; update-ref below rejects a concurrent main move.
   const target = status.main;
   const merged = await mergedWrites(repo, {
@@ -1318,7 +1322,7 @@ async function prepareDecision(
     paths: context.paths,
     writes: [...merged, ...instances],
     branch: context.main,
-    message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
+    message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}${body.landingId ? `\n\nDesign-Review: ${body.landingId}` : ''}`,
     by: owner,
   });
   return { conflicts: status.conflicts, commit };
@@ -1337,6 +1341,14 @@ function decideDesign(
   const project = requireRepository(owner, context.projectId);
   const status = prepared;
   if (body.actionId === 'approve') {
+    if (prepared.landingAt) {
+      save('design-review-landing', owner, {
+        id: item.id,
+        at: prepared.landingAt,
+        state: 'pending',
+      });
+      return;
+    }
     const commit = prepared.commit!;
     save('project', owner, {
       ...get('project', owner, project.id),
@@ -1403,6 +1415,88 @@ registerInboxSource('design', decideDesign, async ({ owner, body, context, check
   );
 });
 
+/** Persisted jobs are scanned on boot and each second; no in-memory timer owns a decision. */
+export async function landDesignApprovals(clock = Date.now()) {
+  const jobs = db
+    .prepare("SELECT owner,data FROM records WHERE kind='design-review-landing'")
+    .all() as { owner: string; data: string }[];
+  for (const saved of jobs) {
+    const job = JSON.parse(saved.data);
+    if (job.state !== 'pending' || Date.parse(job.at) > clock) continue;
+    const owner = saved.owner;
+    const row = get('v2-inbox-native', owner, job.id);
+    const project = requireRepository(owner, row.context.projectId);
+    await withRepositoryWrites(project.repositoryPath, async () => {
+      const current = get('design-review-landing', owner, job.id);
+      if (current.state !== 'pending') return;
+      try {
+        // Recover the tiny crash window after update-ref but before the database transaction.
+        const landed = await gitRead(project.repositoryPath, [
+          'log',
+          `refs/heads/${row.context.main}`,
+          '--fixed-strings',
+          '--grep',
+          `Design-Review: ${job.id}`,
+          '--format=%H',
+          '-1',
+        ]);
+        const prepared = landed
+          ? { commit: landed, conflicts: [] }
+          : await prepareDecision(
+              owner,
+              project.repositoryPath,
+              row.item,
+              { actionId: 'approve', landingId: job.id },
+              row.context,
+            );
+        db.transaction(() => {
+          decideDesign(owner, row.item, { actionId: 'approve' }, row.context, prepared);
+          save('design-review-landing', owner, {
+            ...current,
+            state: 'landed',
+            commit: prepared.commit,
+          });
+          event(owner, project.id, null, 'v2.inbox', { item: row.item });
+        }).immediate();
+      } catch (error) {
+        if ((error as { status?: number }).status !== 409) throw error;
+        restoreDesignWaiting(owner, row, { ...current, state: 'conflict' });
+      }
+    });
+  }
+}
+function restoreDesignWaiting(owner: string, row: any, landing?: any) {
+  return db
+    .transaction(() => {
+      const item = { ...row.item, state: 'waiting' as const, answer: undefined };
+      save('v2-inbox-native', owner, { ...row, item });
+      remove('v2-inbox-answer', owner, row.id);
+      if (landing) save('design-review-landing', owner, landing);
+      else remove('design-review-landing', owner, row.id);
+      event(owner, row.context.projectId, null, 'v2.inbox', { item });
+      return item;
+    })
+    .immediate();
+}
+export function startDesignApprovals() {
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await landDesignApprovals();
+    } catch (error) {
+      console.error('Design approval will retry:', error);
+    } finally {
+      running = false;
+    }
+  };
+  void run();
+  const timer = setInterval(() => void run(), 1000);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+
 function presentComment(row: any) {
   return {
     id: row.id,
@@ -1438,6 +1532,7 @@ type BoardRender = {
   words?: Record<string, string>;
 };
 const renders = new Map<string, BoardRender>();
+const renderers = new Map<string, typeof drawBoard>();
 const rendering = new Map<string, Promise<BoardRender>>();
 const renderLimit = 64;
 // Renders also stay on disk, so a restart doesn't make a review draw every screen again.
@@ -1573,7 +1668,7 @@ export async function renderBoardLayout(
 ): Promise<BoardRender> {
   const key = `${repo}:${commit}:${board}:${width}:${height ?? 'board'}:${scale}`;
   const cached = renders.get(key);
-  if (cached) return cached;
+  if (cached && (draw === drawBoard || renderers.get(key) === draw)) return cached;
   const pending = rendering.get(key);
   if (pending) return pending;
   const stored = draw === drawBoard ? await readRender(key) : null;
@@ -1587,6 +1682,7 @@ export async function renderBoardLayout(
   try {
     const rendered = await job;
     renders.set(key, rendered);
+    renderers.set(key, draw);
     if (renders.size > renderLimit) renders.delete(renders.keys().next().value!);
     return rendered;
   } finally {
@@ -1877,6 +1973,33 @@ export async function designTool(scope: { owner: string; taskId: string }, args:
         ),
       };
     }
+    case 'built': {
+      if (
+        !['matches', 'differs'].includes(args.state) ||
+        (args.state === 'differs' && (!Number.isInteger(args.differences) || args.differences < 1))
+      )
+        fail('Name matches or differs with a positive differences count');
+      const proposal = list('v2-inbox-native', scope.owner)
+        .filter(
+          (row) =>
+            row.context?.source === 'design' &&
+            row.context.taskId === task.id &&
+            row.item.answer?.actionId === 'approve' &&
+            !list('design-review-landing', scope.owner).some(
+              (landing) => landing.id === row.id && landing.state !== 'landed',
+            ),
+        )
+        .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))[0];
+      if (!proposal) fail('This task has no approved design', 409);
+      return {
+        built: save('design-review-built', scope.owner, {
+          id: proposal.id,
+          state: args.state,
+          ...(args.state === 'differs' ? { differences: args.differences } : {}),
+          at: now(),
+        }),
+      };
+    }
     case 'propose': {
       const item = await proposeDesign(scope.owner, project, {
         task: task.id,
@@ -1888,7 +2011,7 @@ export async function designTool(scope: { owner: string; taskId: string }, args:
       return { item };
     }
     default:
-      fail('action must be presence, comments, comment, resolve or propose');
+      fail('action must be presence, comments, comment, resolve, propose or built');
   }
 }
 
@@ -1908,7 +2031,39 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         await reviewSummary(owner, requireRepository(owner, row.context.projectId), row),
       );
     proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return sendJson(res, { proposals });
+    const approved = list('v2-inbox-native', owner)
+      .filter(
+        (row) =>
+          row.context?.source === 'design' &&
+          row.item.answer?.actionId === 'approve' &&
+          (!projectId || row.context.projectId === projectId) &&
+          !list('design-review-landing', owner).some(
+            (landing) => landing.id === row.id && landing.state !== 'landed',
+          ),
+      )
+      .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))
+      .flatMap((row) => {
+        const built = list('design-review-built', owner).find((entry) => entry.id === row.id);
+        const task = list('task', owner).find((entry) => entry.id === row.context.taskId);
+        const project = get('project', owner, row.context.projectId);
+        const building =
+          task && !['done', 'completed', 'cancelled', 'archived'].includes(task.status);
+        if (!built && !building) return [];
+        return [
+          {
+            id: row.id,
+            title: row.item.title,
+            project: project.name ?? project.id,
+            detail: built
+              ? built.state === 'matches'
+                ? 'Built · matches the design'
+                : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
+              : `${project.name ?? project.id} · ${row.context.proposer?.name ?? 'Designer'} is building it`,
+          },
+        ];
+      })
+      .slice(0, 5);
+    return sendJson(res, { proposals, approved });
   }
   // Every project and how many boards its design has on main, for the project picker.
   if (url.pathname === '/api/v2/design/projects' && req.method === 'GET') {
@@ -2559,6 +2714,18 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         });
     }).immediate();
     return sendJson(res, { seen: true });
+  }
+
+  if (sub === '/review/undo' && req.method === 'POST') {
+    const body = await readJson(req);
+    const result = await withRepositoryWrites(repo, async () => {
+      const row = reviewRow(owner, project.id, body?.item);
+      const landing = list('design-review-landing', owner).find((entry) => entry.id === row.id);
+      if (!landing || landing.state !== 'pending' || Date.parse(landing.at) <= Date.now())
+        fail('This approval can no longer be undone', 409);
+      return restoreDesignWaiting(owner, row);
+    });
+    return sendJson(res, { item: result });
   }
 
   if (sub === '/review/pins' && ['POST', 'PATCH', 'DELETE'].includes(req.method!)) {
