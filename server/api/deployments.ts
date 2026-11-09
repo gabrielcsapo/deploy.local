@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { stopApp } from '../v2/project-removal.ts';
 import {
   requireAuth,
   json,
@@ -2078,18 +2080,22 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           : null;
         if (activeRevision?.manifestFormat === 'deploy.yaml') {
           const siteId = localGraphSiteFor(d);
-          if (!siteId)
-            return error(res, 'Graph deletion requires the target-local site control surface', 409);
-          const spec = parseStoredApplicationSpec(activeRevision.normalizedSpec);
-          await new ApplicationGraphExecutor().remove({
-            applicationId: d.appId || name,
-            siteId,
-            managedVolumeResources: Object.entries(spec.resources)
-              .filter(([, resource]) => resource.source?.type !== 'bind')
-              .map(([resource]) => resource),
-            removeInfrastructure: true,
-          });
-          deleteVolumes(name);
+          if (siteId) {
+            const spec = parseStoredApplicationSpec(activeRevision.normalizedSpec);
+            await new ApplicationGraphExecutor().remove({
+              applicationId: d.appId || name,
+              siteId,
+              managedVolumeResources: Object.entries(spec.resources)
+                .filter(([, resource]) => resource.source?.type !== 'bind')
+                .map(([resource]) => resource),
+              removeInfrastructure: true,
+            });
+            deleteVolumes(name);
+          } else {
+            // On another computer: its worker removes the app and confirms it is gone. A new id
+            // each time, so a later app with this name can never be answered by this job.
+            await stopApp(d, `delete-${randomUUID()}`);
+          }
         } else if (d.activeNodeId && d.activeNodeId !== 'coordinator') {
           await dispatchAgentCommand(d.activeNodeId, 'delete', name, { deleteVolumes: true });
         } else {

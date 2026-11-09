@@ -198,6 +198,62 @@ async function workerFinishes(
   throw new Error(`No queued delete job for ${name}`);
 }
 
+async function withApi<T>(run: (origin: string) => Promise<T>) {
+  // Only the routes under test: the whole API starts schedulers that would outlive this file.
+  const { deploymentsRoutes } = await import('../api/deployments.ts');
+  const server = createServer((req, res) => {
+    const url = new URL(req.url!, 'http://localhost');
+    void deploymentsRoutes({ req, res, url, path: url.pathname, method: req.method! } as any);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    return await run(`http://127.0.0.1:${(server.address() as { port: number }).port}`);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+test('deleting a deploy.yaml app on another computer has that computer remove it', async () => {
+  const user = store.registerUser('delete-route-owner', 'synthetic-only-password');
+  enrollComputer('computer-delete-route');
+  const { appId } = seedGraphApp('delete-route-owner', 'delete-route-app', {
+    activeNodeId: 'computer-delete-route',
+    sites: [{ siteId: 'computer-delete-route', nodeId: 'computer-delete-route' }],
+  });
+  await withApi(async (origin) => {
+    const deletion = fetch(`${origin}/api/deployments/delete-route-app`, {
+      method: 'DELETE',
+      headers: { 'x-deploy-username': 'delete-route-owner', 'x-deploy-token': user.token! },
+    });
+    const job = await workerFinishes('delete-route-app', {
+      success: true,
+      result: { deleted: true, verified: true },
+    });
+    assert.equal((await deletion).status, 200);
+    assert.deepEqual(job.payload, { deleteVolumes: true, applicationId: appId });
+    assert.equal(store.getDeployment('delete-route-app'), null);
+  });
+});
+
+test('deleting an app on an offline computer keeps the app', async () => {
+  const user = store.registerUser('delete-offline-owner', 'synthetic-only-password');
+  enrollComputer('computer-delete-offline', false);
+  seedGraphApp('delete-offline-owner', 'delete-offline-app', {
+    activeNodeId: 'computer-delete-offline',
+    sites: [{ siteId: 'computer-delete-offline', nodeId: 'computer-delete-offline' }],
+  });
+  await withApi(async (origin) => {
+    const response = await fetch(`${origin}/api/deployments/delete-offline-app`, {
+      method: 'DELETE',
+      headers: { 'x-deploy-username': 'delete-offline-owner', 'x-deploy-token': user.token! },
+    });
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /offline/);
+    assert.ok(store.getDeployment('delete-offline-app'));
+  });
+});
+
 test('removal finds instances stored under coordinator, not under the Home site id', async () => {
   const { appId, containers } = seedGraphApp('site-owner', 'site-app');
   // The two ids differ on every real coordinator, which is the whole of the bug.
