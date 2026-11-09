@@ -24,3 +24,12 @@ Work delegated to subagents or other sessions follows the same rule. They change
 - Push only to deploy.local's own `origin`, never to GitHub.
 - SER releases follow `deploy-update prepare` and then `activate`. CLI downloads live in `cli/` in the server's data directory, which outlives releases; the server serves whichever of that and the release's own `dist/cli` was built later. When the CLI changes, run `pnpm build:cli` at the released commit and swap the files into `cli/` there (copy to a sibling folder, then rename). Never copy into a release folder before activation: it changes the verified build.
 - The Mac desktop app download works the same way from `desktop/` in the data directory: when the desktop app changes, run `pnpm build:desktop-download` on a Mac at the released commit and swap `dist/desktop` (the zip and `build-info.json`) into `desktop/` there.
+
+## Clean up what was merged
+
+When a branch is merged and accepted, remove its worktree, its local branch and its branch on `origin` as part of finishing the work. Whoever merged it does this, including an orchestrator merging delegated work.
+
+- **Accepted means** the branch's commits are on `origin/main` (`git merge-base --is-ancestor <branch> origin/main`) or, for a design branch, the owner approved it in deploy.local. Approval copies files to main instead of merging, so git alone does not show a design branch as merged.
+- **Remove in this order:** the worktree (`git worktree remove <path>`), the local branch (`git branch -d <branch>`), then the remote one (`git push origin --delete <branch>`). `-d` can refuse a branch whose own upstream is behind; once the ancestor check passes, `-D` is fine.
+- **Keep** `main`, any branch whose review is still waiting on the owner (`deploy inbox` lists them), and any branch something is still working in.
+- **Stop and tell the owner instead of forcing** when a worktree has uncommitted work, a lock held by a process that is still running, or a branch has commits that are not accepted.
