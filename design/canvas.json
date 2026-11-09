@@ -2416,6 +2416,186 @@
       "w": 390,
       "h": 844,
       "title": "Work · unreachable, no saved data"
+    },
+    "AppPerformance.html": {
+      "x": 23000,
+      "y": 15384,
+      "w": 1440,
+      "h": 2900,
+      "title": "Forma · performance",
+      "expand": "fill"
+    },
+    "AppPerformancePhone.html": {
+      "x": 27560,
+      "y": 15384,
+      "w": 390,
+      "h": 844,
+      "title": "Forma · performance"
+    },
+    "AppPerformanceRoutePhone.html": {
+      "x": 28500,
+      "y": 15384,
+      "w": 390,
+      "h": 844,
+      "title": "Forma · one route"
+    },
+    "AppPerformanceTotals.html": {
+      "x": 24520,
+      "y": 15384,
+      "w": 1440,
+      "h": 1000,
+      "title": "compendus · edge totals",
+      "expand": "fill"
+    },
+    "AppPerformanceTotalsPhone.html": {
+      "x": 28970,
+      "y": 15384,
+      "w": 390,
+      "h": 844,
+      "title": "compendus · edge totals"
+    },
+    "AppPerformanceError.html": {
+      "x": 26040,
+      "y": 15384,
+      "w": 1440,
+      "h": 1720,
+      "title": "Forma · an error group",
+      "expand": "fill"
+    },
+    "AppPerformanceErrorPhone.html": {
+      "x": 28030,
+      "y": 15384,
+      "w": 390,
+      "h": 844,
+      "title": "Forma · an error group"
+    },
+    "AppPerformanceMedius.html": {
+      "x": 23000,
+      "y": 18524,
+      "w": 1440,
+      "h": 2600,
+      "title": "Medius · release regression",
+      "expand": "fill"
+    },
+    "AppPerformanceMediusPhone.html": {
+      "x": 24520,
+      "y": 18524,
+      "w": 390,
+      "h": 844,
+      "title": "Medius · release regression"
+    },
+    "AppPerformanceWaiting.html": {
+      "x": 25000,
+      "y": 18524,
+      "w": 1440,
+      "h": 1320,
+      "title": "Waiting on you · Medius is slower",
+      "expand": "fill"
+    },
+    "AppPerformanceWaitingPhone.html": {
+      "x": 26520,
+      "y": 18524,
+      "w": 390,
+      "h": 844,
+      "title": "Waiting on you · Medius is slower"
+    },
+    "AppPerformanceAnswered.html": {
+      "x": 27000,
+      "y": 18524,
+      "w": 1440,
+      "h": 1100,
+      "title": "Answered · Medius kept running",
+      "expand": "fill"
+    },
+    "AppPerformanceAnsweredPhone.html": {
+      "x": 28520,
+      "y": 18524,
+      "w": 390,
+      "h": 844,
+      "title": "Answered · Medius kept running"
+    },
+    "AppPerformanceRollback.html": {
+      "x": 25000,
+      "y": 20104,
+      "w": 1440,
+      "h": 1160,
+      "title": "Review rollback · Medius",
+      "expand": "fill"
+    },
+    "AppPerformanceRollbackPhone.html": {
+      "x": 26520,
+      "y": 20104,
+      "w": 390,
+      "h": 844,
+      "title": "Review rollback · Medius"
+    },
+    "AppPerformanceEmpty.html": {
+      "x": 27000,
+      "y": 20104,
+      "w": 1440,
+      "h": 1100,
+      "title": "Forma · no traffic in this hour",
+      "expand": "fill"
+    },
+    "AppPerformanceEmptyPhone.html": {
+      "x": 28520,
+      "y": 20104,
+      "w": 390,
+      "h": 844,
+      "title": "Forma · no traffic in this hour"
+    },
+    "AppPerformanceQuiet.html": {
+      "x": 23000,
+      "y": 21404,
+      "w": 1440,
+      "h": 2320,
+      "title": "compendus · everything steady",
+      "expand": "fill"
+    },
+    "AppPerformanceQuietPhone.html": {
+      "x": 24520,
+      "y": 21404,
+      "w": 390,
+      "h": 844,
+      "title": "compendus · everything steady"
+    },
+    "AppPerformanceInbox.html": {
+      "x": 29000,
+      "y": 22500,
+      "w": 1440,
+      "h": 2400,
+      "title": "Performance finding · Waiting on you",
+      "expand": "fill"
+    },
+    "AppPerformanceInboxPhone.html": {
+      "x": 30520,
+      "y": 22500,
+      "w": 390,
+      "h": 844,
+      "title": "Performance finding · Waiting on you · iPhone"
+    },
+    "AppPerformanceRequest.html": {
+      "x": 29500,
+      "y": 15384,
+      "w": 1440,
+      "h": 1600,
+      "title": "Forma · one request",
+      "expand": "fill"
+    },
+    "AppPerformanceRequestPhone.html": {
+      "x": 31020,
+      "y": 15384,
+      "w": 390,
+      "h": 844,
+      "title": "Forma · one request"
+    },
+    "AppPerformanceRequestNoBrowser.html": {
+      "x": 29500,
+      "y": 17104,
+      "w": 1440,
+      "h": 1600,
+      "title": "Forma · request without browser report",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2709,6 +2889,30 @@
     "DesignReviewDecidePhone.html",
     "AppRequests.html",
     "AppRequest.html",
+    "AppPerformance.html",
+    "AppPerformanceTotals.html",
+    "AppPerformanceError.html",
+    "AppPerformancePhone.html",
+    "AppPerformanceErrorPhone.html",
+    "AppPerformanceRoutePhone.html",
+    "AppPerformanceRequest.html",
+    "AppPerformanceRequestPhone.html",
+    "AppPerformanceRequestNoBrowser.html",
+    "AppPerformanceTotalsPhone.html",
+    "AppPerformanceMedius.html",
+    "AppPerformanceMediusPhone.html",
+    "AppPerformanceInbox.html",
+    "AppPerformanceInboxPhone.html",
+    "AppPerformanceWaiting.html",
+    "AppPerformanceWaitingPhone.html",
+    "AppPerformanceAnswered.html",
+    "AppPerformanceAnsweredPhone.html",
+    "AppPerformanceRollback.html",
+    "AppPerformanceRollbackPhone.html",
+    "AppPerformanceEmpty.html",
+    "AppPerformanceEmptyPhone.html",
+    "AppPerformanceQuiet.html",
+    "AppPerformanceQuietPhone.html",
     "NewProjectHosted.html",
     "ProjectEmpty.html",
     "AddRemote.html",
@@ -4006,6 +4210,34 @@
       "h": 2900,
       "fill": "yellow",
       "text": "iPhone loading — proposal, no product implementation\n\nBoards: HomeLoadingPhone, ProjectsLoadingPhone, TaskLoadingPhone and LiveLoadingPhone show first loads at 390 × 844. HomeLoadingSlowPhone shows the same Work request after 10 seconds. HomeRefreshingPhone shows a foreground update over cached rows. HomeUnavailablePhone shows a failed connection with no disk cache; OfflinePhone remains the cached offline pattern. The last three are state variants, not additional destinations.\n\nFirst load: use skeletons only for the requested resource when neither disk cache nor in-memory data exists. Keep the actual header, Back/Done, selected tab and known section names. Unknown names, counts, timestamps, health and computer labels are skeletons, never zero, “online”, “Healthy” or an empty state. Skeleton counts illustrate row geometry, not promised records. Reveal each independently loaded section when it is ready. Only a successful empty response may show the existing empty state, onboarding, zero count or “Unavailable” value. A failed request is a failure, never an empty response. Skeletons are static neutral .dl-skel shapes in the real row/message layout; no page spinner, shimmer, pulse or fake agent activity. Use the same still shapes with Reduce Motion.\n\nCalm update over saved rows: show the cache immediately at full contrast. On opening or returning to a screen, reconnecting, or an explicit refresh, place the static, muted “Updating…” in the existing empty center header slot (HomeRefreshingPhone) as soon as the request starts, with no delay. When the request succeeds, replace it in that same slot with “Updated just now” and keep the timestamp until leaving the screen, so the line never flashes away; do not show a success toast. The timestamp may age to “Updated 1 min ago”. Do not move rows or the large title, hide readable data, disable navigation, or mark cached values as current until confirmed. Pull-to-refresh keeps its native gesture feedback; this line is the only additional refresh indicator. Automatic background polling changes data quietly and never starts this line, motion, shimmer or a completion message. A pending foreground request can update its existing line even if a background poll also finishes. Cancel/reset status on navigation and ignore responses for a previously opened resource.\n\nAfter 10 seconds: name the resource still pending, not a generic “Loading”. Work: “Work is taking longer than usual to load from SER.” Secondary: “Still trying. Your work will appear here when it arrives.” Projects: “Projects are taking longer than usual to load from SER.” Task or agent chat: “This conversation is taking longer than usual to load from SER.” Live: “App status is taking longer than usual to load from SER.” Use the same warning banner above the affected section with “Still trying.” for the secondary line on other destinations. Keep partial results. Over cached rows use this same banner, retain readable rows, and replace the header’s Updating with “Waiting for SER…”. Do not restart the 10-second clock on each retry or poll. Announce status changes once, not on every skeleton row or poll; keep navigation outside aria-busy and hide decorative skeletons from accessibility.\n\nUnreachable: replace the pending/slow state as soon as the request is known to have failed; do not wait for 10 seconds or leave skeletons animating forever. With cached rows, reuse OfflinePhone’s warning, last-known labels and dimmed data exactly; existing offline read/write behavior is unchanged. Without cache, HomeUnavailablePhone says “Can't reach SER” / “Retrying. No saved work on this iPhone.”, offers Try now, and says “Check that this iPhone is on the same network as SER.” Keep navigation; show neither a last-heard timestamp nor fake empty content. Apply resource-specific copy elsewhere: “No saved projects on this iPhone.”, “No saved conversation on this iPhone.” or “No saved app status on this iPhone.” Try now retries the missing resource; success restores content, another failure retains the notice. No new offline send/queue behavior is proposed.\n\nCoverage of the rest of the audit (same patterns, no extra boards):\n• Home Agents and Waiting on you: independent HomeLoadingPhone groups, never empty before the respective response.\n• Answered: ProjectsLoadingPhone grouped rows; “No answered decisions” only after success. Slow: “Answered decisions are taking longer than usual to load from SER.”\n• Computers: LiveLoadingPhone computer rows with skeleton summary and status; no “0 online” before success. Slow: “Computers are taking longer than usual to load from SER.”\n• Project detail: keep its known project title and navigation, use ProjectsLoadingPhone row geometry in each actual section; do not invent app/release tabs before their data establishes they exist. Slow: “Project details are taking longer than usual to load from SER.”\n• App detail: LiveLoadingPhone rows in the app’s actual summary layout; skeleton health/metrics until known. Slow: “App details are taking longer than usual to load from SER.”\n• Backups and Paired devices: ProjectsLoadingPhone grouped rows within the existing page or sheet, preserve Done/Back. Slow: “Backups are taking longer than usual to load from SER.” / “Paired devices are taking longer than usual to load from SER.”\n• Task chat and Agent chat: TaskLoadingPhone conversation lines; keep known title, tabs and local draft, do not show the agent’s onboarding card before a successful empty history. Sending waits until the destination is ready; this proposal does not change queuing. Changes and Checks load independently in their existing row layouts, never “No changes yet” / “No checks yet” while pending. Slow: “Changes are taking longer than usual to load from SER.” / “Checks are taking longer than usual to load from SER.”\n• Settings approvals: skeleton agent summary rows and permission values in the existing groups. “No agents” requires success; “Unavailable” is for a confirmed unavailable capability, not a request still pending. Slow: “Approvals are taking longer than usual to load from SER.”\n• Agent info / learned details: skeleton only the unknown fields and learned rows in the existing sheet; preserve any already known identity. Never “Nothing learned yet” before success. Slow: “Agent details are taking longer than usual to load from SER.”\n• Agent runs: ProjectsLoadingPhone grouped run rows; “No runs yet” only after success. Slow: “Agent runs are taking longer than usual to load from SER.”\n• Packages: replace the page spinner with skeleton package rows in the existing Private and Copies sheet groups. Load the two parts independently as PackagesPhone already specifies; preserve one part when the other is pending or fails. Never fabricate storage zero or registry reachability. Slow per section: “Private packages are taking longer than usual to load from SER.” / “Package copies are taking longer than usual to load from SER.”\n• Package versions: skeleton version/date rows inside the existing versions sheet; keep the known package title and Done. Slow: “Package versions are taking longer than usual to load from SER.”\n• Design and Releases: keep their existing skeleton row layout as the reference pattern; add the same per-resource slow, cache-refresh and failure rules. Slow: “Design is taking longer than usual to load from SER.” / “Releases are taking longer than usual to load from SER.”\n\nAll other cached destinations follow HomeRefreshingPhone; all other failures follow the cache/no-cache split above with the resource named in the notice. No product code, new empty-state copy or new navigation is authorized by these boards. Owner decision: Updating… appears with no delay. The foreground-only rule and the persistent “Updated just now” timestamp are proposed to make arrivals visible without polling motion or flicker."
+    },
+    "app-performance": {
+      "fill": "purple",
+      "w": 640,
+      "x": 23000,
+      "y": 14324,
+      "text": "Second waterfall pass, design only; owner approval pending. Requests retains app totals and its request log. Route lists keep one segmented p50 server bar per route on a shared scale: Forma 0–100 ms, Medius 0–200 ms, compendus 0–20 ms. Thin marker: total route p95. Stable colors everywhere, using existing light/dark tokens: route match accent, data loading success, page render warning, streaming active. Browser milestones use neutral ink-soft. Each routes list and each timing part/comparison has a wrapping legend. Lighter extensions use the same phase color at 30% opacity.\n\nOpened routes split into On the server and In the browser, each with its own axis. Server axes match the app's route-list scale. Server phases begin at the previous typical phase's end, solid through p50 with a lighter extension to the phase p95 duration from that same start. Those per-phase percentiles cannot be added to make one p95 request. Forma /watch/:id uses 0.1 + 18 + 9 + 7 = 34.1 ms on 0–100 ms; its streaming extension ends at 72.9 ms. Browser bars run from navigation start to each milestone on 0–5 s. /watch/:id milestones: 82 ms, 1.1 s, 4.3 s. Unknown Interactive rows are omitted; never substitute INP or zero. One plain note per timing part, with no percentile/clock jargon on screen.\n\nData the build will provide: p50/p95 per phase per route; a small sample of the slowest requests per route per hour with their phases; browser milestones linked to a sampled request by a request ID. Route browser percentiles use only linked samples; Page experience remains the separate p75 visit population. A minimum 1 px mark preserves subpixel route-match phases without changing numeric offsets.\n\nSlowest requests has normal section spacing and links to the exact request. AppPerformanceRequest and AppPerformanceRequestPhone default to forma-watch-127 (127 ms, 200, release a1b2c3d), with browser milestones including Interactive. Single requests have sequential server bars on 0–100/200/300 ms and navigation-based browser milestones on 0–6 s, containing the existing 5.2 s paint sample; no p95 tail. Default /watch/:id server offsets are 0, 0.1, 18.1, 27.1, 127 ms. AppPerformanceRequestNoBrowser draws the 143 ms / 502 sample, error Media source did not answer, as a second web board. Only that sample has the plain missing-report line. The phone keeps its fragment-selected 502 sample; API requests show only server phases. Other formerly missing page-sample browser fixtures reuse their route's linked-sample milestone values. All are static design fixtures, not runtime measurements. Surviving layers and all 27 request IDs remain.\n\nRelease and Waiting comparisons keep existing before/after data and now use the same phase colors/legend. No app, CLI, desktop or native implementation is authorized. Existing chrome, four ranges, ratings, empty/totals states, finding choices, counts, rollback scope and receipts remain. Phone overview links still demonstrate the existing /watch/:id route fixture. Rendering at 1440/700 and 390, dark theme, phone scrolling and before/after captures belong to the orchestrator; this sandbox cannot launch Chromium."
+    },
+    "app-performance-thresholds": {
+      "fill": "purple",
+      "w": 640,
+      "x": 26040,
+      "y": 14324,
+      "text": "Page-experience ratings use browser visits at p75 per route. Good / Needs work / Poor use the standard inclusive boundaries: LCP ≤2.5 s / ≤4 s / >4 s; INP ≤200 ms / ≤500 ms / >500 ms; CLS ≤0.1 / ≤0.25 / >0.25. First byte uses the separate TTFB guide ≤800 ms / ≤1,800 ms / >1,800 ms; it is not a Core Web Vital. Status is written out, with existing success/warning/danger text tokens, never a colored badge. No universal thresholds are invented for request response, navigation time, or prefetch hits.\n\nSources checked: https://web.dev/articles/defining-core-web-vitals-thresholds and https://web.dev/articles/ttfb . “Needs work” is the product's plain wording for “needs improvement”. Medius at 160 ms is a relative release regression, not a poor TTFB score. These boundaries apply to the rating list; linked-sample timing percentiles live in the waterfall.\n\nRelease rows compare the measured post-release period with the 24 hours immediately before release. Keep the baseline and post-release request counts visible in the regression evidence; these are unequal-duration populations. A current release is still being measured, not automatically healthy. Edge request errors are separate from grouped server, page, action and browser occurrences. Errors are grouped by fingerprint, retaining latest message/stack, all-time first/last seen, route, where, hourly range counts and releases.\n\nWaterfall revision: p75 rating thresholds are unchanged, but largest paint and first byte numbers now live only in the route waterfall (linked-sample p50/p95). Rating words remain based on all measured browser visits at p75; the populations are explicitly different. Medius all-range server p50 remains 70 ms. Post-release / phases are 0.1 / 120 / 12 / 7.9 = 140 ms, versus 0.1 / 40 / 12 / 7.9 = 60 ms before release. The rest is steady; data loading grew 80 ms. Comparison bars share 0–200 ms and show p50 phases. Historical Forma 72bf901 compares /watch/:id data loading 10 → 18 ms, total ≈26 → 34 ms. Browser first byte 72 → 160 ms remains separate p75 evidence, not the server total."
+    },
+    "app-performance-decisions": {
+      "fill": "purple",
+      "w": 640,
+      "x": 27000,
+      "y": 17524,
+      "text": "AppPerformanceInbox / AppPerformanceInboxPhone copy the existing Inbox / WaitingCarePhone list and add a card among the other cards: Ops watcher avatar, Performance · medius, title, one line of evidence and the ordinary Review finding action link. The existing five-proposal capacity notice is unchanged: the performance finding is an operational decision, not a sixth care proposal. The web list is eight waiting decisions rather than seven.\n\nReview finding opens AppPerformanceWaiting / AppPerformanceWaitingPhone in the existing care detail pattern: title, agent kind line, explanation, evidence and one set of decision buttons. Keep first byte before/now, errors before/now, since release, baseline/request counts and p75. Look at it opens Medius performance and leaves the finding waiting. Roll back… opens whole-project review naming Medius and Medius jobs and the absence of migrations. It’s fine retains 6d7e8f9 and records who/when/device in Answered. No second choices list. Phone evidence scrolls above the existing care footer.\n\nRollback approval records rolling back, not recovery. The local #approved target hides decision controls and only Medius’s waiting row; the other three sidebar items remain, with their original times. The count returns from four to three. Health results must return on the same item. No new rule, suppression or numerical trigger is introduced. Owner approval is pending; these are design-only revisions, left uncommitted for the orchestrator. No server, deployment, real data or product implementation.\n\nWaterfall revision: put two thin before/after server bars on the Medius regression, its slower release and the opened Waiting on you finding, preserving choices, counts and rollback semantics. Evidence labels name / and data loading 40 → 120 ms; before 60 ms, after 140 ms. Existing p75 first-byte and error evidence remains. Forma historical slower release gets a /watch/:id phase comparison as well."
+    },
+    "app-performance-capture": {
+      "fill": "purple",
+      "w": 640,
+      "x": 27000,
+      "y": 21404,
+      "text": "Orchestrator capture required: this sandbox must not launch Chromium, Electron, Xcode or Simulator. Boards are standalone file URLs; no fixture server command is needed. Render the changed/new boards using the exact command in docs/evidence/app-performance-design/README.md: 6 changed/new web × 2 widths (1440, 700) + 7 phone at 390 = 19 initial PNGs. Use 1ad36267 as Before; for new request boards use the previous route detail as context, clearly labelled new screen. Show one before/after pair in the owner conversation and propose for explicit design approval before implementation.\n\nInspect shared list-scale bars, p95 markers and phase tooltip labels; open every web route disclosure and scroll to its 3 slow samples. Inspect the long seconds axis on /watch/:id, p95 extensions, duration labels, Unavailable Interactive and no browser rows on the API route. Scroll phone Route to Waterfall, Slowest requests and Page experience; scroll all overview phone bodies to ratings, errors and releases. Follow all request links; capture default #forma-watch-143 and #forma-watch-127 (browser milestones), plus Medius and quiet request fragments. No duplicated largest-paint/first-byte timings in ratings. Check before/after bars in both releases and Waiting, including fixed phone footer and all 3 choices. Confirm totals-only one-line note, narrow range controls and unchanged chrome. New shared dl-waterfall primitive uses existing tokens and dl-bar/list components; no new palette or type sizes."
     }
   },
   "starts": {}

@@ -69,6 +69,10 @@ Load, after the canvas `support.js` line: `ds/deploy-local/tokens.css`, then `ds
 
 No font files (Hanken Grotesk loads from Google Fonts). The live React components in `@/components/ui` are not bundled; cards are static renditions.
 
+## Timing waterfalls
+
+Performance boards optionally load `deploy-local/components/waterfall.css` after the bundle. The shared `.dl-waterfall` composes `.dl-bar` and existing web/phone rows. Each server phase starts at the previous typical phase's end, with a same-color lighter p95 extension on route summaries only. Browser milestones start at navigation and use a separate seconds axis. Single requests have no percentile extension. Axes and rows share 16 px insets; short phases retain exact duration labels and a minimum 1 px mark. Wrapping `.dl-waterfall-legend` keys use the existing light/dark tokens: route match `--accent`, data loading `--success`, page render `--warning`, streaming `--active`; browser milestones use `--ink-soft`. Light extensions use the phase color at 30% opacity, matching existing semantic tint usage. No categorical palette exists in the system. Slowest requests uses `--space-6` above its heading; waterfall notes have `--space-4` card padding. The same file selects static request fixture fragments and their app context; it adds no product behavior.
+
 ## Project care boards
 
 `.dl-care` composes the existing sections, groups, agent rows and approval cards. It wraps evidence and care lines instead of truncating them, keeps a 768 px reading column, and gives phone reviews a scrollable body with decisions in `.dl-care-footer`. Use existing color, spacing and touch-size tokens. Stage and proposal-kind labels are plain text.

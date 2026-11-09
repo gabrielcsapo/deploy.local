@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="design-board" content="width=390,height=844"><title>Forma · an error group</title><link rel="stylesheet" href="../ds/deploy-local/tokens.css"><link rel="stylesheet" href="../ds/deploy-local/components/bundle.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap"><style>
+body{margin:0;background:var(--paper)}
+.perf .dl-page{padding-top:8px;gap:var(--space-6)}
+.perf .dl-section{gap:var(--space-2)}
+.perf .dl-section-sub{margin:0;line-height:20px}
+.perf .dl-item{min-height:64px;box-sizing:border-box;align-items:center}
+.perf .dl-item .dl-t{gap:var(--space-1)}
+.perf .dl-item .dl-t>span{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.perf .dl-item .dl-t>span+span{line-height:20px}
+.perf .dl-item .dl-c{white-space:normal;text-align:right;max-width:35%;font-size:13px;line-height:20px}
+.perf .dl-list-note{margin:0;line-height:20px}
+.perf .dl-page-head{align-items:center}
+.perf .perf-value{font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink)}
+.perf .perf-facts{display:flex;flex-wrap:wrap;column-gap:var(--space-4);row-gap:var(--space-1);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.perf .perf-facts span{white-space:nowrap}
+.perf .perf-rating{font-size:13px;font-weight:400}
+.perf .good{color:var(--success)}.perf .needs-work{color:var(--warning)}.perf .poor{color:var(--danger)}
+.perf details>summary{list-style:none;cursor:pointer}.perf details>summary::-webkit-details-marker{display:none}
+.perf details+details{border-top:1px solid var(--line)}
+.perf details[open]>summary .dl-chev{transform:rotate(90deg)}
+.perf .perf-detail{padding:0 16px 16px}
+.perf .perf-detail .dl-group{border-radius:var(--radius-control)}
+.perf .perf-detail .dl-item{min-height:52px}
+.perf .perf-stack{margin:0;padding:var(--space-4);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);font:12px/20px var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-soft)}
+.perf .perf-chart{width:100%;height:132px;display:block;color:var(--ink-soft)}
+.perf .perf-chart-frame{padding:var(--space-4)}
+.perf .perf-chart-axis{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);gap:8px}
+.perf .dl-approval-actions{padding-left:0}
+.perf .dl-approval-answer{padding-left:0}
+.perf .perf-note{margin:0;color:var(--muted);font-size:12px;line-height:20px}
+.perf .perf-heading{margin:0;font-size:22px;line-height:28px;font-weight:600}
+.perf .perf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.perf .perf-block{margin:0 16px}
+.perf .perf-block+.perf-block{margin-top:20px}
+.perf .perf-block .dl-ph-group{margin:0}
+.perf .perf-block .dl-ph-label{padding:20px 16px 6px}
+.perf .perf-block .dl-ph-note{padding:8px 16px 0}
+.perf .dl-ph-body{overflow-y:auto;scroll-behavior:auto;padding-bottom:24px}
+.perf .dl-ph-row{min-height:64px}
+.perf .dl-ph-row .dl-t>span{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.perf .dl-ph-row .dl-t{gap:var(--space-1)}
+.perf .dl-ph-value{max-width:40%;text-align:right;font-variant-numeric:tabular-nums}
+.perf.dl-phone .perf-heading{font-size:22px;line-height:28px}
+
+.perf.dl-phone .dl-tabs a{height:44px;font-size:15px}
+.perf.dl-phone .dl-ph-note{font-size:13px;line-height:18px;color:var(--muted);margin:0}
+.perf.dl-phone .dl-approval-title{font-size:17px;line-height:24px}
+.perf.dl-phone .dl-approval-text{font-size:17px;line-height:24px}
+.perf.dl-phone .dl-btn{min-height:44px;font-size:17px;white-space:normal;text-align:center}
+.perf.dl-phone .dl-approval-answer{font-size:13px;line-height:18px}
+.perf.dl-phone .perf-note{font-size:13px;line-height:18px}
+.perf.dl-phone .perf-stack{font-size:12px;line-height:20px}
+.perf.dl-phone .dl-care-footer .dl-approval-actions{display:flex;gap:8px}
+.perf.dl-phone .dl-care-footer .dl-btn{flex:1}
+.perf.dl-phone .perf-back{font-size:15px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;color:var(--accent)}
+.perf :where(a,button,summary):focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+@media(max-width:600px){.perf .dl-page{padding-inline:16px}.perf .dl-item .dl-t>span:first-child{font-size:17px}.perf .dl-item .dl-t>span+span{font-size:13px}.perf .dl-item .dl-c{max-width:38%}}
+</style></head><body><div data-layer="phone" class="dl-phone dl-list perf"><header data-layer="ph-top" class="dl-ph-top"><a data-layer="back" class="dl-ph-btn" aria-label="Back" href="AppPerformancePhone.html#errors">‹</a><span data-layer="forma" class="dl-t">Forma</span><span data-layer="span" class="dl-ph-btn"></span></header><div data-layer="ph-body" class="dl-ph-body"><div data-layer="perf-block" class="perf-block"><div data-layer="t" class="dl-t"><h1 data-layer="media-source-did" class="perf-heading">Media source did not answer</h1><p data-layer="forma-error-group" class="perf-note">Forma · error group · last 24 hours</p></div></div><div data-layer="perf-block-2" class="perf-block"><span data-layer="range-time-range" class="dl-seg" role="group" aria-label="Time range"><a data-layer="1-hour" href="#">1 hour</a><a data-layer="24-hours" href="#" class="on" aria-current="true">24 hours</a><a data-layer="7-days" href="#">7 days</a><a data-layer="range-30-days" href="#">30 days</a></span></div><section data-layer="perf-block-3" class="perf-block"><h2 data-layer="this-error" class="dl-ph-label">This error</h2><div data-layer="ph-group" class="dl-ph-group"><div data-layer="ph-row" class="dl-ph-row"><span data-layer="t-2" class="dl-t"><span data-layer="where">Where</span></span><span data-layer="server-render" class="dl-ph-value">Server render</span></div><div data-layer="ph-row-2" class="dl-ph-row"><span data-layer="t-3" class="dl-t"><span data-layer="route">Route</span></span><span data-layer="watch-id" class="dl-ph-value">/watch/:id</span></div><div data-layer="ph-row-3" class="dl-ph-row"><span data-layer="t-4" class="dl-t"><span data-layer="occurrences">Occurrences</span><span data-layer="in-the-selected">In the selected range</span></span><span data-layer="14" class="dl-ph-value">14</span></div><div data-layer="ph-row-4" class="dl-ph-row"><span data-layer="t-5" class="dl-t"><span data-layer="first-seen">First seen</span><span data-layer="since-this-group">Since this group was first recorded</span></span><span data-layer="6-nov-4" class="dl-ph-value">6 Nov, 4:24 PM</span></div><div data-layer="ph-row-5" class="dl-ph-row"><span data-layer="t-6" class="dl-t"><span data-layer="last-seen">Last seen</span></span><span data-layer="today-2-58" class="dl-ph-value">Today, 2:58 PM</span></div><div data-layer="ph-row-6" class="dl-ph-row"><span data-layer="t-7" class="dl-t"><span data-layer="fingerprint">Fingerprint</span></span><span data-layer="e7b9c12a" class="dl-ph-value">e7b9c12a</span></div></div><p data-layer="grouped-by-fingerprint" class="dl-ph-note">Grouped by fingerprint, so repeated reports of the same error stay together.</p></section><section data-layer="perf-block-4" class="perf-block"><h2 data-layer="count-over-time" class="dl-ph-label">Count over time</h2><div data-layer="ph-group-2" class="dl-ph-group"><div data-layer="perf-chart-frame" class="perf-chart-frame"><svg data-layer="14-occurrences-in" class="perf-chart" viewBox="0 0 560 132" preserveAspectRatio="none" role="img" aria-label="14 occurrences in 24 hourly buckets; none before 4 PM yesterday; peak 2 in an hour"><path d="M0 108H560" stroke="var(--line)"/><rect x="28" y="68" width="12" height="40" fill="currentColor"/><rect x="74" y="68" width="12" height="40" fill="currentColor"/><rect x="120" y="68" width="12" height="40" fill="currentColor"/><rect x="166" y="68" width="12" height="40" fill="currentColor"/><rect x="212" y="68" width="12" height="40" fill="currentColor"/><rect x="442" y="28" width="12" height="80" fill="currentColor"/><rect x="465" y="28" width="12" height="80" fill="currentColor"/><rect x="488" y="28" width="12" height="80" fill="currentColor"/><rect x="511" y="68" width="12" height="40" fill="currentColor"/><rect x="534" y="28" width="12" height="80" fill="currentColor"/></svg><div data-layer="perf-chart-axis" class="perf-chart-axis"><span data-layer="3-pm-yesterday">3 PM yesterday</span><span data-layer="3-am">3 AM</span><span data-layer="3-pm-today">3 PM today</span></div></div></div><p data-layer="one-bar-per" class="dl-ph-note">One bar per hour. 14 occurrences in this range; no bar means zero.</p></section><section data-layer="perf-block-5" class="perf-block"><h2 data-layer="latest-message" class="dl-ph-label">Latest message</h2><div data-layer="ph-group-3" class="dl-ph-group"><div data-layer="ph-row-7" class="dl-ph-row"><span data-layer="t-8" class="dl-t"><span data-layer="error-media-source">Error: Media source did not answer</span><span data-layer="today-2-58-2">Today, 2:58 PM · a1b2c3d</span></span></div></div></section><section data-layer="perf-block-6" class="perf-block"><h2 data-layer="latest-stack" class="dl-ph-label">Latest stack</h2><pre data-layer="error-media-source-2" class="perf-stack">Error: Media source did not answer
+    at loadPlayback (app/media/playback.ts:48:11)
+    at WatchPage (app/routes/watch/[id]/page.tsx:21:17)
+    at renderPage (react-flight-router/server/render.js:186:24)</pre></section><section data-layer="perf-block-7" class="perf-block"><h2 data-layer="seen-in-releases" class="dl-ph-label">Seen in releases</h2><div data-layer="ph-group-4" class="dl-ph-group"><div data-layer="ph-row-8" class="dl-ph-row"><span data-layer="t-9" class="dl-t"><span data-layer="a1b2c3d">a1b2c3d</span><span data-layer="today-10-00">Today, 10:00 AM · last seen 2:58 PM</span></span><span data-layer="9-times" class="dl-ph-value">9 times</span></div><div data-layer="ph-row-9" class="dl-ph-row"><span data-layer="t-10" class="dl-t"><span data-layer="8e4d2c1">8e4d2c1</span><span data-layer="6-nov-4-2">6 Nov, 4:20 PM · first seen 4:24 PM</span></span><span data-layer="5-times" class="dl-ph-value">5 times</span></div></div><p data-layer="counts-cover-the" class="dl-ph-note">Counts cover the selected range. This error first appeared in 8e4d2c1.</p></section></div></div></body></html>

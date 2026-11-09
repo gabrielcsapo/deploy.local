@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="design-board" content="width=390,height=844"><title>Review rollback · Medius</title><link rel="stylesheet" href="../ds/deploy-local/tokens.css"><link rel="stylesheet" href="../ds/deploy-local/components/bundle.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap"><style>
+body{margin:0;background:var(--paper)}
+.perf .dl-page{padding-top:8px;gap:var(--space-6)}
+.perf .dl-section{gap:var(--space-2)}
+.perf .dl-section-sub{margin:0;line-height:20px}
+.perf .dl-item{min-height:64px;box-sizing:border-box;align-items:center}
+.perf .dl-item .dl-t{gap:var(--space-1)}
+.perf .dl-item .dl-t>span{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.perf .dl-item .dl-t>span+span{line-height:20px}
+.perf .dl-item .dl-c{white-space:normal;text-align:right;max-width:35%;font-size:13px;line-height:20px}
+.perf .dl-list-note{margin:0;line-height:20px}
+.perf .dl-page-head{align-items:center}
+.perf .perf-value{font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink)}
+.perf .perf-facts{display:flex;flex-wrap:wrap;column-gap:var(--space-4);row-gap:var(--space-1);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.perf .perf-facts span{white-space:nowrap}
+.perf .perf-rating{font-size:13px;font-weight:400}
+.perf .good{color:var(--success)}.perf .needs-work{color:var(--warning)}.perf .poor{color:var(--danger)}
+.perf details>summary{list-style:none;cursor:pointer}.perf details>summary::-webkit-details-marker{display:none}
+.perf details+details{border-top:1px solid var(--line)}
+.perf details[open]>summary .dl-chev{transform:rotate(90deg)}
+.perf .perf-detail{padding:0 16px 16px}
+.perf .perf-detail .dl-group{border-radius:var(--radius-control)}
+.perf .perf-detail .dl-item{min-height:52px}
+.perf .perf-stack{margin:0;padding:var(--space-4);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);font:12px/20px var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-soft)}
+.perf .perf-chart{width:100%;height:132px;display:block;color:var(--ink-soft)}
+.perf .perf-chart-frame{padding:var(--space-4)}
+.perf .perf-chart-axis{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);gap:8px}
+.perf .dl-approval-actions{padding-left:0}
+.perf .dl-approval-answer{padding-left:0}
+.perf .perf-note{margin:0;color:var(--muted);font-size:12px;line-height:20px}
+.perf .perf-heading{margin:0;font-size:22px;line-height:28px;font-weight:600}
+.perf .perf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.perf .perf-block{margin:0 16px}
+.perf .perf-block+.perf-block{margin-top:20px}
+.perf .perf-block .dl-ph-group{margin:0}
+.perf .perf-block .dl-ph-label{padding:20px 16px 6px}
+.perf .perf-block .dl-ph-note{padding:8px 16px 0}
+.perf .dl-ph-body{overflow-y:auto;scroll-behavior:auto;padding-bottom:24px}
+.perf .dl-ph-row{min-height:64px}
+.perf .dl-ph-row .dl-t>span{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.perf .dl-ph-row .dl-t{gap:var(--space-1)}
+.perf .dl-ph-value{max-width:40%;text-align:right;font-variant-numeric:tabular-nums}
+.perf.dl-phone .perf-heading{font-size:22px;line-height:28px}
+
+.perf.dl-phone .dl-tabs a{height:44px;font-size:15px}
+.perf.dl-phone .dl-ph-note{font-size:13px;line-height:18px;color:var(--muted);margin:0}
+.perf.dl-phone .dl-approval-title{font-size:17px;line-height:24px}
+.perf.dl-phone .dl-approval-text{font-size:17px;line-height:24px}
+.perf.dl-phone .dl-btn{min-height:44px;font-size:17px;white-space:normal;text-align:center}
+.perf.dl-phone .dl-approval-answer{font-size:13px;line-height:18px}
+.perf.dl-phone .perf-note{font-size:13px;line-height:18px}
+.perf.dl-phone .perf-stack{font-size:12px;line-height:20px}
+.perf.dl-phone .dl-care-footer .dl-approval-actions{display:flex;gap:8px}
+.perf.dl-phone .dl-care-footer .dl-btn{flex:1}
+.perf.dl-phone .perf-back{font-size:15px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;color:var(--accent)}
+.perf :where(a,button,summary):focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+@media(max-width:600px){.perf .dl-page{padding-inline:16px}.perf .dl-item .dl-t>span:first-child{font-size:17px}.perf .dl-item .dl-t>span+span{font-size:13px}.perf .dl-item .dl-c{max-width:38%}}
+.perf-receipt{display:none}.perf-receipt:target{display:flex}.perf:has(.perf-receipt:target) .dl-approval-actions{display:none}</style></head><body><div data-layer="phone" class="dl-phone dl-list perf"><header data-layer="ph-top" class="dl-ph-top"><a data-layer="back" class="dl-ph-btn" aria-label="Back" href="AppPerformancePhone.html">‹</a><span data-layer="medius" class="dl-t">Medius</span><span data-layer="span" class="dl-ph-btn"></span></header><div data-layer="ph-body" class="dl-ph-body"><div data-layer="perf-block" class="perf-block"><div data-layer="t" class="dl-t"><h1 data-layer="roll-back-medius" class="perf-heading">Roll back Medius?</h1><p data-layer="6d7e8f9-4c2a7d1" class="perf-note">6d7e8f9 → 4c2a7d1</p></div></div><section data-layer="perf-block-2" class="perf-block"><h2 data-layer="what-goes-back" class="dl-ph-label">What goes back</h2><div data-layer="ph-group" class="dl-ph-group"><div data-layer="ph-row" class="dl-ph-row"><span data-layer="t-2" class="dl-t"><span data-layer="medius-2">Medius</span><span data-layer="web-app-on">Web app on SER</span></span><span data-layer="4c2a7d1" class="dl-ph-value">4c2a7d1</span></div><div data-layer="ph-row-2" class="dl-ph-row"><span data-layer="t-3" class="dl-t"><span data-layer="medius-jobs">Medius jobs</span><span data-layer="worker-on-ser">Worker on SER</span></span><span data-layer="4c2a7d1-2" class="dl-ph-value">4c2a7d1</span></div><div data-layer="ph-row-3" class="dl-ph-row"><span data-layer="t-4" class="dl-t"><span data-layer="database-migrations">Database migrations</span><span data-layer="neither-release-has">Neither release has a database migration.</span></span><span data-layer="none" class="dl-ph-value">None</span></div></div><p data-layer="a-release-covers" class="dl-ph-note">A release covers the whole project. Both apps move together.</p></section><section data-layer="perf-block-3" class="perf-block"><h2 data-layer="previous-release" class="dl-ph-label">Previous release</h2><div data-layer="ph-group-2" class="dl-ph-group"><div data-layer="ph-row-4" class="dl-ph-row"><span data-layer="t-5" class="dl-t"><span data-layer="4c2a7d1-3">4c2a7d1</span><span data-layer="ran-from-6">Ran from 6 Nov, 9:00 AM to today, 1:58 PM</span></span></div><div data-layer="ph-row-5" class="dl-ph-row"><span data-layer="t-6" class="dl-t"><span data-layer="first-byte-on">First byte on /</span><span data-layer="p75-in-the">p75 in the 24 hours before 6d7e8f9</span></span><span data-layer="72-ms" class="dl-ph-value">72 ms</span></div><div data-layer="ph-row-6" class="dl-ph-row"><span data-layer="t-7" class="dl-t"><span data-layer="request-errors-on">Request errors on /</span><span data-layer="12-of-12">12 of 12,000 requests</span></span><span data-layer="0-10" class="dl-ph-value">0.10%</span></div></div><p data-layer="after-the-rollback" class="dl-ph-note">After the rollback, Ops watcher checks health for 10 minutes and reports back on this item.</p></section><div data-layer="perf-block-4" class="perf-block"><section data-layer="section" id="approved" class="dl-section perf-receipt"><article data-layer="approval" class="dl-approval answered"><h2 data-layer="roll-back-medius-2" class="dl-approval-title">Roll back Medius to 4c2a7d1</h2><div data-layer="approval-answer" class="dl-approval-answer"><svg data-layer="svg-2" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span data-layer="you-approved-today">You approved · today, 2:16 PM · on iPhone</span></div><p data-layer="ops-watcher-is" class="dl-approval-text">Ops watcher is rolling back both apps. Health checks will be reported here.</p></article></section></div></div><footer data-layer="care-footer" class="dl-care-footer"><div data-layer="approval-actions" class="dl-approval-actions"><a data-layer="cancel" href="AppPerformanceWaitingPhone.html" class="dl-btn secondary">Cancel</a><a data-layer="roll-back-medius-3" href="#approved" class="dl-btn primary">Roll back Medius</a></div></footer></div></body></html>

@@ -1,0 +1,140 @@
+/* One shared graph primitive. Typography and rows come from the existing dl-* system. */
+.dl-waterfall {
+  display: block;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.dl-waterfall .dl-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: var(--space-2);
+  border-radius: 0;
+  background: var(--sidebar);
+  overflow: visible;
+}
+.dl-waterfall .dl-bar > span {
+  position: absolute;
+  min-width: 1px;
+  height: 100%;
+  border-radius: 0;
+  box-sizing: border-box;
+  background: var(--ink-soft);
+}
+/* Existing semantic colors double as the timing categories in both themes. */
+.dl-waterfall .dl-bar > [data-phase='match'],
+.dl-waterfall-legend [data-phase='match'] {
+  background: var(--accent);
+}
+.dl-waterfall .dl-bar > [data-phase='data'],
+.dl-waterfall-legend [data-phase='data'] {
+  background: var(--success);
+}
+.dl-waterfall .dl-bar > [data-phase='render'],
+.dl-waterfall-legend [data-phase='render'] {
+  background: var(--warning);
+}
+.dl-waterfall .dl-bar > [data-phase='stream'],
+.dl-waterfall-legend [data-phase='stream'] {
+  background: var(--active);
+}
+.dl-waterfall .dl-bar > [data-phase='browser'],
+.dl-waterfall-legend [data-phase='browser'] {
+  background: var(--ink-soft);
+}
+.dl-waterfall .dl-bar > [data-tail] {
+  opacity: 0.3;
+}
+.dl-waterfall-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}
+.dl-waterfall-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+.dl-waterfall-legend i {
+  display: inline-block;
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+}
+.dl-waterfall [data-timing-part] > .dl-section-title {
+  margin: 0;
+  padding: var(--space-4) var(--space-4) 0;
+}
+.dl-waterfall [data-timing-part] + [data-timing-part] {
+  margin-block-start: var(--space-6);
+}
+.perf [data-slow-samples] {
+  margin-block-start: var(--space-6);
+  margin-block-end: var(--space-2);
+}
+.perf .dl-waterfall [data-timing-part] [data-waterfall-note],
+.perf [data-request-record] .dl-waterfall [data-waterfall-note] {
+  margin: 0;
+  padding: var(--space-4);
+}
+.dl-waterfall .dl-bar > i {
+  position: absolute;
+  inset-block: calc(-1 * var(--space-1));
+  border-inline-start: 1px solid var(--muted);
+}
+.dl-waterfall[data-waterfall='compact'] {
+  padding-block: var(--space-2);
+}
+.dl-waterfall [data-axis-labels] {
+  display: flex;
+  justify-content: space-between;
+  min-height: var(--size-touch);
+  padding-inline: var(--space-4);
+  gap: var(--space-2);
+}
+.dl-waterfall [data-timing-row] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+.dl-waterfall [data-duration] {
+  margin-inline-start: auto;
+  text-align: end;
+  white-space: nowrap;
+}
+.dl-waterfall [data-timing-row] > .dl-bar {
+  flex-basis: 100%;
+}
+.perf [data-request-record] {
+  display: none;
+}
+.perf [data-request-record][data-default],
+.perf [data-request-record]:target {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.perf:has([data-request-record]:target) [data-request-record][data-default]:not(:target) {
+  display: none;
+}
+/* Static request fixtures keep the existing app header and Back destination in context. */
+.perf [data-request-app]:not([data-request-app='forma']),
+.perf:has([data-request-id^='medius-']:target) [data-request-app],
+.perf:has([data-request-id^='quiet-']:target) [data-request-app] {
+  display: none;
+}
+.perf:has([data-request-id^='medius-']:target) [data-request-app='medius'],
+.perf:has([data-request-id^='quiet-']:target) [data-request-app='quiet'] {
+  display: inline-flex;
+}
+/* A caption that follows a waterfall inside the same card. */
+.perf .dl-waterfall + [data-waterfall-note] {
+  margin: 0;
+  padding: var(--space-4);
+}

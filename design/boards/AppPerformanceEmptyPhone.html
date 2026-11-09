@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="design-board" content="width=390,height=844"><title>Forma · no traffic in this hour</title><link rel="stylesheet" href="../ds/deploy-local/tokens.css"><link rel="stylesheet" href="../ds/deploy-local/components/bundle.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap"><style>
+body{margin:0;background:var(--paper)}
+.perf .dl-page{padding-top:8px;gap:var(--space-6)}
+.perf .dl-section{gap:var(--space-2)}
+.perf .dl-section-sub{margin:0;line-height:20px}
+.perf .dl-item{min-height:64px;box-sizing:border-box;align-items:center}
+.perf .dl-item .dl-t{gap:var(--space-1)}
+.perf .dl-item .dl-t>span{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.perf .dl-item .dl-t>span+span{line-height:20px}
+.perf .dl-item .dl-c{white-space:normal;text-align:right;max-width:35%;font-size:13px;line-height:20px}
+.perf .dl-list-note{margin:0;line-height:20px}
+.perf .dl-page-head{align-items:center}
+.perf .perf-value{font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink)}
+.perf .perf-facts{display:flex;flex-wrap:wrap;column-gap:var(--space-4);row-gap:var(--space-1);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.perf .perf-facts span{white-space:nowrap}
+.perf .perf-rating{font-size:13px;font-weight:400}
+.perf .good{color:var(--success)}.perf .needs-work{color:var(--warning)}.perf .poor{color:var(--danger)}
+.perf details>summary{list-style:none;cursor:pointer}.perf details>summary::-webkit-details-marker{display:none}
+.perf details+details{border-top:1px solid var(--line)}
+.perf details[open]>summary .dl-chev{transform:rotate(90deg)}
+.perf .perf-detail{padding:0 16px 16px}
+.perf .perf-detail .dl-group{border-radius:var(--radius-control)}
+.perf .perf-detail .dl-item{min-height:52px}
+.perf .perf-stack{margin:0;padding:var(--space-4);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);font:12px/20px var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-soft)}
+.perf .perf-chart{width:100%;height:132px;display:block;color:var(--ink-soft)}
+.perf .perf-chart-frame{padding:var(--space-4)}
+.perf .perf-chart-axis{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);gap:8px}
+.perf .dl-approval-actions{padding-left:0}
+.perf .dl-approval-answer{padding-left:0}
+.perf .perf-note{margin:0;color:var(--muted);font-size:12px;line-height:20px}
+.perf .perf-heading{margin:0;font-size:22px;line-height:28px;font-weight:600}
+.perf .perf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.perf .perf-block{margin:0 16px}
+.perf .perf-block+.perf-block{margin-top:20px}
+.perf .perf-block .dl-ph-group{margin:0}
+.perf .perf-block .dl-ph-label{padding:20px 16px 6px}
+.perf .perf-block .dl-ph-note{padding:8px 16px 0}
+.perf .dl-ph-body{overflow-y:auto;scroll-behavior:auto;padding-bottom:24px}
+.perf .dl-ph-row{min-height:64px}
+.perf .dl-ph-row .dl-t>span{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.perf .dl-ph-row .dl-t{gap:var(--space-1)}
+.perf .dl-ph-value{max-width:40%;text-align:right;font-variant-numeric:tabular-nums}
+.perf.dl-phone .perf-heading{font-size:22px;line-height:28px}
+
+.perf.dl-phone .dl-tabs a{height:44px;font-size:15px}
+.perf.dl-phone .dl-ph-note{font-size:13px;line-height:18px;color:var(--muted);margin:0}
+.perf.dl-phone .dl-approval-title{font-size:17px;line-height:24px}
+.perf.dl-phone .dl-approval-text{font-size:17px;line-height:24px}
+.perf.dl-phone .dl-btn{min-height:44px;font-size:17px;white-space:normal;text-align:center}
+.perf.dl-phone .dl-approval-answer{font-size:13px;line-height:18px}
+.perf.dl-phone .perf-note{font-size:13px;line-height:18px}
+.perf.dl-phone .perf-stack{font-size:12px;line-height:20px}
+.perf.dl-phone .dl-care-footer .dl-approval-actions{display:flex;gap:8px}
+.perf.dl-phone .dl-care-footer .dl-btn{flex:1}
+.perf.dl-phone .perf-back{font-size:15px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;color:var(--accent)}
+.perf :where(a,button,summary):focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+@media(max-width:600px){.perf .dl-page{padding-inline:16px}.perf .dl-item .dl-t>span:first-child{font-size:17px}.perf .dl-item .dl-t>span+span{font-size:13px}.perf .dl-item .dl-c{max-width:38%}}
+</style></head><body><div data-layer="phone" class="dl-phone dl-list perf"><header data-layer="ph-top" class="dl-ph-top"><a data-layer="back" class="dl-ph-btn" aria-label="Back" href="AppPerformancePhone.html">‹</a><span data-layer="forma" class="dl-t">Forma</span><span data-layer="span" class="dl-ph-btn"></span></header><div data-layer="ph-body" class="dl-ph-body"><div data-layer="perf-block" class="perf-block"><div data-layer="t" class="dl-t"><h1 data-layer="performance" class="perf-heading">Performance</h1><p data-layer="forma-deploy-local" class="perf-note">forma.deploy.local</p></div></div><div data-layer="perf-block-2" class="perf-block"><nav data-layer="app-sections" class="dl-tabs" aria-label="App sections"><a data-layer="overview" href="#">Overview</a><a data-layer="requests" href="#">Requests</a><a data-layer="performance-2" href="AppPerformanceEmptyPhone.html" class="on" aria-current="page">Performance</a><a data-layer="settings" href="#">Settings</a></nav></div><div data-layer="perf-block-3" class="perf-block"><span data-layer="range-time-range" class="dl-seg" role="group" aria-label="Time range"><a data-layer="1-hour" href="#" class="on" aria-current="true">1 hour</a><a data-layer="24-hours" href="#">24 hours</a><a data-layer="7-days" href="#">7 days</a><a data-layer="range-30-days" href="#">30 days</a></span></div><section data-layer="perf-block-5" class="perf-block"><h2 data-layer="no-traffic-in" class="dl-ph-label">Routes</h2><div data-layer="ph-group-2" class="dl-ph-group"><div data-layer="ph-row-5" class="dl-ph-row"><span data-layer="t-6" class="dl-t"><span data-layer="nothing-to-measure">Nothing to measure yet</span><span data-layer="routes-page-experience">Routes, page experience and errors will appear when requests arrive. No requests in the selected hour.</span></span></div></div><p data-layer="choose-a-longer" class="dl-ph-note">Choose a longer range to see earlier traffic.</p></section><div data-layer="perf-block-6" class="perf-block"><a data-layer="show-24-hours" class="dl-btn secondary" href="AppPerformancePhone.html">Show 24 hours</a></div></div></div></body></html>
