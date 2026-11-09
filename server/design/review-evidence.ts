@@ -131,8 +131,25 @@ export function reviewEvidence(
   };
   const regions = new Map<
     string,
-    { layer: string; title: string; added: string[]; removed: string[] }
+    {
+      layer: string;
+      title: string;
+      added: string[];
+      removed: string[];
+      addedIcon?: boolean;
+      removedIcon?: boolean;
+    }
   >();
+  // Count icon roots, excluding an SVG nested inside a glyph wrapper.
+  const icons = (html: string) =>
+    (
+      html
+        .replace(
+          /<([\w-]+)\b[^>]*class=["'][^"']*\bdl-glyph\b[^"']*["'][^>]*>[\s\S]*?<\/\1>/g,
+          '<svg></svg>',
+        )
+        .match(/<svg\b/g) ?? []
+    ).length;
   for (const change of changes) {
     const region = regionFor(change.layer);
     if (regions.has(region.layer)) continue;
@@ -160,6 +177,12 @@ export function reviewEvidence(
       ...region,
       added: added ? [added] : [],
       removed: removed ? [removed] : [],
+      addedIcon:
+        icons(layerSnippet(after, region.layer) ?? '') >
+        icons(layerSnippet(before, region.layer) ?? ''),
+      removedIcon:
+        icons(layerSnippet(before, region.layer) ?? '') >
+        icons(layerSnippet(after, region.layer) ?? ''),
     });
   }
   let status: ReviewEvidence['status'] = screen.status;

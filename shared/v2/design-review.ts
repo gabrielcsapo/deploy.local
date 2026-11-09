@@ -181,7 +181,14 @@ export type ReviewEvidence = {
   file: string;
   title: string;
   status: DesignReviewRow['status'];
-  regions: { layer: string; title: string; added: string[]; removed: string[] }[];
+  regions: {
+    layer: string;
+    title: string;
+    added: string[];
+    removed: string[];
+    addedIcon?: boolean;
+    removedIcon?: boolean;
+  }[];
   changeWords?: string;
   nothingElse: boolean;
   seen: boolean;
@@ -207,6 +214,8 @@ export function groupReviewChanges(
       .map((region) => ({
         layer: region.layer.replace(/-\d+$/, ''),
         added: region.added.map(mask).sort(),
+        addedIcon: region.addedIcon ?? false,
+        removedIcon: region.removedIcon ?? false,
       }))
       .sort((a, b) => a.layer.localeCompare(b.layer));
     // A second region or unaccounted-for pixels must never hide in a repeated-change row.
@@ -227,6 +236,9 @@ export function groupReviewChanges(
       groups.set(key, {
         row: {
           id: screen.file,
+          changeWords: screen.changeWords,
+          addedIcon: screen.regions.some((r) => r.addedIcon),
+          removedIcon: screen.regions.some((r) => r.removedIcon),
           title:
             screen.changeWords ||
             (['new', 'removed'].includes(screen.status) || screen.regions.length !== 1
@@ -295,4 +307,24 @@ export function validReviewAnchor(
       a.y + a.h <= height
     )
   );
+}
+
+/** Keep computed prose short without changing grouping evidence or authored copy. */
+export function reviewPhrases(phrases: string[], icon = false): string {
+  const shortened = phrases.slice(0, 2).map((phrase) => {
+    if (phrase.length <= 40) return phrase;
+    const cut = phrase.slice(0, 41).lastIndexOf(' ');
+    return cut > 0 ? phrase.slice(0, cut) : '…';
+  });
+  let text = shortened.join(', ');
+  if (phrases.length > 2) text += ` and ${phrases.length - 2} more`;
+  if (icon) text += `${text ? ' and ' : ''}an icon`;
+  return text;
+}
+export function reviewWords(row: DesignReviewRow): string {
+  if (row.changeWords) return row.changeWords;
+  return [reviewPhrases(row.added, row.addedIcon), reviewPhrases(row.removed, row.removedIcon)]
+    .map((text, i) => (text ? `${i ? 'Removed' : 'Added'} ${text}.` : ''))
+    .filter(Boolean)
+    .join(' ');
 }

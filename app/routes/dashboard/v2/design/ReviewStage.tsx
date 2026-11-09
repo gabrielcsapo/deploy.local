@@ -637,11 +637,13 @@ export function ReviewStage({
             </div>
           </>
         )}
-        <span className="dl-rv-sep" />
-        <button className="dl-rv-readout" onClick={() => setChosen(null)} title="Fit to stage">
-          {chosen === null && board.w > 500 ? 'Fit · ' : ''}
-          {Math.round(width)} px
-        </button>
+        {!board.added && <span className="dl-rv-sep" />}
+        {!board.added && (
+          <button className="dl-rv-readout" onClick={() => setChosen(null)} title="Fit to stage">
+            {chosen === null && board.w > 500 ? 'Fit · ' : ''}
+            {Math.round(width)} px
+          </button>
+        )}
       </div>
     </div>
   );

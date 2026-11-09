@@ -1908,3 +1908,13 @@ button.dl-rv-row-top {
   height: 44px;
   text-align: center;
 }
+
+.dl-rv-words {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.dl-rv-addressed {
+  color: var(--success);
+}

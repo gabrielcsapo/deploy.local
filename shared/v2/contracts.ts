@@ -372,6 +372,9 @@ export type DesignReviewScreen = {
   previews?: Record<number, DesignReviewPreview>;
 };
 export type DesignReviewRow = {
+  changeWords?: string;
+  addedIcon?: boolean;
+  removedIcon?: boolean;
   id: string;
   title: string;
   status: 'changed' | 'new' | 'removed' | 'looksSame' | 'pixelsOnly';

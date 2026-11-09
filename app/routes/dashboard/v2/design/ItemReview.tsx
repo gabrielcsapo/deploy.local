@@ -11,6 +11,7 @@ import { useInbox } from '../data/hooks';
 import { request } from '../projects/data';
 import { conflictCount, conflictLine, missingSummary } from './review-model';
 import { ReviewStage, type ReviewDraft } from './ReviewStage';
+import { reviewPhrases } from '../../../../../shared/v2/design-review';
 import './review.css';
 
 export const ago = (at: string) => {
@@ -338,19 +339,24 @@ export function DesignItemReview({
         </button>
         {active && (
           <>
-            {entry.status === 'pixelsOnly' ? (
+            {entry.changeWords ? (
+              <p className="dl-rv-detail dl-rv-words">{entry.changeWords}</p>
+            ) : entry.status === 'pixelsOnly' ? (
               <p className="dl-rv-detail">Looks different; no element changed</p>
             ) : (
-              (entry.added.length > 0 || entry.removed.length > 0) && (
-                <p className="dl-rv-detail">
-                  {entry.added.length > 0 && (
+              (entry.added.length > 0 ||
+                entry.removed.length > 0 ||
+                entry.addedIcon ||
+                entry.removedIcon) && (
+                <p className="dl-rv-detail dl-rv-words">
+                  {(entry.added.length > 0 || entry.addedIcon) && (
                     <>
-                      Added <ins>{entry.added.join(', ')}</ins>.{' '}
+                      Added <ins>{reviewPhrases(entry.added, entry.addedIcon)}</ins>.{' '}
                     </>
                   )}
-                  {entry.removed.length > 0 && (
+                  {(entry.removed.length > 0 || entry.removedIcon) && (
                     <>
-                      Removed <del>{entry.removed.join(', ')}</del>.
+                      Removed <del>{reviewPhrases(entry.removed, entry.removedIcon)}</del>.
                     </>
                   )}
                 </p>
@@ -582,8 +588,10 @@ export function DesignItemReview({
                   <span className="dl-rv-row-top">
                     <span className="dl-rv-num">{pin.number}</span>
                     <b>{pin.text}</b>
-                    <span>{pin.resolved ? 'Addressed' : 'Open'}</span>
                   </span>
+                  <p className={`dl-rv-detail${pin.resolved ? ' dl-rv-addressed' : ' quiet'}`}>
+                    {pin.resolved ? 'Addressed' : 'Open'}
+                  </p>
                   {pin.reply && (
                     <p className="dl-rv-detail quiet">
                       {data.proposer.name}: {pin.reply}
@@ -605,12 +613,16 @@ export function DesignItemReview({
             )}
           </section>
           {data && data.round > 1 && (
-            <details className="dl-rv-section">
-              <summary className="dl-rv-label">
-                Unchanged · {count(rows.length - changedRows.length, 'change')} you already saw
-              </summary>
-              {rows.filter((entry) => !changedRows.includes(entry)).map(rowView)}
-            </details>
+            <section className="dl-rv-section">
+              <h2 className="dl-rv-label">Unchanged</h2>
+              <details>
+                <summary className="dl-rv-row dl-rv-row-top">
+                  <i className="dl-rv-tick done" />
+                  <b>{count(rows.length - changedRows.length, 'change')} you already saw</b>
+                </summary>
+                {rows.filter((entry) => !changedRows.includes(entry)).map(rowView)}
+              </details>
+            </section>
           )}
           {Boolean(data?.notes.length) && (
             <details className="dl-rv-section">

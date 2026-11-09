@@ -62,3 +62,16 @@ test('link targets look the same; CSS-only pixels are explicit; missing renders 
     false,
   );
 });
+
+test('removed glyphs and added lone SVGs have unnamed icon evidence', () => {
+  const screen = { file: 'A', title: 'A', status: 'changed' as const };
+  const old =
+    '<header class="dl-head" data-layer="head"><span data-layer="glyph" class="dl-glyph"><svg></svg></span><b data-layer="label">Project</b></header>';
+  const next =
+    '<header class="dl-head" data-layer="head"><b data-layer="label">Projects</b></header>';
+  assert.equal(reviewEvidence(screen, old, next).regions[0].removedIcon, true);
+  assert.equal(
+    reviewEvidence(screen, next, old.replace('class="dl-glyph"', '')).regions[0].addedIcon,
+    true,
+  );
+});
