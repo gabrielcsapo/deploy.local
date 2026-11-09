@@ -1875,3 +1875,36 @@ button.dl-rv-row-top {
   box-shadow: var(--shadow-sm);
   cursor: ew-resize;
 }
+.dl-propose-form :is(input, textarea) {
+  font-family: var(--ds-font);
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+}
+.dl-rv-handle {
+  pointer-events: auto;
+  cursor: nwse-resize;
+}
+.dl-rv-handle:is(.tr, .bl) {
+  cursor: nesw-resize;
+}
+.dl-rv-divider {
+  touch-action: none;
+  cursor: ew-resize;
+}
+.dl-propose-dialog .dl-dialog-head .dl-icon-btn {
+  display: none;
+}
+.dl-rv-embedded .dl-rv-stage {
+  padding: 8px;
+}
+.dl-rv-embedded .dl-rv-sep:has(+ .dl-rv-readout:not(.dl-rv-single)) {
+  display: none;
+}
+.dl-rv-embedded .dl-rv-bottom .dl-btn {
+  height: 44px;
+}
+.dl-rv-embedded .dl-rv-bar > button:not(.dl-rv-pick) {
+  width: 44px;
+  height: 44px;
+  text-align: center;
+}

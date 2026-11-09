@@ -88,7 +88,14 @@ export function ReviewStage({
   useLayoutEffect(() => {
     const element = stage.current!;
     const observer = new ResizeObserver(() =>
-      setAvailable(Math.max(320, element.clientWidth - (window.innerWidth <= 820 ? 16 : 24))),
+      setAvailable(
+        Math.max(
+          320,
+          element.clientWidth -
+            parseFloat(getComputedStyle(element).paddingLeft) -
+            parseFloat(getComputedStyle(element).paddingRight),
+        ),
+      ),
     );
     observer.observe(element);
     return () => observer.disconnect();
@@ -127,7 +134,27 @@ export function ReviewStage({
         window.dispatchEvent(new KeyboardEvent('keydown', { key: event.key }));
       }
     });
-    doc?.addEventListener('scroll', measure, true);
+    doc?.addEventListener(
+      'scroll',
+      (event) => {
+        const root = event.target === doc;
+        const source = (root ? doc.scrollingElement : event.target) as HTMLElement | null;
+        const other = (side === 'before' ? after.current : before.current)?.contentDocument;
+        const peer = root
+          ? other?.scrollingElement
+          : source?.dataset?.layer
+            ? other?.querySelector<HTMLElement>(
+                `[data-layer="${CSS.escape(source.dataset.layer)}"]`,
+              )
+            : null;
+        if (peer && source) {
+          if (peer.scrollTop !== source.scrollTop) peer.scrollTop = source.scrollTop;
+          if (peer.scrollLeft !== source.scrollLeft) peer.scrollLeft = source.scrollLeft;
+        }
+        measure();
+      },
+      true,
+    );
     void doc?.fonts.ready.then(measure);
     setLoaded((value) => ({ ...value, [side]: true }));
     measure();
@@ -183,6 +210,27 @@ export function ReviewStage({
     strokes: [points.slice(0, 4096).map((p) => ({ x: p.x / width, y: p.y / board.h }))],
   });
   const draftPoint = draft && reviewNotePosition(draft, activeBoxes);
+  const draftBounds =
+    draft?.area ??
+    (draft?.drawing
+      ? areaFor(
+          draft.drawing.strokes.flat().map((p) => ({
+            x: p.x * draft.drawing!.nativeWidth,
+            y: p.y * draft.drawing!.nativeHeight,
+          })),
+        )
+      : null);
+  const resizeArea = (corner: string, point: { x: number; y: number }) => {
+    if (!draft?.area || !draftPoint) return;
+    const a = draft.area,
+      p = { x: point.x - draftPoint.x + draft.x, y: point.y - draftPoint.y + draft.y };
+    const left = corner.includes('l') ? Math.max(0, Math.min(a.x + a.w - 1, p.x)) : a.x;
+    const right = corner.includes('r') ? Math.min(draft.width, Math.max(a.x + 1, p.x)) : a.x + a.w;
+    const top = corner.includes('t') ? Math.max(0, Math.min(a.y + a.h - 1, p.y)) : a.y;
+    const bottom = corner.includes('b') ? Math.min(board.h, Math.max(a.y + 1, p.y)) : a.y + a.h;
+    setDraft({ ...draft, area: { x: left, y: top, w: right - left, h: bottom - top } });
+  };
+
   const marks = [...pins, ...(draft && !draft.id ? [{ ...draft, id: 'draft' }] : [])];
   const area = gesture && tool === 'area' ? areaFor([gesture.start, gesture.points.at(-1)!]) : null;
   const readyFrames = (board.added || loaded.before) && (board.removed || loaded.after);
@@ -309,7 +357,7 @@ export function ReviewStage({
                         tool === 'draw' ? { drawing: drawingFor(points) } : {},
                       );
                     setGesture(null);
-                    setTool('select');
+                    if (tool === 'pin') setTool('select');
                   }}
                 />
               )}
@@ -326,12 +374,66 @@ export function ReviewStage({
                       key={`area-${mark.id}`}
                       className="dl-rv-mark"
                       style={{
-                        left: mark.area.x,
-                        top: mark.area.y,
+                        left: mark.area.x + reviewNotePosition(mark, activeBoxes).x - mark.x,
+                        top: mark.area.y + reviewNotePosition(mark, activeBoxes).y - mark.y,
                         width: mark.area.w,
                         height: mark.area.h,
                       }}
-                    />
+                    >
+                      {draft &&
+                        (mark.id === 'draft' || mark.id === draft.id) &&
+                        ['tl', 'tr', 'bl', 'br'].map((corner) => (
+                          <span
+                            key={corner}
+                            className={`dl-rv-handle ${corner}`}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Resize area ${corner}`}
+                            onPointerDown={(event) => {
+                              event.preventDefault();
+                              event.currentTarget.setPointerCapture(event.pointerId);
+                            }}
+                            onPointerMove={(event) => {
+                              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                                resizeArea(corner, position(event));
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(
+                                  event.key,
+                                )
+                              )
+                                return;
+                              event.preventDefault();
+                              event.stopPropagation();
+                              const a = draft.area!,
+                                p = reviewNotePosition(draft, activeBoxes);
+                              resizeArea(corner, {
+                                x:
+                                  a.x +
+                                  (corner.includes('r') ? a.w : 0) +
+                                  p.x -
+                                  draft.x +
+                                  (event.key === 'ArrowRight'
+                                    ? 1
+                                    : event.key === 'ArrowLeft'
+                                      ? -1
+                                      : 0),
+                                y:
+                                  a.y +
+                                  (corner.includes('b') ? a.h : 0) +
+                                  p.y -
+                                  draft.y +
+                                  (event.key === 'ArrowDown'
+                                    ? 1
+                                    : event.key === 'ArrowUp'
+                                      ? -1
+                                      : 0),
+                              });
+                            }}
+                          />
+                        ))}
+                    </span>
                   ),
               )}
               <svg className="dl-rv-stroke" viewBox={`0 0 ${width} ${board.h}`}>
@@ -342,6 +444,7 @@ export function ReviewStage({
                       <path
                         key={`${p.id}-${i}`}
                         d={reviewDrawingPath(p.drawing!, stroke)}
+                        transform={`translate(${reviewNotePosition(p, activeBoxes).x - p.x} ${reviewNotePosition(p, activeBoxes).y - p.y})`}
                         fill="none"
                         stroke="currentColor"
                         strokeWidth={3}
@@ -382,8 +485,24 @@ export function ReviewStage({
                 <form
                   className="dl-rv-compose"
                   style={{
-                    left: Math.max(12, Math.min(draftPoint.x + 12, width - 332)),
-                    top: Math.max(12, Math.min(draftPoint.y + 28, board.h - 156)),
+                    left: Math.max(
+                      12,
+                      Math.min(
+                        draftBounds
+                          ? draftBounds.x + draftBounds.w - 320 + draftPoint.x - draft.x
+                          : draftPoint.x + 12,
+                        width - 332,
+                      ),
+                    ),
+                    top: Math.max(
+                      12,
+                      Math.min(
+                        draftBounds
+                          ? draftBounds.y + draftBounds.h + 12 + draftPoint.y - draft.y
+                          : draftPoint.y + 28,
+                        board.h - 156,
+                      ),
+                    ),
                   }}
                   onSubmit={(event) => {
                     event.preventDefault();

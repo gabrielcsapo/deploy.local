@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
-import { Action, Dialog, Empty, Icon, type IconName } from '@/components/ui';
+import { Action, Dialog, Empty, Field, Icon, type IconName } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { getAuth } from '../../detail/shared';
 import { useInbox } from '../data/hooks';
@@ -857,6 +857,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
       ref={stage}
     >
       <Dialog
+        className="dl-propose-dialog"
         open={proposalOpen}
         onClose={() => !proposing && setProposalOpen(false)}
         title="Propose for review"
@@ -882,20 +883,17 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
             void sendProposal();
           }}
         >
-          <label>
-            What is this?
-            <input
-              className="dl-input"
-              required
-              maxLength={200}
-              value={proposalTitle}
-              onChange={(event) => setProposalTitle(event.target.value)}
-            />
-          </label>
+          <Field
+            label="What is this?"
+            required
+            maxLength={200}
+            value={proposalTitle}
+            onChange={(event) => setProposalTitle(event.target.value)}
+          />
           <label>
             What changed, and why?
             <textarea
-              className="dl-input"
+              className="dl-textarea"
               required
               maxLength={4000}
               value={proposalSummary}

@@ -129,10 +129,7 @@ export function DesignItemReview({
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (popover) setPopover(null);
-        else if (draft) setDraft(null);
-        else if (menu) setMenu(false);
-        else window.location.assign('/dashboard/design?view=review');
+        window.location.assign('/dashboard/design?view=review');
         return;
       }
       if (
@@ -148,7 +145,7 @@ export function DesignItemReview({
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [popover, draft, menu, step]);
+  }, [step]);
   const ready = useCallback((file: string) => setReadyFile(file), []);
   useEffect(() => {
     if (!row || row.seen || readyFile !== board?.file || !data || !waiting) return;
@@ -202,6 +199,18 @@ export function DesignItemReview({
     version.current++;
     setBusy(true);
     try {
+      if (actionId === 'changes' && draft) {
+        const saved = await request<{ pins: DesignReviewPin[] }>(`${api}/review/pins`, {
+          method: draft.id ? 'PATCH' : 'POST',
+          body: JSON.stringify({
+            item: item.id,
+            ...draft,
+            ...(draft.id ? { drawing: undefined } : {}),
+          }),
+        });
+        setData((current) => current && { ...current, pins: saved.pins });
+        setDraft(null);
+      }
       await request(`/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
         method: 'POST',
         body: JSON.stringify({
@@ -217,8 +226,8 @@ export function DesignItemReview({
       inbox.retry();
       await load();
     } catch (failure) {
-      setError((failure as Error).message);
       await load();
+      setError((failure as Error).message);
     } finally {
       setBusy(false);
     }
@@ -239,7 +248,11 @@ export function DesignItemReview({
     }
   };
   const disabled = busy || !data;
-  const decisions = pending ? (
+  const decisions = !data ? (
+    <Action variant="secondary" disabled>
+      Approve
+    </Action>
+  ) : pending ? (
     <>
       <span className="dl-rv-status">
         Approved · goes to main in{' '}
@@ -250,13 +263,23 @@ export function DesignItemReview({
       </Action>
     </>
   ) : !waiting && data ? (
-    <span className="dl-rv-status">
-      {approved
-        ? 'Approved · on main'
-        : sent
-          ? `${count(open.length, 'note')} sent to ${data.proposer.name}`
-          : 'Asked to update'}
-    </span>
+    <>
+      <span className="dl-rv-status">
+        {approved
+          ? 'Approved · on main'
+          : sent
+            ? `${count(open.length, 'note')} sent to ${data.proposer.name} · ${data.item.answer ? ago(data.item.answer.at).replace(/^now$/, 'just now') : 'just now'}`
+            : 'Asked to update'}
+      </span>
+      {sent && (data.item.taskId ?? item.taskId) && (
+        <a
+          className="dl-btn secondary"
+          href={`/dashboard/tasks/${encodeURIComponent(data.item.taskId ?? item.taskId!)}`}
+        >
+          Open the task
+        </a>
+      )}
+    </>
   ) : data?.stale ? (
     <>
       <a className="dl-btn secondary" href="/dashboard/design?view=review">
@@ -280,7 +303,7 @@ export function DesignItemReview({
         disabled={disabled}
         onClick={() => setPopover('send')}
       >
-        {unsent ? `Send ${count(unsent, 'note')}` : 'Ask for changes'}
+        {open.length ? `Send ${count(open.length, 'note')}` : 'Ask for changes'}
       </Action>
     </>
   );
@@ -421,35 +444,40 @@ export function DesignItemReview({
               <textarea
                 autoFocus
                 aria-label="What should change?"
-                placeholder="Anything else?"
+                placeholder={unsent ? 'Anything else? (optional)' : 'What should change?'}
                 value={feedback}
                 onChange={(event) => setFeedback(event.target.value)}
-                required={!open.length}
+                required={!unsent}
               />
               <div className="actions">
                 <Action onClick={() => setPopover(null)}>Cancel</Action>
                 <Action
                   type="submit"
                   variant="primary"
-                  disabled={busy || (!open.length && !feedback.trim()) || Boolean(draft)}
+                  disabled={
+                    busy || (!unsent && !feedback.trim()) || Boolean(draft && !draft.text.trim())
+                  }
                 >
                   Send
                 </Action>
               </div>
-              {draft && <p>Save your note on the design before sending.</p>}
             </>
           )}
         </form>
       )}
       <div className="dl-rv-bar">
         <button className="dl-rv-pick" aria-expanded={menu} onClick={() => setMenu(!menu)}>
-          <b>{row?.title ?? 'Changes'}</b>{' '}
-          <span>
-            · {rows.indexOf(row!) + 1} of {rows.length} changes ⌄
-          </span>
+          <b>{data && data.round > 1 ? 'Your notes' : (row?.title ?? 'Changes')}</b>{' '}
+          {data && (
+            <span>
+              {data.round > 1
+                ? `· ${data.pins.filter((pin) => pin.resolved).length} of ${data.pins.length} addressed ⌄`
+                : `· ${row ? rows.indexOf(row) + 1 : 0} of ${rows.length} changes ⌄`}
+            </span>
+          )}
         </button>
         <span className="dl-rv-grow" />
-        {row && (
+        {row && data?.round === 1 && (
           <>
             <span>
               {screenIndex + 1} of {row.screens.length}
@@ -474,13 +502,37 @@ export function DesignItemReview({
       {menu && (
         <div className="dl-rv-picker">
           {rows.map(rowView)}
+          {Boolean(data?.notes.length) && (
+            <details className="dl-rv-section">
+              <summary className="dl-rv-label">Canvas notes · {data!.notes.length} updated</summary>
+              {data!.notes.map((note) => (
+                <div className="dl-rv-row" key={note.id}>
+                  <b>{note.title}</b>
+                  {note.after?.map((line, index) => (
+                    <p key={index}>{line.text}</p>
+                  ))}
+                </div>
+              ))}
+            </details>
+          )}
           {data && data.round > 1 && (
             <section>
               <h2>Your notes</h2>
               {data.pins.map((pin) => (
-                <p key={pin.id}>
+                <button
+                  className="dl-rv-row"
+                  key={pin.id}
+                  onClick={() => {
+                    const target = rows.find((entry) => entry.screens.includes(pin.board));
+                    if (target) {
+                      choose(target);
+                      setScreenIndex(target.screens.indexOf(pin.board));
+                      setDraft({ ...pin });
+                    }
+                  }}
+                >
                   {pin.text} · {pin.resolved ? 'Addressed' : 'Open'}
-                </p>
+                </button>
               ))}
             </section>
           )}
@@ -523,6 +575,7 @@ export function DesignItemReview({
                     if (target) {
                       choose(target);
                       setScreenIndex(target.screens.indexOf(pin.board));
+                      setDraft({ ...pin });
                     }
                   }}
                 >
@@ -540,8 +593,8 @@ export function DesignItemReview({
               ))}
             </section>
           )}
-          <section className="dl-rv-section">
-            <h2 className="dl-rv-label">
+          <section className="dl-rv-section" hidden={data?.stale}>
+            <h2 className="dl-rv-label" hidden={!data}>
               <span>{data && data.round > 1 ? 'Changed since your review' : 'Changes'}</span>
               <span>{progress}</span>
             </h2>
@@ -587,7 +640,13 @@ export function DesignItemReview({
             key={`${board.file}:${board.after}`}
             api={api}
             board={board}
-            pins={approved ? [] : (data?.pins.filter((pin) => pin.board === board.file) ?? [])}
+            pins={
+              approved
+                ? []
+                : (data?.pins.filter(
+                    (pin) => pin.board === board.file && (!pin.resolved || draft?.id === pin.id),
+                  ) ?? [])
+            }
             draft={draft?.board === board.file ? draft : null}
             setDraft={setDraft}
             save={() => void saveNote()}
@@ -604,7 +663,7 @@ export function DesignItemReview({
         )}
       </div>
       <div className="dl-rv-bottom">
-        <em>{progress}</em>
+        <em>{data ? progress : ''}</em>
         {decisions}
       </div>
     </div>
