@@ -25,7 +25,7 @@ Version 2 holds deploy.local to the restraint of [hob](https://github.com/Frigad
 ## Layout
 
 - **One sidebar** (256 px): New task, Projects, Live, Computers at the top (Live always shows a summary: "7 running", or a red dot and "1 failing"); then Agents, Waiting on you, Today and earlier days; the account and Settings at the foot. It is the inbox.
-- **Main pane:** a 48 px header (title, a muted subtitle, end-aligned icon actions). Conversations and the composer share a 768 px column. Pages (projects, computers, settings) use a 960 px column with a 22 px title.
+- **Main pane:** a 48 px header (title, a muted subtitle, end-aligned icon actions). A page inside a list starts its header with a breadcrumb back to that list (Projects, then the project), so the way back is on the page. Conversations and the composer share a 768 px column. Pages (projects, computers, settings) use a 960 px column with a 22 px title.
 - **Right panel** (320 px, hairline left edge) for what an agent is tracking or a pull request's merge status. It folds away below 1180 px.
 - **Narrow windows:** below 900 px secondary lists fold; below 820 px the sidebar hides behind a menu button; below 600 px insets drop to 16 px and text steps up to 17.
 - **Phone:** large title, rounded groups of 17 px rows, a bottom tab bar (Work, Projects, Live, Computers, Settings), 44 px targets.

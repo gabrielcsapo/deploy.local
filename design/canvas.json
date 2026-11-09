@@ -624,7 +624,7 @@
       "y": 13104,
       "w": 390,
       "h": 844,
-      "title": "iPhone — a project"
+      "title": "iPhone — projects"
     },
     "Project.html": {
       "x": 16920,
@@ -2596,6 +2596,13 @@
       "h": 1600,
       "title": "Forma · request without browser report",
       "expand": "fill"
+    },
+    "ProjectDetailPhone.html": {
+      "x": 22110,
+      "y": 13104,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a project"
     }
   },
   "order": [
@@ -2684,6 +2691,7 @@
     "AutoRollback.html",
     "Projects.html",
     "ProjectPhone.html",
+    "ProjectDetailPhone.html",
     "Project.html",
     "Code.html",
     "Issues.html",
@@ -4238,6 +4246,13 @@
       "x": 27000,
       "y": 21404,
       "text": "Orchestrator capture required: this sandbox must not launch Chromium, Electron, Xcode or Simulator. Boards are standalone file URLs; no fixture server command is needed. Render the changed/new boards using the exact command in docs/evidence/app-performance-design/README.md: 6 changed/new web × 2 widths (1440, 700) + 7 phone at 390 = 19 initial PNGs. Use 1ad36267 as Before; for new request boards use the previous route detail as context, clearly labelled new screen. Show one before/after pair in the owner conversation and propose for explicit design approval before implementation.\n\nInspect shared list-scale bars, p95 markers and phase tooltip labels; open every web route disclosure and scroll to its 3 slow samples. Inspect the long seconds axis on /watch/:id, p95 extensions, duration labels, Unavailable Interactive and no browser rows on the API route. Scroll phone Route to Waterfall, Slowest requests and Page experience; scroll all overview phone bodies to ratings, errors and releases. Follow all request links; capture default #forma-watch-143 and #forma-watch-127 (browser milestones), plus Medius and quiet request fragments. No duplicated largest-paint/first-byte timings in ratings. Check before/after bars in both releases and Waiting, including fixed phone footer and all 3 choices. Confirm totals-only one-line note, narrow range controls and unchanged chrome. New shared dl-waterfall primitive uses existing tokens and dl-bar/list components; no new palette or type sizes."
+    },
+    "project-way-back": {
+      "fill": "purple",
+      "w": 560,
+      "x": 16300,
+      "y": 13944,
+      "text": "Getting back from a project. Every page inside a project starts its header with a breadcrumb: Projects, then the project. An app page in a project with several apps adds the app; a one-app project stops at the project, because the project is the app. The current page is not a link. Tabs stay siblings and never appear in the breadcrumb. Going back to Projects, by the breadcrumb, the sidebar or browser Back, returns to the same place in the list. In the desktop app, View also has Back (⌘[) and Forward (⌘]). On iPhone a project opens as its own page, with the back button and swipe, and no longer unfolds below the list."
     }
   },
   "starts": {}
