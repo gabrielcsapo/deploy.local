@@ -5,11 +5,12 @@ export const compareMode = (value: string | null): CompareMode =>
 const changed = 'deploy:design-compare';
 let memoryMode: CompareMode | undefined;
 
-export function savedCompareMode(): CompareMode {
+export function savedCompareMode(fallback: CompareMode = 'slider'): CompareMode {
   try {
-    return memoryMode ?? compareMode(localStorage.getItem(compareModeKey));
+    const saved = localStorage.getItem(compareModeKey);
+    return memoryMode ?? (saved === null ? fallback : compareMode(saved));
   } catch {
-    return memoryMode ?? 'slider';
+    return memoryMode ?? fallback;
   }
 }
 

@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { Action, Group, Head, IconButton, Item } from '@/components/ui';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
-import type { DesignReviewSummary } from '../../../../../shared/v2/contracts';
+import type { DesignApproved, DesignReviewSummary } from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
 import { useData } from '../projects/data';
 import { getAuth } from '../../detail/shared';
@@ -30,7 +30,7 @@ export function ToReview({
     .filter((item) => item.state === 'waiting' && item.id.startsWith('design:'))
     .map((item) => item.id)
     .join(',');
-  const reviews = useData<{ proposals: DesignReviewSummary[] }>(
+  const reviews = useData<{ proposals: DesignReviewSummary[]; approved?: DesignApproved[] }>(
     `/api/v2/design/reviews?${projectId ? `project=${encodeURIComponent(projectId)}&` : ''}v=${encodeURIComponent(version)}`,
   );
   const projects = useData<{ projects: DesignProject[] }>('/api/v2/design/projects');
@@ -41,6 +41,7 @@ export function ToReview({
       alwaysList ||
       !reviews.data ||
       reviews.data.proposals.length ||
+      reviews.data.approved?.length ||
       !projects.data
     )
       return;
@@ -121,6 +122,21 @@ export function ToReview({
               ))}
             </Group>
           </section>
+          {Boolean(reviews.data?.approved?.length) && (
+            <section>
+              <h2>Approved</h2>
+              <Group>
+                {reviews.data!.approved!.map((proposal) => (
+                  <Item
+                    key={proposal.id}
+                    href={reviewHref(proposal.id)}
+                    title={proposal.title}
+                    description={proposal.detail}
+                  />
+                ))}
+              </Group>
+            </section>
+          )}
           {usable.length > 0 && (
             <section>
               <h2>Projects with a design</h2>

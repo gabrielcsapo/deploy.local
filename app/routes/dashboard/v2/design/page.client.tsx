@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
-import { Action, Empty, Icon, type IconName } from '@/components/ui';
+import { Action, Dialog, Empty, Icon, type IconName } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { getAuth } from '../../detail/shared';
 import { useInbox } from '../data/hooks';
@@ -247,6 +247,29 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     }[];
   }>(project ? `${projectApi}/proposals?v=${poll}` : undefined);
   const [proposing, setProposing] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [proposalTitle, setProposalTitle] = useState('');
+  const [proposalSummary, setProposalSummary] = useState('');
+  const [proposalError, setProposalError] = useState('');
+  const sendProposal = async () => {
+    if (!proposalTitle.trim() || !proposalSummary.trim()) return;
+    setProposing(true);
+    try {
+      await request(`${projectApi}/propose`, {
+        method: 'POST',
+        body: JSON.stringify({ ref, title: proposalTitle.trim(), summary: proposalSummary.trim() }),
+      });
+      setPoll((n) => n + 1);
+      setProposalOpen(false);
+      setProposalTitle('');
+      setProposalSummary('');
+      setProposalError('');
+    } catch (failure) {
+      setProposalError((failure as Error).message);
+    } finally {
+      setProposing(false);
+    }
+  };
   // In review only while the waiting request is for the branch as it is now; new edits since
   // make it something to propose again.
   const inReview = proposals.data?.proposals.some(
@@ -795,20 +818,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
             : reviewedEarlier
               ? 'Propose again: it changed since you proposed it'
               : `Ask to approve ${ref}`,
-          run: async () => {
-            setProposing(true);
-            try {
-              await request(`${projectApi}/propose`, {
-                method: 'POST',
-                body: JSON.stringify({ ref }),
-              });
-              setPoll((n) => n + 1);
-            } catch (failure) {
-              window.alert((failure as Error).message);
-            } finally {
-              setProposing(false);
-            }
-          },
+          run: () => setProposalOpen(true),
         }
       : null;
   const nameFor = (board: string, layer: string) =>
@@ -846,6 +856,56 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
       className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}${layersOpen ? ' layers-open' : ''}`}
       ref={stage}
     >
+      <Dialog
+        open={proposalOpen}
+        onClose={() => !proposing && setProposalOpen(false)}
+        title="Propose for review"
+        actions={
+          <>
+            <Action disabled={proposing} onClick={() => setProposalOpen(false)}>
+              Cancel
+            </Action>
+            <Action
+              variant="primary"
+              disabled={proposing || !proposalTitle.trim() || !proposalSummary.trim()}
+              onClick={() => void sendProposal()}
+            >
+              Propose
+            </Action>
+          </>
+        }
+      >
+        <form
+          className="dl-propose-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void sendProposal();
+          }}
+        >
+          <label>
+            What is this?
+            <input
+              className="dl-input"
+              required
+              maxLength={200}
+              value={proposalTitle}
+              onChange={(event) => setProposalTitle(event.target.value)}
+            />
+          </label>
+          <label>
+            What changed, and why?
+            <textarea
+              className="dl-input"
+              required
+              maxLength={4000}
+              value={proposalSummary}
+              onChange={(event) => setProposalSummary(event.target.value)}
+            />
+          </label>
+          <p className="dl-meta">The reviewer reads this first.</p>
+          {proposalError && <p role="alert">{proposalError}</p>}
+        </form>
+      </Dialog>
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
