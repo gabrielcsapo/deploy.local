@@ -10,6 +10,61 @@ struct V2DesignReviewTests {
         let json = #"{"item":\#(item),"branch":"branch","before":"a","after":"b","boards":[\#(boards)],"notes":[{"id":"note","title":"How agents work","before":[{"text":"Before"}],"after":[{"text":"After","added":true}],"changed":1,"total":1}],"round":\#(round),"stale":false,"pins":[],"groups":[{"id":"one","title":"One","boards":["new","changed1"]},{"id":"two","title":"Two","boards":["removed","changed2"]}]}"#
         return try JSONDecoder().decode(V2DesignReview.self, from: Data(json.utf8))
     }
+    @Test func oldAndNewReviewResponsesDecodeAndRowsPresentTheirEvidence() throws {
+        let old = try review()
+        #expect(old.changes == nil && old.landing == nil)
+        #expect(V2ReviewModel.rows(old).count == old.boards.count)
+        let json = #"{"id":"header","title":"Header row","status":"changed","screens":["changed1","changed2"],"added":["Projects ›"],"removed":["Project"],"removedIcon":true,"variations":1,"nothingElse":true,"seen":false}"#
+        let response = #"{"item":{"id":"design:p:b:c","kind":"other","title":"Review","text":"","from":"designer","createdAt":"now","actions":[],"state":"waiting"},"branch":"b","before":"a","after":"c","boards":[\#(board("changed1")),\#(board("changed2"))],"changes":[\#(json)],"landing":{"at":"2026-11-09T12:00:30Z","state":"pending"}}"#
+        var value = try JSONDecoder().decode(V2DesignReview.self, from: Data(response.utf8))
+        let row = try #require(value.changes?.first)
+        #expect(value.landing?.state == "pending")
+        #expect(row.subtitle == "2 screens · adds Projects ›")
+        #expect(row.words == "Added Projects ›. Removed Project and an icon.")
+        #expect(V2ReviewModel.progress(value) == "0 of 1")
+        value.changes?[0].seen = true
+        #expect(V2ReviewModel.progress(value) == "1 of 1")
+        #expect(V2ReviewModel.nextUnseen(value, after: nil) == nil)
+        var same = row; same.status = "looksSame"
+        #expect(same.subtitle == "2 screens · nothing looks different")
+        var new = row; new.status = "new"; new.screens = ["new"]
+        #expect(new.subtitle == "New")
+        new.status = "changed"; #expect(new.subtitle == "Changed")
+        new.changeWords = "Authored words remain unchanged, even when they are longer than forty characters."
+        #expect(new.words == new.changeWords)
+    }
+    @Test func approvalCheckAndCountdownUseAuthoritativeLandingState() throws {
+        var value = try review()
+        #expect(!V2ReviewModel.needsApprovalCheck(value))
+        #expect(V2ReviewModel.needsApprovalCheck(value, draft: "Keep this"))
+        value.pins = [try pin(1, resolved: false)]
+        #expect(V2ReviewModel.needsApprovalCheck(value))
+        value.pins?[0].resolved = true
+        #expect(!V2ReviewModel.needsApprovalCheck(value))
+        value.item.answer = .init(actionId: "approve", by: "owner", on: .iphone, at: "2026-11-09T12:00:00Z")
+        value.item.state = .answered
+        value.landing = try JSONDecoder().decode(V2ReviewLanding.self, from: Data(#"{"at":"2026-11-09T12:00:30.000Z","state":"pending"}"#.utf8))
+        let now = ISO8601DateFormatter().date(from: "2026-11-09T12:00:01Z")!
+        #expect(V2ReviewModel.outcome(value, now: now) == "Approved · goes to main in 29 s")
+        #expect(value.landing?.secondsRemaining(now: now.addingTimeInterval(60)) == 0)
+        value.landing?.state = "landed"
+        #expect(V2ReviewModel.outcome(value, now: now) == "Approved · this is the design on main")
+        value.item.answer = nil; value.item.state = .waiting; value.landing = nil
+        #expect(V2ReviewModel.outcome(value).isEmpty)
+    }
+    @Test func newAnchorsRoundTripWithoutBreakingLegacyPins() throws {
+        var value = try pin(1, resolved: false)
+        #expect(value.layer == nil && value.offset == nil && value.area == nil)
+        value.layer = "head"; value.offset = .init(x: 0.5, y: 0.25)
+        value.area = .init(x: 12, y: 20, w: 90, h: 50)
+        let decoded = try JSONDecoder().decode(V2ReviewPin.self, from: JSONEncoder().encode(value))
+        #expect(decoded.layer == "head" && decoded.offset == value.offset && decoded.area == value.area)
+        var draft = V2ReviewPinDraft(item: "item", board: value.board, width: 390, revision: "b", x: 12, y: 25)
+        draft.layer = value.layer; draft.offset = value.offset; draft.area = value.area
+        let body = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(draft)) as? [String: Any])
+        #expect(body["layer"] as? String == "head")
+        #expect((body["area"] as? [String: Double])?["w"] == 90)
+    }
     @Test func decisionFooterAndSentNoticeKeepTheReviewRecord() throws {
         var value = try review(round: 2)
         value.item.answer = .init(actionId: "changes", by: "owner", on: .iphone, at: "2026-11-07T12:00:00Z")

@@ -62,6 +62,24 @@ private func body(_ request: URLRequest) -> [String: Any] {
 }
 
 @Suite(.serialized) struct V2Tests {
+    @Test func reviewRequestsSendGroupedSeenDelayAndUndo() async throws {
+        V2URLProtocol.state.reset([
+            "POST /api/v2/projects/p/design/review/seen": [(200, "{}")],
+            "POST /api/v2/projects/p/design/review/undo": [(200, "{}")],
+            "POST /api/v2/inbox/review/answer": [(200, "{\"item\":\(answeredJSON)}")]
+        ])
+        let api = client()
+        try await api.reviewSeen(project: "p", item: "review", boards: ["A.html", "B.html"], revision: "b")
+        _ = try await api.answer("review", action: "approve", delay: true)
+        try await api.undoReviewApproval(project: "p", item: "review")
+        let requests = V2URLProtocol.state.recorded()
+        #expect(body(requests[0])["boards"] as? [String] == ["A.html", "B.html"])
+        #expect(body(requests[0])["revision"] as? String == "b")
+        #expect(body(requests[1])["delay"] as? Bool == true)
+        #expect(body(requests[1])["on"] as? String == "iphone")
+        #expect(body(requests[2])["item"] as? String == "review")
+    }
+
     @Test func approvalsFetchUsesTheReadOnlyEndpointAndDecodesTheEnvelope() async throws {
         V2URLProtocol.state.reset(["GET /api/v2/approvals": [(200, #"{"rules":[{"agent":"custom-agent","action":"start-task","mode":"allow"}],"suggestions":[]}"#)]])
         let approvals = try await client().approvals()

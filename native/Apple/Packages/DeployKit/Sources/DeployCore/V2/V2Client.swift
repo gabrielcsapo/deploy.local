@@ -183,11 +183,11 @@ public actor V2Client {
     public func inboxPage(state: String = "waiting") async throws -> V2InboxPage {
         try await client.request("/api/v2/inbox?state=\(Self.segment(state))")
     }
-    public func answer(_ id: String, action: String, note: String? = nil) async throws -> V2AnswerResult {
-        struct Body: Encodable { let actionId: String; let on = "iphone"; let note: String? }
+    public func answer(_ id: String, action: String, note: String? = nil, delay: Bool? = nil) async throws -> V2AnswerResult {
+        struct Body: Encodable { let actionId: String; let on = "iphone"; let note: String?; let delay: Bool? }
         struct Response: Decodable, Sendable { let item: InboxItem }
         do {
-            let result: Response = try await client.request("/api/v2/inbox/\(Self.segment(id))/answer", method: "POST", body: JSONEncoder().encode(Body(actionId: action, note: note)))
+            let result: Response = try await client.request("/api/v2/inbox/\(Self.segment(id))/answer", method: "POST", body: JSONEncoder().encode(Body(actionId: action, note: note, delay: delay)))
             return V2AnswerResult(item: result.item, alreadyAnswered: false)
         } catch ClientError.response(409, _) {
             // The first answer wins. Read its authoritative record, never retry the command.

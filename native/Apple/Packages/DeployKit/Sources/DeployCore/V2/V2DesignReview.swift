@@ -68,6 +68,8 @@ public struct V2DesignReview: Decodable, Sendable {
     public var conflicts: [String]?
     public var groups: [V2ReviewGroup]?
     public var pins: [V2ReviewPin]?
+    public var changes: [V2ReviewRow]?
+    public var landing: V2ReviewLanding?
     let notes: [Note]?
     /// Older coordinators send no notes.
     public var changedNotes: [Note] { notes ?? [] }
@@ -78,11 +80,64 @@ public struct V2DesignReview: Decodable, Sendable {
     }
 }
 
+public struct V2ReviewLanding: Decodable, Sendable {
+    public var at: String
+    public var state: String
+    public var secondsRemaining: Int { secondsRemaining(now: Date()) }
+    public func secondsRemaining(now: Date) -> Int {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = formatter.date(from: at) ?? ISO8601DateFormatter().date(from: at) else { return 0 }
+        return max(0, Int(ceil(date.timeIntervalSince(now))))
+    }
+}
+public struct V2ReviewRow: Decodable, Sendable, Identifiable {
+    public var id: String
+    public var title: String
+    public var status: String
+    public var screens: [String]
+    public var added: [String]
+    public var removed: [String]
+    public var variations: Int
+    public var nothingElse: Bool
+    public var seen: Bool
+    public var changeWords: String?
+    public var addedIcon: Bool?
+    public var removedIcon: Bool?
+    public var label: String { status == "new" ? "New" : status == "removed" ? "Removed" : "Changed" }
+    public var subtitle: String {
+        let count = V2ReviewModel.count(screens.count, "screen")
+        if screens.count == 1 && status != "looksSame" { return label }
+        if status == "looksSame" { return "\(count) · nothing looks different" }
+        if let changeWords, !changeWords.isEmpty { return "\(count) · \(changeWords)" }
+        let addition = Self.phrases(added, icon: addedIcon == true)
+        return addition.isEmpty ? count : "\(count) · adds \(addition)"
+    }
+    public var words: String {
+        if let changeWords, !changeWords.isEmpty { return changeWords }
+        if status == "looksSame" { return "Nothing looks different." }
+        if status == "pixelsOnly" { return "Looks different; no element changed" }
+        return [("Added", Self.phrases(added, icon: addedIcon == true)), ("Removed", Self.phrases(removed, icon: removedIcon == true))]
+            .filter { !$0.1.isEmpty }.map { "\($0.0) \($0.1)." }.joined(separator: " ")
+    }
+    private static func phrases(_ phrases: [String], icon: Bool) -> String {
+        var text = phrases.prefix(2).map { phrase in
+            guard phrase.count > 40 else { return phrase }
+            let prefix = String(phrase.prefix(41))
+            return prefix.lastIndex(of: " ").map { String(prefix[..<$0]) } ?? "…"
+        }.joined(separator: ", ")
+        if phrases.count > 2 { text += " and \(phrases.count - 2) more" }
+        if icon { text += text.isEmpty ? "an icon" : " and an icon" }
+        return text
+    }
+}
+
 public struct V2ReviewRect: Codable, Equatable, Sendable {
     public var x: Double
     public var y: Double
     public var w: Double
     public var h: Double
+    public init(x: Double, y: Double, w: Double, h: Double) { self.x = x; self.y = y; self.w = w; self.h = h }
 }
 public struct V2ReviewChange: Decodable, Sendable {
     public var layer: String
@@ -122,6 +177,9 @@ public struct V2ReviewDrawing: Codable, Equatable, Sendable {
 public struct V2ReviewPin: Codable, Identifiable, Sendable {
     public var id: String
     public var number: Int
+    public var layer: String?
+    public var offset: V2ReviewDrawing.Point?
+    public var area: V2ReviewRect?
     public var drawing: V2ReviewDrawing?
     public var board: String
     public var noteId: String?
@@ -144,6 +202,9 @@ public struct V2ReviewPinDraft: Encodable, Sendable {
     public var y: Double
     public var text: String
     public var noteId: String?
+    public var layer: String?
+    public var offset: V2ReviewDrawing.Point?
+    public var area: V2ReviewRect?
     public var drawing: V2ReviewDrawing?
     public init(item: String, board: String, width: Int, revision: String, x: Double, y: Double, text: String = "", noteId: String? = nil, drawing: V2ReviewDrawing? = nil) {
         self.item = item; self.board = board; self.width = width; self.revision = revision
@@ -224,13 +285,28 @@ public enum V2ReviewModel {
         return SentNotice(title: "\(count(open, "change")) sent to \(proposer)",
                           body: "Each pin went to the task with its screen. \(proposer) will propose again here; your pins stay on the screens until then.")
     }
+    public static func rows(_ review: V2DesignReview) -> [V2ReviewRow] {
+        review.changes ?? canvasBoards(review).map { board in
+            V2ReviewRow(id: board.file, title: board.title, status: board.changeKind, screens: [board.file], added: [], removed: [], variations: 0, nothingElse: false, seen: board.seen == true)
+        }
+    }
+    public static func row(_ review: V2DesignReview, file: String) -> V2ReviewRow? { rows(review).first { $0.screens.contains(file) } }
+    public static func progress(_ review: V2DesignReview) -> String { "\(rows(review).filter(\.seen).count) of \(rows(review).count)" }
+    public static func needsApprovalCheck(_ review: V2DesignReview, draft: String = "") -> Bool {
+        review.item.state == .waiting && ((review.pins ?? []).contains { !$0.resolved } || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
     public static func outcome(_ review: V2DesignReview, now: Date = Date()) -> String {
         guard let answer = review.item.answer else { return "" }
-        if answer.actionId == "approve" { return "Approved · this is the design on main" }
+        if answer.actionId == "approve" {
+            if let landing = review.landing, landing.state == "pending" {
+                return "Approved · goes to main in \(landing.secondsRemaining(now: now)) s"
+            }
+            return "Approved · this is the design on main"
+        }
         guard answer.actionId == "changes" else { return "\(V2Labels.outcome(review.item)) · \(answer.by)" }
         let start = "Changes requested · \(age(answer.at, now: now))"
         if review.task ?? review.item.taskId != nil {
-            return "\(start) · you looked at \(review.boards.filter { $0.seen == true }.count) of \(review.boards.count)"
+            return "\(start) · you looked at \(progress(review))"
         }
         return "\(start) · propose again when the screens are updated."
     }
@@ -273,6 +349,7 @@ public enum V2ReviewModel {
     public static func screens(_ review: V2DesignReview) -> [V2DesignReview.Board] {
         let boards = canvasBoards(review)
         if (review.round ?? 1) > 1 { return boards.filter { $0.changedSinceReview == true } }
+        if let rows = review.changes { return rows.flatMap { row in row.screens.compactMap { file in boards.first { $0.file == file } } } }
         return ["changed", "new", "removed"].flatMap { kind in boards.filter { $0.changeKind == kind } }
     }
     public static func pages(_ review: V2DesignReview) -> [Page] {
@@ -284,7 +361,7 @@ public enum V2ReviewModel {
         return count == 0 ? .approve : .changes(count)
     }
     public static func nextUnseen(_ review: V2DesignReview, after file: String?) -> String? {
-        let boards = screens(review)
+        let boards = screens(review).filter { row(review, file: $0.file)?.seen != true }
         guard !boards.isEmpty else { return nil }
         let start = file.flatMap { file in boards.firstIndex { $0.file == file } }.map { $0 + 1 } ?? 0
         return (0..<boards.count).map { boards[(start + $0) % boards.count] }.first { $0.seen != true }?.file
@@ -313,6 +390,13 @@ extension V2Client {
     public func reviewImage(_ url: String) async throws -> Data { try await client.data(url, timeout: 120) }
     public func reviewSeen(project: String, item: String, board: String, revision: String) async throws {
         let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/seen", method: "POST", body: JSONEncoder().encode(["item": item, "board": board, "revision": revision]))
+    }
+    public func reviewSeen(project: String, item: String, boards: [String], revision: String) async throws {
+        struct Body: Encodable { var item: String; var boards: [String]; var revision: String }
+        let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/seen", method: "POST", body: JSONEncoder().encode(Body(item: item, boards: boards, revision: revision)))
+    }
+    public func undoReviewApproval(project: String, item: String) async throws {
+        let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/undo", method: "POST", body: JSONEncoder().encode(["item": item]))
     }
     public func addReviewPin(project: String, draft: V2ReviewPinDraft) async throws -> [V2ReviewPin] {
         try await reviewPins(project: project, method: "POST", body: JSONEncoder().encode(draft))
