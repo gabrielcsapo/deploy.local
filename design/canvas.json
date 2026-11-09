@@ -2603,6 +2603,44 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — a project"
+    },
+    "DesignReviewChanges.html": {
+      "x": 3600,
+      "y": 56640,
+      "w": 1440,
+      "h": 1120,
+      "title": "Design review — what changed",
+      "expand": "fill"
+    },
+    "DesignReviewChangesPhone.html": {
+      "x": 5120,
+      "y": 56640,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — what changed"
+    },
+    "DesignReviewDiff.html": {
+      "x": 3600,
+      "y": 57900,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review — one change, Before beside After",
+      "expand": "fill"
+    },
+    "DesignReviewDiffPhone.html": {
+      "x": 5120,
+      "y": 57900,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — one change, Before over After"
+    },
+    "DesignReviewDiffSeveral.html": {
+      "x": 3600,
+      "y": 58940,
+      "w": 1440,
+      "h": 1120,
+      "title": "Design review — several changes on one screen",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2890,6 +2928,11 @@
     "DesignReviewViewer.html",
     "DesignReviewRound2Phone.html",
     "DesignReviewViewerPhone.html",
+    "DesignReviewChanges.html",
+    "DesignReviewChangesPhone.html",
+    "DesignReviewDiff.html",
+    "DesignReviewDiffPhone.html",
+    "DesignReviewDiffSeveral.html",
     "DesignReviewHoldPhone.html",
     "DesignReviewWebPhone.html",
     "DesignReviewPinPhone.html",
@@ -4253,6 +4296,13 @@
       "x": 16300,
       "y": 13944,
       "text": "Getting back from a project. Every page inside a project starts its header with a breadcrumb: Projects, then the project. An app page in a project with several apps adds the app; a one-app project stops at the project, because the project is the app. The current page is not a link. Tabs stay siblings and never appear in the breadcrumb. Going back to Projects, by the breadcrumb, the sidebar or browser Back, returns to the same place in the list. In the desktop app, View also has Back (⌘[) and Forward (⌘]). On iPhone a project opens as its own page, with the back button and swipe, and no longer unfolds below the list."
+    },
+    "review-what-changed": {
+      "fill": "purple",
+      "w": 560,
+      "x": 5600,
+      "y": 56640,
+      "text": "Design review shows what changed, not two shrunken screens. Screens with the same change become one row: Before and After crops at real size, what was added and removed in words, the number of screens, and “Nothing else changed on these screens.” Nothing joins a group if anything else on that screen differs, so a row can be trusted. A group counts once toward “You’ve looked at N of M changes”, and Next unseen skips the rest of it. A screen with one change of its own keeps its tile. When no change repeats, the grid looks as it does today.\nOpening a screen shows Changes first, one row per changed area, in screen order; Whole screen is the existing side-by-side. Crops are never enlarged and shrink only to fit. Short crops sit Before beside After; wide ones, and everything at 700 and on iPhone, stack. A pin on a crop is a pin on the whole screen. Only what can be seen counts: a link that points elsewhere reads “Nothing looks different on these screens.” “Nothing else changed” is only said when the rendered pixels outside the crops match; otherwise that line is left out. If pixels differ with no changed element (a design-system change), the screen opens on Whole screen."
     }
   },
   "starts": {}

@@ -552,3 +552,28 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 .dl-phone.dl-review .dl-review-proposal-row{gap:8px;padding:16px 12px}
 .dl-phone.dl-review .dl-review-proposal-row .dl-t{gap:4px}
 .dl-phone.dl-review .dl-review-proposal-row .dl-t>span{white-space:nowrap;overflow-wrap:normal}
+
+/* Design review: what changed. A change is a crop of the screen, Before beside After, at real size. */
+.dl-diff-list{display:flex;flex-direction:column;gap:16px}
+.dl-diff{display:flex;flex-direction:column;gap:12px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card)}
+.dl-diff-head{display:flex;align-items:baseline;gap:8px;min-width:0}.dl-diff-head h3{margin:0;font-size:15px;line-height:22px;font-weight:600}.dl-diff-head .dl-link{margin-left:auto;font-size:13px;white-space:nowrap}
+.dl-diff-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.dl-diff-pair.wide{grid-template-columns:minmax(0,1fr)}
+.dl-diff-pair figure{margin:0;min-width:0}.dl-diff-pair figcaption{margin:0 0 4px;font-size:12px;line-height:16px;color:var(--muted)}
+.dl-diff-strip{position:relative;overflow:hidden;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--paper)}
+.dl-diff-strip .dl-head{width:1184px;padding-left:20px}.dl-diff-strip .dl-menu-btn{display:none}.dl-diff-strip.block{padding:12px 16px}
+.dl-diff-strip .dl-section-title,.dl-diff-strip .dl-section-sub{margin:0}
+.dl-diff-mark{border-radius:3px;background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft)}
+.dl-diff-words{margin:0;font-size:13px;line-height:20px;color:var(--ink-soft)}
+.dl-diff-words ins{padding:0 3px;border-radius:3px;background:var(--accent-soft);color:var(--ink);text-decoration:none}
+.dl-diff-words del{color:var(--muted)}
+.dl-diff-foot{display:flex;flex-wrap:wrap;align-items:center;gap:0 16px}.dl-diff-foot .dl-diff-screens{margin-left:auto}.dl-diff-foot .dl-diff-screens[open]{flex-basis:100%;margin-left:0}
+.dl-diff-note{flex:1 1 280px;margin:0;font-size:13px;line-height:20px;color:var(--muted)}
+.dl-diff-screens summary{min-height:44px;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;color:var(--ink-soft)}
+.dl-diff-screens p{margin:0;font-size:13px;line-height:22px;color:var(--ink-soft)}
+.dl-diff-tiles{margin-top:16px}
+.dl-review:has(#new:target) .dl-review-view,.dl-review:has(#removed:target) .dl-review-view{display:none}
+.dl-diff-same{margin:0 0 12px;font-size:13px;line-height:20px;color:var(--ink-soft)}
+.dl-diff-rest{margin:12px 0 0;font-size:13px;line-height:20px;color:var(--muted)}
+.dl-diff-pin{position:absolute;display:grid;place-items:center;width:24px;height:24px;border-radius:var(--radius-full);border:2px solid var(--surface);background:var(--accent);color:var(--on-action);font-size:12px;font-weight:600;box-shadow:var(--shadow-sm)}
+@media(max-width:820px){.dl-diff-pair{grid-template-columns:minmax(0,1fr)}.dl-diff{padding:12px}}
+.dl-phone .dl-diff{padding:0;background:none;border:0;border-radius:0}
