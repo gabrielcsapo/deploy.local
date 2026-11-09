@@ -76,3 +76,26 @@ test('notes follow their element and fall back when it disappears', () => {
   assert.equal(validReviewAnchor({ ...pin, offset: { x: Infinity, y: 0 } }, 812, 900), false);
   assert.equal(validReviewAnchor({ area: { x: 810, y: 0, w: 10, h: 10 } }, 812, 900), false);
 });
+
+test('the representative removed words come from the majority, with minority screens counted', () => {
+  const rows = groupReviewChanges([
+    screen('a', {
+      regions: [
+        { layer: 'head', title: 'Header row', added: ['Projects'], removed: ['Repository'] },
+      ],
+    }),
+    ...['b', 'c', 'd'].map((file) =>
+      screen(file, {
+        regions: [
+          { layer: 'head', title: 'Header row', added: ['Projects'], removed: ['Project'] },
+        ],
+      }),
+    ),
+  ]);
+  assert.deepEqual(rows[0].removed, ['Project']);
+  assert.equal(rows[0].variations, 1);
+  assert.equal(
+    groupReviewChanges([screen('new', { status: 'new', title: 'A project on iPhone' })])[0].title,
+    'A project on iPhone',
+  );
+});

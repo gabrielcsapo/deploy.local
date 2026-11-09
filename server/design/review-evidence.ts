@@ -73,7 +73,12 @@ export function compareReviewPixels(before: Buffer, after: Buffer, areas: Design
   for (let y = 0; y < a.height; y++)
     for (let x = 0; x < a.width; x++) {
       const at = (y * a.width + x) * a.channels;
-      if (a.pixels.subarray(at, at + a.channels).equals(b.pixels.subarray(at, at + b.channels)))
+      if (
+        a.pixels[at] === b.pixels[at] &&
+        a.pixels[at + 1] === b.pixels[at + 1] &&
+        a.pixels[at + 2] === b.pixels[at + 2] &&
+        (a.channels === 3 || a.pixels[at + 3] === b.pixels[at + 3])
+      )
         continue;
       same = false;
       if (
@@ -97,13 +102,24 @@ export function reviewEvidence(
   renders?: { before: Render; after: Render },
   changeWords?: Record<string, string>,
 ): ReviewEvidence {
+  if (!before || !after)
+    return {
+      ...screen,
+      regions: [],
+      nothingElse: false,
+      seen: false,
+      changeWords: Object.values(changeWords ?? {}).find(Boolean),
+    };
   const changes = layerChanges(before, after, Infinity);
   const regionFor = (layer: string) => {
     const html = after.includes(`data-layer="${layer}"`) ? after : before;
     const at = html.indexOf(`data-layer="${layer}"`);
-    const ancestors = [
-      ...html.slice(0, at + 1).matchAll(/<(?:header|section)\b[^>]*data-layer="([^"]+)"[^>]*>/g),
-    ].filter((m) => m.index! + (layerSnippet(html, m[1])?.length ?? 0) > at);
+    const ancestors = [...html.matchAll(/<[a-z][\w:-]*\b[^>]*data-layer="([^"]+)"[^>]*>/g)].filter(
+      (m) =>
+        m.index! <= at &&
+        m.index! + (layerSnippet(html, m[1])?.length ?? 0) > at &&
+        (/^<section\b/.test(m[0]) || /class="[^"]*\bdl-head\b/.test(m[0])),
+    );
     const header = ancestors.find((m) => /class="[^"]*\bdl-head\b/.test(m[0]));
     const nearest = header ?? ancestors.at(-1);
     const region = nearest?.[1] ?? layer;
@@ -120,10 +136,12 @@ export function reviewEvidence(
   for (const change of changes) {
     const region = regionFor(change.layer);
     if (regions.has(region.layer)) continue;
-    const old =
-      renders?.before.words?.[region.layer] ?? words(layerSnippet(before, region.layer) ?? '');
-    const next =
-      renders?.after.words?.[region.layer] ?? words(layerSnippet(after, region.layer) ?? '');
+    const old = renders?.before.words
+      ? (renders.before.words[region.layer] ?? '')
+      : words(layerSnippet(before, region.layer) ?? '');
+    const next = renders?.after.words
+      ? (renders.after.words[region.layer] ?? '')
+      : words(layerSnippet(after, region.layer) ?? '');
     // Remove common word runs, retaining real visible words instead of HTML diff descriptions.
     const a = old.split(' ').filter(Boolean),
       b = next.split(' ').filter(Boolean);
@@ -151,7 +169,12 @@ export function reviewEvidence(
       [renders.before.boxes[layer], renders.after.boxes[layer]].filter(Boolean),
     );
     const pixels = compareReviewPixels(renders.before.png, renders.after.png, areas);
-    const boxesSame = JSON.stringify(renders.before.boxes) === JSON.stringify(renders.after.boxes);
+    const boxValues = (boxes: Record<string, DesignRect>) =>
+      Object.values(boxes)
+        .map((r) => JSON.stringify([r.x, r.y, r.w, r.h]))
+        .sort()
+        .join(';');
+    const boxesSame = boxValues(renders.before.boxes) === boxValues(renders.after.boxes);
     const textSame = [...regions.values()].every((r) => !r.added.length && !r.removed.length);
     if (pixels.same && boxesSame && textSame) status = 'looksSame';
     else if (!changes.length && !pixels.same) status = 'pixelsOnly';

@@ -2227,3 +2227,83 @@ test('a conflict at delayed landing returns the review to waiting', async () => 
   assert.equal(review.item.state, 'waiting');
   assert.equal(review.landing.state, 'conflict');
 });
+
+test('a group can be seen together and anchored area notes accept a dragged width', async () => {
+  const f = await reviewFixture('review-group-seen');
+  const item = await f.propose();
+  const review = await f.read(item);
+  const boards = review.boards.map((board: any) => board.file);
+  assert.equal(
+    (
+      await f.call('/review/seen', {
+        item: item.id,
+        boards: [...boards, 'Unknown.html'],
+        revision: review.after,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (await f.read(item)).boards.some((board: any) => board.seen),
+    false,
+  );
+  assert.equal(
+    (await f.call('/review/seen', { item: item.id, boards, revision: review.after })).status,
+    200,
+  );
+  assert.equal(
+    (await f.read(item)).boards.every((board: any) => board.seen),
+    true,
+  );
+  const body = {
+    item: item.id,
+    board: 'Alpha.html',
+    revision: review.after,
+    width: 812,
+    x: 40,
+    y: 60,
+    layer: 'title',
+    offset: { x: 0.5, y: 0.25 },
+    area: { x: 20, y: 30, w: 200, h: 80 },
+    text: 'Keep the name bold.',
+  };
+  const response = await f.call('/review/pins', body);
+  assert.equal(response.status, 200);
+  const pin = (await response.json()).pins[0];
+  assert.equal(pin.layer, 'title');
+  assert.deepEqual(pin.offset, body.offset);
+  assert.deepEqual(pin.area, body.area);
+  assert.equal((await f.call('/review/pins', { ...body, offset: { x: 2, y: 0 } })).status, 400);
+});
+
+test('approved designs show build reports and only linked open tasks without reports', async () => {
+  const f = await reviewFixture('review-built');
+  const item = await f.propose();
+  const { get } = await import('../workspace/store.ts');
+  const { answerInboxAsync } = await import('./inbox.ts');
+  const { designTool } = await import('./design.ts');
+  const row = get('v2-inbox-native', 'alice', item.id);
+  const readApproved = async () =>
+    (await (await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`)).json())
+      .approved;
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
+  assert.deepEqual(await readApproved(), []);
+  const taskId = 'built-task';
+  save('task', 'alice', { id: taskId, projectId: f.project.id, status: 'open', title: 'Build it' });
+  save('v2-inbox-native', 'alice', {
+    ...get('v2-inbox-native', 'alice', item.id),
+    context: { ...row.context, taskId },
+  });
+  assert.match((await readApproved())[0].detail, /is building it/);
+  await assert.rejects(
+    () => designTool({ owner: 'alice', taskId }, { action: 'built', state: 'differs' }),
+    /differences count/,
+  );
+  await designTool({ owner: 'alice', taskId }, { action: 'built', state: 'matches' });
+  assert.equal((await readApproved())[0].detail, 'Built · matches the design');
+  await designTool(
+    { owner: 'alice', taskId },
+    { action: 'built', state: 'differs', differences: 2 },
+  );
+  assert.equal((await readApproved())[0].detail, 'Built · 2 differences to look at');
+});

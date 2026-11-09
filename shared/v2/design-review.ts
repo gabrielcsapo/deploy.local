@@ -196,7 +196,10 @@ export function groupReviewChanges(
       text = text.split(name).join('{name}');
     return text.replace(/\s+/g, ' ').trim();
   };
-  const groups = new Map<string, { row: DesignReviewRow; removals: string[] }>();
+  const groups = new Map<
+    string,
+    { row: DesignReviewRow; removals: { key: string; words: string[] }[] }
+  >();
   for (const screen of screens) {
     const added = [...new Set(screen.regions.flatMap((region) => region.added))];
     const removed = [...new Set(screen.regions.flatMap((region) => region.removed))];
@@ -219,12 +222,16 @@ export function groupReviewChanges(
     if (existing) {
       existing.row.screens.push(screen.file);
       existing.row.seen &&= screen.seen;
-      existing.removals.push(removal);
+      existing.removals.push({ key: removal, words: removed });
     } else
       groups.set(key, {
         row: {
           id: screen.file,
-          title: screen.changeWords || screen.regions[0]?.title || screen.title,
+          title:
+            screen.changeWords ||
+            (['new', 'removed'].includes(screen.status) || screen.regions.length !== 1
+              ? screen.title
+              : screen.regions[0]?.title || screen.title),
           status: screen.status,
           screens: [screen.file],
           added,
@@ -233,13 +240,15 @@ export function groupReviewChanges(
           nothingElse: screen.nothingElse,
           seen: screen.seen,
         },
-        removals: [removal],
+        removals: [{ key: removal, words: removed }],
       });
   }
   return [...groups.values()].map(({ row, removals }) => {
     const counts = new Map<string, number>();
-    for (const removal of removals) counts.set(removal, (counts.get(removal) ?? 0) + 1);
-    row.variations = removals.length - Math.max(...counts.values());
+    for (const removal of removals) counts.set(removal.key, (counts.get(removal.key) ?? 0) + 1);
+    const majority = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    row.removed = removals.find((entry) => entry.key === majority[0])!.words;
+    row.variations = removals.length - majority[1];
     return row;
   });
 }
