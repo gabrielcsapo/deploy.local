@@ -188,6 +188,25 @@ struct V2DesignReviewTests {
         #expect(V2ReviewModel.conflictCount(["A.html", "B.html", "note:x"]) == "2 screens and 1 note conflict with main")
         #expect(V2ReviewModel.conflictCount(["note:x", "note:y"]) == "2 notes conflict with main")
     }
+    private func pin(_ fields: String) throws -> V2ReviewPin {
+        let json = #"{"id":"p","number":1,"board":"A.html","width":812,"revision":"b","x":100,"y":40,"text":"Note","author":"o","resolved":false,"createdAt":"now""# + fields + "}"
+        return try JSONDecoder().decode(V2ReviewPin.self, from: Data(json.utf8))
+    }
+    private func preview(layers: String = "") throws -> V2ReviewPreview {
+        let json = #"{"width":1440,"height":900,"before":"b","after":"a","areas":[],"crop":{"x":0,"y":0,"w":1440,"h":900}"# + layers + "}"
+        return try JSONDecoder().decode(V2ReviewPreview.self, from: Data(json.utf8))
+    }
+    @Test func aNoteFollowsItsElementAtAnyWidthAndOtherwiseStaysAtItsOwnWidth() throws {
+        let boxes = try preview(layers: #","layers":{"after":{"name":{"x":200,"y":10,"w":50,"h":20}}}"#)
+        let anchored = try pin(#","layer":"name","offset":{"x":0.5,"y":0.5},"area":{"x":90,"y":30,"w":40,"h":20}"#)
+        let placed = try #require(anchored.placement(in: boxes, side: "after"))
+        #expect(placed.point == .init(x: 225, y: 20))
+        #expect(placed.area == V2ReviewRect(x: 215, y: 10, w: 40, h: 20))
+        // The element is gone on this side, and the note was left at another width: nowhere honest to put it.
+        #expect(anchored.placement(in: boxes, side: "before") == nil)
+        let plain = try pin("")
+        #expect(plain.placement(in: boxes, side: "after") == nil)
+    }
     @Test func missingSummaryAsksTheProposerOrTellsYou() {
         #expect(V2ReviewProposer(id: "a1", name: "Release notes writer").missingSummary == "No summary. Ask Release notes writer to add one")
         #expect(V2ReviewProposer(id: nil, name: "You").missingSummary == "No summary. Add one when you propose again.")

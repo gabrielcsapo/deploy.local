@@ -276,13 +276,14 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
                         addPath(UIBezierPath(roundedRect: CGRect(x: rect.x, y: rect.y, width: rect.w, height: rect.h), cornerRadius: 4), weight: 1.5, side: side)
                     }
                 }
-                for pin in parent.model.pins where pin.board == parent.board.file && pin.noteId == nil && pin.width == parent.preview.metadata.width && pin.revision == revision && (parent.model.showChanges || parent.model.editing?.id == pin.id) {
+                for pin in parent.model.pins where pin.board == parent.board.file && pin.noteId == nil && pin.placement(in: parent.preview.metadata, side: side == 0 ? "before" : "after") != nil && pin.revision == revision && (parent.model.showChanges || parent.model.editing?.id == pin.id) {
                     if let drawing = pin.drawing {
                         guard drawing.nativeWidth == parent.preview.metadata.width, drawing.nativeHeight == parent.preview.metadata.height else { continue }
                         drawStrokes(drawing.strokes, weight: drawing.weight, side: side)
                     }
-                    if let area = pin.area { drawArea(area, side: side) }
-                    addMark(number: pin.number, point: CGPoint(x: pin.x, y: pin.y), side: side, size: pin.drawing == nil ? 30 : 44)
+                    guard let placed = pin.placement(in: parent.preview.metadata, side: side == 0 ? "before" : "after") else { continue }
+                    if let area = placed.area { drawArea(area, side: side) }
+                    addMark(number: pin.number, point: CGPoint(x: placed.point.x, y: placed.point.y), side: side, size: pin.drawing == nil ? 30 : 44)
                 }
                 if let draft = parent.model.draft, draft.board == parent.board.file, draft.width == parent.preview.metadata.width, draft.revision == revision {
                     if let drawing = draft.drawing {

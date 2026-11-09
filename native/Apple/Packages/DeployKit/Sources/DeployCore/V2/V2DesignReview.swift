@@ -194,6 +194,17 @@ public struct V2ReviewPin: Codable, Identifiable, Sendable {
     public var reply: String?
     public var createdAt: String
 }
+extension V2ReviewPin {
+    /// Where this note sits on a preview. A note follows the element it was left on, so it stays
+    /// put at any width; without that element it can only be placed at the width it was left at.
+    public func placement(in preview: V2ReviewPreview, side: String) -> (point: V2ReviewDrawing.Point, area: V2ReviewRect?)? {
+        if let layer, let offset, let box = preview.layers?[side]?[layer] {
+            let point = V2ReviewDrawing.Point(x: box.x + offset.x * box.w, y: box.y + offset.y * box.h)
+            return (point, area.map { V2ReviewRect(x: $0.x + point.x - x, y: $0.y + point.y - y, w: $0.w, h: $0.h) })
+        }
+        return width == preview.width ? (.init(x: x, y: y), area) : nil
+    }
+}
 public struct V2ReviewPinDraft: Encodable, Sendable {
     public var item: String
     public var board: String
