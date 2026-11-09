@@ -95,12 +95,15 @@ private let reviewJSON = "{\"item\":\(waiting),\"branch\":\"b\",\"before\":\"a\"
     @Test func areaDraftUsesNativeCoordinatesAndSmallestAvailableLayer() throws {
         let (model, _) = try setup(status: 200)
         let board = try screen(model)
-        let metadata = try JSONDecoder().decode(V2ReviewPreview.self, from: Data(#"{"width":390,"height":844,"areas":[{"layer":"head","words":"Header","after":{"x":10,"y":20,"w":100,"h":40}}],"crop":{"x":0,"y":0,"w":390,"h":844}}"#.utf8))
+        let metadata = try JSONDecoder().decode(V2ReviewPreview.self, from: Data(#"{"width":390,"height":844,"areas":[],"layers":{"after":{"head":{"x":10,"y":20,"w":100,"h":40},"wrapper":{"x":0,"y":0,"w":390,"h":844}}},"crop":{"x":0,"y":0,"w":390,"h":844}}"#.utf8))
         model.previews[model.key(board)] = .init(metadata: metadata, before: UIImage(), after: UIImage())
         model.drop(board: board.file, width: 390, revision: "c", point: CGPoint(x: 60, y: 40), area: .init(x: 20, y: 25, w: 80, h: 30))
         #expect(model.draft?.layer == "head")
         #expect(model.draft?.offset == .init(x: 0.5, y: 0.5))
         #expect(model.draft?.area?.w == 80 && model.pinSheet)
+        _ = try screen(model)
+        model.drop(board: board.file, width: 390, revision: "c", point: CGPoint(x: 60, y: 40))
+        #expect(model.draft?.layer == nil && model.draft?.offset == nil && model.draft?.x == 60)
     }
     @Test func compareRequiresBothImagesAndLeavesOnWidthChange() throws {
         let (model, _) = try setup(status: 200)

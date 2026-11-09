@@ -312,6 +312,7 @@ export type AgentAvatar = { glyph: string; color: string };
 export type DesignRect = { x: number; y: number; w: number; h: number };
 export type DesignReviewChange = { layer: string; words: string };
 export type DesignReviewPreview = {
+  layers?: { before: Record<string, DesignRect>; after: Record<string, DesignRect> };
   width: number;
   height: number;
   before: string | null;

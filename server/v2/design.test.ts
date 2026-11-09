@@ -1369,6 +1369,7 @@ test('per-width preview boxes use native coordinates and change words never expo
       }),
     );
     assert.deepEqual(preview.areas, [{ layer: 'title', words: alpha.lines[0], before, after }]);
+    assert.deepEqual(preview.layers, { before: { title: before }, after: { title: after } });
     assert.equal(preview.width, width);
     assert.equal(preview.crop.x, after.x - 48);
     assert.equal(preview.crop.w, after.w + 96);
@@ -1416,6 +1417,9 @@ test('preview payload merges changed regions for all clients and suppresses scre
       },
     ]);
     assert.equal(preview.crop.y, 512 - 48);
+    // Note anchors use actual element boxes, never the coalesced outline's union.
+    assert.deepEqual(preview.layers?.before.child, boxes.child);
+    assert.deepEqual(preview.layers?.after.first, { ...boxes.first, y: 512 });
     // A sole container must have neither an outline nor per-area words.
     const rootOnly = await reviewPreview(
       f.path,

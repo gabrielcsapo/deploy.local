@@ -1791,6 +1791,7 @@ export async function reviewPreview(
     before: before ? url(board.before) : null,
     after: after ? url(board.after) : null,
     areas,
+    layers: { before: before?.boxes ?? {}, after: after?.boxes ?? {} },
     crop: reviewCrop(
       width,
       board.h,

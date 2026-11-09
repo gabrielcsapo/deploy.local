@@ -155,6 +155,7 @@ public struct V2ReviewPreview: Decodable, Sendable {
     public var before: String?
     public var after: String?
     public var areas: [Area]
+    public var layers: [String: [String: V2ReviewRect]]?
     public var crop: V2ReviewRect
 }
 public struct V2ReviewDrawing: Codable, Equatable, Sendable {

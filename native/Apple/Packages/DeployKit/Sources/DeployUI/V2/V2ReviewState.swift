@@ -191,11 +191,11 @@ final class V2ReviewState {
         draft?.area = area
         if let screen = review.boards.first(where: { $0.file == board }), let metadata = preview(screen)?.metadata {
             let before = revision == (screen.before ?? review.before)
-            let anchor = metadata.areas.compactMap { region -> (String, V2ReviewRect)? in
-                guard let box = before ? region.before : region.after, box.w > 0, box.h > 0,
-                      point.x >= box.x, point.x <= box.x + box.w, point.y >= box.y, point.y <= box.y + box.h else { return nil }
-                return (region.layer, box)
-            }.min { $0.1.w * $0.1.h < $1.1.w * $1.1.h }
+            // Merged change outlines are not element geometry. Older servers without
+            // layer boxes keep the native x/y fallback rather than inventing an anchor.
+            let anchor = (metadata.layers?[before ? "before" : "after"] ?? [:]).filter { _, box in
+                box.w > 0 && box.h > 0 && point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h
+            }.min { $0.value.w * $0.value.h < $1.value.w * $1.value.h }
             if let (layer, box) = anchor { draft?.layer = layer; draft?.offset = .init(x: (point.x - box.x) / box.w, y: (point.y - box.y) / box.h) }
         }
         editing = nil; sheetText = ""; pinTool = false; areaTool = false; pinSheet = true; error = nil
