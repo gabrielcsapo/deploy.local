@@ -5,12 +5,13 @@ import { getAuth } from './detail/shared';
 import { legacyDestination, lookupApplicationProject } from './v2-redirects';
 import { Skeleton } from '@/components/ui';
 export default function LegacyRedirect() {
-  const { pathname } = useLocation();
-  const { navigate, url } = useRouter();
-  const search = new URL(url, 'http://localhost').search;
+  const { pathname, search } = useLocation();
+  const { navigate } = useRouter();
   useEffect(() => {
     const controller = new AbortController();
     const auth = getAuth();
+    // The fragment is read here, not from useLocation(): while the page
+    // hydrates the router has only the server's URL, which has none.
     void legacyDestination(pathname + search + window.location.hash, (application) =>
       lookupApplicationProject(application, fetch, {
         signal: controller.signal,

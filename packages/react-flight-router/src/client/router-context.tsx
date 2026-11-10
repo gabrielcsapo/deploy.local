@@ -11,6 +11,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from '../shared/constants.js';
@@ -204,12 +205,53 @@ export function useParams() {
   return useContext(SegmentsContext).params;
 }
 
-export function useLocation() {
+/** The current location, as the router sees it. */
+export interface Location {
+  /** e.g. `/projects/42` */
+  pathname: string;
+  /** The query string with its `?`, or `''`. */
+  search: string;
+  /**
+   * The fragment with its `#`, or `''`. The server never sees it, so it is
+   * `''` while the page hydrates and fills in on the next render.
+   */
+  hash: string;
+  /** `pathname + search + hash`: the path-relative URL, not an absolute one. */
+  href: string;
+}
+
+const subscribeToHash = (onChange: () => void) => {
+  globalThis.addEventListener?.('hashchange', onChange);
+  globalThis.addEventListener?.('popstate', onChange);
+  return () => {
+    globalThis.removeEventListener?.('hashchange', onChange);
+    globalThis.removeEventListener?.('popstate', onChange);
+  };
+};
+const browserHash = () => globalThis.location?.hash ?? '';
+const serverHash = () => '';
+
+export function useLocation(): Location {
   const { url } = useContext(LocationContext);
-  return useMemo(
-    () => ({ pathname: fastPathname(url, globalThis.location?.origin ?? 'http://localhost') }),
-    [url],
-  );
+  // The initial URL comes from the server, which never has the fragment.
+  const windowHash = useSyncExternalStore(subscribeToHash, browserHash, serverHash);
+  return useMemo(() => {
+    const origin = globalThis.location?.origin ?? 'http://localhost';
+    const pathname = fastPathname(url, origin);
+    const hashAt = url.indexOf('#');
+    const queryAt = url.indexOf('?');
+    const search =
+      queryAt >= 0 && (hashAt < 0 || queryAt < hashAt)
+        ? url.slice(queryAt, hashAt >= 0 ? hashAt : undefined)
+        : '';
+    const hash = hashAt >= 0 ? url.slice(hashAt) : windowHash;
+    return {
+      pathname,
+      search: search === '?' ? '' : search,
+      hash: hash === '#' ? '' : hash,
+      href: pathname + (search === '?' ? '' : search) + (hash === '#' ? '' : hash),
+    };
+  }, [url, windowHash]);
 }
 
 interface RouterProviderProps {
