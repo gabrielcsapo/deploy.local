@@ -72,6 +72,15 @@ test.describe('redirect()', () => {
       expect(page.url()).toBe(`${BASE_URL}/redirect-destination`);
     });
 
+    test('a chain of redirects renders the last destination', async ({ page }) => {
+      const response = await page.goto(`${BASE_URL}/redirect-chain`);
+      expect(response?.status()).toBe(200);
+      await expect(page.getByTestId('redirect-destination-heading')).toHaveText(
+        'Redirect Destination',
+      );
+      await page.waitForURL(`${BASE_URL}/redirect-destination`);
+    });
+
     test('direct navigation to destination works normally (no redirect loop)', async ({ page }) => {
       await page.goto(`${BASE_URL}/redirect-destination`);
 

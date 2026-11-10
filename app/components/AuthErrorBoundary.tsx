@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { ErrorBoundary, useRouter } from 'react-flight-router/client';
 import { ErrorBanner } from './LoadingState';
 import ErrorPage from '../routes/error';
@@ -9,8 +9,16 @@ import { isUnauthorizedError as isUnauthorized } from './auth-errors';
 
 // A render error can unmount the dashboard's dialog host. Keep a host in the
 // fallback too, then retry the failed server tree after reauthentication.
-function AuthErrorFallback({ error }: { error?: Error }) {
-  if (isUnauthorized(error))
+function AuthErrorFallback({ error, reset }: { error?: Error; reset?: () => void }) {
+  const unauthorized = isUnauthorized(error);
+  const { refresh } = useRouter();
+  useEffect(() => {
+    if (!unauthorized) return;
+    const restore = () => void refresh().then(() => reset?.());
+    window.addEventListener('deploy:session-restored', restore);
+    return () => window.removeEventListener('deploy:session-restored', restore);
+  }, [unauthorized, refresh, reset]);
+  if (unauthorized)
     return (
       <>
         <ErrorBanner message="Sign in again to continue." />
@@ -21,19 +29,5 @@ function AuthErrorFallback({ error }: { error?: Error }) {
 }
 
 export function AuthErrorBoundary({ children }: { children: React.ReactNode }) {
-  const boundary = useRef<ErrorBoundary>(null);
-  const { refresh } = useRouter();
-  useEffect(() => {
-    const restore = () => {
-      if (!isUnauthorized(boundary.current?.state.error)) return;
-      void refresh().then(() => boundary.current?.setState({ error: null }));
-    };
-    window.addEventListener('deploy:session-restored', restore);
-    return () => window.removeEventListener('deploy:session-restored', restore);
-  }, [refresh]);
-  return (
-    <ErrorBoundary ref={boundary} fallback={<AuthErrorFallback />}>
-      {children}
-    </ErrorBoundary>
-  );
+  return <ErrorBoundary fallback={<AuthErrorFallback />}>{children}</ErrorBoundary>;
 }

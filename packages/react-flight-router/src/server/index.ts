@@ -63,6 +63,9 @@ const DEFAULT_NOT_FOUND_DOCUMENT =
 
 let warnedNotProduction = false;
 
+/** redirect() hops SSR renders itself before handing the browser a real redirect. */
+const MAX_SSR_REDIRECTS = 5;
+
 /**
  * Absolute paths of the content-hashed files Vite's manifest lists, or null
  * when the build has no manifest (then every /assets file counts as hashed,
@@ -892,7 +895,9 @@ export async function createServer(opts: CreateServerOptions) {
       );
       if (result.timedOut) return new Response('Gateway Timeout', { status: 504 });
       return new Response(result.value.stream, {
-        status: result.value.status,
+        // A redirect is in the payload for the client router to follow; a 3xx
+        // with no Location is not a redirect any HTTP client understands.
+        status: result.value.redirect ? 200 : result.value.status,
         headers: {
           'Content-Type': RSC_CONTENT_TYPE,
           [RSC_BUILD_HEADER]: manifests.buildId,
@@ -1059,35 +1064,40 @@ export async function createServer(opts: CreateServerOptions) {
       // timed-out request doesn't keep burning CPU/memory after the 504.
       const renderAbort = new AbortController();
 
-      const renderPhase = (async () => {
-        const {
-          stream: rscStream,
-          status,
-          redirect,
-          unmatched,
-        } = await doRenderRSC(url, undefined, undefined, logger, renderAbort.signal);
+      type Rendered =
+        | { effectiveStatus: number; htmlStream: ReadableStream | string }
+        | { effectiveStatus: number; location: string };
+      const renderPhase = (async (): Promise<Rendered> => {
+        let result = await doRenderRSC(url, undefined, undefined, logger, renderAbort.signal);
 
-        let effectiveStream = rscStream;
-        let effectiveStatus = status;
-        let effectiveUnmatched = unmatched;
-        if (redirect) {
-          const redirectUrl = new URL(redirect.url, url.origin);
-          const redirectResult = await doRenderRSC(
-            redirectUrl,
-            undefined,
-            undefined,
-            logger,
-            renderAbort.signal,
+        // A page that calls redirect() is answered with its destination's
+        // page, which the client puts in the address bar. Follow chains of
+        // them, rendering each hop with getRequest() describing that hop.
+        let current = url;
+        for (let hops = 0; result.redirect; hops++) {
+          const target = new URL(result.redirect.url, current);
+          void result.stream.cancel().catch(() => {});
+          // Another site, or a chain that does not end: let the browser
+          // follow a real redirect (and apply its own loop limit).
+          if (target.origin !== url.origin || hops >= MAX_SSR_REDIRECTS) {
+            return { location: target.href, effectiveStatus: result.redirect.status };
+          }
+          current = target;
+          const hopRequest = new Request(target, {
+            method: c.req.raw.method,
+            headers: c.req.raw.headers,
+          });
+          result = await requestStorage.run(hopRequest, () =>
+            doRenderRSC(target, undefined, undefined, logger, renderAbort.signal),
           );
-          effectiveStream = redirectResult.stream;
-          effectiveStatus = redirectResult.status;
-          effectiveUnmatched = redirectResult.unmatched;
         }
+        const effectiveStream = result.stream;
+        const effectiveStatus = result.status;
 
         // No route matched and the root route has no notFound: React has
         // nothing to render, so answer with a plain document instead of an
         // empty page.
-        if (effectiveUnmatched) {
+        if (result.unmatched) {
           void effectiveStream.cancel().catch(() => {});
           return { effectiveStatus: 404, htmlStream: DEFAULT_NOT_FOUND_DOCUMENT };
         }
@@ -1135,7 +1145,14 @@ export async function createServer(opts: CreateServerOptions) {
       if (raced.timedOut) {
         return new Response('Gateway Timeout', { status: 504 });
       }
-      const { effectiveStatus, htmlStream } = raced.value;
+      const rendered = raced.value;
+      if ('location' in rendered) {
+        return new Response(null, {
+          status: rendered.effectiveStatus,
+          headers: { Location: rendered.location },
+        });
+      }
+      const { effectiveStatus, htmlStream } = rendered;
 
       return new Response(htmlStream, {
         status: effectiveStatus,

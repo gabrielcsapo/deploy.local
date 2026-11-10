@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from './index.js';
+import { createServer, getRequest, redirect } from './index.js';
 
 // Under the package's node_modules so createServer's createRequire(buildDir)
 // resolves react, react-dom and react-server-dom-webpack.
@@ -11,6 +11,15 @@ const BUILD_DIR = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../node_modules/.flight-create-server-fixture',
 );
+
+const globals = globalThis as unknown as {
+  __hops: (string | undefined)[];
+  __currentRequestUrl: () => string | undefined;
+  __redirect: typeof redirect;
+};
+globals.__hops = [];
+globals.__currentRequestUrl = () => getRequest()?.url;
+globals.__redirect = redirect;
 
 beforeAll(() => {
   rmSync(BUILD_DIR, { recursive: true, force: true });
@@ -25,11 +34,22 @@ beforeAll(() => {
   write('ssr-manifest.json', '{}');
   write('server-actions-manifest.json', '{}');
   write('build-meta.json', JSON.stringify({ clientEntryUrl: '/assets/entry.js', cssFiles: [] }));
-  // A root route with one child and no notFound.
+  // A root route with no notFound, and pages that call redirect().
   write(
     'server/rsc-entry.js',
     `const page = async () => ({ default: () => null });
-export const routes = [{ id: 'root', path: '', component: page, children: [{ id: 'home', index: true, component: page }] }];
+const redirectTo = (to) => async () => ({
+  default: () => {
+    globalThis.__hops.push(globalThis.__currentRequestUrl());
+    return globalThis.__redirect(to);
+  },
+});
+export const routes = [{ id: 'root', path: '', component: page, children: [
+  { id: 'home', index: true, component: page },
+  { id: 'a', path: 'a', component: redirectTo('/b?from=a') },
+  { id: 'b', path: 'b', component: redirectTo('https://elsewhere.test/c') },
+  { id: 'loop', path: 'loop', component: redirectTo('/loop') },
+] }];
 `,
   );
   write(
@@ -85,6 +105,34 @@ describe('createServer', () => {
     const html = await response.text();
     expect(html).toMatch(/^<!doctype html>/);
     expect(html).toContain('Page not found');
+    await app.close();
+  });
+  it('follows a chain of redirect() calls, each hop seeing its own request', async () => {
+    const app = await createServer({ buildDir: BUILD_DIR });
+    globals.__hops = [];
+    const response = await app.fetch(new Request('http://localhost/a'));
+    // The last hop leaves the site, so the browser gets a real redirect.
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('https://elsewhere.test/c');
+    expect(globals.__hops).toEqual(['http://localhost/a', 'http://localhost/b?from=a']);
+    await app.close();
+  });
+
+  it('stops a redirect loop and hands it to the browser with a Location', async () => {
+    const app = await createServer({ buildDir: BUILD_DIR });
+    globals.__hops = [];
+    const response = await app.fetch(new Request('http://localhost/loop'));
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('http://localhost/loop');
+    expect(globals.__hops.length).toBe(6);
+    await app.close();
+  });
+
+  it('answers a redirect on the RSC endpoint with a 200 payload the client follows', async () => {
+    const app = await createServer({ buildDir: BUILD_DIR });
+    const response = await app.fetch(new Request('http://localhost/__rsc?url=%2Fa'));
+    expect(response.status).toBe(200);
+    expect(JSON.parse(await response.text()).redirect).toEqual({ url: '/b?from=a', status: 302 });
     await app.close();
   });
 });

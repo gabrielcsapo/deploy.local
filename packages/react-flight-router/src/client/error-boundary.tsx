@@ -7,11 +7,11 @@ interface ErrorBoundaryProps {
   children: ReactNode;
   /**
    * Fallback to show when an error is caught.
-   * - Function: receives the Error and returns ReactNode
-   * - ReactElement: cloned with an `error` prop injected
+   * - Function: receives the Error and a `reset` that renders the children again
+   * - ReactElement: cloned with `error` and `reset` props injected
    * - Other ReactNode: rendered as-is
    */
-  fallback?: ReactNode | ((error: Error) => ReactNode);
+  fallback?: ReactNode | ((error: Error, reset: () => void) => ReactNode);
 }
 
 interface ErrorBoundaryState {
@@ -34,6 +34,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.state = { error: null };
   }
 
+  /** Clears the caught error so the children render again. */
+  reset = () => {
+    this.setState({ error: null });
+  };
+
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
@@ -47,10 +52,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (this.state.error) {
       const { fallback } = this.props;
       if (typeof fallback === 'function') {
-        return fallback(this.state.error);
+        return fallback(this.state.error, this.reset);
       }
       if (isValidElement(fallback)) {
-        return cloneElement(fallback as any, { error: this.state.error });
+        return cloneElement(fallback as any, { error: this.state.error, reset: this.reset });
       }
       return fallback ?? null;
     }

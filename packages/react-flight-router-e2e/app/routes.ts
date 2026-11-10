@@ -72,6 +72,11 @@ export const routes: RouteConfig[] = [
         component: () => import('./routes/redirect-301.js'),
       },
       {
+        id: 'redirect-chain',
+        path: 'redirect-chain',
+        component: () => import('./routes/redirect-chain.js'),
+      },
+      {
         id: 'boundary-page',
         path: 'boundary-page',
         component: () => import('./routes/boundary-page.js'),
