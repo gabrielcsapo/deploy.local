@@ -87,3 +87,22 @@ test('replacing two textless icon layers records both sides without naming eithe
   assert.deepEqual(region.added, []);
   assert.deepEqual(region.removed, []);
 });
+
+test('a screen rewritten wholesale is summarised without holding up the server', () => {
+  const screen = {
+    file: 'Big.html',
+    title: 'Big',
+    status: 'changed' as const,
+    changedSinceReview: true,
+  };
+  const board = (word: string, count: number) =>
+    `<main data-layer="main">${Array.from(
+      { length: count },
+      (_, i) => `<section data-layer="s-${i}"><p data-layer="p-${i}">${word} ${i}</p></section>`,
+    ).join('')}</main>`;
+  const started = performance.now();
+  const evidence = reviewEvidence(screen, board('old', 6000), board('new', 6000));
+  assert.ok(performance.now() - started < 1500, 'large boards stay fast');
+  assert.deepEqual(evidence.regions, [{ layer: '', title: 'Big', added: [], removed: [] }]);
+  assert.equal(evidence.nothingElse, false);
+});

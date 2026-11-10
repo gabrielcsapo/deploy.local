@@ -95,6 +95,8 @@ export function compareReviewPixels(before: Buffer, after: Buffer, areas: Design
   return { same, outsideSame };
 }
 
+const maxDescribedChanges = 200;
+
 export function reviewEvidence(
   screen: Pick<DesignReviewScreen, 'file' | 'title' | 'status' | 'changedSinceReview'>,
   before: string,
@@ -111,15 +113,40 @@ export function reviewEvidence(
       changeWords: Object.values(changeWords ?? {}).find(Boolean),
     };
   const changes = layerChanges(before, after, Infinity);
+  // Only sections and header rows name a region, and a board has few, so measure them once.
+  const candidates = new Map<
+    string,
+    { tag: string; layer: string; start: number; end: number }[]
+  >();
+  const regionTags = (html: string) => {
+    let found = candidates.get(html);
+    if (!found) {
+      found = [...html.matchAll(/<[a-z][\w:-]*\b[^>]*data-layer="([^"]+)"[^>]*>/g)]
+        .filter((m) => /^<section\b/.test(m[0]) || /class="[^"]*\bdl-head\b/.test(m[0]))
+        .map((m) => ({
+          tag: m[0],
+          layer: m[1],
+          start: m.index!,
+          end: m.index! + (layerSnippet(html, m[1])?.length ?? 0),
+        }));
+      candidates.set(html, found);
+    }
+    return found;
+  };
+  const regionsByLayer = new Map<string, { layer: string; title: string }>();
   const regionFor = (layer: string) => {
+    const known = regionsByLayer.get(layer);
+    if (known) return known;
+    const region = findRegion(layer);
+    regionsByLayer.set(layer, region);
+    return region;
+  };
+  const findRegion = (layer: string) => {
     const html = after.includes(`data-layer="${layer}"`) ? after : before;
     const at = html.indexOf(`data-layer="${layer}"`);
-    const ancestors = [...html.matchAll(/<[a-z][\w:-]*\b[^>]*data-layer="([^"]+)"[^>]*>/g)].filter(
-      (m) =>
-        m.index! <= at &&
-        m.index! + (layerSnippet(html, m[1])?.length ?? 0) > at &&
-        (/^<section\b/.test(m[0]) || /class="[^"]*\bdl-head\b/.test(m[0])),
-    );
+    const ancestors = regionTags(html)
+      .filter((m) => m.start <= at && m.end > at)
+      .map((m) => Object.assign([m.tag, m.layer], { index: m.start }) as RegExpMatchArray);
     const header = ancestors.find((m) => /class="[^"]*\bdl-head\b/.test(m[0]));
     const nearest = header ?? ancestors.at(-1);
     const region = nearest?.[1] ?? layer;
@@ -156,7 +183,11 @@ export function reviewEvidence(
       const snippet = layerSnippet(side === 'added' ? after : before, change.layer) ?? '';
       return icons(snippet) > 0 && words(snippet) === '';
     });
-  for (const change of changes) {
+  // A screen rewritten wholesale has no wording worth reporting, and walking thousands of changed
+  // elements across a large board holds up the server for everyone.
+  const wholesale = changes.length > maxDescribedChanges;
+  if (wholesale) regions.set('', { layer: '', title: screen.title, added: [], removed: [] });
+  for (const change of wholesale ? [] : changes) {
     const region = regionFor(change.layer);
     if (regions.has(region.layer)) continue;
     const old = renders?.before.words
