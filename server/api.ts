@@ -1,4 +1,5 @@
 import { createReadiness } from './readiness.ts';
+import { startIntegrityChecks } from './readiness-integrity.ts';
 import { getSqlite } from './store/connection.ts';
 import { db as workspaceDb } from './workspace/store.ts';
 import './packages/hooks.ts';
@@ -84,7 +85,9 @@ export function apiMiddleware(
   startDockerEventStream();
   if (process.env.DEPLOY_SUPERVISOR_TOKEN && process.connected)
     process.once('disconnect', () => process.exit(1));
-  const readiness = createReadiness({ deploy: getSqlite()!, workspace: workspaceDb });
+  const deploy = getSqlite()!;
+  const integrity = startIntegrityChecks({ deploy: deploy.name, workspace: workspaceDb.name });
+  const readiness = createReadiness({ deploy, workspace: workspaceDb, integrity: integrity.read });
   const handle = async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
     if (req.method === 'GET' && req.url?.split('?')[0] === '/api/health/ready') {
       const result = readiness();
@@ -190,7 +193,7 @@ export function apiMiddleware(
       );
     }
   };
-  return async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+  const middleware = async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
     const path = new URL(req.url!, 'http://localhost').pathname;
     const app = path.match(/^\/api\/deployments\/([^/]+)/)?.[1];
     if (!app || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method || ''))
@@ -207,4 +210,5 @@ export function apiMiddleware(
       release?.();
     }
   };
+  return Object.assign(middleware, { close: integrity.stop });
 }

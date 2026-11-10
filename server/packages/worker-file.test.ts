@@ -42,6 +42,7 @@ test('every built file can find the package workers it names', { skip: !existsSy
     'package-lock-worker.js',
     'package-recovery-worker.js',
     'backup-snapshot-worker.js',
+    'readiness-integrity-worker.js',
   ];
   const files = [
     ...readdirSync(dist).map((name) => join(dist, name)),

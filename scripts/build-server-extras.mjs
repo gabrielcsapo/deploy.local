@@ -73,6 +73,12 @@ await build({
 
 await build({
   ...common,
+  entryPoints: [resolve(root, 'server/readiness-integrity-worker.ts')],
+  outfile: resolve(root, 'dist/readiness-integrity-worker.js'),
+});
+
+await build({
+  ...common,
   entryPoints: [resolve(root, 'server/workspace-vacuum-worker.ts')],
   outfile: resolve(root, 'dist/workspace-vacuum-worker.js'),
 });

@@ -166,6 +166,7 @@ async function start(options: BootOptions) {
     function shutdown(signal: string) {
       console.log(`\n[control] ${signal} received, shutting down...`);
       const sshStopped = gitSshServer?.close();
+      const readinessStopped = handler.close();
       flushRequestLogs();
       terminalRelay.dispose();
       stopManagedWorkers();
@@ -173,7 +174,7 @@ async function start(options: BootOptions) {
       // restart must not stop them or overwrite their observed status.
       graphSupervisor.stop();
       controlServer.close(async () => {
-        await sshStopped;
+        await Promise.all([sshStopped, readinessStopped]);
         console.log('[control] stopped');
         process.exit(0);
       });
@@ -289,6 +290,7 @@ async function start(options: BootOptions) {
   function shutdown(signal: string) {
     console.log(`\n${signal} received, shutting down...`);
     const sshStopped = gitSshServer?.close();
+    const readinessStopped = handler.close();
     flushRequestLogs();
     terminalRelay.dispose();
     stopManagedWorkers();
@@ -298,7 +300,7 @@ async function start(options: BootOptions) {
     collector.close();
     httpsServer.close();
     httpServer.close(async () => {
-      await Promise.all([sshStopped, mdnsStopped]);
+      await Promise.all([sshStopped, mdnsStopped, readinessStopped]);
       console.log('deploy.local stopped');
       process.exit(0);
     });

@@ -2,12 +2,14 @@ import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Database } from './sqlite.ts';
+import type { IntegrityResult } from './readiness-integrity.ts';
 import { workerBuild } from './workspace/worker-build.ts';
 
 type Check = 'ok' | string;
 type Options = {
   deploy: Database;
   workspace: Database;
+  integrity: () => IntegrityResult;
   root?: string;
   env?: NodeJS.ProcessEnv;
   clock?: () => number;
@@ -17,6 +19,7 @@ type Options = {
 export function createReadiness({
   deploy,
   workspace,
+  integrity: readIntegrity,
   root = process.cwd(),
   env = process.env,
   clock = Date.now,
@@ -51,20 +54,8 @@ export function createReadiness({
   } catch {
     /* A missing journal must never make an unmigrated release ready. */
   }
-  let integrity: { at: number; deploy: Check; workspace: Check } | undefined;
-  const quickCheck = (database: Database): Check => {
-    try {
-      const rows = database.pragma('quick_check') as { quick_check: string }[];
-      return rows.length === 1 && rows[0].quick_check === 'ok' ? 'ok' : 'integrity check failed';
-    } catch {
-      return 'integrity check unavailable';
-    }
-  };
   return () => {
-    const now = clock();
-    if (!integrity || now - integrity.at >= 60000) {
-      integrity = { at: now, deploy: quickCheck(deploy), workspace: quickCheck(workspace) };
-    }
+    const integrity = readIntegrity();
     const checks: Record<string, Check> = {
       migrations: 'migration check unavailable',
       deploy: integrity.deploy,
@@ -93,13 +84,14 @@ export function createReadiness({
       /* Static reasons only: no SQL, paths or secrets in public responses. */
     }
     try {
+      const heartbeatNow = clock();
       const rows = workspace
         .prepare("SELECT id, heartbeat FROM worker WHERE id IN ('pipelines', 'repositories')")
         .all() as { id: string; heartbeat: string }[];
       for (const row of rows) {
-        const age = now - Date.parse(row.heartbeat);
+        const age = heartbeatNow - Date.parse(row.heartbeat);
         checks[row.id] =
-          Number.isFinite(age) && age >= 0 && age < 30000 ? 'ok' : 'worker heartbeat stale';
+          Number.isFinite(age) && age >= -5000 && age < 30000 ? 'ok' : 'worker heartbeat stale';
       }
     } catch {
       checks.pipelines = checks.repositories = 'worker heartbeat unavailable';

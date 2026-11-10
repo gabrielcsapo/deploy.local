@@ -127,6 +127,7 @@ process.on('message', async (message) => {
       copyWarmer: delays.includes(5000),
       // The schedule check; the 6-hour interval itself is kept in the database.
       maintenance: delays.includes(15 * 60 * 1000),
+      integrityChecks: delays.includes(10 * 60 * 1000),
     },
   });
 });
@@ -223,6 +224,7 @@ const expectedServices = {
   copyChecks: true,
   copyWarmer: true,
   maintenance: true,
+  integrityChecks: true,
 };
 
 for (const entry of ['server.ts', 'server/index.ts']) {

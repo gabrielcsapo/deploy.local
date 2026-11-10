@@ -319,6 +319,23 @@ test('activation requires readiness JSON from the selected version and checks ag
   assert.deepEqual(f.sleeps, [60000]);
 });
 
+test('activation waits for the immediate integrity scan within its existing retry window', async (t) => {
+  const f = readinessFixture(t);
+  f.response.ok = false;
+  f.response.checks.deploy = f.response.checks.workspace = 'integrity check pending';
+  await waitForHealthy(f.config, f.next, '19', {
+    ...f.options,
+    sleep: async (ms) => {
+      await f.options.sleep(ms);
+      if (f.sleeps.length === 3) {
+        f.response.ok = true;
+        f.response.checks.deploy = f.response.checks.workspace = 'ok';
+      }
+    },
+  });
+  assert.deepEqual(f.sleeps, [1000, 1000, 1000, 60000]);
+});
+
 test('HTML fallback, wrong version, missing checks and unhealthy workers cannot pass readiness', async (t) => {
   for (const response of [
     '<html>OK</html>',
