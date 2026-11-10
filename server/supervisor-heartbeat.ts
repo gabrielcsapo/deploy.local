@@ -24,5 +24,7 @@ export function startSupervisorHeartbeat(intervalMs = HEARTBEAT_MS) {
   timer = setInterval(beat, intervalMs);
   // Neither the timer nor the channel may keep a stopping process alive.
   timer.unref();
-  beat();
+  // No heartbeat until the timer first fires: the supervisor watches from the first one, and
+  // startup (migrations, certificates) may block for longer than it would wait. A process that
+  // has not finished starting is not yet one that can be called wedged.
 }
