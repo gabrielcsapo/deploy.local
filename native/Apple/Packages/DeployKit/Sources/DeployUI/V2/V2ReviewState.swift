@@ -47,6 +47,8 @@ final class V2ReviewState {
     var crops: [String: (scale: CGFloat, offset: CGPoint)] = [:]
     var drawingOrigin: (scale: CGFloat, offset: CGPoint)?
     var restoreCrop = 0
+    /// Counts taps on Fit; the screen on show switches between fitted and real size.
+    var fitToggle = 0
     var pinTool = false
     var draft: V2ReviewPinDraft?
     var editing: V2ReviewPin?

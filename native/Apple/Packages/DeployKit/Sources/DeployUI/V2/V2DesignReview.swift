@@ -34,6 +34,12 @@ struct V2DesignReviewView: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     @State private var openTask = false
+    @State private var scrubbing = false
+    @State private var wordsSheet = false
+    @Environment(\.verticalSizeClass) private var heightClass
+    /// The phone is turned sideways: the screen fills the window and the tools stand on the right edge.
+    private var sideways: Bool { heightClass == .compact }
+    private var changedBoard: V2DesignReview.Board? { board.flatMap { !$0.added && !$0.isRemoved && !(model.drawing && !model.pinSheet) ? $0 : nil } }
     @State private var active = false
     @ScaledMetric(relativeTo: .title) private var coverHeadingSize = 30
     @ScaledMetric(relativeTo: .largeTitle) private var headingSize = 30
@@ -89,9 +95,11 @@ struct V2DesignReviewView: View {
                         decide(review).tag(V2ReviewModel.Page.decide)
                     }.tabViewStyle(.page(indexDisplayMode: .never))
                     .id(Int(window.size.width.rounded()))
+                    // Pages are as wide as the safe area; without this the next one shows beside the notch.
+                    .clipped()
                     }
                 }
-                if board != nil || note != nil { reviewToolbar }
+                if (board != nil || note != nil) && !(sideways && changedBoard != nil) { reviewToolbar }
             } else {
                 VStack(alignment: .leading, spacing: 18) {
                     V2ReviewShimmer().frame(height: 68).clipShape(RoundedRectangle(cornerRadius: 8))
@@ -106,6 +114,12 @@ struct V2DesignReviewView: View {
         .tint(WorkspaceStyle.text(scheme))
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
+        .toolbar(sideways && changedBoard != nil ? .hidden : .visible, for: .navigationBar)
+        .overlay(alignment: .topLeading) { if sideways, let changedBoard { sidewaysPill(changedBoard).padding(.leading, 12).padding(.top, 10) } }
+        .overlay(alignment: .trailing) { if sideways, let changedBoard, let review { dock(changedBoard, review, upright: false).padding(.trailing, 12) } }
+        .overlay(alignment: .bottom) { if sideways, scrubbing, let changedBoard, model.canCompare(changedBoard) { scrubber.padding(.leading, 16).padding(.trailing, 8).frame(width: 420, height: 48).background(WorkspaceStyle.surface(scheme), in: Capsule()).overlay(Capsule().stroke(WorkspaceStyle.line(scheme))).shadow(color: .black.opacity(0.08), radius: 6, y: 2).padding(.bottom, 10) } }
+        .sheet(isPresented: $wordsSheet) { wordsDetail.presentationDetents([.medium]) }
+        .onChange(of: model.page) { _, _ in scrubbing = false }
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -338,39 +352,21 @@ struct V2DesignReviewView: View {
                 }
                 Text("Draw with your finger. Two fingers to pan.").font(.footnote).foregroundStyle(.secondary).padding(.top, 6)
             } else if let board, let review, !board.added && !board.isRemoved {
-                if let row = V2ReviewModel.row(review, file: board.file) {
-                    (Text("\(row.title) · \(V2ReviewModel.count(row.screens.count, "screen")). ").bold() + Text(styledWords(row)))
-                        .font(.footnote).frame(maxWidth: .infinity, alignment: .leading).lineLimit(3)
-                }
-                if model.canCompare(board) {
-                    HStack(spacing: 16) {
-                        Text("Old").frame(minHeight: 44)
-                            .onLongPressGesture(minimumDuration: 0.3, pressing: { model.peeking = $0 }, perform: {})
-                            .accessibilityHint("Hold to show Old; release to restore the comparison")
-                        Slider(value: $model.amount, in: 0...1).accessibilityLabel("Old to new")
-                            .accessibilityValue("\(Int(model.amount * 100)) percent New")
-                        Text("New")
-                    }.font(.footnote).frame(minHeight: 44)
-                } else { Text(board.added ? "New screen · nothing to compare" : "Removed screen · old only").font(.footnote).foregroundStyle(.secondary) }
-                HStack(spacing: 8) {
-                    tool("Pin", "mappin", selected: model.pinTool) { model.pinTool.toggle(); model.areaTool = false; model.amount = 1 }
-                    tool("Area", "rectangle.dashed", selected: model.areaTool) { model.areaTool.toggle(); model.pinTool = false; model.amount = 1 }
-                    tool("Draw", "pencil") { model.startDrawing(board) }
-                    Spacer()
-                    if model.canCompare(board) {
-                        Menu {
-                            Button("Overlay") { model.comparisonMode = "onion" }
-                            Button("Wipe") { model.comparisonMode = "slider" }
-                        } label: { Text(model.comparisonMode == "onion" ? "Overlay ⌄" : "Wipe ⌄").font(.subheadline).frame(minHeight: 44) }
-                    }
-                }.disabled(review.item.state != .waiting || model.preview(board) == nil)
                 let rows = V2ReviewModel.rows(review)
                 let index = rows.firstIndex { $0.screens.contains(board.file) } ?? 0
-                HStack {
-                    Text("\(index + 1) of \(V2ReviewModel.count(rows.count, "change"))")
-                    Spacer(); Text("Pinch to zoom")
-                }.font(.footnote).foregroundStyle(.secondary)
                 ProgressView(value: Double(index + 1), total: Double(max(1, rows.count))).tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Review position")
+                Button { wordsSheet = true } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        if let row = V2ReviewModel.row(review, file: board.file) {
+                            Text(row.title).font(.subheadline.weight(.semibold)).lineLimit(1).layoutPriority(1)
+                            Text(styledWords(row)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).frame(minWidth: 120, alignment: .leading)
+                        }
+                        Spacer(minLength: 0)
+                        Text("\(index + 1) of \(rows.count)").font(.footnote).foregroundStyle(.secondary).fixedSize()
+                    }.frame(minHeight: 44)
+                }.buttonStyle(.plain).accessibilityHint("Shows what changed")
+                if scrubbing && model.canCompare(board) { scrubber.frame(minHeight: 44).padding(.bottom, 6) }
+                dock(board, review, upright: true)
             } else {
                 HStack(spacing: 8) {
                     if let board {
@@ -403,6 +399,77 @@ struct V2DesignReviewView: View {
                     .tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Review position").padding(.top, 8)
             }
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12).overlay(alignment: .top) { Divider() }
+    }
+    /// Old to New, shown only while Compare is on. The chip at its end switches Overlay and Wipe.
+    private var scrubber: some View {
+        HStack(spacing: 12) {
+            Text("Old").onLongPressGesture(minimumDuration: 0.3, pressing: { model.peeking = $0 }, perform: {})
+                .accessibilityHint("Hold to show Old; release to restore the comparison")
+            Slider(value: $model.amount, in: 0...1).accessibilityLabel("Old to new").accessibilityValue("\(Int(model.amount * 100)) percent New")
+            Text("New")
+            Button(model.comparisonMode == "onion" ? "Overlay" : "Wipe") { model.comparisonMode = model.comparisonMode == "onion" ? "slider" : "onion" }
+                .font(.footnote).padding(.horizontal, 10).frame(minHeight: 28).background(WorkspaceStyle.line(scheme), in: RoundedRectangle(cornerRadius: 8))
+                .buttonStyle(.plain).accessibilityLabel("Overlay or Wipe").accessibilityValue(model.comparisonMode == "onion" ? "Overlay" : "Wipe")
+        }.font(.footnote).tint(WorkspaceStyle.text(scheme))
+    }
+    /// The one bar of review tools: previous, pin, area, draw, compare, fit, next. Upright it lies under
+    /// the screen; with the phone turned it stands on the right edge, in the same order.
+    @ViewBuilder private func dock(_ board: V2DesignReview.Board, _ review: V2DesignReview, upright: Bool) -> some View {
+        let at = pages.firstIndex(of: model.page) ?? 0
+        let waiting = review.item.state == .waiting && model.preview(board) != nil
+        let items = Group {
+            dockTool("Previous screen", "chevron.left", upright: upright) { if pages.indices.contains(at - 1) { model.page = pages[at - 1] } }.disabled(at <= 0)
+            dockSeparator(upright)
+            dockTool("Pin a point", "mappin", selected: model.pinTool, upright: upright) { model.pinTool.toggle(); model.areaTool = false; model.amount = 1 }.disabled(!waiting)
+            dockTool("Mark an area", "rectangle.dashed", selected: model.areaTool, upright: upright) { model.areaTool.toggle(); model.pinTool = false; model.amount = 1 }.disabled(!waiting)
+            dockTool("Draw", "pencil", upright: upright) { model.startDrawing(board) }.disabled(!waiting)
+            dockSeparator(upright)
+            dockTool("Compare old and new", "circle.lefthalf.filled", selected: scrubbing, upright: upright) { scrubbing.toggle(); if !scrubbing { model.amount = 1 } }.disabled(!model.canCompare(board))
+            dockTool("Fit the screen", "arrow.up.left.and.arrow.down.right", upright: upright) { model.fitToggle += 1 }.disabled(board.isPhone)
+            dockSeparator(upright)
+            dockTool("Next screen", "chevron.right", upright: upright) { if pages.indices.contains(at + 1) { model.page = pages[at + 1] } }.disabled(at >= pages.count - 1)
+        }
+        let shape = RoundedRectangle(cornerRadius: 18)
+        Group {
+            if upright { HStack(spacing: 0) { items }.frame(height: 52).frame(maxWidth: .infinity) }
+            else { VStack(spacing: 0) { items }.frame(width: 48).padding(.vertical, 4) }
+        }
+        .background(WorkspaceStyle.surface(scheme), in: shape).overlay(shape.stroke(WorkspaceStyle.line(scheme))).shadow(color: .black.opacity(0.06), radius: 4, y: 1)
+    }
+    private func dockTool(_ label: String, _ icon: String, selected: Bool = false, upright: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 19))
+                .frame(maxWidth: upright ? .infinity : 44, minHeight: upright ? 44 : 38)
+                .background(selected ? WorkspaceStyle.line(scheme) : .clear, in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityLabel(label).accessibilityAddTraits(selected ? .isSelected : [])
+    }
+    private func dockSeparator(_ upright: Bool) -> some View {
+        Rectangle().fill(WorkspaceStyle.line(scheme)).frame(width: upright ? 1 : 20, height: upright ? 20 : 1)
+    }
+    /// With the phone turned, the header is a small pill: Back, the screen's name and where it is in the review.
+    private func sidewaysPill(_ board: V2DesignReview.Board) -> some View {
+        HStack(spacing: 4) {
+            Button { model.page = .cover } label: { Image(systemName: "chevron.left").frame(width: 40, height: 44) }.buttonStyle(.plain).accessibilityLabel("Back")
+            Button { wordsSheet = true } label: {
+                HStack(spacing: 6) {
+                    Text(board.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(screenCounter(board)).font(.footnote).foregroundStyle(.secondary).fixedSize()
+                }
+            }.buttonStyle(.plain).accessibilityHint("Shows what changed")
+        }.padding(.trailing, 14).frame(height: 44).frame(maxWidth: 360, alignment: .leading).fixedSize(horizontal: true, vertical: false)
+        .background(WorkspaceStyle.surface(scheme), in: Capsule()).overlay(Capsule().stroke(WorkspaceStyle.line(scheme))).shadow(color: .black.opacity(0.06), radius: 4, y: 1)
+    }
+    /// The full words for the change on show, opened from the one-line caption.
+    @ViewBuilder private var wordsDetail: some View {
+        if let board, let review, let row = V2ReviewModel.row(review, file: board.file) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(row.title).font(.title3.weight(.semibold))
+                    Text(V2ReviewModel.count(row.screens.count, "screen")).font(.footnote).foregroundStyle(.secondary)
+                    Text(styledWords(row)).font(.body)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(24)
+            }
+        }
     }
     private func styledWords(_ row: V2ReviewRow) -> AttributedString {
         var words = AttributedString(row.words)

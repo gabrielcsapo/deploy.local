@@ -58,7 +58,7 @@ struct V2ReviewScreenPage: View {
             if let preview = model.preview(board) {
                 ZStack(alignment: .topTrailing) {
                     V2ReviewZoomPreview(preview: preview, board: board, model: model, change: change,
-                                        fitCommand: fitCommand, active: active, viewport: $viewport)
+                                        fitCommand: fitCommand + model.fitToggle, active: active, viewport: $viewport)
                     if model.peeking { Text("Before").font(.footnote.bold()).padding(.horizontal, 9).padding(.vertical, 4).background(.regularMaterial, in: Capsule()).padding(12) }
                     if model.canCompare(board) && model.comparisonMode == "slider" && !model.peeking {
                         GeometryReader { geometry in
@@ -202,7 +202,7 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         var stroke: [V2ReviewDrawing.Point] = []
         var areaStart: CGPoint?
         var areaRect: V2ReviewRect?
-        init(_ parent: V2ReviewZoomPreview) { self.parent = parent; super.init() }
+        init(_ parent: V2ReviewZoomPreview) { self.parent = parent; lastFit = parent.fitCommand; super.init() }
         func viewForZooming(in scrollView: UIScrollView) -> UIView? { canvas }
         func scrollViewDidScroll(_ scrollView: UIScrollView) { clipSides(); reportViewport(); lockPager() }
         func scrollViewDidZoom(_ scrollView: UIScrollView) { centre(); clipSides(); reportViewport(); lockPager() }
@@ -266,7 +266,14 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
                 if let crop = parent.model.crops[key] { scroll.setZoomScale(crop.scale, animated: false); scroll.setContentOffset(crop.offset, animated: false) }
             }
             if lastChange != parent.change { lastChange = parent.change; panToChange() }
-            if lastFit != parent.fitCommand { lastFit = parent.fitCommand; scroll.setZoomScale(scroll.minimumZoomScale, animated: !parent.reduceMotion) }
+            if lastFit != parent.fitCommand {
+                lastFit = parent.fitCommand
+                // Fit switches between the whole screen in view and real size; only the screen on show answers.
+                if parent.active {
+                    let fitted = scroll.zoomScale <= scroll.minimumZoomScale + 0.01
+                    scroll.setZoomScale(fitted && scroll.minimumZoomScale < 0.99 ? 1 : scroll.minimumZoomScale, animated: !parent.reduceMotion)
+                }
+            }
             clipSides(); reportViewport()
         }
         func panToChange() {
