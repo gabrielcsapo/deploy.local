@@ -4,6 +4,7 @@ export type PipelineJob = {
   needs: string[];
   timeoutSeconds: number;
   container?: string;
+  paths?: string[];
 };
 export type PipelineSpec = {
   on: ('manual' | 'push' | 'pull_request')[];
@@ -34,6 +35,22 @@ function strings(value: unknown, label: string, maximum = 32): string[] {
   if (new Set(value).size !== value.length) throw new Error(`${label} contains duplicates`);
   return [...value].sort();
 }
+function pathFilters(value: unknown, label: string) {
+  const paths = value === undefined ? undefined : strings(value, label);
+  if (
+    paths &&
+    (!paths.length ||
+      paths.some(
+        (path) =>
+          path.startsWith('/') ||
+          path.startsWith('!') ||
+          ['\\', '\0', '\r', '\n'].some((character) => path.includes(character)) ||
+          path.split('/').some((part) => !part || part === '.' || part === '..'),
+      ))
+  )
+    throw new Error(`${label} requires nonempty repository-relative globs`);
+  return paths;
+}
 export function compilePipeline(value: unknown): PipelineSpec {
   const input = object(value, 'pipeline');
   keys(input, ['on', 'branches', 'paths', 'jobs', 'deploy', 'publish'], 'pipeline');
@@ -47,19 +64,7 @@ export function compilePipeline(value: unknown): PipelineSpec {
     )
   )
     throw new Error('pipeline.branches requires exact branch names');
-  const paths = input.paths === undefined ? undefined : strings(input.paths, 'pipeline.paths');
-  if (
-    paths &&
-    (!paths.length ||
-      paths.some(
-        (path) =>
-          path.startsWith('/') ||
-          path.startsWith('!') ||
-          ['\\', '\0', '\r', '\n'].some((character) => path.includes(character)) ||
-          path.split('/').some((part) => !part || part === '.' || part === '..'),
-      ))
-  )
-    throw new Error('pipeline.paths requires nonempty repository-relative globs');
+  const paths = pathFilters(input.paths, 'pipeline.paths');
   const rawJobs = object(input.jobs, 'pipeline.jobs');
   if (!Object.keys(rawJobs).length || Object.keys(rawJobs).length > 32)
     throw new Error('pipeline.jobs requires 1–32 jobs');
@@ -68,7 +73,11 @@ export function compilePipeline(value: unknown): PipelineSpec {
     if (!namePattern.test(name) || ['constructor', 'prototype'].includes(name))
       throw new Error(`Invalid pipeline job name: ${name}`);
     const job = object(rawJobs[name], `pipeline.jobs.${name}`);
-    keys(job, ['run', 'runsOn', 'needs', 'timeoutSeconds', 'container'], `pipeline.jobs.${name}`);
+    keys(
+      job,
+      ['run', 'runsOn', 'needs', 'timeoutSeconds', 'container', 'paths'],
+      `pipeline.jobs.${name}`,
+    );
     if (typeof job.run !== 'string' || !job.run.trim() || job.run.length > 16000)
       throw new Error(`Job ${name} requires a command of at most 16000 characters`);
     const runsOn = object(job.runsOn, `${name}.runsOn`);
@@ -92,7 +101,9 @@ export function compilePipeline(value: unknown): PipelineSpec {
     const timeoutSeconds = job.timeoutSeconds ?? 900;
     if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600)
       throw new Error(`${name}: timeoutSeconds must be 1–3600`);
+    const jobPaths = pathFilters(job.paths, `pipeline.jobs.${name}.paths`);
     jobs[name] = {
+      ...(jobPaths ? { paths: jobPaths } : {}),
       run: job.run,
       runsOn: {
         os: runsOn.os,

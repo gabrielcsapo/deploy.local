@@ -7,6 +7,32 @@ import { gitText } from './repository-git.ts';
 import { requireRepository, resolveCommit } from './repositories.ts';
 import { describeJob } from './coordination.ts';
 const terminal = ['succeeded', 'failed', 'cancelled', 'skipped', 'timed_out'];
+async function changedFiles(project: any, commit: string, pull: any, previousCommit?: string) {
+  let base = previousCommit;
+  if (pull) {
+    const target = await resolveCommit(project.repositoryPath, `refs/heads/${pull.targetBranch}`);
+    base = await gitText(project.repositoryPath, ['merge-base', target, commit]);
+  } else if (base === undefined) {
+    const parents = await gitText(project.repositoryPath, [
+      'rev-list',
+      '--parents',
+      '-n',
+      '1',
+      commit,
+    ]);
+    base = parents.split(' ')[1];
+  }
+  const changed = await gitText(
+    project.repositoryPath,
+    base && !/^0+$/.test(base)
+      ? ['diff', '--name-only', '--no-renames', '-z', base, commit, '--']
+      : ['ls-tree', '-r', '--name-only', '-z', commit],
+  );
+  return changed.split('\0').filter(Boolean);
+}
+const matchesPaths = (files: string[], paths: string[]) =>
+  files.some((file) => paths.some((pattern) => posix.matchesGlob(file, pattern)));
+
 export async function pipelineStart(
   owner: string,
   projectId: string,
@@ -36,6 +62,10 @@ export async function pipelineStart(
     throw new Error(
       'Automatic pull-request checks require container jobs; host commands can be started manually by the owner',
     );
+  const changed =
+    trigger !== 'manual' && Object.values(pipeline.jobs).some((job) => job.paths)
+      ? await changedFiles(project, commit, pull, input.previousCommit)
+      : undefined;
   const title = await gitText(project.repositoryPath, ['show', '-s', '--format=%s', commit]);
   const merged = db
     .prepare(
@@ -98,7 +128,11 @@ export async function pipelineStart(
           container: spec.container || null,
           timeoutMs: spec.timeoutSeconds * 1000,
           digest: commit,
-          status: 'waiting',
+          status:
+            changed && spec.paths && !matchesPaths(changed, spec.paths) ? 'skipped' : 'waiting',
+          ...(changed && spec.paths && !matchesPaths(changed, spec.paths)
+            ? { pathFiltered: true }
+            : {}),
           output: '',
           truncated: false,
           createdAt: now(),
@@ -230,11 +264,15 @@ export function reconcilePipelines() {
         const dependencies = jobs.filter((dependency) => job.needs.includes(dependency.name));
         const status = run.stopRequested
           ? 'cancelled'
-          : dependencies.some((dependency) =>
-                ['failed', 'cancelled', 'skipped', 'timed_out'].includes(dependency.status),
+          : dependencies.some(
+                (dependency) =>
+                  !dependency.pathFiltered &&
+                  ['failed', 'cancelled', 'skipped', 'timed_out'].includes(dependency.status),
               )
             ? 'skipped'
-            : dependencies.every((dependency) => dependency.status === 'succeeded')
+            : dependencies.every(
+                  (dependency) => dependency.status === 'succeeded' || dependency.pathFiltered,
+                )
               ? 'queued'
               : 'waiting';
         if (status !== job.status) {
@@ -247,7 +285,7 @@ export function reconcilePipelines() {
         : jobs.every((job) => terminal.includes(job.status))
           ? run.stopRequested
             ? 'cancelled'
-            : jobs.every((job) => job.status === 'succeeded')
+            : jobs.every((job) => job.status === 'succeeded' || job.pathFiltered)
               ? 'succeeded'
               : 'failed'
           : run.stopRequested
@@ -370,34 +408,13 @@ export async function pipelineTrigger(
       return;
     }
     if (pipeline.paths && (trigger === 'push' || trigger === 'pull_request')) {
-      let base = previousCommit;
-      if (trigger === 'pull_request') {
-        const targetCommit = await resolveCommit(project.repositoryPath, `refs/heads/${target}`);
-        base = await gitText(project.repositoryPath, ['merge-base', targetCommit, commit]);
-      } else if (base === undefined) {
-        // Internal single-commit publications have no receive-pack old OID.
-        const parents = await gitText(project.repositoryPath, [
-          'rev-list',
-          '--parents',
-          '-n',
-          '1',
-          commit,
-        ]);
-        base = parents.split(' ')[1];
-      }
-      const changed = await gitText(
-        project.repositoryPath,
-        base && !/^0+$/.test(base)
-          ? ['diff', '--name-only', '--no-renames', '-z', base, commit, '--']
-          : ['ls-tree', '-r', '--name-only', '-z', commit],
+      const changed = await changedFiles(
+        project,
+        commit,
+        pullId ? get('pull-request', owner, pullId) : null,
+        previousCommit,
       );
-      if (
-        !changed
-          .split('\0')
-          .some(
-            (file) => file && pipeline.paths!.some((pattern) => posix.matchesGlob(file, pattern)),
-          )
-      ) {
+      if (!matchesPaths(changed, pipeline.paths)) {
         save('pipeline-trigger', owner, { id: key, projectId: project.id, status: 'ignored' });
         return;
       }
@@ -405,7 +422,14 @@ export async function pipelineTrigger(
     const run = await pipelineStart(
       owner,
       project.id,
-      { operationId: `pipeline-trigger:${key}`, ref: commit, branch, trigger, pullId },
+      {
+        operationId: `pipeline-trigger:${key}`,
+        ref: commit,
+        branch,
+        trigger,
+        pullId,
+        previousCommit,
+      },
       key,
     );
     save('pipeline-trigger', owner, {

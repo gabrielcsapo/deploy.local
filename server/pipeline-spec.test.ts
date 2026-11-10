@@ -113,3 +113,39 @@ test('publish-only pipeline accepts confined distinct folders and round trips', 
       /pipeline.publish/,
     );
 });
+
+test('the repository pipeline checks every main push and PR while retaining the router filter', async () => {
+  const { readFileSync } = await import('node:fs');
+  const pipeline = compileDeployYaml(readFileSync('deploy.yaml', 'utf8')).spec.pipeline!;
+  assert.deepEqual(pipeline.on, ['manual', 'pull_request', 'push']);
+  assert.deepEqual(pipeline.branches, ['main']);
+  assert.equal(pipeline.paths, undefined);
+  assert.equal(pipeline.deploy, undefined, 'CI cannot activate the production coordinator');
+  assert.deepEqual(pipeline.publish, ['packages/react-flight-router']);
+  assert.deepEqual(pipeline.jobs['router-test'].paths, [
+    'deploy.yaml',
+    'packages/react-flight-router/**',
+  ]);
+  for (const name of ['typecheck', 'lint', 'test', 'build']) {
+    assert.equal(pipeline.jobs[name].paths, undefined);
+    assert.ok(pipeline.jobs[name].container, 'automatic PRs require isolation');
+    assert.equal(pipeline.jobs[name].runsOn.os, 'linux');
+  }
+  assert.match(
+    pipeline.jobs.test.run,
+    /DEPLOY_SKIP_SWIFT_TESTS=1 DEPLOY_MDNS_ADDRESS=127\.0\.0\.1 sh scripts\/ci-test\.sh/,
+  );
+  assert.match(readFileSync('scripts/ci-test.sh', 'utf8'), /exec pnpm test/);
+  assert.match(pipeline.jobs.lint.run, /pnpm run lint && pnpm run format:check/);
+  for (const paths of [[], ['../x'], ['!x'], ['/x'], ['a', 'a']])
+    assert.throws(
+      () =>
+        compileDeployYaml(
+          source.replace(
+            'run: node --version',
+            `paths: ${JSON.stringify(paths)}\n      run: node --version`,
+          ),
+        ),
+      /paths/,
+    );
+});

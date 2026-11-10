@@ -162,3 +162,90 @@ test('omitted paths retain existing push behavior and manual runs bypass paths',
   );
   assert.equal(filtered.runs().length, 1);
 });
+
+test('job filters retain unfiltered checks, compare the pushed range and never hide a failure', async () => {
+  const f = fixture();
+  const manifest = `apiVersion: deploy.local/v1
+kind: Application
+pipeline:
+  on: [push, pull_request, manual]
+  branches: [main]
+  jobs:
+    router:
+      paths: [packages/react-flight-router/**]
+      runsOn: {os: linux}
+      container: node:26-trixie
+      run: 'true'
+    check:
+      runsOn: {os: linux}
+      container: node:26-trixie
+      run: 'true'
+`;
+  const base = f.commit('deploy.yaml', manifest);
+  const unrelated = f.commit('notes.txt');
+  f.sync();
+  await f.trigger(unrelated, base);
+  const run = f.runs()[0];
+  const jobs = () => list('job', owner).filter((job) => job.pipelineId === run.id);
+  assert.equal(jobs().find((job) => job.name === 'router').status, 'skipped');
+  const { reconcilePipelines } = await import('./pipelines.ts');
+  reconcilePipelines();
+  const check = jobs().find((job) => job.name === 'check');
+  assert.equal(check.status, 'queued');
+  save('job', owner, { ...check, status: 'failed' });
+  reconcilePipelines();
+  assert.equal(f.runs()[0].status, 'failed');
+  save('pipeline-run', owner, { ...run, status: 'queued' });
+  save('job', owner, { ...check, status: 'succeeded' });
+  reconcilePipelines();
+  assert.equal(f.runs()[0].status, 'succeeded', 'path-filtered jobs are neutral');
+  f.commit('packages/react-flight-router/src/changed.ts');
+  const head = f.commit('notes.txt');
+  f.sync();
+  await f.trigger(head, unrelated);
+  assert.equal(
+    list('job', owner).find((job) => job.pipelineId === f.runs()[1].id && job.name === 'router')
+      .status,
+    'waiting',
+  );
+  await pipelineStart(
+    owner,
+    f.project.id,
+    { operationId: randomUUID(), ref: unrelated, trigger: 'manual' },
+    'manual-job-paths',
+  );
+  assert.ok(
+    list('job', owner)
+      .filter((job) => job.pipelineId === f.runs()[2].id)
+      .every((job) => job.status === 'waiting'),
+  );
+});
+
+test('job path filters use the PR merge base while unfiltered checks always run', async () => {
+  const f = fixture();
+  const { readFileSync } = await import('node:fs');
+  const manifest =
+    readFileSync(join(f.source, 'deploy.yaml'), 'utf8')
+      .replace(/^  paths:.*\n/m, '')
+      .replace('    check:\n', '    check:\n      paths: [packages/react-flight-router/**]\n') +
+    '    all:\n      runsOn: {os: linux}\n      container: node:26-trixie\n      run: "true"\n';
+  f.commit('deploy.yaml', manifest);
+  git(f.source, ['checkout', '-b', 'feature']);
+  const unrelated = f.commit('notes.txt');
+  f.sync('feature');
+  git(f.source, ['checkout', 'main']);
+  f.commit('packages/react-flight-router/src/target-only.ts');
+  f.sync();
+  const pullId = randomUUID();
+  save('pull-request', owner, {
+    id: pullId,
+    projectId: f.project.id,
+    sourceBranch: 'feature',
+    targetBranch: 'main',
+    status: 'open',
+  });
+  await pipelineTrigger(owner, f.project, 'refs/heads/feature', unrelated, 'pull_request', pullId);
+  const jobs = list('job', owner).filter((job) => job.pipelineId === f.runs()[0].id);
+  assert.equal(jobs.find((job) => job.name === 'check').status, 'skipped');
+  assert.equal(jobs.find((job) => job.name === 'all').status, 'waiting');
+});

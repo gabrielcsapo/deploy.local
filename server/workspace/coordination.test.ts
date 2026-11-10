@@ -414,11 +414,28 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
   }
 });
 
-test('OS requirements queue until an eligible worker claims once, without changing the conversation worker', async () => {
+test('OS requirements queue until an eligible worker claims once, without changing the conversation worker', async (t) => {
+  // Earlier tests leave fresh local/remote workers. On Linux ARM64 they match this
+  // job until their heartbeats expire, making this assertion depend on suite speed.
+  const previousWorkers = list('worker', owner);
+  const local = db.prepare("SELECT heartbeat FROM worker WHERE id='local'").get() as
+    | { heartbeat: string }
+    | undefined;
+  for (const worker of previousWorkers)
+    save('worker', owner, { ...worker, heartbeat: new Date(0).toISOString() });
+  db.prepare("UPDATE worker SET heartbeat=NULL WHERE id='local'").run();
+  t.after(() => {
+    for (const worker of previousWorkers) save('worker', owner, worker);
+    if (local) db.prepare("UPDATE worker SET heartbeat=? WHERE id='local'").run(local.heartbeat);
+  });
   const { workerCommand } = await import('./protocol.ts');
   const job = tool('deploy_run_job', {
     checkpointId: checkpoint.checkpointId,
-    requirements: { os: 'linux', architecture: 'arm64', capabilities: ['shell'] },
+    requirements: {
+      os: 'linux',
+      architecture: 'arm64',
+      capabilities: ['shell'],
+    },
     command: 'true',
     operationId: operation(),
   });

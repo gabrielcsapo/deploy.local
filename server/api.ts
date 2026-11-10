@@ -1,3 +1,6 @@
+import { createReadiness } from './readiness.ts';
+import { getSqlite } from './store/connection.ts';
+import { db as workspaceDb } from './workspace/store.ts';
 import './packages/hooks.ts';
 import { legacyUpdateService } from './legacy-update-service.ts';
 import { wanderAdoptionService, wanderAdoptionPreflight } from './wander-adoption-service.ts';
@@ -81,7 +84,13 @@ export function apiMiddleware(
   startDockerEventStream();
   if (process.env.DEPLOY_SUPERVISOR_TOKEN && process.connected)
     process.once('disconnect', () => process.exit(1));
+  const readiness = createReadiness({ deploy: getSqlite()!, workspace: workspaceDb });
   const handle = async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+    if (req.method === 'GET' && req.url?.split('?')[0] === '/api/health/ready') {
+      const result = readiness();
+      res.setHeader('Cache-Control', 'no-store');
+      return json(res, result, result.ok ? 200 : 503);
+    }
     if (req.url === '/api/internal/coordinator-ready') {
       const token = process.env.DEPLOY_SUPERVISOR_TOKEN;
       if (!token || req.headers['x-deploy-supervisor'] !== token)

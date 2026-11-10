@@ -41,25 +41,18 @@ export function getDb() {
   if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
   _sqlite = new Database(DB_FILE);
-  _sqlite.pragma('journal_mode = WAL');
-  // Multiple control-plane connections write to this DB. Without a busy timeout a
-  // colliding write transaction throws SQLITE_BUSY instead of waiting.
   _sqlite.pragma('busy_timeout = 5000');
-  // Incremental auto-vacuum reclaims space without the multi-second global lock
-  // that a full VACUUM holds. Combined with PRAGMA incremental_vacuum in
-  // maintenance, this avoids the periodic freeze the previous full-VACUUM loop
-  // caused. The pragma is a no-op if already set; it only takes effect at DB
-  // creation, so existing DBs keep their previous mode but won't freeze
-  // because maintenance no longer runs full VACUUM.
-  _sqlite.pragma('auto_vacuum = INCREMENTAL');
-
   const db = drizzle(_sqlite);
 
-  // Run migrations before setting _db so a failed migration
-  // doesn't leave _db in an un-migrated state
-  withMigrationLock(DB_FILE, () =>
-    migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') }),
-  );
+  // WAL promotion itself needs a lock on a fresh database. Serialize it with
+  // migrations: SQLite can reject simultaneous journal-mode changes immediately,
+  // even with busy_timeout, before the migrator would acquire its lock.
+  withMigrationLock(DB_FILE, () => {
+    _sqlite!.pragma('journal_mode = WAL');
+    // Existing databases keep their mode; incremental maintenance avoids a full VACUUM.
+    _sqlite!.pragma('auto_vacuum = INCREMENTAL');
+    migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') });
+  });
 
   // SQLite ignores declared foreign keys unless each connection asks for them, so until now
   // `REFERENCES` and `ON DELETE CASCADE` in the schema did nothing. Turned on after the
