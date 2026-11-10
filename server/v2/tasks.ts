@@ -3,7 +3,7 @@ import { ensureDesignCheckBoards } from './design.ts';
 import { mergingPackages } from '../packages/pipeline-read.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ConversationEvent } from '../../shared/v2/contracts.ts';
-import { cursor, events, get, list } from '../workspace/store.ts';
+import { cursor, events, get, list, listCheckpointMetadata } from '../workspace/store.ts';
 import { gitText } from '../workspace/repository-git.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
 import { mapConversationEvent } from './events.ts';
@@ -42,7 +42,7 @@ export function taskSnapshot(owner: string, id: string) {
     firstWorker?.modelOptions
       ?.find((option: any) => option.id === firstRun?.adapter)
       ?.models?.find((model: any) => model.id === firstRun?.model)?.name || firstRun?.model;
-  const checkpoints = list('checkpoint', owner).filter((item) => item.taskId === id);
+  const checkpoints = listCheckpointMetadata(owner, id);
   checkpoints.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   const checkpoint = checkpoints.at(-1);
   const recorded = new Map(

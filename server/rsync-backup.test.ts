@@ -1,3 +1,4 @@
+import { materializeCheckpoint } from './workspace/checkpoint-storage.ts';
 // The whole-directory backup from a running data directory to a replacement one, all real: maintenance
 // runs rsync to a temp destination, scripts/restore-backup.mjs restores it, and a separate process
 // reads the result the way a restarted server would.
@@ -127,6 +128,16 @@ describe('whole-directory rsync backup', () => {
     workspace.db.pragma('wal_checkpoint(TRUNCATE)');
     workspace.db.pragma('wal_autocheckpoint = 0');
     workspace.save('task', owner, { id: 'task-in-wal', title: 'Only in the WAL' });
+    const checkpointSnapshot = {
+      files: [{ path: 'binary.dat', content: 'AP8BAg==', executable: true }],
+      excluded: [],
+      digest: 'fixture',
+    };
+    workspace.save('checkpoint', owner, { id: 'external', snapshot: checkpointSnapshot });
+    workspace.db
+      .prepare("INSERT INTO records VALUES('checkpoint','inline',?,?)")
+      .run(owner, JSON.stringify({ id: 'inline', snapshot: checkpointSnapshot }));
+
     workspace.event(owner, 'task-in-wal', null, 'chat.message', { text: 'Hello' });
     workspace.save('provider-connection', owner, {
       id: 'provider-1',
@@ -224,6 +235,21 @@ describe('whole-directory rsync backup', () => {
     assert.equal(mode(join(replacement, 'secrets', 'master.key')), 0o600);
     assert.equal(mode(join(replacement, 'secrets')), 0o700);
     assert.equal(existsSync(join(replacement, rsyncBackup.DESTINATION_MARKER)), false);
+    const restoredWorkspace = new Database(join(replacement, 'workspace', 'workspace.db'));
+    try {
+      const rows = restoredWorkspace
+        .prepare("SELECT data FROM records WHERE kind='checkpoint'")
+        .all() as { data: string }[];
+      assert.equal(rows.length, 2);
+      for (const row of rows)
+        assert.deepEqual(
+          materializeCheckpoint(join(replacement, 'workspace'), JSON.parse(row.data)).snapshot,
+          checkpointSnapshot,
+        );
+    } finally {
+      restoredWorkspace.close();
+    }
+
     for (const file of rsyncBackup.BACKUP_DATABASES) {
       assert.equal(existsSync(join(replacement, `${file}.snapshot`)), false);
       assert.equal(existsSync(join(replacement, `${file}-wal`)), false);

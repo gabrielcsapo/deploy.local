@@ -1,3 +1,4 @@
+import { verifyCheckpointBlobs } from './checkpoint-storage.ts';
 import Database from 'better-sqlite3';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -107,7 +108,11 @@ async function databaseEvidence(root: string) {
   return JSON.stringify(result);
 }
 function validateIdle(database: Database.Database) {
-  for (const row of database.prepare('SELECT kind, data FROM records').all() as {
+  for (const row of database
+    .prepare(
+      "SELECT kind, data FROM records WHERE kind IN ('run','check','job','repository-operation','pipeline-run')",
+    )
+    .all() as {
     kind: string;
     data: string;
   }[]) {
@@ -217,6 +222,7 @@ export async function snapshotWorkspace(sourcePath: string, destinationPath: str
   try {
     database = new Database(join(source, 'workspace.db'), { readonly: true, fileMustExist: true });
     validateIdle(database);
+    verifyCheckpointBlobs(database, source);
     const beforeDatabase = await databaseEvidence(source);
     const before = await inventory(source, true);
     await database.backup(join(stage, 'workspace.db'));
@@ -288,6 +294,7 @@ export async function verifyWorkspaceSnapshot(snapshotPath: string): Promise<Man
   try {
     if (database.pragma('integrity_check', { simple: true }) !== 'ok')
       throw new Error('Workspace database integrity check failed');
+    verifyCheckpointBlobs(database, snapshot);
   } finally {
     database.close();
   }

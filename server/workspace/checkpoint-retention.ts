@@ -1,4 +1,4 @@
-import { db, list } from './store.ts';
+import { db, list, listCheckpointMetadata, checkpointInfo } from './store.ts';
 import { gitSync } from './repository-git.ts';
 
 const active = (status: string) => ['queued', 'starting', 'running', 'unknown'].includes(status);
@@ -10,7 +10,7 @@ export function cleanupCheckpointRefs(owner: string, taskId?: string) {
   return db
     .transaction(() => {
       const tasks = new Map(list('task', owner).map((task) => [task.id, task]));
-      const checkpoints = list('checkpoint', owner);
+      const checkpoints = listCheckpointMetadata(owner);
       const needed = new Set<string>();
       for (const job of list('job', owner)) if (active(job.status)) needed.add(job.checkpointId);
       for (const deployment of list('application-deployment', owner))
@@ -49,7 +49,7 @@ export function cleanupCheckpointRefs(owner: string, taskId?: string) {
         for (const checkpoint of owned) {
           if (taskId && checkpoint.taskId !== taskId) continue;
           const ref = checkpoint.baseRef;
-          const base = checkpoint.snapshot?.base?.commit;
+          const base = checkpointInfo(checkpoint).baseCommit;
           if (
             needed.has(checkpoint.id) ||
             !/^refs\/deploy\/checkpoint\/[a-f0-9]{64}$/.test(ref || '') ||

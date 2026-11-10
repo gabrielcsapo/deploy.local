@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import { editWatermark, editWatermarks } from './activity.ts';
-import { activityEvents, list } from './store.ts';
+import { activityEvents, list, listCheckpointMetadata, checkpointInfo } from './store.ts';
 import { currentTaskBranch } from './follow-up.ts';
 import {
   commandItem,
@@ -149,7 +149,8 @@ export function publishedTaskChecks(
     // only streamed workspace activity needs the checkpoint's event cutoff above.
     const current =
       row.checkpointId || row.digest != null
-        ? checkpoint?.snapshot?.digest != null && row.digest === checkpoint.snapshot.digest
+        ? checkpointInfo(checkpoint).digest != null &&
+          row.digest === checkpointInfo(checkpoint).digest
         : 'watermark' in row && row.watermark === watermark;
     const previous = history.get(row.id);
     const scrubbed = scrubCheckText(String(row.command ?? row.name ?? 'Recorded check'));
@@ -190,7 +191,7 @@ export function pullTaskChecks(owner: string, pull: Row): Row[] {
     .flatMap((task) => {
       let runs = task.publishedCheckRuns;
       if (!runs && task.publishedCommit && task.publishedCheckpointId) {
-        const checkpoint = list('checkpoint', owner).find(
+        const checkpoint = listCheckpointMetadata(owner, task.id).find(
           (row) => row.id === task.publishedCheckpointId && row.taskId === task.id,
         );
         if (checkpoint) runs = publishedTaskChecks(owner, task, checkpoint, task.publishedCommit);

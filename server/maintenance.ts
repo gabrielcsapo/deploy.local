@@ -1,5 +1,6 @@
 import { finalizeReleases } from './telemetry.ts';
-import { db as workspaceDb } from './workspace/store.ts';
+import { migrateCheckpointSnapshots } from './workspace/checkpoint-storage.ts';
+import { db as workspaceDb, root as workspaceRoot } from './workspace/store.ts';
 import { pruneHealthEvents } from './workspace/health-event-retention.ts';
 import {
   getRequestsSqlite,
@@ -379,6 +380,9 @@ export function runDueMaintenance(now = Date.now()): boolean {
     console.error('Maintenance schedule check failed:', err);
     return false;
   }
+  void migrateCheckpointSnapshots(workspaceDb, workspaceRoot).catch((error) =>
+    console.error('Checkpoint snapshot migration failed:', error),
+  );
   pruneOldData();
   try {
     const pruned = pruneExpiredSessions();

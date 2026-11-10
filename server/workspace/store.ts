@@ -1,3 +1,5 @@
+import { externalizeCheckpoint, materializeCheckpoint } from './checkpoint-storage.ts';
+export { checkpointInfo } from './checkpoint-metadata.ts';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -37,13 +39,19 @@ db.exec(
 db.exec(`CREATE INDEX IF NOT EXISTS record_run_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pipeline-run';
 CREATE INDEX IF NOT EXISTS record_trigger_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pipeline-trigger';
 CREATE INDEX IF NOT EXISTS record_pull_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pull-request';
+CREATE INDEX IF NOT EXISTS record_checkpoint_task ON records(owner,json_extract(data,'$.taskId')) WHERE kind='checkpoint';
 CREATE INDEX IF NOT EXISTS record_job_pipeline ON records(owner,json_extract(data,'$.pipelineId')) WHERE kind='job';`);
 export const now = () => new Date().toISOString();
 export const id = () => randomUUID();
 export function save(kind: string, owner: string, row: any) {
   db.prepare(
     'INSERT INTO records VALUES(?,?,?,?) ON CONFLICT(kind,id,owner) DO UPDATE SET data=excluded.data',
-  ).run(kind, row.id, owner, JSON.stringify(row));
+  ).run(
+    kind,
+    row.id,
+    owner,
+    JSON.stringify(kind === 'checkpoint' ? externalizeCheckpoint(root, row) : row),
+  );
   return row;
 }
 export function remove(kind: string, owner: string, recordId: string) {
@@ -61,8 +69,51 @@ export function get(kind: string, owner: string, recordId: string): any {
     .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
     .get(kind, owner, recordId) as any;
   if (!r) throw Object.assign(new Error('Not found'), { status: 404 });
-  return JSON.parse(r.data);
+  const row = JSON.parse(r.data);
+  return kind === 'checkpoint' ? materializeCheckpoint(root, row) : row;
 }
+const checkpointFields = [
+  'id',
+  'taskId',
+  'runId',
+  'createdAt',
+  'baseRef',
+  'projectId',
+  'title',
+  'summary',
+  'baseUpdateId',
+  'baseUpdateGeneration',
+];
+const checkpointProjection = `json_object(
+  ${checkpointFields.map((field) => `'${field}',json_extract(data,'$.${field}')`).join(',')},
+  'snapshotInfo',json(COALESCE(json_extract(data,'$.snapshotInfo'),json_object(
+    'digest',json_extract(data,'$.snapshot.digest'),
+    'baseCommit',json_extract(data,'$.snapshot.base.commit'),
+    'fileCount',COALESCE(json_array_length(data,'$.snapshot.files'),0),
+    'excludedCount',COALESCE(json_array_length(data,'$.snapshot.excluded'),0)
+  )))
+)`;
+
+/** Filtering precedes projection, using the checkpoint-only task index. */
+export function listCheckpointMetadata(owner: string, taskId?: string): any[] {
+  return (
+    db
+      .prepare(`SELECT ${checkpointProjection} AS data FROM records
+    WHERE kind='checkpoint' AND owner=? ${taskId === undefined ? '' : "AND json_extract(data,'$.taskId')=?"}
+    ORDER BY rowid`)
+      .all(...(taskId === undefined ? [owner] : [owner, taskId])) as { data: string }[]
+  ).map((row) => JSON.parse(row.data));
+}
+
+export function getCheckpointMetadata(owner: string, recordId: string): any {
+  const row = db
+    .prepare(`SELECT ${checkpointProjection} AS data FROM records
+    WHERE kind='checkpoint' AND owner=? AND id=?`)
+    .get(owner, recordId) as { data: string } | undefined;
+  if (!row) throw Object.assign(new Error('Not found'), { status: 404 });
+  return JSON.parse(row.data);
+}
+
 export function event(
   owner: string,
   taskId: string,

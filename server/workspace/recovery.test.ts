@@ -1,3 +1,8 @@
+import {
+  externalizeCheckpoint,
+  materializeCheckpoint,
+  checkpointBlobPath,
+} from './checkpoint-storage.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
@@ -126,6 +131,42 @@ test('active work, external symlinks and destinations inside the workspace fail 
       snapshotWorkspace(source, join(root, 'external-backup')),
       /External symlink/,
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('offline recovery carries mixed inline and external bodies, and refuses a missing body', async () => {
+  const { root, source } = await fixture();
+  try {
+    const snapshot = {
+      files: [{ path: 'binary.dat', content: 'AP8BAg==', executable: true }],
+      excluded: [],
+      digest: 'fixture',
+    };
+    const stored = externalizeCheckpoint(source, { id: 'external', snapshot });
+    const database = new Database(join(source, 'workspace.db'));
+    database
+      .prepare("INSERT INTO records VALUES('checkpoint','external','owner',?)")
+      .run(JSON.stringify(stored));
+    database.close();
+    const backup = join(root, 'backup');
+    await snapshotWorkspace(source, backup);
+    await rename(source, join(root, 'original'));
+    await restoreWorkspace(backup, source);
+    const restored = new Database(join(source, 'workspace.db'));
+    try {
+      const rows = restored.prepare("SELECT data FROM records WHERE kind='checkpoint'").all() as {
+        data: string;
+      }[];
+      assert.equal(rows.length, 2);
+      assert.deepEqual(materializeCheckpoint(source, JSON.parse(rows[1].data)).snapshot, snapshot);
+      assert.equal(JSON.parse(rows[0].data).snapshot.files[0].content, 'retained');
+    } finally {
+      restored.close();
+    }
+    await rm(checkpointBlobPath(source, stored.snapshotBlob));
+    await assert.rejects(snapshotWorkspace(source, join(root, 'incomplete')), /ENOENT/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
