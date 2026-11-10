@@ -2751,6 +2751,21 @@
       "h": 900,
       "title": "A task waits for a computer that can do the work",
       "expand": "fill"
+    },
+    "DesignReviewConflict.html": {
+      "x": 1600,
+      "y": 49844,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review — main changed the same screens: resolve it here",
+      "expand": "fill"
+    },
+    "DesignReviewConflictPhone.html": {
+      "x": 3120,
+      "y": 49844,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — main changed this screen too: choose what to keep"
     }
   },
   "order": [
@@ -2918,6 +2933,8 @@
     "DesignCanvas.html",
     "DesignBoard.html",
     "DesignReview.html",
+    "DesignReviewConflict.html",
+    "DesignReviewConflictPhone.html",
     "DesignReviewPhone.html",
     "PRDescEdit.html",
     "PRDescPhone.html",
@@ -4448,6 +4465,13 @@
       "x": 22710,
       "y": 8644,
       "text": "A task says what it needs, and the computers answer.\n• No list to maintain: a project does not declare what its folders need, and nobody tags computers.\n• Nothing is built in about which work needs which tool. The agent works it out from the request and the repository and states the tools it needs by the name of the program it will run (xcodebuild, docker, swift), as its first step. A build started by approving a design is no different: its agent reads the approved boards and says what it needs. You can state a need yourself on the composer’s computer chip.\n• deploy.local asks every computer that takes tasks whether it has each one. A computer answers by looking for that program there and then, so any program can be asked about and the answer is never stale. An answer is remembered for a computer that is offline.\n• With one that qualifies online, the task starts there and nothing looks different. With none, the task waits with one banner: what it needs, who was asked and what they said, and that nothing has run. Choose a computer overrides it.\n• An agent can find a need partway (the tests need Docker). It says so, the task pauses at its checkpoint, and the same ask happens: Move to a computer that has it, as on TaskStalled.\n• Waiting for a computer is not a decision: no attention glyph, not in Waiting on you.\n• A design check is only accepted from a computer that has what the task said it needs.\n• Computers shows what each computer has answered so far on its row."
+    },
+    "resolve-conflicts": {
+      "fill": "purple",
+      "w": 440,
+      "x": 1100,
+      "y": 49844,
+      "text": "A conflict is resolved in the review, not handed back.\n• A proposal conflicts when main has changed a screen it also changes. The review opens on those screens first, under Changed on main too, before the changes.\n• Different parts of a screen: both are kept, automatically. The row says Kept both and what each side changed. Nothing to choose, and such a screen never blocks the review. Parts are elements of the board, not lines of its file.\n• The same part: the row shows what main has and what the proposal has, and two answers under it: Keep main’s or Keep this proposal’s. The screen beside it scrubs between Main and This proposal with the same tool that compares Old and New.\n• Each answer is undoable until you approve. Continue review turns on when every screen is resolved, and the changes follow as usual. Approving then puts the resolved screens on main.\n• Ask to update stays, as the quiet action, for a conflict that needs real rework. When an agent proposed the design it goes to its task. When you proposed it yourself, it starts a task to do the update; it never goes nowhere.\n• iPhone: the same, one conflicting screen per page, with the two answers in place of the tool bar. A conflict opens without waiting for the other screens to draw.\n• Canvas notes conflict the same way: both kept when they changed different notes, a choice when they changed the same one."
     }
   },
   "starts": {}

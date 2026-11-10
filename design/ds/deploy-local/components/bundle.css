@@ -631,3 +631,7 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 
 /* A check that waits on a report: the muted clock, never the attention glyph. */
 .dl-wait{color:var(--muted)}
+
+/* Resolving a conflict in review: the two answers sit under the screen they decide. */
+.dl-rv-choice{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.dl-rv-choice .dl-btn{flex:1 1 auto;justify-content:center}
