@@ -10,7 +10,8 @@ import react from '@vitejs/plugin-react';
 if (process.env.DEPLOY_MDNS_ADDRESS !== '127.0.0.1')
   throw new Error('Set DEPLOY_MDNS_ADDRESS=127.0.0.1');
 const port = Number(process.env.PORT ?? 5181);
-if (port !== 5181) throw new Error('Use port 5181');
+// Any port in the range set aside for fixtures, so two sessions can capture at once.
+if (!(port >= 5180 && port <= 5199)) throw new Error('Use a port from 5180 to 5199');
 const root = mkdtempSync(join(tmpdir(), 'design-build-check-fixture-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { db, save, get, list, remove } = await import('../../../server/workspace/store.ts');

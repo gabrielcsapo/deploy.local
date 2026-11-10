@@ -300,6 +300,20 @@
 .dl-page.wide {
   max-width: 1200px;
 }
+/* One frame for a tabbed page: on a wide page the tabs and the page head keep the 960 px
+   column's edges, so they stay put from tab to tab. Only the content below widens. */
+.dl-page.wide > .dl-tabs,
+.dl-page.wide > .dl-page-head {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 896px;
+  align-self: center;
+}
+/* The tab row carries 6 px of ring room on each side, outside the column. */
+.dl-page.wide > .dl-tabs {
+  width: calc(100% + 12px);
+  max-width: 908px;
+}
 .dl-page-head {
   display: flex;
   align-items: flex-end;

@@ -814,17 +814,21 @@ export default function Computers() {
                     of {data.computers.length} busy
                   </span>
                 </div>
-                <Action variant="primary" onClick={() => setAdding(true)}>
-                  Add a computer
-                </Action>
+                <span className="dl-end">
+                  {!updates && (
+                    <a className="dl-btn quiet" href={`${base}?updates=1`}>
+                      deploy.local updates
+                    </a>
+                  )}
+                  <Action variant="primary" onClick={() => setAdding(true)}>
+                    Add a computer
+                  </Action>
+                </span>
               </div>
               {updates ? (
                 <Updates computers={data.computers} />
               ) : (
                 <>
-                  <a className="dl-btn quiet" href={`${base}?updates=1`}>
-                    deploy.local updates
-                  </a>
                   {data.computers.length ? (
                     <ComputerList computers={data.computers} />
                   ) : (

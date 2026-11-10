@@ -226,6 +226,36 @@ struct V2Tabs: View {
                 V2LoadNotice(state: store.loadState(key), copy: .work, lastHeard: store.snapshot.resourceDates[key] ?? store.snapshot.updatedAt) { await store.refreshResources(workKeys) }
             }
             if !workUnavailable {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(!store.loadState("waiting").hasData ? "Waiting on you" : store.loadState("waiting").failed ? "Waiting on you · last known" : "Waiting on you · \(store.waiting.count)").font(.system(size: 13)).foregroundStyle(.secondary)
+                        Spacer()
+                        if !store.loadState("waiting").showsSkeleton {
+                            Button("Answered") { answered = true; inbox = true }.font(.system(size: 13))
+                        }
+                    }.padding(.horizontal, 12)
+                    if store.loadState("waiting").showsSkeleton { V2SkeletonRows(count: 2) }
+                    else if !store.loadState("waiting").hasData { EmptyView() }
+                    else if store.waiting.isEmpty { V2Empty(title: "Nothing waiting", message: "Decisions from your tasks and agents appear here.") }
+                    else {
+                        V2Group {
+                            // Decisions come first and stay short: the first three, then one row for the rest.
+                            ForEach(waitingShown, id: \.id) { item in
+                                Button { decision = item.id } label: {
+                                    if V2DesignReview.project(of: item.id) != nil { V2DesignWaitingRow(store: store, item: item) }
+                                    else { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Evidence.shortDate(item.createdAt), attention: true) }
+                                }
+                                if item.id != waitingShown.last?.id { Divider().padding(.leading, 46) }
+                            }
+                            if store.waiting.count > waitingShown.count {
+                                Divider().padding(.leading, 16)
+                                Button { answered = false; inbox = true } label: {
+                                    V2SettingsRow(title: "All \(store.waiting.count) decisions", icon: nil) { V2SettingsChevron() }
+                                }
+                            }
+                        }.opacity(store.loadState("waiting").failed ? 0.55 : 1)
+                    }
+                }
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         Text("Agents").font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
@@ -250,29 +280,6 @@ struct V2Tabs: View {
                         }
                     }
                 }.opacity(store.loadState("agents").failed ? 0.55 : 1)
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(!store.loadState("waiting").hasData ? "Waiting on you" : store.loadState("waiting").failed ? "Waiting on you · last known" : "Waiting on you · \(store.waiting.count)").font(.system(size: 13)).foregroundStyle(.secondary)
-                        Spacer()
-                        if !store.loadState("waiting").showsSkeleton {
-                            Button("Answered") { answered = true; inbox = true }.font(.system(size: 13))
-                        }
-                    }.padding(.horizontal, 12)
-                    if store.loadState("waiting").showsSkeleton { V2SkeletonRows(count: 2) }
-                    else if !store.loadState("waiting").hasData { EmptyView() }
-                    else if store.waiting.isEmpty { V2Empty(title: "Nothing waiting", message: "Decisions from your tasks and agents appear here.") }
-                    else {
-                        V2Group {
-                            ForEach(store.waiting, id: \.id) { item in
-                                Button { decision = item.id } label: {
-                                    if V2DesignReview.project(of: item.id) != nil { V2DesignWaitingRow(store: store, item: item) }
-                                    else { V2Row(title: item.title, subtitle: "\(V2Labels.agentName(item)) · \(item.text)", trailing: V2Evidence.shortDate(item.createdAt), attention: true) }
-                                }
-                                if item.id != store.waiting.last?.id { Divider().padding(.leading, 46) }
-                            }
-                        }.opacity(store.loadState("waiting").failed ? 0.55 : 1)
-                    }
-                }
                 if store.loadState("workspace").showsSkeleton {
                     V2Group(title: "Today") { V2SkeletonRows(count: 1) }
                 } else if store.loadState("workspace").hasData {
@@ -302,6 +309,8 @@ struct V2Tabs: View {
         }.refreshable { await store.refreshResources(workKeys) }
     }
     private var coordinator: String { store.snapshot.live?.computers.first(where: { $0.roles.contains(.coordinator) })?.name ?? "your coordinator" }
+    /// Work shows the first three decisions; the rest open from the row beneath them.
+    private var waitingShown: [InboxItem] { Array(store.waiting.prefix(3)) }
     private var today: [V2Task] {
         V2Evidence.agentsBoard == nil ? store.today : store.tasks.filter { V2Evidence.isToday($0.updatedAt) }.sorted { $0.updatedAt > $1.updatedAt }
     }
