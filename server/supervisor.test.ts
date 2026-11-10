@@ -19,23 +19,41 @@ test(
       join(root, 'supervisor-relay.ts'),
     );
     await copyFile(new URL('./log-rotation.ts', import.meta.url), join(root, 'log-rotation.ts'));
+    await copyFile(
+      new URL('./process-metrics.ts', import.meta.url),
+      join(root, 'process-metrics.ts'),
+    );
     await mkdir(join(root, 'v2'));
     await copyFile(
       new URL('./v2/coordinator-executor.ts', import.meta.url),
       join(root, 'v2/coordinator-executor.ts'),
     );
+    const metrics = {
+      sampledAt: Date.now(),
+      windowMs: 60000,
+      rssBytes: 1048576,
+      heapUsedBytes: 1024,
+      heapTotalBytes: 2048,
+      eventLoopDelayMs: { p50: 20, p99: 201, max: 1001 },
+    };
     for (const entry of [
       'server',
       'edge',
       'workspace-repository-worker',
       'workspace-pipeline-worker',
     ]) {
-      await writeFile(join(root, `${entry}.js`), 'setInterval(() => {}, 1000);');
+      await writeFile(
+        join(root, `${entry}.js`),
+        `const message = {type:'heartbeat',metrics:${JSON.stringify(metrics)}};process.send(message);process.send(message);setInterval(()=>process.send({type:'heartbeat'}),100);`,
+      );
     }
     const child = spawn(process.execPath, [join(root, 'supervisor.ts')], {
       env: { ...process.env, DEPLOY_DATA_DIR: root },
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
+    let logs = '';
+    child.stdout!.on('data', (chunk) => (logs += chunk));
+    child.stderr!.on('data', (chunk) => (logs += chunk));
     const exited = once(child, 'exit');
     let socket: ReturnType<typeof connect> | undefined;
     const states: any[] = [];
@@ -67,7 +85,17 @@ test(
         return false;
       });
       await waitFor(() => states.some((state) => state.children?.every((entry: any) => entry.pid)));
+      await waitFor(() => states.at(-1)?.children?.every((entry: any) => entry.metrics));
       const initial = states.at(-1).children;
+      for (const entry of initial) assert.deepEqual(entry.metrics, metrics);
+      await waitFor(
+        () => logs.split('\n').filter((line) => line.includes('event-loop')).length === 4,
+      );
+      assert.equal(
+        logs.split('\n').filter((line) => line.includes('event-loop')).length,
+        4,
+        'duplicate samples log once per process',
+      );
       assert.deepEqual(initial.map((entry: any) => entry.name).sort(), [
         'control',
         'edge',
@@ -165,6 +193,10 @@ test('supervisor restarts a child whose heartbeat stops', { timeout: 15000 }, as
     join(root, 'supervisor-relay.ts'),
   );
   await copyFile(new URL('./log-rotation.ts', import.meta.url), join(root, 'log-rotation.ts'));
+  await copyFile(
+    new URL('./process-metrics.ts', import.meta.url),
+    join(root, 'process-metrics.ts'),
+  );
   await mkdir(join(root, 'v2'));
   await copyFile(
     new URL('./v2/coordinator-executor.ts', import.meta.url),
@@ -172,7 +204,12 @@ test('supervisor restarts a child whose heartbeat stops', { timeout: 15000 }, as
   );
   // Never sends a heartbeat, like a build from before the watchdog: it must be left alone.
   for (const entry of ['server', 'workspace-repository-worker', 'workspace-pipeline-worker']) {
-    await writeFile(join(root, `${entry}.js`), 'setInterval(() => {}, 1000);');
+    await writeFile(
+      join(root, `${entry}.js`),
+      entry === 'server'
+        ? `setInterval(()=>process.send({type:'heartbeat',metrics:'invalid'}),50);`
+        : 'setInterval(() => {}, 1000);',
+    );
   }
   // Sends one heartbeat, then blocks its event loop for good: alive, but wedged.
   await writeFile(

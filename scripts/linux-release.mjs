@@ -143,12 +143,12 @@ export async function promote({
   point(current, release);
   try {
     await restart();
-    await healthy(release);
+    await healthy(release, { rollback: false });
   } catch (failure) {
     point(current, previous);
     try {
       await restart();
-      await healthy(previous);
+      await healthy(previous, { rollback: true });
     } catch (rollbackFailure) {
       const recoveryError = new AggregateError(
         [failure, rollbackFailure],
@@ -161,37 +161,81 @@ export async function promote({
   }
 }
 
-async function waitForHealthy(config, release, previousPid) {
+/** New prepare records the protocol; source detection also covers a new release prepared by an old updater. */
+export function supportsReadiness(release) {
+  const manifest = JSON.parse(readFileSync(join(release, manifestName), 'utf8'));
+  return manifest.readiness === 1 || existsSync(join(release, 'server/readiness.ts'));
+}
+
+export async function waitForHealthy(
+  config,
+  release,
+  previousPid,
+  { rollback = false, runCommand = run, sleep = pause } = {},
+) {
+  // Never mistake an old server's HTML fallback (200) for readiness JSON. A known
+  // pre-readiness target uses the old probe, including when explicitly reactivated.
+  const ready = !rollback && supportsReadiness(release);
+  const expected = ready
+    ? JSON.parse(readFileSync(join(release, manifestName), 'utf8')).revision
+    : undefined;
+  const probe = () => {
+    const pid = runCommand('systemctl', ['show', service, '-p', 'MainPID', '--value']);
+    runCommand('systemctl', ['is-active', '--quiet', service]);
+    const directory = runCommand('systemctl', [
+      'show',
+      service,
+      '-p',
+      'WorkingDirectory',
+      '--value',
+    ]);
+    if (
+      !Number(pid) ||
+      pid === previousPid ||
+      directory !== config.current ||
+      realpathSync(directory) !== release
+    )
+      throw new Error('The selected release has not restarted yet.');
+    const body = runCommand('curl', [
+      '--cacert',
+      join(config.data, 'certs/ca.crt'),
+      '--resolve',
+      'deploy.local:443:127.0.0.1',
+      '--max-time',
+      '3',
+      '-fsS',
+      ...(ready ? [] : ['-o', '/dev/null']),
+      `https://deploy.local/${ready ? 'api/health/ready' : ''}`,
+    ]);
+    if (ready) {
+      const result = JSON.parse(body);
+      const names = ['migrations', 'deploy', 'workspace', 'pipelines', 'repositories', 'version'];
+      if (
+        result.ok !== true ||
+        result.version !== expected ||
+        !names.every((name) => result.checks?.[name] === 'ok')
+      )
+        throw new Error('The selected release is not ready.');
+    }
+  };
+  let failure;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
-      const pid = run('systemctl', ['show', service, '-p', 'MainPID', '--value']);
-      run('systemctl', ['is-active', '--quiet', service]);
-      const directory = run('systemctl', ['show', service, '-p', 'WorkingDirectory', '--value']);
-      if (
-        !Number(pid) ||
-        pid === previousPid ||
-        directory !== config.current ||
-        realpathSync(directory) !== release
-      )
-        throw new Error('The selected release has not restarted yet.');
-      run('curl', [
-        '--cacert',
-        join(config.data, 'certs/ca.crt'),
-        '--resolve',
-        'deploy.local:443:127.0.0.1',
-        '--max-time',
-        '3',
-        '-fsS',
-        '-o',
-        '/dev/null',
-        'https://deploy.local/',
-      ]);
-      return;
-    } catch {
-      await pause(1000);
+      probe();
+      failure = undefined;
+      break;
+    } catch (error) {
+      failure = error;
+      await sleep(1000);
     }
   }
-  throw new Error('Service did not become ready within 30 checks.');
+  if (failure)
+    throw new Error('Service did not become ready within 30 checks.', { cause: failure });
+  if (!rollback) {
+    await sleep(60000);
+    // This is a fresh check, not a cached success or a new startup grace period.
+    probe();
+  }
 }
 
 async function activate(path) {
@@ -211,7 +255,7 @@ async function activate(path) {
         previousPid = run('systemctl', ['show', service, '-p', 'MainPID', '--value']);
         run('systemctl', ['--no-ask-password', 'restart', service]);
       },
-      healthy: (target) => waitForHealthy(config, target, previousPid),
+      healthy: (target, options) => waitForHealthy(config, target, previousPid, options),
     });
     console.log(`Serving ${release}\nRevision ${revision(release)}`);
   } finally {
@@ -235,6 +279,7 @@ async function prepare(path) {
       {
         revision: before,
         verifiedAt: new Date().toISOString(),
+        readiness: 1,
         typecheck: 'passed',
         build: 'passed',
         tests: 'passed',

@@ -1,15 +1,36 @@
 apiVersion: deploy.local/v1
 kind: Application
 pipeline:
-  on: [push, manual]
+  on: [push, pull_request, manual]
   branches: [main]
-  paths:
-    - deploy.yaml
-    - packages/react-flight-router/**
   jobs:
     router-test:
       runsOn: { os: linux, capabilities: [node] }
-      run: pnpm install --frozen-lockfile && pnpm --filter react-flight-router test
+      container: node:26-trixie
+      paths:
+        - deploy.yaml
+        - packages/react-flight-router/**
+      run: sh scripts/ci-setup.sh && pnpm install --frozen-lockfile && pnpm --filter react-flight-router test
       timeoutSeconds: 900
+    typecheck:
+      runsOn: { os: linux, capabilities: [node] }
+      container: node:26-trixie
+      run: sh scripts/ci-setup.sh && pnpm install --frozen-lockfile && pnpm run typecheck
+      timeoutSeconds: 900
+    lint:
+      runsOn: { os: linux, capabilities: [node] }
+      container: node:26-trixie
+      run: sh scripts/ci-setup.sh && pnpm install --frozen-lockfile && pnpm run lint && pnpm run format:check
+      timeoutSeconds: 900
+    test:
+      runsOn: { os: linux, capabilities: [node] }
+      container: node:26-trixie
+      run: sh scripts/ci-setup.sh && pnpm install --frozen-lockfile && DEPLOY_SKIP_SWIFT_TESTS=1 DEPLOY_MDNS_ADDRESS=127.0.0.1 sh scripts/ci-test.sh
+      timeoutSeconds: 3600
+    build:
+      runsOn: { os: linux, capabilities: [node] }
+      container: node:26-trixie
+      run: sh scripts/ci-setup.sh && pnpm install --frozen-lockfile && pnpm run build
+      timeoutSeconds: 1800
   publish:
     - packages/react-flight-router

@@ -17,82 +17,83 @@ import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type AddressInfo, createServer } from 'node:net';
 
-// Find an available port
-function getPort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const srv = createServer();
-    srv.listen(0, () => {
-      const { port } = srv.address() as AddressInfo;
-      srv.close(() => resolve(port));
-    });
-    srv.on('error', reject);
-  });
-}
-
-// Start the API server as a child process with isolated data directory
+// Let the kernel keep the selected port reserved through startup. An IPC message
+// from the HTTP listener is readiness; the HTTPS log line is not HTTP readiness.
 async function startServer(
-  port: number,
   dataDir: string,
   origin = 'https://dev.dontneeda.pw',
-): Promise<ChildProcess> {
-  // The API requests in these tests go over the HTTP server (PORT); the
-  // HTTPS server still starts, so give it a random port too — otherwise it
-  // tries to bind 443 (EACCES as non-root) and falls back to a fixed 8443,
-  // which collides when a real server or a parallel test run is around.
-  const httpsPort = await getPort();
-  return new Promise((resolve, reject) => {
-    const serverPath = join(process.cwd(), 'server.ts');
-    // process.execPath (not 'node') so the child runs the exact same Node as
-    // the test runner — PATH lookup can resolve a different version (volta
-    // project pin vs pnpm's runtime), and native modules like better-sqlite3
-    // then fail to load in the child with an ABI mismatch.
-    const child = spawn(process.execPath, [serverPath], {
+): Promise<ChildProcess & { port: number }> {
+  const entry = new URL('../server.ts', import.meta.url).href;
+  const child = spawn(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `
+    import { Server } from 'node:http';
+    const listen = Server.prototype.listen;
+    Server.prototype.listen = function (...args) {
+      this.once('listening', () => {
+        const port = this.address().port;
+        if (process.env.DEPLOY_PUBLIC_ORIGIN === 'self')
+          process.env.DEPLOY_PUBLIC_ORIGIN = 'http://localhost:' + port;
+        process.send({ port });
+      });
+      return listen.apply(this, args);
+    };
+    await import(${JSON.stringify(entry)});
+  `,
+    ],
+    {
       env: {
         ...process.env,
-        PORT: String(port),
-        HTTPS_PORT: String(httpsPort),
+        PORT: '0',
+        HTTPS_PORT: '0',
         DEPLOY_SSH_PORT: '0',
+        DEPLOY_MDNS_ADDRESS: '127.0.0.1',
+        DOCKER_HOST: 'unix:///nonexistent/docker.sock',
         DEPLOY_DATA_DIR: dataDir,
         DEPLOY_PUBLIC_ORIGIN: origin,
       },
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    },
+  ) as ChildProcess & { port: number };
+  let output = '';
+  child.stdout!.on('data', (chunk) => (output += chunk));
+  child.stderr!.on('data', (chunk) => (output += chunk));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`HTTP listener did not start: ${output}`)),
+        60000,
+      );
+      child.once('message', (message: { port: number }) => {
+        clearTimeout(timer);
+        child.port = message.port;
+        resolve();
+      });
+      child.once('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`Server exited (${code}): ${output}`));
+      });
     });
+    return child;
+  } catch (error) {
+    await stopServer(child);
+    throw error;
+  }
+}
 
-    let started = false;
-    const timeout = setTimeout(() => {
-      if (!started) {
-        child.kill();
-        reject(new Error('Server did not start within 60s'));
-      }
-    }, 60_000);
-
-    child.stdout!.on('data', (data: Buffer) => {
-      if (!started && data.toString().includes('running on')) {
-        started = true;
-        clearTimeout(timeout);
-        resolve(child);
-      }
-    });
-
-    let stderrOutput = '';
-    child.stderr!.on('data', (data: Buffer) => {
-      stderrOutput += data.toString();
-    });
-
-    child.on('error', (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-
-    child.on('exit', (code) => {
-      if (!started) {
-        clearTimeout(timeout);
-        reject(new Error(`Server exited with code ${code}: ${stderrOutput}`));
-      }
-    });
-  });
+async function stopServer(server: ChildProcess | undefined) {
+  if (!server || server.exitCode !== null || server.signalCode !== null) return;
+  const exited = once(server, 'exit');
+  server.kill();
+  await exited;
 }
 
 // HTTP helper
@@ -116,20 +117,20 @@ function authHeaders(username: string, token: string) {
 }
 
 describe('API – auth flow', () => {
-  let server: ChildProcess;
+  let server: ChildProcess & { port: number };
   let port: number;
   let tempDir: string;
   let adminHeaders: Record<string, string>;
 
   before(async () => {
-    port = await getPort();
     tempDir = mkdtempSync(join(tmpdir(), 'deploy-sh-api-'));
-    server = await startServer(port, tempDir);
+    server = await startServer(tempDir);
+    port = server.port;
     adminHeaders = testAuthHeaders(await setupTestAccount(`http://localhost:${port}`, tempDir));
   });
 
-  after(() => {
-    server?.kill();
+  after(async () => {
+    await stopServer(server);
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -396,16 +397,16 @@ describe('API – auth flow', () => {
 });
 
 describe('API – deployments', () => {
-  let server: ChildProcess;
+  let server: ChildProcess & { port: number };
   let port: number;
   let tempDir: string;
   let adminHeaders: Record<string, string>;
   let token: string;
 
   before(async () => {
-    port = await getPort();
     tempDir = mkdtempSync(join(tmpdir(), 'deploy-sh-api-'));
-    server = await startServer(port, tempDir);
+    server = await startServer(tempDir);
+    port = server.port;
     adminHeaders = testAuthHeaders(await setupTestAccount(`http://localhost:${port}`, tempDir));
 
     // Register a user for deployment tests
@@ -417,8 +418,8 @@ describe('API – deployments', () => {
     token = reg.body.token;
   });
 
-  after(() => {
-    server?.kill();
+  after(async () => {
+    await stopServer(server);
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -476,16 +477,16 @@ describe('API – deployments', () => {
 });
 
 describe('API – upload validation', () => {
-  let server: ChildProcess;
+  let server: ChildProcess & { port: number };
   let port: number;
   let tempDir: string;
   let adminHeaders: Record<string, string>;
   let token: string;
 
   before(async () => {
-    port = await getPort();
     tempDir = mkdtempSync(join(tmpdir(), 'deploy-sh-api-'));
-    server = await startServer(port, tempDir);
+    server = await startServer(tempDir);
+    port = server.port;
     adminHeaders = testAuthHeaders(await setupTestAccount(`http://localhost:${port}`, tempDir));
 
     const reg = await req(port, '/api/register', {
@@ -496,8 +497,8 @@ describe('API – upload validation', () => {
     token = reg.body.token;
   });
 
-  after(() => {
-    server?.kill();
+  after(async () => {
+    await stopServer(server);
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -522,18 +523,18 @@ describe('API – upload validation', () => {
 });
 
 describe('API – CORS and 404', () => {
-  let server: ChildProcess;
+  let server: ChildProcess & { port: number };
   let port: number;
   let tempDir: string;
 
   before(async () => {
-    port = await getPort();
     tempDir = mkdtempSync(join(tmpdir(), 'deploy-sh-api-'));
-    server = await startServer(port, tempDir);
+    server = await startServer(tempDir);
+    port = server.port;
   });
 
-  after(() => {
-    server?.kill();
+  after(async () => {
+    await stopServer(server);
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -553,16 +554,16 @@ describe('API – CORS and 404', () => {
 });
 
 describe('CLI sign-in through the real HTTP API', () => {
-  let server: ChildProcess;
+  let server: ChildProcess & { port: number };
   let port: number;
   let directory: string;
   let origin: string;
   let owner: { username: string; token: string };
   before(async () => {
-    port = await getPort();
     directory = mkdtempSync(join(tmpdir(), 'deploy-login-api-'));
+    server = await startServer(directory, 'self');
+    port = server.port;
     origin = `http://localhost:${port}`;
-    server = await startServer(port, directory, origin);
     owner = await setupTestAccount(origin, directory);
     mkdirSync(join(directory, 'bin'));
     // Record browser launch without invoking a desktop browser or real service.

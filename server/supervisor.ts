@@ -1,3 +1,4 @@
+import { processMetrics, slowProcessLine, type ProcessMetrics } from './process-metrics.ts';
 import { CoordinatorExecutor, serveCoordinatorExecutor } from './v2/coordinator-executor.ts';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -47,6 +48,7 @@ const children: Array<{
   lastExit: { code: number | null; signal: string | null; at: number } | null;
   /** When this process last sent a heartbeat; 0 until its first one. */
   lastBeat: number;
+  metrics: ProcessMetrics | null;
 }> = [];
 
 let shuttingDown = false;
@@ -89,6 +91,7 @@ function statusLine(): string {
         startedAt: c.startedAt,
         restarts: c.restarts,
         lastExit: c.lastExit,
+        metrics: c.metrics,
       })),
     }) + '\n'
   );
@@ -219,10 +222,18 @@ function start(child: (typeof children)[number]) {
   });
   child.proc = proc;
   child.lastBeat = 0;
+  child.metrics = null;
   console.log(`[supervisor] started ${spec.name} (pid ${proc.pid})`);
   pushStatus();
-  proc.on('message', (message: { type?: string } | null) => {
-    if (message?.type === 'heartbeat' && child.proc === proc) child.lastBeat = Date.now();
+  proc.on('message', (message: { type?: string; metrics?: unknown } | null) => {
+    if (message?.type !== 'heartbeat' || child.proc !== proc) return;
+    child.lastBeat = Date.now();
+    const sample = processMetrics(message.metrics);
+    if (!sample || (child.metrics && sample.sampledAt <= child.metrics.sampledAt)) return;
+    child.metrics = sample;
+    const line = slowProcessLine(spec.name, proc.pid, sample);
+    if (line) console.warn(line);
+    pushStatus();
   });
 
   const prefix = (data: Buffer) => {
@@ -379,6 +390,7 @@ for (const spec of specs) {
     restarts: 0,
     lastExit: null,
     lastBeat: 0,
+    metrics: null,
   };
   children.push(child);
   start(child);

@@ -62,8 +62,8 @@ test('independent worker persists output, resumes provider reference, and cancel
   writeFileSync(
     binary,
     `#!${process.execPath}
-import {writeFileSync} from 'node:fs';
-let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{writeFileSync('received-context.json', JSON.stringify({prompt,args:process.argv.slice(2)}));console.log(JSON.stringify({type:'thread.started',thread_id:'test-session'}));if(prompt.includes('WAIT')){setInterval(()=>{},1000);return;}console.log(JSON.stringify({type:'item.updated',item:{id:'reply',type:'agent_message',text:'partial worker output'}}));setTimeout(()=>console.log(JSON.stringify({type:'item.completed',item:{id:'reply',type:'agent_message',text:'verified worker output'}})),350);});
+import {writeFileSync,existsSync} from 'node:fs';
+let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{writeFileSync('received-context.json', JSON.stringify({prompt,args:process.argv.slice(2)}));console.log(JSON.stringify({type:'thread.started',thread_id:'test-session'}));if(prompt.includes('WAIT')){setInterval(()=>{},1000);return;}console.log(JSON.stringify({type:'item.updated',item:{id:'reply',type:'agent_message',text:'partial worker output'}}));const ack=setInterval(()=>{if(!existsSync('partial-observed'))return;clearInterval(ack);console.log(JSON.stringify({type:'item.completed',item:{id:'reply',type:'agent_message',text:'verified worker output'}}));},25);});
 `,
   );
   chmodSync(binary, 0o700);
@@ -71,10 +71,17 @@ let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{
     env: { ...process.env, DEPLOY_CODEX_BIN: binary },
     stdio: 'pipe',
   });
+  let output = '';
+  worker.stdout.on('data', (chunk) => (output += chunk));
+  worker.stderr.on('data', (chunk) => (output += chunk));
   const wait = async (fn: () => boolean) => {
-    const deadline = Date.now() + 10000;
+    // This waits for a separate Node process, its imports and Git subprocesses.
+    const deadline = Date.now() + 60000;
     while (!fn()) {
-      if (Date.now() > deadline) throw new Error('worker timeout');
+      if (worker.exitCode !== null || worker.signalCode !== null)
+        throw new Error(`Worker exited before the expected state: ${output}`);
+      if (Date.now() > deadline)
+        throw new Error(`Worker did not reach the expected state: ${output}`);
       await new Promise((r) => setTimeout(r, 50));
     }
   };
@@ -88,6 +95,8 @@ let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{
       ),
     );
     assert.equal(get('run', 'alice', first.id).status, 'running');
+    // Release the final output only after the durable partial message was observed.
+    writeFileSync(join(t.workspacePath, 'partial-observed'), '');
     await wait(() => get('run', 'alice', first.id).status === 'succeeded');
     const recorded = get('run', 'alice', first.id);
     const received = JSON.parse(
@@ -126,8 +135,11 @@ let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{
     assert.equal(get('run', 'alice', second.id).error, null);
     assert.equal(get('task', 'alice', t.id).status, 'review');
   } finally {
-    worker.kill('SIGTERM');
-    await new Promise<void>((resolve) => worker.once('exit', () => resolve()));
+    if (worker.exitCode === null && worker.signalCode === null) {
+      const exited = new Promise<void>((resolve) => worker.once('exit', () => resolve()));
+      worker.kill('SIGTERM');
+      await exited;
+    }
   }
 });
 test('HTTP worker contract fences assignments, deduplicates replay and retains remote placement', async () => {
@@ -496,8 +508,12 @@ test('long checks keep state responsive, replay one job, fence writers and clean
     },
     stdio: 'pipe',
   });
+  let output = '';
+  worker.stdout.on('data', (chunk) => (output += chunk));
+  worker.stderr.on('data', (chunk) => (output += chunk));
   const wait = async (fn: () => boolean) => {
-    const deadline = Date.now() + 10000;
+    // This waits for a separate Node process, its imports and Git subprocesses.
+    const deadline = Date.now() + 60000;
     while (!fn()) {
       if (Date.now() > deadline) throw new Error('check lifecycle timeout');
       await new Promise((done) => setTimeout(done, 40));

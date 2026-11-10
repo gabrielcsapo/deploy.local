@@ -21,6 +21,8 @@ import {
   restartRule,
   verifyRelease,
   releaseOverride,
+  waitForHealthy,
+  supportsReadiness,
 } from './linux-release.mjs';
 
 function fixture(t) {
@@ -262,4 +264,127 @@ test('build manifests reject missing entry points and symlinked artifacts', (t) 
   assert.throws(() => artifactHashes(f.next), /missing its production entry points/);
   symlinkSync('/etc/passwd', join(f.next, 'dist/supervisor.js'));
   assert.throws(() => artifactHashes(f.next), /symlink/);
+});
+
+function readinessFixture(t, protocol = true) {
+  const f = fixture(t);
+  writeFileSync(
+    join(f.next, '.deploy-release.json'),
+    JSON.stringify({ revision: 'new-revision', ...(protocol ? { readiness: 1 } : {}) }),
+  );
+  writeFileSync(
+    join(f.previous, '.deploy-release.json'),
+    JSON.stringify({ revision: 'old-revision' }),
+  );
+  pointCurrent(f.current, f.next);
+  const checks = Object.fromEntries(
+    ['migrations', 'deploy', 'workspace', 'pipelines', 'repositories', 'version'].map((name) => [
+      name,
+      'ok',
+    ]),
+  );
+  const response = { ok: true, version: 'new-revision', checks };
+  const urls = [],
+    sleeps = [];
+  const runCommand = (command, args) => {
+    if (command === 'systemctl')
+      return args.includes('MainPID') ? '20' : args.includes('WorkingDirectory') ? f.current : '';
+    assert.equal(command, 'curl');
+    assert.ok(args.includes('deploy.local:443:127.0.0.1'));
+    urls.push(args.at(-1));
+    return JSON.stringify(response);
+  };
+  return {
+    ...f,
+    config: { current: f.current, data: f.root },
+    response,
+    urls,
+    sleeps,
+    options: {
+      runCommand,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    },
+  };
+}
+
+test('activation requires readiness JSON from the selected version and checks again after a minute', async (t) => {
+  const f = readinessFixture(t);
+  await waitForHealthy(f.config, f.next, '19', f.options);
+  assert.deepEqual(f.urls, [
+    'https://deploy.local/api/health/ready',
+    'https://deploy.local/api/health/ready',
+  ]);
+  assert.deepEqual(f.sleeps, [60000]);
+});
+
+test('HTML fallback, wrong version, missing checks and unhealthy workers cannot pass readiness', async (t) => {
+  for (const response of [
+    '<html>OK</html>',
+    JSON.stringify({ ok: true }),
+    JSON.stringify({ ok: true, version: 'wrong', checks: {} }),
+  ]) {
+    const f = readinessFixture(t);
+    const runCommand = (command, args) =>
+      command === 'curl' ? response : f.options.runCommand(command, args);
+    await assert.rejects(
+      waitForHealthy(f.config, f.next, '19', { ...f.options, runCommand }),
+      /did not become ready/,
+    );
+    assert.equal(f.sleeps.length, 30);
+  }
+  const f = readinessFixture(t);
+  f.response.checks.repositories = 'worker heartbeat stale';
+  await assert.rejects(waitForHealthy(f.config, f.next, '19', f.options), /did not become ready/);
+});
+
+test('a failure at the minute check restores the old release and verifies it using the legacy probe', async (t) => {
+  const f = readinessFixture(t);
+  pointCurrent(f.current, f.previous);
+  const modes = [];
+  await assert.rejects(
+    promote({
+      current: f.current,
+      release: f.next,
+      validate() {},
+      restart() {},
+      healthy: (release, mode) => {
+        modes.push(mode.rollback);
+        return waitForHealthy(f.config, release, '19', {
+          ...f.options,
+          ...mode,
+          sleep: async (ms) => {
+            f.sleeps.push(ms);
+            if (ms === 60000) f.response.checks.pipelines = 'worker heartbeat stale';
+          },
+        });
+      },
+    }),
+    /restored/,
+  );
+  assert.deepEqual(modes, [false, true]);
+  assert.deepEqual(f.urls, [
+    'https://deploy.local/api/health/ready',
+    'https://deploy.local/api/health/ready',
+    'https://deploy.local/',
+  ]);
+  assert.deepEqual(f.sleeps, [60000]);
+  assert.equal(realpathSync(f.current), f.previous);
+});
+
+test('both updater orders work: old prepare can select a new endpoint, and old targets retain their legacy probe', async (t) => {
+  const f = readinessFixture(t, false);
+  assert.equal(supportsReadiness(f.next), false);
+  await waitForHealthy(f.config, f.next, '19', f.options);
+  assert.deepEqual(f.urls, ['https://deploy.local/', 'https://deploy.local/']);
+  mkdirSync(join(f.next, 'server'));
+  writeFileSync(join(f.next, 'server/readiness.ts'), '// present in the verified new release');
+  assert.equal(supportsReadiness(f.next), true);
+  f.urls.length = 0;
+  await waitForHealthy(f.config, f.next, '19', f.options);
+  assert.deepEqual(f.urls, [
+    'https://deploy.local/api/health/ready',
+    'https://deploy.local/api/health/ready',
+  ]);
 });

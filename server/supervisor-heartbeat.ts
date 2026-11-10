@@ -1,3 +1,6 @@
+import { performance } from 'node:perf_hooks';
+import { createProcessSampler } from './process-metrics.ts';
+
 /**
  * Liveness signal to the supervisor. A process whose event loop is wedged (a deadlock, a
  * synchronous call that never returns) stays alive, so the supervisor's restart-on-exit never
@@ -11,15 +14,32 @@ const HEARTBEAT_MS = 3000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-export function startSupervisorHeartbeat(intervalMs = HEARTBEAT_MS) {
+export function startSupervisorHeartbeat(intervalMs = HEARTBEAT_MS, sampleMs = 60000) {
   if (timer || typeof process.send !== 'function') return;
+  const sampler = createProcessSampler();
+  let sampledAt = performance.now();
+  const stop = () => {
+    if (timer) clearInterval(timer);
+    timer = null;
+    sampler.close();
+  };
+  // No 'disconnect' listener: a listener on the channel keeps a stopping process alive, and
+  // the workers stop by letting their event loop empty. The next beat notices the closed channel.
   const beat = () => {
     if (!process.connected) {
-      if (timer) clearInterval(timer);
+      stop();
       return;
     }
     // The callback keeps a closed channel from surfacing as an uncaught error.
-    process.send!({ type: 'heartbeat' }, undefined, undefined, () => {});
+    const now = performance.now();
+    const metrics = now - sampledAt >= sampleMs ? sampler.sample() : undefined;
+    if (metrics) sampledAt = now;
+    process.send!(
+      { type: 'heartbeat', ...(metrics ? { metrics } : {}) },
+      undefined,
+      undefined,
+      () => {},
+    );
   };
   timer = setInterval(beat, intervalMs);
   // Neither the timer nor the channel may keep a stopping process alive.
