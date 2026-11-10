@@ -156,28 +156,30 @@ export function getDashboardAggregate(): DashboardAggregate {
   }>;
   const metricsByApp = new Map(metricsRows.map((m) => [m.deploymentName, m]));
 
-  // Request aggregates per app over last 60s. Single query, GROUP BY app.
-  // Force the time index so missing planner statistics cannot cause a full scan for GROUP BY.
-  const reqRows = getRequestsSqlite()
+  // Requests per app over the last 60s: count, server errors and p95 from one
+  // read of that app's rows on the (deployment_name, timestamp) index. This
+  // is synchronous and runs for every dashboard load and every 5s broadcast,
+  // so it reads each row once, as arrays, instead of a GROUP BY over every
+  // app's rows followed by a sorted re-read per app for the p95.
+  const requestRows = getRequestsSqlite()
     .prepare(
-      `SELECT deployment_name as deploymentName,
-              count(*) as total,
-              sum(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as errors
-       FROM request_logs INDEXED BY idx_request_logs_ts
-       WHERE timestamp >= ?
-       GROUP BY deployment_name`,
+      `SELECT status, duration FROM request_logs INDEXED BY idx_request_logs_timestamp
+       WHERE deployment_name = ? AND timestamp >= ?`,
     )
-    .all(oneMinAgo) as Array<{ deploymentName: string; total: number; errors: number }>;
-  const reqByApp = new Map(reqRows.map((r) => [r.deploymentName, r]));
-
-  // p95 per app — separate query (fetch durations, sort in JS). Bounded by
-  // 60s of data; cheap for typical deployments. For huge volumes we'd switch
-  // to a t-digest, but at home-PaaS scale this is fine.
-  const p95Stmt = getRequestsSqlite().prepare(
-    `SELECT duration FROM request_logs
-     WHERE deployment_name = ? AND timestamp >= ?
-     ORDER BY duration`,
-  );
+    .raw();
+  const requestStats = (name: string) => {
+    const rows = requestRows.all(name, oneMinAgo) as Array<[number, number]>;
+    let errors = 0;
+    const durations = new Float64Array(rows.length);
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i][0] >= 500) errors++;
+      durations[i] = rows[i][1];
+    }
+    // Numeric sort; p95 is sorted[floor(n * 0.95)], as before.
+    durations.sort();
+    const p95 = rows.length > 0 ? durations[Math.floor(rows.length * 0.95)] : 0;
+    return { total: rows.length, errors, p95 };
+  };
 
   const perApp: DashboardAppStat[] = [];
   const totals = {
@@ -195,20 +197,10 @@ export function getDashboardAggregate(): DashboardAggregate {
 
   for (const d of deploymentRows) {
     const m = metricsByApp.get(d.name);
-    const r = reqByApp.get(d.name);
     const status = d.status ?? 'stopped';
-    const total = r?.total ?? 0;
-    const errors = r?.errors ?? 0;
+    const { total, errors, p95 } = requestStats(d.name);
     const rps = total > 0 ? total / 60 : 0;
     const errPct = total > 0 ? (errors / total) * 100 : 0;
-
-    let p95 = 0;
-    if (total > 0) {
-      const durations = p95Stmt.all(d.name, oneMinAgo) as Array<{ duration: number }>;
-      if (durations.length > 0) {
-        p95 = durations[Math.floor(durations.length * 0.95)]?.duration ?? 0;
-      }
-    }
 
     const crashLooping = isCrashLooping(d.name);
     const stat: DashboardAppStat = {

@@ -853,6 +853,29 @@ describe('store – dashboard aggregate', () => {
     assert.equal(totals.requestsLastMin, 6);
     assert.equal(totals.errorRatePct, (2 / 6) * 100);
   });
+
+  it('takes p95 from the last minute of one app, sorted numerically', async () => {
+    const store = await loadStore();
+    for (const name of ['alpha', 'beta'])
+      store.saveDeployment({ name, username: 'alice', port: 3001 });
+    const insert = getRequestsSqlite().prepare(
+      `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp)
+       VALUES (?, 'GET', '/', 200, ?, ?)`,
+    );
+    const now = Date.now();
+    // 1..100ms out of order, so a string sort (…, 100, 11, …) would give the wrong answer.
+    for (let i = 0; i < 100; i++) insert.run('alpha', ((i * 37) % 100) + 1, now - 1000);
+    insert.run('alpha', 9_999, now - 61_000); // older than a minute: not counted
+    insert.run('beta', 5, now - 1000);
+    insert.run('beta', 900, now - 1000);
+
+    const byName = new Map(
+      store.getDashboardAggregate().perApp.map((app: any) => [app.name, app] as const),
+    );
+    assert.equal(byName.get('alpha').requestsLastMin, 100);
+    assert.equal(byName.get('alpha').p95, 96); // sorted[floor(100 * 0.95)]
+    assert.equal(byName.get('beta').p95, 900); // sorted[floor(2 * 0.95)] = sorted[1]
+  });
 });
 
 describe('store – request summary percentiles', () => {
