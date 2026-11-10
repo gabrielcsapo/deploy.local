@@ -46,6 +46,8 @@ When a redirect is detected during the initial page load, the server renders the
 
 This avoids the extra round trip that a traditional `302` response would require — the browser receives the destination page content in the very first response.
 
+A destination that redirects again is followed too, up to five hops, and `getRequest()` describes each hop's own URL. A redirect to another origin, or a chain longer than that, is answered with a real `301`/`302` and a `Location` header, so the browser follows it (and applies its own loop limit).
+
 ### Client-side navigation
 
 When the user navigates to a redirecting page via a `<Link>` click or programmatic `navigate()`, the server includes the redirect information in the RSC payload. The client router reads it and navigates to the destination using `replace: true`, so the redirect source is not added to the browser history.
@@ -82,7 +84,7 @@ export default async function Dashboard() {
 
 ## Redirect after a server action
 
-`redirect()` also works inside `"use server"` functions. This is useful for redirecting after a form submission:
+`redirect()` also works inside `"use server"` functions. This is useful for redirecting after a form submission. Called with JavaScript (`callServer`, `useActionState`), the action's promise resolves with `undefined` and the router navigates to the destination; a native form post without JavaScript gets a `303` to it:
 
 ```tsx
 // app/routes/new-post.ts

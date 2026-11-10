@@ -112,6 +112,10 @@ When the route matcher encounters a layout route whose children don't match the 
 
 If no route in the tree has a `notFound` handler and the URL doesn't match, the outlet renders empty (the same behavior as before adding `notFound`).
 
+## Without a `notFound`
+
+When no route matches and the root route has no `notFound`, an initial page load gets a `404` with a plain "Page not found" document instead of an empty page. Add a `notFound` to the root route to render your own.
+
 ## HTTP status code
 
 When a not-found route is matched, the server automatically returns HTTP status 404 for SSR responses. This ensures search engines and crawlers correctly identify missing pages. Client-side navigations to not-found URLs still render the not-found component but don't produce an HTTP status (since they're RSC stream responses).

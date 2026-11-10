@@ -18,8 +18,25 @@ Creates a production [Hono](https://hono.dev/) application that serves your Reac
 ```ts
 import { createServer } from 'react-flight-router/server';
 
-async function createServer(options: CreateServerOptions): Promise<Hono>;
+async function createServer(options: CreateServerOptions): Promise<
+  Hono & {
+    /** (req, res) listener for node:http and the node:http2 compatibility API */
+    nodeListener: (req, res) => Promise<void>;
+    /** Stops the server-action worker threads */
+    close: () => Promise<void>;
+  }
+>;
 ```
+
+The result is a Hono app, so `app.fetch` and `app.route('/', app)` work as
+before. It also carries `nodeListener`, which bridges Node requests to it:
+it drops HTTP/2 pseudo-headers and hop-by-hop headers, writes at the
+client's pace, and aborts the render or action when the client disconnects.
+Call `close()` when the host shuts down.
+
+`createServer` warns once when `NODE_ENV` is not `production`, and sets
+`globalThis.__non_webpack_require__` (which native-module loaders such as the
+one behind `better-sqlite3` expect once `__webpack_require__` exists).
 
 ### Options
 
@@ -57,6 +74,10 @@ interface CreateServerOptions {
    * Merged with built-in defaults — override existing entries or add new ones.
    */
   mimeTypes?: Record<string, string>;
+  /** Cache-Control per kind of response; each field replaces one default. */
+  cacheControl?: CacheControlOptions;
+  /** Errors nodeListener caught while bridging a request. Default: console.error */
+  onError?: (error: unknown) => void;
 }
 ```
 
@@ -67,8 +88,11 @@ interface CreateServerOptions {
 | `telemetry`         | `TelemetryOptions`                    | No       | Optional collector endpoint, Bearer token and browser beacon path. See below.                                                                                                                                                                                                                                    |
 | `onRequest`         | `(request: Request) => void`          | No       | Called before each RSC/SSR render with the incoming `Request`. The framework automatically populates `getRequest()` — use this hook for additional per-request setup (logging, tracing, custom `AsyncLocalStorage`). See the [Request Context guide](../guides/request-context.md) for details.                  |
 | `onRequestComplete` | `(event: RequestTimingEvent) => void` | No       | Called after each request completes with structured timing data. Works independently of `debug`. Events include a `cancelled` flag when the client disconnected before the response was fully consumed. See the [Debugging & Performance guide](../guides/debugging.mdx) for the event shape and usage examples. |
-| `workers`           | `boolean \| WorkerOptions`            | No       | Enable worker threads for server actions. Pass `true` for default pool size (CPU cores - 1), or `{ size: N }` to set a specific pool size. See the [Worker Threads guide](../guides/worker-threads.md) for benchmark data and details.                                                                           |
+| `workers`           | `boolean \| WorkerOptions`            | No       | Enable worker threads for server actions. Pass `true` for one thread, or `{ size: N }` for N. Threads start on the first action; a build without server actions starts none. See the [Worker Threads guide](../guides/worker-threads.md) for benchmark data and details.                                         |
 | `mimeTypes`         | `Record<string, string>`              | No       | Additional MIME type mappings for static asset serving. Keys are file extensions (including the leading dot), values are MIME type strings. These are merged with the built-in defaults, so you can override existing entries or add new ones. Example: `{ ".glb": "model/gltf-binary" }`.                       |
+
+| `cacheControl` | `CacheControlOptions` | No | Override any of the default `Cache-Control` values listed under [What it sets up](#what-it-sets-up): `html`, `rsc`, `action`, `hashedAssets`, `assets`, `publicFiles`. `no-transform` is added to `html`, `rsc` and `action` if missing, because the router compresses those streams itself. |
+| `onError` | `(error: unknown) => void` | No | Called with errors `nodeListener` caught while bridging a Node request. Default: `console.error`. |
 
 ### Telemetry options
 
@@ -88,19 +112,31 @@ POST receiver. Workers inherit the parent's resolved opt-in. See
 
 The returned Hono app includes the following route handlers:
 
-| Route       | Method | Description                                                                                                                                                                                                                                                 |
-| ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/assets/*` | GET    | Serves static assets from the client build with immutable cache headers (`max-age=31536000`).                                                                                                                                                               |
-| `/<file>`   | GET    | One route per top-level file copied from `publicDir` at build time (favicons, `robots.txt`, web app manifests, etc.). Served with a daily-revalidating `Cache-Control: public, max-age=86400, must-revalidate` since these filenames aren't content-hashed. |
-| `/__rsc`    | GET    | The RSC endpoint for client-side navigation. Returns an RSC stream for the requested URL. Supports segment diffing via `X-RSC-Previous-URL` header.                                                                                                         |
-| `/__action` | POST   | The server actions endpoint. Accepts serialized action calls and returns RSC responses.                                                                                                                                                                     |
-| `*`         | GET    | Catch-all for initial page loads. Renders the full page via SSR with the RSC payload inlined as `<script>` tags for zero-waterfall hydration.                                                                                                               |
+| Route       | Method | Description                                                                                                                                                                                                                                                                                                                                                   |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/assets/*` | GET    | Serves static assets from the client build. Files the build manifest lists (content-hashed) get `public, max-age=31536000, immutable`; anything else under `/assets` gets `public, max-age=300, must-revalidate`.                                                                                                                                             |
+| `/<file>`   | GET    | One route per top-level file copied from `publicDir` at build time (favicons, `robots.txt`, web app manifests, etc.). Served with a daily-revalidating `Cache-Control: public, max-age=86400, must-revalidate` since these filenames aren't content-hashed.                                                                                                   |
+| `/__rsc`    | GET    | The RSC endpoint for client-side navigation. Returns an RSC stream for the requested URL. Supports segment diffing via `X-RSC-Previous-URL` header. `Cache-Control: private, no-store, no-transform`. A `redirect()` comes back as a 200 whose payload names the destination.                                                                                 |
+| `/__action` | POST   | The server actions endpoint. Accepts serialized action calls and returns RSC responses. `Cache-Control: private, no-store, no-transform`. A thrown action answers with its status and `{ error: { message, digest } }`; see [Server Actions](../guides/server-actions.md#errors).                                                                             |
+| `*`         | GET    | Catch-all for initial page loads. Renders the full page via SSR with the RSC payload inlined as `<script>` tags for zero-waterfall hydration. `Cache-Control: no-cache, no-transform`, so a page left open across a release never asks for deleted chunks. With no matching route and no root `notFound`, answers 404 with a plain "Page not found" document. |
 
 Public files are enumerated once at startup rather than served via a wildcard, so the SSR catch-all still handles arbitrary unknown paths. Framework-managed files (`index.html`, `manifest.json`, `ssr-manifest.json`, `rsc-client-manifest.json`) and dotfiles are skipped automatically.
 
 ### Usage
 
-Create a `server.ts` file in your project root:
+Create a `server.ts` file in your project root. With `node:http` (or `node:http2`):
+
+```ts
+// server.ts
+import { createServer as createHttpServer } from 'node:http';
+import { createServer } from 'react-flight-router/server';
+
+const app = await createServer({ buildDir: './dist', workers: true });
+const server = createHttpServer(app.nodeListener).listen(3000);
+process.on('SIGTERM', () => server.close(() => void app.close()));
+```
+
+Or with `@hono/node-server`:
 
 ```ts
 // server.ts

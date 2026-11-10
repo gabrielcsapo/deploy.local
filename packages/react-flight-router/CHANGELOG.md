@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] (2026-11-10)
+
+### Breaking
+
+- **A thrown server action rejects with its own message.** The client used to throw `Server action failed: <statusText>` (empty over HTTP/2). It now throws a `ServerActionError` whose `message` is the server error's message, with `status` and `digest`. The response is the error's status (its numeric `status`/`statusCode` between 400 and 599, else 500) and a JSON body `{ error: { message, digest } }`; no stack trace is sent. On the worker path the router now waits for the worker's first answer before responding, so a failure is a real status instead of a 200 whose stream breaks. Code that matched the old message text needs updating. Error messages from actions now reach the browser, so do not put secrets in them.
+- **`workers` defaults to one thread, started on the first action.** `workers: true` used to start `cpus - 1` threads at boot. Pass `{ size: N }` to keep more. A build without server actions starts none. `createServer` no longer fails at boot when a worker cannot start; the first action fails with a 500 instead, and the next one tries again.
+- **Default `Cache-Control` on every framework response.** HTML: `no-cache, no-transform` (was `no-transform`). `/__rsc` and `/__action`: `private, no-store, no-transform`. Under `/assets`, only files the build manifest lists keep `public, max-age=31536000, immutable`; anything else gets `public, max-age=300, must-revalidate`. Override with the new `cacheControl` option.
+- **`Transfer-Encoding: chunked` is no longer set** on action responses (it is hop-by-hop and invalid in HTTP/2).
+- **The RSC endpoint answers a `redirect()` with 200** (it was a 3xx with no `Location`). The payload still carries the redirect, which the client router follows as before.
+- **SSR follows chains of `redirect()`**, up to five hops, each rendered with its own `getRequest()`. A redirect to another origin, or a longer chain, is now a real `301`/`302` with `Location` (it used to render a blank page with a 3xx status).
+- **An unmatched URL with no root `notFound`** gets a 404 with a plain "Page not found" document instead of an empty render.
+
+### Features
+
+- `createServer()` also returns `nodeListener(req, res)` for `node:http` and the `node:http2` compatibility API (strips pseudo-headers and hop-by-hop headers, writes with backpressure, aborts the render or action when the client disconnects) and `close()` to stop the worker threads. It is still a Hono app, so `app.fetch` and `app.route()` work as before. New `onError` option for errors the listener catches.
+- `redirect()` inside a programmatic server action navigates the client router (the promise resolves with `undefined`); a native form post gets a `303`. It used to be a 500.
+- `onRequestComplete` events for actions carry `action: { id, worker, queueMs, decodeMs, executeMs, serializeMs, totalMs }`, measured whether or not debug output or telemetry is on.
+- `useLocation()` returns `search`, `hash` and `href` as well as `pathname`. `hash` is `''` while hydrating.
+- `<ErrorBoundary>` passes `reset` to its fallback: as the second argument of a function fallback, or as a prop of an element fallback.
+- `ServerActionError` and the `Location`, `ActionTimings` and `CacheControlOptions` types are exported.
+
+### Bug Fixes
+
+- `createServer` sets `globalThis.__non_webpack_require__` (development already did), so native-module loaders that detect `__webpack_require__` work without a host shim.
+- `createServer` warns once when `NODE_ENV` is not `production`.
+- Development no longer adds `?ssr` to JSON, CSS and other non-script imports, which made Vite skip their own transforms (a JSON import lost its default export).
+- A worker task that timed out and was then cancelled no longer decrements the worker's task count twice.
+
 ## [0.13.2] (2026-11-08)
 
 ### Other

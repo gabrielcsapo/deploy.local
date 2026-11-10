@@ -310,14 +310,14 @@ function ErrorBoundary({
   fallback,
 }: {
   children: ReactNode;
-  fallback: ComponentType<{ error: Error }>;
+  fallback: ReactNode | ((error: Error, reset: () => void) => ReactNode);
 }): ReactNode;
 ```
 
-| Prop       | Type                              | Required | Description                                                               |
-| ---------- | --------------------------------- | -------- | ------------------------------------------------------------------------- |
-| `children` | `ReactNode`                       | Yes      | The content to wrap in an error boundary.                                 |
-| `fallback` | `ComponentType<{ error: Error }>` | Yes      | A component rendered when an error is caught. Receives `error` as a prop. |
+| Prop       | Type                                                            | Required | Description                                                                                                                                                                                        |
+| ---------- | --------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `children` | `ReactNode`                                                     | Yes      | The content to wrap in an error boundary.                                                                                                                                                          |
+| `fallback` | `ReactNode \| ((error: Error, reset: () => void) => ReactNode)` | Yes      | Rendered when an error is caught. A function receives the error and `reset`; an element is cloned with `error` and `reset` props. Calling `reset()` clears the error and renders `children` again. |
 
 When placed manually in a layout, `<ErrorBoundary>` takes precedence over the automatic error boundary that `<Outlet />` creates from the route config's `error` property (since the manual boundary is closer to the content).
 
@@ -565,15 +565,18 @@ export function GlobalLoadingBar() {
 
 ### `useLocation()`
 
-Returns the current location with the pathname extracted from the URL.
+Returns the current location, derived from the router's `url` state.
 
 ```ts
-function useLocation(): { pathname: string };
+function useLocation(): { pathname: string; search: string; hash: string; href: string };
 ```
 
-| Return Property | Type     | Description                                                                            |
-| --------------- | -------- | -------------------------------------------------------------------------------------- |
-| `pathname`      | `string` | The current URL pathname (e.g., `"/posts/42"`). Derived from the router's `url` state. |
+| Return Property | Type     | Description                                                                                                                                    |
+| --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pathname`      | `string` | The current URL pathname (e.g., `"/posts/42"`).                                                                                                |
+| `search`        | `string` | The query string with its `?` (e.g., `"?tab=logs"`), or `""`.                                                                                  |
+| `hash`          | `string` | The fragment with its `#`, or `""`. The server never sees the fragment, so it is `""` while the page hydrates and fills in on the next render. |
+| `href`          | `string` | `pathname + search + hash` — a path-relative URL, not an absolute one.                                                                         |
 
 #### Usage
 

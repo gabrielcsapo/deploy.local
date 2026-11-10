@@ -49,7 +49,7 @@ const app = await createServer({
 serve({ fetch: app.fetch, port: 3000 });
 ```
 
-Or use `workers: true` for the default pool size (number of CPU cores minus one, minimum 1):
+Or use `workers: true` for the default pool size (one thread):
 
 ```ts
 const app = await createServer({
@@ -64,7 +64,7 @@ Worker threads are a production-only feature. In development, Vite's `ssrLoadMod
 
 ## How It Works
 
-1. **Pool creation** — On startup, `createServer` spawns a pool of worker threads. Each worker loads the RSC runtime, server action modules, and manifests independently.
+1. **Pool creation** — The first programmatic action starts the pool's threads (and waits for them); a build with no server actions never starts any. Each worker loads the RSC runtime, server action modules, and manifests independently, so every extra thread costs a copy of your server code in memory.
 
 2. **Least-busy dispatch** — When an action request arrives, the pool dispatches it to the worker with the fewest in-flight tasks. This balances load across workers without round-robin's worst-case behavior.
 
@@ -75,6 +75,18 @@ Worker threads are a production-only feature. In development, Vite's `ssrLoadMod
 5. **Abort propagation** — If the client disconnects mid-action, the main thread sends an abort signal to the worker via its `MessagePort`. The worker's `AbortSignal` fires, allowing actions to clean up.
 
 6. **Crash recovery** — If a worker crashes (uncaught exception, out of memory), the pool automatically spawns a replacement. The failed request receives a 500 response.
+
+7. **Errors and redirects** — The main thread waits for the worker's first answer before it responds, so a thrown action gets its real status and message (see [Server Actions](./server-actions.md#errors)) and `redirect()` navigates the client.
+
+8. **Timings** — Every action reports where its time went on `onRequestComplete`'s `event.action`: `queueMs` (waiting for a thread to start or to be free of other work — a thread runs one action's synchronous code at a time), `decodeMs`, `executeMs`, `serializeMs` and `totalMs`, whether or not debug output or telemetry is on:
+
+   ```ts
+   onRequestComplete: (event) => {
+     const a = event.action;
+     if (a && a.totalMs > 500)
+       console.log(`${a.id} queue=${a.queueMs} execute=${a.executeMs} serialize=${a.serializeMs}`);
+   };
+   ```
 
 ## Benchmark Results
 
@@ -112,17 +124,17 @@ When no actions are running, workers add zero overhead. The improvement appears 
 
 ```ts
 interface WorkerOptions {
-  /** Number of worker threads (default: os.cpus().length - 1, minimum 1) */
+  /** Number of worker threads (default: 1), started on the first action */
   size?: number;
   /** Timeout in ms for action execution (default: 30000) */
   timeout?: number;
 }
 ```
 
-| Option    | Default               | Description                                                     |
-| --------- | --------------------- | --------------------------------------------------------------- |
-| `size`    | CPU cores - 1 (min 1) | Number of worker threads in the pool.                           |
-| `timeout` | 30000                 | Maximum time in ms for an action to complete before timing out. |
+| Option    | Default | Description                                                     |
+| --------- | ------- | --------------------------------------------------------------- |
+| `size`    | 1       | Number of worker threads in the pool.                           |
+| `timeout` | 30000   | Maximum time in ms for an action to complete before timing out. |
 
 ### Example: Environment-Based Worker Toggle
 

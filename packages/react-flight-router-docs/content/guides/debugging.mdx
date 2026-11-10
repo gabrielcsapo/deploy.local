@@ -72,6 +72,24 @@ interface RequestTimingEvent {
   timestamp: string;
   /** True when the client disconnected before the response stream was fully consumed */
   cancelled?: boolean;
+  /** ACTION events: where a programmatic action's time went, always measured */
+  action?: ActionTimings;
+}
+
+interface ActionTimings {
+  /** `<module>#<export>` */
+  id: string;
+  /** Ran on a worker thread */
+  worker: boolean;
+  /** Waiting for a worker to start and for its thread to be free */
+  queueMs: number;
+  decodeMs: number;
+  /** Loading the module and running the action */
+  executeMs: number;
+  /** Serializing the result (on the main thread, at the client's pace) */
+  serializeMs: number;
+  /** From the request reaching the router to the result being complete */
+  totalMs: number;
 }
 
 interface TimingEntry {

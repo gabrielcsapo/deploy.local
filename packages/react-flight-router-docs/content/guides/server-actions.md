@@ -207,6 +207,38 @@ export function ContactForm() {
 }
 ```
 
+## Errors
+
+An action that throws rejects on the client with a `ServerActionError` carrying the thrown error's `message`, the HTTP `status` and a `digest`. The stack trace stays on the server, which logs it with the same digest:
+
+```txt
+[react-flight-router] Action error (digest 3f9c1a2b7d4e): Error: Unauthorized
+```
+
+The status is `500`, or the error's own numeric `status` (or `statusCode`) when it is between 400 and 599:
+
+```ts
+'use server';
+export async function deletePost(id: string) {
+  if (!(await canDelete(id))) throw Object.assign(new Error('Not yours'), { status: 403 });
+  // ...
+}
+```
+
+```tsx
+'use client';
+import { ServerActionError } from 'react-flight-router/client';
+
+try {
+  await deletePost(id);
+} catch (error) {
+  if (error instanceof ServerActionError && error.status === 403) showNotice(error.message);
+  else throw error;
+}
+```
+
+This is the same on the worker and main-thread paths. Over HTTP the response is `status` with a JSON body `{ "error": { "message": "…", "digest": "…" } }`. An unknown action answers `404` the same way.
+
 ## Worker Threads
 
 By default, server actions run on the main Node.js thread. Under load, a slow action (e.g., a database write) can block page rendering for other users. You can offload actions to a worker thread pool to keep the main thread free:
