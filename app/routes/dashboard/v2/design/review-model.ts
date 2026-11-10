@@ -83,3 +83,26 @@ export function changesNotice(
   if (!waiting) return answer?.actionId === 'changes' ? 'sent' : null;
   return round === 1 ? 'draft' : null;
 }
+
+/** Where an arrow key lands in a review: Left and Right walk every screen in order, crossing
+ *  from one change to the next; Up and Down jump a whole change. Stays put at either end. */
+export function reviewStep(
+  rows: { id: string; screens: string[] }[],
+  at: { id: string; screen: number },
+  key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown',
+): { id: string; screen: number } {
+  const index = Math.max(
+    0,
+    rows.findIndex((row) => row.id === at.id),
+  );
+  const row = rows[index];
+  if (!row) return at;
+  const last = (entry: { screens: string[] }) => Math.max(0, entry.screens.length - 1);
+  const screen = Math.min(at.screen, last(row));
+  const forward = key === 'ArrowRight' || key === 'ArrowDown';
+  if (key === 'ArrowLeft' && screen > 0) return { id: row.id, screen: screen - 1 };
+  if (key === 'ArrowRight' && screen < last(row)) return { id: row.id, screen: screen + 1 };
+  const next = rows[index + (forward ? 1 : -1)];
+  if (!next) return { id: row.id, screen };
+  return { id: next.id, screen: key === 'ArrowLeft' ? last(next) : 0 };
+}

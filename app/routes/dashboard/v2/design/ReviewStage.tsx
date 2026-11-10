@@ -129,7 +129,7 @@ export function ReviewStage({
     const doc = frame?.contentDocument;
     doc?.addEventListener('click', (event) => event.preventDefault());
     doc?.addEventListener('keydown', (event) => {
-      if (['Escape', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+      if (['Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
         event.preventDefault();
         window.dispatchEvent(new KeyboardEvent('keydown', { key: event.key }));
       }

@@ -9,7 +9,7 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
 import { request } from '../projects/data';
-import { conflictCount, conflictLine, missingSummary } from './review-model';
+import { conflictCount, conflictLine, missingSummary, reviewStep } from './review-model';
 import { ReviewStage, type ReviewDraft } from './ReviewStage';
 import { reviewPhrases } from '../../../../../shared/v2/design-review';
 import './review.css';
@@ -127,6 +127,9 @@ export function DesignItemReview({
     },
     [row?.screens.length],
   );
+  // The key handler reads where the review is now without re-binding on every render.
+  const place = useRef({ rows, id: row?.id ?? '', screen: screenIndex });
+  place.current = { rows, id: row?.id ?? '', screen: screenIndex };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -139,14 +142,28 @@ export function DesignItemReview({
         )
       )
         return;
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (
+        event.key === 'ArrowLeft' ||
+        event.key === 'ArrowRight' ||
+        event.key === 'ArrowUp' ||
+        event.key === 'ArrowDown'
+      ) {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
         event.preventDefault();
-        step(event.key === 'ArrowLeft' ? -1 : 1);
+        const now = place.current;
+        const to = reviewStep(now.rows, { id: now.id, screen: now.screen }, event.key);
+        if (to.id !== now.id) {
+          setSelected(to.id);
+          setMenu(false);
+          setReadyFile('');
+        }
+        setScreenIndex(to.screen);
+        setDraft(null);
       }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [step]);
+  }, []);
   const ready = useCallback((file: string) => setReadyFile(file), []);
   useEffect(() => {
     if (!row || row.seen || readyFile !== board?.file || !data || !waiting) return;

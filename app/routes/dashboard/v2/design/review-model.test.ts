@@ -10,6 +10,7 @@ import {
   reviewCounts,
   reviewCrop,
   counted,
+  reviewStep,
 } from './review-model.ts';
 
 test('review counts use singular only for one pin, change or screen', () => {
@@ -184,4 +185,52 @@ test('after a decision the footer names the outcome, when, and how far the look 
   );
   assert.equal(alsoChanged(['Welcome, narrow']), 'Also changed: Welcome, narrow');
   assert.equal(alsoChanged([]), '');
+});
+
+test('arrow keys walk every screen of a review, across changes', () => {
+  const rows = [
+    { id: 'header', screens: ['a', 'b'] },
+    { id: 'phone', screens: ['c'] },
+    { id: 'new', screens: ['d', 'e'] },
+  ];
+  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 0 }, 'ArrowRight'), {
+    id: 'header',
+    screen: 1,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 1 }, 'ArrowRight'), {
+    id: 'phone',
+    screen: 0,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'phone', screen: 0 }, 'ArrowRight'), {
+    id: 'new',
+    screen: 0,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'new', screen: 0 }, 'ArrowLeft'), {
+    id: 'phone',
+    screen: 0,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'phone', screen: 0 }, 'ArrowLeft'), {
+    id: 'header',
+    screen: 1,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 1 }, 'ArrowDown'), {
+    id: 'phone',
+    screen: 0,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'new', screen: 1 }, 'ArrowUp'), {
+    id: 'phone',
+    screen: 0,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 0 }, 'ArrowLeft'), {
+    id: 'header',
+    screen: 0,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'new', screen: 1 }, 'ArrowDown'), {
+    id: 'new',
+    screen: 1,
+  });
+  assert.deepEqual(reviewStep(rows, { id: '', screen: 0 }, 'ArrowDown'), {
+    id: 'phone',
+    screen: 0,
+  });
 });
