@@ -2690,6 +2690,14 @@
       "h": 900,
       "title": "Design review — dragging the width",
       "expand": "fill"
+    },
+    "DesignReviewOnMain.html": {
+      "x": 5120,
+      "y": 63480,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review — on main, and what happens next",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2986,6 +2994,7 @@
     "DesignReviewApproveCheckPhone.html",
     "DesignPropose.html",
     "DesignReviewApproved.html",
+    "DesignReviewOnMain.html",
     "DesignReviewApproveCheck.html",
     "DesignReviewNew.html",
     "DesignReviewHoldPhone.html",
@@ -3892,7 +3901,7 @@
       "y": 52420,
       "w": 1800,
       "h": 460,
-      "text": "Review interaction is defined by the review-what-changed note. Arrow keys step between screens; Esc goes back to To review. Slider and onion-skin controls do not appear in review. DesignChat boards are a separate chat-preview surface."
+      "text": "Review interaction is defined by the review-what-changed note. Left and Right step between screens, across changes; Up and Down jump a change; Esc goes back to To review. Slider and onion-skin controls do not appear in review. DesignChat boards are a separate chat-preview surface."
     },
     "decision-content": {
       "fill": "purple",
@@ -4357,7 +4366,7 @@
       "w": 560,
       "x": 5600,
       "y": 56640,
-      "text": "Design review is one surface. The bar holds the proposal, Before and After, the screen width and the decision. The list on the left is what changed, not every screen: screens with the same change are one row, with the words and “Nothing else changed on these screens”. A screen joins a group only if nothing else on it differs. The rest of the page is the real design at its real size, the change outlined.\nA floating toolbar stays on the design. Its tools are select, pin a point, mark an area and draw; pick one and use it on the design, and the note appears there, with no tray. Beside them is one scrubber from Old to New. In Overlay it fades the old screen over the new one, so what moved doubles up and what stayed stays sharp; in Wipe it drags a divider across the two. The choice is remembered. A row counts once as looked at; arrows step through a group’s screens.\nThe screen has no fixed sizes. It opens fitted to the window, and dragging its edge sets any width, with the width shown while dragging. Boards are live HTML, so the design reflows and the outlines follow it. A note is tied to the element under it, so it stays put at any width. A phone screen opens at its own width; on iPhone, pinch to zoom.\nDecide in the same bar. Approve is the main action with no notes; with notes, Send is. Approving with a note not sent asks first. Approving waits 30 seconds, then goes to main; Undo stops it. A link change that looks the same reads “looks the same”. “Nothing else changed” is said only when the rendered pixels outside the outlines match. If pixels differ with no changed element, the row reads “Looks different; no element changed” and the whole screen shows.\nProposing asks what it is and what changed and why, and agents must send both. To review keeps approved work: being built, built and matching, or built with a difference."
+      "text": "Design review is one surface. The bar holds the proposal, Before and After, the screen width and the decision. The list on the left is what changed, not every screen: screens with the same change are one row, with the words and “Nothing else changed on these screens”. A screen joins a group only if nothing else on it differs. The rest of the page is the real design at its real size, the change outlined.\nA floating toolbar stays on the design. Its tools are select, pin a point, mark an area and draw; pick one and use it on the design, and the note appears there, with no tray. Beside them is one scrubber from Old to New. In Overlay it fades the old screen over the new one, so what moved doubles up and what stayed stays sharp; in Wipe it drags a divider across the two. The choice is remembered. A row counts once as looked at. Left and Right walk every screen in order, carrying on from one change into the next; Up and Down jump a whole change. The keys stop at either end.\nThe screen has no fixed sizes. It opens fitted to the window, and dragging its edge sets any width, with the width shown while dragging. Boards are live HTML, so the design reflows and the outlines follow it. A note is tied to the element under it, so it stays put at any width. A phone screen opens at its own width; on iPhone, pinch to zoom.\nDecide in the same bar. Approve is the main action with no notes; with notes, Send is. Approving with a note not sent asks first. Approving waits 30 seconds, then goes to main; Undo stops it. The decision stays where it was made: the bar reads Approved with the check and the countdown, and a dashed record tops the list with who, when and where. Once it is on main the record gives the commit, Undo gives way to Next review (Done when nothing else waits), and the foot says what happens now: the proposer’s task with Open the task, or “Nothing builds this yet” with Start a task when you proposed it yourself. A link change that looks the same reads “looks the same”. “Nothing else changed” is said only when the rendered pixels outside the outlines match. If pixels differ with no changed element, the row reads “Looks different; no element changed” and the whole screen shows.\nProposing asks what it is and what changed and why, and agents must send both. To review keeps approved work: being built, built and matching, or built with a difference."
     }
   },
   "starts": {}

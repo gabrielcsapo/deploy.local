@@ -623,3 +623,8 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 
 /* One frame for a tabbed page: on a wide page the tabs and the page head keep the 960 px column's edges, so they stay put from tab to tab; only the content below widens. */
 .dl-page.wide>.dl-tabs,.dl-page.wide>.dl-page-head{width:100%;max-width:896px;align-self:center}
+
+/* After a design is approved: the decision stays where it was made, as a status with the check, and as a dashed record at the top of the list saying who, when and where. */
+.dl-rv-status.done{color:var(--ink);font-weight:500}
+.dl-rv-record{margin:4px 8px 12px;padding:10px 12px;border:1px dashed var(--line-strong);border-radius:12px;display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:20px;color:var(--ink-soft)}
+.dl-rv-record b{display:flex;align-items:center;gap:6px;color:var(--ink);font-weight:500}
