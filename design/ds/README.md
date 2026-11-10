@@ -31,6 +31,13 @@ Version 2 holds deploy.local to the restraint of [hob](https://github.com/Frigad
 - **Narrow windows:** below 900 px secondary lists fold; below 820 px the sidebar hides behind a menu button; below 600 px insets drop to 16 px and text steps up to 17.
 - **Phone:** large title, rounded groups of 17 px rows, a bottom tab bar (Work, Projects, Live, Computers, Settings), 44 px targets.
 
+## Components and instances
+
+- A part that repeats across boards is one component in `components/library.json` and an instance on each board (`data-component`, with its settings in `data-props`). Approving a change to the component redraws every instance.
+- The Sidebar is the first: every board holds an instance. Do not copy its markup into a board; place it and choose its settings. A test fails on a copy or on an instance out of step with the library.
+- A component’s settings are names in lowercase with hyphens. A setting with choices becomes a class on the component; a text setting fills a `{{name}}` place in its markup. The component’s own styles show, hide and select from those classes.
+- One fixture: an instance may add a little of its own (a decision, the task on screen), never a different cast.
+
 ## Lists
 
 - Content that is a list of settings, rules, steps, records or people uses labelled groups (`.dl-ph-label` + `.dl-ph-group`) and `.dl-ph-row` rows of at least 52 px, or 64 px with a second line. Use 16 px side margins and horizontal row padding, and about 20 px between groups. Phone primary text is 17 px; secondary text is 13 px. SettingsPhone retains its approved typography and spacing.

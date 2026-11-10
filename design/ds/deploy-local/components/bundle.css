@@ -642,6 +642,21 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 .dl-side .agent-list-row .dl-t{display:block}
 .dl-side-scroll>.dl-nav:first-child{margin-top:12px}
 
+/* The Sidebar component (library.json › sidebar). One markup for every board; an instance's settings
+   become classes on the root, and these rules show, hide and select accordingly. */
+.dl-side.at-new .p-new,.dl-side.at-projects .p-projects,.dl-side.at-live .p-live,.dl-side.at-computers .p-computers,.dl-side.at-packages .p-packages,.dl-side.at-design .p-design,.dl-side.sel-ask .w-ask,.dl-side.sel-ask2 .w-ask2,.dl-side.sel-rollback .w-rollback,.dl-side.sel-merge .w-merge,.dl-side.sel-task .t-task,.dl-side.sel-self .t-self,.dl-side.sel-sync .t-sync,.dl-side.sel-run .t-run,.dl-side.sel-release-notes-writer .a-release-notes-writer,.dl-side.sel-ops-watcher .a-ops-watcher,.dl-side.sel-code-reviewer .a-code-reviewer,.dl-side.sel-researcher .a-researcher,.dl-side.sel-designer .a-designer{background:var(--selection);color:var(--ink)}
+.dl-side .dl-end:empty,.dl-side .dl-c:empty{display:none}
+.side-live.failed{display:inline-flex;align-items:center;gap:6px;color:var(--danger)}
+.side-live.failed::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--danger)}
+.side-live:empty{display:none}
+.dl-side.wait-off .side-wait-label,.dl-side.wait-off [class*=" w-"],.dl-side.rb-off .w-rollback,.dl-side.mg-off .w-merge,.dl-side.kp-off .w-keep{display:none}
+.dl-side-top.mac-drag .side-brand-name{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.dl-side .w-ask:has(.dl-t:empty),.dl-side .w-ask2:has(.dl-t:empty),.dl-side .t-task:has(.dl-t:empty){display:none}
+.dl-side.agents-none .side-agents-label,.dl-side.agents-none .agent-list-row,.dl-side.agents-five .side-new-agent{display:none}
+.dl-side.task-run .t-task .ti-ok,.dl-side.task-run .t-task .ti-fail,.dl-side.task-ok .t-task .ti-run,.dl-side.task-ok .t-task .ti-fail,.dl-side.task-fail .t-task .ti-run,.dl-side.task-fail .t-task .ti-ok,.dl-side-top:not(.mac-drag) .mac-lights,.dl-side-top:not(.mac-drag):not(.with-collapse) .side-collapse,.dl-side.task-plain .t-task .dl-lead{display:none}
+.dl-side:not(.day-run) .t-run,.dl-side:not(.day-full):not(.day-start):not(.day-long) .t-self,.dl-side:not(.day-full):not(.day-start):not(.day-long) .t-sync,.dl-side:not(.day-full):not(.day-long) .t-checks,.dl-side:not(.day-full):not(.day-long) .t-rename,.dl-side:not(.day-long) .t-long,.dl-side:not(.day-full) .side-yesterday-label,.dl-side:not(.day-full) .t-y{display:none}
+.dl-side.day-none:has(.t-task .dl-t:empty) .side-today-label{display:none}
+
 /* Resolving a conflict in review: the two answers sit under the screen they decide. */
 .dl-rv-choice{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .dl-rv-choice .dl-btn{flex:1 1 auto;justify-content:center}
