@@ -1684,11 +1684,42 @@ a.dl-item:hover {
   color: var(--ds-text);
   box-shadow: var(--ds-shadow-sm);
 }
-.dl-seg button:hover,
-.dl-tabs a:hover,
-.dl-worklog-toggle:hover {
+.dl-seg button:not(.on):hover {
   background: var(--ds-selected);
   color: var(--ds-text);
+}
+/* Underline tabs and the work-log toggle are words, not buttons: hovering darkens the words
+   and never draws a block behind them. */
+.dl-tabs a:not([aria-disabled='true']):hover,
+.dl-worklog-toggle:hover {
+  color: var(--ds-text);
+}
+/* The tab row scrolls sideways, so a ring outside a tab is cut off at the row's edges. Each tab
+   carries 6 px of its own room at the sides, taken back with margins so nothing moves, and the
+   ring is drawn inside it. The underline keeps the width of the words. */
+.dl-tabs {
+  padding-inline: 6px;
+  margin-inline: -6px;
+}
+.dl-tabs a {
+  position: relative;
+  padding-inline: 6px;
+  margin-inline: -6px;
+}
+.dl-tabs a.on {
+  border-bottom-color: transparent;
+}
+.dl-tabs a.on::after {
+  content: '';
+  position: absolute;
+  inset-inline: 6px;
+  bottom: -2px;
+  height: 2px;
+  background: var(--ds-text);
+}
+.dl-tabs a:focus-visible {
+  outline-offset: -2px;
+  border-radius: 6px;
 }
 :where(.dl-app, .dl-sheet, .dl-dialog)
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
