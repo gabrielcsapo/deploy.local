@@ -302,3 +302,29 @@ describe('board links', () => {
     );
   });
 });
+
+describe('the design’s own boards', () => {
+  it('draw the sidebar as an instance of the library’s Sidebar, in step with it', async () => {
+    const { syncInstances } = await import('./board-html.ts');
+    const boards = join(import.meta.dirname, '../../design/boards');
+    const library = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, '../../design/ds/deploy-local/components/library.json'),
+        'utf8',
+      ),
+    );
+    const copies: string[] = [];
+    const stale: string[] = [];
+    for (const file of readdirSync(boards).filter((name) => name.endsWith('.html'))) {
+      const html = readFileSync(join(boards, file), 'utf8');
+      const sidebar = /<nav[^>]*class="dl-side[ "][^>]*>/.exec(html)?.[0];
+      // The Mac update boards put the update card inside the sidebar, and the narrow Mac window
+      // shows it as a temporary overlay; those keep their own markup.
+      if (!sidebar || file.startsWith('MacUpdate') || file === 'MacChromeNarrow.html') continue;
+      if (!sidebar.includes('data-component="sidebar"')) copies.push(file);
+      else if (syncInstances(html, library) !== html) stale.push(file);
+    }
+    assert.deepEqual(copies, [], 'Place the Sidebar component instead of copying its markup');
+    assert.deepEqual(stale, [], 'Render these boards again from the library (syncInstances)');
+  });
+});
