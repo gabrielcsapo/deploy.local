@@ -210,7 +210,7 @@ test('due scheduled maintenance migrates legacy rows; startup leaves them inline
   );
   control.getSqlite();
   assert.deepEqual(raw(row.id).snapshot, snapshot);
-  assert.equal(runDueMaintenance(), true);
+  assert.equal(await runDueMaintenance(), true);
   // Each bounded migration pass handles at most eight records and yields after each one.
   for (let i = 0; i < 9; i++) await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(raw(row.id).snapshot, undefined);
