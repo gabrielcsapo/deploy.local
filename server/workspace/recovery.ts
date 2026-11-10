@@ -1,5 +1,5 @@
 import { verifyCheckpointBlobs } from './checkpoint-storage.ts';
-import Database from 'better-sqlite3';
+import { openDatabase, type Database } from '../sqlite.ts';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import {
@@ -107,7 +107,7 @@ async function databaseEvidence(root: string) {
   }
   return JSON.stringify(result);
 }
-function validateIdle(database: Database.Database) {
+function validateIdle(database: Database) {
   for (const row of database
     .prepare(
       "SELECT kind, data FROM records WHERE kind IN ('run','check','job','repository-operation','pipeline-run')",
@@ -218,15 +218,15 @@ export async function snapshotWorkspace(sourcePath: string, destinationPath: str
     if (error.code !== 'ENOENT') throw error;
   }
   const stage = await newStage(destination);
-  let database: Database.Database | undefined;
+  let database: Database | undefined;
   try {
-    database = new Database(join(source, 'workspace.db'), { readonly: true, fileMustExist: true });
+    database = openDatabase(join(source, 'workspace.db'), { readonly: true, fileMustExist: true });
     validateIdle(database);
     verifyCheckpointBlobs(database, source);
     const beforeDatabase = await databaseEvidence(source);
     const before = await inventory(source, true);
     await database.backup(join(stage, 'workspace.db'));
-    const snapshotDb = new Database(join(stage, 'workspace.db'));
+    const snapshotDb = openDatabase(join(stage, 'workspace.db'));
     try {
       snapshotDb.pragma('journal_mode = DELETE');
     } finally {
@@ -287,7 +287,7 @@ export async function verifyWorkspaceSnapshot(snapshotPath: string): Promise<Man
   const actual = await inventory(snapshot);
   if (JSON.stringify(actual) !== JSON.stringify(manifest.entries))
     throw new Error('Workspace recovery content verification failed');
-  const database = new Database(join(snapshot, 'workspace.db'), {
+  const database = openDatabase(join(snapshot, 'workspace.db'), {
     readonly: true,
     fileMustExist: true,
   });
@@ -313,7 +313,7 @@ export async function restoreWorkspace(snapshotPath: string, destinationPath: st
     await copyEntries(snapshot, stage, manifest.entries);
     if (JSON.stringify(await inventory(stage)) !== JSON.stringify(manifest.entries))
       throw new Error('Restored workspace verification failed');
-    const database = new Database(join(stage, 'workspace.db'));
+    const database = openDatabase(join(stage, 'workspace.db'));
     try {
       database.exec(
         "DELETE FROM worker; DELETE FROM records WHERE kind IN ('worker','worker-inventory','worker-credential')",

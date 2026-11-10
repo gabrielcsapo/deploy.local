@@ -1,5 +1,5 @@
 import { finalizeReleases } from './telemetry.ts';
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import { Worker } from 'node:worker_threads';
 import { trackCiWorker } from './ci-fence.ts';
 import { packageWorkerFile } from './packages/worker-file.ts';
@@ -10,7 +10,7 @@ let worker: Worker | undefined;
 let sourceFile: string | undefined;
 
 /** Only the control plane calls this, after Drizzle migration and before serving. */
-export function initializeRequestStorage(source: Database.Database) {
+export function initializeRequestStorage(source: Database) {
   if (sourceFile === source.name) return;
   stopRequestCopy();
   const sourceId = ensureImportSource(source);

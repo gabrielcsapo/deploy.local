@@ -3,7 +3,7 @@ import { writeEdgeTelemetry } from './telemetry.ts';
 import { randomUUID } from 'node:crypto';
 import { statfsSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
 
 export interface ImportState {
@@ -20,12 +20,12 @@ export interface ImportState {
   completedAt: number | null;
 }
 const MAX = Number.MAX_SAFE_INTEGER;
-export function legacyHighId(source: Database.Database) {
+export function legacyHighId(source: Database) {
   return (
     source.prepare('SELECT coalesce(max(id),0) AS id FROM request_logs').get() as { id: number }
   ).id;
 }
-export function ensureImportSource(source: Database.Database): string {
+export function ensureImportSource(source: Database): string {
   source.exec(`CREATE TABLE IF NOT EXISTS request_log_archive (
     singleton INTEGER PRIMARY KEY CHECK(singleton=1), source TEXT NOT NULL,
     vacuum_pending INTEGER NOT NULL DEFAULT 0
@@ -39,16 +39,13 @@ export function ensureImportSource(source: Database.Database): string {
     }
   ).source;
 }
-export function readImportState(
-  target: Database.Database,
-  source: string,
-): ImportState | undefined {
+export function readImportState(target: Database, source: string): ImportState | undefined {
   const row = target.prepare('SELECT state FROM request_log_import WHERE source=?').get(source) as
     | { state: string }
     | undefined;
   return row ? JSON.parse(row.state) : undefined;
 }
-function saveState(target: Database.Database, source: string, state: ImportState) {
+function saveState(target: Database, source: string, state: ImportState) {
   target
     .prepare(
       'INSERT INTO request_log_import VALUES (?,?) ON CONFLICT(source) DO UPDATE SET state=excluded.state',
@@ -92,8 +89,8 @@ const columns =
  * Cursor + rows + rollup deltas commit atomically (including completion).
  */
 export function copyRequestBatch(
-  source: Database.Database,
-  target: Database.Database,
+  source: Database,
+  target: Database,
   sourceId: string,
   limit = 500,
 ) {
@@ -243,8 +240,8 @@ export function copyRequestBatch(
  * A pending marker makes a crash after DELETE or VACUUM safe to retry.
  */
 export function compactLegacyRequests(
-  source: Database.Database,
-  target: Database.Database,
+  source: Database,
+  target: Database,
   sourceId: string,
   options: {
     freeBytes?: () => number;

@@ -1,5 +1,5 @@
 // Temp-only reproducible first-prune measurement. Run: node scripts/benchmark-health-retention.mjs
-import Database from 'better-sqlite3';
+import { openDatabase } from '../server/sqlite.ts';
 import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,9 +9,8 @@ import { pruneHealthEvents } from '../server/workspace/health-event-retention.ts
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-health-prune-'));
 const file = join(root, 'workspace.db');
-const db = new Database(file);
+const db = openDatabase(file, { wal: true });
 try {
-  db.pragma('journal_mode = WAL');
   db.exec(`CREATE TABLE events(cursor INTEGER PRIMARY KEY AUTOINCREMENT,owner TEXT,taskId TEXT,runId TEXT,type TEXT,payload TEXT,createdAt TEXT);
     CREATE INDEX event_owner_cursor ON events(owner,cursor);
     CREATE INDEX event_task_cursor ON events(owner,taskId,cursor)`);

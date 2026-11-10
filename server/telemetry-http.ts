@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import { getRequestsSqlite } from './requests-db.ts';
 import { deploymentForToken, ingestBrowser, ingestServer } from './telemetry.ts';
 
@@ -59,7 +59,7 @@ export async function handleBrowserTelemetry(
   req: IncomingMessage,
   res: ServerResponse,
   name: string,
-  db: () => Database.Database = getRequestsSqlite,
+  db: () => Database = getRequestsSqlite,
   rate = browserRate,
 ) {
   try {
@@ -77,7 +77,7 @@ export async function handleBrowserTelemetry(
 /** Edge HTTP ingestion; the real TCP peer must belong to a Docker bridge. */
 export function serverTelemetryHandler(
   allowedPeer: (ip: string) => boolean | Promise<boolean>,
-  db: () => Database.Database = getRequestsSqlite,
+  db: () => Database = getRequestsSqlite,
 ) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     try {

@@ -33,7 +33,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import Database from 'better-sqlite3';
+import { openDatabase, type Database } from './sqlite.ts';
 import { putArtifactFile } from './content-store.ts';
 import { deployDataDirectory } from './data-directory.ts';
 import { ensureLocalIdentity, sortableId } from './local-site.ts';
@@ -162,7 +162,7 @@ function assertRecoveryPassphrase(passphrase: string): void {
     throw new Error('Recovery passphrase must contain at least 12 characters');
 }
 
-function tableCount(database: InstanceType<typeof Database>, table: string): number {
+function tableCount(database: Database, table: string): number {
   if (!(INVENTORY_TABLES as readonly string[]).includes(table)) {
     throw new Error('Unsupported recovery inventory table');
   }
@@ -171,9 +171,7 @@ function tableCount(database: InstanceType<typeof Database>, table: string): num
   );
 }
 
-function buildRecoveryInventoryFromDatabase(
-  sqlite: InstanceType<typeof Database>,
-): RecoveryInventory {
+function buildRecoveryInventoryFromDatabase(sqlite: Database): RecoveryInventory {
   const fleet = sqlite
     .prepare('SELECT id, home_site_id FROM fleets ORDER BY created_at LIMIT 1')
     .get() as { id: string; home_site_id: string } | undefined;
@@ -275,7 +273,7 @@ export function buildRecoveryInventory(): RecoveryInventory {
  */
 async function snapshotWorkspaceDatabase(root: string, directory: string): Promise<void> {
   const target = resolve(directory, 'workspace.db');
-  const database = new Database(resolve(root, WORKSPACE_DATABASE), {
+  const database = openDatabase(resolve(root, WORKSPACE_DATABASE), {
     readonly: true,
     fileMustExist: true,
   });
@@ -285,7 +283,7 @@ async function snapshotWorkspaceDatabase(root: string, directory: string): Promi
     database.close();
   }
   // The server turns WAL back on when it opens the restored file.
-  const snapshot = new Database(target);
+  const snapshot = openDatabase(target);
   try {
     snapshot.pragma('journal_mode = DELETE');
   } finally {
@@ -312,7 +310,7 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
     { source: resolve(dirname(databaseSnapshot), 'requests.db'), path: 'requests.db' },
     { source: resolve(dirname(databaseSnapshot), 'workspace.db'), path: WORKSPACE_DATABASE },
   ];
-  const workspaceSnapshot = new Database(resolve(dirname(databaseSnapshot), 'workspace.db'), {
+  const workspaceSnapshot = openDatabase(resolve(dirname(databaseSnapshot), 'workspace.db'), {
     readonly: true,
     fileMustExist: true,
   });
@@ -328,7 +326,7 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   // Git clients pin this key, and the server silently makes a new one when it is missing.
   if (existsSync(resolve(root, SSH_HOST_KEY)))
     files.push({ source: resolve(root, SSH_HOST_KEY), path: SSH_HOST_KEY });
-  const snapshot = new Database(databaseSnapshot, { readonly: true, fileMustExist: true });
+  const snapshot = openDatabase(databaseSnapshot, { readonly: true, fileMustExist: true });
   try {
     const artifacts = snapshot
       .prepare(
@@ -538,7 +536,7 @@ function assertIntactWorkspaceDatabase(directory: string): void {
   // Bundles made before workspace.db was included don't have one.
   const file = resolve(directory, WORKSPACE_DATABASE);
   if (!existsSync(file)) return;
-  const workspace = new Database(file, { readonly: true, fileMustExist: true });
+  const workspace = openDatabase(file, { readonly: true, fileMustExist: true });
   try {
     if (workspace.pragma('integrity_check', { simple: true }) !== 'ok')
       throw new Error('Recovered workspace database failed integrity_check');
@@ -552,7 +550,7 @@ function verifyExtractedDatabase(directory: string, payload: RecoveryPayload): v
   // Older bundles contain only deploy.db; startup imports their request history.
   const requestsFile = resolve(directory, 'requests.db');
   if (existsSync(requestsFile)) {
-    const requests = new Database(requestsFile, { readonly: true, fileMustExist: true });
+    const requests = openDatabase(requestsFile, { readonly: true, fileMustExist: true });
     try {
       if (requests.pragma('integrity_check', { simple: true }) !== 'ok')
         throw new Error('Recovered requests database failed integrity_check');
@@ -561,7 +559,7 @@ function verifyExtractedDatabase(directory: string, payload: RecoveryPayload): v
     }
   }
   assertIntactWorkspaceDatabase(directory);
-  const database = new Database(resolve(directory, 'deploy.db'), {
+  const database = openDatabase(resolve(directory, 'deploy.db'), {
     readonly: true,
     fileMustExist: true,
   });
@@ -606,7 +604,7 @@ function readRehearsalSecretKey(directory: string): {
 function auditRecoveryMaterials(
   directory: string,
   payload: RecoveryPayload,
-  database: InstanceType<typeof Database>,
+  database: Database,
 ): {
   encryptedConfigurationValues: number;
   secretStoreKey: 'bundle' | 'environment';
@@ -677,7 +675,7 @@ function auditRecoveryMaterials(
 }
 
 function auditApplicationLineage(
-  database: InstanceType<typeof Database>,
+  database: Database,
   directory: string,
 ): {
   applicationRevisions: number;
@@ -921,7 +919,7 @@ function auditRestoredRecovery(
   payload: RecoveryPayload,
   bundleId: string,
 ): RecoveryRehearsalReport {
-  const database = new Database(resolve(directory, 'deploy.db'), {
+  const database = openDatabase(resolve(directory, 'deploy.db'), {
     readonly: true,
     fileMustExist: true,
   });
@@ -1011,7 +1009,7 @@ export async function createRecoveryBundle(input: {
     // Snapshot after deploy.db: during import the legacy source plus the atomic
     // requests.db cursor can resume the full history on a replacement Home.
     await getRequestsSqlite().backup(resolve(temporary, 'requests.db'));
-    const snapshotDatabase = new Database(databaseSnapshot, {
+    const snapshotDatabase = openDatabase(databaseSnapshot, {
       readonly: true,
       fileMustExist: true,
     });
@@ -1153,7 +1151,7 @@ export function restoreRecoveryBundle(input: {
   try {
     extractPayload(payload, destination);
     verifyExtractedDatabase(destination, payload);
-    const restoredDatabase = new Database(join(destination, 'deploy.db'));
+    const restoredDatabase = openDatabase(join(destination, 'deploy.db'));
     try {
       const now = new Date().toISOString();
       const revisionArtifacts = restoredDatabase

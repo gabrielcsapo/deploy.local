@@ -1,7 +1,7 @@
 /** All request-log connections (control plane, edge, writers, and migration). */
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import Database from 'better-sqlite3';
+import { openDatabase, type Database } from './sqlite.ts';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { TELEMETRY_SCHEMA } from './telemetry-schema.ts';
 import { deployDataPath } from './data-directory.ts';
@@ -36,9 +36,8 @@ export function requestsDbFile() {
 export function openRequestsDb(file = requestsDbFile()) {
   mkdirSync(dirname(file), { recursive: true });
   const fresh = !existsSync(file);
-  const db = new Database(file);
+  const db = openDatabase(file, { busyTimeoutMs: 5000 });
   try {
-    db.pragma('busy_timeout = 5000');
     // Existing NONE databases need an offline VACUUM to convert; never rewrite them on open.
     if (fresh) db.pragma('auto_vacuum = INCREMENTAL');
     db.pragma('journal_mode = WAL');
@@ -66,7 +65,7 @@ export function openRequestsDb(file = requestsDbFile()) {
     // works when the edge opens first. MAX(id) is a primary-key lookup, not a scan.
     const sourceFile = join(dirname(file), 'deploy.db');
     if (existsSync(sourceFile)) {
-      const source = new Database(sourceFile, { readonly: true, fileMustExist: true });
+      const source = openDatabase(sourceFile, { readonly: true, fileMustExist: true });
       try {
         if (source.prepare("SELECT 1 FROM sqlite_master WHERE name='request_logs'").get()) {
           const high = (
@@ -97,7 +96,7 @@ export function openRequestsDb(file = requestsDbFile()) {
   }
 }
 
-let connection: Database.Database | undefined;
+let connection: Database | undefined;
 let file: string | undefined;
 export function getRequestsSqlite() {
   const next = requestsDbFile();

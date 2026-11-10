@@ -1,6 +1,6 @@
 import { chmodSync, renameSync, rmSync } from 'node:fs';
 import { parentPort, workerData } from 'node:worker_threads';
-import Database from 'better-sqlite3';
+import { openDatabase } from './sqlite.ts';
 
 /**
  * Copies each live database in one backup step, which is one read transaction: every committed page,
@@ -16,14 +16,14 @@ try {
     const temporary = `${target}.tmp`;
     rmSync(temporary, { force: true });
     try {
-      const database = new Database(source, { readonly: true, fileMustExist: true });
+      const database = openDatabase(source, { readonly: true, fileMustExist: true });
       try {
         await database.backup(temporary, { progress: () => 0x7fffffff });
       } finally {
         database.close();
       }
       // A snapshot stands alone, with no -wal or -shm. The server turns WAL back on when it opens it.
-      const snapshot = new Database(temporary);
+      const snapshot = openDatabase(temporary);
       try {
         snapshot.pragma('journal_mode = DELETE');
       } finally {

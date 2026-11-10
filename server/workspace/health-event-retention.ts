@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { Database } from '../sqlite.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 
 export const HEALTH_EVENT_RETENTION_MS = 60 * 60_000;
@@ -6,7 +6,7 @@ export const HEALTH_EVENT_BATCH_SIZE = 250;
 
 /** Scan at most one small page, including non-health rows. No unbounded index build or scan. */
 export function pruneHealthEventBatch(
-  db: Database.Database,
+  db: Database,
   after: number,
   through: number,
   cutoff: string,
@@ -40,7 +40,7 @@ export function pruneHealthEventBatch(
 
 /** Called by maintenance; yield between every batch so requests and writers can run. */
 export async function pruneHealthEvents(
-  db: Database.Database,
+  db: Database,
   now = Date.now(),
   onBatch?: (ms: number) => void,
 ) {

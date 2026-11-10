@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -170,13 +170,7 @@ function aggregateRow(row: RouteRow): Aggregate {
   };
 }
 export const ROUTE_RANGE_SQL = `SELECT * FROM telemetry_routes WHERE deployment_name=? AND bucket_ms>=? AND bucket_ms<? ORDER BY bucket_ms`;
-function routesBetween(
-  db: Database.Database,
-  name: string,
-  from: number,
-  to: number,
-  source = 'edge',
-) {
+function routesBetween(db: Database, name: string, from: number, to: number, source = 'edge') {
   const routes: Record<string, Aggregate> = Object.create(null);
   for (const row of db.prepare(ROUTE_RANGE_SQL).all(name, from, to) as RouteRow[]) {
     if (row.source !== source) continue;
@@ -190,7 +184,7 @@ function total(routes: Record<string, Aggregate>) {
   return agg;
 }
 function upsertRoutes(
-  db: Database.Database,
+  db: Database,
   batches: Map<
     string,
     { name: string; bucket: number; route: string; source: string; agg: Aggregate }
@@ -225,10 +219,7 @@ interface EdgeEntry {
   route?: string | null;
   phases?: Record<string, number>;
 }
-export function writeEdgeTelemetry(
-  db: Database.Database,
-  items: Array<{ name: string; entry: EdgeEntry }>,
-) {
+export function writeEdgeTelemetry(db: Database, items: Array<{ name: string; entry: EdgeEntry }>) {
   db.transaction(() => {
     const batches = new Map();
     for (const { name, entry } of items) {
@@ -357,7 +348,7 @@ export function validateBrowserBatch(body: unknown): {
   return { build: b.build as string | null, events: b.events as BrowserEvent[] };
 }
 function errorUpsert(
-  db: Database.Database,
+  db: Database,
   name: string,
   r: { route: string; name: string; message: string; stack: string; fingerprint: string },
   where: string,
@@ -368,7 +359,7 @@ function errorUpsert(
     `INSERT INTO telemetry_errors VALUES (?,?,1,?,?,?,?,?,?,?,?) ON CONFLICT(deployment_name,fingerprint) DO UPDATE SET count=count+1,first_seen=min(first_seen,excluded.first_seen),last_seen=max(last_seen,excluded.last_seen),route=CASE WHEN excluded.last_seen>=last_seen THEN excluded.route ELSE route END,location=CASE WHEN excluded.last_seen>=last_seen THEN excluded.location ELSE location END,build=CASE WHEN excluded.last_seen>=last_seen THEN excluded.build ELSE build END,name=CASE WHEN excluded.last_seen>=last_seen THEN excluded.name ELSE name END,message=CASE WHEN excluded.last_seen>=last_seen THEN excluded.message ELSE message END,stack=CASE WHEN excluded.last_seen>=last_seen THEN excluded.stack ELSE stack END`,
   ).run(name, r.fingerprint, t, t, r.route, where, build, r.name, r.message, r.stack);
 }
-export function ingestServer(db: Database.Database, name: string, body: unknown, now = Date.now()) {
+export function ingestServer(db: Database, name: string, body: unknown, now = Date.now()) {
   const records = validateServerBatch(body, now);
   db.transaction(() => {
     const batches = new Map();
@@ -399,12 +390,7 @@ interface PageRow {
   inflight: number;
   miss: number;
 }
-export function ingestBrowser(
-  db: Database.Database,
-  name: string,
-  body: unknown,
-  now = Date.now(),
-) {
+export function ingestBrowser(db: Database, name: string, body: unknown, now = Date.now()) {
   const b = validateBrowserBatch(body);
   const bucket = Math.floor(now / HOUR) * HOUR;
   db.transaction(() => {
@@ -445,7 +431,7 @@ export function ingestBrowser(
     }
   })();
 }
-export function issueTelemetryToken(db: Database.Database, name: string) {
+export function issueTelemetryToken(db: Database, name: string) {
   const token = randomBytes(32).toString('base64url');
   db.prepare('INSERT INTO telemetry_tokens VALUES(?,?,?)').run(hashToken(token), name, Date.now());
   return token;
@@ -453,7 +439,7 @@ export function issueTelemetryToken(db: Database.Database, name: string) {
 function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
 }
-export function deploymentForToken(db: Database.Database, token: string): string | null {
+export function deploymentForToken(db: Database, token: string): string | null {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   return (
     (
@@ -473,12 +459,7 @@ type ReleaseRow = {
   comparison: string | null;
 };
 type Observation = { routes: Record<string, Aggregate>; count: number; app: Aggregate };
-export function registerTelemetryRelease(
-  db: Database.Database,
-  name: string,
-  id: string,
-  at = Date.now(),
-) {
+export function registerTelemetryRelease(db: Database, name: string, id: string, at = Date.now()) {
   db.transaction(() => {
     if (
       db
@@ -529,7 +510,7 @@ function comparison(before: Aggregate, after: Aggregate) {
   };
 }
 function finishRelease(
-  db: Database.Database,
+  db: Database,
   r: ReleaseRow,
   observation: Observation = JSON.parse(r.observed),
   finalized = true,
@@ -553,7 +534,7 @@ function finishRelease(
     r.release_id,
   );
 }
-export function finalizeReleases(db: Database.Database, now = Date.now(), name?: string) {
+export function finalizeReleases(db: Database, now = Date.now(), name?: string) {
   const sql =
     'SELECT * FROM telemetry_releases WHERE finalized=0 AND released_at<=?' +
     (name ? ' AND deployment_name=?' : '');
@@ -562,7 +543,7 @@ export function finalizeReleases(db: Database.Database, now = Date.now(), name?:
     .all(...(name ? [now - HOUR, name] : [now - HOUR])) as ReleaseRow[])
     finishRelease(db, r);
 }
-function observeReleases(db: Database.Database, items: Array<{ name: string; entry: EdgeEntry }>) {
+function observeReleases(db: Database, items: Array<{ name: string; entry: EdgeEntry }>) {
   const byName = new Map<string, EdgeEntry[]>();
   for (const item of items) {
     const entries = byName.get(item.name) ?? [];
@@ -624,7 +605,7 @@ interface ErrorRow {
   stack: string;
 }
 export function readPerformance(
-  db: Database.Database,
+  db: Database,
   name: string,
   range: '1h' | '24h' | '7d',
   now = Date.now(),

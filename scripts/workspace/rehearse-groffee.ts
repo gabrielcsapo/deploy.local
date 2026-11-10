@@ -1,5 +1,5 @@
 // Offline migration rehearsal only. A new, empty destination is mandatory.
-import Database from 'better-sqlite3';
+import { openDatabase } from '../../server/sqlite.ts';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync, copyFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -18,7 +18,7 @@ if (
 )
   throw new Error('Destination must be new and separate from the snapshot');
 const report = JSON.parse(readFileSync(resolve(snapshot, 'snapshot-report.json'), 'utf8'));
-const legacy = new Database(resolve(snapshot, 'groffee.sqlite'), {
+const legacy = openDatabase(resolve(snapshot, 'groffee.sqlite'), {
   readonly: true,
   fileMustExist: true,
 });

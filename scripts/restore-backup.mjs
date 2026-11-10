@@ -13,7 +13,7 @@ import {
   statSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
-import Database from 'better-sqlite3';
+import { openDatabase } from '../server/sqlite.ts';
 
 import { COMPLETE_MARKER, DESTINATION_MARKER, listBackupCopies } from '../shared/backup-copies.ts';
 
@@ -98,7 +98,7 @@ for (const file of DATABASES) {
   const path = join(destination, file);
   renameSync(`${path}.snapshot`, path);
   for (const stale of [`${path}-wal`, `${path}-shm`]) rmSync(stale, { force: true });
-  const database = new Database(path, { readonly: true, fileMustExist: true });
+  const database = openDatabase(path, { readonly: true, fileMustExist: true });
   try {
     if (database.pragma('integrity_check', { simple: true }) !== 'ok')
       fail(`${file} failed its integrity check. Do not start a server on ${destination}.`);

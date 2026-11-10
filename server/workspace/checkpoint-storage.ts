@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type Database from 'better-sqlite3';
+import type { Database } from '../sqlite.ts';
 
 import { checkpointInfo } from './checkpoint-metadata.ts';
 
@@ -91,7 +91,7 @@ export function materializeCheckpoint(workspaceRoot: string, row: any): any {
 }
 
 /** References come from the database snapshot, never the changing live records table. */
-export function checkpointBlobReferences(database: Database.Database): SnapshotBlob[] {
+export function checkpointBlobReferences(database: Database): SnapshotBlob[] {
   return (
     database
       .prepare(`SELECT DISTINCT json_extract(data,'$.snapshotBlob') AS blob
@@ -100,13 +100,13 @@ export function checkpointBlobReferences(database: Database.Database): SnapshotB
   ).map((row) => JSON.parse(row.blob));
 }
 
-export function verifyCheckpointBlobs(database: Database.Database, workspaceRoot: string) {
+export function verifyCheckpointBlobs(database: Database, workspaceRoot: string) {
   for (const blob of checkpointBlobReferences(database)) verifiedBytes(workspaceRoot, blob);
 }
 
 /** Bounded, yielding migration. A failed write leaves the original row intact. */
 export async function migrateCheckpointSnapshots(
-  database: Database.Database,
+  database: Database,
   workspaceRoot: string,
   { maxRows = 8, maxBytes = 16 * 1024 * 1024 } = {},
 ) {

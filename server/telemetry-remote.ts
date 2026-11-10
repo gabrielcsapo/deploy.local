@@ -1,6 +1,6 @@
 /** SER-only authorization for the computer relay. Attribution comes exclusively from the token. */
 import { createHash } from 'node:crypto';
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getRequestsSqlite } from './requests-db.ts';
 import { authenticateNode, readDeploymentRecord } from './store.ts';
@@ -8,12 +8,7 @@ import { deploymentForToken, issueTelemetryToken, ingestServer } from './telemet
 import { readTelemetryBody, TelemetryRateLimit } from './telemetry-http.ts';
 
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
-export function issueRemoteTelemetryToken(
-  db: Database.Database,
-  name: string,
-  node: string,
-  owner: string,
-) {
+export function issueRemoteTelemetryToken(db: Database, name: string, node: string, owner: string) {
   return db.transaction(() => {
     const token = issueTelemetryToken(db, name);
     db.prepare('INSERT INTO telemetry_remote_tokens VALUES(?,?,?)').run(hash(token), node, owner);

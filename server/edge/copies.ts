@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { openDatabase, type Database } from '../sqlite.ts';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -39,15 +39,15 @@ function identity(req: IncomingMessage): Identity | undefined {
 
 /** Read-only edge authorization. No coordinator schema initialization or cached access decisions. */
 export class CopyPreviews {
-  private main: InstanceType<typeof Database>;
-  private workspace?: InstanceType<typeof Database>;
+  private main: Database;
+  private workspace?: Database;
   private workspaceFile: string;
   private grants = new Map<string, Grant>();
   private tickets = new Map<string, Grant>();
   private hosts = new Set<string>();
   private timer?: ReturnType<typeof setInterval>;
   constructor(dbFile: string, advertise = true) {
-    this.main = new Database(dbFile, { readonly: true, fileMustExist: true });
+    this.main = openDatabase(dbFile, { readonly: true, fileMustExist: true });
     this.workspaceFile = join(dirname(dbFile), 'workspace', 'workspace.db');
     if (advertise) {
       this.refreshHosts();
@@ -57,7 +57,7 @@ export class CopyPreviews {
   }
   private records() {
     if (!this.workspace && existsSync(this.workspaceFile))
-      this.workspace = new Database(this.workspaceFile, { readonly: true, fileMustExist: true });
+      this.workspace = openDatabase(this.workspaceFile, { readonly: true, fileMustExist: true });
     return (this.workspace
       ?.prepare("SELECT owner,data FROM records WHERE kind='v2-backup-restore'")
       .all() || []) as { owner: string; data: string }[];

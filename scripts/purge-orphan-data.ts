@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { openDatabase } from '../server/sqlite.ts';
 import { resolve } from 'node:path';
 import { purgeOrphanedDeploymentData } from '../server/orphan-data.ts';
 
@@ -14,9 +14,12 @@ if (
 if (!process.env.DEPLOY_DATA_DIR) throw new Error('DEPLOY_DATA_DIR is required');
 const root = resolve(process.env.DEPLOY_DATA_DIR);
 const apply = args.includes('--apply');
-const db = new Database(resolve(root, 'deploy.db'), { readonly: !apply, fileMustExist: true });
-db.pragma('busy_timeout = 5000');
-db.pragma('foreign_keys = ON');
+const db = openDatabase(resolve(root, 'deploy.db'), {
+  readonly: !apply,
+  fileMustExist: true,
+  busyTimeoutMs: 5000,
+  foreignKeys: true,
+});
 try {
   const counts = purgeOrphanedDeploymentData(db, root, { apply });
   console.log(

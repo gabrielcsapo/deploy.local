@@ -7,21 +7,10 @@ import { randomUUID } from 'node:crypto';
 import { deployDataDirectory } from '../data-directory.ts';
 export const root = resolve(deployDataDirectory(), 'workspace');
 mkdirSync(root, { recursive: true });
-export const db = openWorkspaceDatabase(resolve(root, 'workspace.db'));
-db.pragma('busy_timeout = 5000');
-// Concurrent first opens can fail WAL promotion immediately despite busy_timeout.
-// Retry only that startup lock; all other SQLite errors must remain visible.
-const walDeadline = Date.now() + 5000;
-const walWait = new Int32Array(new SharedArrayBuffer(4));
-for (;;) {
-  try {
-    db.pragma('journal_mode = WAL');
-    break;
-  } catch (error: any) {
-    if (error.code !== 'SQLITE_BUSY' || Date.now() >= walDeadline) throw error;
-    Atomics.wait(walWait, 0, 0, 25);
-  }
-}
+export const db = openWorkspaceDatabase(resolve(root, 'workspace.db'), {
+  busyTimeoutMs: 5000,
+  wal: true,
+});
 db.exec(
   `CREATE TABLE IF NOT EXISTS records(kind TEXT,id TEXT,owner TEXT,data TEXT,PRIMARY KEY(kind,id,owner)); CREATE INDEX IF NOT EXISTS record_kind ON records(kind,owner); CREATE TABLE IF NOT EXISTS events(cursor INTEGER PRIMARY KEY AUTOINCREMENT,owner TEXT,taskId TEXT,runId TEXT,type TEXT,payload TEXT,createdAt TEXT); CREATE TABLE IF NOT EXISTS operations(owner TEXT,id TEXT,result TEXT,PRIMARY KEY(owner,id)); CREATE TABLE IF NOT EXISTS worker(id TEXT PRIMARY KEY,pid INTEGER,heartbeat TEXT);`,
 );

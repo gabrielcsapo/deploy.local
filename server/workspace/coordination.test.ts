@@ -7,8 +7,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { createInterface } from 'node:readline';
+import type { coordinationTools } from './coordination-tools.ts';
 import { captureSnapshot, validateSnapshot, restoreSnapshot } from './checkpoint.ts';
 import { JobRunner } from './job-runner.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
@@ -311,9 +311,7 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
   });
   let errors = '';
   child.stderr.on('data', (chunk) => (errors += chunk));
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [resolve('server/workspace/mcp.ts')],
+  const mcp = spawn(process.execPath, [resolve('server/workspace/mcp.ts')], {
     cwd: task.workspacePath,
     env: {
       PATH: process.env.PATH!,
@@ -321,18 +319,35 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
       DEPLOY_AGENT_TOKEN: token,
     },
   });
-  const client = new Client({ name: 'acceptance', version: '1.0.0' });
+  const lines = createInterface({ input: mcp.stdout });
+  const replies = lines[Symbol.asyncIterator]();
+  let requestId = 0;
+  const request = async (method: string, params?: object) => {
+    const id = ++requestId;
+    mcp.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    const line = await replies.next();
+    assert.ok(!line.done, 'MCP server closed before replying');
+    const reply = JSON.parse(line.value);
+    assert.equal(reply.id, id);
+    assert.ok(!reply.error, JSON.stringify(reply));
+    return reply.result;
+  };
   const call = async (name: string, args: any = {}) => {
-    const result: any = await client.callTool({ name, arguments: args });
+    const result: any = await request('tools/call', { name, arguments: args });
     assert(!result.isError, JSON.stringify(result));
     return JSON.parse(result.content[0].text);
   };
   try {
-    await client.connect(transport);
-    const tools = (await client.listTools()).tools;
+    await request('initialize', {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'acceptance', version: '1.0.0' },
+    });
+    mcp.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+    const tools: typeof coordinationTools = (await request('tools/list')).tools;
     assert.equal(tools.length, 16);
     const runTool = tools.find((tool) => tool.name === 'deploy_run_job')!;
-    assert.equal((runTool.inputSchema.properties!.label as any).maxLength, 80);
+    assert.equal((runTool.inputSchema.properties as Record<string, any>).label.maxLength, 80);
     assert.ok(!runTool.inputSchema.required?.includes('label'));
     assert.match(runTool.description!, /short label saying what it checks/);
     // Agents can create their repository and deploy through deploy.local.
@@ -345,7 +360,10 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
     assert.ok(tools.some((entry) => entry.name === 'deploy_ask_user'));
     assert.ok(tools.some((entry) => entry.name === 'deploy_control'));
     assert.ok(tools.some((entry) => entry.name === 'deploy_project'));
-    await until(() => list('worker', owner).some((w) => w.id === enrollment.workerId));
+    await until(() => {
+      assert.equal(child.exitCode, null, errors);
+      return list('worker', owner).some((w) => w.id === enrollment.workerId);
+    });
     const machines = await call('deploy_list_computers');
     assert(
       machines.computers.some((w: any) => w.id === enrollment.workerId && w.status === 'online'),
@@ -406,9 +424,14 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
       assert.match(output, /checkpoint version/);
     }
   } finally {
-    await client.close();
-    child.kill('SIGTERM');
-    await once(child, 'close');
+    lines.close();
+    for (const process of [mcp, child]) {
+      if (process.exitCode === null && process.signalCode === null) {
+        const closed = once(process, 'close');
+        process.kill('SIGTERM');
+        await closed;
+      }
+    }
     server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
   }
