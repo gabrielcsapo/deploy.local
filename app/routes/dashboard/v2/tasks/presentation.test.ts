@@ -11,6 +11,38 @@ import {
 } from './presentation.ts';
 import type { TaskView } from './types.ts';
 
+test('only an unchecked approved design replaces Ready to merge, with a muted clock', () => {
+  const view = {
+    task: { status: 'ready' },
+    pulls: [{ status: 'open', targetBranch: 'main' }],
+  } as TaskView;
+  const diff = { patch: '', mergeable: true };
+  const checks = [{ id: 'checks', status: 'succeeded' }];
+  assert.equal(taskStatus(view, diff, checks).label, 'Ready to merge');
+  for (const state of ['waiting', 'differs', 'matches', 'kept'] as const) {
+    const withDesign = { ...view, designCheck: { state } } as TaskView;
+    const summary = taskStatus(withDesign, diff, checks);
+    const passed = state === 'matches' || state === 'kept';
+    assert.equal(summary.label, passed ? 'Ready to merge' : 'Design not checked');
+    assert.equal(summary.icon, passed ? 'check' : 'clock');
+    assert.equal(summary.detail, 'Checks passed, no conflicts with main');
+    assert.equal(
+      taskStatus(withDesign, diff, [{ id: 'x', status: 'failed' }]).label,
+      'Checks failed',
+    );
+    assert.equal(taskStatus(withDesign, diff, []).label, 'Not checked');
+    assert.equal(
+      taskStatus(withDesign, { patch: '', conflicts: ['app.ts'] }, checks).label,
+      'Changes needed',
+    );
+    assert.equal(
+      taskStatus({ ...withDesign, pulls: [{ ...view.pulls[0], status: 'merged' }] }, diff, checks)
+        .label,
+      'Merged',
+    );
+  }
+});
+
 test('latest attempts replace failed attempts without treating piped unknown results as passed', () => {
   const checks = latestChecks([
     { id: 'old', label: 'Unit tests', status: 'failed', updatedAt: '2026-10-30T10:00:00Z' },

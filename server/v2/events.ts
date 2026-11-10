@@ -19,6 +19,17 @@ export function mapConversationEvent(row: any, run?: any): ConversationEvent | u
   const media = mapMediaEvent(row);
   if (media) return media;
   const payload = row.payload ?? {};
+  if (
+    row.type === 'v2.conversation' &&
+    payload.event?.kind === 'decision' &&
+    ['id', 'at', 'inboxItemId'].every((key) => typeof payload.event[key] === 'string')
+  )
+    return {
+      kind: 'decision',
+      id: payload.event.id,
+      at: payload.event.at,
+      inboxItemId: payload.event.inboxItemId,
+    };
   const at = typeof payload.createdAt === 'string' ? payload.createdAt : row.createdAt;
   const id =
     typeof payload.id === 'string'

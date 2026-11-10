@@ -5,6 +5,7 @@ import { formatTime } from '../data/time';
 import { parsePatch } from './api';
 import { checkDuration, checkPassed, checkResult, checkSummary, fileTree } from './presentation';
 import type { TaskCheck, TaskCheckpoint, TaskView } from './types';
+import { ApprovedDesignCheck } from './design-check.client';
 
 export function TaskPanel({
   view,
@@ -204,6 +205,7 @@ export function TaskChecks({
     'This coordinator cannot rerun a checkpoint’s recorded commands as a check suite yet.';
   return (
     <>
+      <ApprovedDesignCheck view={view} />
       {checks.length ? (
         <section className="dl-section">
           <div className="dl-task-check-head">

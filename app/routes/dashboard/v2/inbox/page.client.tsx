@@ -57,6 +57,9 @@ export default function Inbox() {
     !answered && selected
       ? inbox.items.find((item) => item.id === selected && item.kind === 'question')
       : undefined;
+  const build = selected
+    ? inbox.items.find((item) => item.id === selected && item.designCheck)
+    : undefined;
   if (design) return <DesignItemReview key={design.id} item={design} />;
   return (
     <>
@@ -70,11 +73,21 @@ export default function Inbox() {
             onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
           />
         }
-        actions={<IconButton icon="search" label="Search (coming soon)" disabled />}
+        actions={
+          build ? (
+            <a className="dl-link" href="/dashboard/inbox">
+              Waiting on you
+            </a>
+          ) : (
+            <IconButton icon="search" label="Search (coming soon)" disabled />
+          )
+        }
       />
       <div className="dl-scroll">
         <div className={question ? 'dl-decision-column' : 'dl-page'}>
-          {question ? (
+          {build ? (
+            <InboxDecision key={build.id} itemId={build.id} />
+          ) : question ? (
             <InboxDecision key={question.id} itemId={question.id} />
           ) : (
             <>

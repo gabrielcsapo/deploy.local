@@ -18,7 +18,13 @@ import {
 import { ShipDialog } from './ShipDialog';
 import type { TaskCheck, TaskDiff } from './types';
 import { TaskChecks, TaskFiles, TaskPanel } from './details.client';
-import { latestChecks, taskCheckpoints, taskStatus, taskUpdatedAt } from './presentation';
+import {
+  designCheckWaiting,
+  latestChecks,
+  taskCheckpoints,
+  taskStatus,
+  taskUpdatedAt,
+} from './presentation';
 import './style.css';
 import { DesignCard, DesignReview, useTaskDesign } from '../design/Review';
 
@@ -186,7 +192,11 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const tabs = [
     { label: 'Chat', href: base },
     { label: 'Changes', href: `${base}/changes`, count: diff ? files.length : undefined },
-    { label: 'Checks', href: `${base}/checks`, count: currentChecks.length || undefined },
+    {
+      label: 'Checks',
+      href: `${base}/checks`,
+      count: currentChecks.length + (view.designCheck ? 1 : 0) || undefined,
+    },
     ...(design.boards.length
       ? [{ label: 'Design', href: `${base}/design`, count: design.boards.length }]
       : []),
@@ -244,7 +254,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                               void act(() => mergePull(authenticatedFetch, projectId!, pull, diff!))
                             }
                           >
-                            Merge only
+                            {designCheckWaiting(view)
+                              ? 'Merge without the design check'
+                              : 'Merge only'}
                           </Action>
                           {!!view.comparison?.behind && (
                             <Action
@@ -297,6 +309,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                   <Action
                     variant="primary"
                     loading={busy}
+                    disabled={designCheckWaiting(view)}
                     onClick={() =>
                       void act(async () => {
                         const item = await mergeAndRelease(
@@ -326,7 +339,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                         ? 'dl-fail'
                         : summary.icon === 'running'
                           ? 'dl-run dl-spin'
-                          : ''
+                          : designCheckWaiting(view)
+                            ? 'dl-wait'
+                            : ''
                   }
                 />
                 {summary.label}

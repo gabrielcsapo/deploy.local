@@ -1,3 +1,4 @@
+import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
 import { reviewEvidence } from '../design/review-evidence.ts';
 import {
   groupReviewChanges,
@@ -1201,11 +1202,42 @@ export async function proposeDesign(
           canvasAt(project.repositoryPath, proposal.commit),
         ])
       : [null, null];
-    return recordProposal(owner, project, proposal, canvas, before, after, {
+    const item = recordProposal(owner, project, proposal, canvas, before, after, {
       title,
       summary,
       changeWords,
     });
+    await ensureDesignCheckBoards(owner, project, get('v2-inbox-native', owner, item.id));
+    return item;
+  });
+}
+
+/** Persist cheap board metadata once, including older approvals first opened by a task. */
+export async function ensureDesignCheckBoards(owner: string, project: any, row: any) {
+  const landing = list('design-review-landing', owner).find((entry) => entry.id === row.id);
+  const commit = landing?.commit ?? row.context.commit;
+  if (row.context.checkBoards && row.context.checkBoardsCommit === commit) return;
+  const canvas = await canvasAt(project.repositoryPath, commit);
+  const boards = await Promise.all(
+    reviewBoardPaths(row.context).map(async (path) => {
+      const file = path.slice('design/boards/'.length);
+      const placed = canvas?.boards[file];
+      const html = await showFile(project.repositoryPath, commit, path);
+      if (!html) return null;
+      const width =
+        placed?.w ?? Number(/name="design-board"[^>]*content="width=(\d+)/.exec(html)?.[1] ?? 1440);
+      return {
+        file,
+        title: placed?.title ?? screenName(file),
+        widths: reviewWidths(width),
+        height: placed?.h ?? 900,
+      };
+    }),
+  );
+  const current = get('v2-inbox-native', owner, row.id);
+  save('v2-inbox-native', owner, {
+    ...current,
+    context: { ...current.context, checkBoards: boards.filter(Boolean), checkBoardsCommit: commit },
   });
 }
 
@@ -1439,8 +1471,8 @@ export function designBuildBrief(input: {
     `What changed in the design:\n${shown.map((path) => `- ${path}`).join('\n')}${
       input.paths.length > shown.length ? `\n- and ${input.paths.length - shown.length} more` : ''
     }`,
-    'Build exactly what was approved, on every client the changed boards show. If the build has to differ from a board (wording, a state the board missed, a platform limit), stop, change the board and propose that for approval before going on.',
-    'When it is built, render each changed board, capture the running app at the same widths, and compare them (the project’s design/README.md says how, if it has one). Then report with deploy_design, action "built": state "matches", or state "differs" with the number of differences and what they are. The work is not finished until that report is in.',
+    'Build exactly what was approved, on every client the changed boards show. If the build has to differ from a board (wording, a state the board missed, a platform limit), stop that part and report the difference for the owner to decide before going on.',
+    'When it is built, render each changed board, capture the running app at the same widths, and compare them (the project’s design/README.md says how, if it has one). Then report with deploy_design, action "built": state "matches", or state "differs" with a positive differences count and required text saying what differs in plain words. You may include why, board (a filename such as Header.html), width, and screenshotId from this task’s existing screenshot mechanism. For matches you may include captures, the number compared. Include comparisons (an array of { board, width, screenshotId }) to make the compared pairs available from the check. A later report replaces the earlier report; differs brings one decision to the owner. Wait for that decision: Fix the app returns it to this task; Keep it and update the design approves the difference and asks you to update the board in your own branch for the pull request. The work is not finished until that report is in.',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -1745,6 +1777,9 @@ export async function renderBoard(
   return (await renderBoardLayout(repo, commit, board, width, height, scale)).png;
 }
 
+// Test/injected renderers must not inherit an in-flight Chromium warm-up (or its failure).
+const rendererWork = new WeakMap<typeof drawBoard, Map<string, Promise<BoardRender>>>();
+
 export async function renderBoardLayout(
   repo: string,
   commit: string,
@@ -1757,7 +1792,12 @@ export async function renderBoardLayout(
   const key = `${repo}:${commit}:${board}:${width}:${height ?? 'board'}:${scale}`;
   const cached = renders.get(key);
   if (cached && (draw === drawBoard || renderers.get(key) === draw)) return cached;
-  const pending = rendering.get(key);
+  let work = rendering;
+  if (draw !== drawBoard) {
+    work = rendererWork.get(draw) ?? new Map();
+    rendererWork.set(draw, work);
+  }
+  const pending = work.get(key);
   if (pending) return pending;
   const stored = draw === drawBoard ? await readRender(key) : null;
   const job = stored
@@ -1766,7 +1806,7 @@ export async function renderBoardLayout(
         if (draw === drawBoard) writeRender(key, rendered);
         return rendered;
       });
-  rendering.set(key, job);
+  work.set(key, job);
   try {
     const rendered = await job;
     renders.set(key, rendered);
@@ -1774,7 +1814,7 @@ export async function renderBoardLayout(
     if (renders.size > renderLimit) renders.delete(renders.keys().next().value!);
     return rendered;
   } finally {
-    rendering.delete(key);
+    work.delete(key);
   }
 }
 
@@ -2063,31 +2103,9 @@ export async function designTool(scope: { owner: string; taskId: string }, args:
       };
     }
     case 'built': {
-      if (
-        !['matches', 'differs'].includes(args.state) ||
-        (args.state === 'differs' && (!Number.isInteger(args.differences) || args.differences < 1))
-      )
-        fail('Name matches or differs with a positive differences count');
-      const proposal = list('v2-inbox-native', scope.owner)
-        .filter(
-          (row) =>
-            row.context?.source === 'design' &&
-            row.context.taskId === task.id &&
-            row.item.answer?.actionId === 'approve' &&
-            !list('design-review-landing', scope.owner).some(
-              (landing) => landing.id === row.id && landing.state !== 'landed',
-            ),
-        )
-        .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))[0];
-      if (!proposal) fail('This task has no approved design', 409);
-      return {
-        built: save('design-review-built', scope.owner, {
-          id: proposal.id,
-          state: args.state,
-          ...(args.state === 'differs' ? { differences: args.differences } : {}),
-          at: now(),
-        }),
-      };
+      const row = approvedTaskDesign(scope.owner, task.id);
+      if (row) await ensureDesignCheckBoards(scope.owner, project, row);
+      return reportDesignBuild(scope.owner, task.id, args);
     }
     case 'propose': {
       const item = await proposeDesign(scope.owner, project, {
@@ -2132,7 +2150,9 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       )
       .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))
       .flatMap((row) => {
-        const built = list('design-review-built', owner).find((entry) => entry.id === row.id);
+        const built = list('design-review-built', owner).find(
+          (entry) => entry.id === row.id && entry.state !== 'waiting',
+        );
         const task = list('task', owner).find((entry) => entry.id === row.context.taskId);
         const project = get('project', owner, row.context.projectId);
         const building =
@@ -2144,7 +2164,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
             title: row.item.title,
             project: project.name ?? project.id,
             detail: built
-              ? built.state === 'matches'
+              ? ['matches', 'kept'].includes(built.state)
                 ? 'Built · matches the design'
                 : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
               : row.context.proposer?.id

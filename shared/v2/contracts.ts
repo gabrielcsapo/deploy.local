@@ -1,6 +1,40 @@
 export type AgentId = string;
 export type UserId = string;
 
+export type DesignCheckBoard = { file: string; title: string; widths: number[]; height: number };
+export type DesignBuildReport = {
+  state: 'waiting' | 'matches' | 'differs' | 'kept';
+  at?: string;
+  captures?: number;
+  differences?: number;
+  text?: string;
+  why?: string;
+  board?: string;
+  width?: number;
+  screenshotId?: string;
+  appCommit?: string;
+  comparisons?: {
+    board: string;
+    width: number;
+    screenshotId: string;
+    image: string;
+    height: number;
+  }[];
+};
+export type TaskDesignCheck = DesignBuildReport & {
+  reviewId: string;
+  title: string;
+  approvedAt: string;
+  commit: string;
+  boards: DesignCheckBoard[];
+  reviewHref: string;
+  decisionHref?: string;
+};
+export type DesignBuildDecision = TaskDesignCheck & {
+  projectId: string;
+  capture?: { image: string; width: number; height: number };
+};
+
 // One union for everything a conversation shows. Clients render these; agents never send free-form UI.
 export type ConversationEvent =
   | { kind: 'you'; id: string; at: string; text: string; attachments: Attachment[]; model?: string }
@@ -48,6 +82,7 @@ export type InboxItem = {
   actions: { id: string; label: string; primary?: boolean; confirm?: string }[];
   state: 'waiting' | 'answered' | 'expired' | 'withdrawn';
   outcome?: { text: string; tone: 'ok' | 'failed' | 'neutral' };
+  designCheck?: DesignBuildDecision;
   answer?: {
     actionId: string;
     by: UserId;

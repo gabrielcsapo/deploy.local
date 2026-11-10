@@ -2306,11 +2306,26 @@ test('approved designs show build reports and only linked open tasks without rep
   );
   await designTool({ owner: 'alice', taskId }, { action: 'built', state: 'matches' });
   assert.equal((await readApproved())[0].detail, 'Built · matches the design');
+  await assert.rejects(
+    () =>
+      designTool({ owner: 'alice', taskId }, { action: 'built', state: 'differs', differences: 1 }),
+    /plain words/,
+  );
   await designTool(
     { owner: 'alice', taskId },
-    { action: 'built', state: 'differs', differences: 2 },
+    {
+      action: 'built',
+      state: 'differs',
+      differences: 2,
+      text: 'History wraps, and the count is smaller.',
+    },
   );
   assert.equal((await readApproved())[0].detail, 'Built · 2 differences to look at');
+  const built = get('design-review-built', 'alice', item.id);
+  save('design-review-built', 'alice', { ...built, state: 'kept' });
+  assert.equal((await readApproved())[0].detail, 'Built · matches the design');
+  save('design-review-built', 'alice', { ...built, state: 'waiting' });
+  assert.match((await readApproved())[0].detail, /being built$/);
 });
 
 test('an approved design starts its build once it is on main, and only once', async () => {

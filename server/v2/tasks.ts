@@ -1,3 +1,5 @@
+import { approvedTaskDesign, taskDesignCheck } from './design-check.ts';
+import { ensureDesignCheckBoards } from './design.ts';
 import { mergingPackages } from '../packages/pipeline-read.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ConversationEvent } from '../../shared/v2/contracts.ts';
@@ -82,7 +84,9 @@ export function taskSnapshot(owner: string, id: string) {
   const pulls = list('pull-request', owner)
     .filter((pull) => pull.projectId === task.projectId && pull.taskIds?.includes(id))
     .map((pull) => ({ ...pull, files: pullFiles(owner, pull.id) }));
+  const designCheck = taskDesignCheck(owner, id);
   return {
+    ...(designCheck ? { designCheck } : {}),
     task: {
       id: task.id,
       title: task.title,
@@ -139,7 +143,15 @@ export function taskSnapshot(owner: string, id: string) {
 export async function tasksApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const match = new URL(req.url!, 'http://localhost').pathname.match(/^\/api\/v2\/tasks\/([^/]+)$/);
   if (!match || req.method !== 'GET') return false;
-  const snapshot = taskSnapshot(owner, decodeURIComponent(match[1]));
+  const taskId = decodeURIComponent(match[1]);
+  const approved = approvedTaskDesign(owner, taskId);
+  if (approved)
+    await ensureDesignCheckBoards(
+      owner,
+      get('project', owner, approved.context.projectId),
+      approved,
+    );
+  const snapshot = taskSnapshot(owner, taskId);
   if (snapshot.project) {
     try {
       const repository = await repositoryInfo(owner, snapshot.project.id);

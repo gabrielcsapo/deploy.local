@@ -97,6 +97,9 @@ export function checkDuration(check: TaskCheck) {
  * checkpoint's, which may be newer work. Only a head whose checks all passed is ready to merge, and
  * a failure on either is never called ready.
  */
+export const designCheckWaiting = (view: TaskView) =>
+  !!view.designCheck && ['waiting', 'differs'].includes(view.designCheck.state);
+
 export function taskStatus(
   view: TaskView,
   diff: TaskDiff | null,
@@ -121,9 +124,9 @@ export function taskStatus(
         }
       : passed
         ? {
-            label: 'Ready to merge',
+            label: designCheckWaiting(view) ? 'Design not checked' : 'Ready to merge',
             detail: `Checks passed, no conflicts with ${target}`,
-            icon: 'check' as const,
+            icon: designCheckWaiting(view) ? ('clock' as const) : ('check' as const),
           }
         : {
             label: 'Not checked',

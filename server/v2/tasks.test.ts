@@ -14,6 +14,56 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
+test('a task carries only its landed approved design and the latest check state', () => {
+  const owner = 'design-check';
+  save('task', owner, { id: 'build', title: 'Build', status: 'ready', revision: 1 });
+  assert.equal('designCheck' in taskSnapshot(owner, 'build'), false);
+  const row = {
+    id: 'design:p:header',
+    context: {
+      source: 'design',
+      taskId: 'build',
+      checkBoards: [
+        { file: 'Header.html', title: 'Header', widths: [1440, 700], height: 900 },
+        { file: 'HeaderPhone.html', title: 'Header on iPhone', widths: [390], height: 844 },
+      ],
+    },
+    item: {
+      title: 'A calmer Tally header',
+      state: 'answered',
+      answer: { actionId: 'approve', at: '2026-11-09T14:14:00Z' },
+    },
+  };
+  save('v2-inbox-native', owner, row);
+  assert.equal('designCheck' in taskSnapshot(owner, 'build'), false);
+  save('design-review-landing', owner, { id: row.id, state: 'pending', commit: 'approved-main' });
+  assert.equal('designCheck' in taskSnapshot(owner, 'build'), false);
+  save('design-review-landing', owner, { id: row.id, state: 'landed', commit: 'approved-main' });
+  const check = taskSnapshot(owner, 'build').designCheck!;
+  assert.equal(check.state, 'waiting');
+  assert.equal(check.title, row.item.title);
+  assert.equal(check.approvedAt, row.item.answer.at);
+  assert.equal(check.commit, 'approved-main');
+  assert.deepEqual(check.boards, row.context.checkBoards);
+  assert.equal(check.reviewHref, '/dashboard/inbox?item=design%3Ap%3Aheader');
+  for (const state of ['matches', 'differs', 'kept', 'waiting']) {
+    save('design-review-built', owner, {
+      id: row.id,
+      state,
+      captures: 2,
+      text: 'History wraps',
+      at: '2026-11-09T14:30:00Z',
+    });
+    assert.equal(taskSnapshot(owner, 'build').designCheck!.state, state);
+  }
+  save('v2-inbox-native', owner, {
+    ...row,
+    item: { ...row.item, answer: { ...row.item.answer, actionId: 'changes' } },
+  });
+  assert.equal('designCheck' in taskSnapshot(owner, 'build'), false);
+  assert.throws(() => taskSnapshot('another-owner', 'build'), /Not found/);
+});
+
 test('Task read model is owner scoped and retains messages beyond the recent-events window', () => {
   save('project', 'owner', { id: 'p', name: 'home-gym' });
   save('task', 'owner', {
@@ -71,6 +121,17 @@ test('Existing task, checkpoint, check and job events become stable typed conver
   assert.equal(map('checkpoint.created', {}), undefined);
   assert.equal(map('job.running', {}), undefined);
   assert.equal(map('agent.ship', { ref: 'main' }), undefined);
+  assert.equal(
+    map('v2.conversation', {
+      event: {
+        kind: 'decision',
+        id: 'build-decision',
+        at: '2026-11-09T14:00:00Z',
+        inboxItemId: 'design-build:1',
+      },
+    })?.kind,
+    'decision',
+  );
 });
 
 test('Task route passes through owner authentication and refuses agent credentials', async () => {

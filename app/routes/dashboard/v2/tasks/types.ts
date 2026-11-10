@@ -1,4 +1,9 @@
-import type { ConversationEvent, Release, Screenshot } from '../../../../../shared/v2/contracts';
+import type {
+  ConversationEvent,
+  Release,
+  Screenshot,
+  TaskDesignCheck,
+} from '../../../../../shared/v2/contracts';
 
 export type TaskPull = {
   id: string;
@@ -60,6 +65,7 @@ export type TaskCheck = {
   completedAt?: string;
 };
 export type TaskView = {
+  designCheck?: TaskDesignCheck;
   task: {
     id: string;
     title: string;

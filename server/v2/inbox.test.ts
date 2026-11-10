@@ -14,6 +14,127 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 const owner = 'gabriel';
+
+test('design differences replace one decision, answers resume the same task, and matches withdraws it', async () => {
+  const { reportDesignBuild, taskDesignCheck } = await import('./design-check.ts');
+  const who = 'design-owner';
+  const taskId = 'tally-builder';
+  save('task', who, { id: taskId, projectId: 'tally', status: 'running', revision: 1 });
+  save('run', who, { id: 'active', taskId, status: 'running' });
+  const reviewId = 'design:tally:header';
+  save('v2-inbox-native', who, {
+    id: reviewId,
+    context: {
+      source: 'design',
+      taskId,
+      projectId: 'tally',
+      checkBoards: [
+        { file: 'Header.html', title: 'Tally header', widths: [1440, 700], height: 900 },
+      ],
+    },
+    item: {
+      ...decision(reviewId),
+      projectId: 'tally',
+      title: 'A calmer Tally header',
+      state: 'answered',
+      answer: { actionId: 'approve', at: '2026-11-09T14:14:00Z' },
+    },
+  });
+  save('design-review-landing', who, { id: reviewId, state: 'landed', commit: 'main-commit' });
+  const report = {
+    state: 'differs',
+    differences: 1,
+    text: 'History wraps at 700 px.',
+    why: 'Five digits need more room.',
+    board: 'Header.html',
+    width: 700,
+  };
+  assert.throws(() => reportDesignBuild(who, taskId, { ...report, text: '  ' }), /plain words/);
+  assert.throws(
+    () => reportDesignBuild(who, taskId, { ...report, text: undefined }),
+    /plain words/,
+  );
+  save('screenshot', who, {
+    id: 'wrong',
+    taskId: 'another-task',
+    image: '/image',
+    width: 700,
+    height: 900,
+  });
+  assert.throws(
+    () => reportDesignBuild(who, taskId, { ...report, screenshotId: 'wrong' }),
+    /this task/,
+  );
+  save('screenshot', who, { id: 'capture', taskId, image: '/image', width: 700, height: 900 });
+  assert.throws(
+    () => reportDesignBuild(who, taskId, { ...report, screenshotId: 'capture', width: 1440 }),
+    /width/,
+  );
+  reportDesignBuild(who, taskId, { ...report, screenshotId: 'capture' });
+  const decisions = () => syncInbox(who).filter((item) => item.designCheck);
+  const first = decisions()[0];
+  assert.equal(first.designCheck!.capture!.image, '/image');
+  reportDesignBuild(who, taskId, { ...report, text: 'History has its own line.' });
+  assert.equal(decisions().length, 1);
+  assert.equal(decisions()[0].id, first.id);
+  assert.equal(decisions()[0].text, 'History has its own line.');
+  assert.equal(
+    decisions()[0].designCheck!.capture,
+    undefined,
+    'replacing the report removes stale captures',
+  );
+  save('queued-message', who, {
+    id: taskId,
+    taskId,
+    status: 'queued',
+    content: 'Keep this earlier instruction.',
+  });
+  answerInbox(who, first.id, { actionId: 'fix-app', on: 'web' });
+  assert.equal(taskDesignCheck(who, taskId)!.state, 'waiting');
+  const message = () => list('queued-message', who).find((row) => row.id === taskId)!.content;
+  assert.match(message(), /Keep this earlier instruction/);
+  assert.match(message(), /Fix the app/);
+  assert.match(message(), /History has its own line/);
+  assert.throws(() => answerInbox(who, first.id, { actionId: 'keep-design', on: 'web' }), {
+    status: 409,
+  });
+  reportDesignBuild(who, taskId, report);
+  const next = decisions().find((item) => item.state === 'waiting')!;
+  assert.notEqual(next.id, first.id);
+  answerInbox(who, next.id, { actionId: 'keep-design', on: 'web' });
+  assert.equal(taskDesignCheck(who, taskId)!.state, 'kept');
+  assert.match(message(), /own branch/);
+  assert.match(message(), /pull request/);
+  assert.equal(list('task', who).length, 1);
+  reportDesignBuild(who, taskId, report);
+  const waiting = decisions().find((item) => item.state === 'waiting')!;
+  reportDesignBuild(who, taskId, { state: 'matches', captures: 2 });
+  assert.equal(taskDesignCheck(who, taskId)!.state, 'matches');
+  assert.equal(taskDesignCheck(who, taskId)!.captures, 2);
+  assert.equal(taskDesignCheck(who, taskId)!.text, undefined);
+  assert.equal(decisions().find((item) => item.id === waiting.id)!.state, 'withdrawn');
+  assert.equal(decisions().filter((item) => item.state === 'waiting').length, 0);
+  assert.equal(decisions().filter((item) => item.state === 'answered').length, 2);
+  assert.throws(() => answerInbox(who, waiting.id, { actionId: 'fix-app', on: 'web' }), {
+    status: 409,
+  });
+  reportDesignBuild(who, taskId, {
+    state: 'matches',
+    captures: 1,
+    comparisons: [{ board: 'Header.html', width: 700, screenshotId: 'capture' }],
+  });
+  assert.deepEqual(taskDesignCheck(who, taskId)!.comparisons, [
+    { board: 'Header.html', width: 700, screenshotId: 'capture', image: '/image', height: 900 },
+  ]);
+  assert.throws(
+    () =>
+      reportDesignBuild(who, taskId, {
+        state: 'matches',
+        comparisons: [{ board: 'Header.html', width: 700, screenshotId: 'wrong' }],
+      }),
+    /this task/,
+  );
+});
 function decision(id: string): InboxItem {
   return {
     id,

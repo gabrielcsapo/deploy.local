@@ -8,6 +8,7 @@ import { formatTime } from '../data/time';
 import { DesignCard } from '../design/Review';
 
 import { QuestionDecision } from './QuestionDecision';
+import { DesignBuildDecision } from './DesignBuildDecision';
 import { answerDetails, answerLabel } from './presentation';
 export { agentName, answerDetails, answerLabel } from './presentation';
 
@@ -80,7 +81,14 @@ function Decision({ item }: { item: InboxItem }) {
     );
   return (
     <div className="dl-inbox-decision" id={`decision-${item.id}`}>
-      {closed ? (
+      {item.designCheck ? (
+        <DesignBuildDecision
+          item={item}
+          name={name}
+          pending={pending}
+          submit={(action) => void submit(action)}
+        />
+      ) : closed ? (
         <article className="dl-approval answered">
           <div className="dl-approval-head">
             <SavedAgentAvatar id={item.from} />

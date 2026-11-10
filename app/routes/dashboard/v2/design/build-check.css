@@ -1,0 +1,76 @@
+.dl-build-comparison {
+  position: relative;
+  display: grid;
+  min-height: calc(var(--ds-space-8) * 6);
+  overflow: hidden;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-canvas);
+}
+.dl-build-comparison > .dl-section {
+  grid-area: 1 / 1;
+  margin: 0;
+  padding: var(--ds-space-4);
+  padding-top: calc(var(--ds-space-8) * 2);
+  background: var(--ds-canvas);
+  min-width: 0;
+}
+.dl-build-comparison img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.dl-build-label {
+  position: absolute;
+  top: var(--ds-space-3);
+  margin: 0;
+  font-size: var(--ds-type-ui);
+  line-height: 1.3846;
+}
+.dl-build-label.before {
+  left: var(--ds-space-4);
+}
+.dl-build-label.after {
+  right: var(--ds-space-4);
+}
+.dl-build-divider {
+  position: absolute;
+  inset-block: 0;
+  width: 1px;
+  background: var(--ds-action);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dl-build-divider .dl-chip {
+  flex: none;
+  min-width: var(--ds-size-touchControl);
+  min-height: var(--ds-size-touchControl);
+  justify-content: center;
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-sm);
+}
+.dl-build-check-note {
+  margin: var(--ds-space-2) 0 0;
+}
+.dl-task-state .dl-wait,
+.dl-task-check .dl-wait {
+  color: var(--ds-tertiary);
+}
+.dl-build-report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+}
+.dl-build-report .dl-section {
+  margin: 0;
+}
+.dl-build-report .dl-section-sub {
+  margin: 0;
+}
+
+/* On the decision page the answers sit flush with the text, not under an approval card's icon. */
+.dl-build-report .dl-approval-actions {
+  padding-left: 0;
+}
