@@ -1,4 +1,4 @@
-import { logFlightRouterError } from './server/flight-router-error.ts';
+import { flightLogLine, logFlightRouterError } from './server/flight-router-error.ts';
 // The built server: dist/server.js, which `pnpm start` runs through dist/supervisor.js. Everything is
 // bootServer's; this file adds only the built web app.
 import { bootServer, type ClientHandler } from './server/boot.ts';
@@ -22,8 +22,8 @@ async function createFlightClient(): Promise<ClientHandler> {
       // slow shell out (docker, tar) only its worker stalls.
       //
       // One thread is enough: those actions are mostly waiting on I/O, so they
-      // interleave. The default (cpus - 1) spawns eagerly, and every thread loads
-      // the whole server: 23 of them on a 24-core machine for almost no traffic.
+      // interleave. It starts on the first action, and every thread loads the
+      // whole server.
       //
       // Module-level mutable state isn't shared with the worker; this is fine
       // because we only carry sqlite handles + caches at module scope and
@@ -38,11 +38,7 @@ async function createFlightClient(): Promise<ClientHandler> {
       onRequestComplete: (event) => {
         // Surface slow RSC/SSR/action requests at debug level. Anything below
         // 500ms is silent; the few that matter are easy to spot.
-        if (event.totalMs >= 500) {
-          console.log(
-            `[flight] ${event.type} ${event.pathname} ${event.status} ${Math.round(event.totalMs)}ms`,
-          );
-        }
+        if (event.totalMs >= 500) console.log(flightLogLine(event));
       },
     });
   } catch (err) {

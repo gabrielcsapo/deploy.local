@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
-import { createServer } from './index.js';
+import { createServer, type RequestTimingEvent } from './index.js';
 import { ACTION_ENDPOINT, RSC_ACTION_HEADER, RSC_REDIRECT_HEADER } from '../shared/constants.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -82,12 +82,14 @@ for (const mode of ['worker', 'main thread'] as const) {
   describe(`server action errors (${mode})`, () => {
     let app: Awaited<ReturnType<typeof createServer>>;
     const errors: unknown[][] = [];
+    const events: RequestTimingEvent[] = [];
     const realError = console.error;
     before(async () => {
       console.error = (...args: unknown[]) => void errors.push(args);
       app = await createServer({
         buildDir: BUILD_DIR,
         workers: mode === 'worker' ? { size: 1 } : undefined,
+        onRequestComplete: (event) => events.push(event),
       });
     });
     after(async () => {
@@ -102,6 +104,20 @@ for (const mode of ['worker', 'main thread'] as const) {
       assert.equal(response.headers.get('transfer-encoding'), null);
       assert.equal(response.headers.get('cache-control'), 'private, no-store, no-transform');
       assert.deepEqual(await response.json(), { value: 'x' });
+    });
+
+    it('tells onRequestComplete where the action spent its time', async () => {
+      events.length = 0;
+      const response = await call(app, 'ok');
+      await response.text();
+      for (let i = 0; i < 50 && events.length === 0; i++)
+        await new Promise((r) => setTimeout(r, 10));
+      const action = events[0]?.action;
+      assert.ok(action, 'ACTION events carry action timings');
+      assert.equal(action.worker, mode === 'worker');
+      for (const key of ['queueMs', 'decodeMs', 'executeMs', 'serializeMs', 'totalMs'] as const)
+        assert.equal(typeof action[key], 'number', key);
+      assert.ok(action.totalMs >= action.executeMs);
     });
 
     it('answers a thrown error with a 500 carrying its message and a digest', async () => {

@@ -81,7 +81,11 @@ export type ModuleLoader = (id: string) => Promise<Record<string, unknown>>;
  * (database, Redis) for shared state when workers are enabled.
  */
 export interface WorkerOptions {
-  /** Number of worker threads. Default: `max(1, os.cpus().length - 1)` */
+  /**
+   * Number of worker threads. Default: 1. Workers start on the first
+   * programmatic action, not at boot, and not at all when the build has no
+   * server actions.
+   */
   size?: number;
   /** Maximum action execution time in ms before returning 504. Default: 30000 */
   timeout?: number;
@@ -124,4 +128,33 @@ export interface RequestTimingEvent {
   timestamp: string;
   /** True when the client disconnected before the stream was fully consumed */
   cancelled?: boolean;
+  /**
+   * Where a programmatic server action's time went. Set on ACTION events,
+   * measured whether or not telemetry or debug output is on.
+   */
+  action?: ActionTimings;
+}
+
+/** Phases of one programmatic server action, in milliseconds. */
+export interface ActionTimings {
+  /** The action's id, `<module>#<export>`. */
+  id: string;
+  /** True when the action ran on a worker thread. */
+  worker: boolean;
+  /**
+   * From the request reaching the router to the action starting: waiting for
+   * a worker to start, and for its thread to be free of other work.
+   */
+  queueMs: number;
+  /** Reading and decoding the arguments. */
+  decodeMs: number;
+  /** Loading the action's module and running it until its promise settled. */
+  executeMs: number;
+  /**
+   * Serializing the result. On a worker this ends when the last chunk was
+   * handed to the main thread; on the main thread it follows the client's pace.
+   */
+  serializeMs: number;
+  /** From the request reaching the router to the action's result being complete. */
+  totalMs: number;
 }

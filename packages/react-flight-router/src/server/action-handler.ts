@@ -1,4 +1,9 @@
-import type { ServerActionsManifest, RSCClientManifest, ModuleLoader } from '../shared/types.js';
+import type {
+  ActionTimings,
+  ServerActionsManifest,
+  RSCClientManifest,
+  ModuleLoader,
+} from '../shared/types.js';
 import type { RouteConfig } from '../router/types.js';
 import { RSC_ACTION_HEADER } from '../shared/constants.js';
 import type { FlightLogger } from '../shared/logger.js';
@@ -36,6 +41,11 @@ interface HandleActionOptions {
   deferStreamTiming?: boolean;
   onError?: (error: unknown) => void;
   onAction?: (id: string) => void;
+  /**
+   * Called once per programmatic action with where its time went: when the
+   * result stream ends, or when the action threw.
+   */
+  onTimings?: (timings: ActionTimings) => void;
 }
 
 /**
@@ -63,6 +73,31 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
   const url = new URL(referer, request.url);
   const actionId = request.headers.get(RSC_ACTION_HEADER);
   if (actionId) opts.onAction?.(actionId);
+
+  const startedAt = performance.now();
+  const phases = { decodeMs: 0, executeMs: 0, serializeMs: 0 };
+  let mark = startedAt;
+  const lap = (phase: keyof typeof phases) => {
+    const now = performance.now();
+    phases[phase] = now - mark;
+    mark = now;
+  };
+  let reported = false;
+  const reportTimings = () => {
+    if (reported || !actionId || !opts.onTimings) return;
+    reported = true;
+    try {
+      opts.onTimings({
+        id: actionId,
+        worker: false,
+        queueMs: 0,
+        ...phases,
+        totalMs: performance.now() - startedAt,
+      });
+    } catch {
+      /* A host's timing hook never fails the action. */
+    }
+  };
 
   try {
     if (actionId) {
@@ -95,6 +130,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
         args = (await decodeReply(text, serverActionsManifest)) as unknown[];
       }
       logger?.timeEnd('action:decodeArgs');
+      lap('decodeMs');
 
       logger?.time(`action:loadModule(${moduleId})`);
       const mod = await opts.loadModule(manifestEntry.id);
@@ -112,7 +148,12 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       // Execute and return the action's return value as RSC stream.
       // This allows useActionState on the client to receive the new state.
       logger?.time(`action:execute(${exportName})`);
-      const result = await actionFn(...args);
+      let result: unknown;
+      try {
+        result = await actionFn(...args);
+      } finally {
+        lap('executeMs');
+      }
       logger?.timeEnd(`action:execute(${exportName})`);
 
       logger?.time('action:serialize');
@@ -123,6 +164,11 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
         },
       });
       logger?.timeEnd('action:serialize');
+      if (opts.onTimings)
+        rscStream = whenRead(rscStream, () => {
+          lap('serializeMs');
+          reportTimings();
+        });
 
       if (logger && !opts.deferStreamTiming) {
         rscStream = logger.wrapStream(
@@ -213,6 +259,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
     for (const entry of logger?.getEntries(false) ?? []) {
       if (entry.label.startsWith('action:execute(')) logger?.timeEnd(entry.label);
     }
+    reportTimings();
     const redirect = asRedirect(err);
     if (redirect) {
       opts.onComplete?.(actionId ? 200 : 303);
@@ -229,4 +276,33 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
     if (actionId) return actionFailureResponse(failure);
     return new Response(failure.message, { status: failure.status });
   }
+}
+
+/** Calls `onEnd` once, when the stream has been read to its end, errors or is cancelled. */
+function whenRead(stream: ReadableStream, onEnd: () => void): ReadableStream {
+  const reader = stream.getReader();
+  let ended = false;
+  const end = () => {
+    if (ended) return;
+    ended = true;
+    onEnd();
+  };
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          end();
+          controller.close();
+        } else controller.enqueue(chunk.value);
+      } catch (error) {
+        end();
+        controller.error(error);
+      }
+    },
+    cancel(reason) {
+      end();
+      return reader.cancel(reason);
+    },
+  });
 }

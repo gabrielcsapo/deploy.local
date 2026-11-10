@@ -1,8 +1,7 @@
 import { Worker, MessageChannel } from 'node:worker_threads';
-import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import type { ErrorRecord } from './telemetry.js';
-import type { TimingEntry } from '../shared/types.js';
+import type { ActionTimings, TimingEntry } from '../shared/types.js';
 import type { SerializedRequestContext } from '../shared/types.js';
 
 /** Internal task dispatched to a worker */
@@ -19,7 +18,15 @@ export interface WorkerCompletion {
   error?: string;
   errorRecord?: ErrorRecord;
   timings?: TimingEntry[];
+  /** Where the action's time went; absent when the worker never answered. */
+  action?: ActionTimings;
 }
+
+/** Phases the worker measures; the pool adds `totalMs` and `worker`. */
+export type WorkerPhaseTimings = Pick<
+  ActionTimings,
+  'queueMs' | 'decodeMs' | 'executeMs' | 'serializeMs'
+>;
 
 /** How the worker answered, known before any byte of the response is sent. */
 export type DispatchHead =
@@ -62,15 +69,18 @@ export interface WorkerPool {
   destroy(): Promise<void>;
 }
 
-const DEFAULT_POOL_SIZE = Math.max(1, cpus().length - 1);
+const DEFAULT_POOL_SIZE = 1;
 const DEFAULT_TIMEOUT = 30_000;
 
 /**
  * Create a pool of worker threads for executing server actions.
  * Workers are initialized with the RSC runtime and action modules
  * from the build directory, mirroring the main thread's setup.
+ *
+ * No thread starts until the first dispatch, which waits for them; a failed
+ * start fails that dispatch and the next one tries again.
  */
-export async function createWorkerPool(config: WorkerPoolConfig): Promise<WorkerPool> {
+export function createWorkerPool(config: WorkerPoolConfig): WorkerPool {
   const poolSize = config.size ?? DEFAULT_POOL_SIZE;
   const timeout = config.timeout ?? DEFAULT_TIMEOUT;
   const workerPath = fileURLToPath(new URL('./action-worker.js', import.meta.url));
@@ -141,11 +151,26 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
     });
   }
 
-  // Initialize all workers in parallel
-  const spawned = await Promise.all(Array.from({ length: poolSize }, () => spawnWorker()));
-  workers.push(...spawned);
-
   let destroyed = false;
+  let starting: Promise<void> | null = null;
+  function start(): Promise<void> {
+    starting ??= Promise.all(Array.from({ length: poolSize }, () => spawnWorker())).then(
+      (spawned) => {
+        if (destroyed) {
+          for (const managed of spawned) void managed.worker.terminate();
+          throw new Error('Worker pool has been destroyed');
+        }
+        workers.push(...spawned);
+      },
+      (error) => {
+        starting = null;
+        throw error;
+      },
+    );
+    return starting;
+  }
+  /** Aborts that arrived while their task waited for the pool to start. */
+  const earlyAborts = new Set<string>();
 
   function pickWorker(): ManagedWorker {
     // Least-busy: pick the worker with fewest pending tasks
@@ -162,8 +187,42 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
     if (destroyed) {
       throw new Error('Worker pool has been destroyed');
     }
+    const dispatchedAt = performance.now();
+    if (workers.length > 0) return dispatchTo(pickWorker(), task, dispatchedAt);
 
-    const managed = pickWorker();
+    // First action: start the threads, then hand the task over.
+    const pending = start().then(() => {
+      const result = dispatchTo(pickWorker(), task, dispatchedAt);
+      if (earlyAborts.delete(task.taskId)) abort(task.taskId);
+      return result;
+    });
+    const failed = (error: unknown) => {
+      earlyAborts.delete(task.taskId);
+      return error instanceof Error ? error.message : String(error);
+    };
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    pending.then(
+      (result) => result.stream.pipeTo(writable).catch(() => {}),
+      (error) => void writable.abort(error).catch(() => {}),
+    );
+    return {
+      stream: readable,
+      head: pending.then(
+        (result) => result.head,
+        (error) => ({ kind: 'error' as const, status: 500, message: failed(error) }),
+      ),
+      done: pending.then(
+        (result) => result.done,
+        (error) => ({ status: 500, error: failed(error) }),
+      ),
+    };
+  }
+
+  function dispatchTo(
+    managed: ManagedWorker,
+    task: ActionTask,
+    dispatchedAt: number,
+  ): DispatchResult {
     const { port1: mainPort, port2: workerPort } = new MessageChannel();
 
     managed.pendingTasks++;
@@ -215,7 +274,17 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
             redirectStatus?: 301 | 302;
             errorRecord?: ErrorRecord;
             timings?: TimingEntry[];
+            actionTimings?: WorkerPhaseTimings;
           }) => {
+            const action = msg.actionTimings
+              ? {
+                  ...msg.actionTimings,
+                  id: task.actionId,
+                  worker: true,
+                  totalMs: performance.now() - dispatchedAt,
+                }
+              : undefined;
+            const measured = action ? { action } : {};
             switch (msg.type) {
               case 'chunk':
                 resolveHead({ kind: 'stream' });
@@ -230,6 +299,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
                   status: 200,
                   ...(msg.errorRecord ? { errorRecord: msg.errorRecord } : {}),
                   ...(msg.timings ? { timings: msg.timings } : {}),
+                  ...measured,
                 });
                 break;
               case 'redirect':
@@ -244,6 +314,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
                 resolveStatus({
                   status: 200,
                   ...(msg.timings ? { timings: msg.timings } : {}),
+                  ...measured,
                 });
                 break;
               case 'error':
@@ -261,6 +332,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
                   error: msg.message,
                   ...(msg.errorRecord ? { errorRecord: msg.errorRecord } : {}),
                   ...(msg.timings ? { timings: msg.timings } : {}),
+                  ...measured,
                 });
                 break;
             }
@@ -314,6 +386,9 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
         body: bodyBuffer,
         requestContext: task.requestContext,
         resultPort: workerPort,
+        // Epoch time, comparable across threads, so the worker can tell how
+        // long the task waited for its thread.
+        queuedAt: performance.timeOrigin + dispatchedAt,
       },
       [bodyBuffer, workerPort],
     );
@@ -325,6 +400,8 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
     const managed = taskToWorker.get(taskId);
     if (managed) {
       managed.worker.postMessage({ type: 'abort', taskId });
+    } else if (starting && workers.length === 0) {
+      earlyAborts.add(taskId);
     }
   }
 

@@ -74,6 +74,8 @@ interface ExecuteMessage {
   body: ArrayBuffer;
   requestContext: SerializedRequestContext;
   resultPort: MessagePort;
+  /** Epoch ms when the main thread dispatched the task. */
+  queuedAt?: number;
 }
 
 interface AbortMessage {
@@ -94,6 +96,20 @@ function reconstructRequest(ctx: SerializedRequestContext): Request {
 
 async function handleExecute(msg: ExecuteMessage): Promise<void> {
   const { taskId, actionId, body, contentType, requestContext, resultPort } = msg;
+  // Measured on every task, telemetry or not; the pool adds the total.
+  const startedAt = performance.now();
+  const phases = {
+    queueMs: msg.queuedAt ? Math.max(0, performance.timeOrigin + startedAt - msg.queuedAt) : 0,
+    decodeMs: 0,
+    executeMs: 0,
+    serializeMs: 0,
+  };
+  let mark = startedAt;
+  const lap = (phase: 'decodeMs' | 'executeMs' | 'serializeMs') => {
+    const now = performance.now();
+    phases[phase] = now - mark;
+    mark = now;
+  };
 
   const ac = new AbortController();
   pendingAborts.set(taskId, ac);
@@ -148,6 +164,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
       const text = new TextDecoder().decode(body);
       args = (await decodeReply(text, serverActionsManifest)) as unknown[];
     }
+    lap('decodeMs');
 
     // Load the action module
     const mod = await loadModule(manifestEntry.id);
@@ -167,7 +184,12 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
     // Execute the action within the request context
     const request = reconstructRequest(requestContext);
     logger?.time('action:execute(worker)');
-    const result = await requestStorage.run(request, () => actionFn(...args));
+    let result: unknown;
+    try {
+      result = await requestStorage.run(request, () => actionFn(...args));
+    } finally {
+      lap('executeMs');
+    }
     logger?.timeEnd('action:execute(worker)');
 
     // Check for abort after execution
@@ -211,9 +233,11 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
     } finally {
       reader.releaseLock();
     }
+    lap('serializeMs');
 
     resultPort.postMessage({
       type: 'done',
+      actionTimings: phases,
       ...(logger ? { timings: logger.getEntries() } : {}),
       ...(errorRecord ? { errorRecord } : {}),
     });
@@ -226,6 +250,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
           type: 'redirect',
           url: redirect.url,
           redirectStatus: redirect.status,
+          actionTimings: phases,
           ...(logger ? { timings: logger.getEntries() } : {}),
         });
         resultPort.close();
@@ -239,6 +264,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
         status: failure.status,
         message: failure.message,
         digest: failure.digest,
+        actionTimings: phases,
         ...(logger ? { timings: logger.getEntries() } : {}),
         ...(errorRecord ? { errorRecord } : {}),
       });

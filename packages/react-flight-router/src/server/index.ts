@@ -33,7 +33,7 @@ import {
 } from '../shared/constants.js';
 import type { RouteConfig } from '../router/types.js';
 import type { ExtendHook } from '../shared/extend.js';
-import type { RequestTimingEvent, WorkerOptions } from '../shared/types.js';
+import type { ActionTimings, RequestTimingEvent, WorkerOptions } from '../shared/types.js';
 import {
   maybeCreateLogger,
   isDebugEnabled,
@@ -231,6 +231,7 @@ export async function createServer(opts: CreateServerOptions) {
     pathname: string,
     status: number,
     cancelled?: boolean,
+    action?: ActionTimings,
   ) {
     if (!onRequestComplete) return;
     try {
@@ -244,6 +245,7 @@ export async function createServer(opts: CreateServerOptions) {
         timings: entries.filter((e) => e.label !== 'total'),
         timestamp: new Date().toISOString(),
         ...(cancelled ? { cancelled } : {}),
+        ...(action ? { action } : {}),
       });
     } catch (err) {
       console.error('[react-flight-router] onRequestComplete callback error:', err);
@@ -259,6 +261,7 @@ export async function createServer(opts: CreateServerOptions) {
     status?: number;
     errors: Set<unknown>;
     workerDone?: Promise<WorkerCompletion>;
+    action?: ActionTimings;
   }
   const requests = new WeakMap<FlightTimer, RequestState>();
   function reportError(logger: FlightLogger, where: 'rsc' | 'ssr' | 'action', error: unknown) {
@@ -331,7 +334,20 @@ export async function createServer(opts: CreateServerOptions) {
       if (!reporter && !onRequestComplete && !isDebugEnabled(debugEnabled)) return response;
       const status = response.status;
       const finish = (aborted: boolean) => {
-        fireRequestComplete(logger, type, state.pathname, state.status ?? status, aborted);
+        // A worker's timings arrive with its completion, which can trail the last chunk.
+        if (state.workerDone && !state.action)
+          return void state.workerDone.then(() => report(aborted));
+        report(aborted);
+      };
+      const report = (aborted: boolean) => {
+        fireRequestComplete(
+          logger,
+          type,
+          state.pathname,
+          state.status ?? status,
+          aborted,
+          state.action,
+        );
         if (reporter) {
           const timings = logger.getEntries();
           reporter.add({
@@ -518,11 +534,14 @@ export async function createServer(opts: CreateServerOptions) {
     }
   }
 
-  // Optionally create a worker pool for offloading server actions
+  // Optionally create a worker pool for offloading server actions. Its
+  // threads start on the first action; a build without actions gets none.
   let workerPool: WorkerPool | null = null;
-  if (opts.workers) {
+  const hasServerActions =
+    actionEntries.length > 0 || Object.keys(manifests.serverActionsManifest).length > 0;
+  if (opts.workers && hasServerActions) {
     const workerOpts = opts.workers === true ? {} : opts.workers;
-    workerPool = await createWorkerPool({
+    workerPool = createWorkerPool({
       buildDir,
       size: workerOpts.size,
       timeout: workerOpts.timeout,
@@ -903,8 +922,9 @@ export async function createServer(opts: CreateServerOptions) {
         // Handle worker errors (404, 500, 504) — the done promise resolves
         // with the status when the worker finishes or errors.
         state.workerDone = done;
-        done.then(({ status, errorRecord, timings }) => {
+        done.then(({ status, errorRecord, timings, action }) => {
           state.status = status;
+          state.action = action;
           if (errorRecord) reporter?.add(errorRecord);
           for (const entry of timings ?? [])
             logger.record(
@@ -969,6 +989,9 @@ export async function createServer(opts: CreateServerOptions) {
         onError: (error) => reportError(logger, 'action', error),
         onAction: (id) => {
           state.route = `action:${id}`;
+        },
+        onTimings: (timings) => {
+          state.action = timings;
         },
         requestSignal: actionSignal,
       });
@@ -1122,5 +1145,10 @@ export { handleAction } from './action-handler.js';
 export { getRequest, requestStorage } from './request-context.js';
 export { redirect } from './redirect.js';
 export { createNodeListener, type NodeRequest, type NodeResponse } from './node-listener.js';
-export type { RequestTimingEvent, TimingEntry, WorkerOptions } from '../shared/types.js';
+export type {
+  ActionTimings,
+  RequestTimingEvent,
+  TimingEntry,
+  WorkerOptions,
+} from '../shared/types.js';
 export type { ExtendContext, ExtendHook } from '../shared/extend.js';

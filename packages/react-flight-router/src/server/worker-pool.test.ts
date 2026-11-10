@@ -65,6 +65,15 @@ globalThis.__flight_server_modules["${actionId}"] = {
   throwingAction: async function throwingAction() {
     throw new Error("Test action error");
   },
+  slowAction: async function slowAction() {
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    return "slow";
+  },
+  blockingAction: async function blockingAction() {
+    const until = Date.now() + 120;
+    while (Date.now() < until) {}
+    return "blocked";
+  },
 };
 `;
   writeFileSync(join(serverDir, 'server-action-test.js'), actionCode);
@@ -403,5 +412,63 @@ globalThis.__flight_server_modules["test/action"] = {
     }, /destroyed/);
 
     pool = null; // Already destroyed
+  });
+  it('starts no thread until the first action, and a failed start fails only that action', async () => {
+    // A build directory that does not exist: an eager pool rejected here.
+    pool = await createWorkerPool({ buildDir: join(tmpdir(), 'flight-worker-missing-build') });
+    const { head, done } = pool.dispatch({
+      taskId: 'lazy-1',
+      actionId: 'test/action#default',
+      body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+      contentType: 'text/plain',
+      requestContext: { url: 'http://localhost/', method: 'POST', headers: [] },
+    });
+    const answer = await head;
+    assert.equal(answer.kind, 'error');
+    assert.equal((await done).status, 500);
+  });
+
+  it('reports where an action spent its time, with telemetry off', async () => {
+    fixtureDir = createTestFixtures();
+    pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
+    const { stream, done } = pool.dispatch({
+      taskId: 'timed-1',
+      actionId: 'test/action#slowAction',
+      body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+      contentType: 'text/plain',
+      requestContext: { url: 'http://localhost/', method: 'POST', headers: [] },
+    });
+    await new Response(stream).text();
+    const { action, timings } = await done;
+    assert.equal(timings, undefined, 'telemetry entries stay off');
+    assert.ok(action);
+    assert.equal(action.worker, true);
+    assert.ok(action.executeMs >= 50, `execute ${action.executeMs}`);
+    for (const key of ['queueMs', 'decodeMs', 'serializeMs'] as const)
+      assert.ok(action[key] >= 0 && action[key] < action.totalMs, `${key} ${action[key]}`);
+    // The first action also waits for the thread to start.
+    assert.ok(action.totalMs >= action.queueMs + action.executeMs);
+  });
+
+  it('counts the wait behind a blocking action on the same thread as queue time', async () => {
+    fixtureDir = createTestFixtures();
+    pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
+    const run = (taskId: string) => {
+      const { stream, done } = pool!.dispatch({
+        taskId,
+        actionId: 'test/action#blockingAction',
+        body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
+        contentType: 'text/plain',
+        requestContext: { url: 'http://localhost/', method: 'POST', headers: [] },
+      });
+      return new Response(stream).text().then(() => done);
+    };
+    // Warm the thread so start-up is not part of the measurement.
+    await run('warm');
+    const [first, second] = await Promise.all([run('first'), run('second')]);
+    assert.ok(first.action && second.action);
+    assert.ok(first.action.queueMs < 50, `first queued ${first.action.queueMs}`);
+    assert.ok(second.action.queueMs >= 100, `second queued ${second.action.queueMs}`);
+    assert.ok(second.action.executeMs >= 110 && second.action.executeMs < 200);
   });
 });
