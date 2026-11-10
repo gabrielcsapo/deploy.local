@@ -8,7 +8,7 @@
  * mirrors rows into an in-memory Map for O(1) hot-path lookups.
  */
 
-import Database from 'better-sqlite3';
+import { openDatabase, type Database } from '../sqlite.ts';
 import type { IncomingMessage } from 'node:http';
 import { registerHost, unregisterHost } from '../mdns.ts';
 import { startProxies, stopProxies, type ExtraPortMapping } from '../tcp-proxy.ts';
@@ -53,16 +53,19 @@ interface GraphEndpointRow {
 }
 
 export class RouteTable {
-  private sqlite: InstanceType<typeof Database>;
+  private sqlite: Database;
   private cache = new Map<string, EdgeRoute>();
   private endpoints = new ServiceEndpointPool();
   private graphServiceByDeployment = new Map<string, string>();
 
   constructor(dbFile: string) {
-    this.sqlite = new Database(dbFile, { readonly: true, fileMustExist: true });
     // WAL readers coexist with the control plane's writers; wait out
     // checkpoint locks instead of throwing SQLITE_BUSY.
-    this.sqlite.pragma('busy_timeout = 5000');
+    this.sqlite = openDatabase(dbFile, {
+      readonly: true,
+      fileMustExist: true,
+      busyTimeoutMs: 5000,
+    });
   }
 
   getRoute(name: string): EdgeRoute | null {

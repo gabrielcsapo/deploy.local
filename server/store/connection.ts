@@ -1,5 +1,5 @@
 import { deployDataDirectory, deployDataPath } from '../data-directory.ts';
-import Database from 'better-sqlite3';
+import { openDatabase, type Database } from '../sqlite.ts';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import {
   existsSync,
@@ -30,7 +30,7 @@ const DB_FILE = deployDataPath('deploy.db');
 
 const UPLOADS_DIR = deployDataPath('uploads');
 
-let _sqlite: InstanceType<typeof Database> | null = null;
+let _sqlite: Database | null = null;
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -40,8 +40,7 @@ export function getDb() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
   if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
-  _sqlite = new Database(DB_FILE);
-  _sqlite.pragma('busy_timeout = 5000');
+  _sqlite = openDatabase(DB_FILE, { busyTimeoutMs: 5000 });
   const db = drizzle(_sqlite);
 
   // WAL promotion itself needs a lock on a fresh database. Serialize it with

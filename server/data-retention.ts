@@ -1,15 +1,11 @@
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const DAY = 86_400_000;
 export const RETENTION_BATCH_SIZE = 100;
 
 /** Scan bounded primary-key pages, including retained rows, instead of a large DELETE scan. */
-export async function pruneDeploymentData(
-  db: Database.Database,
-  now = Date.now(),
-  onBatch?: () => void,
-) {
+export async function pruneDeploymentData(db: Database, now = Date.now(), onBatch?: () => void) {
   const counts = { history: 0, agent_jobs: 0, build_logs: 0 };
   const iso = (days: number) => new Date(now - days * DAY).toISOString();
   const policies = {

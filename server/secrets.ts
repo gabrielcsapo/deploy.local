@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { openDatabase } from './sqlite.ts';
 import { resolve } from 'node:path';
 
 const KEY_BYTES = 32;
@@ -65,12 +65,7 @@ function encryptedDataEvidence(root: string): string[] {
     const path = resolve(root, file);
     if (!existsSync(path)) continue;
     try {
-      // Loaded here, not imported: the CLI bundles this file for release jobs on other computers,
-      // where there is no native SQLite and no database to look at.
-      const Database = createRequire(import.meta.url)(
-        'better-sqlite3',
-      ) as typeof import('better-sqlite3');
-      const database = new Database(path, { readonly: true, fileMustExist: true });
+      const database = openDatabase(path, { readonly: true, fileMustExist: true });
       try {
         for (const { label, sql } of stores) {
           try {

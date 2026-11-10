@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { openDatabase, type Database } from '../sqlite.ts';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { AddressApp, AppAvailability } from './app-pages.ts';
@@ -65,15 +65,18 @@ export function availabilityFor(
 // The edge never initializes schemas or imports the control-plane stores. This snapshot
 // also notices rollback records when no route:changed IPC hint has been sent yet.
 export class AppStateReader {
-  private deployments: InstanceType<typeof Database>;
-  private workspace?: InstanceType<typeof Database>;
+  private deployments: Database;
+  private workspace?: Database;
   private workspaceFile: string;
   private checkedAt = 0;
   private apps: AddressApp[] = [];
   private states = new Map<string, AppAvailability>();
   constructor(dbFile: string) {
-    this.deployments = new Database(dbFile, { readonly: true, fileMustExist: true });
-    this.deployments.pragma('busy_timeout = 100');
+    this.deployments = openDatabase(dbFile, {
+      readonly: true,
+      fileMustExist: true,
+      busyTimeoutMs: 100,
+    });
     this.workspaceFile = join(dirname(dbFile), 'workspace', 'workspace.db');
   }
   private refresh() {
@@ -88,11 +91,11 @@ export class AppStateReader {
       let records: RecordRow[] = [];
       try {
         if (!this.workspace && existsSync(this.workspaceFile)) {
-          this.workspace = new Database(this.workspaceFile, {
+          this.workspace = openDatabase(this.workspaceFile, {
             readonly: true,
             fileMustExist: true,
+            busyTimeoutMs: 100,
           });
-          this.workspace.pragma('busy_timeout = 100');
         }
         records = (this.workspace
           ?.prepare(

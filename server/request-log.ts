@@ -14,7 +14,7 @@ import { trackCiWorker } from './ci-fence.ts';
  */
 
 import { Worker } from 'node:worker_threads';
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
 import { openRequestsDb, requestsDbFile } from './requests-db.ts';
 import { packageWorkerFile } from './packages/worker-file.ts';
@@ -149,7 +149,7 @@ function getLogWorker(dbFile: string): Worker | null {
 
 // ── In-process fallback ──────────────────────────────────────────────────────
 
-let _fallbackDb: InstanceType<typeof Database> | null = null;
+let _fallbackDb: Database | null = null;
 let _fallbackTx: ((items: Array<{ name: string; entry: RequestEntry }>) => void) | null = null;
 
 function ensureFallbackTx(dbFile: string) {

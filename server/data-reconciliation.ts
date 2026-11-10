@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { constants as sqliteConstants, DatabaseSync } from 'node:sqlite';
-import Database from 'better-sqlite3';
+import { openDatabase } from './sqlite.ts';
 import { getArtifact, putArtifactBytes, putArtifactFile } from './content-store.ts';
 import {
   appendLocalFleetEvent,
@@ -353,7 +353,7 @@ export interface SqliteChangesetArtifact {
 }
 
 function readSqliteState(path: string): SqliteState {
-  const database = new Database(path, { readonly: true, fileMustExist: true });
+  const database = openDatabase(path, { readonly: true, fileMustExist: true });
   database.defaultSafeIntegers(true);
   try {
     database.pragma('query_only = ON');
@@ -777,7 +777,7 @@ export function reconcileSqliteDatabases(input: {
       if (nativeDatabase.isOpen) nativeDatabase.close();
     }
   }
-  const database = new Database(output);
+  const database = openDatabase(output);
   database.defaultSafeIntegers(true);
   try {
     database.pragma('foreign_keys = ON');

@@ -1,9 +1,9 @@
-import type Database from 'better-sqlite3';
+import type { Database } from '../sqlite.ts';
 import { getSqlite } from '../store.ts';
 import { CatalogStoreConflictError, type CatalogStoreTransaction } from './store.ts';
 import type { CatalogInstallation, CatalogOperation, CatalogRecoveryPoint } from './types.ts';
 
-type Sqlite = InstanceType<typeof Database>;
+type Sqlite = Database;
 
 /** SQLite-backed catalog state. Application manifests remain in the ordinary revision tables. */
 export class DurableCatalogStore {

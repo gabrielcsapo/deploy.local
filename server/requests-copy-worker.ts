@@ -1,5 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import Database from 'better-sqlite3';
+import { openDatabase } from './sqlite.ts';
 import { openRequestsDb } from './requests-db.ts';
 import { copyRequestBatch, legacyHighId } from './requests-migration.ts';
 
@@ -8,9 +8,12 @@ const { sourceFile, targetFile, sourceId } = workerData as {
   targetFile: string;
   sourceId: string;
 };
-const source = new Database(sourceFile, { readonly: true, fileMustExist: true });
+const source = openDatabase(sourceFile, {
+  readonly: true,
+  fileMustExist: true,
+  busyTimeoutMs: 5000,
+});
 const target = openRequestsDb(targetFile);
-source.pragma('busy_timeout = 5000');
 let stopped = false;
 parentPort?.on('message', () => {
   stopped = true;

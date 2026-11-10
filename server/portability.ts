@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
-import Database from 'better-sqlite3';
+import { openDatabase } from './sqlite.ts';
 import type { ApplicationSpec } from './application-spec.ts';
 import { sortableId } from './multisite.ts';
 import { getSqlite } from './store.ts';
@@ -233,7 +233,7 @@ function inspectSqlite(
   path: string,
   findings: PortabilityFinding[],
 ): SQLiteFileProfile {
-  const database = new Database(path, { readonly: true, fileMustExist: true });
+  const database = openDatabase(path, { readonly: true, fileMustExist: true });
   try {
     database.pragma('query_only = ON');
     const integrityRows = database.pragma('integrity_check') as Array<{ integrity_check: string }>;

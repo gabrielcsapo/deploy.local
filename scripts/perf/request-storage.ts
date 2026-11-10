@@ -8,7 +8,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { Worker } from 'node:worker_threads';
-import Database from 'better-sqlite3';
+import { openDatabase } from '../../server/sqlite.ts';
 import { openRequestsDb } from '../../server/requests-db.ts';
 import {
   compactLegacyRequests,
@@ -24,9 +24,7 @@ if (process.argv.length !== 4 || process.argv[2] !== '--data-copy') {
 const directory = resolve(process.argv[3]);
 const sourceFile = join(directory, 'deploy.db');
 const targetFile = join(directory, 'requests.db');
-const source = new Database(sourceFile, { fileMustExist: true });
-source.pragma('busy_timeout = 5000');
-source.pragma('journal_mode = WAL');
+const source = openDatabase(sourceFile, { fileMustExist: true, busyTimeoutMs: 5000, wal: true });
 const target = openRequestsDb(targetFile);
 const sourceId = ensureImportSource(source);
 function sizes() {

@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { openDatabase } from '../sqlite.ts';
 import { execFileSync } from 'node:child_process';
 import {
   existsSync,
@@ -59,7 +59,7 @@ export function convertWorkspaceDatabase(
         throw new Error(
           'Workspace conversion requires free disk space of at least twice the database file size',
         );
-      const db = new Database(file, { fileMustExist: true });
+      const db = openDatabase(file, { fileMustExist: true });
       try {
         if (db.pragma('auto_vacuum', { simple: true }) === 2) {
           writeFileSync(attempt, record('already-incremental'));

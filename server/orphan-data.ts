@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import { lstatSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
@@ -37,7 +37,7 @@ function archiveMissing(root: string, name: string, filename: string) {
 
 /** Caller holds the deletion transaction. Never removes files, volumes, or unfinished jobs. */
 export function cleanupDeploymentRows(
-  db: Database.Database,
+  db: Database,
   root: string,
   name: string,
   apply = false,
@@ -81,7 +81,7 @@ export function cleanupDeploymentRows(
 
 /** A dry run is read-only. Apply rechecks existence while holding each app's write transaction. */
 export function purgeOrphanedDeploymentData(
-  db: Database.Database,
+  db: Database,
   root: string,
   options: { apply?: boolean } = {},
 ): CleanupCounts {

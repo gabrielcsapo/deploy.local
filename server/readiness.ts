@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import type Database from 'better-sqlite3';
+import type { Database } from './sqlite.ts';
 import { workerBuild } from './workspace/worker-build.ts';
 
 type Check = 'ok' | string;
 type Options = {
-  deploy: Database.Database;
-  workspace: Database.Database;
+  deploy: Database;
+  workspace: Database;
   root?: string;
   env?: NodeJS.ProcessEnv;
   clock?: () => number;
@@ -52,7 +52,7 @@ export function createReadiness({
     /* A missing journal must never make an unmigrated release ready. */
   }
   let integrity: { at: number; deploy: Check; workspace: Check } | undefined;
-  const quickCheck = (database: Database.Database): Check => {
+  const quickCheck = (database: Database): Check => {
     try {
       const rows = database.pragma('quick_check') as { quick_check: string }[];
       return rows.length === 1 && rows[0].quick_check === 'ok' ? 'ok' : 'integrity check failed';
