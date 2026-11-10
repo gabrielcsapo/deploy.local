@@ -163,6 +163,18 @@ export function mergeComputers(input: {
 }
 
 export function getComputers(owner: string): Computer[] {
+  const answers = list('tool-probe', owner).filter((row) => row.has === true);
+  return computersOf(owner).map((computer) => {
+    const has = [
+      ...new Set(
+        answers.filter((row) => computer.workerIds.includes(row.workerId)).map((row) => row.tool),
+      ),
+    ].sort();
+    return has.length ? { ...computer, has } : computer;
+  });
+}
+
+function computersOf(owner: string): Computer[] {
   return mergeComputers({
     nodes: getNodes(),
     workers: workspaceComputers(owner).filter(

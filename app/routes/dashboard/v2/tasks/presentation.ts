@@ -100,6 +100,44 @@ export function checkDuration(check: TaskCheck) {
 export const designCheckWaiting = (view: TaskView) =>
   !!view.designCheck && ['waiting', 'differs'].includes(view.designCheck.state);
 
+/** The banner for a task that waits for a computer with the programs it said it needs. */
+export function waitingForComputer(needs: TaskView['needs']) {
+  if (!needs?.waiting) return null;
+  const tools = needs.tools.join(', ');
+  const all = (has: Record<string, boolean | null>, value: boolean) =>
+    value
+      ? needs.tools.every((tool) => has[tool] === true)
+      : needs.tools.some((tool) => has[tool] === false);
+  const ready = needs.asked.filter((computer) => all(computer.has, true));
+  const offline = ready.filter((computer) => !computer.online).map((computer) => computer.name);
+  const names =
+    offline.length > 1
+      ? `${offline.slice(0, -1).join(', ')} and ${offline.at(-1)}`
+      : (offline[0] ?? '');
+  const detail = offline.length
+    ? `${names} ${offline.length === 1 ? 'has' : 'have'} ${tools} and ${offline.length === 1 ? 'is' : 'are'} offline; the task starts there when ${offline.length === 1 ? 'it is' : 'one is'} back.`
+    : needs.asked.length
+      ? `None of your computers has ${tools} yet.`
+      : 'No computer has answered yet.';
+  const answers = needs.asked.map(
+    (computer) =>
+      `${computer.name} ${all(computer.has, true) ? `yes${computer.online ? '' : ', offline'}` : all(computer.has, false) ? 'no' : 'not answered'}`,
+  );
+  return {
+    title: `Waiting for a computer with ${tools}`,
+    detail: `deploy.local asked your computers. ${detail} Nothing has run yet.`,
+    asked: [
+      `The task said it needs ${tools}${needs.why ? `: ${needs.why.replace(/\.$/, '')}` : ''}.`,
+      needs.asked.length
+        ? `Asked ${needs.asked.length} computer${needs.asked.length === 1 ? '' : 's'}`
+        : '',
+      ...answers,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  };
+}
+
 export function taskStatus(
   view: TaskView,
   diff: TaskDiff | null,

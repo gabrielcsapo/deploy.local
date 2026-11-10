@@ -90,7 +90,11 @@ function ComputerList({
               </Glyph>
             }
             title={computer.name}
-            description={[computer.roles.map((r) => roleNames[r]).join(' · '), update?.reason]
+            description={[
+              computer.roles.map((r) => roleNames[r]).join(' · '),
+              computer.has?.join(' · '),
+              update?.reason,
+            ]
               .filter(Boolean)
               .join(' · ')}
             href={computerPath(computer.id)}
@@ -837,8 +841,11 @@ export default function Computers() {
                   <div className="dl-notice">
                     <Icon name="computer" />
                     <span>
-                      A task goes to any free computer that takes tasks and is signed in to the
-                      model it needs. Which model does what is set once, on Models.
+                      A task says what it needs, such as Xcode for an iPhone app, and deploy.local
+                      asks each computer whether it has it. The task goes to a free one that does
+                      and is signed in to the model it needs. If none is online, the task waits and
+                      says which computer it is waiting for. Which model does what is set once, on
+                      Models.
                     </span>
                     <a href={`${base}/models`}>Models</a>
                   </div>

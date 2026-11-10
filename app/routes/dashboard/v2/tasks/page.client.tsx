@@ -24,6 +24,7 @@ import {
   taskCheckpoints,
   taskStatus,
   taskUpdatedAt,
+  waitingForComputer,
 } from './presentation';
 import './style.css';
 import { DesignCard, DesignReview, useTaskDesign } from '../design/Review';
@@ -181,7 +182,11 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
     earlier,
     headChecks,
   } = taskCheckpoints(view, checks, diff?.headCommit);
-  const summary = taskStatus(view, detailError ? null : diff, headChecks, currentChecks);
+  const waitingNeeds = waitingForComputer(view.needs);
+  // Nothing has run while it waits for a computer, so no other status applies.
+  const summary = waitingNeeds
+    ? { label: 'Waiting for a computer', detail: undefined, icon: 'clock' as const }
+    : taskStatus(view, detailError ? null : diff, headChecks, currentChecks);
   const waiting = view.events.some(
     (event) =>
       event.kind === 'decision' &&
@@ -389,6 +394,12 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
             <DesignReview projectId={view.project.id} taskId={id} design={design} />
           ) : tab === 'chat' ? (
             <div className="dl-task-wrap dl-task-chat">
+              {waitingNeeds && (
+                <div className="dl-task-notice">
+                  <Banner title={waitingNeeds.title}>{waitingNeeds.detail}</Banner>
+                  <p className="dl-meta dl-task-needs-asked">{waitingNeeds.asked}</p>
+                </div>
+              )}
               {stalled && (
                 <div className="dl-task-notice">
                   <Banner title={`${view.computer || 'The computer'} stopped reporting progress`}>

@@ -254,6 +254,8 @@ export type Computer = {
   workerIds: string[];
   roles: Role[];
   supportedRoles: Role[];
+  /** Programs this computer has said it has, when a task asked. */
+  has?: string[];
   online: boolean;
   platform?: string;
   architecture?: string;
