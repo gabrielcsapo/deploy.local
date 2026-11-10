@@ -24,11 +24,8 @@ test('iPhone decisions keep the record open and provide the approved onward dest
     source.indexOf('private func answer(_ action:'),
     source.indexOf('private struct V2DesignReviewPresentation'),
   );
-  assert.match(answer, /if action == "update" \{ dismiss\(\); return \}/);
-  assert.doesNotMatch(
-    answer.replace('if action == "update" { dismiss(); return }', ''),
-    /dismiss\(\)/,
-  );
+  // Ask to update stays open too: the answered review links to the task that does the update.
+  assert.doesNotMatch(answer, /dismiss\(\)/);
   assert.match(source, /V2ReviewModel\.outcome\(review(, now: context\.date)?\)/);
   assert.match(source, /Button\("Open the task"\)/);
   assert.match(source, /Button\("Open in Design"\)/);
