@@ -11,7 +11,7 @@ import type {
   HelperAction,
   BrowserInstallStatus,
 } from '../../../packages/node-app/src/bridge';
-import { LoginForm } from './data.client';
+import { LoginForm } from './login-form.client';
 import { NodePermissions } from './node-permissions.client';
 import { ComputerRoleRows } from './computer-role-rows.client';
 import { permissionsHeadline, type NodePermission } from './node-permissions';
