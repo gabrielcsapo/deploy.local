@@ -42,6 +42,11 @@ export function inbox(api) {
   return api('/api/v2/inbox?state=waiting');
 }
 
+/** @param {API} api @returns {Promise<InboxItem[] | import('../shared/v2/api.ts').InboxResponse>} */
+export function answeredInbox(api) {
+  return api('/api/v2/inbox?state=answered');
+}
+
 /** @param {API} api @param {InboxItem['id']} id @param {string} actionId
  * @returns {Promise<InboxItem | {item: InboxItem}>} */
 export function answerInbox(api, id, actionId) {

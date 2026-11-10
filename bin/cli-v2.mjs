@@ -21,6 +21,7 @@ Watch
 Decide
   inbox                  Answer what is waiting on you
                          inbox <id> <action> --yes to answer in scripts
+                         inbox wait <id or title> until it is answered
 
 Agents
   task "<what to do>"     Start a task (--on <computer>)
@@ -218,6 +219,53 @@ export async function runInbox(api, args, options, prompt) {
     console.log(
       `  ✓ Answered${answered.answer?.by ? ` by ${answered.answer.by} on ${answered.answer.on}` : ''}. Next: deploy status`,
     );
+  }
+}
+
+const listed = (result) => (Array.isArray(result) ? result : (result?.items ?? []));
+
+/** One item by its ID, or by words from its title when only one item has them. */
+function pickItem(items, ref) {
+  const exact = items.filter((item) => item.id === ref);
+  if (exact.length) return exact;
+  const words = ref.toLowerCase();
+  return items.filter((item) => String(item.title).toLowerCase().includes(words));
+}
+
+/**
+ * Wait until one inbox item is answered, so a script or an agent outside deploy.local can go on
+ * when the owner decides. Returns the answered item, or `{ waiting }` when the time runs out.
+ */
+export async function waitInbox(api, ref, options = {}, clock = {}) {
+  if (!ref)
+    throw cliError('Name the item to wait for: its ID or words from its title.', 'deploy inbox', 2);
+  const seconds = options.seconds ?? 600;
+  const sleep = clock.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const now = clock.now ?? Date.now;
+  const deadline = now() + seconds * 1000;
+  let announced = false;
+  for (;;) {
+    const found = pickItem(listed(await contracts.inbox(api)), ref);
+    const answered = pickItem(listed(await contracts.answeredInbox(api)), ref);
+    // Answered between the two reads: the answer wins.
+    const waiting = found.filter((item) => !answered.some((done) => done.id === item.id));
+    const matches = waiting.concat(answered);
+    if (matches.length > 1 && !matches.some((item) => item.id === ref))
+      throw cliError(
+        `More than one item matches “${ref}”:\n${matches
+          .map((item) => `  ${item.id}  ${item.title}`)
+          .join('\n')}`,
+        'deploy inbox wait <id>',
+        2,
+      );
+    if (!waiting.length && answered.length)
+      return { item: answered.find((item) => item.id === ref) ?? answered[0] };
+    if (!waiting.length)
+      throw cliError(`Nothing in the inbox matches “${ref}”.`, 'deploy inbox', 2);
+    if (!announced && !options.json) console.log(`Waiting on you: ${waiting[0].title}`);
+    announced = true;
+    if (now() >= deadline) return { waiting: waiting[0] };
+    await sleep(Math.min(3000, Math.max(0, deadline - now())));
   }
 }
 

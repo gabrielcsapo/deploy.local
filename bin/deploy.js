@@ -49,6 +49,7 @@ import {
   printLive,
   readInbox,
   runInbox,
+  waitInbox,
   confirmChange,
   followDeploy,
   followRollback,
@@ -3657,6 +3658,33 @@ try {
       break;
     }
     case 'inbox': {
+      if (positionals[1] === 'wait') {
+        const seconds = values['wait-timeout'] === undefined ? 600 : Number(values['wait-timeout']);
+        if (!Number.isFinite(seconds) || seconds < 0)
+          throw cliError(
+            '--wait-timeout must be a nonnegative number of seconds.',
+            'deploy --help',
+            2,
+          );
+        const waited = await waitInbox(api, positionals.slice(2).join(' '), {
+          seconds,
+          json: values.json,
+        });
+        if (values.json) outputJson(waited);
+        else if (waited.item) {
+          const answer = waited.item.answer;
+          const label =
+            waited.item.actions?.find((action) => action.id === answer?.actionId)?.label ??
+            answer?.actionId ??
+            'Answered';
+          console.log(
+            `✓ ${waited.item.title}: ${label}${answer?.by ? ` by ${answer.by} on ${answer.on}` : ''}.`,
+          );
+        } else console.log('Still waiting on you. Next: deploy inbox');
+        // The same code as deploy status while something waits, so scripts can branch on it.
+        if (waited.waiting) process.exitCode = 3;
+        break;
+      }
       const result = await runInbox(api, positionals.slice(1), values, prompt);
       if (result !== undefined) {
         if (values.json) outputJson(result);
