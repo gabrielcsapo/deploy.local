@@ -2743,6 +2743,14 @@
       "w": 844,
       "h": 390,
       "title": "iPhone turned sideways, comparing: the scrubber floats at the bottom"
+    },
+    "TaskNeedsComputer.html": {
+      "x": 23210,
+      "y": 8644,
+      "w": 1440,
+      "h": 900,
+      "title": "A task waits for a computer that can do the work",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2795,6 +2803,7 @@
     "Inbox.html",
     "AnsweredPhone.html",
     "TaskStalled.html",
+    "TaskNeedsComputer.html",
     "TaskFailed.html",
     "OfflinePhone.html",
     "Offline.html",
@@ -4432,6 +4441,13 @@
       "x": 5570,
       "y": 55600,
       "text": "iPhone review: one bar of tools, and the screen gets the room.\n• The bottom area was a third of the screen: three lines of words, a slider, a row of tools, two labels and a progress bar. It is now one line of words and one bar.\n• The bar, left to right: Previous screen; Pin, Mark an area, Draw; Compare, Fit; Next screen. Every target is at least 40 × 44 pt. Swiping still moves between screens when the screen is fitted or untouched.\n• Compare shows the Old to New scrubber and stays on until tapped again; its button is highlighted meanwhile. Upright, the scrubber sits above the bar; sideways, it floats at the bottom middle. The chip at its end switches Overlay and Wipe. The scrubber is hidden otherwise (DesignReviewComparingPhone, DesignReviewLandscapeComparingPhone).\n• Fit switches between the whole screen in view and real size, the same as double-tap. “Pinch to zoom” is no longer written on screen.\n• The words are one line: what changed, then “1 of 4” for the change. Tapping it opens the full words in a sheet. The thin line above is the position in the review; the header keeps “22 of 28”.\n• Turned sideways the screen fills the window. The header becomes a small pill at the top left (Back, name, position) and the bar stands on the right edge with the same tools in the same order. No words line; they open from the pill.\n• The other iPhone review boards (draw, pin, compare, new screen) still show the old bottom area and follow once this is approved."
+    },
+    "task-needs-computer": {
+      "fill": "purple",
+      "w": 440,
+      "x": 22710,
+      "y": 8644,
+      "text": "A task says what it needs, and the computers answer.\n• No list to maintain: a project does not declare what its folders need, and nobody tags computers.\n• Nothing is built in about which work needs which tool. The agent works it out from the request and the repository and states the tools it needs by the name of the program it will run (xcodebuild, docker, swift), as its first step. A build started by approving a design is no different: its agent reads the approved boards and says what it needs. You can state a need yourself on the composer’s computer chip.\n• deploy.local asks every computer that takes tasks whether it has each one. A computer answers by looking for that program there and then, so any program can be asked about and the answer is never stale. An answer is remembered for a computer that is offline.\n• With one that qualifies online, the task starts there and nothing looks different. With none, the task waits with one banner: what it needs, who was asked and what they said, and that nothing has run. Choose a computer overrides it.\n• An agent can find a need partway (the tests need Docker). It says so, the task pauses at its checkpoint, and the same ask happens: Move to a computer that has it, as on TaskStalled.\n• Waiting for a computer is not a decision: no attention glyph, not in Waiting on you.\n• A design check is only accepted from a computer that has what the task said it needs.\n• Computers shows what each computer has answered so far on its row."
     }
   },
   "starts": {}
