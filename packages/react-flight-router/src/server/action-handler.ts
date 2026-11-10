@@ -139,7 +139,6 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       return new Response(rscStream, {
         headers: {
           'Content-Type': 'text/x-component',
-          'Transfer-Encoding': 'chunked',
         },
       });
     } else if (
@@ -204,7 +203,6 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       return new Response(rscStream, {
         headers: {
           'Content-Type': 'text/x-component',
-          'Transfer-Encoding': 'chunked',
         },
       });
     } else {

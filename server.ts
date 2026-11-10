@@ -57,27 +57,10 @@ async function createFlightClient(): Promise<ClientHandler> {
   }
   // Converts the request, strips HTTP/2 pseudo-headers and hop-by-hop headers,
   // writes at the client's pace and stops the render when the client leaves.
-  const { nodeListener } = flightApp;
-  return (req, res) => {
-    // The flight router tags the SSR HTML document `Cache-Control:
-    // no-transform` (to stop Hono's compressor from buffering the stream),
-    // but no-transform alone leaves the document heuristically cacheable. A
-    // browser can then serve a stale index.html after a redeploy, and its
-    // now-deleted content-hashed chunk imports 404 — which surfaces as
-    // "Importing a module script failed" and a hydration mismatch (React
-    // #418). Force the HTML document to revalidate every load while keeping
-    // the no-transform opt-out; the hashed assets stay immutable-cached.
-    const writeHead = res.writeHead;
-    res.writeHead = function (this: typeof res, ...args: unknown[]) {
-      const headers = args.find((arg) => arg && typeof arg === 'object') as
-        | Record<string, string | string[]>
-        | undefined;
-      if (headers && String(headers['content-type'] ?? '').includes('text/html'))
-        headers['cache-control'] = 'no-cache, no-transform';
-      return (writeHead as (...a: unknown[]) => typeof res).apply(this, args);
-    } as typeof res.writeHead;
-    return nodeListener(req, res);
-  };
+  // The router's default Cache-Control makes the HTML document revalidate on
+  // every load (`no-cache`), so a page left open across a release never asks
+  // for hashed chunks that were deleted.
+  return flightApp.nodeListener;
 }
 
 void bootServer({

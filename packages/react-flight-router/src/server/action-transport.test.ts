@@ -98,6 +98,9 @@ for (const mode of ['worker', 'main thread'] as const) {
     it('returns the result as a flight stream', async () => {
       const response = await call(app, 'ok');
       assert.equal(response.status, 200);
+      // Hop-by-hop; HTTP/2 rejects it, and Node frames the body itself.
+      assert.equal(response.headers.get('transfer-encoding'), null);
+      assert.equal(response.headers.get('cache-control'), 'private, no-store, no-transform');
       assert.deepEqual(await response.json(), { value: 'x' });
     });
 

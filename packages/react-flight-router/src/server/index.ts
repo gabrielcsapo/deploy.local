@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { compress, COMPRESSIBLE_CONTENT_TYPE_REGEX } from 'hono/compress';
 import { createRequire } from 'module';
-import { readdirSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { resolve, sep } from 'path';
 import { randomUUID } from 'crypto';
@@ -52,6 +52,26 @@ import {
 } from './telemetry.js';
 
 const gzipAsync = promisify(gzip);
+
+/**
+ * Absolute paths of the content-hashed files Vite's manifest lists, or null
+ * when the build has no manifest (then every /assets file counts as hashed,
+ * as before the manifest was read).
+ */
+function readHashedAssets(clientDir: string): Set<string> | null {
+  let manifest: Record<string, { file?: string; css?: string[]; assets?: string[] }>;
+  try {
+    manifest = JSON.parse(readFileSync(resolve(clientDir, '.vite/manifest.json'), 'utf-8'));
+  } catch {
+    return null;
+  }
+  const files = new Set<string>();
+  for (const chunk of Object.values(manifest)) {
+    for (const file of [chunk.file, ...(chunk.css ?? []), ...(chunk.assets ?? [])])
+      if (file) files.add(resolve(clientDir, file));
+  }
+  return files;
+}
 
 export type { TelemetryOptions } from './telemetry.js';
 
@@ -150,6 +170,43 @@ interface CreateServerOptions {
    * started). Default: `console.error`.
    */
   onError?: (error: unknown) => void;
+  /**
+   * Cache-Control values, per kind of response. Each field replaces one
+   * default. The router compresses HTML, RSC and action streams itself, so it
+   * adds `no-transform` to those three if a value leaves it out.
+   */
+  cacheControl?: CacheControlOptions;
+}
+
+export interface CacheControlOptions {
+  /** Server-rendered HTML documents. Default: `no-cache, no-transform`. */
+  html?: string;
+  /** `/__rsc` navigation payloads. Default: `private, no-store, no-transform`. */
+  rsc?: string;
+  /** `/__action` responses. Default: `private, no-store, no-transform`. */
+  action?: string;
+  /**
+   * Files under `/assets` that the build manifest lists, whose names carry a
+   * content hash. Default: `public, max-age=31536000, immutable`.
+   */
+  hashedAssets?: string;
+  /** Other files under `/assets`. Default: `public, max-age=300, must-revalidate`. */
+  assets?: string;
+  /** Files copied from `publicDir`. Default: `public, max-age=86400, must-revalidate`. */
+  publicFiles?: string;
+}
+
+const DEFAULT_CACHE_CONTROL: Required<CacheControlOptions> = {
+  html: 'no-cache, no-transform',
+  rsc: 'private, no-store, no-transform',
+  action: 'private, no-store, no-transform',
+  hashedAssets: 'public, max-age=31536000, immutable',
+  assets: 'public, max-age=300, must-revalidate',
+  publicFiles: 'public, max-age=86400, must-revalidate',
+};
+
+function withNoTransform(value: string): string {
+  return /(?:^|,)\s*no-transform\s*(?:,|$)/i.test(value) ? value : `${value}, no-transform`;
 }
 
 /**
@@ -164,6 +221,9 @@ export async function createServer(opts: CreateServerOptions) {
   const reporter = createTelemetryReporter(telemetry);
   const renderTimeoutMs = opts.renderTimeoutMs;
   const manifests = loadManifests(buildDir);
+  const cacheControl = { ...DEFAULT_CACHE_CONTROL, ...opts.cacheControl };
+  for (const key of ['html', 'rsc', 'action'] as const)
+    cacheControl[key] = withNoTransform(cacheControl[key]);
 
   function fireRequestComplete(
     logger: FlightTimer,
@@ -258,6 +318,14 @@ export async function createServer(opts: CreateServerOptions) {
                 : undefined,
             )
           : serverTiming(state.route, state.match, elapsed),
+      );
+      response.headers.set(
+        'Cache-Control',
+        type === 'SSR'
+          ? cacheControl.html
+          : type === 'RSC'
+            ? cacheControl.rsc
+            : cacheControl.action,
       );
       response = compressStreamResponse(response, c.req.header('Accept-Encoding') ?? '');
       if (!reporter && !onRequestComplete && !isDebugEnabled(debugEnabled)) return response;
@@ -578,10 +646,16 @@ export async function createServer(opts: CreateServerOptions) {
     }
   }
 
+  // Only files the build manifest names are content-hashed; anything else
+  // under /assets (copied in by hand, or by another tool) can change in place.
+  const hashedAssets = readHashedAssets(clientDir);
   async function assetResponse(filePath: string, entry: AssetEntry, request: Request) {
     const headers: Record<string, string> = {
       'Content-Type': entry.contentType,
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control':
+        !hashedAssets || hashedAssets.has(filePath)
+          ? cacheControl.hashedAssets
+          : cacheControl.assets,
       Vary: 'Accept-Encoding',
     };
     const accept = request.headers.get('accept-encoding') ?? '';
@@ -725,7 +799,7 @@ export async function createServer(opts: CreateServerOptions) {
         return new Response(cached.bytes, {
           headers: {
             'Content-Type': cached.contentType,
-            'Cache-Control': 'public, max-age=86400, must-revalidate',
+            'Cache-Control': cacheControl.publicFiles,
           },
         });
       }
@@ -743,7 +817,7 @@ export async function createServer(opts: CreateServerOptions) {
           'Content-Type': entry.contentType,
           // Publicly-shipped files (favicons, manifests) aren't content
           // hashed, so we revalidate daily instead of marking immutable.
-          'Cache-Control': 'public, max-age=86400, must-revalidate',
+          'Cache-Control': cacheControl.publicFiles,
         },
       });
     });
@@ -780,7 +854,6 @@ export async function createServer(opts: CreateServerOptions) {
         status: result.value.status,
         headers: {
           'Content-Type': RSC_CONTENT_TYPE,
-          'Cache-Control': 'no-transform',
           [RSC_BUILD_HEADER]: manifests.buildId,
         },
       });
@@ -860,7 +933,6 @@ export async function createServer(opts: CreateServerOptions) {
         return new Response(stream, {
           headers: {
             'Content-Type': RSC_CONTENT_TYPE,
-            'Transfer-Encoding': 'chunked',
           },
         });
       }
@@ -1013,11 +1085,10 @@ export async function createServer(opts: CreateServerOptions) {
         status: effectiveStatus,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          // Opt out of Hono's compress middleware — its CompressionStream
-          // buffers chunks internally, which would delay TTFB for streaming
-          // SSR (Suspense fallbacks should reach the browser as soon as the
-          // shell is rendered, not after the slow content resolves).
-          'Cache-Control': 'no-transform',
+          // Cache-Control is set by timed(); its no-transform opts out of
+          // Hono's compress middleware, whose CompressionStream buffers chunks
+          // and would delay streaming SSR (Suspense fallbacks should reach
+          // the browser as soon as the shell is rendered).
         },
       });
     }),
