@@ -61,6 +61,19 @@ export function getDb() {
     migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') }),
   );
 
+  // SQLite ignores declared foreign keys unless each connection asks for them, so until now
+  // `REFERENCES` and `ON DELETE CASCADE` in the schema did nothing. Turned on after the
+  // migrations on purpose: a migration that rebuilds a table drops the old one, and with
+  // enforcement on that drop would cascade into the tables that reference it.
+  _sqlite.pragma('foreign_keys = ON');
+  const broken = _sqlite.pragma('foreign_key_check') as Array<{ table: string; parent: string }>;
+  if (broken.length > 0) {
+    const where = [...new Set(broken.map((row) => `${row.table} -> ${row.parent}`))].join(', ');
+    console.error(
+      `[store] ${broken.length} rows reference a row that no longer exists (${where}). They predate enforcement and are left as they are.`,
+    );
+  }
+
   _db = db;
   backfillApplicationRevisionArtifacts();
   return _db;
