@@ -210,13 +210,19 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
             layingOut = true
             defer { layingOut = false }
             let metadata = parent.preview.metadata, key = parent.model.key(parent.board)
+            // Pinching out, double-tap and Fit go as far as the whole width of the screen; the screen
+            // still opens at its real size. Kept current, because the window can change size.
+            let fit = CGFloat(V2ReviewZoom.fit(content: Double(metadata.width), viewport: Double(scroll.bounds.width)))
+            if abs(scroll.minimumZoomScale - fit) > 0.0001 {
+                scroll.minimumZoomScale = fit
+                if scroll.zoomScale < fit { scroll.setZoomScale(fit, animated: false) }
+            }
             if identity != key {
                 identity = key; lastChange = parent.change
                 scroll.setZoomScale(1, animated: false)
                 canvas.frame = CGRect(x: 0, y: 0, width: metadata.width, height: metadata.height)
                 for side in 0...1 { sides[side].frame = canvas.bounds; images[side].frame = canvas.bounds; images[side].contentMode = .scaleToFill }
                 scroll.contentSize = canvas.bounds.size
-                scroll.minimumZoomScale = 1
                 scroll.maximumZoomScale = 4
                 panToChange()
                 initialOffset = scroll.contentOffset
