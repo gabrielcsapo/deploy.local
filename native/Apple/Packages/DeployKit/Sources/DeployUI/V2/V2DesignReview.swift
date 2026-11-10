@@ -77,6 +77,9 @@ struct V2DesignReviewView: View {
                         if pages.indices.contains(next) { model.page = pages[next] }
                     })
                 } else {
+                    // A paging TabView keeps its old page offset when the window turns, leaving the screen
+                    // half off the side. Rebuilding it for the new width puts the current page back in place.
+                    GeometryReader { window in
                     TabView(selection: $model.page) {
                         cover(review).tag(V2ReviewModel.Page.cover)
                         ForEach(screens) { board in screenPage(board).tag(V2ReviewModel.Page.screen(board.file)) }
@@ -85,6 +88,8 @@ struct V2DesignReviewView: View {
                         }
                         decide(review).tag(V2ReviewModel.Page.decide)
                     }.tabViewStyle(.page(indexDisplayMode: .never))
+                    .id(Int(window.size.width.rounded()))
+                    }
                 }
                 if board != nil || note != nil { reviewToolbar }
             } else {

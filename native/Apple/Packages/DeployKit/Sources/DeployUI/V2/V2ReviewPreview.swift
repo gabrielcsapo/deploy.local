@@ -194,6 +194,7 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         var lastChange = -1
         var lastFit = 0
         var lastRestore = 0
+        var lastBounds = CGSize.zero
         var layingOut = false
         var initialOffset = CGPoint.zero
         var marks: [UIView] = []
@@ -204,7 +205,26 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
         init(_ parent: V2ReviewZoomPreview) { self.parent = parent; super.init() }
         func viewForZooming(in scrollView: UIScrollView) -> UIView? { canvas }
         func scrollViewDidScroll(_ scrollView: UIScrollView) { clipSides(); reportViewport(); lockPager() }
-        func scrollViewDidZoom(_ scrollView: UIScrollView) { clipSides(); reportViewport(); lockPager() }
+        func scrollViewDidZoom(_ scrollView: UIScrollView) { centre(); clipSides(); reportViewport(); lockPager() }
+        // An animated zoom or a flick settles after the last scroll callback; decide about paging again
+        // once it has, or a screen that just came to rest fitted would stay locked.
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) { centre(); clipSides(); reportViewport(); lockPager() }
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { lockPager() }
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) { if !decelerate { lockPager() } }
+        func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) { lockPager() }
+        /// The screen has not been moved or zoomed since it opened.
+        var openedHere: Bool {
+            guard let scroll else { return false }
+            return abs(scroll.zoomScale - 1) < 0.01 && abs(scroll.contentOffset.x - initialOffset.x) < 1 && abs(scroll.contentOffset.y - initialOffset.y) < 1
+        }
+        /// A screen zoomed out smaller than the window sits in its middle.
+        func centre() {
+            guard let scroll else { return }
+            var frame = canvas.frame
+            frame.origin = CGPoint(x: V2ReviewZoom.centred(content: Double(frame.width), viewport: Double(scroll.bounds.width)),
+                                   y: V2ReviewZoom.centred(content: Double(frame.height), viewport: Double(scroll.bounds.height)))
+            if canvas.frame.origin != frame.origin { canvas.frame = frame }
+        }
         func layout() {
             guard let scroll, !layingOut, scroll.bounds.width > 0, scroll.bounds.height > 0 else { return }
             layingOut = true
@@ -213,9 +233,14 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
             // Pinching out, double-tap and Fit go as far as the whole width of the screen; the screen
             // still opens at its real size. Kept current, because the window can change size.
             let fit = CGFloat(V2ReviewZoom.fit(content: Double(metadata.width), viewport: Double(scroll.bounds.width)))
+            let sameScreen = identity == key
+            let resized = sameScreen && lastBounds != .zero && lastBounds != scroll.bounds.size
+            let whereItOpened = sameScreen && openedHere
             if abs(scroll.minimumZoomScale - fit) > 0.0001 {
+                // Rotation: a fitted screen stays fitted in the new window.
+                let next = CGFloat(V2ReviewZoom.afterResize(zoom: Double(scroll.zoomScale), oldMinimum: Double(scroll.minimumZoomScale), newMinimum: Double(fit)))
                 scroll.minimumZoomScale = fit
-                if scroll.zoomScale < fit { scroll.setZoomScale(fit, animated: false) }
+                if sameScreen, abs(next - scroll.zoomScale) > 0.0001 { scroll.setZoomScale(next, animated: false) }
             }
             if identity != key {
                 identity = key; lastChange = parent.change
@@ -228,6 +253,14 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
                 initialOffset = scroll.contentOffset
                 if let crop = parent.model.crops[key] { scroll.setZoomScale(crop.scale, animated: false); scroll.setContentOffset(crop.offset, animated: false) }
             }
+            if resized {
+                // The window changed size. An untouched screen goes back to where it opens in the new
+                // window; a moved one keeps its place, pulled back inside the screen.
+                if whereItOpened { panToChange(); initialOffset = scroll.contentOffset }
+                else { pan(to: CGPoint(x: scroll.contentOffset.x / max(0.01, scroll.zoomScale), y: scroll.contentOffset.y / max(0.01, scroll.zoomScale))) }
+            }
+            lastBounds = scroll.bounds.size
+            centre()
             if lastRestore != parent.model.restoreCrop {
                 lastRestore = parent.model.restoreCrop
                 if let crop = parent.model.crops[key] { scroll.setZoomScale(crop.scale, animated: false); scroll.setContentOffset(crop.offset, animated: false) }
@@ -254,7 +287,8 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
             let model = parent.model
             let paired = parent.preview.before != nil && parent.preview.after != nil && !model.drawing
             let amount = model.comparing ? 1 - model.divider : model.amount
-            let split = (scroll.contentOffset.x + scroll.bounds.width * (1 - amount)) / max(0.01, scroll.zoomScale)
+            // Measured in the screen's own points; a centred screen starts right of the window's edge.
+            let split = (scroll.contentOffset.x + scroll.bounds.width * (1 - amount) - canvas.frame.origin.x) / max(0.01, scroll.zoomScale)
             CATransaction.begin(); CATransaction.setDisableActions(true)
             // Before sits above After so Overlay fades the old image over the new one.
             canvas.bringSubviewToFront(sides[0])
@@ -355,8 +389,8 @@ private struct V2ReviewZoomPreview: UIViewRepresentable {
                 if let outer = view as? UIScrollView { pager = outer; break }
                 ancestor = view.superview
             }
-            let initial = abs(scroll.zoomScale - 1) < 0.01 && abs(scroll.contentOffset.x - initialOffset.x) < 1 && abs(scroll.contentOffset.y - initialOffset.y) < 1
-            scroll.passPaging = initial && !parent.model.comparing && !parent.model.drawing && !parent.model.areaTool
+            let pages = V2ReviewZoom.passesPaging(zoom: Double(scroll.zoomScale), minimum: Double(scroll.minimumZoomScale), whereItOpened: openedHere)
+            scroll.passPaging = pages && !parent.model.comparing && !parent.model.drawing && !parent.model.areaTool
             pager?.isScrollEnabled = scroll.passPaging
             let allowed = scroll.passPaging
             if parent.model.pagingAllowed != allowed {
