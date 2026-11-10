@@ -2,13 +2,7 @@ import { flightLogLine, logFlightRouterError } from './server/flight-router-erro
 // The built server: dist/server.js, which `pnpm start` runs through dist/supervisor.js. Everything is
 // bootServer's; this file adds only the built web app.
 import { bootServer, type ClientHandler } from './server/boot.ts';
-import { createRequire } from 'node:module';
 import { createServer as createFlightServer } from 'react-flight-router/server';
-
-// react-flight-router/server sets globalThis.__webpack_require__ for SSR module
-// loading. The `bindings` package (used by better-sqlite3) checks for this and
-// then expects __non_webpack_require__ to exist. Provide a real require function.
-(globalThis as Record<string, unknown>).__non_webpack_require__ = createRequire(import.meta.url);
 
 // RSC, SSR and static files for every request the API does not claim.
 async function createFlightClient(): Promise<ClientHandler> {

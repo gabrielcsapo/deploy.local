@@ -146,6 +146,8 @@ export interface RenderRSCResult {
   params: Record<string, string>;
   /** Set when a route component called redirect() */
   redirect?: { url: string; status: 301 | 302 };
+  /** True when no route matched at all and the root route has no notFound. */
+  unmatched?: boolean;
 }
 
 /**
@@ -245,6 +247,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
       }),
       status: 404,
       params: {},
+      unmatched: true,
     };
   }
 

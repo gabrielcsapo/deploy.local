@@ -61,16 +61,6 @@ export default defineConfig({
   build: {},
   plugins: [
     developmentApiProxy(),
-    {
-      // Flight propagates ?ssr to JSON imports; Vite treats that query as a
-      // script and skips its JSON transform. Preserve the default JSON export.
-      name: 'deploy-flight-ssr-json',
-      enforce: 'pre',
-      transform(code, id) {
-        if (/\.json\?ssr$/.test(id))
-          return { code: `export default ${JSON.stringify(JSON.parse(code))};`, map: null };
-      },
-    },
     tailwindcss(),
     react(),
     flightRouter({ routesFile: './app/routes.ts' }) as PluginOption,

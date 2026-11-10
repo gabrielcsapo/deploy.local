@@ -35,12 +35,7 @@ function bootOptions(text: string) {
 
 const entries = {
   'server.ts': {
-    imports: [
-      './server/boot.ts',
-      './server/flight-router-error.ts',
-      'node:module',
-      'react-flight-router/server',
-    ],
+    imports: ['./server/boot.ts', './server/flight-router-error.ts', 'react-flight-router/server'],
     options: ['createClient', 'role'],
   },
   'server/index.ts': {

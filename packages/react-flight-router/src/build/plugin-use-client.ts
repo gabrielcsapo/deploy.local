@@ -15,6 +15,13 @@ interface UseClientPluginOptions {
  * In client/SSR mode: strips the directive (code remains as-is).
  * In auto mode: uses Vite's options.ssr flag to determine behavior.
  */
+const SCRIPT_MODULE = /\.(?:[cm]?[jt]sx?)$/;
+
+/** True for a JavaScript or TypeScript module id, ignoring any query. */
+export function isScriptModule(id: string): boolean {
+  return SCRIPT_MODULE.test(id.split('?')[0]);
+}
+
 export function useClientPlugin(opts: UseClientPluginOptions): Plugin {
   return {
     name: 'react-flight-router:use-client',
@@ -38,8 +45,11 @@ export function useClientPlugin(opts: UseClientPluginOptions): Plugin {
         skipSelf: true,
       });
       if (!resolved || resolved.external) return resolved;
-      // Only propagate to local file paths (not external packages)
-      if (resolved.id.startsWith('/')) {
+      // Only propagate to local script modules. Vite reads any query on a
+      // JSON, CSS or other asset import as a request for raw script and
+      // skips that file type's own transform (a JSON import then has no
+      // default export).
+      if (resolved.id.startsWith('/') && isScriptModule(resolved.id)) {
         return { ...resolved, id: resolved.id + '?ssr' };
       }
       return resolved;

@@ -53,6 +53,16 @@ import {
 
 const gzipAsync = promisify(gzip);
 
+/** Served when no route matches and the root route has no `notFound`. */
+const DEFAULT_NOT_FOUND_DOCUMENT =
+  '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+  '<title>Page not found</title></head>' +
+  '<body style="font-family:system-ui,sans-serif;margin:3rem auto;max-width:36rem;padding:0 1rem">' +
+  '<h1>Page not found</h1><p>There is no page at this address.</p></body></html>';
+
+let warnedNotProduction = false;
+
 /**
  * Absolute paths of the content-hashed files Vite's manifest lists, or null
  * when the build has no manifest (then every /assets file counts as hashed,
@@ -215,6 +225,14 @@ function withNoTransform(value: string): string {
  */
 export async function createServer(opts: CreateServerOptions) {
   const buildDir = resolve(opts.buildDir);
+  if (process.env.NODE_ENV !== 'production' && !warnedNotProduction) {
+    warnedNotProduction = true;
+    console.warn(
+      `[react-flight-router] createServer is serving a production build with NODE_ENV=${
+        process.env.NODE_ENV ?? '(unset)'
+      }. Set NODE_ENV=production so React and other libraries run their production code.`,
+    );
+  }
   const debugEnabled = opts.debug;
   const onRequestComplete = opts.onRequestComplete;
   const telemetry = resolveTelemetryOptions(opts.telemetry);
@@ -436,6 +454,10 @@ export async function createServer(opts: CreateServerOptions) {
   // to react-flight-router's own react/react-dom copies, causing "multiple React"
   // errors when SSR components use the app's react instance.
   const appRequire = createRequire(resolve(buildDir, 'package.json'));
+  // __webpack_require__ is set below for SSR. Packages that detect it (the
+  // `bindings` loader behind better-sqlite3, for one) then expect this
+  // companion global; development sets the same.
+  (globalThis as any).__non_webpack_require__ ??= appRequire;
   const rscClientNode = (await import(
     /* @vite-ignore */ appRequire.resolve('react-server-dom-webpack/client.node')
   )) as any;
@@ -1042,10 +1064,12 @@ export async function createServer(opts: CreateServerOptions) {
           stream: rscStream,
           status,
           redirect,
+          unmatched,
         } = await doRenderRSC(url, undefined, undefined, logger, renderAbort.signal);
 
         let effectiveStream = rscStream;
         let effectiveStatus = status;
+        let effectiveUnmatched = unmatched;
         if (redirect) {
           const redirectUrl = new URL(redirect.url, url.origin);
           const redirectResult = await doRenderRSC(
@@ -1057,6 +1081,15 @@ export async function createServer(opts: CreateServerOptions) {
           );
           effectiveStream = redirectResult.stream;
           effectiveStatus = redirectResult.status;
+          effectiveUnmatched = redirectResult.unmatched;
+        }
+
+        // No route matched and the root route has no notFound: React has
+        // nothing to render, so answer with a plain document instead of an
+        // empty page.
+        if (effectiveUnmatched) {
+          void effectiveStream.cancel().catch(() => {});
+          return { effectiveStatus: 404, htmlStream: DEFAULT_NOT_FOUND_DOCUMENT };
         }
 
         // Stream the RSC payload directly into the SSR renderer. The previous
