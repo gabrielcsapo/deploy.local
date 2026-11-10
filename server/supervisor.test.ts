@@ -18,6 +18,7 @@ test(
       new URL('./supervisor-relay.ts', import.meta.url),
       join(root, 'supervisor-relay.ts'),
     );
+    await copyFile(new URL('./log-rotation.ts', import.meta.url), join(root, 'log-rotation.ts'));
     await mkdir(join(root, 'v2'));
     await copyFile(
       new URL('./v2/coordinator-executor.ts', import.meta.url),
@@ -154,4 +155,71 @@ test('supervisor relays deployment notices live and retains only the latest flee
     relay.receive(line);
   assert.deepEqual(lines, [deployment, fleet, deployment]);
   assert.equal(relay.fleetLine, fleet);
+});
+
+test('supervisor restarts a child whose heartbeat stops', { timeout: 15000 }, async () => {
+  const root = await mkdtemp('/tmp/deploy-supervisor-');
+  await copyFile(new URL('./supervisor.ts', import.meta.url), join(root, 'supervisor.ts'));
+  await copyFile(
+    new URL('./supervisor-relay.ts', import.meta.url),
+    join(root, 'supervisor-relay.ts'),
+  );
+  await copyFile(new URL('./log-rotation.ts', import.meta.url), join(root, 'log-rotation.ts'));
+  await mkdir(join(root, 'v2'));
+  await copyFile(
+    new URL('./v2/coordinator-executor.ts', import.meta.url),
+    join(root, 'v2/coordinator-executor.ts'),
+  );
+  // Never sends a heartbeat, like a build from before the watchdog: it must be left alone.
+  for (const entry of ['server', 'workspace-repository-worker', 'workspace-pipeline-worker']) {
+    await writeFile(join(root, `${entry}.js`), 'setInterval(() => {}, 1000);');
+  }
+  // Sends one heartbeat, then blocks its event loop for good: alive, but wedged.
+  await writeFile(
+    join(root, 'edge.js'),
+    "process.send({ type: 'heartbeat' }, () => { for (;;) {} });",
+  );
+  const child = spawn(process.execPath, [join(root, 'supervisor.ts')], {
+    env: { ...process.env, DEPLOY_DATA_DIR: root, DEPLOY_WATCHDOG_STALE_MS: '400' },
+    stdio: 'ignore',
+  });
+  const exited = once(child, 'exit');
+  const states: any[] = [];
+  let socket: ReturnType<typeof connect> | undefined;
+  try {
+    const deadline = Date.now() + 10000;
+    const restartsOf = (name: string) =>
+      states.findLast((state) => state.children)?.children.find((entry: any) => entry.name === name)
+        ?.restarts ?? 0;
+    while (restartsOf('edge') < 2) {
+      if (Date.now() > deadline) throw new Error('The wedged child was not restarted');
+      if (!socket) {
+        const attempt = connect(join(root, 'supervisor.sock'));
+        attempt.once('error', () => attempt.destroy());
+        attempt.once('connect', () => {
+          if (socket) return attempt.destroy();
+          socket = attempt;
+          let buffer = '';
+          attempt.on('data', (chunk) => {
+            buffer += chunk.toString();
+            let end;
+            while ((end = buffer.indexOf('\n')) >= 0) {
+              states.push(JSON.parse(buffer.slice(0, end)));
+              buffer = buffer.slice(end + 1);
+            }
+          });
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    const last = states.findLast((state) => state.children).children;
+    assert.equal(last.find((entry: any) => entry.name === 'edge').lastExit.signal, 'SIGKILL');
+    for (const name of ['control', 'pipelines', 'repositories'])
+      assert.equal(last.find((entry: any) => entry.name === name).restarts, 0);
+  } finally {
+    socket?.destroy();
+    child.kill('SIGTERM');
+    await exited;
+    await rm(root, { recursive: true, force: true });
+  }
 });

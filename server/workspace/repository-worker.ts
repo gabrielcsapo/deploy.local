@@ -1,5 +1,6 @@
 import { sweepCheckpointRefs } from './checkpoint-retention.ts';
 import { claimWorker } from './worker-lease.ts';
+import { startSupervisorHeartbeat } from '../supervisor-heartbeat.ts';
 import { db, now } from './store.ts';
 import { RepositoryRunner } from './repository-runner.ts';
 import { queueDueSyncs } from './repositories.ts';
@@ -7,6 +8,7 @@ import { closeTasksForMergedPulls } from './project-collaboration.ts';
 
 // Git storage service only. Never starts agents, checks, source hooks or project commands.
 claimWorker('repositories');
+startSupervisorHeartbeat();
 const runner = new RepositoryRunner();
 runner.recover();
 // Merges run here, so this service also closes tasks for pull requests merged before

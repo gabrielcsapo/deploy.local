@@ -22,6 +22,7 @@ import { configureCiFence } from '../ci-fence.ts';
 import { assertReleaseMutation } from '../v2/releases-fence.ts';
 import { wanderReservation, releaseWanderWorker } from '../wander-adoption-fence.ts';
 import { threadId } from 'node:worker_threads';
+import { withMigrationLock } from './migration-lock.ts';
 
 export const DATA_DIR = deployDataDirectory();
 
@@ -56,7 +57,9 @@ export function getDb() {
 
   // Run migrations before setting _db so a failed migration
   // doesn't leave _db in an un-migrated state
-  migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') });
+  withMigrationLock(DB_FILE, () =>
+    migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') }),
+  );
 
   _db = db;
   backfillApplicationRevisionArtifacts();

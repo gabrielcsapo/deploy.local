@@ -1,9 +1,11 @@
 import { advanceAllPipelinePackages } from '../packages/pipelines.ts';
 import { claimWorker } from './worker-lease.ts';
+import { startSupervisorHeartbeat } from '../supervisor-heartbeat.ts';
 import { db, now } from './store.ts';
 import { reconcilePipelines, scanPipelineTriggers } from './pipelines.ts';
 import { advancePipelineDeployments } from './pipeline-deployment.ts';
 claimWorker('pipelines');
+startSupervisorHeartbeat();
 let busy = false;
 let publishing = false;
 const timer = setInterval(async () => {

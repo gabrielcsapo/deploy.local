@@ -1,6 +1,7 @@
 // The built server: dist/server.js, which `pnpm start` runs through dist/supervisor.js. Everything is
 // bootServer's; this file adds only the built web app.
 import { bootServer, type ClientHandler } from './server/boot.ts';
+import { pipeWebBody } from './server/web-response.ts';
 import { createRequire } from 'node:module';
 import { Readable } from 'node:stream';
 import { createServer as createFlightServer } from 'react-flight-router/server';
@@ -119,15 +120,8 @@ async function createFlightClient(): Promise<ClientHandler> {
 
       res.writeHead(webResponse.status, responseHeaders);
 
-      if (webResponse.body) {
-        const reader = webResponse.body.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(value);
-        }
-      }
-      res.end();
+      if (webResponse.body) await pipeWebBody(webResponse.body, res);
+      if (!res.destroyed) res.end();
     } catch (err) {
       console.error('Flight router error:', err);
       if (!res.headersSent) {

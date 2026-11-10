@@ -47,3 +47,42 @@ test('scheduled backup snapshots every database, including requests still in WAL
     control.close();
   }
 });
+
+test('retention and vacuum follow a stored schedule, not process uptime', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'maintenance-schedule-'));
+  process.env.DEPLOY_DATA_DIR = root;
+  const store = await import('./store.ts');
+  const { maintenanceDue, runDueMaintenance } = await import('./maintenance.ts');
+  t.after(() => {
+    store._resetDb();
+    delete process.env.DEPLOY_DATA_DIR;
+    rmSync(root, { recursive: true, force: true });
+  });
+  const hour = 3_600_000;
+  // Retention cuts off from the real clock, so the rows are placed relative to it.
+  const now = Date.now();
+  assert.equal(maintenanceDue(null, now), true);
+  assert.equal(maintenanceDue('not a date', now), true);
+  assert.equal(maintenanceDue(new Date(now - 5 * hour).toISOString(), now), false);
+  assert.equal(maintenanceDue(new Date(now - 6 * hour).toISOString(), now), true);
+  // A clock that was set back must not postpone maintenance.
+  assert.equal(maintenanceDue(new Date(now + 48 * hour).toISOString(), now), true);
+
+  const sqlite = store.getSqlite()!;
+  const insert = sqlite.prepare(
+    `INSERT INTO resource_metrics(deployment_name,cpu_percent,mem_usage_bytes,mem_limit_bytes,mem_percent,net_rx_bytes,net_tx_bytes,block_read_bytes,block_write_bytes,pids,timestamp) VALUES('app',0,0,0,0,0,0,0,0,0,?)`,
+  );
+  const count = () =>
+    (sqlite.prepare('SELECT count(*) AS n FROM resource_metrics').get() as { n: number }).n;
+  insert.run(now - 40 * 24 * hour);
+  insert.run(now - hour);
+  // First run on a server that has never recorded one: the old row goes.
+  assert.equal(runDueMaintenance(now), true);
+  assert.equal(count(), 1);
+  // A restart an hour later finds the stored time and does nothing.
+  insert.run(now - 40 * 24 * hour);
+  assert.equal(runDueMaintenance(now + hour), false);
+  assert.equal(count(), 2);
+  assert.equal(runDueMaintenance(now + 6 * hour), true);
+  assert.equal(count(), 1);
+});

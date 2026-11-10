@@ -28,6 +28,8 @@ import {
   getAgentJob,
   getNode,
   saveBackup,
+  getSystemSetting,
+  setSystemSetting,
 } from './store.ts';
 import { pruneOldCaptures } from './capture.ts';
 import { createCoordinatorApplicationBackup } from './application-backups.ts';
@@ -51,6 +53,9 @@ import {
 
 const DATA_DIR = deployDataDirectory();
 const VACUUM_INTERVAL_MS = 6 * 60 * 60 * 1000; // Run incremental vacuum every 6 hours
+const MAINTENANCE_FIRST_CHECK_MS = 5 * 60 * 1000;
+const MAINTENANCE_CHECK_MS = 15 * 60 * 1000;
+const MAINTENANCE_LAST_RUN_KEY = 'maintenance_last_run_at';
 
 // Bound the incremental_vacuum call so a backlog of free pages can't lock the
 // DB for multiple seconds. 1024 pages × 4 KB default page size = 4 MB freed per
@@ -351,6 +356,46 @@ function scheduleBackupCron() {
   }
 }
 
+// ── Schedule ─────────────────────────────────────────────────────────────────
+
+/** True when retention and vacuum have not run within the interval, or never, or the stored time is unusable. */
+export function maintenanceDue(
+  lastRunAt: string | null,
+  now = Date.now(),
+  intervalMs = VACUUM_INTERVAL_MS,
+): boolean {
+  const last = lastRunAt ? Date.parse(lastRunAt) : NaN;
+  // A time in the future (a clock that was set back) must not postpone maintenance forever.
+  return !Number.isFinite(last) || last > now || now - last >= intervalMs;
+}
+
+/** Retention and vacuum, when due. Returns whether it ran. */
+export function runDueMaintenance(now = Date.now()): boolean {
+  try {
+    if (!maintenanceDue(getSystemSetting(MAINTENANCE_LAST_RUN_KEY), now)) return false;
+    // Recorded first: a pass that crashes the process must not rerun on every restart.
+    setSystemSetting(MAINTENANCE_LAST_RUN_KEY, new Date(now).toISOString());
+  } catch (err) {
+    console.error('Maintenance schedule check failed:', err);
+    return false;
+  }
+  pruneOldData();
+  try {
+    const pruned = pruneExpiredSessions();
+    if (pruned > 0) console.log(`Session pruning: removed ${pruned} expired sessions`);
+  } catch (err) {
+    console.error('Session pruning failed:', err);
+  }
+  runIncrementalVacuum();
+  pruneOldCaptures(RETENTION_DAYS_CAPTURES * 86_400_000)
+    .then((n) => {
+      if (n > 0)
+        console.log(`Capture pruning: removed ${n} 5xx captures (>${RETENTION_DAYS_CAPTURES}d)`);
+    })
+    .catch((err) => console.error('Capture pruning failed:', err));
+  return true;
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -369,21 +414,14 @@ export function startMaintenance(packages?: { warm(): Promise<void>; daily(): Pr
   }
   console.log('Starting database maintenance - incremental vacuum and data retention every 6h');
 
-  // Don't run on startup — both pruneOldData and incremental_vacuum hold write
-  // locks. Restart-loops shouldn't repeatedly hit the DB hard. First scheduled
-  // tick runs 6h after boot, which is what `setInterval` does for us.
-  setInterval(() => {
-    pruneOldData();
-    const pruned = pruneExpiredSessions();
-    if (pruned > 0) console.log(`Session pruning: removed ${pruned} expired sessions`);
-    runIncrementalVacuum();
-    pruneOldCaptures(RETENTION_DAYS_CAPTURES * 86_400_000)
-      .then((n) => {
-        if (n > 0)
-          console.log(`Capture pruning: removed ${n} 5xx captures (>${RETENTION_DAYS_CAPTURES}d)`);
-      })
-      .catch((err) => console.error('Capture pruning failed:', err));
-  }, VACUUM_INTERVAL_MS);
+  // The schedule is kept in the database, not in this process's uptime: a server that restarts
+  // more often than every 6 hours (updates, crashes) would otherwise never prune or vacuum.
+  // The first check waits a few minutes so a restart loop doesn't hit the database hard, and
+  // the stored time keeps a run from repeating within the interval however often it restarts.
+  const first = setTimeout(runDueMaintenance, MAINTENANCE_FIRST_CHECK_MS);
+  first.unref();
+  const check = setInterval(runDueMaintenance, MAINTENANCE_CHECK_MS);
+  check.unref();
 
   const comparisonTimer = setInterval(() => {
     try {

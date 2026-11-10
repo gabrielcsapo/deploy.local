@@ -22,6 +22,7 @@ import { setTimeout as delay } from 'node:timers/promises';
  */
 
 import { SupervisorRelay } from './supervisor-relay.ts';
+import { rotateLogIfLarge } from './log-rotation.ts';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer, type Socket, type Server } from 'node:net';
 import { mkdirSync, unlinkSync, chmodSync } from 'node:fs';
@@ -44,6 +45,8 @@ const children: Array<{
   startedAt: number;
   restarts: number;
   lastExit: { code: number | null; signal: string | null; at: number } | null;
+  /** When this process last sent a heartbeat; 0 until its first one. */
+  lastBeat: number;
 }> = [];
 
 let shuttingDown = false;
@@ -170,6 +173,41 @@ const BACKOFF_MIN_MS = 250;
 const BACKOFF_MAX_MS = 5000;
 const HEALTHY_RESET_MS = 60_000;
 
+// ── Watchdog ─────────────────────────────────────────────────────────────────
+// Restart-on-exit misses a child that is alive but wedged. Children send a heartbeat from
+// their event loop (supervisor-heartbeat.ts); one that goes quiet for this long is killed, and
+// the exit handler restarts it. SIGKILL, because a blocked event loop never runs a SIGTERM
+// handler. A child is watched from its first heartbeat, so builds that predate heartbeats
+// (a rollback target) are left alone.
+const WATCHDOG_STALE_MS = Number(process.env.DEPLOY_WATCHDOG_STALE_MS) || 60_000;
+const WATCHDOG_TICK_MS = Math.min(5000, Math.ceil(WATCHDOG_STALE_MS / 2));
+
+function startWatchdog() {
+  let lastTick = Date.now();
+  const timer = setInterval(() => {
+    const now = Date.now();
+    // A late tick means this process was suspended (machine sleep, SIGSTOP) and so were the
+    // children: their heartbeats are old for the same reason. Start the clock again.
+    const suspended = now - lastTick > WATCHDOG_TICK_MS * 3;
+    lastTick = now;
+    for (const child of children) {
+      if (!child.proc || !child.lastBeat) continue;
+      if (suspended) {
+        child.lastBeat = now;
+        continue;
+      }
+      const quiet = now - child.lastBeat;
+      if (quiet < WATCHDOG_STALE_MS) continue;
+      console.error(
+        `[supervisor] ${child.spec.name} (pid ${child.proc.pid}) sent no heartbeat for ${Math.round(quiet / 1000)}s — killing it to restart`,
+      );
+      child.lastBeat = 0;
+      child.proc.kill('SIGKILL');
+    }
+  }, WATCHDOG_TICK_MS);
+  timer.unref();
+}
+
 function start(child: (typeof children)[number]) {
   if (shuttingDown) return;
   const { spec } = child;
@@ -180,8 +218,12 @@ function start(child: (typeof children)[number]) {
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
   child.proc = proc;
+  child.lastBeat = 0;
   console.log(`[supervisor] started ${spec.name} (pid ${proc.pid})`);
   pushStatus();
+  proc.on('message', (message: { type?: string } | null) => {
+    if (message?.type === 'heartbeat' && child.proc === proc) child.lastBeat = Date.now();
+  });
 
   const prefix = (data: Buffer) => {
     for (const line of data.toString().split('\n')) {
@@ -336,7 +378,18 @@ for (const spec of specs) {
     startedAt: 0,
     restarts: 0,
     lastExit: null,
+    lastBeat: 0,
   };
   children.push(child);
   start(child);
 }
+startWatchdog();
+
+// The service manager appends this process's output to files under <data>/logs
+// (scripts/service.mjs) and nothing else bounds them.
+function rotateLogs() {
+  rotateLogIfLarge({ fd: 1, path: resolve(dataDir, 'logs', 'server.log') });
+  rotateLogIfLarge({ fd: 2, path: resolve(dataDir, 'logs', 'server.err.log') });
+}
+rotateLogs();
+setInterval(rotateLogs, 10 * 60_000).unref();

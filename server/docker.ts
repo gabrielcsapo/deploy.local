@@ -1,4 +1,5 @@
 import { buildRegistryUnavailable, buildSecretsUnsupported } from './package-build.ts';
+import { CONTAINER_LOG_LIMIT_FLAGS } from './container-log-limit.ts';
 import { containerTelemetryEnvironment } from './telemetry-runtime.ts';
 import { packageHooks } from './workspace/package-hooks.ts';
 import type { InstallConfig } from '../shared/package-install.mjs';
@@ -763,6 +764,7 @@ export async function runContainer(
     `deploy-sh.app=${name.toLowerCase()}`,
     '--label',
     `deploy-sh.host-port=${port}`,
+    ...CONTAINER_LOG_LIMIT_FLAGS,
     ...customRunArgs,
     ...telemetryFlags,
     imageTag,

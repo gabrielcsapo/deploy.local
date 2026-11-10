@@ -1,4 +1,5 @@
 import { buildRegistryArgs } from './docker.ts';
+import { CONTAINER_LOG_LIMIT_FLAGS } from './container-log-limit.ts';
 import { registryBuildDocker } from './package-build.ts';
 import { packageHooks } from './workspace/package-hooks.ts';
 import { deployDataPath } from './data-directory.ts';
@@ -490,6 +491,8 @@ function containerArgs(
   if (request.restart !== 'no' && operation === 'create') {
     args.push('--restart', request.restart ?? 'unless-stopped');
   }
+  // Long-running containers only; a one-off `run` is removed with its log.
+  if (operation === 'create') args.push(...CONTAINER_LOG_LIMIT_FLAGS);
   if (request.memoryLimit) args.push('--memory', request.memoryLimit);
   if (request.cpuLimit) args.push('--cpus', request.cpuLimit);
   if (request.gpus) args.push('--gpus', 'all');

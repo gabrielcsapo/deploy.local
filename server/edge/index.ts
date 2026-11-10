@@ -21,6 +21,7 @@ import { createSecureServer as createHttp2Server } from 'node:http2';
 import { existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { installCrashGuard } from '../crash-guard.ts';
+import { startSupervisorHeartbeat } from '../supervisor-heartbeat.ts';
 import { getTlsOptions, getCaCertBuffer, certsExist } from '../certs.ts';
 import { appNameFromHost } from './app-pages.ts';
 import { createHotPathHandler } from './proxy.ts';
@@ -40,6 +41,7 @@ import { forwardToDevUi, getDevUiTarget } from '../dev-ui.ts';
 import { isDesktopDownloadPath } from '../desktop-download.ts';
 
 installCrashGuard();
+startSupervisorHeartbeat();
 
 const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);

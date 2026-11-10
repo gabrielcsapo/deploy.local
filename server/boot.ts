@@ -33,6 +33,7 @@ import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
 import { serveInstallScript, serveWindowsInstallScript, serveCliRequest } from './cli-download.ts';
 import { isDesktopDownloadPath, serveDesktopRequest } from './desktop-download.ts';
 import { installCrashGuard } from './crash-guard.ts';
+import { startSupervisorHeartbeat } from './supervisor-heartbeat.ts';
 import { attachAppUpgradeProxy } from './edge/upgrade-proxy.ts';
 import { initEdgeRuntime, getDefaultDbFile } from './edge/runtime.ts';
 import { startEdgeIpcServer, connectEdgeIpc, getEdgeSockPath } from './ipc.ts';
@@ -345,6 +346,7 @@ async function start(options: BootOptions) {
 
 export function bootServer(options: BootOptions) {
   installCrashGuard();
+  startSupervisorHeartbeat();
   return start(options).catch((err) => {
     console.error('Failed to start server:', err);
     process.exit(1);

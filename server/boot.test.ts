@@ -35,7 +35,14 @@ function bootOptions(text: string) {
 
 const entries = {
   'server.ts': {
-    imports: ['./server/boot.ts', 'node:module', 'node:stream', 'react-flight-router/server'],
+    // web-response.ts is a pure helper for writing the page body; it starts nothing.
+    imports: [
+      './server/boot.ts',
+      './server/web-response.ts',
+      'node:module',
+      'node:stream',
+      'react-flight-router/server',
+    ],
     options: ['createClient', 'role'],
   },
   'server/index.ts': {
@@ -125,7 +132,8 @@ process.on('message', async (message) => {
       hooksInstalled,
       copyChecks: npmRegistry.copy.timer !== undefined,
       copyWarmer: delays.includes(5000),
-      maintenance: delays.includes(6 * 60 * 60 * 1000),
+      // The schedule check; the 6-hour interval itself is kept in the database.
+      maintenance: delays.includes(15 * 60 * 1000),
     },
   });
 });
