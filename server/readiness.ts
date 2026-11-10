@@ -81,11 +81,14 @@ export function createReadiness({
       if (expected)
         checks.migrations = expected.every((entry) =>
           applied.some(
-            (row) => Number(row.created_at) === entry.created_at && row.hash === entry.hash,
+            // By time only, as the migrator itself decides. A migration file edited after it
+            // was applied (one was, long ago, on the production database) changes its hash but
+            // not what ran.
+            (row) => Number(row.created_at) === entry.created_at,
           ),
         )
           ? 'ok'
-          : 'migrations pending or changed';
+          : 'migrations pending';
     } catch {
       /* Static reasons only: no SQL, paths or secrets in public responses. */
     }

@@ -56,11 +56,12 @@ test('readiness checks every migration, heartbeat age, release identity and cach
   workspace.prepare("UPDATE worker SET heartbeat='invalid' WHERE id='repositories'").run();
   assert.equal(ready().checks.repositories, 'worker heartbeat stale');
   fresh();
-  deploy.prepare('UPDATE __drizzle_migrations SET hash=? WHERE created_at=17').run('wrong');
-  assert.equal(ready().checks.migrations, 'migrations pending or changed');
-  deploy
-    .prepare('UPDATE __drizzle_migrations SET hash=? WHERE created_at=17')
-    .run(createHash('sha256').update('SELECT 17;').digest('hex'));
+  // A migration file edited after it ran changes the hash but not what was applied.
+  deploy.prepare('UPDATE __drizzle_migrations SET hash=? WHERE created_at=17').run('edited');
+  assert.equal(ready().checks.migrations, 'ok');
+  deploy.prepare('UPDATE __drizzle_migrations SET created_at=16 WHERE created_at=17').run();
+  assert.equal(ready().checks.migrations, 'migrations pending');
+  deploy.prepare('UPDATE __drizzle_migrations SET created_at=17 WHERE created_at=16').run();
   env.DEPLOY_COORDINATOR_VERSION = 'changed';
   assert.equal(ready().checks.version, 'release identity changed');
   env.DEPLOY_COORDINATOR_VERSION = 'fixture';
@@ -195,7 +196,7 @@ test(
     assert.equal((await check(503)).checks.pipelines, 'worker heartbeat stale');
     await command('fresh');
     await command('migration');
-    assert.equal((await check(503)).checks.migrations, 'migrations pending or changed');
+    assert.equal((await check(503)).checks.migrations, 'migrations pending');
     await command('version');
     assert.equal((await check(503)).checks.version, 'release identity changed');
   },
