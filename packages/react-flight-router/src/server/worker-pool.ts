@@ -21,10 +21,22 @@ export interface WorkerCompletion {
   timings?: TimingEntry[];
 }
 
+/** How the worker answered, known before any byte of the response is sent. */
+export type DispatchHead =
+  | { kind: 'stream' }
+  | { kind: 'error'; status: number; message: string; digest?: string }
+  | { kind: 'redirect'; url: string; status: 301 | 302 };
+
 /** Result of dispatching a task to the worker pool */
 export interface DispatchResult {
   /** Readable stream of RSC chunks from the worker */
   stream: ReadableStream<Uint8Array>;
+  /**
+   * Resolves with the worker's first answer: the result is streaming, the
+   * action threw (with the status and message to send), or it redirected.
+   * Lets the host choose the HTTP status before it responds.
+   */
+  head: Promise<DispatchHead>;
   /** Resolves with the response status when the worker finishes */
   done: Promise<WorkerCompletion>;
 }
@@ -164,8 +176,16 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
     const done = new Promise<WorkerCompletion>((resolve) => {
       resolveStatus = resolve;
     });
+    let resolveHead: (head: DispatchHead) => void;
+    const head = new Promise<DispatchHead>((resolve) => {
+      resolveHead = resolve;
+    });
 
+    let cleaned = false;
     function cleanup() {
+      // A timed-out task can still be cancelled by its reader; count it once.
+      if (cleaned) return;
+      cleaned = true;
       if (timeoutId) clearTimeout(timeoutId);
       managed.pendingTasks--;
       managed.taskAborts.delete(task.taskId);
@@ -176,6 +196,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
       start(controller) {
         // Set up the abort function for this task
         managed.taskAborts.set(task.taskId, () => {
+          resolveHead({ kind: 'error', status: 500, message: 'Worker crashed or was terminated' });
           controller.error(new Error('Worker crashed or was terminated'));
           mainPort.close();
           cleanup();
@@ -189,14 +210,19 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
             data?: ArrayBuffer;
             status?: number;
             message?: string;
+            digest?: string;
+            url?: string;
+            redirectStatus?: 301 | 302;
             errorRecord?: ErrorRecord;
             timings?: TimingEntry[];
           }) => {
             switch (msg.type) {
               case 'chunk':
+                resolveHead({ kind: 'stream' });
                 controller.enqueue(new Uint8Array(msg.data!));
                 break;
               case 'done':
+                resolveHead({ kind: 'stream' });
                 controller.close();
                 mainPort.close();
                 cleanup();
@@ -206,7 +232,27 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
                   ...(msg.timings ? { timings: msg.timings } : {}),
                 });
                 break;
+              case 'redirect':
+                resolveHead({
+                  kind: 'redirect',
+                  url: msg.url!,
+                  status: msg.redirectStatus ?? 302,
+                });
+                controller.close();
+                mainPort.close();
+                cleanup();
+                resolveStatus({
+                  status: 200,
+                  ...(msg.timings ? { timings: msg.timings } : {}),
+                });
+                break;
               case 'error':
+                resolveHead({
+                  kind: 'error',
+                  status: msg.status ?? 500,
+                  message: msg.message ?? 'Internal server error',
+                  ...(msg.digest ? { digest: msg.digest } : {}),
+                });
                 controller.error(new Error(msg.message));
                 mainPort.close();
                 cleanup();
@@ -223,6 +269,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
 
         mainPort.on('close', () => {
           // If the port closes without a done/error message, treat as error
+          resolveHead({ kind: 'stream' });
           try {
             controller.close();
           } catch {
@@ -233,6 +280,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
         // Start timeout
         timeoutId = setTimeout(() => {
           managed.worker.postMessage({ type: 'abort', taskId: task.taskId });
+          resolveHead({ kind: 'error', status: 504, message: 'Action execution timed out' });
           try {
             controller.error(new Error('Action execution timed out'));
           } catch {
@@ -246,6 +294,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
       cancel() {
         // Client disconnected — tell worker to abort
         managed.worker.postMessage({ type: 'abort', taskId: task.taskId });
+        resolveHead({ kind: 'stream' });
         mainPort.close();
         cleanup();
         resolveStatus({ status: 200 }); // Client-initiated cancel is not an error
@@ -269,7 +318,7 @@ export async function createWorkerPool(config: WorkerPoolConfig): Promise<Worker
       [bodyBuffer, workerPort],
     );
 
-    return { stream, done };
+    return { stream, head, done };
   }
 
   function abort(taskId: string) {

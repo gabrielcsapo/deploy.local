@@ -76,7 +76,7 @@
     "prepublishOnly": "pnpm build",
     "build": "node ../../node_modules/typescript/bin/tsc",
     "dev": "node ../../node_modules/typescript/bin/tsc --watch",
-    "test": "pnpm build && vitest run && node --test dist/server/worker-pool.test.js",
+    "test": "pnpm build && vitest run && node --test dist/server/worker-pool.test.js dist/server/action-transport.test.js",
     "changelog": "node scripts/release.mjs"
   },
   "devDependencies": {

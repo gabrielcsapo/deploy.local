@@ -2,6 +2,12 @@ import type { ServerActionsManifest, RSCClientManifest, ModuleLoader } from '../
 import type { RouteConfig } from '../router/types.js';
 import { RSC_ACTION_HEADER } from '../shared/constants.js';
 import type { FlightLogger } from '../shared/logger.js';
+import {
+  actionFailure,
+  actionFailureResponse,
+  actionRedirectResponse,
+  asRedirect,
+} from './action-error.js';
 
 // Types for react-server-dom-webpack/server.node
 type DecodeReply = (body: string | FormData, manifest: ServerActionsManifest) => Promise<unknown[]>;
@@ -69,7 +75,10 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       const manifestEntry = serverActionsManifest[moduleId];
       if (!manifestEntry) {
         opts.onComplete?.(404);
-        return new Response(`Action not found in manifest: ${actionId}`, { status: 404 });
+        return actionFailureResponse({
+          ...actionFailure(`Action not found in manifest: ${actionId}`),
+          status: 404,
+        });
       }
 
       // Decode arguments - body format depends on what encodeReply produced
@@ -94,7 +103,8 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
 
       if (typeof actionFn !== 'function') {
         opts.onComplete?.(404);
-        return new Response(`Action export "${exportName}" is not a function in ${moduleId}`, {
+        return actionFailureResponse({
+          ...actionFailure(`Action export "${exportName}" is not a function in ${moduleId}`),
           status: 404,
         });
       }
@@ -205,11 +215,20 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
     for (const entry of logger?.getEntries(false) ?? []) {
       if (entry.label.startsWith('action:execute(')) logger?.timeEnd(entry.label);
     }
+    const redirect = asRedirect(err);
+    if (redirect) {
+      opts.onComplete?.(actionId ? 200 : 303);
+      // A native form post follows a real redirect; fetch must not, so the
+      // programmatic path names the destination in a header instead.
+      return actionId
+        ? actionRedirectResponse(redirect)
+        : new Response(null, { status: 303, headers: { Location: redirect.url } });
+    }
     opts.onError?.(err);
-    console.error('[react-flight-router] Action error:', err);
-    opts.onComplete?.(500);
-    return new Response(err instanceof Error ? err.message : 'Internal server error', {
-      status: 500,
-    });
+    const failure = actionFailure(err);
+    console.error(`[react-flight-router] Action error (digest ${failure.digest}):`, err);
+    opts.onComplete?.(failure.status);
+    if (actionId) return actionFailureResponse(failure);
+    return new Response(failure.message, { status: failure.status });
   }
 }

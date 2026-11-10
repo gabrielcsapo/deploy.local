@@ -1,4 +1,49 @@
-import { ACTION_ENDPOINT, RSC_ACTION_HEADER, RSC_CONTENT_TYPE } from '../shared/constants.js';
+import {
+  ACTION_ENDPOINT,
+  RSC_ACTION_HEADER,
+  RSC_CONTENT_TYPE,
+  RSC_REDIRECT_HEADER,
+} from '../shared/constants.js';
+import { followActionRedirect } from './action-redirect.js';
+
+/** The rejection of a server action that threw on the server. */
+export class ServerActionError extends Error {
+  constructor(
+    message: string,
+    /** The HTTP status the server answered with. */
+    public readonly status: number,
+    /** Matches the digest in the server's log line for this error. */
+    public readonly digest?: string,
+  ) {
+    super(message);
+    this.name = 'ServerActionError';
+  }
+}
+
+async function failure(response: Response): Promise<ServerActionError> {
+  const type = response.headers.get('content-type') ?? '';
+  if (type.includes('application/json')) {
+    try {
+      const body = (await response.json()) as {
+        error?: { message?: unknown; digest?: unknown };
+      };
+      if (body?.error && typeof body.error.message === 'string') {
+        return new ServerActionError(
+          body.error.message,
+          response.status,
+          typeof body.error.digest === 'string' ? body.error.digest : undefined,
+        );
+      }
+    } catch {
+      /* Not the router's error body; fall through. */
+    }
+  }
+  // statusText is empty over HTTP/2, so always name the status.
+  return new ServerActionError(
+    `Server action failed: ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`,
+    response.status,
+  );
+}
 
 /**
  * Call a server action from the client.
@@ -20,7 +65,14 @@ export async function callServer(id: string, args: unknown[]): Promise<unknown> 
   });
 
   if (!response.ok) {
-    throw new Error(`Server action failed: ${response.statusText}`);
+    throw await failure(response);
+  }
+
+  const redirect = response.headers.get(RSC_REDIRECT_HEADER);
+  if (redirect) {
+    void response.body?.cancel().catch(() => {});
+    followActionRedirect(redirect);
+    return undefined;
   }
 
   // An action response MUST be a flight payload. Anything else — a proxy's

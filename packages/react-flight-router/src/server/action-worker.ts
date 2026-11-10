@@ -19,6 +19,7 @@ import type { SerializedRequestContext } from '../shared/types.js';
 import { maybeCreateLogger } from '../shared/logger.js';
 import { telemetryError, type ErrorRecord } from './telemetry.js';
 import { requestStorage } from './request-context.js';
+import { actionErrorDigest, actionFailure, asRedirect } from './action-error.js';
 
 if (!parentPort) {
   throw new Error('action-worker.ts must be run as a worker thread');
@@ -119,6 +120,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
         type: 'error',
         status: 404,
         message: `Action not found in manifest: ${actionId}`,
+        digest: actionErrorDigest(),
       });
       resultPort.close();
       return;
@@ -156,6 +158,7 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
         type: 'error',
         status: 404,
         message: `Action export "${exportName}" is not a function in ${moduleId}`,
+        digest: actionErrorDigest(),
       });
       resultPort.close();
       return;
@@ -216,12 +219,26 @@ async function handleExecute(msg: ExecuteMessage): Promise<void> {
     });
     resultPort.close();
   } catch (err) {
-    reportError(err);
     try {
+      const redirect = asRedirect(err);
+      if (redirect) {
+        resultPort.postMessage({
+          type: 'redirect',
+          url: redirect.url,
+          redirectStatus: redirect.status,
+          ...(logger ? { timings: logger.getEntries() } : {}),
+        });
+        resultPort.close();
+        return;
+      }
+      reportError(err);
+      const failure = actionFailure(err);
+      console.error(`[flight-worker] Action error (digest ${failure.digest}):`, err);
       resultPort.postMessage({
         type: 'error',
-        status: 500,
-        message: err instanceof Error ? err.message : 'Internal server error',
+        status: failure.status,
+        message: failure.message,
+        digest: failure.digest,
         ...(logger ? { timings: logger.getEntries() } : {}),
         ...(errorRecord ? { errorRecord } : {}),
       });

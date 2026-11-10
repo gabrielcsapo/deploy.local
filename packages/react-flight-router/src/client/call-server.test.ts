@@ -18,7 +18,8 @@ vi.mock('react-server-dom-webpack/client.browser', () => ({
   createFromReadableStream,
 }));
 
-import { callServer } from './call-server.js';
+import { callServer, ServerActionError } from './call-server.js';
+import { setActionRedirectHandler } from './action-redirect.js';
 
 function flightResponse(body = '0:{"ok":true}\n'): Response {
   return new Response(body, {
@@ -102,5 +103,52 @@ describe('callServer', () => {
 
     const result = await callServer('app/actions/x#doThing', []);
     expect(result).toEqual({ flight: 'ok' });
+  });
+  it("rejects with the server's message, status and digest when the action threw", async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: { message: 'Unauthorized', digest: 'abc123' } }), {
+          status: 500,
+          // HTTP/2 has no reason phrase.
+          statusText: '',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        }),
+    ) as unknown as typeof fetch;
+
+    const error = await callServer('app/actions/x#doThing', []).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ServerActionError);
+    expect((error as ServerActionError).message).toBe('Unauthorized');
+    expect((error as ServerActionError).status).toBe(500);
+    expect((error as ServerActionError).digest).toBe('abc123');
+  });
+
+  it('names the status when a failed response has no reason phrase or error body', async () => {
+    globalThis.fetch = vi.fn(
+      async () => new Response('', { status: 502, statusText: '' }),
+    ) as unknown as typeof fetch;
+
+    await expect(callServer('app/actions/x#doThing', [])).rejects.toThrow(
+      'Server action failed: 502',
+    );
+  });
+
+  it('navigates when the action called redirect()', async () => {
+    const navigate = vi.fn();
+    setActionRedirectHandler(navigate);
+    try {
+      globalThis.fetch = vi.fn(
+        async () =>
+          new Response(null, {
+            status: 200,
+            headers: { 'Content-Type': 'text/x-component', 'X-RSC-Redirect': '/signed-out' },
+          }),
+      ) as unknown as typeof fetch;
+
+      await expect(callServer('app/actions/x#doThing', [])).resolves.toBeUndefined();
+      expect(navigate).toHaveBeenCalledWith('/signed-out');
+      expect(createFromReadableStream).not.toHaveBeenCalled();
+    } finally {
+      setActionRedirectHandler(null);
+    }
   });
 });

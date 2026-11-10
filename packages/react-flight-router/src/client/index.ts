@@ -15,4 +15,4 @@ export type { NavigateOptions } from './router-context.js';
 export { useSearchParams } from './use-search-params.js';
 export { useCloseSlot } from './use-close-slot.js';
 export { ScrollRestoration } from './scroll-restoration.js';
-export { callServer } from './call-server.js';
+export { callServer, ServerActionError } from './call-server.js';

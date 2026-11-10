@@ -5,10 +5,7 @@ import { ErrorBoundary, useRouter } from 'react-flight-router/client';
 import { ErrorBanner } from './LoadingState';
 import ErrorPage from '../routes/error';
 import { SessionExpired } from '../routes/dashboard/v2/start/SessionExpired';
-
-function isUnauthorized(error: Error | null | undefined) {
-  return /\bunauthorized\b/i.test(error?.message ?? '');
-}
+import { isUnauthorizedError as isUnauthorized } from './auth-errors';
 
 // A render error can unmount the dashboard's dialog host. Keep a host in the
 // fallback too, then retry the failed server tree after reauthentication.

@@ -20,6 +20,7 @@ import { takePrefetch } from './prefetch-cache.js';
 import { prepareStylesheets } from './route-css.js';
 import type { NavigationStart, PrefetchSource } from './telemetry.js';
 import { fastPathname } from './fast-pathname.js';
+import { setActionRedirectHandler } from './action-redirect.js';
 
 // Cached element to avoid creating a new one on every navigation
 const suspenseSentinelElement = createElement(SuspenseSentinel);
@@ -556,6 +557,12 @@ export function RouterProvider({
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  // A server action that called redirect() navigates here.
+  useEffect(() => {
+    setActionRedirectHandler((destination) => navigate(destination));
+    return () => setActionRedirectHandler(null);
+  }, [navigate]);
 
   // Handle browser back/forward
   useEffect(() => {

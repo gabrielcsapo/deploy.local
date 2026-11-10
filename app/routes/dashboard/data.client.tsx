@@ -23,6 +23,7 @@ import type { WsEvent } from '../../hooks/useWebSocket';
 import type { FleetTotals } from '../../components/dashboard/FleetStrip';
 import type { AppCardData, Severity } from '../../components/dashboard/AppCard';
 import { getAuth, setAuth, clearAuth } from './detail/shared';
+import { isUnauthorizedError } from '../../components/auth-errors';
 
 interface Deployment {
   name: string;
@@ -267,12 +268,11 @@ export function DashboardDataShell({
       setDeployments(data as Deployment[]);
       setError('');
     } catch (err) {
-      const msg = (err as Error).message;
-      if (msg.includes('Unauthorized')) {
+      if (isUnauthorizedError(err)) {
         clearAuth();
         setAuthed(false);
       } else {
-        setError(msg);
+        setError((err as Error).message);
       }
     } finally {
       setLoading(false);

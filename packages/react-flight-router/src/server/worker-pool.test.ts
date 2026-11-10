@@ -162,7 +162,7 @@ describe('WorkerPool', () => {
     fixtureDir = createTestFixtures();
     pool = await createWorkerPool({ buildDir: fixtureDir, size: 1 });
 
-    const { stream, done } = pool.dispatch({
+    const { stream, head, done } = pool.dispatch({
       taskId: 'test-3',
       actionId: 'test/action#throwingAction',
       body: new TextEncoder().encode('[]').buffer as ArrayBuffer,
@@ -182,6 +182,14 @@ describe('WorkerPool', () => {
       assert.ok(err instanceof Error);
       assert.match(err.message, /Test action error/);
     }
+
+    // The host learns the failure before it sends a status line.
+    const answer = await head;
+    assert.equal(answer.kind, 'error');
+    assert.ok(answer.kind === 'error');
+    assert.equal(answer.status, 500);
+    assert.equal(answer.message, 'Test action error');
+    assert.match(answer.digest ?? '', /^[a-f0-9]{12}$/);
 
     const { status } = await done;
     assert.equal(status, 500);

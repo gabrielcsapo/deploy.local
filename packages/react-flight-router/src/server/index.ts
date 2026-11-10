@@ -11,6 +11,11 @@ import { loadManifests } from './manifest-loader.js';
 import { renderRSC } from './rsc-renderer.js';
 import { renderSSR } from './ssr-renderer.js';
 import { handleAction } from './action-handler.js';
+import {
+  actionErrorDigest,
+  actionFailureResponse,
+  actionRedirectResponse,
+} from './action-error.js';
 import { getRequestSignal } from './request-signal.js';
 import { createWorkerPool, type WorkerPool, type WorkerCompletion } from './worker-pool.js';
 import { requestStorage } from './request-context.js';
@@ -796,7 +801,7 @@ export async function createServer(opts: CreateServerOptions) {
         const body = await c.req.raw.arrayBuffer();
         const contentType = c.req.raw.headers.get('content-type') ?? '';
 
-        const { stream, done } = workerPool.dispatch({
+        const { stream, head, done } = workerPool.dispatch({
           taskId,
           actionId,
           body,
@@ -828,9 +833,24 @@ export async function createServer(opts: CreateServerOptions) {
               entry.durationMs ?? 0,
             );
         });
-        const responseStream = stream;
+        // Wait for the worker's first answer so a thrown action gets a real
+        // status and message instead of a 200 whose body breaks mid-stream.
+        const answer = await head;
+        if (answer.kind === 'error') {
+          state.status = answer.status;
+          void stream.cancel().catch(() => {});
+          return actionFailureResponse({
+            status: answer.status,
+            message: answer.message,
+            digest: answer.digest ?? actionErrorDigest(),
+          });
+        }
+        if (answer.kind === 'redirect') {
+          void stream.cancel().catch(() => {});
+          return actionRedirectResponse(answer);
+        }
 
-        return new Response(responseStream, {
+        return new Response(stream, {
           headers: {
             'Content-Type': RSC_CONTENT_TYPE,
             'Transfer-Encoding': 'chunked',
@@ -996,7 +1016,12 @@ export async function createServer(opts: CreateServerOptions) {
     }),
   );
 
-  return app;
+  return Object.assign(app, {
+    /** Stops the server-action worker threads. Call it when the host shuts down. */
+    close: async (): Promise<void> => {
+      await workerPool?.destroy();
+    },
+  });
 }
 
 export { loadManifests } from './manifest-loader.js';
