@@ -547,6 +547,20 @@ describe('API – CORS and 404', () => {
     assert.ok(headers.get('access-control-allow-methods'));
   });
 
+  it('retired fleet routes fail exactly like unknown routes', async () => {
+    const unknown = await req(port, '/api/nonexistent');
+    for (const path of [
+      '/api/fleet/topology',
+      '/api/fleet/sites',
+      '/api/fleet/pair',
+      '/api/suitcase/sync',
+    ]) {
+      const response = await req(port, path);
+      assert.equal(response.status, unknown.status, path);
+      assert.deepEqual(response.body, unknown.body, path);
+    }
+  });
+
   it('GET /api/nonexistent returns 404', async () => {
     const { status } = await req(port, '/api/nonexistent');
     assert.equal(status, 404);

@@ -133,13 +133,12 @@ export function updateDeploymentConfigurationDigest(deploymentName: string, dige
   refreshDeploymentInCache(deploymentName);
 }
 
-/** Link verified content-store artifacts to the stable application identity before fleet publish. */
+/** Link verified content-store artifacts to the stable application identity before activation. */
 export function updateDeploymentArtifactDigests(
   deploymentName: string,
   artifacts: {
     sourceArtifactDigest?: string | null;
     imageArtifactDigest?: string | null;
-    snapshotArtifactDigest?: string | null;
   },
 ) {
   assertCiMutation(deploymentName);
@@ -151,9 +150,6 @@ export function updateDeploymentArtifactDigests(
   }
   if (artifacts.imageArtifactDigest !== undefined) {
     values.imageArtifactDigest = artifacts.imageArtifactDigest;
-  }
-  if (artifacts.snapshotArtifactDigest !== undefined) {
-    values.snapshotArtifactDigest = artifacts.snapshotArtifactDigest;
   }
   getDb().update(deployments).set(values).where(eq(deployments.name, deploymentName)).run();
   refreshDeploymentInCache(deploymentName);

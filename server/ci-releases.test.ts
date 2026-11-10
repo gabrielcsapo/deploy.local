@@ -307,3 +307,30 @@ test('pipeline CI authority is rechecked at reservation and upload admission', a
   assert.throws(() => ci.claimCiUpload(release.id, c), /not last deployed from this repository/);
   assert.throws(() => ci.assertCiUploadCurrent(release), /not last deployed from this repository/);
 });
+
+test('retired replica records do not participate in coordinator CI admission', async () => {
+  target('retired-replica-app');
+  const { ensureLocalIdentity, registerApplicationIdentity } = await import('./local-site.ts');
+  const home = ensureLocalIdentity();
+  const appId = registerApplicationIdentity('retired-replica-app');
+  const sqlite = store.getSqlite()!;
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(`INSERT INTO sites
+    (id, fleet_id, name, kind, public_key, credential_status, capabilities, mode,
+     default_data_policy, access_mode, security_profile, readiness_summary, created_at, updated_at)
+    VALUES ('retired-ci-site', ?, 'Historical', 'suitcase', 'old-key', 'revoked', '{}', 'revoked',
+    'none', 'existing-lan', 'isolated', '{}', ?, ?)`)
+    .run(home.id, now, now);
+  sqlite
+    .prepare(`INSERT INTO app_replicas
+    (id, app_id, site_id, runtime_status, data_mode, sync_policy, shared_lineage, readiness, created_at, updated_at)
+    VALUES ('retired-ci-replica', ?, 'retired-ci-site', 'stopped', 'site-local', 'none', 0, '{}', ?, ?)`)
+    .run(appId, now, now);
+  try {
+    assert.equal(ci.ciTarget('retired-replica-app', 'alice').name, 'retired-replica-app');
+  } finally {
+    sqlite.prepare("DELETE FROM app_replicas WHERE id = 'retired-ci-replica'").run();
+    sqlite.prepare("DELETE FROM sites WHERE id = 'retired-ci-site'").run();
+  }
+});

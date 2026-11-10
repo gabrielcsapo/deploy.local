@@ -15,7 +15,7 @@ const data = mkdtempSync(join(tmpdir(), 'deploy-agent-application-test-'));
 process.env.DEPLOY_DATA_DIR = data;
 const store = await import('../store.ts');
 const workspace = await import('./store.ts');
-const { registerApplicationIdentity } = await import('../multisite.ts');
+const { registerApplicationIdentity } = await import('../local-site.ts');
 const { checkpointBundle, deployApplication, waitForApplication, redactDeploymentLog } =
   await import('./application-deployment.ts');
 const {

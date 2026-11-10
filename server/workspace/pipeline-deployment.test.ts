@@ -13,7 +13,7 @@ const { get, save, db } = await import('./store.ts');
 const { git } = await import('./service.ts');
 const { createProject } = await import('./test-repository.ts');
 const store = await import('../store.ts');
-const { registerApplicationIdentity } = await import('../multisite.ts');
+const { registerApplicationIdentity } = await import('../local-site.ts');
 const { consumeAgentUpload, assertAgentApplication, recordAgentUpload, recordApplicationOrigin } =
   await import('../agent-upload.ts');
 afterEach(() => mock.restoreAll());

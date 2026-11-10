@@ -169,7 +169,7 @@ describe('application service execution planning', () => {
     const mismatch = planApplicationExecution('notes', spec, {
       placementTarget: placementTargetFromFacts({
         nodeId: 'node-trip',
-        kind: 'suitcase',
+        kind: 'agent',
         platform: 'linux',
         architecture: 'arm64',
         capabilities: { labels: { storage: 'sd', zone: 'inside' } },
@@ -210,7 +210,7 @@ describe('application service execution planning', () => {
 
     const reservedLabels = placementTargetFromFacts({
       nodeId: 'node-unreported',
-      kind: 'suitcase',
+      kind: 'agent',
       platform: null,
       architecture: null,
       capabilities: {
@@ -225,7 +225,7 @@ describe('application service execution planning', () => {
     });
     assert.deepEqual(reservedLabels.labels, {
       'deploy.local/node-id': 'node-unreported',
-      'deploy.local/node-kind': 'suitcase',
+      'deploy.local/node-kind': 'agent',
       'deploy.local/site-id': 'node-unreported',
       storage: 'ssd',
     });

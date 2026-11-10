@@ -10,24 +10,13 @@ import { planApplicationExecution } from '../application-execution.ts';
 import { resolvePlacementTarget } from '../application-placement-target.ts';
 import { buildApplicationGraphRuntime } from '../application-runtime.ts';
 import { deployDataDirectory, deployDataPath } from '../data-directory.ts';
-import { publishActivatedApplicationRevision } from '../distributed-application-events.ts';
+
 import { DurableGraphRuntimeStore } from '../graph-runtime-store.ts';
-import { keepApplicationOnSuitcase } from '../fleet-replicas.ts';
-import {
-  applicationDeleteMutationFingerprint,
-  assertFleetMutationReady,
-  destructiveGraphMutationFingerprint,
-  requiresFleetAcknowledgement,
-} from '../fleet-mutation-guard.ts';
-import {
-  appendLocalFleetEvent,
-  ensureFleetIdentity,
-  registerApplicationIdentity,
-} from '../multisite.ts';
+
+import { registerApplicationIdentity } from '../local-site.ts';
 import {
   getApplicationSpecRevision,
   getDeployment,
-  getSqlite,
   activateDesiredApplicationSpec,
   deleteDeployment,
   recordContainerStart,
@@ -67,119 +56,19 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
   }
 
   async execute(request: CatalogRuntimeRequest): Promise<CatalogRuntimeResult> {
+    if (!this.#stageOnly && request.installation.siteId !== 'coordinator') {
+      throw new Error('Catalog execution requires the coordinator');
+    }
     if (request.operation.operation === 'uninstall') {
       return this.#stageUninstall(request);
     }
     return this.#stageRevision(request);
   }
 
-  async completion(request: CatalogRuntimeRequest) {
-    if (request.installation.siteId === 'coordinator') {
-      return { state: 'pending' as const };
-    }
-    const row = getSqlite()!
-      .prepare(
-        `SELECT payload FROM fleet_events
-          WHERE origin_site_id = ? AND operation = 'catalog.operation.materialized'
-            AND json_extract(payload, '$.catalogOperationId') = ?
-            AND COALESCE(json_extract(payload, '$.catalogOperationAttempt'), 1) = ?
-          ORDER BY origin_sequence DESC LIMIT 1`,
-      )
-      .get(request.installation.siteId, request.operation.id, request.operation.attempt) as
-      | { payload: string }
-      | undefined;
-    if (!row) return { state: 'pending' as const };
-    const payload = JSON.parse(row.payload) as {
-      siteId?: unknown;
-      status?: unknown;
-      specDigest?: unknown;
-      blockers?: unknown;
-    };
-    if (payload.siteId !== request.installation.siteId) {
-      return { state: 'failed' as const, error: 'Remote completion site does not match target' };
-    }
-    const expectedDigest = compileApplicationManifest(request.operation.plan.normalizedSpec).digest;
-    if (request.operation.operation !== 'uninstall' && payload.specDigest !== expectedDigest) {
-      return {
-        state: 'failed' as const,
-        error: 'Remote completion revision does not match the catalog operation',
-      };
-    }
-    const expectedStatus = request.operation.operation === 'uninstall' ? 'removed' : 'ready';
-    if (payload.status === expectedStatus) {
-      this.#commitRemoteCompletion(request, expectedDigest);
-      return { state: 'healthy' as const };
-    }
-    const blockers = Array.isArray(payload.blockers)
-      ? payload.blockers.filter((value): value is string => typeof value === 'string')
-      : [];
-    updateDeploymentStatus(request.installation.applicationName, 'failed');
-    return {
-      state: 'failed' as const,
-      error: blockers.join('; ') || `Remote materialization reported ${String(payload.status)}`,
-    };
-  }
-
-  async recoveryCompletion(request: CatalogRecoveryRuntimeRequest) {
-    const { installation, recoveryPoint } = request;
-    if (installation.siteId === 'coordinator') return { state: 'pending' as const };
-    const row = getSqlite()!
-      .prepare(
-        `SELECT payload FROM fleet_events
-          WHERE origin_site_id = ? AND operation = 'catalog.recovery.materialized'
-            AND json_extract(payload, '$.recoveryPointId') = ?
-          ORDER BY origin_sequence DESC LIMIT 1`,
-      )
-      .get(installation.siteId, recoveryPoint.id) as { payload: string } | undefined;
-    if (!row) return { state: 'pending' as const };
-    const payload = JSON.parse(row.payload) as {
-      siteId?: unknown;
-      recoveryPointId?: unknown;
-      status?: unknown;
-      specDigest?: unknown;
-      artifactReference?: unknown;
-      artifactDigest?: unknown;
-      verification?: unknown;
-      blockers?: unknown;
-    };
-    if (
-      payload.siteId !== installation.siteId ||
-      payload.recoveryPointId !== recoveryPoint.id ||
-      payload.specDigest !== recoveryPoint.specDigest
-    ) {
-      return {
-        state: 'failed' as const,
-        error: 'Remote recovery completion does not match its requested site and revision',
-      };
-    }
-    if (payload.status !== 'verified') {
-      const blockers = Array.isArray(payload.blockers)
-        ? payload.blockers.filter((value): value is string => typeof value === 'string')
-        : [];
-      return {
-        state: 'failed' as const,
-        error: blockers.join('; ') || `Remote recovery reported ${String(payload.status)}`,
-      };
-    }
-    if (
-      typeof payload.artifactReference !== 'string' ||
-      typeof payload.artifactDigest !== 'string' ||
-      !/^sha256:[a-f0-9]{64}$/.test(payload.artifactDigest) ||
-      typeof payload.verification !== 'string' ||
-      !payload.verification
-    ) {
-      return { state: 'failed' as const, error: 'Remote recovery verification is incomplete' };
-    }
-    return {
-      state: 'verified' as const,
-      artifactReference: payload.artifactReference,
-      artifactDigest: payload.artifactDigest as `sha256:${string}`,
-      verification: payload.verification,
-    };
-  }
-
   async createRecoveryPoint(request: CatalogRecoveryRuntimeRequest) {
     const { installation, recoveryPoint } = request;
+    if (installation.siteId !== 'coordinator')
+      throw new Error('Catalog recovery requires the coordinator');
     if (this.#stageOnly) {
       throw new Error('Physical recovery points are unavailable in stage-only catalog mode');
     }
@@ -189,24 +78,6 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
       : undefined;
     if (!deployment?.appId || !revision || revision.digest !== installation.currentSpecDigest) {
       throw new Error('Healthy active application revision is unavailable for recovery');
-    }
-    if (installation.siteId !== 'coordinator') {
-      const fleet = ensureFleetIdentity();
-      appendLocalFleetEvent({
-        originSiteId: fleet.homeSiteId,
-        appId: deployment.appId,
-        actor: recoveryPoint.createdBy,
-        operation: 'catalog.recovery.requested',
-        authorityEpoch: deployment.releaseAuthorityEpoch || 1,
-        generation: deployment.releaseGeneration || 1,
-        payload: {
-          siteId: installation.siteId,
-          applicationName: installation.applicationName,
-          recoveryPointId: recoveryPoint.id,
-          specDigest: recoveryPoint.specDigest,
-        },
-      });
-      return { state: 'pending' as const };
     }
     if (!this.#executor.createRecoveryPoint) {
       throw new Error('Graph executor does not support physical recovery archives');
@@ -265,23 +136,7 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
     const priorRevision = parentDigest
       ? getApplicationSpecRevision(installation.applicationName, parentDigest)
       : undefined;
-    if (
-      priorRevision &&
-      (operation.operation === 'rollback' ||
-        requiresFleetAcknowledgement(operation.plan.changePlan, compiled.spec))
-    ) {
-      assertFleetMutationReady({
-        appId: applicationId,
-        applicationName: installation.applicationName,
-        kind: 'destructive-graph-change',
-        mutationFingerprint: destructiveGraphMutationFingerprint(applicationId, compiled.digest),
-        consequence:
-          operation.operation === 'rollback'
-            ? 'This catalog rollback restores durable data and an earlier graph. Every selected suitcase must sync and acknowledge this exact rollback revision before catalog state changes.'
-            : 'This catalog upgrade removes or incompatibly changes graph or schema state. Every selected suitcase must sync and acknowledge this exact revision before catalog state changes.',
-        actor: operation.actor,
-      });
-    }
+
     saveDesiredApplicationSpec({
       digest: compiled.digest,
       deploymentName: installation.applicationName,
@@ -372,15 +227,6 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
     updateDeploymentStatus(installation.applicationName, 'starting');
 
     if (this.#stageOnly) return { state: 'accepted' };
-    if (installation.siteId !== 'coordinator') {
-      await this.#queueRemoteRevision(
-        request,
-        compiled.canonicalJson,
-        compiled.digest,
-        applicationId,
-      );
-      return { state: 'accepted' };
-    }
 
     const graphRuntime = buildApplicationGraphRuntime({
       applicationId,
@@ -429,7 +275,7 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
       compiled.digest,
       configuration.digest,
     );
-    publishActivatedApplicationRevision(installation.applicationName, operation.actor);
+
     updateDeploymentSettings(installation.applicationName, {
       discoverable: Object.values(compiled.spec.routes).some((route) => route.discoverable),
     });
@@ -450,17 +296,7 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
     const applicationId = deployment
       ? deployment.appId || registerApplicationIdentity(installation.applicationName)
       : installation.applicationName;
-    if (!operation.retainData && deployment) {
-      assertFleetMutationReady({
-        appId: applicationId,
-        applicationName: installation.applicationName,
-        kind: 'application-delete',
-        mutationFingerprint: applicationDeleteMutationFingerprint(applicationId),
-        consequence:
-          'Deleting this catalog application removes its Home runtime, graph record, and managed data. Every selected suitcase must sync and acknowledge before uninstall continues.',
-        actor: operation.actor,
-      });
-    }
+
     const configuration = resolveApplicationConfiguration({
       deploymentName: installation.applicationName,
       specDigest: installation.currentSpecDigest,
@@ -491,27 +327,6 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
     }
     updateDeploymentStatus(installation.applicationName, 'stopping');
     if (this.#stageOnly) return { state: 'accepted' };
-    if (installation.siteId !== 'coordinator') {
-      const fleet = ensureFleetIdentity();
-      appendLocalFleetEvent({
-        originSiteId: fleet.homeSiteId,
-        appId: applicationId,
-        actor: operation.actor,
-        operation: 'application.replica.removed',
-        generation: deployment?.releaseGeneration || 0,
-        payload: {
-          siteId: installation.siteId,
-          applicationName: installation.applicationName,
-          catalogOperationId: operation.id,
-          catalogOperationAttempt: operation.attempt,
-          retainData: operation.retainData === true,
-          managedVolumeResources: Object.entries(compiled.spec.resources)
-            .filter(([, resource]) => resource.source?.type !== 'bind')
-            .map(([resource]) => resource),
-        },
-      });
-      return { state: 'accepted' };
-    }
     await this.#executor.remove({
       applicationId,
       siteId: installation.siteId,
@@ -526,80 +341,5 @@ export class DeployLocalCatalogRuntime implements CatalogRuntimeAdapter {
       deleteDeployment(installation.applicationName);
     }
     return { state: 'healthy' };
-  }
-
-  async #queueRemoteRevision(
-    request: CatalogRuntimeRequest,
-    normalizedSpec: string,
-    specDigest: string,
-    applicationId: string,
-  ): Promise<void> {
-    const { installation, operation } = request;
-    const fleet = ensureFleetIdentity();
-    const deployment = getDeployment(installation.applicationName);
-    appendLocalFleetEvent({
-      originSiteId: fleet.homeSiteId,
-      appId: applicationId,
-      actor: operation.actor,
-      operation: 'application.revision.desired',
-      authorityEpoch: deployment?.releaseAuthorityEpoch || 1,
-      generation: (deployment?.releaseGeneration || 0) + 1,
-      payload: {
-        name: installation.applicationName,
-        specDigest,
-        parentDigest: deployment?.activeSpecDigest || null,
-        apiVersion: 'deploy.local/v1',
-        manifestFormat: 'generated',
-        normalizedSpec,
-        configurationDigest: deployment?.configurationDigest || null,
-        source: 'catalog',
-        siteId: installation.siteId,
-        catalogOperationId: operation.id,
-        catalogOperationAttempt: operation.attempt,
-        ...(operation.operation === 'rollback' && request.recoveryPoint
-          ? {
-              recoveryPointId: request.recoveryPoint.id,
-              recoveryArtifactReference: request.recoveryPoint.artifactReference,
-              recoveryArtifactDigest: request.recoveryPoint.artifactDigest,
-            }
-          : {}),
-      },
-    });
-    await keepApplicationOnSuitcase({
-      appId: applicationId,
-      siteId: installation.siteId,
-      policy: 'none',
-      actor: operation.actor,
-    });
-  }
-
-  #commitRemoteCompletion(request: CatalogRuntimeRequest, specDigest: string): void {
-    const { installation, operation } = request;
-    const deployment = getDeployment(installation.applicationName);
-    if (!deployment) throw new Error('Remote catalog deployment disappeared before completion');
-    if (operation.operation === 'uninstall') {
-      if (operation.retainData) updateDeploymentStatus(installation.applicationName, 'stopped');
-      else deleteDeployment(installation.applicationName);
-      return;
-    }
-    activateDesiredApplicationSpec(
-      installation.applicationName,
-      specDigest,
-      deployment.configurationDigest,
-    );
-    saveDeployment({
-      name: installation.applicationName,
-      type: deployment.type || 'catalog',
-      username: deployment.username,
-      desiredNodeId: installation.siteId,
-      activeNodeId: installation.siteId,
-      createdAt: deployment.createdAt || undefined,
-    });
-    updateDeploymentSettings(installation.applicationName, {
-      discoverable: Object.values(operation.plan.normalizedSpec.routes).some(
-        (route) => route.discoverable,
-      ),
-    });
-    updateDeploymentStatus(installation.applicationName, 'running');
   }
 }

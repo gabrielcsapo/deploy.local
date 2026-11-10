@@ -3,7 +3,6 @@ import {
   json,
   error,
   MIGRATION_STATES,
-  fleetMutationBlocked,
   CONFIGURATION_REQUIRED_STATUS,
   dispatchAgentCommand,
   reportMigrationProgress,
@@ -117,13 +116,8 @@ import {
   RepositoryRevisionConflictError,
   repositoryUploadCanSkipRuntime,
 } from '../application-revision.ts';
-import {
-  requiresFleetAcknowledgement,
-  assertFleetMutationReady,
-  destructiveGraphMutationFingerprint,
-  FleetMutationBlockedError,
-} from '../fleet-mutation-guard.ts';
-import { registerApplicationIdentity } from '../multisite.ts';
+
+import { registerApplicationIdentity } from '../local-site.ts';
 import {
   classifyProject,
   ensureDockerfile,
@@ -155,7 +149,7 @@ import { createAgentGraphPayload } from '../agent-graph-payload.ts';
 import { applicationWriterSiteId } from '../application-authority.ts';
 import { recordAgentGraphMaterialization } from '../agent-graph-recording.ts';
 import { type AgentGraphExecutionResult } from '../agent-graph-runtime.ts';
-import { publishActivatedApplicationRevision } from '../distributed-application-events.ts';
+
 import { ensureCertCoversHost } from '../certs.ts';
 import { notifyCertReload } from '../ipc.ts';
 import { inspectContainer } from '../docker-api.ts';
@@ -862,28 +856,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                             { status: 409 },
                           );
                         }
-                        if (
-                          requiresFleetAcknowledgement(
-                            repositoryChangePlan,
-                            stagedDefinition.compiled.spec,
-                          ) &&
-                          existingDeployment
-                        ) {
-                          const applicationId =
-                            existingDeployment.appId || registerApplicationIdentity(name);
-                          assertFleetMutationReady({
-                            appId: applicationId,
-                            applicationName: name,
-                            kind: 'destructive-graph-change',
-                            mutationFingerprint: destructiveGraphMutationFingerprint(
-                              applicationId,
-                              stagedDefinition.compiled.digest,
-                            ),
-                            consequence:
-                              'This repository revision removes or incompatibly changes application graph state. Every selected suitcase must sync and acknowledge this exact revision before source or desired graph state changes.',
-                            actor: username,
-                          });
-                        }
                       }
 
                       if (existsSync(finalDeployDir)) await rename(finalDeployDir, displacedDir);
@@ -974,9 +946,7 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
             await rm(tmpFile, { force: true }).catch(() => {});
             (deployLease as DeployLease | null)?.release();
             failCi();
-            if (uploadErr instanceof FleetMutationBlockedError) {
-              return fleetMutationBlocked(res, uploadErr, { plan: repositoryChangePlan });
-            }
+
             if (uploadErr instanceof RepositoryRevisionConflictError) {
               return json(
                 res,
@@ -1613,7 +1583,7 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                 deploymentDefinition.compiled.digest,
                 resolvedConfigurationDigest,
               );
-              publishActivatedApplicationRevision(name, username);
+
               updateDeploymentStatus(name, 'running');
               updateCurrentBuildLogId(name, buildLogId);
               addDeployEvent(name, {
@@ -1758,7 +1728,7 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                 deploymentDefinition.compiled.digest,
                 resolvedConfigurationDigest,
               );
-              publishActivatedApplicationRevision(name, username);
+
               recordContainerStart(name);
               updateDeploymentStatus(name, 'running');
               updateCurrentBuildLogId(name, orchestrationBuildLogId);
@@ -2047,7 +2017,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                 deploymentDefinition.compiled.digest,
                 resolvedConfigurationDigest,
               );
-              publishActivatedApplicationRevision(name, username);
 
               // Switchover happened above (DB now points at the new container).
               // Retain one previous release for instant rollback. Older retained

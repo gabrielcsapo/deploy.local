@@ -1,4 +1,4 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from 'node:crypto';
+import { createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { deployDataPath } from './data-directory.ts';
@@ -12,7 +12,7 @@ export interface SiteIdentity {
   createdAt: string;
 }
 
-export function installSiteIdentity(identity: SiteIdentity): SiteIdentity {
+function installSiteIdentity(identity: SiteIdentity): SiteIdentity {
   const path = identityPath(identity.siteId);
   if (!identity.publicKey || !identity.privateKey || !identity.createdAt) {
     throw new Error(`Site identity ${identity.siteId} is incomplete`);
@@ -28,7 +28,7 @@ export function installSiteIdentity(identity: SiteIdentity): SiteIdentity {
   if (existsSync(path)) {
     const current = JSON.parse(readFileSync(path, 'utf8')) as SiteIdentity;
     if (current.siteId !== identity.siteId || current.publicKey !== identity.publicKey) {
-      throw new Error(`Site identity ${identity.siteId} conflicts with paired fleet identity`);
+      throw new Error(`Site identity ${identity.siteId} conflicts with the stored Home identity`);
     }
     return current;
   }
@@ -61,27 +61,4 @@ export function loadOrCreateSiteIdentity(siteId: string): SiteIdentity {
     createdAt: new Date().toISOString(),
   };
   return installSiteIdentity(identity);
-}
-
-export function signSitePayload(identity: SiteIdentity, payload: string | Buffer): string {
-  return sign(null, Buffer.from(payload), createPrivateKey(identity.privateKey)).toString(
-    'base64url',
-  );
-}
-
-export function verifySitePayload(
-  publicKey: string,
-  payload: string | Buffer,
-  signature: string,
-): boolean {
-  try {
-    return verify(
-      null,
-      Buffer.from(payload),
-      createPublicKey(publicKey),
-      Buffer.from(signature, 'base64url'),
-    );
-  } catch {
-    return false;
-  }
 }

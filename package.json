@@ -8,12 +8,12 @@
   "scripts": {
     "server": "node scripts/flight-router.mjs && tsx server/index.ts",
     "client": "node scripts/flight-router.mjs && vite",
-    "dev": "node scripts/flight-router.mjs && concurrently \"pnpm run server\" \"pnpm run client\" --names \"server,client\" --prefix-colors \"blue,magenta\"",
+    "dev": "node scripts/flight-router.mjs && node scripts/run-pair.mjs dev",
     "dev:ui": "node scripts/flight-router.mjs && node scripts/dev-ui.mjs",
     "build": "node scripts/flight-router.mjs && node packages/react-flight-router/dist/bin/react-flight-router.js build && node scripts/build-server-extras.mjs",
     "start": "node dist/supervisor.js",
     "start:single": "node dist/server.js",
-    "preview": "node scripts/flight-router.mjs && concurrently \"pnpm run server\" \"vite preview\" --names \"server,preview\" --prefix-colors \"blue,magenta\"",
+    "preview": "node scripts/flight-router.mjs && node scripts/run-pair.mjs preview",
     "lint": "oxlint . && node scripts/check-design-literals.mjs && node scripts/check-motion-tokens.mjs && node scripts/check-native-token-parity.mjs",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -50,7 +50,6 @@
   "dependencies": {
     "@deploy.local/mdns": "workspace:*",
     "@dicebear/core": "10.7.0",
-    "@dicebear/styles": "10.6.0",
     "@hono/node-server": "catalog:",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@simplewebauthn/browser": "^14.0.0",
@@ -72,7 +71,6 @@
     "remark-gfm": "^4.0.1",
     "ssh2": "1.16.0",
     "tar-stream": "^3.2.0",
-    "vite": "catalog:",
     "ws": "^8.21.1",
     "yaml": "^2.9.0"
   },
@@ -89,7 +87,6 @@
     "@types/tar-stream": "^3.1.4",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "catalog:",
-    "concurrently": "^10.0.4",
     "drizzle-kit": "^0.31.10",
     "husky": "^9.1.7",
     "oxfmt": "0.61.0",
@@ -97,7 +94,8 @@
     "postject": "1.0.0-alpha.6",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.1",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "catalog:"
   },
   "engines": {
     "node": ">=26.1.0 <27"

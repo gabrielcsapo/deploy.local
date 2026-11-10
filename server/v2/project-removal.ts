@@ -35,10 +35,7 @@ import { DockerCliGraphAdapter } from '../graph-docker-adapter.ts';
 import { getBackupDir, deleteVolumes } from '../volumes.ts';
 import { parseStoredApplicationSpec } from '../application-spec.ts';
 import { deployDataPath } from '../data-directory.ts';
-import {
-  assertFleetMutationReady,
-  applicationDeleteMutationFingerprint,
-} from '../fleet-mutation-guard.ts';
+
 import { assertNoApplicationMutations, beginApplicationMutation } from './releases-fence.ts';
 import { assertProjectWritable } from './project-policy.ts';
 import { resolveProject } from './projects.ts';
@@ -389,15 +386,6 @@ export async function removeProject(
       const app = getDeployment(member.name);
       if (!app && receipt?.stopped.includes(member.name)) continue;
       if (!app || app.username !== owner) fail('App not found', 404);
-      if (app.appId)
-        assertFleetMutationReady({
-          appId: app.appId,
-          applicationName: app.name,
-          kind: 'application-delete',
-          mutationFingerprint: applicationDeleteMutationFingerprint(app.appId),
-          consequence: 'Removing the project stops its apps and frees their addresses.',
-          actor: owner,
-        });
     }
     receipt ??= {
       id: project.id,

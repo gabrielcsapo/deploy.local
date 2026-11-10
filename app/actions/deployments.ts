@@ -19,11 +19,6 @@ import {
   removeContainer as _removeContainer,
 } from '../../server/docker.ts';
 import { deleteVolumes as _deleteVolumes } from '../../server/volumes.ts';
-import { registerApplicationIdentity } from '../../server/multisite.ts';
-import {
-  applicationDeleteMutationFingerprint,
-  assertFleetMutationReady,
-} from '../../server/fleet-mutation-guard.ts';
 
 function requireAuth(username: string, token: string) {
   if (!authenticate(username, token)) {
@@ -113,16 +108,7 @@ export async function deleteDeployment(
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
-    const applicationId = d.appId || registerApplicationIdentity(name);
-    assertFleetMutationReady({
-      appId: applicationId,
-      applicationName: name,
-      kind: 'application-delete',
-      mutationFingerprint: applicationDeleteMutationFingerprint(applicationId),
-      consequence:
-        'Deleting this application removes its Home runtime, graph record, and managed data. It cannot proceed while a selected suitcase may still hold an unreceived branch.',
-      actor: username,
-    });
+
     if (d.activeNodeId && d.activeNodeId !== 'coordinator') {
       await runRemoteCommand(d.activeNodeId, 'delete', name, {
         deleteVolumes: opts?.deleteVolumes === true,

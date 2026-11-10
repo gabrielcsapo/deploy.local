@@ -30,7 +30,7 @@ let root: string;
 let home: string;
 let store: typeof import('./store.ts');
 let recovery: typeof import('./recovery-bundle.ts');
-let multisite: typeof import('./multisite.ts');
+let localSite: typeof import('./local-site.ts');
 let secrets: typeof import('./secrets.ts');
 let certs: typeof import('./certs.ts');
 
@@ -41,10 +41,10 @@ before(async () => {
   delete process.env.DEPLOY_SECRET_KEY;
   store = await import('./store.ts');
   recovery = await import('./recovery-bundle.ts');
-  multisite = await import('./multisite.ts');
+  localSite = await import('./local-site.ts');
   secrets = await import('./secrets.ts');
   certs = await import('./certs.ts');
-  multisite.ensureFleetIdentity('Round trip fleet');
+  localSite.ensureLocalIdentity('Round trip fleet');
   certs.ensureCerts();
   secrets.loadOrCreateSecretKey();
 });

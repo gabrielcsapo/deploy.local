@@ -266,11 +266,7 @@ function target(value: unknown): CatalogTargetProfile {
     ...(input.siteKind === undefined
       ? {}
       : {
-          siteKind: enumeration(
-            input.siteKind,
-            ['coordinator', 'node', 'suitcase'],
-            'target.siteKind',
-          ),
+          siteKind: enumeration(input.siteKind, ['coordinator', 'node'], 'target.siteKind'),
         }),
     deployLocalVersion: requiredString(input.deployLocalVersion, 'target.deployLocalVersion'),
     operatingSystem: enumeration(

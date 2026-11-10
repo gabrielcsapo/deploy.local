@@ -86,7 +86,7 @@ export interface ReconciliationOptions {
 /**
  * Produce idempotent actions which converge ephemeral instances on fixed desired slots. It never
  * mutates Docker or routing state directly, so the same plan can be driven by the coordinator,
- * a remote node agent, or a suitcase supervisor.
+ * or a remote node agent.
  */
 export function reconcileApplication(
   desired: ApplicationExecutionPlan,

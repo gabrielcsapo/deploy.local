@@ -84,7 +84,7 @@ describe('semantic application change planning', () => {
     assert.equal(plan.impacts.downtime.expectation, 'none');
     assert.equal(plan.impacts.backup.disposition, 'not-required');
     assert.equal(plan.impacts.data.effect, 'none');
-    assert.equal(plan.impacts.suitcase.disposition, 'none');
+    assert.equal('suitcase' in plan.impacts, false);
   });
 
   it('classifies a configuration declaration edit without inventing a runtime restart', () => {
@@ -216,19 +216,14 @@ describe('semantic application change planning', () => {
     assert.equal(plan.impacts.downtime.expectation, 'required');
   });
 
-  it('reports capacity, rolling downtime, backup, and suitcase revalidation impacts', () => {
+  it('reports capacity, rolling downtime, and backup impacts', () => {
     const desired = clone(BASE_SPEC);
     desired.components.web.instances = 3;
     desired.components.web.image = 'example.invalid/notes:v2';
 
-    const plan = planApplicationChange(BASE_SPEC, desired, {
-      source: 'offline-candidate',
-      targetSiteId: 'suitcase-a',
-      targetSiteKind: 'suitcase',
-      suitcaseSiteIds: ['suitcase-a', 'suitcase-b'],
-    });
+    const plan = planApplicationChange(BASE_SPEC, desired, { source: 'ui' });
 
-    assert.equal(plan.source, 'offline-candidate');
+    assert.equal(plan.source, 'ui');
     assert.deepEqual(plan.impacts.capacity, {
       currentInstances: 3,
       desiredInstances: 4,
@@ -242,13 +237,7 @@ describe('semantic application change planning', () => {
     assert.deepEqual(plan.impacts.downtime.components, ['web']);
     assert.equal(plan.impacts.backup.disposition, 'recommended');
     assert.deepEqual(plan.impacts.backup.resources, ['archive', 'database']);
-    assert.deepEqual(plan.impacts.suitcase, {
-      disposition: 'revalidation-required',
-      sites: ['suitcase-a', 'suitcase-b'],
-      reasons: [
-        'Revalidate runtime, build, capacity, data, and access readiness on affected suitcases.',
-      ],
-    });
+    assert.equal('suitcase' in plan.impacts, false);
   });
 
   it('models explicit retention without pretending a stable-key removal preserves attachment', () => {
@@ -258,7 +247,6 @@ describe('semantic application change planning', () => {
     const plan = planApplicationChange(BASE_SPEC, desired, {
       source: 'catalog',
       resourceRemovalPolicy: 'retain',
-      suitcaseSiteIds: [],
     });
 
     assert.equal(plan.actions[0].effect, 'retention');
@@ -267,7 +255,7 @@ describe('semantic application change planning', () => {
     assert.equal(plan.impacts.data.effect, 'retain');
     assert.deepEqual(plan.impacts.data.removedResources, ['archive']);
     assert.equal(plan.impacts.backup.disposition, 'not-required');
-    assert.equal(plan.impacts.suitcase.disposition, 'none');
+    assert.equal('suitcase' in plan.impacts, false);
   });
 
   it('plans component, route, and job lifecycle changes at stable addresses', () => {

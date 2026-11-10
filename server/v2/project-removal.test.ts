@@ -13,7 +13,7 @@ process.env.DOCKER_HOST = `unix://${socket}`;
 const store = await import('../store.ts');
 const workspace = await import('../workspace/store.ts');
 const specs = await import('../application-spec.ts');
-const multisite = await import('../multisite.ts');
+const localSite = await import('../local-site.ts');
 const { graphNetworkName, graphVolumeName } = await import('../graph-docker-adapter.ts');
 const { DockerApiError } = await import('../docker-api.ts');
 const { resolveProject } = await import('./projects.ts');
@@ -103,7 +103,7 @@ function seedGraphApp(owner: string, name: string, seed: Seed = {}) {
   });
   store.activateDesiredApplicationSpec(name, compiled.digest);
   // The real path: identity registration writes the replica and alias rows under the Home site.
-  const appId = multisite.registerApplicationIdentity(name);
+  const appId = localSite.registerApplicationIdentity(name);
   store._invalidateDeploymentsCache();
   const now = Date.now();
   const containers: string[] = [];
@@ -257,7 +257,7 @@ test('deleting an app on an offline computer keeps the app', async () => {
 test('removal finds instances stored under coordinator, not under the Home site id', async () => {
   const { appId, containers } = seedGraphApp('site-owner', 'site-app');
   // The two ids differ on every real coordinator, which is the whole of the bug.
-  assert.notEqual(multisite.ensureFleetIdentity().homeSiteId, 'coordinator');
+  assert.notEqual(localSite.ensureLocalIdentity().homeSiteId, 'coordinator');
 
   const docker = dockerHolding(appId, containers);
   const project = await resolveProject('site-owner', 'app:site-app');
@@ -267,7 +267,7 @@ test('removal finds instances stored under coordinator, not under the Home site 
 });
 
 test('removal covers every local site, a generated app, and containers no row knows about', async () => {
-  const home = multisite.ensureFleetIdentity().homeSiteId;
+  const home = localSite.ensureLocalIdentity().homeSiteId;
   const { appId, containers } = seedGraphApp('all-sites-owner', 'all-sites', {
     manifestFormat: 'generated',
     sites: [
@@ -287,14 +287,14 @@ test('removal covers every local site, a generated app, and containers no row kn
 test('removal clears the fleet rows of its own app and no other', async () => {
   const removed = seedGraphApp('rows-owner', 'rows-removed');
   const kept = seedGraphApp('rows-owner', 'rows-kept');
-  assert.deepEqual(identityRows(removed.appId), { replicas: 1, aliases: 1 });
-  assert.deepEqual(identityRows(kept.appId), { replicas: 1, aliases: 1 });
+  assert.deepEqual(identityRows(removed.appId), { replicas: 0, aliases: 1 });
+  assert.deepEqual(identityRows(kept.appId), { replicas: 0, aliases: 1 });
 
   const project = await resolveProject('rows-owner', 'app:rows-removed');
   await removeWith('rows-owner', project, dockerHolding(removed.appId, removed.containers));
 
   assert.deepEqual(identityRows(removed.appId), { replicas: 0, aliases: 0 });
-  assert.deepEqual(identityRows(kept.appId), { replicas: 1, aliases: 1 });
+  assert.deepEqual(identityRows(kept.appId), { replicas: 0, aliases: 1 });
 });
 
 test('a legacy app loses its containers and its data directory', async () => {
@@ -323,7 +323,7 @@ test('anything still on the machine fails removal, keeps the retry receipt, and 
   assert.ok(store.getDeployment('stuck-app'));
   assert.equal(workspace.list('v2-project-removal', 'stuck-owner').length, 1);
   assert.deepEqual(workspace.list('v2-project-removal', 'stuck-owner')[0].stopped, []);
-  assert.deepEqual(identityRows(appId), { replicas: 1, aliases: 1 });
+  assert.deepEqual(identityRows(appId), { replicas: 0, aliases: 1 });
 
   docker.stuck.clear();
   await removeWith('stuck-owner', project, docker);

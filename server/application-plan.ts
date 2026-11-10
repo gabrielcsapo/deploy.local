@@ -54,11 +54,8 @@ export type ApplicationChangeEffect =
   | 'unsupported';
 
 export interface ApplicationChangePlanningContext {
-  source?: 'yaml' | 'repository' | 'ui' | 'catalog' | 'compose-import' | 'offline-candidate';
-  targetSiteId?: string;
-  targetSiteKind?: 'coordinator' | 'node' | 'suitcase';
-  /** Undefined means replica inventory was unavailable; [] proves there are no suitcase replicas. */
-  suitcaseSiteIds?: readonly string[];
+  source?: 'yaml' | 'repository' | 'ui' | 'catalog' | 'compose-import';
+
   verifiedBackup?: boolean;
   /** Explicit runtime disposition for removed resources; public graph edits default to delete. */
   resourceRemovalPolicy?: 'delete' | 'retain' | 'quarantine';
@@ -112,11 +109,6 @@ export interface ApplicationChangePlan {
       createdResources: string[];
       removedResources: string[];
       recreatedResources: string[];
-    };
-    suitcase: {
-      disposition: 'none' | 'unknown' | 'revalidation-required';
-      sites: string[];
-      reasons: string[];
     };
   };
 }
@@ -573,23 +565,6 @@ function applicationChangeImpacts(
         ? durableResources
         : [];
 
-  const suitcaseRelevant = actions.some(
-    (item) => item.effect !== 'none' && item.classification !== 'metadata-update',
-  );
-  const knownSuitcaseSites = [
-    ...(context.suitcaseSiteIds ?? []),
-    ...(context.targetSiteKind === 'suitcase' && context.targetSiteId
-      ? [context.targetSiteId]
-      : []),
-  ].filter((site, index, sites) => sites.indexOf(site) === index);
-  const suitcaseDisposition = !suitcaseRelevant
-    ? 'none'
-    : knownSuitcaseSites.length > 0
-      ? 'revalidation-required'
-      : context.suitcaseSiteIds
-        ? 'none'
-        : 'unknown';
-
   return {
     capacity: {
       currentInstances,
@@ -621,18 +596,6 @@ function applicationChangeImpacts(
       createdResources,
       removedResources,
       recreatedResources,
-    },
-    suitcase: {
-      disposition: suitcaseDisposition,
-      sites: knownSuitcaseSites.sort(),
-      reasons:
-        suitcaseDisposition === 'revalidation-required'
-          ? [
-              'Revalidate runtime, build, capacity, data, and access readiness on affected suitcases.',
-            ]
-          : suitcaseDisposition === 'unknown'
-            ? ['Suitcase replica inventory was not supplied to this preview.']
-            : [],
     },
   };
 }

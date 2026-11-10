@@ -7,7 +7,7 @@ import { after, before, describe, it } from 'node:test';
 const root = mkdtempSync(join(tmpdir(), 'deploy-writer-authority-'));
 process.env.DEPLOY_DATA_DIR = root;
 const store = await import('./store.ts');
-const multisite = await import('./multisite.ts');
+const localSite = await import('./local-site.ts');
 const { applicationWriterSiteId } = await import('./application-authority.ts');
 
 before(() => store.getDb());
@@ -18,9 +18,9 @@ after(() => {
 });
 
 describe('application writer-site authority', () => {
-  it('uses Home by default, the recorded opaque writer after commit, and the source during handoff', () => {
+  it('uses the coordinator or enrolled worker and ignores retired transfer records', () => {
     const sqlite = store.getSqlite()!;
-    const fleet = multisite.ensureFleetIdentity('Authority test fleet');
+    const fleet = localSite.ensureLocalIdentity('Authority test fleet');
     const now = new Date().toISOString();
     sqlite
       .prepare(
@@ -70,11 +70,11 @@ describe('application writer-site authority', () => {
                  'follows-one-site-writer', 'manual', 0, '{}', ?, ?)`,
       )
       .run(now, now);
-    assert.equal(applicationWriterSiteId('app-authority', 'site-away'), 'site-away');
+    assert.equal(applicationWriterSiteId('app-authority', 'site-away'), fleet.homeSiteId);
     assert.equal(
       applicationWriterSiteId('app-authority', 'coordinator'),
-      'site-away',
-      'this machine is not the writer while another site holds the volume',
+      'coordinator',
+      'retired replica rows cannot redirect Home writer jobs',
     );
 
     sqlite
@@ -88,8 +88,8 @@ describe('application writer-site authority', () => {
       .run(fleet.homeSiteId, now, now);
     assert.equal(
       applicationWriterSiteId('app-authority', 'coordinator'),
-      'site-away',
-      'the source remains authoritative until the handoff commits',
+      'coordinator',
+      'retired transfer records cannot block Home writer jobs',
     );
   });
 

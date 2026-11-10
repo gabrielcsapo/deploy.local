@@ -42,7 +42,7 @@ if (process.env.DEPLOY_WANDER_API_CHILD !== '1') {
     containerId: 'old-fixture',
     port: 39999,
   });
-  (await import('./multisite.ts')).registerApplicationIdentity('wander');
+  (await import('./local-site.ts')).registerApplicationIdentity('wander');
   const baseline = {
     application: 'wander',
     applicationId: store.getDeployment('wander')!.appId!,

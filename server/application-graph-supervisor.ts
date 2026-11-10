@@ -3,7 +3,6 @@ import { ApplicationGraphExecutor } from './application-graph-executor.ts';
 import { applicationWriterSiteId } from './application-authority.ts';
 import { resolveApplicationGraphRuntime } from './application-runtime.ts';
 import { acquireDeploySlot } from './deploy-admission.ts';
-import { resolveLocalSiteId } from './multisite.ts';
 import {
   addDeployEvent,
   getAllDeployments,
@@ -97,7 +96,7 @@ function productionDependencies(): ApplicationGraphSupervisorDependencies {
     },
     isLocal(deployment) {
       const selected = deployment.activeNodeId || deployment.desiredNodeId || 'coordinator';
-      const local = process.env.DEPLOY_SUITCASE === '1' ? resolveLocalSiteId() : 'coordinator';
+      const local = 'coordinator';
       return selected === local;
     },
     async reconcile(summary) {
@@ -106,7 +105,7 @@ function productionDependencies(): ApplicationGraphSupervisorDependencies {
         const deployment = getDeployment(summary.name);
         if (!deployment || !RECONCILABLE_STATUSES.has(deployment.status || '')) return;
         const selected = deployment.activeNodeId || deployment.desiredNodeId || 'coordinator';
-        const local = process.env.DEPLOY_SUITCASE === '1' ? resolveLocalSiteId() : 'coordinator';
+        const local = 'coordinator';
         if (selected !== local || !deployment.directory) return;
         const revision = deployment.activeSpecDigest
           ? getApplicationSpecRevision(deployment.name, deployment.activeSpecDigest)

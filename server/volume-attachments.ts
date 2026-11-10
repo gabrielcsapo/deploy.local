@@ -6,7 +6,6 @@ export interface VolumeAttachment {
   consistencyGroup: string;
   ownership: ApplicationSpec['resources'][string]['ownership'];
   backup: ApplicationSpec['resources'][string]['backup'];
-  suitcase: ApplicationSpec['resources'][string]['suitcase'];
   component: string;
   mountPaths: readonly string[];
   readOnly: boolean;
@@ -82,7 +81,6 @@ export function planVolumeAttachments(
       consistencyGroup: spec.resources[item.resource].consistencyGroup,
       ownership: spec.resources[item.resource].ownership,
       backup: spec.resources[item.resource].backup,
-      suitcase: spec.resources[item.resource].suitcase,
       component: item.component,
       mountPaths: item.paths.sort(),
       readOnly: item.readOnly,

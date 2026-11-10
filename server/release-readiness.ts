@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { certsExist } from './certs.ts';
 import { getArtifact } from './content-store.ts';
-import { listCheckpointRetentionBlockers } from './data-reconciliation.ts';
+
 import { getSqlite } from './store.ts';
 
 export interface ReleaseGateCheck {
@@ -74,39 +74,6 @@ export function evaluateV1ReleaseReadiness(): V1ReleaseReadiness {
     evidence: aliasGaps.map((deployment) => String(deployment.name)),
   });
 
-  const suitcaseReadinessGaps = (
-    sqlite
-      .prepare(
-        `SELECT r.app_id, r.site_id, r.runtime_status, r.readiness
-           FROM app_replicas r
-           JOIN sites s ON s.id = r.site_id
-          WHERE r.removed_at IS NULL AND s.kind = 'suitcase' AND s.revoked_at IS NULL`,
-      )
-      .all() as Array<{
-      app_id: string;
-      site_id: string;
-      runtime_status: string;
-      readiness: string;
-    }>
-  ).filter((replica) => {
-    try {
-      return JSON.parse(replica.readiness).readyOffline !== true;
-    } catch {
-      return true;
-    }
-  });
-  checks.push({
-    id: 'CUTOVER.SUITCASE_READINESS',
-    status: suitcaseReadinessGaps.length === 0 ? 'pass' : 'block',
-    message:
-      suitcaseReadinessGaps.length === 0
-        ? 'Every selected active suitcase replica has a complete Ready offline certificate.'
-        : `${suitcaseReadinessGaps.length} selected suitcase replica(s) are not Ready offline.`,
-    evidence: suitcaseReadinessGaps.map(
-      (replica) => `${replica.app_id}@${replica.site_id}:${replica.runtime_status}`,
-    ),
-  });
-
   const runningCatalogOperations = sqlite
     .prepare("SELECT id, operation FROM catalog_operations WHERE status = 'running'")
     .all() as Array<{ id: string; operation: string }>;
@@ -120,42 +87,6 @@ export function evaluateV1ReleaseReadiness(): V1ReleaseReadiness {
     evidence: runningCatalogOperations.map((operation) => `${operation.id}:${operation.operation}`),
   });
 
-  const opaqueSnapshotGaps: string[] = [];
-  const opaqueSnapshots = sqlite
-    .prepare(
-      `SELECT id, manifest_artifact_digest FROM volume_snapshots
-        WHERE latest_home_recovery = 1 AND verification_status = 'verified'`,
-    )
-    .all() as Array<{ id: string; manifest_artifact_digest: string }>;
-  for (const snapshot of opaqueSnapshots) {
-    const manifest = getArtifact(snapshot.manifest_artifact_digest);
-    if (!manifest) {
-      opaqueSnapshotGaps.push(`${snapshot.id}:manifest-missing`);
-      continue;
-    }
-    try {
-      const parsed = JSON.parse(readFileSync(manifest.localPath, 'utf8')) as {
-        resources?: Array<{ archiveArtifactDigest?: string }>;
-      };
-      for (const resource of parsed.resources ?? []) {
-        if (!resource.archiveArtifactDigest || !getArtifact(resource.archiveArtifactDigest))
-          opaqueSnapshotGaps.push(
-            `${snapshot.id}:${resource.archiveArtifactDigest || 'archive-missing'}`,
-          );
-      }
-    } catch {
-      opaqueSnapshotGaps.push(`${snapshot.id}:manifest-invalid`);
-    }
-  }
-  checks.push({
-    id: 'CUTOVER.OPAQUE_RECOVERY',
-    status: opaqueSnapshotGaps.length === 0 ? 'pass' : 'block',
-    message:
-      opaqueSnapshotGaps.length === 0
-        ? 'Every retained Follows one site recovery snapshot has its immutable artifacts.'
-        : `${opaqueSnapshotGaps.length} opaque recovery artifact(s) are unavailable.`,
-    evidence: opaqueSnapshotGaps,
-  });
   const revisionGaps = deployments.filter((deployment) => {
     if (!deployment.active_spec_digest) return true;
     return !sqlite
@@ -238,26 +169,6 @@ export function evaluateV1ReleaseReadiness(): V1ReleaseReadiness {
           ...(recovery.rehearsed_at ? [recovery.rehearsed_at] : []),
         ]
       : [],
-  });
-
-  const apps = deployments
-    .filter((deployment) => Boolean(deployment.app_id))
-    .map((deployment) => String(deployment.app_id));
-  const retention = apps.flatMap((appId) =>
-    listCheckpointRetentionBlockers(appId).filter(
-      (checkpoint) => checkpoint.waitingForSiteIds.length > 0,
-    ),
-  );
-  checks.push({
-    id: 'CUTOVER.CHECKPOINT_RETENTION',
-    status: retention.length === 0 ? 'pass' : 'warning',
-    message:
-      retention.length === 0
-        ? 'Checkpoint acknowledgement does not block current retention.'
-        : `${retention.length} checkpoint(s) remain pinned for live replicas; preserve them through the soak.`,
-    evidence: retention.map(
-      (checkpoint) => `${checkpoint.checkpointId}:${checkpoint.waitingForSiteIds.join(',')}`,
-    ),
   });
 
   const databaseIntegrity = sqlite.pragma('integrity_check') as Array<{ integrity_check: string }>;

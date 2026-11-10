@@ -39,7 +39,7 @@ const SEA_CONFIG = resolve(ROOT, 'sea-config.json');
 const NODE_ENTITLEMENTS = resolve(ROOT, 'scripts/node-entitlements.plist');
 
 // Keep the standalone CLI runtime on the same supported major/minor as the
-// server, CI, package engine contract, and suitcase image.
+// server, CI, and package engine contract.
 const NODE_VERSION = 'v26.1.0';
 
 const TARGETS = [

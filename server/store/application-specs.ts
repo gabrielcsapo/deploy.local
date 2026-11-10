@@ -43,7 +43,7 @@ export interface ApplicationSpecRevisionInput {
 
 /**
  * Record an immutable desired application revision. Replaying the same digest
- * is idempotent, which makes upload retries and suitcase event replay safe.
+ * is idempotent, which makes upload retries safe.
  */
 export function saveDesiredApplicationSpec(revision: ApplicationSpecRevisionInput) {
   assertCiMutation(revision.deploymentName);

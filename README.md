@@ -141,10 +141,8 @@ rotates credentials. The CLI uses system CA trust and passes it to worker tools.
 - **Catalog** — install exact signed blueprint releases with declared configuration, target grants,
   compatibility promises, and evidence that stays separate from the blueprint
 
-- **Explicit data policy** — no data sync, manual sync, or automatic sync per application/site pair;
-  multi-site sync is available only after a compatible portability report
 - **Recovery boundary** — create, independently verify, rehearse, and automatically refresh
-  encrypted Home recovery bundles before a cutover or trip
+  encrypted Home recovery bundles before a cutover
 
 ## What “supported” means in v1
 

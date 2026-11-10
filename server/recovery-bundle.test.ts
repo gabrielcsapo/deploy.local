@@ -1,7 +1,6 @@
 import { materializeCheckpoint } from './workspace/checkpoint-storage.ts';
 import { getRequestsSqlite } from './requests-db.ts';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import {
   existsSync,
@@ -13,16 +12,15 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
 
 let root: string;
 let store: typeof import('./store.ts');
 let recovery: typeof import('./recovery-bundle.ts');
 let operations: typeof import('./operations-handler.ts');
-let multisite: typeof import('./multisite.ts');
+let localSite: typeof import('./local-site.ts');
 let secrets: typeof import('./secrets.ts');
 let certs: typeof import('./certs.ts');
 
@@ -32,7 +30,7 @@ before(async () => {
   store = await import(`./store.ts?recovery=${Date.now()}`);
   recovery = await import(`./recovery-bundle.ts?recovery=${Date.now()}`);
   operations = await import(`./operations-handler.ts?recovery=${Date.now()}`);
-  multisite = await import(`./multisite.ts?recovery=${Date.now()}`);
+  localSite = await import(`./local-site.ts?recovery=${Date.now()}`);
   secrets = await import(`./secrets.ts?recovery=${Date.now()}`);
   certs = await import(`./certs.ts?recovery=${Date.now()}`);
 });
@@ -45,7 +43,7 @@ after(() => {
 
 describe('encrypted Home recovery bundle', () => {
   it('verifies offline and restores fleet identity/control state onto a clean Home', async () => {
-    const fleet = multisite.ensureFleetIdentity('Family Fleet');
+    const fleet = localSite.ensureLocalIdentity('Family Fleet');
     secrets.loadOrCreateSecretKey();
     certs.ensureCerts();
     const fleetCaKey = readFileSync(join(root, 'home', 'certs', 'ca.key'));
@@ -106,25 +104,27 @@ describe('encrypted Home recovery bundle', () => {
         `sha256:${'9'.repeat(64)}`,
         new Date().toISOString(),
       );
-    const suitcases = ['Vacation Suitcase', 'Work Suitcase'].map((name) => {
-      const pairing = multisite.createSuitcasePairing({
-        name,
-        createdBy: 'admin',
-        defaultDataPolicy: 'automatic',
-        accessMode: 'existing-lan',
-      });
+    const suitcases = ['historical-site-a', 'historical-site-b'].map((siteId) => {
       const keys = generateKeyPairSync('ed25519');
-      const paired = multisite.redeemSuitcasePairing({
-        code: pairing.code,
-        publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
-        platform: 'linux',
-        architecture: 'arm64',
-        version: '1.0.0',
-      });
-      return {
-        ...paired,
-        privateKey: keys.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
-      };
+      const credential = 'historical-credential-' + siteId;
+      const now = new Date().toISOString();
+      databaseBeforeRecovery
+        .prepare(`INSERT INTO sites
+        (id, fleet_id, name, kind, public_key, credential_hash, credential_status,
+         capabilities, mode, default_data_policy, access_mode, security_profile,
+         readiness_summary, created_at, updated_at)
+        VALUES (?, ?, ?, 'suitcase', ?, ?, 'active', '{}', 'docked', 'automatic',
+                'existing-lan', 'isolated', '{}', ?, ?)`)
+        .run(
+          siteId,
+          fleet.id,
+          siteId,
+          keys.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+          createHash('sha256').update(credential).digest('hex'),
+          now,
+          now,
+        );
+      return { siteId, credential };
     });
     databaseBeforeRecovery
       .prepare(
@@ -329,7 +329,7 @@ describe('encrypted Home recovery bundle', () => {
       assert.equal(restoredSites.length, 2);
       for (const suitcase of suitcases) {
         const restoredSite = restoredSites.find((site) => site.id === suitcase.siteId);
-        assert.equal(restoredSite?.credential_status, 'recovery-pending');
+        assert.equal(restoredSite?.credential_status, 'active');
         assert.equal(
           restoredSite?.credential_hash,
           createHash('sha256').update(suitcase.credential).digest('hex'),
@@ -367,7 +367,7 @@ describe('encrypted Home recovery bundle', () => {
     const rehearsal =
       rehearsalResponse.body as import('./recovery-bundle.ts').RecoveryRehearsalReport;
     assert.equal(rehearsal.passed, true);
-    assert.equal(rehearsal.checks.activeSuitcaseCredentials, 2);
+    assert.equal('activeSuitcaseCredentials' in rehearsal.checks, false);
     assert.equal(rehearsal.checks.applicationRevisions, 2);
     assert.equal(rehearsal.checks.applicationAliases, 1);
     assert.equal(rehearsal.checks.dataPolicies, 2);
@@ -376,215 +376,6 @@ describe('encrypted Home recovery bundle', () => {
     assert.equal(rehearsal.checks.caKeyPair, true);
     assert.equal(rehearsal.checks.homeSigningIdentity, true);
 
-    const storeUrl = pathToFileURL(resolve('server/store.ts')).href;
-    const multisiteUrl = pathToFileURL(resolve('server/multisite.ts')).href;
-    const transportUrl = pathToFileURL(resolve('server/suitcase-transport.ts')).href;
-    const readoptionUrl = pathToFileURL(resolve('server/recovery-readoption.ts')).href;
-    const childScript = `
-      const crypto = await import('node:crypto');
-      const store = await import(${JSON.stringify(storeUrl)});
-      const multisite = await import(${JSON.stringify(multisiteUrl)});
-      const transport = await import(${JSON.stringify(transportUrl)});
-      const readoption = await import(${JSON.stringify(readoptionUrl)});
-      const expected = JSON.parse(process.env.DEPLOY_RECOVERY_EXPECTED);
-      const database = store.getSqlite();
-      const before = {
-        fleets: database.prepare('SELECT COUNT(*) AS count FROM fleets').get().count,
-        sites: database.prepare('SELECT COUNT(*) AS count FROM sites').get().count,
-      };
-      const fleet = multisite.ensureFleetIdentity();
-      const proofFor = (site, purpose, credential, acknowledgedLocalSequence) => {
-        const proof = {
-          schemaVersion: 1,
-          purpose,
-          siteId: site.siteId,
-          fleetId: expected.fleetId,
-          homeSiteId: expected.homeSiteId,
-          protocolVersion: 1,
-          acknowledgedLocalSequence,
-          acknowledgedLocalTelemetrySequence: 0,
-          cursors: {},
-          applications: [{
-            appId: 'app-calendar',
-            authorityEpoch: 3,
-            generation: 7,
-            baseCheckpointId: 'checkpoint-calendar-2',
-            branchCheckpointId: null,
-          }],
-          proposedCredentialHash: crypto.createHash('sha256').update(credential).digest('hex'),
-          nonce: crypto.randomBytes(24).toString('base64url'),
-          createdAt: new Date().toISOString(),
-        };
-        return {
-          proof,
-          signature: crypto.sign(
-            null,
-            Buffer.from(multisite.canonicalFleetPayload(proof)),
-            crypto.createPrivateKey(site.privateKey),
-          ).toString('base64url'),
-        };
-      };
-      let fault;
-      const faultSite = expected.suitcases[0];
-      try {
-        const invalid = proofFor(faultSite, 'home-recovery-readoption', 'new-fault', 13);
-        readoption.completeSiteCredentialProof({
-          siteId: faultSite.siteId,
-          credential: faultSite.credential,
-          ...invalid,
-          expectedPurpose: 'home-recovery-readoption',
-        });
-      } catch (error) {
-        fault = { code: error.code, blockers: error.details?.blockers || [] };
-      }
-      const faultStatus = database
-        .prepare('SELECT credential_status, quarantine_reason FROM sites WHERE id = ?')
-        .get(faultSite.siteId);
-      const adopted = expected.suitcases.map((site, index) => {
-        const credential = 'site_secret_recovered_' + index;
-        const signed = proofFor(site, 'home-recovery-readoption', credential, 11 + index);
-        const result = readoption.completeSiteCredentialProof({
-          siteId: site.siteId,
-          credential: site.credential,
-          ...signed,
-          expectedPurpose: 'home-recovery-readoption',
-        });
-        return { site, credential, result };
-      });
-      const exchanges = adopted.map(({ site, credential }) => {
-        const auth = transport.authorizeSuitcaseSite({
-          siteId: site.siteId,
-          credential,
-          protocolVersion: 1,
-        });
-        return transport.exchangeSuitcaseEvents(auth, {
-          protocolVersion: 1,
-          fleetId: expected.fleetId,
-          cursors: {},
-          events: [],
-        });
-      });
-      let oldCredentialCode;
-      try {
-        transport.authorizeSuitcaseSite({
-          siteId: faultSite.siteId,
-          credential: faultSite.credential,
-          protocolVersion: 1,
-        });
-      } catch (error) {
-        oldCredentialCode = error.code;
-      }
-      readoption.requestSiteCredentialRotation({ siteId: faultSite.siteId, actor: 'admin' });
-      let rotationRequiredCode;
-      try {
-        transport.authorizeSuitcaseSite({
-          siteId: faultSite.siteId,
-          credential: adopted[0].credential,
-          protocolVersion: 1,
-        });
-      } catch (error) {
-        rotationRequiredCode = error.code;
-      }
-      const rotatedCredential = 'site_secret_rotated_again';
-      const rotation = proofFor(
-        faultSite,
-        'credential-rotation',
-        rotatedCredential,
-        11,
-      );
-      readoption.completeSiteCredentialProof({
-        siteId: faultSite.siteId,
-        credential: adopted[0].credential,
-        ...rotation,
-        expectedPurpose: 'credential-rotation',
-      });
-      const rotatedAuth = transport.authorizeSuitcaseSite({
-        siteId: faultSite.siteId,
-        credential: rotatedCredential,
-        protocolVersion: 1,
-      });
-      const fleetRotation = readoption.requestSiteCredentialRotation({ actor: 'fleet-admin' });
-      const after = {
-        fleets: database.prepare('SELECT COUNT(*) AS count FROM fleets').get().count,
-        sites: database.prepare('SELECT COUNT(*) AS count FROM sites').get().count,
-      };
-      const ids = database.prepare('SELECT id FROM sites ORDER BY id').all().map((row) => row.id);
-      console.log(JSON.stringify({
-        fleet,
-        before,
-        after,
-        uniqueSiteIds: new Set(ids).size,
-        fault,
-        faultStatus,
-        oldCredentialCode,
-        rotationRequiredCode,
-        rotatedSiteId: rotatedAuth.siteId,
-        fleetRotationCount: fleetRotation.count,
-        exchanges: exchanges.map((exchange) => ({
-          fleetId: exchange.fleetId,
-          homeSiteId: exchange.homeSiteId,
-          siteId: exchange.siteId,
-        })),
-      }));
-      store._resetDb();
-    `;
-    const childOutput = execFileSync(
-      process.execPath,
-      ['--import', 'tsx', '--input-type=module', '--eval', childScript],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          DEPLOY_DATA_DIR: replacement,
-          DEPLOY_SUITCASE: '',
-          DEPLOY_SUITCASE_MEMBERSHIP_FILE: '',
-          DEPLOY_RECOVERY_EXPECTED: JSON.stringify({
-            fleetId: fleet.id,
-            homeSiteId: fleet.homeSiteId,
-            suitcases: suitcases.map((site) => ({
-              siteId: site.siteId,
-              credential: site.credential,
-              privateKey: site.privateKey,
-            })),
-          }),
-        },
-      },
-    ).trim();
-    const restoredExchange = JSON.parse(childOutput.split('\n').at(-1)!) as {
-      fleet: { id: string; homeSiteId: string };
-      before: { fleets: number; sites: number };
-      after: { fleets: number; sites: number };
-      uniqueSiteIds: number;
-      fault: { code: string; blockers: string[] };
-      faultStatus: { credential_status: string; quarantine_reason: string };
-      oldCredentialCode: string;
-      rotationRequiredCode: string;
-      rotatedSiteId: string;
-      fleetRotationCount: number;
-      exchanges: Array<{ fleetId: string; homeSiteId: string; siteId: string }>;
-    };
-    assert.equal(restoredExchange.fleet.id, fleet.id);
-    assert.equal(restoredExchange.fleet.homeSiteId, fleet.homeSiteId);
-    assert.deepEqual(restoredExchange.after, restoredExchange.before);
-    assert.equal(restoredExchange.before.fleets, 1);
-    assert.equal(restoredExchange.uniqueSiteIds, restoredExchange.before.sites);
-    assert.equal(restoredExchange.fault.code, 'recovery_review_required');
-    assert.ok(restoredExchange.fault.blockers.some((blocker) => blocker.includes('event 13')));
-    assert.equal(restoredExchange.faultStatus.credential_status, 'recovery-pending');
-    assert.match(restoredExchange.faultStatus.quarantine_reason, /review-required/);
-    assert.equal(restoredExchange.oldCredentialCode, 'invalid_credential');
-    assert.equal(restoredExchange.rotationRequiredCode, 'credential_rotation_required');
-    assert.equal(restoredExchange.rotatedSiteId, suitcases[0]!.siteId);
-    assert.equal(restoredExchange.fleetRotationCount, 2);
-    assert.deepEqual(
-      restoredExchange.exchanges.map((exchange) => exchange.siteId).sort(),
-      suitcases.map((site) => site.siteId).sort(),
-    );
-    for (const exchange of restoredExchange.exchanges) {
-      assert.equal(exchange.fleetId, fleet.id);
-      assert.equal(exchange.homeSiteId, fleet.homeSiteId);
-    }
     const record = store
       .getSqlite()!
       .prepare(

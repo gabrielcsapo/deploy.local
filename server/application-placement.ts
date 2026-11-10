@@ -3,7 +3,7 @@ import type { RuntimeAdmissionFinding } from './component-profiles.ts';
 
 export interface PlacementTargetEvidence {
   nodeId: string;
-  kind: 'coordinator' | 'agent' | 'suitcase' | 'unknown';
+  kind: 'coordinator' | 'agent' | 'unknown';
   labels: Readonly<Record<string, string>>;
   source: string;
   observedAt: string | null;
@@ -45,7 +45,7 @@ function stringMap(value: unknown, source: string): Record<string, string> {
   );
 }
 
-/** Explicit operator labels advertised by a coordinator, execution agent, or Suitcase target. */
+/** Explicit operator labels advertised by a coordinator or execution agent. */
 export function configuredPlacementLabels(
   value = process.env.DEPLOY_NODE_LABELS,
 ): Record<string, string> {
@@ -83,10 +83,7 @@ export function placementTargetFromFacts(input: {
       ([key]) => key !== 'platform' && key !== 'architecture' && !key.startsWith('deploy.local/'),
     ),
   );
-  const kind =
-    input.kind === 'coordinator' || input.kind === 'agent' || input.kind === 'suitcase'
-      ? input.kind
-      : 'unknown';
+  const kind = input.kind === 'coordinator' || input.kind === 'agent' ? input.kind : 'unknown';
   const builtIn = Object.fromEntries(
     [
       ['deploy.local/node-id', input.nodeId],
