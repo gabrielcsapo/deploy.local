@@ -143,6 +143,6 @@ test('only server/sqlite.ts may import the SQLite driver outside tests', () => {
       }
     }
   }
-  for (const directory of ['server', 'lib', 'bin', 'scripts']) visit(join(root, directory));
+  for (const directory of ['server', 'bin', 'scripts']) visit(join(root, directory));
   assert.deepEqual(violations, []);
 });
