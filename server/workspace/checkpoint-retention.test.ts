@@ -1,6 +1,7 @@
+import { captureSnapshot, restoreSnapshot } from './checkpoint.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -118,4 +119,29 @@ test('publishing an older checkpoint preserves later unpublished captures', () =
   cleanupCheckpointRefs(owner, published.task.id);
   assert.equal(retained(published.ref), false);
   assert.equal(retained(ref), true);
+});
+
+test('closed unpublished checkpoints remain restorable after 30 days in both storage forms', () => {
+  const f = fixture('done', null);
+  // Fixed historical evidence: no dependence on the wall clock or next month's date.
+  save('task', owner, { ...f.task, closedAt: '2000-01-01T00:00:00.000Z' });
+  const snapshot = captureSnapshot(f.task.workspacePath);
+  for (const form of ['inline', 'external']) {
+    const row = { ...f.checkpoint, id: 'old-unpublished-' + form, snapshot };
+    if (form === 'inline')
+      db.prepare("INSERT INTO records VALUES('checkpoint',?,?,?)").run(
+        row.id,
+        owner,
+        JSON.stringify(row),
+      );
+    else save('checkpoint', owner, row);
+    cleanupCheckpointRefs(owner, f.task.id);
+    assert.equal(retained(f.ref), true);
+    const stored = get('checkpoint', owner, row.id);
+    assert.deepEqual(stored.snapshot, snapshot);
+    const target = join(root, 'restored-' + form);
+    restoreSnapshot(stored.snapshot, target);
+    for (const file of snapshot.files)
+      assert.deepEqual(readFileSync(join(target, file.path)), Buffer.from(file.content, 'base64'));
+  }
 });

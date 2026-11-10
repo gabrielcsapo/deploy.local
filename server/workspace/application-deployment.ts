@@ -22,6 +22,7 @@ import {
 } from '../store.ts';
 import { decryptSecret, loadOrCreateSecretKey, secretAddress } from '../secrets.ts';
 import { command, get, save, id, now, event } from './store.ts';
+import { getCheckpointMetadata } from './store.ts';
 import { restoreCheckpoint, type Snapshot } from './checkpoint.ts';
 import { extractBaseTree } from './checkpoint-tree.ts';
 import type { AgentScope } from './coordination.ts';
@@ -260,7 +261,7 @@ export async function deployApplication(
     owner,
     args.operationId,
     () => {
-      const checkpoint = get('checkpoint', owner, args.checkpointId);
+      const checkpoint = getCheckpointMetadata(owner, args.checkpointId);
       if (checkpoint.taskId !== taskId) throw new Error('Checkpoint belongs to another task');
       return save('application-deployment', owner, {
         id: id(),

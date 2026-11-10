@@ -1,4 +1,4 @@
-import { activityEvents, get, list } from './store.ts';
+import { activityEvents, get, list, listCheckpointMetadata, checkpointInfo } from './store.ts';
 import { validateSnapshot } from './checkpoint.ts';
 import { checkpointChangedFileCount } from './follow-up.ts';
 
@@ -19,7 +19,7 @@ function provenance(owner: string, taskId: string, checkpoint: any) {
       update.id === checkpoint.baseUpdateId &&
       update.generation === checkpoint.baseUpdateGeneration &&
       update.taskId === taskId &&
-      update.commit === checkpoint.snapshot?.base?.commit &&
+      update.commit === checkpointInfo(checkpoint).baseCommit &&
       task.workspaceCommit?.commit === update.commit &&
       checkpoint.createdAt === update.completedAt
     );
@@ -68,7 +68,7 @@ export function checkpointPublishReason(
       timestamp(event.createdAt) > captured,
   );
   if (later) return staleCheckpointMessage;
-  if (checkpoint.snapshot?.excluded?.length)
+  if (checkpointInfo(checkpoint).excludedCount)
     return 'This checkpoint excludes files; ask the agent to capture a complete checkpoint';
   return null;
 }
@@ -87,8 +87,7 @@ export function publishCheckpoint(owner: string, taskId: string, checkpointId: u
 }
 
 const latestCheckpoint = (owner: string, taskId: string) =>
-  list('checkpoint', owner)
-    .filter((row) => row.taskId === taskId)
+  listCheckpointMetadata(owner, taskId)
     .sort((a, b) => timestamp(a.createdAt) - timestamp(b.createdAt))
     .at(-1) ?? null;
 
@@ -109,7 +108,7 @@ export function publishHead(owner: string, taskId: string, events?: any[]) {
   const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
   return {
     checkpointId: fresh ? checkpoint!.id : null,
-    digest: fresh ? (checkpoint!.snapshot?.digest ?? null) : null,
+    digest: fresh ? (checkpointInfo(checkpoint).digest ?? null) : null,
     title: text(checkpoint?.title),
     summary: text(checkpoint?.summary),
   };
@@ -128,7 +127,7 @@ export function latestCheckpointSummary(owner: string, taskId: string) {
       changedFileCount = checkpointChangedFileCount(
         get('project', owner, task.projectId).repositoryPath,
         checkpoint.id,
-        checkpoint.snapshot,
+        get('checkpoint', owner, checkpoint.id).snapshot,
         task.baseRevision,
       );
   } catch {
@@ -137,7 +136,7 @@ export function latestCheckpointSummary(owner: string, taskId: string) {
   return {
     id: checkpoint.id,
     createdAt: checkpoint.createdAt,
-    fileCount: checkpoint.snapshot.files.length,
+    fileCount: checkpointInfo(checkpoint).fileCount,
     changedFileCount,
     fresh: reason === null,
     reason,

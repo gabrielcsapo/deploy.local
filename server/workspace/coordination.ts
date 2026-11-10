@@ -10,7 +10,20 @@ import { workerCapabilities } from './worker-capabilities.ts';
 import { jobRequirements, eligibleForJob } from './job-placement.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { hostname, platform, arch } from 'node:os';
-import { db, get, list, save, remove, event, id, now, command, commandReplay } from './store.ts';
+import {
+  db,
+  get,
+  list,
+  save,
+  remove,
+  event,
+  id,
+  now,
+  command,
+  commandReplay,
+  getCheckpointMetadata,
+  checkpointInfo,
+} from './store.ts';
 import { nodePermissions } from './node-permissions.ts';
 import { suspendWorkerSessions } from './interactive.ts';
 import { validateSnapshot, type Snapshot } from './checkpoint.ts';
@@ -198,7 +211,10 @@ function checkpointNaming(args: any) {
   return { ...(title ? { title } : {}), ...(summary ? { summary } : {}) };
 }
 function scoped(scope: AgentScope, kind: string, recordId: string) {
-  const row = get(kind, scope.owner, recordId);
+  const row =
+    kind === 'checkpoint'
+      ? getCheckpointMetadata(scope.owner, recordId)
+      : get(kind, scope.owner, recordId);
   if (row.taskId !== scope.taskId)
     throw Object.assign(new Error('Resource belongs to another task'), { status: 403 });
   return row;
@@ -351,7 +367,7 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           taskId,
           runId,
           checkpointId: checkpoint.id,
-          digest: checkpoint.snapshot.digest,
+          digest: checkpointInfo(checkpoint).digest,
           workerId: worker?.id ?? null,
           requirements,
           command: args.command,

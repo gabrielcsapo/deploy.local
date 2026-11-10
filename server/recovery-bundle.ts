@@ -1,3 +1,8 @@
+import {
+  checkpointBlobReferences,
+  checkpointBlobPath,
+  verifyCheckpointBlobs,
+} from './workspace/checkpoint-storage.ts';
 import { getRequestsSqlite } from './requests-db.ts';
 import { packageWorkerFile } from './packages/worker-file.ts';
 import { Worker } from 'node:worker_threads';
@@ -310,6 +315,19 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
     { source: resolve(dirname(databaseSnapshot), 'requests.db'), path: 'requests.db' },
     { source: resolve(dirname(databaseSnapshot), 'workspace.db'), path: WORKSPACE_DATABASE },
   ];
+  const workspaceSnapshot = new Database(resolve(dirname(databaseSnapshot), 'workspace.db'), {
+    readonly: true,
+    fileMustExist: true,
+  });
+  try {
+    verifyCheckpointBlobs(workspaceSnapshot, resolve(root, 'workspace'));
+    for (const blob of checkpointBlobReferences(workspaceSnapshot)) {
+      const source = checkpointBlobPath(resolve(root, 'workspace'), blob);
+      files.push({ source, path: relative(root, source).split(sep).join('/') });
+    }
+  } finally {
+    workspaceSnapshot.close();
+  }
   // Git clients pin this key, and the server silently makes a new one when it is missing.
   if (existsSync(resolve(root, SSH_HOST_KEY)))
     files.push({ source: resolve(root, SSH_HOST_KEY), path: SSH_HOST_KEY });
@@ -540,6 +558,7 @@ function assertIntactWorkspaceDatabase(directory: string): void {
   try {
     if (workspace.pragma('integrity_check', { simple: true }) !== 'ok')
       throw new Error('Recovered workspace database failed integrity_check');
+    verifyCheckpointBlobs(workspace, resolve(directory, 'workspace'));
   } finally {
     workspace.close();
   }

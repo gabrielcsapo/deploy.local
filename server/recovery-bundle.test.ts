@@ -1,3 +1,4 @@
+import { materializeCheckpoint } from './workspace/checkpoint-storage.ts';
 import { getRequestsSqlite } from './requests-db.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -193,6 +194,19 @@ describe('encrypted Home recovery bundle', () => {
       (deployment_name,method,path,status,duration,timestamp)
       VALUES ('calendar','GET','/recovery-history',200,7,?)`)
       .run(Date.now());
+    const workspace = await import('./workspace/store.ts');
+    const checkpointSnapshot = {
+      files: [{ path: 'binary.dat', content: 'AP8BAg==', executable: true }],
+      excluded: [],
+      digest: 'fixture',
+    };
+    workspace.save('checkpoint', 'admin', {
+      id: 'external-checkpoint',
+      snapshot: checkpointSnapshot,
+    });
+    workspace.db
+      .prepare("INSERT INTO records VALUES('checkpoint','inline-checkpoint','admin',?)")
+      .run(JSON.stringify({ id: 'inline-checkpoint', snapshot: checkpointSnapshot }));
     const bundlePath = join(root, 'recovery.bundle');
     const passphrase = 'correct horse suitcase battery';
     const created = await recovery.createRecoveryBundle({ outputPath: bundlePath, passphrase });
@@ -220,6 +234,20 @@ describe('encrypted Home recovery bundle', () => {
       passphrase,
       destinationDataDirectory: replacement,
     });
+    const restoredWorkspace = new Database(join(replacement, 'workspace', 'workspace.db'));
+    try {
+      const rows = restoredWorkspace
+        .prepare("SELECT data FROM records WHERE kind='checkpoint'")
+        .all() as { data: string }[];
+      assert.equal(rows.length, 2);
+      for (const row of rows)
+        assert.deepEqual(
+          materializeCheckpoint(join(replacement, 'workspace'), JSON.parse(row.data)).snapshot,
+          checkpointSnapshot,
+        );
+    } finally {
+      restoredWorkspace.close();
+    }
     assert.deepEqual(restored.receipt, created.receipt);
     assert.equal(restored.fleetId, fleet.id);
     assert.equal(restored.homeSiteId, fleet.homeSiteId);
@@ -564,6 +592,28 @@ describe('encrypted Home recovery bundle', () => {
       )
       .get(created.id) as { verification_status: string; rehearsal_status: string };
     assert.deepEqual(record, { verification_status: 'verified', rehearsal_status: 'passed' });
+  });
+
+  it('refuses to export a database whose external checkpoint body is missing', async () => {
+    const workspace = await import('./workspace/store.ts');
+    workspace.db.prepare("INSERT INTO records VALUES('checkpoint','missing-body','admin',?)").run(
+      JSON.stringify({
+        id: 'missing-body',
+        snapshotBlob: { digest: 'sha256:' + 'f'.repeat(64), byteSize: 123 },
+      }),
+    );
+    try {
+      await assert.rejects(
+        recovery.createRecoveryBundle({
+          outputPath: join(root, 'missing-body.bundle'),
+          passphrase: 'correct horse suitcase battery',
+        }),
+        /ENOENT/,
+      );
+      assert.equal(existsSync(join(root, 'missing-body.bundle')), false);
+    } finally {
+      workspace.remove('checkpoint', 'admin', 'missing-body');
+    }
   });
 
   it('omits all hosted files over the cap while preserving verified, restorable core recovery', async () => {
