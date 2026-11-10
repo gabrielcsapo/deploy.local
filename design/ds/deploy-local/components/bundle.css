@@ -628,3 +628,6 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 .dl-rv-status.done{color:var(--ink);font-weight:500}
 .dl-rv-record{margin:4px 8px 12px;padding:10px 12px;border:1px dashed var(--line-strong);border-radius:12px;display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:20px;color:var(--ink-soft)}
 .dl-rv-record b{display:flex;align-items:center;gap:6px;color:var(--ink);font-weight:500}
+
+/* A check that waits on a report: the muted clock, never the attention glyph. */
+.dl-wait{color:var(--muted)}
