@@ -605,3 +605,21 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 @media(max-width:820px){.dl-rv-readout,.dl-rv-sep:has(+ .dl-rv-readout){display:none}.dl-rv-rail,.dl-rv-wide{display:none}.dl-rv-bar{display:flex;align-items:center;gap:8px;height:48px;flex:none;padding:0 4px 0 16px;border-bottom:1px solid var(--line);font-size:13px;line-height:20px}.dl-rv-bar b{font-weight:500;white-space:nowrap}.dl-rv-bar span{color:var(--muted);white-space:nowrap}.dl-rv-bar a{display:grid;place-items:center;width:44px;height:44px;font-size:17px;color:var(--ink)}.dl-rv-stage{padding:8px}.dl-rv-bottom{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}.dl-rv-bottom .dl-btn{height:44px}.dl-rv-bottom em{margin-right:auto;font-style:normal;font-size:12px;line-height:16px;color:var(--muted)}.dl-rv-pop{top:auto;bottom:72px;left:16px;right:16px;width:auto}.dl-rv-note .dl-rv-bubble{white-space:normal;max-width:220px}.dl-rv-compose{left:16px!important;right:16px;width:auto}}
 .dl-phone .pager-stage .dl-menu-btn{display:none}.dl-phone .pager-stage .dl-head{padding-left:20px}
 .dl-phone .dl-rv-detail{font-size:15px;line-height:22px;margin:0}.dl-phone .dl-rv-detail ins{padding:0 3px}
+
+/* Task header: one header for every task, whatever started it. Title, a status line, then tabs; the conversation, the changes and the checks share its 1040 px frame. */
+.dl-task-head{flex:none;padding-top:20px}
+.dl-task-wrap{width:100%;max-width:1040px;margin:0 auto;box-sizing:border-box;padding:0 32px}
+.dl-task-title{display:flex;align-items:flex-start;gap:8px}
+.dl-task-title h1{flex:1;min-width:0;margin:0;padding-top:1px;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-.01em}
+.dl-task-title .dl-end{display:flex;align-items:center;gap:2px;flex:none}
+.dl-task-title .dl-btn{margin-left:8px}
+.dl-task-title .dl-menu-btn{margin-left:-8px}
+.dl-task-status{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin:4px 0 16px;font-size:13px;line-height:20px;color:var(--ink-soft)}
+.dl-task-status .dl-task-state{font-size:13px;line-height:20px;font-weight:500;color:var(--ink)}
+.dl-task-status .sep{color:var(--muted)}
+.dl-task .dl-col,.dl-task .dl-dock{max-width:1040px}
+.dl-task .dl-thread,.dl-task .dl-dock .dl-composer{max-width:768px}
+@media (max-width:820px){.dl-task-wrap{padding:0 16px}.dl-task-head{padding-top:12px}}
+
+/* One frame for a tabbed page: on a wide page the tabs and the page head keep the 960 px column's edges, so they stay put from tab to tab; only the content below widens. */
+.dl-page.wide>.dl-tabs,.dl-page.wide>.dl-page-head{width:100%;max-width:896px;align-self:center}
