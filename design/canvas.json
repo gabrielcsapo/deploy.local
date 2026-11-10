@@ -4452,6 +4452,13 @@
       "y": 63060,
       "text": "Closing the loop on an approved design. When the design lands on main its build starts: the proposer’s task is told to build it, or a Build task starts when a person proposed it.\n• A task linked to an approved design gets an Approved design check on its Checks tab: Matches the approved design. Until the builder reports, the header reads Design not checked, Merge and release is off, and More offers Merge without the design check.\n• The builder renders each changed board, captures the app at the same widths and reports matches or differs. Matches turns the check green and the task can read Ready to merge. Compare opens the pairs.\n• Differs brings one item to Waiting on you with the design and the app side by side at the width that differs, what differs and why. Fix the app sends it back to the same task. Keep it and update the design passes the check as Kept and has the builder change the board in the same task to match the app; that answer is its approval, and the board lands with the merge. No third choice; Open the task is a link.\n• A task with no approved design shows none of this."
     },
+    "sidebar-quiet": {
+      "fill": "purple",
+      "w": 440,
+      "x": 0,
+      "y": 1040,
+      "text": "The sidebar is quiet until there is something to show.\n• Order: New task and the places, then Waiting on you, Agents, Today and earlier days.\n• A section appears with its first item. Nothing waiting: no Waiting on you row and no 0. No agents: one row, New agent, in place of the heading and the sentence. No tasks today: no Today heading.\n• Waiting on you sits under the places, not above them, so the places never move as decisions come and go.\n• Agents are one line each: avatar, name, time. The last message shows on hover and in the agent’s chat.\n• Search stays out of the app until it works; a disabled “coming soon” button is an empty state too."
+    },
     "phone-review-tools": {
       "fill": "purple",
       "w": 440,

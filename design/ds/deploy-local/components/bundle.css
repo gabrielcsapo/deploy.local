@@ -632,6 +632,16 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 /* A check that waits on a report: the muted clock, never the attention glyph. */
 .dl-wait{color:var(--muted)}
 
+/* The sidebar is quiet until there is something to show. A section appears with its first item:
+   no heading over nothing, no count of zero. Waiting on you comes first, under the places, because
+   it is the one section that asks something of you. Agents are one line each: avatar, name, time. */
+.dl-side .dl-nav.agent-list-row{height:32px}
+.dl-side .agent-list-row .agent-avatar{width:20px;height:20px;margin:0 -2px}
+.dl-side .dl-nav .dl-lead:has(.agent-avatar){width:16px}
+.dl-side .dl-nav:has(.agent-avatar){gap:8px}
+.dl-side .agent-list-row .dl-t{display:block}
+.dl-side-scroll>.dl-nav:first-child{margin-top:12px}
+
 /* Resolving a conflict in review: the two answers sit under the screen they decide. */
 .dl-rv-choice{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .dl-rv-choice .dl-btn{flex:1 1 auto;justify-content:center}
