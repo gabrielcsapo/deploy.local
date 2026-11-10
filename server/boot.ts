@@ -1,3 +1,4 @@
+import { startTaskPlacement } from './workspace/task-workspace.ts';
 import { startDesignApprovals } from './v2/design.ts';
 import { createTelemetryCollector } from './telemetry-runtime.ts';
 import { withServerTelemetry } from './telemetry-http.ts';
@@ -121,6 +122,7 @@ async function start(options: BootOptions) {
 
   function startupTasks(managedWorkerOrigin: string) {
     startDesignApprovals();
+    startTaskPlacement();
     startManagedWorkers(managedWorkerOrigin);
     cleanupStaleBuildLogs();
     syncContainerStates()

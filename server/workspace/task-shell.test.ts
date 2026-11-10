@@ -29,3 +29,10 @@ test('Stop and timeout kill the separate command process group', async () => {
     assert.throws(() => process.kill(child.pid!, 0), /ESRCH/);
   }
 });
+
+test('task shells follow the resumed workspace and validate its generation', () => {
+  const root = mkdtempSync(join(tmpdir(), 'task-shell-moved-'));
+  mkdirSync(join(root, 'tasks', 'task-moved'), { recursive: true });
+  assert.equal(taskShellDirectory(root, 'task', 'moved').cwd, join(root, 'tasks', 'task-moved'));
+  assert.throws(() => taskShellDirectory(root, 'task', '../escape'), /Invalid workspace/);
+});

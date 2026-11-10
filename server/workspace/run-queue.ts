@@ -1,3 +1,4 @@
+import { hasTools } from './tool-probes.ts';
 import { computers } from './coordination.ts';
 import { workerRoleEnabled } from './computer-role-policy.ts';
 import { db, event, get, list, now, revise, save } from './store.ts';
@@ -55,6 +56,7 @@ export function runQueue(owner: string, run: any) {
       ? workers
           .filter(
             (w) =>
+              hasTools(owner, w.id, task.needs?.tools) &&
               w.id !== run.workerId &&
               w.id !== 'local' &&
               w.status === 'online' &&

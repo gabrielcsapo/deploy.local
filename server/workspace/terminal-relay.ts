@@ -8,6 +8,7 @@ export type TerminalAssignment = {
   workerId: string;
   instanceId: string;
   taskId?: string;
+  workspaceGeneration?: string;
   viewerId?: string;
   command?: string;
   cols: number;
@@ -54,7 +55,7 @@ export class TerminalRelay {
   private deps: {
     computer(owner: string, workerId: string): TerminalComputer;
     audit(type: 'terminal.started' | 'terminal.ended', entry: TerminalAudit): void;
-    task?(owner: string, workerId: string, taskId: string): void;
+    task?(owner: string, workerId: string, taskId: string): { workspaceGeneration?: string } | void;
     output?(id: string, owner: string, data: Buffer): void;
     now?: () => number;
     idleMs?: number;
@@ -93,12 +94,13 @@ export class TerminalRelay {
   ) {
     const computer = this.allowed(owner, workerId);
     terminalSize(cols, rows);
+    let workspaceGeneration: string | undefined;
     if (metadata.taskId !== undefined) {
       if (typeof metadata.taskId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(metadata.taskId))
         throw new Error('Invalid task');
       if (!computer.taskSupported) throw new Error(`Update deploy.local on ${computer.name}`);
       if (!this.deps.task) throw new Error('Task terminals unavailable');
-      this.deps.task(owner, workerId, metadata.taskId);
+      workspaceGeneration = this.deps.task(owner, workerId, metadata.taskId)?.workspaceGeneration;
       if (
         !metadata.command &&
         (typeof metadata.viewerId !== 'string' ||
@@ -111,6 +113,7 @@ export class TerminalRelay {
           s.owner === owner &&
           s.workerId === workerId &&
           s.taskId === metadata.taskId &&
+          s.workspaceGeneration === workspaceGeneration &&
           s.viewerId === metadata.viewerId &&
           !s.command,
       );
@@ -151,6 +154,7 @@ export class TerminalRelay {
       pendingBytes: 0,
       detachedOutput: Buffer.alloc(0),
       ...metadata,
+      ...(workspaceGeneration ? { workspaceGeneration } : {}),
     };
     this.sessions.set(session.id, session);
     this.audit('terminal.started', session, null, 'requested');
@@ -192,6 +196,9 @@ export class TerminalRelay {
         workerId: session.workerId,
         instanceId: session.instanceId,
         taskId: session.taskId,
+        ...(session.workspaceGeneration
+          ? { workspaceGeneration: session.workspaceGeneration }
+          : {}),
         viewerId: session.viewerId,
         command: session.command,
         cols: session.cols,
@@ -230,12 +237,18 @@ export class TerminalRelay {
       assignment.workerId !== session.workerId ||
       assignment.instanceId !== session.instanceId ||
       assignment.taskId !== session.taskId ||
+      assignment.workspaceGeneration !== session.workspaceGeneration ||
       assignment.command !== session.command
     )
       throw new Error('Terminal assignment mismatch');
     const computer = this.allowed(identity.owner, identity.workerId);
     if (computer.instanceId !== session.instanceId) throw new Error('Worker process changed');
-    if (session.taskId) this.deps.task?.(session.owner, session.workerId, session.taskId);
+    if (
+      session.taskId &&
+      this.deps.task?.(session.owner, session.workerId, session.taskId)?.workspaceGeneration !==
+        session.workspaceGeneration
+    )
+      throw new Error('Task workspace changed');
     session.worker = socket;
     socket.on('message', (data, binary) => {
       if (!this.sessions.has(session.id)) return;
@@ -321,7 +334,11 @@ export class TerminalRelay {
         const computer = this.allowed(s.owner, s.workerId);
         if (s.taskId) {
           if (!computer.taskSupported) throw new Error(`Update deploy.local on ${computer.name}`);
-          this.deps.task?.(s.owner, s.workerId, s.taskId);
+          if (
+            this.deps.task?.(s.owner, s.workerId, s.taskId)?.workspaceGeneration !==
+            s.workspaceGeneration
+          )
+            throw new Error('Task workspace changed');
         }
         if (s.command && this.now() - s.started >= 10 * 60_000)
           throw new Error('Command timed out after 10 minutes');

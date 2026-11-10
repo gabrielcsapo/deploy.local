@@ -573,3 +573,32 @@ test('task association, task capability and restart recovery use coordinator-own
   assert.equal(get('message', 'recovery-owner', 'orphan-command').shell.status, 'ended');
   assert.match(get('message', 'recovery-owner', 'orphan-command').shell.reason, /restarted/);
 });
+
+test('terminal assignments bind the coordinator-selected workspace generation', () => {
+  const relay = new TerminalRelay({
+    computer: () => ({ ...computer, taskSupported: true }),
+    audit: () => {},
+    task: () => ({ workspaceGeneration: 'moved' }),
+  });
+  try {
+    relay.start('owner', 'ser', undefined, 80, 24, {
+      ip: '',
+      userAgent: '',
+      taskId: 'task',
+      command: 'pwd',
+    });
+    const assignment = relay.assignments('owner', 'ser', 'instance')[0];
+    assert.equal(assignment.workspaceGeneration, 'moved');
+    assert.throws(
+      () =>
+        relay.attachWorker(
+          { owner: 'owner', workerId: 'ser' },
+          { ...assignment, workspaceGeneration: 'old' },
+          new FakeSocket().ws(),
+        ),
+      /assignment mismatch/,
+    );
+  } finally {
+    relay.dispose();
+  }
+});

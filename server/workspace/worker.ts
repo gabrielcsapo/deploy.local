@@ -409,7 +409,7 @@ async function finish(owner: string, run: any, status: string, error: string | n
     });
     save('task', owner, {
       ...updatedTask,
-      status: status === 'failed' ? 'failed' : 'review',
+      status: updatedTask.pendingPlacement ? 'waiting' : status === 'failed' ? 'failed' : 'review',
       revision: updatedTask.revision + 1,
       updatedAt: now(),
     });

@@ -37,7 +37,10 @@ export async function taskFiles(
     return { path, entries: [], omitted: `Files are on ${computer}; open Changes to review them` };
   }
   const workspace = managed
-    ? managedWorkspaceDirectory(task.workerId, task.id)
+    ? managedWorkspaceDirectory(
+        task.workerId,
+        task.id + (task.workspaceGeneration ? '-' + task.workspaceGeneration : ''),
+      )
     : task.workspacePath;
   if (!workspace || (task.workspaceStatus && task.workspaceStatus !== 'ready'))
     return { path, entries: [], omitted: `Workspace ${task.workspaceStatus || 'unavailable'}` };

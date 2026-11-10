@@ -1,3 +1,4 @@
+import { restoreTaskCheckpoint } from './checkpoint.ts';
 import { executePullMerge } from './project-collaboration.ts';
 import { recordCheckpointBase } from './checkpoint.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
@@ -165,7 +166,11 @@ export class RepositoryRunner {
     const task = get('task', owner, operation.taskId);
     if (task.workspaceOperationId !== operation.id)
       throw new Error('Workspace operation was superseded');
-    const marker = resolve(root, 'workspace-ready', task.id + '.json');
+    const marker = resolve(
+      root,
+      'workspace-ready',
+      task.id + (task.workspaceGeneration ? '-' + task.workspaceGeneration : '') + '.json',
+    );
     if (await exists(task.workspacePath)) {
       const proof = await readFile(marker, 'utf8')
         .then(JSON.parse)
@@ -182,7 +187,14 @@ export class RepositoryRunner {
       await mkdir(resolve(root, 'tasks'), { recursive: true });
       await this.gitText(
         project.repositoryPath,
-        ['worktree', 'add', '-b', `task/${task.id}`, task.workspacePath, task.baseRevision],
+        [
+          'worktree',
+          'add',
+          '-b',
+          `task/${task.id}${task.workspaceGeneration ? '-' + task.workspaceGeneration : ''}`,
+          task.workspacePath,
+          task.resumeBaseRevision || task.baseRevision,
+        ],
         { signal, timeout: 600000 },
       );
     } else {
@@ -197,6 +209,11 @@ export class RepositoryRunner {
         timeout: 600000,
       });
     }
+    if (task.resumeCheckpointId)
+      restoreTaskCheckpoint(
+        get('checkpoint', owner, task.resumeCheckpointId).snapshot,
+        task.workspacePath,
+      );
     await mkdir(resolve(root, 'workspace-ready'), { recursive: true });
     await writeFile(marker, JSON.stringify({ taskId: task.id, baseRevision }), { mode: 0o600 });
     db.transaction(() => {

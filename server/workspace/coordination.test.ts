@@ -51,7 +51,10 @@ async function until(check: () => any | Promise<any>, timeout = 15000): Promise<
 
 test('job labels remain optional in the schema and do not add MCP tools', async () => {
   const { coordinationTools } = await import('./coordination-tools.ts');
-  assert.equal(coordinationTools.length, 16);
+  assert.equal(coordinationTools.length, 17);
+  const needs = coordinationTools.find((tool) => tool.name === 'deploy_require_tools')!;
+  assert.deepEqual(needs.inputSchema.required, ['needs']);
+  assert.ok(!('checkpointId' in needs.inputSchema.properties));
   const runTool = coordinationTools.find((tool) => tool.name === 'deploy_run_job')!;
   assert.equal((runTool.inputSchema.properties as Record<string, any>).label.maxLength, 80);
   assert.ok(!runTool.inputSchema.required.includes('label'));
@@ -345,7 +348,7 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
     });
     mcp.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     const tools: typeof coordinationTools = (await request('tools/list')).tools;
-    assert.equal(tools.length, 16);
+    assert.equal(tools.length, 17);
     const runTool = tools.find((tool) => tool.name === 'deploy_run_job')!;
     assert.equal((runTool.inputSchema.properties as Record<string, any>).label.maxLength, 80);
     assert.ok(!runTool.inputSchema.required?.includes('label'));

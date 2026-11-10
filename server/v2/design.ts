@@ -1,3 +1,4 @@
+import { hasTools } from '../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
 import { reviewEvidence } from '../design/review-evidence.ts';
 import {
@@ -1471,6 +1472,7 @@ export function designBuildBrief(input: {
     `What changed in the design:\n${shown.map((path) => `- ${path}`).join('\n')}${
       input.paths.length > shown.length ? `\n- and ${input.paths.length - shown.length} more` : ''
     }`,
+    'Before starting, use deploy_require_tools as your first step to state the executable names of the programs you need.',
     'Build exactly what was approved, on every client the changed boards show. If the build has to differ from a board (wording, a state the board missed, a platform limit), stop that part and report the difference for the owner to decide before going on.',
     'When it is built, render each changed board, capture the running app at the same widths, and compare them (the project’s design/README.md says how, if it has one). Then report with deploy_design, action "built": state "matches", or state "differs" with a positive differences count and required text saying what differs in plain words. You may include why, board (a filename such as Header.html), width, and screenshotId from this task’s existing screenshot mechanism. For matches you may include captures, the number compared. Include comparisons (an array of { board, width, screenshotId }) to make the compared pairs available from the check. A later report replaces the earlier report; differs brings one decision to the owner. Wait for that decision: Fix the app returns it to this task; Keep it and update the design approves the difference and asks you to update the board in your own branch for the pull request. The work is not finished until that report is in.',
   ]
@@ -2034,7 +2036,10 @@ function livePresence(owner: string, projectId: string) {
  * It reads and edits design/ in its own workspace and renders with design/tools/render.mjs;
  * this tool shows where it works, handles comments, and asks for review.
  */
-export async function designTool(scope: { owner: string; taskId: string }, args: any) {
+export async function designTool(
+  scope: { owner: string; taskId: string; runId?: string },
+  args: any,
+) {
   const task = get('task', scope.owner, scope.taskId);
   if (!task.projectId) fail('This conversation has no repository project');
   const project = requireRepository(scope.owner, task.projectId);
@@ -2104,7 +2109,22 @@ export async function designTool(scope: { owner: string; taskId: string }, args:
     }
     case 'built': {
       const row = approvedTaskDesign(scope.owner, task.id);
-      if (row) await ensureDesignCheckBoards(scope.owner, project, row);
+      if (row) {
+        await ensureDesignCheckBoards(scope.owner, project, row);
+        if (args.state === 'matches' && task.needs?.tools.length) {
+          const run = scope.runId
+            ? get('run', scope.owner, scope.runId)
+            : list('run', scope.owner)
+                .filter((candidate) => candidate.taskId === task.id)
+                .at(-1);
+          const workerId = run?.workerId ?? task.workerId ?? 'local';
+          if (!hasTools(scope.owner, workerId, task.needs.tools))
+            fail(
+              'This computer has not confirmed all the programs this task needs. Report differs or compare on a computer that has confirmed them.',
+              409,
+            );
+        }
+      }
       return reportDesignBuild(scope.owner, task.id, args);
     }
     case 'propose': {

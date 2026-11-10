@@ -44,7 +44,7 @@ async function installBaseline(
     authentication,
   });
   // Use the private workspace branch, not the hosted branch (local worktrees share refs).
-  const branch = `refs/heads/task/${task.id}`;
+  const branch = `refs/heads/task/${task.id}${task.workspaceGeneration ? '-' + task.workspaceGeneration : ''}`;
   await gitText(cwd, ['update-ref', branch, baseline.commit]);
   await gitText(cwd, ['symbolic-ref', 'HEAD', branch]);
   await gitText(cwd, ['read-tree', baseline.commit]);

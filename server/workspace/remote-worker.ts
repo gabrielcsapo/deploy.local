@@ -13,7 +13,12 @@ import { configureMacDesktopHelper } from './mac-desktop.ts';
 import { ScreenshotRunner } from './screenshot-runtime.ts';
 import { prepareAttachmentInput } from './attachment-input.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
-import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
+import {
+  probeTool,
+  toolNames,
+  refreshCapabilities,
+  workerCapabilities,
+} from './worker-capabilities.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
 import { gitEnvironment } from './repository-git.ts';
 import { modelOptions } from './model-options.ts';
@@ -25,7 +30,7 @@ import {
   providerLoginActive,
 } from './provider-runtime.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
-import { recordCheckpointBase } from './checkpoint.ts';
+import { restoreTaskCheckpoint, recordCheckpointBase } from './checkpoint.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
 import { inspectWorkspace, summaryPatchLimit, workspaceFilePatches } from './review.ts';
@@ -163,7 +168,12 @@ async function start(assignment: any) {
   let install: Awaited<ReturnType<typeof prepareAgentInstall>> | undefined;
   state = {
     ...assignment,
-    workspacePath: resolve(localRoot, 'tasks', assignment.task.id),
+    workspacePath: resolve(
+      localRoot,
+      'tasks',
+      assignment.task.id +
+        (assignment.task.workspaceGeneration ? '-' + assignment.task.workspaceGeneration : ''),
+    ),
     sequence: 0,
     events: [],
     terminal: null,
@@ -178,7 +188,9 @@ async function start(assignment: any) {
           throw new Error('Conversation baseline mismatch');
       } else {
         const initialRevision =
-          assignment.task.workspaceCommit?.commit || assignment.task.baseRevision;
+          assignment.task.resumeBaseRevision ||
+          assignment.task.workspaceCommit?.commit ||
+          assignment.task.baseRevision;
         git(state.workspacePath, [
           'clone',
           origin + '/api/workspace/git/' + assignment.project.id,
@@ -190,7 +202,7 @@ async function start(assignment: any) {
           git(state.workspacePath, [
             'fetch',
             'origin',
-            assignment.task.sourceRef || initialRevision,
+            assignment.taskCheckpointBaseRef || assignment.task.sourceRef || initialRevision,
           ]);
           if (git(state.workspacePath, ['rev-parse', 'FETCH_HEAD']) !== initialRevision)
             throw new Error('Task source revision changed');
@@ -198,6 +210,8 @@ async function start(assignment: any) {
         git(state.workspacePath, ['checkout', '-b', `task/${assignment.task.id}`, initialRevision]);
       }
     }
+    if (assignment.taskCheckpoint)
+      restoreTaskCheckpoint(assignment.taskCheckpoint, state.workspacePath);
     if (assignment.project) {
       // Checkpoints are a delta over the commit the coordinator prepared this clone from.
       // Recorded on every start so clones made before delta checkpoints also get it.
@@ -466,13 +480,23 @@ const baseUpdateTimer = setInterval(async () => {
     for (const operation of operations) {
       try {
         await prepareBaseUpdateWorkspace(
-          resolve(localRoot, 'tasks', operation.taskId),
+          resolve(
+            localRoot,
+            'tasks',
+            operation.taskId +
+              (operation.workspaceGeneration ? '-' + operation.workspaceGeneration : ''),
+          ),
           operation,
           origin + '/api/workspace/git/' + operation.projectId,
           { origin: origin!, header: gitEnv.GIT_CONFIG_VALUE_0 },
         );
         await executeBaseUpdate(
-          resolve(localRoot, 'tasks', operation.taskId),
+          resolve(
+            localRoot,
+            'tasks',
+            operation.taskId +
+              (operation.workspaceGeneration ? '-' + operation.workspaceGeneration : ''),
+          ),
           operation,
           origin + '/api/workspace/git/' + operation.projectId,
           (action, body) => request(`/workers/${workerId}/base-updates/${action}`, body),
@@ -517,12 +541,14 @@ const jobTimer = setInterval(
   1000,
 );
 let configurationFailed = false;
+let toolAnswers: Record<string, boolean> = {};
 async function tick() {
   if (busy) return;
   busy = true;
   try {
     const providers = providerRuntimeState();
-    await request('/workers/register', {
+    const registered = await request('/workers/register', {
+      toolAnswers,
       workerId,
       name: process.env.DEPLOY_WORKER_NAME || hostname(),
       nodeId: process.env.DEPLOY_NODE_ID || undefined,
@@ -548,6 +574,13 @@ async function tick() {
           ? providers.available('codex')
           : spawnSync('codex', ['--version'], { encoding: 'utf8' }).status === 0,
     });
+    toolAnswers = {};
+    // Registration is the heartbeat even while a task runs, so busy computers answer too.
+    await Promise.all(
+      toolNames(registered.toolProbes ?? []).map(async (tool) => {
+        toolAnswers[tool] = await probeTool(tool);
+      }),
+    );
     writeNodeSnapshot({
       enrolled: true,
       coordinatorUrl: origin!,

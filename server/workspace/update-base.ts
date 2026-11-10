@@ -56,6 +56,7 @@ export async function updateBase(owner: string, taskId: string, args: any, runId
           id: args.operationId,
           generation: args.operationId,
           taskId,
+          ...(task.workspaceGeneration ? { workspaceGeneration: task.workspaceGeneration } : {}),
           projectId: project.id,
           workerId: task.workerId || 'local',
           action,

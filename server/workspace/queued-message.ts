@@ -61,6 +61,7 @@ const heldReason: Record<string, string> = {
 };
 /** Called after a run reaches a terminal status. Only a successful turn sends the follow-up. */
 export function releaseQueuedMessage(owner: string, taskId: string, status: string) {
+  if (get('task', owner, taskId).pendingPlacement) return null;
   const queued = queuedMessage(owner, taskId);
   if (queued?.status !== 'queued') return null;
   const hold = (reason: string) => {

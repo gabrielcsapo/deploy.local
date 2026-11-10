@@ -1,3 +1,12 @@
+export type TaskRequirementsSnapshot = {
+  needs?: {
+    tools: string[];
+    why?: string;
+    waiting: boolean;
+    asked: { id: string; name: string; online: boolean; has: Record<string, boolean | null> }[];
+  };
+};
+
 export type AgentId = string;
 export type UserId = string;
 

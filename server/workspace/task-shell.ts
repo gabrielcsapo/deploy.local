@@ -5,10 +5,16 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 /** Only the worker's configured root and an opaque task id determine the directory. */
-export function taskShellDirectory(root: string, taskId?: string) {
+export function taskShellDirectory(root: string, taskId?: string, workspaceGeneration?: string) {
   if (!taskId) return { cwd: homedir(), notice: '' };
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(taskId)) throw new Error('Invalid task id');
-  const cwd = resolve(root, 'tasks', taskId);
+  if (workspaceGeneration && !/^[a-zA-Z0-9_-]{1,100}$/.test(workspaceGeneration))
+    throw new Error('Invalid workspace generation');
+  const cwd = resolve(
+    root,
+    'tasks',
+    taskId + (workspaceGeneration ? '-' + workspaceGeneration : ''),
+  );
   try {
     if (statSync(cwd).isDirectory()) return { cwd, notice: '' };
   } catch {}

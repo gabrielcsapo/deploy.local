@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
 import { platform } from 'node:os';
+import { access, stat } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { delimiter, resolve } from 'node:path';
 let inventory = [
   'git',
   'shell',
@@ -20,6 +23,44 @@ function probe(command: string, args: string[]) {
       resolve(code === 0);
     });
   });
+}
+/** Only executable names, never shell fragments or argument strings. */
+export function toolNames(value: unknown): string[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > 100 ||
+    value.some(
+      (name) => typeof name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9+._-]{0,40}$/.test(name),
+    )
+  )
+    throw new Error('Needs must be bare tool names, such as xcodebuild or docker');
+  return [...new Set(value)];
+}
+/**
+ * macOS keeps placeholders in /usr/bin for developer programs that are not installed: the file is
+ * there, and running it only offers to install the real thing. xcrun knows whether one exists.
+ */
+function realOnMac(name: string, path: string) {
+  if (platform() !== 'darwin' || !path.startsWith('/usr/bin/')) return true;
+  return probe('/usr/bin/xcrun', ['--find', name]);
+}
+export function probeTool(name: string): Promise<boolean> {
+  toolNames([name]);
+  // Availability is a PATH lookup; programs need not support a particular version flag.
+  const extensions =
+    process.platform === 'win32' ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';') : [];
+  return (async () => {
+    for (const directory of (process.env.PATH ?? '').split(delimiter)) {
+      for (const extension of ['', ...extensions]) {
+        const path = resolve(directory, name + extension);
+        try {
+          await access(path, constants.X_OK);
+          if ((await stat(path)).isFile()) return await realOnMac(name, path);
+        } catch {}
+      }
+    }
+    return false;
+  })();
 }
 export function workerCapabilities() {
   return inventory;
