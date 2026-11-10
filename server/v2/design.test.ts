@@ -2298,7 +2298,8 @@ test('approved designs show build reports and only linked open tasks without rep
     ...get('v2-inbox-native', 'alice', item.id),
     context: { ...row.context, taskId },
   });
-  assert.match((await readApproved())[0].detail, /is building it/);
+  // A person proposed this one, so no agent is named.
+  assert.match((await readApproved())[0].detail, /· being built$/);
   await assert.rejects(
     () => designTool({ owner: 'alice', taskId }, { action: 'built', state: 'differs' }),
     /differences count/,
@@ -2310,4 +2311,46 @@ test('approved designs show build reports and only linked open tasks without rep
     { action: 'built', state: 'differs', differences: 2 },
   );
   assert.equal((await readApproved())[0].detail, 'Built · 2 differences to look at');
+});
+
+test('an approved design starts its build once it is on main, and only once', async () => {
+  const f = await reviewFixture('review-build-loop');
+  const item = await f.propose();
+  const { get, list } = await import('../workspace/store.ts');
+  const { answerInboxAsync } = await import('./inbox.ts');
+  const { landDesignApprovals, designBuildBrief } = await import('./design.ts');
+  const builds = () =>
+    list('task', 'alice').filter((task: any) => String(task.title).startsWith('Build: '));
+  const before = builds().length;
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
+  await landDesignApprovals();
+  const landing = get('design-review-landing', 'alice', item.id);
+  assert.equal(landing.state, 'landed');
+  assert.ok(landing.build, 'the landing records what followed it');
+  if (landing.build.failed) {
+    // No computer takes tasks in this fixture: the review says why instead of retrying forever.
+    assert.equal(builds().length, before);
+  } else {
+    assert.equal(landing.build.started, true);
+    assert.equal(builds().length, before + 1);
+    const task = get('task', 'alice', landing.build.taskId);
+    assert.equal(task.title, `Build: ${item.title}`);
+    // The review now leads to its builder, so "built" reports and To review can find it.
+    assert.equal(get('v2-inbox-native', 'alice', item.id).context.taskId, task.id);
+  }
+  await landDesignApprovals();
+  assert.equal(builds().length, before + (landing.build.failed ? 0 : 1));
+  assert.deepEqual(get('design-review-landing', 'alice', item.id).build, landing.build);
+
+  const brief = designBuildBrief({
+    title: 'A way back',
+    summary: 'Project pages get a breadcrumb.',
+    commit: '0123456789abcdef',
+    main: 'main',
+    paths: ['design/boards/Project.html'],
+  });
+  assert.match(brief, /“A way back” is approved and on main at 01234567\./);
+  assert.match(brief, /Project pages get a breadcrumb\./);
+  assert.match(brief, /- design\/boards\/Project\.html/);
+  assert.match(brief, /action "built"/);
 });

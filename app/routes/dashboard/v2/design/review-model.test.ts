@@ -11,6 +11,8 @@ import {
   reviewCrop,
   counted,
   reviewStep,
+  approvalRecord,
+  buildLine,
 } from './review-model.ts';
 
 test('review counts use singular only for one pin, change or screen', () => {
@@ -233,4 +235,63 @@ test('arrow keys walk every screen of a review, across changes', () => {
     id: 'phone',
     screen: 0,
   });
+});
+
+test('an approved review says who decided and what happens next, without inventing a builder', () => {
+  const answer = { actionId: 'approve', at: '2026-11-09T14:14:00Z', on: 'web' };
+  const item = { id: 'design:p:b:c', answer } as never;
+  const you = { id: null, name: 'You', avatar: null };
+  const designer = { id: 'a1', name: 'Designer', avatar: null };
+  const at = '2026-11-09T14:14:30Z';
+  const clock = Date.parse('2026-11-09T14:14:02Z');
+  const pending = { at, state: 'pending' as const };
+  assert.deepEqual(
+    approvalRecord({ item, landing: pending }, clock, () => 'Just now'),
+    {
+      seconds: 28,
+      text: 'Just now, on the web. It goes to main in 28 s.',
+    },
+  );
+  assert.equal(
+    approvalRecord(
+      { item, landing: { at, state: 'landed', commit: '4f05991abcdef' } },
+      clock,
+      () => 'Today 2:14 PM',
+    )?.text,
+    'Today 2:14 PM, on the web. On main as 4f05991.',
+  );
+  assert.equal(
+    approvalRecord({ item: { id: 'x' } as never }, clock, () => ''),
+    null,
+  );
+
+  assert.equal(
+    buildLine({ item, proposer: you, landing: pending }).text,
+    'A task starts building this once it is on main.',
+  );
+  assert.equal(
+    buildLine({ item, proposer: designer, landing: pending }).text,
+    'Designer starts building once this is on main.',
+  );
+  const landed = { at, state: 'landed' as const, commit: 'c' };
+  assert.deepEqual(
+    buildLine({ item, proposer: you, landing: { ...landed, build: { at, taskId: 't1' } } }),
+    { text: 'A task is building it.', taskId: 't1' },
+  );
+  assert.deepEqual(
+    buildLine({ item, proposer: designer, landing: { ...landed, build: { at, taskId: 't2' } } }),
+    { text: 'Designer is building it.', taskId: 't2' },
+  );
+  assert.equal(
+    buildLine({
+      item,
+      proposer: you,
+      landing: { ...landed, build: { at, failed: 'No computer takes tasks' } },
+    }).text,
+    'Nothing builds this yet: No computer takes tasks',
+  );
+  assert.equal(
+    buildLine({ item, proposer: you, landing: landed }).text,
+    'Nothing builds this yet.',
+  );
 });

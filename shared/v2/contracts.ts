@@ -415,7 +415,15 @@ export type DesignReview = DesignReviewSummary & {
   round: number;
   previousItemId: string | null;
   changes?: DesignReviewRow[];
-  landing?: { at: string; state: 'pending' | 'landed' | 'conflict' };
+  landing?: {
+    at: string;
+    state: 'pending' | 'landed' | 'conflict';
+    commit?: string;
+    /** Set when a build follows this landing; absent on approvals from before builds did. */
+    buildDue?: boolean;
+    /** What followed the landing: the task told to build it, or why none could be. */
+    build?: { at: string; taskId?: string; started?: boolean; failed?: string; skipped?: boolean };
+  };
   boards: DesignReviewScreen[];
   groups: { id: string | null; title: string | null; boards: string[] }[];
   notes: (import('./design').NoteChange & { page: string | null })[];

@@ -1356,6 +1356,15 @@ function decideDesign(
       updatedAt: now(),
     });
     queuePushTrigger(owner, project.id, `refs/heads/${context.main}`, commit);
+    // Landed without the undo window: record it so the build starts the same way.
+    if (!list('design-review-landing', owner).some((entry) => entry.id === item.id))
+      save('design-review-landing', owner, {
+        id: item.id,
+        at: now(),
+        state: 'landed',
+        commit,
+        buildDue: true,
+      });
     return;
   }
   if (!['changes', 'update'].includes(body.actionId)) return;
@@ -1415,6 +1424,79 @@ registerInboxSource('design', decideDesign, async ({ owner, body, context, check
   );
 });
 
+/** What the builder is told once an approved design is on main. The same words for every proposer. */
+export function designBuildBrief(input: {
+  title: string;
+  summary?: string | null;
+  commit: string;
+  main: string;
+  paths: string[];
+}) {
+  const shown = input.paths.slice(0, 60);
+  return [
+    `The design “${input.title}” is approved and on ${input.main} at ${input.commit.slice(0, 8)}.`,
+    input.summary?.trim() || null,
+    `What changed in the design:\n${shown.map((path) => `- ${path}`).join('\n')}${
+      input.paths.length > shown.length ? `\n- and ${input.paths.length - shown.length} more` : ''
+    }`,
+    'Build exactly what was approved, on every client the changed boards show. If the build has to differ from a board (wording, a state the board missed, a platform limit), stop, change the board and propose that for approval before going on.',
+    'When it is built, render each changed board, capture the running app at the same widths, and compare them (the project’s design/README.md says how, if it has one). Then report with deploy_design, action "built": state "matches", or state "differs" with the number of differences and what they are. The work is not finished until that report is in.',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * Close the loop on an approval: tell the task that proposed the design to build it, or start a
+ * task when a person proposed it from the Design page. Runs after the landing transaction, and
+ * again on boot for any landing that has no build yet, so a crash between the two loses nothing.
+ */
+function startDesignBuild(owner: string, landing: any) {
+  const row = list('v2-inbox-native', owner).find((entry) => entry.id === landing.id);
+  const done = (build: Record<string, unknown>) =>
+    save('design-review-landing', owner, { ...landing, build: { ...build, at: now() } });
+  // An approval undone or replaced since: nothing to build.
+  if (!row || row.item.answer?.actionId !== 'approve') return done({ skipped: true });
+  const context = row.context;
+  const project = list('project', owner).find((entry) => entry.id === context.projectId);
+  if (!project) return done({ skipped: true });
+  const content = designBuildBrief({
+    title: row.item.title,
+    summary: context.summary,
+    commit: landing.commit ?? context.commit,
+    main: context.main ?? 'main',
+    paths: context.paths ?? [],
+  });
+  const proposerTask = context.taskId
+    ? list('task', owner).find((entry) => entry.id === context.taskId)
+    : null;
+  try {
+    if (proposerTask && !['cancelled', 'archived'].includes(proposerTask.status)) {
+      const queued = queuedMessage(owner, proposerTask.id);
+      if (queued?.status === 'queued') {
+        save('queued-message', owner, { ...queued, content: `${queued.content}\n\n${content}` });
+        event(owner, proposerTask.id, null, 'message.queued', { status: 'queued' });
+      } else queueMessage(owner, proposerTask.id, { content });
+      return done({ taskId: proposerTask.id, started: false });
+    }
+    const task = queueTask(owner, {
+      projectId: project.id,
+      title: `Build: ${row.item.title}`,
+      ref: landing.commit ?? context.main ?? 'HEAD',
+      prompt: content,
+    });
+    // Link the review to its builder: "built" reports and To review find it through the task.
+    const item = { ...row.item, taskId: task.id };
+    save('v2-inbox-native', owner, { ...row, item, context: { ...context, taskId: task.id } });
+    event(owner, project.id, null, 'v2.inbox', { item });
+    return done({ taskId: task.id, started: true });
+  } catch (error) {
+    // No computer takes tasks, or the task could not take a message: say so on the review
+    // instead of retrying every second. Start a task from the review to try again.
+    return done({ failed: (error as Error).message });
+  }
+}
+
 /** Persisted jobs are scanned on boot and each second; no in-memory timer owns a decision. */
 export async function landDesignApprovals(clock = Date.now()) {
   const jobs = db
@@ -1422,6 +1504,11 @@ export async function landDesignApprovals(clock = Date.now()) {
     .all() as { owner: string; data: string }[];
   for (const saved of jobs) {
     const job = JSON.parse(saved.data);
+    // Only approvals landed since builds follow them; older ones are left as they were.
+    if (job.state === 'landed' && job.buildDue && !job.build) {
+      startDesignBuild(saved.owner, job);
+      continue;
+    }
     if (job.state !== 'pending' || Date.parse(job.at) > clock) continue;
     const owner = saved.owner;
     const row = get('v2-inbox-native', owner, job.id);
@@ -1455,6 +1542,7 @@ export async function landDesignApprovals(clock = Date.now()) {
             ...current,
             state: 'landed',
             commit: prepared.commit,
+            buildDue: true,
           });
           event(owner, project.id, null, 'v2.inbox', { item: row.item });
         }).immediate();
@@ -2059,7 +2147,9 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
               ? built.state === 'matches'
                 ? 'Built · matches the design'
                 : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
-              : `${project.name ?? project.id} · ${row.context.proposer?.name ?? 'Designer'} is building it`,
+              : row.context.proposer?.id
+                ? `${project.name ?? project.id} · ${row.context.proposer.name} is building it`
+                : `${project.name ?? project.id} · being built`,
           },
         ];
       })

@@ -9,7 +9,15 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
 import { request } from '../projects/data';
-import { conflictCount, conflictLine, missingSummary, reviewStep } from './review-model';
+import {
+  approvalRecord,
+  buildLine,
+  conflictCount,
+  conflictLine,
+  missingSummary,
+  reviewHref,
+  reviewStep,
+} from './review-model';
 import { ReviewStage, type ReviewDraft } from './ReviewStage';
 import { reviewPhrases } from '../../../../../shared/v2/design-review';
 import './review.css';
@@ -25,6 +33,33 @@ export const ago = (at: string) => {
         : `${Math.floor(minutes / 1440)} d ago`;
 };
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+const approvedCheck = (
+  <svg
+    className="dl-ok"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="1.75"
+    role="img"
+    aria-label="Approved"
+  >
+    <circle cx="12" cy="12" r="9" />
+    <path d="M8 12l3 3 5-6" />
+  </svg>
+);
+/** "Just now" within a minute, then the time today, then the date. */
+const decidedAt = (at: string) => {
+  const then = new Date(at);
+  if (Date.now() - then.getTime() < 60_000) return 'Just now';
+  const time = then.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return then.toDateString() === new Date().toDateString()
+    ? `Today ${time}`
+    : `${then.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+};
 export function DesignItemReview({
   item,
   embedded = false,
@@ -69,16 +104,18 @@ export function DesignItemReview({
     return invalidate;
   }, [load, invalidate]);
   const pending = data?.landing?.state === 'pending';
+  // Keep the quick refresh through the moment after landing, until the build has started.
+  const settling = pending || Boolean(data?.landing?.buildDue && !data.landing.build);
   useEffect(() => {
     const timer = setInterval(
       () => {
         setClock(Date.now());
-        if (pending || document.visibilityState === 'visible') void load();
+        if (settling || document.visibilityState === 'visible') void load();
       },
-      pending ? 1000 : 15000,
+      settling ? 1000 : 15000,
     );
     return () => clearInterval(timer);
-  }, [pending, load]);
+  }, [settling, load]);
   const rows: DesignReviewRow[] =
     data?.changes ??
     data?.boards.map((board) => ({
@@ -266,19 +303,35 @@ export function DesignItemReview({
     }
   };
   const disabled = busy || !data;
+  const nextReview = inbox.items.find(
+    (entry) => entry.state === 'waiting' && entry.id.startsWith('design:') && entry.id !== item.id,
+  );
+  const record = data ? approvalRecord(data, clock, decidedAt) : null;
+  const building = data && approved ? buildLine(data) : null;
   const decisions = !data ? (
     <Action variant="secondary" disabled>
       Approve
     </Action>
   ) : pending ? (
     <>
+      <span className="dl-rv-status done">{approvedCheck}Approved</span>
       <span className="dl-rv-status">
-        Approved · goes to main in{' '}
-        {Math.max(0, Math.ceil((Date.parse(data!.landing!.at) - clock) / 1000))} s
+        On main in {Math.max(0, Math.ceil((Date.parse(data!.landing!.at) - clock) / 1000))} s
       </span>
       <Action disabled={busy} onClick={() => void undo()}>
         Undo
       </Action>
+    </>
+  ) : approved && data ? (
+    <>
+      <span className="dl-rv-status done">{approvedCheck}Approved</span>
+      <span className="dl-rv-status">On main</span>
+      <a
+        className="dl-btn primary"
+        href={nextReview ? reviewHref(nextReview.id) : '/dashboard/design?view=review'}
+      >
+        {nextReview ? 'Next review' : 'Done'}
+      </a>
     </>
   ) : !waiting && data ? (
     <>
@@ -571,6 +624,12 @@ export function DesignItemReview({
               </p>
             )}
           </div>
+          {record && (
+            <div className="dl-rv-record">
+              <b>{approvedCheck}You approved this</b>
+              <span>{record.text}</span>
+            </div>
+          )}
           {data?.stale && (
             <div className="dl-rv-notice">
               <strong>{conflictCount(data.conflicts)}</strong>
@@ -655,13 +714,28 @@ export function DesignItemReview({
             </details>
           )}
           <div className="dl-rv-foot">
-            {approved
-              ? `${data?.proposer.name} starts building once this is on main.`
-              : sent
-                ? `${data?.proposer.name} will propose again here. Your notes stay on the screens until then.`
-                : data && data.round > 1
-                  ? 'Old is your last review.'
-                  : ''}
+            {building ? (
+              <>
+                {building.text}
+                {building.taskId && (
+                  <>
+                    {' '}
+                    <a
+                      className="dl-link"
+                      href={`/dashboard/tasks/${encodeURIComponent(building.taskId)}`}
+                    >
+                      Open the task
+                    </a>
+                  </>
+                )}
+              </>
+            ) : sent ? (
+              `${data?.proposer.name} will propose again here. Your notes stay on the screens until then.`
+            ) : data && data.round > 1 ? (
+              'Old is your last review.'
+            ) : (
+              ''
+            )}
           </div>
         </aside>
         {board ? (
@@ -692,7 +766,15 @@ export function DesignItemReview({
         )}
       </div>
       <div className="dl-rv-bottom">
-        <em>{data ? progress : ''}</em>
+        <em>
+          {record && data?.item.answer
+            ? `You approved this ${decidedAt(data.item.answer.at)
+                .replace(/^Just now$/, 'just now')
+                .replace(/^Today /, 'at ')}.${building && !pending ? ` ${building.text}` : ''}`
+            : data
+              ? progress
+              : ''}
+        </em>
         {decisions}
       </div>
     </div>

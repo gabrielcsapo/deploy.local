@@ -1320,6 +1320,30 @@
   color: var(--ink-soft);
   white-space: nowrap;
 }
+.dl-rv-status.done {
+  color: var(--ink);
+  font-weight: 500;
+}
+/* After approving: a dashed record at the top of the list says who, when and where. */
+.dl-rv-record {
+  margin: 4px 8px 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  color: var(--ink-soft);
+}
+.dl-rv-record b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-weight: 500;
+}
 .dl-rv-skeleton {
   height: 100%;
   border-radius: 10px;

@@ -106,3 +106,59 @@ export function reviewStep(
   if (!next) return { id: row.id, screen };
   return { id: next.id, screen: key === 'ArrowLeft' ? last(next) : 0 };
 }
+
+/** The dashed record at the top of an approved review: who decided, when, where, and where it is. */
+export function approvalRecord(
+  review: Pick<DesignReview, 'item' | 'landing'>,
+  clock: number,
+  when: (at: string) => string,
+) {
+  const answer = review.item.answer;
+  if (answer?.actionId !== 'approve') return null;
+  const where =
+    answer.on === 'iphone'
+      ? 'on iPhone'
+      : answer.on === 'cli'
+        ? 'in the terminal'
+        : answer.on === 'desktop'
+          ? 'in the desktop app'
+          : 'on the web';
+  const landing = review.landing;
+  const seconds = landing ? Math.max(0, Math.ceil((Date.parse(landing.at) - clock) / 1000)) : 0;
+  const place =
+    landing?.state === 'pending'
+      ? `It goes to main in ${seconds} s.`
+      : landing?.commit
+        ? `On main as ${landing.commit.slice(0, 7)}.`
+        : 'On main.';
+  return { seconds, text: `${when(answer.at)}, ${where}. ${place}` };
+}
+
+/** What happens now that a design is approved. Never names a builder that does not exist. */
+export function buildLine(review: Pick<DesignReview, 'landing' | 'proposer' | 'item'>): {
+  text: string;
+  taskId?: string;
+} {
+  const build = review.landing?.build;
+  const agent = review.proposer.id === null ? null : review.proposer.name;
+  if (review.landing?.state === 'pending')
+    return {
+      text: agent
+        ? `${agent} starts building once this is on main.`
+        : 'A task starts building this once it is on main.',
+    };
+  if (build?.taskId)
+    return {
+      text: agent ? `${agent} is building it.` : 'A task is building it.',
+      taskId: build.taskId,
+    };
+  if (build?.failed) return { text: `Nothing builds this yet: ${build.failed}` };
+  if (review.landing?.buildDue && !build)
+    return { text: agent ? `${agent} is starting on it.` : 'A task is starting on it.' };
+  if (review.item.taskId)
+    return {
+      text: agent ? `${agent} is building it.` : 'A task is building it.',
+      taskId: review.item.taskId,
+    };
+  return { text: 'Nothing builds this yet.' };
+}
