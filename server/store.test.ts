@@ -869,7 +869,7 @@ describe('store – dashboard aggregate', () => {
     insert.run('beta', 5, now - 1000);
     insert.run('beta', 900, now - 1000);
 
-    const byName = new Map(
+    const byName = new Map<string, any>(
       store.getDashboardAggregate().perApp.map((app: any) => [app.name, app] as const),
     );
     assert.equal(byName.get('alpha').requestsLastMin, 100);
