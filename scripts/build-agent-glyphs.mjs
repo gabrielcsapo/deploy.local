@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import glyphs from '@dicebear/styles/glyphs.json' with { type: 'json' };
+import glyphs from '../shared/vendor/dicebear/glyphs.json' with { type: 'json' };
 const number = (n) => Number(n.toFixed(6)).toString();
 const point = (x, y) => `CGPoint(x: ${number(x)}, y: ${number(y)})`;
 

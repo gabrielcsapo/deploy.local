@@ -1,7 +1,7 @@
 'use client';
 import { useId, useMemo } from 'react';
 import { Avatar, Style } from '@dicebear/core';
-import glyphsDefinition from '@dicebear/styles/glyphs.json';
+import glyphsDefinition from '../../../../shared/vendor/dicebear/glyphs.json';
 import type { AgentAvatar as Identity } from '../../../../shared/v2/contracts';
 import { avatarFromId } from '../../../../shared/v2/agents';
 import './agent-avatar.css';
