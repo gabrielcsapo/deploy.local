@@ -2722,6 +2722,27 @@
       "h": 1160,
       "title": "Waiting on you: the build differs from the approved design",
       "expand": "fill"
+    },
+    "DesignReviewLandscapePhone.html": {
+      "x": 5120,
+      "y": 56564,
+      "w": 844,
+      "h": 390,
+      "title": "iPhone turned sideways: the screen fills the window, tools on the side"
+    },
+    "DesignReviewComparingPhone.html": {
+      "x": 4670,
+      "y": 55600,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — comparing: the Old to New scrubber appears above the bar"
+    },
+    "DesignReviewLandscapeComparingPhone.html": {
+      "x": 5120,
+      "y": 57074,
+      "w": 844,
+      "h": 390,
+      "title": "iPhone turned sideways, comparing: the scrubber floats at the bottom"
     }
   },
   "order": [
@@ -3009,6 +3030,9 @@
     "DesignReviewViewer.html",
     "DesignReviewRound2Phone.html",
     "DesignReviewViewerPhone.html",
+    "DesignReviewLandscapePhone.html",
+    "DesignReviewComparingPhone.html",
+    "DesignReviewLandscapeComparingPhone.html",
     "DesignReviewDiff.html",
     "DesignReviewDiffSeveral.html",
     "DesignReviewRegion.html",
@@ -4401,6 +4425,13 @@
       "x": 6640,
       "y": 63060,
       "text": "Closing the loop on an approved design. When the design lands on main its build starts: the proposer’s task is told to build it, or a Build task starts when a person proposed it.\n• A task linked to an approved design gets an Approved design check on its Checks tab: Matches the approved design. Until the builder reports, the header reads Design not checked, Merge and release is off, and More offers Merge without the design check.\n• The builder renders each changed board, captures the app at the same widths and reports matches or differs. Matches turns the check green and the task can read Ready to merge. Compare opens the pairs.\n• Differs brings one item to Waiting on you with the design and the app side by side at the width that differs, what differs and why. Fix the app sends it back to the same task. Keep it and update the design passes the check as Kept and has the builder change the board in the same task to match the app; that answer is its approval, and the board lands with the merge. No third choice; Open the task is a link.\n• A task with no approved design shows none of this."
+    },
+    "phone-review-tools": {
+      "fill": "purple",
+      "w": 440,
+      "x": 5570,
+      "y": 55600,
+      "text": "iPhone review: one bar of tools, and the screen gets the room.\n• The bottom area was a third of the screen: three lines of words, a slider, a row of tools, two labels and a progress bar. It is now one line of words and one bar.\n• The bar, left to right: Previous screen; Pin, Mark an area, Draw; Compare, Fit; Next screen. Every target is at least 40 × 44 pt. Swiping still moves between screens when the screen is fitted or untouched.\n• Compare shows the Old to New scrubber and stays on until tapped again; its button is highlighted meanwhile. Upright, the scrubber sits above the bar; sideways, it floats at the bottom middle. The chip at its end switches Overlay and Wipe. The scrubber is hidden otherwise (DesignReviewComparingPhone, DesignReviewLandscapeComparingPhone).\n• Fit switches between the whole screen in view and real size, the same as double-tap. “Pinch to zoom” is no longer written on screen.\n• The words are one line: what changed, then “1 of 4” for the change. Tapping it opens the full words in a sheet. The thin line above is the position in the review; the header keeps “22 of 28”.\n• Turned sideways the screen fills the window. The header becomes a small pill at the top left (Back, name, position) and the bar stands on the right edge with the same tools in the same order. No words line; they open from the pill.\n• The other iPhone review boards (draw, pin, compare, new screen) still show the old bottom area and follow once this is approved."
     }
   },
   "starts": {}
