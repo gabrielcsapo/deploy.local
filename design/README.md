@@ -6,15 +6,15 @@ The claude.ai canvas (https://claude.ai/artifact/3mS7t8tGJgTKdo1bnAanTr) shows t
 
 ## Layout
 
-| Path                | What it is                                                                                                      |
-| ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `canvas.json`       | The canvas: each board's position, size and title, the board order, and the notes beside them.                  |
-| `boards/*.html`     | One standalone page per board, styled only by the design system. `<meta name="design-board">` gives its size.   |
-| `ds/deploy-local/`  | The design system the boards use: `tokens.css`, `tokens.json` and `components/bundle.css` (the `dl-*` classes). |
-| `ds/README.md`      | The design system's rules: content, visual foundations, components.                                             |
-| `tools/render.mjs`  | Renders boards to `output/design/<Board>-<width>.png` (web at 1440 and 700 px, phone at 390).                   |
-| `tools/capture.mjs` | Screenshots a running page at the board widths, for parity evidence.                                            |
-| `tools/pair.py`     | Puts screenshots side by side.                                                                                  |
+| Path                | What it is                                                                                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canvas.json`       | The canvas: each board's position, size and title, the board order, and the notes beside them.                                                                                   |
+| `boards/*.html`     | One standalone page per board, styled only by the design system. `<meta name="design-board">` gives its size.                                                                    |
+| `ds/deploy-local/`  | The design system the boards use: `tokens.css`, `tokens.json` and `components/bundle.css` (the `dl-*` classes).                                                                  |
+| `ds/README.md`      | The design system's rules: content, visual foundations, components.                                                                                                              |
+| `tools/render.mjs`  | Renders boards to `output/design/<Board>-<width>.png` (web at 1440 and 700 px, phone at 390). `--main` renders the approved design from `origin/main` into `output/design-main`. |
+| `tools/capture.mjs` | Screenshots a running page at the board widths, for parity evidence.                                                                                                             |
+| `tools/pair.py`     | Puts screenshots side by side.                                                                                                                                                   |
 
 ## Layers
 
@@ -28,8 +28,8 @@ The server tests check that every board on the canvas exists and has unique laye
 
 ## Changing a design
 
-1. Edit the board in `design/boards/` (and `canvas.json` for a new board, its place or its notes) on a branch.
-2. Render it at its widths with `node design/tools/render.mjs <Board>` and check it.
+1. Fetch `origin` and start a branch from `origin/main`. Edit the board in `design/boards/` (and `canvas.json` for a new board, its place or its notes) on that branch.
+2. Render it at its widths with `node design/tools/render.mjs <Board>` and check it. The renderer refuses a checkout that lacks design changes main has, because approvals land on main without touching your checkout; `--stale-ok` renders it anyway. To review the current design, use `--main`.
 3. Ask for review. Nothing visual is built until the design is approved (see `AGENTS.md`).
 
 ## Parity: implementation against design
