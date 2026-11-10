@@ -81,7 +81,9 @@ final class V2ReviewState {
             // Three screens draw at a time, as on the web: one after another, a 22-screen review
             // took the sum of every preview and its two images.
             try await withThrowingTaskGroup(of: Void.self) { group in
-                var remaining = V2ReviewModel.canvasBoards(result).makeIterator()
+                // With a conflict the sheet shows only the screens that conflict: draw those first.
+                let boards = V2ReviewModel.canvasBoards(result)
+                var remaining = (boards.filter { $0.conflict == true } + boards.filter { $0.conflict != true }).makeIterator()
                 for _ in 0..<3 {
                     guard let board = remaining.next() else { break }
                     group.addTask { await self.loadPreview(client: client, board: board) }
@@ -254,7 +256,8 @@ final class V2ReviewState {
 
 
     func answer(client: V2Client, action: String, note: String? = nil) async -> String? {
-        guard decisionsReady, (page == .decide || action == "update" || action == "approve"), let review else { return nil }
+        // Asking to update a conflicting design needs no screens drawn, only the review itself.
+        guard action == "update" || decisionsReady, (page == .decide || action == "update" || action == "approve"), let review else { return nil }
         checking = true; error = nil
         defer { checking = false }
         do {

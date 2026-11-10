@@ -579,14 +579,15 @@ struct V2DesignReviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(V2ReviewModel.conflictCount(review?.conflicts ?? [])).font(.title2.bold())
-                    if let review, !review.boards.allSatisfy({ model.preview($0) != nil }) {
-                        V2ReviewLoadingLine(total: review.boards.count, loaded: review.boards.filter { model.preview($0) != nil }.count)
+                    // Only the conflicting screens are shown here, so only they are waited for.
+                    if let conflicting = review?.boards.filter({ $0.conflict == true }), !conflicting.allSatisfy({ model.preview($0) != nil }) {
+                        V2ReviewLoadingLine(total: conflicting.count, loaded: conflicting.filter { model.preview($0) != nil }.count)
                     }
                     ForEach(review?.boards.filter { $0.conflict == true } ?? []) { board in
                         HStack { V2ReviewCrop(preview: model.preview(board), showChanges: true).frame(width: 100, height: 100); Text(board.name); Spacer(); Text("Conflict").font(.footnote) }
                     }
                     if let error = model.error { Text(error).font(.footnote).foregroundStyle(.secondary) }
-                    Button("Ask to update") { answer("update") }.buttonStyle(V2ReviewActionStyle(primary: true)).disabled(!model.decisionsReady || !store.online)
+                    Button("Ask to update") { answer("update") }.buttonStyle(V2ReviewActionStyle(primary: true)).disabled(review == nil || !store.online || store.busy)
                     Button("Close") { model.conflict = false; dismiss() }.buttonStyle(V2ReviewActionStyle(primary: false))
                 }.padding(24)
             }
