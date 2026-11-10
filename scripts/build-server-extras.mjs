@@ -71,6 +71,12 @@ await build({
   outfile: resolve(root, 'dist/backup-snapshot-worker.js'),
 });
 
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/workspace-vacuum-worker.ts')],
+  outfile: resolve(root, 'dist/workspace-vacuum-worker.js'),
+});
+
 for (const [entry, name] of [
   ['pipeline-worker', 'workspace-pipeline-worker'],
   ['recovery', 'workspace-recovery'],

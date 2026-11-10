@@ -14,7 +14,12 @@ test('index migration preserves rows, composite lookup, and the dashboard timest
     const journal = JSON.parse(
       readFileSync(new URL('../drizzle/meta/_journal.json', import.meta.url), 'utf8'),
     );
-    assert.equal(journal.entries.at(-1).tag, '0043_drop_request_logs_deployment');
+    // Present in the journal; later migrations may follow it.
+    assert.ok(
+      journal.entries.some(
+        (entry: { tag: string }) => entry.tag === '0043_drop_request_logs_deployment',
+      ),
+    );
     db.exec(
       readFileSync(
         new URL('../drizzle/0043_drop_request_logs_deployment.sql', import.meta.url),

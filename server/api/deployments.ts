@@ -2103,8 +2103,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           deleteVolumes(name);
         }
         forgetCrashTracker(name);
-        addDeployEvent(name, { action: 'delete', username: auth.username, source: 'ui' });
-        deleteDeployment(name);
+        deleteDeployment(name, { username: auth.username, source: 'ui' });
         emit({
           type: 'deployment:deleted',
           deploymentName: name,

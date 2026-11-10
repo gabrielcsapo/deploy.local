@@ -10,7 +10,7 @@ test('scheduled backup snapshots every database, including requests still in WAL
   process.env.DEPLOY_DATA_DIR = root;
   const store = await import('./store.ts');
   const { getRequestsSqlite } = await import('./requests-db.ts');
-  const { snapshotDatabase } = await import('./maintenance.ts');
+  const { snapshotDatabase, runDueMaintenance } = await import('./maintenance.ts');
   t.after(() => {
     store._resetDb();
     delete process.env.DEPLOY_DATA_DIR;
@@ -24,6 +24,13 @@ test('scheduled backup snapshots every database, including requests still in WAL
     .run(Date.now());
   const workspace = await import('./workspace/store.ts');
   workspace.save('task', 'admin', { id: 'in-the-wal' });
+  workspace.db.exec(
+    'CREATE TABLE vacuum_fixture(data BLOB); INSERT INTO vacuum_fixture VALUES(zeroblob(100000)); DELETE FROM vacuum_fixture',
+  );
+  const freeBefore = workspace.db.pragma('freelist_count', { simple: true }) as number;
+  assert.ok(freeBefore > 0);
+  await runDueMaintenance();
+  assert.ok((workspace.db.pragma('freelist_count', { simple: true }) as number) < freeBefore);
   await snapshotDatabase();
   const control = new Database(join(root, 'deploy.db.snapshot'), { readonly: true });
   const requests = new Database(join(root, 'requests.db.snapshot'), { readonly: true });
@@ -77,12 +84,12 @@ test('retention and vacuum follow a stored schedule, not process uptime', async 
   insert.run(now - 40 * 24 * hour);
   insert.run(now - hour);
   // First run on a server that has never recorded one: the old row goes.
-  assert.equal(runDueMaintenance(now), true);
+  assert.equal(await runDueMaintenance(now), true);
   assert.equal(count(), 1);
   // A restart an hour later finds the stored time and does nothing.
   insert.run(now - 40 * 24 * hour);
-  assert.equal(runDueMaintenance(now + hour), false);
+  assert.equal(await runDueMaintenance(now + hour), false);
   assert.equal(count(), 2);
-  assert.equal(runDueMaintenance(now + 6 * hour), true);
+  assert.equal(await runDueMaintenance(now + 6 * hour), true);
   assert.equal(count(), 1);
 });

@@ -1,3 +1,4 @@
+import { logFlightRouterError } from './server/flight-router-error.ts';
 // The built server: dist/server.js, which `pnpm start` runs through dist/supervisor.js. Everything is
 // bootServer's; this file adds only the built web app.
 import { bootServer, type ClientHandler } from './server/boot.ts';
@@ -123,7 +124,7 @@ async function createFlightClient(): Promise<ClientHandler> {
       if (webResponse.body) await pipeWebBody(webResponse.body, res);
       if (!res.destroyed) res.end();
     } catch (err) {
-      console.error('Flight router error:', err);
+      logFlightRouterError(err);
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'text/plain' });
       }

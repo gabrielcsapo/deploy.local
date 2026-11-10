@@ -138,14 +138,7 @@ function productionDependencies(): ApplicationGraphSupervisorDependencies {
           activeNodeId: deployment.activeNodeId,
           createdAt: deployment.createdAt || undefined,
         });
-        if (deployment.status !== 'running') {
-          addDeployEvent(deployment.name, {
-            action: 'graph:recovered',
-            username: 'system',
-            source: 'auto',
-          });
-        }
-        updateDeploymentStatus(deployment.name, 'running');
+        finishGraphReconciliation(deployment.name, result.recovered);
         lastError.delete(deployment.name);
       } finally {
         lease.release();
@@ -162,4 +155,11 @@ function productionDependencies(): ApplicationGraphSupervisorDependencies {
       updateDeploymentStatus(deployment.name, 'degraded');
     },
   };
+}
+
+/** A stale/overwritten deployment status alone is not evidence of a runtime recovery. */
+export function finishGraphReconciliation(name: string, recovered: boolean | undefined) {
+  if (recovered)
+    addDeployEvent(name, { action: 'graph:recovered', username: 'system', source: 'auto' });
+  updateDeploymentStatus(name, 'running');
 }

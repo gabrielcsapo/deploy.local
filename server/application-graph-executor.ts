@@ -81,6 +81,8 @@ export interface GraphExecutorContext {
 }
 
 export interface GraphMaterializationResult {
+  /** This pass created, restarted, or restored a previously unready instance. */
+  recovered?: boolean;
   applicationId: string;
   releaseDigest: string;
   configurationDigest: string;
@@ -387,6 +389,7 @@ export class ApplicationGraphExecutor {
       }
 
       const created: ComponentInstanceRow[] = [];
+      const recovered: ComponentInstanceRow[] = [];
       const stoppedForExclusive: ComponentInstanceRow[] = [];
       const current: ComponentInstanceRow[] = [];
       let admissionCommitted = false;
@@ -403,6 +406,7 @@ export class ApplicationGraphExecutor {
             publishedServices,
             created,
             stoppedForExclusive,
+            recovered,
           });
           current.push(...componentInstances);
         }
@@ -511,6 +515,7 @@ export class ApplicationGraphExecutor {
         ? await this.#docker.inspectContainer(primaryInstance.containerName)
         : null;
       return {
+        recovered: created.length > 0 || recovered.length > 0,
         applicationId: context.applicationId,
         releaseDigest: execution.specDigest,
         configurationDigest: context.runtime.configurationDigest,
@@ -1503,6 +1508,7 @@ export class ApplicationGraphExecutor {
     publishedServices: ReadonlySet<string>;
     created: ComponentInstanceRow[];
     stoppedForExclusive: ComponentInstanceRow[];
+    recovered: ComponentInstanceRow[];
   }): Promise<ComponentInstanceRow[]> {
     const { context, component } = input;
     const releaseDigest = componentReleaseDigest(context.runtime.spec, component.name);
@@ -1573,6 +1579,8 @@ export class ApplicationGraphExecutor {
             readyAt: Date.now(),
             updatedAt: Date.now(),
           });
+          if (!inspection.running || candidate.health !== 'healthy' || candidate.status !== 'ready')
+            input.recovered.push(candidate);
           ready = { ...candidate, status: 'ready', health: 'healthy' };
           break;
         }

@@ -1,11 +1,11 @@
-import Database from 'better-sqlite3';
+import { openWorkspaceDatabase } from './database-open.ts';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { deployDataDirectory } from '../data-directory.ts';
 export const root = resolve(deployDataDirectory(), 'workspace');
 mkdirSync(root, { recursive: true });
-export const db = new Database(resolve(root, 'workspace.db'));
+export const db = openWorkspaceDatabase(resolve(root, 'workspace.db'));
 db.pragma('busy_timeout = 5000');
 // Concurrent first opens can fail WAL promotion immediately despite busy_timeout.
 // Retry only that startup lock; all other SQLite errors must remain visible.

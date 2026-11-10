@@ -14,6 +14,7 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
+  lstatSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -23,8 +24,8 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const short = (sha) => sha.slice(0, 7);
 export function duration(ms) {
@@ -58,6 +59,29 @@ export function prepareDetail({ command, pass, failed, files }, ok) {
   if (command === 'test' && failed)
     return `${failed} of ${pass + failed} tests failed${files.length ? ` in ${files.slice(0, 2).join(', ')}` : ''}`;
   return command ? `pnpm ${command} failed` : 'could not start the build';
+}
+
+/** Only direct directories in the data folder; symlinks and unrelated files are left alone. */
+export function pruneCliBuilds(data, log = () => {}) {
+  const root = realpathSync(data);
+  const removed = [];
+  const pinned = new Set(
+    ['cli', 'cli.previous', 'cli.next']
+      .map((name) => join(root, name))
+      .filter(existsSync)
+      .map((path) => realpathSync(path)),
+  );
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.name.startsWith('cli.') || ['cli.previous', 'cli.next'].includes(entry.name))
+      continue;
+    const path = join(root, entry.name);
+    if (!entry.isDirectory() || lstatSync(path).isSymbolicLink() || pinned.has(realpathSync(path)))
+      continue;
+    rmSync(path, { recursive: true, force: true });
+    removed.push(join(data, entry.name));
+    log(`Removed stale worker build ${path}\n`);
+  }
+  return removed;
 }
 
 /** Swaps the new worker builds into <data>/cli, keeping the last ones as cli.previous. */
@@ -139,22 +163,30 @@ export async function prepareSelfUpdate(plan, installation, exec, log = () => {}
 const UPDATER_RELEASE = /^\d{8}-main-[0-9a-f]{7}(-\d+)?$/;
 
 /** Removes all but the newest updater-made releases, never one that `protect` names. */
-export function pruneReleases(releases, protect, keep = 3) {
-  const safe = new Set(protect);
+export function pruneReleases(releases, protect, keep = 3, log = () => {}) {
+  if (!Number.isInteger(keep) || keep < 0) throw new Error('Invalid release retention count');
+  const root = realpathSync(releases);
+  const safe = new Set(protect.map((path) => realpathSync(path)));
   const removed = [];
-  readdirSync(releases, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && UPDATER_RELEASE.test(entry.name))
-    .map((entry) => {
-      const path = join(releases, entry.name);
-      return { path, time: statSync(path).mtimeMs };
-    })
-    .sort((a, b) => b.time - a.time)
-    .slice(keep)
-    .filter(({ path }) => !safe.has(path))
-    .forEach(({ path }) => {
-      rmSync(path, { recursive: true, force: true });
-      removed.push(path);
-    });
+  const candidates = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const path = join(releases, entry.name);
+    if (!entry.isDirectory() || !UPDATER_RELEASE.test(entry.name)) {
+      log(`Unrecognized release entry (kept): ${path}\n`);
+      continue;
+    }
+    candidates.push({ path, time: statSync(path).mtimeMs });
+  }
+  for (const { path } of candidates
+    .sort((a, b) => b.time - a.time || b.path.localeCompare(a.path))
+    .slice(keep)) {
+    // Recheck type and canonical parent immediately before removing a directory.
+    if (lstatSync(path).isSymbolicLink()) continue;
+    const actual = realpathSync(path);
+    if (dirname(actual) !== root || safe.has(actual)) continue;
+    rmSync(path, { recursive: true, force: true });
+    removed.push(path);
+  }
   return removed;
 }
 
@@ -258,6 +290,11 @@ function main(file) {
 
   return (async () => {
     log(`Updating ${short(run.from)} to ${short(run.to)} into ${plan.release}\n`);
+    try {
+      pruneCliBuilds(plan.data, log);
+    } catch (error) {
+      log(`Could not remove stale worker builds: ${error.message}\n`);
+    }
     let started = begin('prepare');
     let output = '';
     // The release a failed activation goes back to, so it outlives the cleanup after a success.
@@ -377,7 +414,17 @@ function main(file) {
       publishWorkers(plan.data, run.to, log);
       finish('check', 'done', 'healthy over HTTPS');
       try {
-        for (const path of pruneReleases(dirname(plan.release), [plan.release, serving]))
+        for (const path of pruneReleases(
+          dirname(plan.release),
+          [
+            plan.release,
+            serving,
+            realpathSync(plan.current),
+            resolve(dirname(fileURLToPath(import.meta.url)), '..'),
+          ],
+          3,
+          log,
+        ))
           log(`Removed old release ${path}\n`);
       } catch (error) {
         log(`Could not remove old releases; the update itself is fine.\n${error.stack || error}\n`);

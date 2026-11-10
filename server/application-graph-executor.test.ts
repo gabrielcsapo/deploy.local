@@ -275,9 +275,14 @@ describe('ApplicationGraphExecutor', () => {
     assert.equal(published.length, 2);
     assert.ok(published.every((endpoint) => endpoint.host === '127.0.0.1'));
 
-    await executor.converge(context(runtime(MANIFEST)));
+    assert.equal(result.recovered, true);
+    const unchanged = await executor.converge(context(runtime(MANIFEST)));
+    assert.equal(unchanged.recovered, false);
     assert.equal(docker.created.length, 3, 'convergence reuses healthy fixed-slot instances');
     assert.equal(docker.oneShots.length, 1, 'successful per-site jobs are idempotent');
+    await docker.stopContainer(result.primaryContainerName!);
+    assert.equal((await executor.converge(context(runtime(MANIFEST)))).recovered, true);
+    assert.equal((await executor.converge(context(runtime(MANIFEST)))).recovered, false);
   });
 
   it('never infers writer-site job authority from the local execution site', async () => {

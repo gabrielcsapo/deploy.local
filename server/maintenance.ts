@@ -1,3 +1,4 @@
+import { pruneDeploymentData } from './data-retention.ts';
 import { finalizeReleases } from './telemetry.ts';
 import { db as workspaceDb } from './workspace/store.ts';
 import { pruneHealthEvents } from './workspace/health-event-retention.ts';
@@ -95,7 +96,7 @@ const RETENTION_DAYS_CAPTURES = 14;
 // months so year-over-year charts stay possible after raw rows age out.
 const RETENTION_DAYS_ROLLUPS = ROLLUP_RETENTION_DAYS;
 
-function pruneOldData() {
+async function pruneOldData() {
   try {
     const sqlite = getSqlite();
     if (!sqlite) return;
@@ -115,6 +116,7 @@ function pruneOldData() {
         `Data retention: pruned ${metricsResult.changes} metrics rows (>${RETENTION_DAYS_METRICS}d), ${requestsResult.changes} request log rows (>${RETENTION_DAYS_REQUESTS}d), ${rollupsResult.changes} rollup rows (>${RETENTION_DAYS_ROLLUPS}d)`,
       );
     }
+    await pruneDeploymentData(sqlite);
   } catch (err) {
     console.error('Data retention pruning failed:', err);
   }
@@ -138,6 +140,7 @@ function runIncrementalVacuum() {
     const start = Date.now();
     sqlite.prepare(`PRAGMA incremental_vacuum(${INCREMENTAL_VACUUM_PAGES})`).run();
     vacuumRequests(getRequestsSqlite(), INCREMENTAL_VACUUM_PAGES);
+    workspaceDb.prepare(`PRAGMA incremental_vacuum(${INCREMENTAL_VACUUM_PAGES})`).run();
     const duration = Date.now() - start;
     if (duration > 100) {
       // Only log when slow — routine runs shouldn't spam the log
@@ -370,7 +373,7 @@ export function maintenanceDue(
 }
 
 /** Retention and vacuum, when due. Returns whether it ran. */
-export function runDueMaintenance(now = Date.now()): boolean {
+export async function runDueMaintenance(now = Date.now()): Promise<boolean> {
   try {
     if (!maintenanceDue(getSystemSetting(MAINTENANCE_LAST_RUN_KEY), now)) return false;
     // Recorded first: a pass that crashes the process must not rerun on every restart.
@@ -379,7 +382,7 @@ export function runDueMaintenance(now = Date.now()): boolean {
     console.error('Maintenance schedule check failed:', err);
     return false;
   }
-  pruneOldData();
+  await pruneOldData();
   try {
     const pruned = pruneExpiredSessions();
     if (pruned > 0) console.log(`Session pruning: removed ${pruned} expired sessions`);

@@ -82,6 +82,7 @@ export const deployments = sqliteTable(
   (table) => ({
     usernameIdx: index('idx_deployments_username').on(table.username),
     appIdIdx: index('idx_deployments_app_id').on(table.appId),
+    buildLogIdx: index('idx_deployments_build_log').on(table.currentBuildLogId),
   }),
 );
 
@@ -1168,6 +1169,7 @@ export const history = sqliteTable(
   },
   (table) => ({
     deploymentIdx: index('idx_history_deployment').on(table.deploymentName),
+    buildLogIdx: index('idx_history_build_log').on(table.buildLogId),
   }),
 );
 
@@ -1265,6 +1267,7 @@ export const backups = sqliteTable(
   },
   (table) => ({
     deploymentIdx: index('idx_backups_deployment').on(table.deploymentName),
+    buildLogIdx: index('idx_backups_build_log').on(table.relatedBuildLogId),
     createdIdx: index('idx_backups_created').on(table.deploymentName, table.createdAt),
   }),
 );

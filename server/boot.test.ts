@@ -38,6 +38,7 @@ const entries = {
     // web-response.ts is a pure helper for writing the page body; it starts nothing.
     imports: [
       './server/boot.ts',
+      './server/flight-router-error.ts',
       './server/web-response.ts',
       'node:module',
       'node:stream',

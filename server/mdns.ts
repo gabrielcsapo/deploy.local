@@ -78,6 +78,8 @@ export function advertisable(ip: string) {
 export function createMdnsRegistry(createResponder = multicastDns, getAddress = getLocalIPv4) {
   const registeredHosts = new Set<string>();
   const advertised = new Map<string, string>();
+  const loggedAddresses = new Map<string, string>();
+  const warnings = new Set<string>();
   const repeats = new Map<string, ReturnType<typeof setTimeout>>();
   let mdns: ReturnType<typeof multicastDns> | null = null;
   let address = '';
@@ -94,6 +96,10 @@ export function createMdnsRegistry(createResponder = multicastDns, getAddress = 
     const m = mdns;
     m.registerResponse(hostname, address, 120);
     advertised.set(hostname, address);
+    if (loggedAddresses.get(hostname) !== address) {
+      console.log(`mDNS: announced ${hostname} → ${address}`);
+      loggedAddresses.set(hostname, address);
+    }
     // Use the same unique/cache-flush A + NSEC packet as query answers.
     m.respondRaw(buildARecordResponse(hostname, address, 120));
     if (repeat) {
@@ -153,7 +159,11 @@ export function createMdnsRegistry(createResponder = multicastDns, getAddress = 
       // interface whose address is advertised, never Docker/VPN memberships.
       const m = createResponder({ interface: ip, bind: '0.0.0.0' });
       mdns = m;
-      m.on('warning', (err) => console.warn(`mDNS warning: ${err.message}`));
+      m.on('warning', (err) => {
+        if (warnings.has(err.message)) return;
+        warnings.add(err.message);
+        console.warn(`mDNS warning: ${err.message}`);
+      });
       m.on('error', (err) => console.error(`mDNS error: ${err.message}`));
       m.on('ready', () => {
         if (mdns !== m) return;
@@ -182,6 +192,7 @@ export function createMdnsRegistry(createResponder = multicastDns, getAddress = 
   function unregisterHost(name: string) {
     const hostname = `${name.toLowerCase()}.local`;
     registeredHosts.delete(hostname);
+    loggedAddresses.delete(hostname);
     cancelRepeat(hostname);
     const ip = advertised.get(hostname);
     advertised.delete(hostname);

@@ -193,3 +193,28 @@ test('a LAN address appearing after startup is discovered by the refresh timer',
   assert.equal(instances[0].records.has('deploy.local'), true);
   await registry.stopMdns();
 });
+
+test('announcement logs track address changes, not network refreshes, and warnings repeat once', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const logs = t.mock.method(console, 'log', () => {});
+  const warnings = t.mock.method(console, 'warn', () => {});
+  const registry = await fixture();
+  registry.registerHost('test');
+  const first = instances[0];
+  first.emit('ready');
+  t.mock.timers.tick(60_000);
+  registry.registerHost('test');
+  assert.ok(first.packets.length >= 3, 'refresh announcements still go onto the network');
+  const announcements = () =>
+    logs.mock.calls.filter((c) => String(c.arguments[0]).includes('announced'));
+  assert.equal(announcements().length, 1);
+  first.emit('warning', new Error('addMembership EADDRINUSE'));
+  first.emit('warning', new Error('addMembership EADDRINUSE'));
+  process.env.DEPLOY_MDNS_ADDRESS = '192.168.1.21';
+  registry.registerHost('test');
+  instances[1].emit('ready');
+  instances[1].emit('warning', new Error('addMembership EADDRINUSE'));
+  instances[1].emit('warning', new Error('different warning'));
+  assert.equal(announcements().length, 2);
+  assert.equal(warnings.mock.callCount(), 2);
+});

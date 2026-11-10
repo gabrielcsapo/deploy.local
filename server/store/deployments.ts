@@ -1,7 +1,11 @@
+import { cleanupDeploymentRows } from '../orphan-data.ts';
+import { addDeployEvent } from './history.ts';
 import { recordTelemetryRelease } from '../telemetry-runtime.ts';
 import { assertCiMutation } from '../ci-fence.ts';
 import {
   getDb,
+  getSqlite,
+  DATA_DIR,
   refreshDeploymentInCache,
   loadDeploymentsCache,
   _deploymentsCache,
@@ -211,10 +215,15 @@ export function getDeployments(username: string) {
   return db.select().from(deployments).where(eq(deployments.username, username)).all();
 }
 
-export function deleteDeployment(name: string) {
+export function deleteDeployment(
+  name: string,
+  event?: { username: string; source: 'ui' | 'cli' | 'auto' },
+) {
   assertCiMutation(name);
   const db = getDb();
   db.transaction((tx) => {
+    if (event) addDeployEvent(name, { action: 'delete', ...event });
+    cleanupDeploymentRows(getSqlite()!, DATA_DIR, name, true);
     const serviceIds = tx
       .select({ id: componentServices.id })
       .from(componentServices)
