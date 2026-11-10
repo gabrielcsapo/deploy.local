@@ -65,9 +65,9 @@ test(
         assert.equal(retired.status, 404, path);
         await retired.body?.cancel();
       }
-      const topology = await request('/api/fleet/topology', { headers: owner });
-      assert.equal(topology.status, 200);
-      assert.ok(topology.body.sites.every((site: { kind: string }) => site.kind === 'home'));
+      const topology = await fetch(url + '/api/fleet/topology', { headers: owner });
+      assert.equal(topology.status, 404);
+      await topology.body?.cancel();
       const issue = await request('/api/ci/credentials', {
         method: 'POST',
         headers: { ...owner, 'Content-Type': 'application/json' },

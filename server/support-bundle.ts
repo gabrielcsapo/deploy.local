@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { putArtifactFile } from './content-store.ts';
-import { listTopology } from './multisite.ts';
-import { getSqlite } from './store.ts';
+
+import { getSqlite, getNodes, getAllDeployments } from './store.ts';
 
 const SENSITIVE_KEY =
   /(?:password|password.?verifier|verifier|hash|secret|token|credential|private.?key|authorization|cookie|value)$/i;
@@ -32,15 +32,7 @@ export async function createSupportBundle(input: {
          FROM application_spec_revisions ORDER BY deployment_name, created_at`,
     )
     .all();
-  const recentEvents = sqlite
-    .prepare(
-      `SELECT id, fleet_id, origin_site_id, origin_sequence, app_id,
-              authority_epoch, generation, actor, operation, schema_version,
-              payload, artifact_digests, parent_event_id, created_at,
-              applied_at, rejection_reason
-         FROM fleet_events ORDER BY created_at DESC LIMIT 500`,
-    )
-    .all() as Array<Record<string, unknown>>;
+
   const diagnostics = {
     kind: 'deploy.local/SupportBundle',
     formatVersion: 1,
@@ -52,13 +44,22 @@ export async function createSupportBundle(input: {
       platform: process.platform,
       architecture: process.arch,
     },
-    topology: listTopology(),
+    topology: {
+      nodes: getNodes().map((node) => ({
+        ...node,
+        capabilities: JSON.parse(node.capabilities || '{}'),
+      })),
+      applications: getAllDeployments().map((application) => ({
+        appId: application.appId,
+        name: application.name,
+        status: application.status,
+        activeSpecDigest: application.activeSpecDigest,
+        desiredSpecDigest: application.desiredSpecDigest,
+        activeNodeId: application.activeNodeId,
+        desiredNodeId: application.desiredNodeId,
+      })),
+    },
     revisions,
-    recentEvents: recentEvents.map((event) => ({
-      ...event,
-      payload: redact(JSON.parse(String(event.payload || '{}'))),
-      artifact_digests: JSON.parse(String(event.artifact_digests || '[]')),
-    })),
     database: {
       integrity: sqlite.pragma('integrity_check'),
       foreignKeys: sqlite.pragma('foreign_key_check'),

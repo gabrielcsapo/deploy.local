@@ -36,7 +36,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import Database from 'better-sqlite3';
 import { putArtifactFile } from './content-store.ts';
 import { deployDataDirectory } from './data-directory.ts';
-import { ensureFleetIdentity, sortableId } from './multisite.ts';
+import { ensureLocalIdentity, sortableId } from './local-site.ts';
 import { decryptSecret, secretAddress } from './secrets.ts';
 import { ensureApplicationRevisionArtifacts, getSqlite } from './store.ts';
 
@@ -58,7 +58,6 @@ const INVENTORY_TABLES = [
   'artifacts',
   'release_candidates',
 ] as const;
-const SHA256_HEX = /^[a-f0-9]{64}$/;
 const WORKSPACE_DATABASE = 'workspace/workspace.db';
 const SSH_HOST_KEY = 'ssh_host_ed25519_key';
 
@@ -87,7 +86,6 @@ interface RecoveryPayload {
   inventory: RecoveryInventory;
   inventoryDigest: string;
   /** Added compatibly to format v1; absent in older v1 bundles. */
-  activeSuitcaseCredentials?: Array<{ siteId: string; credentialHash: string }>;
   receipt?: RecoveryReceipt;
   files: RecoveryFile[];
 }
@@ -131,7 +129,6 @@ export interface RecoveryRehearsalReport {
     inventoryTables: number;
     fleets: number;
     sites: number;
-    activeSuitcaseCredentials: number;
     applicationRevisions: number;
     applicationAliases: number;
     dataPolicies: number;
@@ -266,7 +263,7 @@ function buildRecoveryInventoryFromDatabase(
 }
 
 export function buildRecoveryInventory(): RecoveryInventory {
-  ensureFleetIdentity();
+  ensureLocalIdentity();
   return buildRecoveryInventoryFromDatabase(getSqlite()!);
 }
 
@@ -357,7 +354,7 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
     snapshot.close();
   }
   // `certs/ca.key` is the fleet TLS trust anchor. Losing it during Home
-  // recovery would force already-paired suitcases and clients to trust a new
+  // recovery would force existing clients to trust a new
   // fleet. Keep it inside the encrypted recovery boundary next to the signing
   // identities and secret-store key. `certificates` remains a legacy import
   // path for installations that used the old directory name.
@@ -497,19 +494,6 @@ function validatePayload(payload: RecoveryPayload): void {
     payload.inventory.homeSiteId !== payload.homeSiteId
   )
     throw new Error('Recovery fleet identity does not match its inventory');
-  if (payload.activeSuitcaseCredentials) {
-    const siteIds = new Set<string>();
-    for (const credential of payload.activeSuitcaseCredentials) {
-      if (
-        !credential.siteId ||
-        siteIds.has(credential.siteId) ||
-        !SHA256_HEX.test(credential.credentialHash)
-      ) {
-        throw new Error('Recovery bundle contains invalid active Suitcase credential evidence');
-      }
-      siteIds.add(credential.siteId);
-    }
-  }
   const paths = new Set<string>();
   for (const file of payload.files) {
     if (
@@ -964,20 +948,10 @@ function auditRestoredRecovery(
     ) {
       throw new Error('Rehearsed database does not contain exactly one expected fleet identity');
     }
-    const sites = database
-      .prepare(
-        `SELECT id, fleet_id, kind, public_key, credential_hash, credential_status,
-                revoked_at, removed_at FROM sites`,
-      )
-      .all() as Array<{
+    const sites = database.prepare('SELECT id, fleet_id, kind FROM sites').all() as Array<{
       id: string;
       fleet_id: string;
       kind: string;
-      public_key: string;
-      credential_hash: string | null;
-      credential_status: string;
-      revoked_at: string | null;
-      removed_at: string | null;
     }>;
     if (
       new Set(sites.map((site) => site.id)).size !== sites.length ||
@@ -987,33 +961,6 @@ function auditRestoredRecovery(
     ) {
       throw new Error('Rehearsed database contains duplicate, foreign, or ambiguous site identity');
     }
-    const activeSuitcases = sites.filter(
-      (site) =>
-        site.kind === 'suitcase' &&
-        site.credential_status === 'active' &&
-        !site.revoked_at &&
-        !site.removed_at,
-    );
-    if (
-      new Set(activeSuitcases.map((site) => site.credential_hash)).size !== activeSuitcases.length
-    ) {
-      throw new Error('Rehearsed active Suitcase credential hashes are not unique');
-    }
-    for (const site of activeSuitcases) {
-      if (!site.credential_hash || !SHA256_HEX.test(site.credential_hash)) {
-        throw new Error(`Rehearsed active Suitcase ${site.id} has no valid credential hash`);
-      }
-      createPublicKey(site.public_key);
-    }
-    if (payload.activeSuitcaseCredentials) {
-      const restoredCredentials = activeSuitcases
-        .map((site) => ({ siteId: site.id, credentialHash: site.credential_hash! }))
-        .sort((left, right) => left.siteId.localeCompare(right.siteId));
-      if (canonical(restoredCredentials) !== canonical(payload.activeSuitcaseCredentials)) {
-        throw new Error('Rehearsed active Suitcase credential hashes differ from the bundle');
-      }
-    }
-
     const lineage = auditApplicationLineage(database, directory);
     const materials = auditRecoveryMaterials(directory, payload, database);
     return {
@@ -1026,7 +973,6 @@ function auditRestoredRecovery(
         inventoryTables: Object.keys(payload.inventory.counts).length,
         fleets: fleets.length,
         sites: sites.length,
-        activeSuitcaseCredentials: activeSuitcases.length,
         ...lineage,
         encryptedConfigurationValues: materials.encryptedConfigurationValues,
         caKeyPair: true,
@@ -1057,7 +1003,7 @@ export async function createRecoveryBundle(input: {
     }),
   );
   ensureApplicationRevisionArtifacts();
-  const fleet = ensureFleetIdentity();
+  const fleet = ensureLocalIdentity();
   const temporary = mkdtempSync(join(tmpdir(), 'deploy-recovery-create-'));
   try {
     const databaseSnapshot = resolve(temporary, 'deploy.db');
@@ -1070,19 +1016,8 @@ export async function createRecoveryBundle(input: {
       fileMustExist: true,
     });
     let inventory: RecoveryInventory;
-    let activeSuitcaseCredentials: Array<{ siteId: string; credentialHash: string }>;
     try {
       inventory = buildRecoveryInventoryFromDatabase(snapshotDatabase);
-      activeSuitcaseCredentials = (
-        snapshotDatabase
-          .prepare(
-            `SELECT id, credential_hash FROM sites
-              WHERE kind = 'suitcase' AND credential_status = 'active'
-                AND credential_hash IS NOT NULL AND revoked_at IS NULL AND removed_at IS NULL
-              ORDER BY id`,
-          )
-          .all() as Array<{ id: string; credential_hash: string }>
-      ).map((site) => ({ siteId: site.id, credentialHash: site.credential_hash }));
     } finally {
       snapshotDatabase.close();
     }
@@ -1093,7 +1028,6 @@ export async function createRecoveryBundle(input: {
       createdAt: new Date().toISOString(),
       inventory,
       inventoryDigest: digest(inventory),
-      activeSuitcaseCredentials,
       files: [],
     };
     // Hosted packages can be large. Collection, verification, encoding, encryption and
@@ -1248,22 +1182,6 @@ export function restoreRecoveryBundle(input: {
           digest,
         );
       }
-      restoredDatabase
-        .prepare(
-          `UPDATE sites
-              SET credential_status = 'recovery-pending', mode = 'recovery',
-                  quarantine_reason = ?, updated_at = ?
-            WHERE kind = 'suitcase' AND revoked_at IS NULL AND removed_at IS NULL
-              AND credential_hash IS NOT NULL AND credential_status != 'revoked'`,
-        )
-        .run(
-          JSON.stringify({
-            kind: 'home-recovery-readoption-required',
-            message:
-              'Recovered Home must verify Suitcase identity, cursors, authority, and lineage before synchronization resumes',
-          }),
-          now,
-        );
     } finally {
       restoredDatabase.close();
     }

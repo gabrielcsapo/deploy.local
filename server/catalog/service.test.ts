@@ -79,7 +79,7 @@ describe('catalog preflight, plans, store, and handler', () => {
     );
   });
 
-  it('separates target, security, offline, suitcase, and reconciliation evidence', () => {
+  it('separates target, security, and offline evidence', () => {
     const homeAssistant = loadValidationCatalog()[1];
     const compatible = preflightCatalogInstall({
       release: homeAssistant,
@@ -112,28 +112,6 @@ describe('catalog preflight, plans, store, and handler', () => {
     assert.ok(result.findings.some((finding) => finding.dimension === 'offline'));
     assert.equal(homeAssistant.release.compatibility.promises.suitcase, 'not-supported');
     assert.equal(homeAssistant.release.compatibility.promises.reconciliation, 'not-supported');
-
-    const suitcaseBlocked = preflightCatalogInstall({
-      release: homeAssistant,
-      applicationName: 'home-assistant-suitcase',
-      target: { ...capableTarget, siteKind: 'suitcase' },
-    });
-    assert.equal(suitcaseBlocked.ready, false);
-    assert.ok(
-      suitcaseBlocked.findings.some((finding) => finding.id === 'release-suitcase-not-supported'),
-    );
-
-    const portableUnknown = preflightCatalogInstall({
-      release: loadValidationCatalog()[0],
-      applicationName: 'portable-volume-app',
-      target: { ...capableTarget, siteKind: 'suitcase' },
-    });
-    assert.equal(portableUnknown.ready, true);
-    assert.ok(
-      portableUnknown.findings.some(
-        (finding) => finding.id === 'release-suitcase-evidence-unknown',
-      ),
-    );
   });
 
   it('plans install without mutation and preserves runtime/data for detach and derive', () => {

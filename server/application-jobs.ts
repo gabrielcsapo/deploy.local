@@ -55,7 +55,7 @@ export function isWriterSite(siteId: string, writerSiteId: string | null | undef
   return writerSiteId === siteId;
 }
 
-/** Plan scoped one-shot work without claiming fleet-wide exactly-once while sites are disconnected. */
+/** Plan scoped one-shot work for the selected coordinator or worker placement. */
 export function planApplicationJobs(
   execution: ApplicationExecutionPlan,
   spec: ApplicationSpec,

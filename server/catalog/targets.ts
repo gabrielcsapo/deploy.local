@@ -3,7 +3,7 @@ import { existsSync, readdirSync, statfsSync } from 'node:fs';
 import { arch, cpus, platform, totalmem } from 'node:os';
 import { dirname } from 'node:path';
 import { deployDataDirectory } from '../data-directory.ts';
-import { listTopology, type TopologySite } from '../multisite.ts';
+
 import { ensureCoordinatorNode, getNode, getNodes } from '../store.ts';
 import type { CatalogTargetResolver } from './handler.ts';
 import type { CatalogTargetProfile } from './types.ts';
@@ -22,15 +22,7 @@ export class DurableCatalogTargetResolver implements CatalogTargetResolver {
         // An unavailable target is omitted, as before.
       }
     }
-    const suitcases = listTopology().sites.flatMap((site) => {
-      if (site.kind !== 'suitcase' || site.revoked_at) return [];
-      try {
-        return [suitcaseProfile(site)];
-      } catch {
-        return [];
-      }
-    });
-    return [...nodes, ...suitcases];
+    return nodes;
   }
 
   async resolve(siteId: string): Promise<CatalogTargetProfile> {
@@ -38,56 +30,8 @@ export class DurableCatalogTargetResolver implements CatalogTargetResolver {
     if (siteId === 'coordinator') return coordinatorProfile();
     const node = getNode(siteId);
     if (node && !node.revokedAt) return remoteProfile(node);
-    const site = listTopology().sites.find(
-      (candidate) => candidate.id === siteId && candidate.kind === 'suitcase',
-    );
-    if (!site || site.revoked_at)
-      throw new Error(`Catalog target ${JSON.stringify(siteId)} not found`);
-    return suitcaseProfile(site);
+    throw new Error(`Catalog target ${JSON.stringify(siteId)} not found`);
   }
-}
-
-function suitcaseProfile(site: TopologySite): CatalogTargetProfile {
-  const capabilities = parsedObject(site.capabilities);
-  const catalog = parsedObject(capabilities.catalog);
-  const operatingSystem = normalizedOperatingSystem(String(site.platform ?? ''));
-  const dockerTarget = booleanFact(capabilities.dockerTarget) || booleanFact(capabilities.docker);
-  const lastContactAt = numberFact(site.last_contact_at, 0);
-  return {
-    siteId: site.id,
-    siteKind: 'suitcase',
-    deployLocalVersion: sourceVersion(stringFact(catalog.deployLocalVersion, String(site.version))),
-    operatingSystem,
-    architecture: normalizedArchitecture(String(site.architecture ?? '')),
-    engine:
-      catalog.engine === 'docker-desktop' || operatingSystem !== 'linux'
-        ? 'docker-desktop'
-        : 'docker-engine',
-    engineVersion: normalizedVersion(
-      stringFact(catalog.engineVersion, stringFact(capabilities.dockerVersion, '0.0.0')),
-    ),
-    memoryMiB: numberFact(catalog.memoryMiB, numberFact(capabilities.memoryBytes, 0) / 1024 ** 2),
-    storageMiB: numberFact(
-      catalog.storageMiB,
-      numberFact(capabilities.freeStorageBytes, 0) / 1024 ** 2,
-    ),
-    cpuCores: numberFact(catalog.cpuCores, numberFact(capabilities.cpuCount, 0)),
-    online:
-      site.mode !== 'away' && site.mode !== 'revoked' && Date.now() - lastContactAt < 2 * 60_000,
-    cachedArtifactDigests: stringArrayFact(catalog.cachedArtifactDigests),
-    capabilities: {
-      catalogExecution: booleanFact(catalog.catalogExecution) || dockerTarget,
-      privilegedContainers:
-        operatingSystem === 'linux' && (booleanFact(catalog.privilegedContainers) || dockerTarget),
-      hostNetwork:
-        operatingSystem === 'linux' && (booleanFact(catalog.hostNetwork) || dockerTarget),
-      lanDiscovery:
-        operatingSystem === 'linux' && (booleanFact(catalog.lanDiscovery) || dockerTarget),
-      hostPaths: stringArrayFact(catalog.hostPaths),
-      devices: stringArrayFact(catalog.devices),
-      dockerSocket: booleanFact(catalog.dockerSocket) || dockerTarget,
-    },
-  } satisfies CatalogTargetProfile;
 }
 
 async function coordinatorProfile(): Promise<CatalogTargetProfile> {
@@ -246,14 +190,6 @@ function parsedObject(value: unknown): Record<string, unknown> {
 
 function stringFact(value: unknown, fallback: string): string {
   return typeof value === 'string' && value ? value : fallback;
-}
-
-function sourceVersion(value: string): string {
-  return value === 'source' || !/^\d+(?:\.\d+){1,2}/.test(value) ? DEPLOY_LOCAL_VERSION : value;
-}
-
-function normalizedVersion(value: string): string {
-  return value.match(/\d+(?:\.\d+){1,2}/)?.[0] ?? '0.0.0';
 }
 
 function numberFact(value: unknown, fallback: number): number {

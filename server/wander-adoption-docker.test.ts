@@ -110,7 +110,7 @@ test(
         sourceArtifactDigest: 'sha256:' + 'b'.repeat(64),
       });
       store.updateDeploymentStatus('wander', 'running');
-      appId = (await import('./multisite.ts')).registerApplicationIdentity('wander');
+      appId = (await import('./local-site.ts')).registerApplicationIdentity('wander');
       assert.throws(() => wanderAdoptionService('fixture-member'), { status: 404 });
       const preflight = await wanderAdoptionPreflight('fixture-owner');
       const service = wanderAdoptionService('fixture-owner');

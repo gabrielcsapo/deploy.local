@@ -105,7 +105,7 @@ workspace directory, requires stopped workers/idle operations, and restores only
 the original path. Encrypted `recovery-bundle.ts` instead selects databases and a
 limited set of files; external checkpoint bodies must be added to that selection.
 The worker job transport sends a materialized snapshot, not the underlying database
-row. Suitcase data checkpoints are a separate deploy.db concept. Self-update database
+row. Self-update database
 snapshots stay alongside the unchanged data directory; they are not independent
 workspace exports.
 

@@ -490,7 +490,6 @@ export class CatalogService {
     }).spec;
     const changePlan = planApplicationChange(currentSpec, compiled.spec, {
       source: 'catalog',
-      targetSiteId: current.siteId,
       verifiedBackup: true,
     });
     return {
@@ -588,7 +587,6 @@ export class CatalogService {
     if (retainData) desiredSpec.resources = structuredClone(currentSpec.resources);
     const changePlan = planApplicationChange(currentSpec, desiredSpec, {
       source: 'catalog',
-      targetSiteId: current.siteId,
       resourceRemovalPolicy: retainData ? 'retain' : 'delete',
     });
     const blockers =

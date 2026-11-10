@@ -30,30 +30,6 @@ export function preflightCatalogInstall(input: CatalogPreflightInput): CatalogPr
     );
   }
 
-  if (target.siteKind === 'suitcase') {
-    const suitcasePromise = release.release.compatibility.promises.suitcase;
-    if (suitcasePromise === 'not-supported') {
-      findings.push(
-        blocking(
-          'release-suitcase-not-supported',
-          'suitcase',
-          `${release.release.metadata.name} does not support suitcase deployment in this release.`,
-          'Choose Home or a blueprint release with declared or verified suitcase support.',
-        ),
-      );
-    } else if (suitcasePromise === 'unknown') {
-      findings.push({
-        id: 'release-suitcase-evidence-unknown',
-        dimension: 'suitcase',
-        severity: 'warning',
-        summary:
-          'Suitcase departure, offline startup, and rejoin checks have not been run for this release.',
-        remediation:
-          'Validate departure, offline startup, and rejoin before relying on this application.',
-      });
-    }
-  }
-
   if (
     !versionSatisfiesRange(
       target.deployLocalVersion,

@@ -130,7 +130,7 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
     networkMode?: 'default' | 'none';
   }): Promise<string> {
     if (input.source.kind === 'image') {
-      // Suitcase startup is offline-first: an already-materialized image is sufficient. A deploy
+      // An already-materialized image is sufficient for startup. A deploy
       // with a new immutable reference still pulls because that reference will not exist locally.
       if (!(await dockerObjectExists('image', input.source.reference))) {
         await execFileAsync('docker', ['pull', input.source.reference], {

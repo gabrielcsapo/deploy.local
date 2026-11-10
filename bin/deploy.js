@@ -685,8 +685,7 @@ async function cmdPlan(serverUrl, appName) {
   console.log(
     `  Downtime: ${plan.impacts.downtime.expectation}  ` +
       `Backup: ${plan.impacts.backup.disposition}  ` +
-      `Data: ${plan.impacts.data.effect}  ` +
-      `Suitcase: ${plan.impacts.suitcase.disposition}`,
+      `Data: ${plan.impacts.data.effect}`,
   );
 }
 
@@ -2633,37 +2632,10 @@ async function cmdDelete(serverUrl, appName) {
     process.exit(1);
   }
   const config = loadConfig();
-  try {
-    await request(`${serverUrl}/api/deployments/${appName}`, {
-      method: 'DELETE',
-      headers: authHeaders(config),
-    });
-  } catch (err) {
-    const body = err.body;
-    if (body?.code === 'fleet_acknowledgement_required' && body.gate) {
-      const gate = body.gate;
-      const lines = [
-        `Delete held: ${gate.blockers.length} suitcase acknowledgement${gate.blockers.length === 1 ? '' : 's'} required.`,
-        ...gate.blockers.map(
-          (replica) =>
-            `  - ${replica.siteName} (${replica.siteId}): ${replica.mode}; last contact ${
-              replica.lastContactAt ? new Date(replica.lastContactAt).toISOString() : 'unknown'
-            }`,
-        ),
-        `Consequence: ${gate.consequence}`,
-        gate.instructions.retry,
-        'If a replica is permanently lost, explicitly accept unreceived data loss:',
-        ...gate.blockers.map(
-          (replica) =>
-            `  ${gate.instructions.removeLostReplicaCli.replace('{siteId}', replica.siteId)}`,
-        ),
-      ];
-      const blocked = new Error(lines.join('\n'));
-      blocked.code = body.code;
-      throw blocked;
-    }
-    throw err;
-  }
+  await request(`${serverUrl}/api/deployments/${appName}`, {
+    method: 'DELETE',
+    headers: authHeaders(config),
+  });
   console.log(`Deleted ${appName}`);
 }
 

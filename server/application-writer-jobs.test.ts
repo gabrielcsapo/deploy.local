@@ -14,7 +14,7 @@ process.env.DOCKER_HOST = `unix://${join(root, 'docker.sock')}`;
 
 const store = await import('./store.ts');
 const specs = await import('./application-spec.ts');
-const multisite = await import('./multisite.ts');
+const localSite = await import('./local-site.ts');
 const contentStore = await import('./content-store.ts');
 const { DockerCliGraphAdapter } = await import('./graph-docker-adapter.ts');
 const { containersRoutes } = await import('./api/containers.ts');
@@ -141,7 +141,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
 
 before(async () => {
   store.getDb();
-  multisite.ensureFleetIdentity();
+  localSite.ensureLocalIdentity();
   token = (store.registerUser(USER, PASSWORD) as { token: string }).token;
   server = createServer((req, res) => {
     handle(req, res).catch((error) => {
@@ -192,7 +192,7 @@ function seedApp(name: string, execution: string, activeNodeId: string) {
     createdBy: USER,
   });
   store.activateDesiredApplicationSpec(name, compiled.digest);
-  const appId = multisite.registerApplicationIdentity(name);
+  const appId = localSite.registerApplicationIdentity(name);
   store._invalidateDeploymentsCache();
   store.updateDeploymentStatus(name, 'running');
   return { appId, compiled };
@@ -217,7 +217,7 @@ function jobRows(appId: string) {
 describe('writerSite jobs through the real routes', () => {
   it('restarting an app on this machine runs its writerSite job once', async () => {
     // The two ids differ on every real coordinator: instances live under one, Home is the other.
-    assert.notEqual(multisite.ensureFleetIdentity().homeSiteId, 'coordinator');
+    assert.notEqual(localSite.ensureLocalIdentity().homeSiteId, 'coordinator');
     const { appId } = seedApp('writer-local', 'writerSite', 'coordinator');
 
     const first = await post('/api/deployments/writer-local/restart');

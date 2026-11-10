@@ -1,7 +1,7 @@
 import { requireAdmin, error, json, requireAuth, AUTH_COOKIE } from './shared.ts';
 import { readBody, RequestBodyTooLargeError } from '../http.ts';
 import { registerUser, loginUser, logoutUser, getUser, changePassword } from '../store.ts';
-import { listTopology } from '../multisite.ts';
+
 import { handleOperationsRequest } from '../operations-handler.ts';
 import { type ApiRouteContext } from './context.ts';
 
@@ -77,14 +77,6 @@ export async function authRoutes(ctx: ApiRouteContext): Promise<boolean> {
         const result = changePassword(auth.username, body.currentPassword, body.newPassword);
         if ('error' in result) return error(res, result.error!, result.status!);
         return json(res, { message: 'Password changed' });
-      }
-
-      // The compatibility topology read supports ordinary application placement.
-      // Portable-site mutation/transport routes no longer exist.
-      if (path === '/api/fleet/topology' && method === 'GET') {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        return json(res, listTopology());
       }
 
       if (path.startsWith('/api/operations/') && (method === 'GET' || method === 'POST')) {

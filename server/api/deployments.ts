@@ -6,7 +6,6 @@ import {
   error,
   MIGRATION_STATES,
   PRE_CONTAINER_STATES,
-  fleetMutationBlocked,
   localGraphSiteFor,
   requireAdmin,
   CONFIGURATION_REQUIRED_STATUS,
@@ -69,14 +68,8 @@ import {
   renderRepositoryDeployYaml,
 } from '../application-spec.ts';
 import { planApplicationChange } from '../application-plan.ts';
-import {
-  requiresFleetAcknowledgement,
-  assertFleetMutationReady,
-  destructiveGraphMutationFingerprint,
-  FleetMutationBlockedError,
-  applicationDeleteMutationFingerprint,
-} from '../fleet-mutation-guard.ts';
-import { registerApplicationIdentity } from '../multisite.ts';
+
+import { registerApplicationIdentity } from '../local-site.ts';
 import {
   carryForwardCompatibleConfiguration,
   resolveApplicationConfiguration,
@@ -97,13 +90,12 @@ import { createAgentGraphPayload } from '../agent-graph-payload.ts';
 import { applicationWriterSiteId } from '../application-authority.ts';
 import { recordAgentGraphMaterialization } from '../agent-graph-recording.ts';
 import { type AgentGraphExecutionResult } from '../agent-graph-runtime.ts';
-import { publishActivatedApplicationRevision } from '../distributed-application-events.ts';
+
 import {
   ApplicationGraphExecutor,
   type GraphExecutorContext,
 } from '../application-graph-executor.ts';
-import { projectApplicationConfigurationToReplicas } from '../site-configuration-envelope.ts';
-import { publishComponentSiteCount } from '../component-site-overrides.ts';
+
 import { deleteVolumes, getVolumeDir } from '../volumes.ts';
 import { forgetApp as forgetCrashTracker } from '../crash-tracker.ts';
 import { totalmem, cpus } from 'node:os';
@@ -460,21 +452,6 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                 409,
               );
             }
-            if (requiresFleetAcknowledgement(plan, candidate.spec)) {
-              const applicationId = deployment.appId || registerApplicationIdentity(name);
-              assertFleetMutationReady({
-                appId: applicationId,
-                applicationName: name,
-                kind: 'destructive-graph-change',
-                mutationFingerprint: destructiveGraphMutationFingerprint(
-                  applicationId,
-                  candidate.digest,
-                ),
-                consequence:
-                  'This revision removes or incompatibly changes application graph state. Every selected suitcase must sync and acknowledge this exact revision before the desired graph changes.',
-                actor: auth.username,
-              });
-            }
 
             saveDesiredApplicationSpec({
               digest: candidate.digest,
@@ -511,9 +488,6 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               201,
             );
           } catch (err) {
-            if (err instanceof FleetMutationBlockedError) {
-              return fleetMutationBlocked(res, err);
-            }
             const message = (err as Error).message;
             return error(
               res,
@@ -829,21 +803,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               409,
             );
           }
-          if (requiresFleetAcknowledgement(plan, desired)) {
-            const applicationId = deployment.appId || registerApplicationIdentity(name);
-            assertFleetMutationReady({
-              appId: applicationId,
-              applicationName: name,
-              kind: 'destructive-graph-change',
-              mutationFingerprint: destructiveGraphMutationFingerprint(
-                applicationId,
-                desiredDigest,
-              ),
-              consequence:
-                'Applying this revision removes or incompatibly changes application graph state. Every selected suitcase must sync and acknowledge this exact revision first.',
-              actor: auth.username,
-            });
-          }
+
           const siteId =
             deployment.desiredNodeId || deployment.activeNodeId || localGraphSiteFor(deployment);
           if (!siteId) return error(res, 'Application placement is unavailable', 409);
@@ -966,7 +926,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               result: remoteResult as AgentGraphExecutionResult,
             });
             activateDesiredApplicationSpec(name, desiredDigest, configuration.digest);
-            publishActivatedApplicationRevision(name, auth.username);
+
             saveDeployment({
               name,
               type: 'application-graph',
@@ -1047,7 +1007,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               cpuLimit: deployment.cpuLimit || undefined,
             });
             activateDesiredApplicationSpec(name, desiredDigest, configuration.digest);
-            publishActivatedApplicationRevision(name, auth.username);
+
             saveDeployment({
               name,
               type: deployment.type || 'application-graph',
@@ -1083,9 +1043,6 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             throw applyError;
           }
         } catch (applyError) {
-          if (applyError instanceof FleetMutationBlockedError) {
-            return fleetMutationBlocked(res, applyError);
-          }
           return error(res, (applyError as Error).message, 400);
         } finally {
           lease.release();
@@ -1170,10 +1127,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               updatedBy: auth.username,
               siteId: declaration?.scope === 'site' ? siteId : undefined,
             });
-            const projectedReplicas =
-              declaration?.scope === 'application' && deployment.appId
-                ? projectApplicationConfigurationToReplicas(deployment.appId, auth.username)
-                : 0;
+            const projectedReplicas = 0;
             const resolved = resolveApplicationConfiguration({
               deploymentName: name,
               specDigest: revision.digest,
@@ -1447,9 +1401,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             if (scope === 'site') {
               const targetSiteId = body.siteId === undefined ? siteId : String(body.siteId).trim();
               if (!targetSiteId) return error(res, 'siteId is required for a site count', 400);
-              if (targetSiteId !== siteId && process.env.DEPLOY_SUITCASE === '1') {
-                return error(res, 'A Suitcase may change only its own local component count', 409);
-              }
+
               if (!currentComponent.siteOverrides.allowed) {
                 return error(
                   res,
@@ -1470,7 +1422,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               }
               const overrides = getComponentSiteOverrides(applicationId, targetSiteId);
               const effectiveInstances = instances ?? currentComponent.instances;
-              const previousEffectiveInstances = overrides[component] ?? currentComponent.instances;
+
               const admittedOverrides = { ...overrides, [component]: effectiveInstances };
               const admission = planApplicationExecution(applicationId, current, {
                 targetSiteId,
@@ -1484,37 +1436,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                   409,
                 );
               }
-              if (targetSiteId !== siteId) {
-                const published = publishComponentSiteCount({
-                  appId: applicationId,
-                  deploymentName: name,
-                  targetSiteId,
-                  componentKey: component,
-                  specDigest: parentDigest!,
-                  instances,
-                  actor: auth.username,
-                });
-                addDeployEvent(name, {
-                  action: `scale:${component}:${published.effectiveInstances}:site:${targetSiteId}:pending`,
-                  username: auth.username,
-                  source: 'ui',
-                });
-                return json(
-                  res,
-                  {
-                    component,
-                    instances: published.effectiveInstances,
-                    defaultInstances: published.defaultInstances,
-                    siteId: targetSiteId,
-                    siteOverride: instances,
-                    specDigest: parentDigest,
-                    activeSpecDigest: deployment.activeSpecDigest,
-                    eventId: published.eventId,
-                    pendingTargetProcessing: true,
-                  },
-                  202,
-                );
-              }
+
               if (!siteId || targetSiteId !== siteId) {
                 return error(
                   res,
@@ -1538,19 +1460,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                   428,
                 );
               }
-              if (effectiveInstances < previousEffectiveInstances) {
-                assertFleetMutationReady({
-                  appId: applicationId,
-                  applicationName: name,
-                  kind: 'destructive-graph-change',
-                  mutationFingerprint: destructiveGraphMutationFingerprint(
-                    applicationId,
-                    `${parentDigest}:site:${targetSiteId}:component:${encodeURIComponent(component)}:instances:${effectiveInstances}`,
-                  ),
-                  consequence: `This site-specific scale operation removes ${previousEffectiveInstances - effectiveInstances} ${component} instance${previousEffectiveInstances - effectiveInstances === 1 ? '' : 's'} at ${targetSiteId}. Every selected suitcase must sync and acknowledge this exact operational change first.`,
-                  actor: auth.username,
-                });
-              }
+
               setComponentSiteOverride({
                 appId: applicationId,
                 deploymentName: name,
@@ -1623,20 +1533,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             if (plan.destructive && body.confirmDestructive !== true) {
               return json(res, { error: 'Scale-down requires confirmation', plan }, 409);
             }
-            if (requiresFleetAcknowledgement(plan, candidate.spec)) {
-              assertFleetMutationReady({
-                appId: applicationId,
-                applicationName: name,
-                kind: 'destructive-graph-change',
-                mutationFingerprint: destructiveGraphMutationFingerprint(
-                  applicationId,
-                  candidate.digest,
-                ),
-                consequence:
-                  'This scale operation removes application graph state. Every selected suitcase must sync and acknowledge this exact revision first.',
-                actor: auth.username,
-              });
-            }
+
             saveDesiredApplicationSpec({
               digest: candidate.digest,
               deploymentName: name,
@@ -1688,7 +1585,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               cpuLimit: deployment.cpuLimit || undefined,
             });
             activateDesiredApplicationSpec(name, candidate.digest, configuration.digest);
-            publishActivatedApplicationRevision(name, auth.username);
+
             saveDeployment({
               name,
               type: deployment.type || undefined,
@@ -1777,9 +1674,6 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             activeSpecDigest: deployment.activeSpecDigest,
           });
         } catch (componentError) {
-          if (componentError instanceof FleetMutationBlockedError) {
-            return fleetMutationBlocked(res, componentError);
-          }
           return error(res, (componentError as Error).message, 400);
         }
       }
@@ -1868,16 +1762,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                 'Major profile upgrade requires a different desired application revision',
               );
             }
-            const applicationId = deployment.appId || registerApplicationIdentity(name);
-            assertFleetMutationReady({
-              appId: applicationId,
-              applicationName: name,
-              kind: 'destructive-graph-change',
-              mutationFingerprint: destructiveGraphMutationFingerprint(applicationId, targetDigest),
-              consequence:
-                'This major component profile upgrade changes durable data schema and application graph state. Every selected suitcase must sync and acknowledge the target revision first.',
-              actor: auth.username,
-            });
+
             const targetRevision = getApplicationSpecRevision(name, targetDigest);
             if (targetRevision?.manifestFormat !== 'deploy.yaml') {
               throw new Error('Desired application graph revision not found');
@@ -1927,16 +1812,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             );
             const targetDigest = binding?.rollbackSpecDigest;
             if (!targetDigest) throw new Error('No preserved profile rollback revision exists');
-            const applicationId = deployment.appId || registerApplicationIdentity(name);
-            assertFleetMutationReady({
-              appId: applicationId,
-              applicationName: name,
-              kind: 'destructive-graph-change',
-              mutationFingerprint: destructiveGraphMutationFingerprint(applicationId, targetDigest),
-              consequence:
-                'This component profile rollback changes durable data schema and application graph state. Every selected suitcase must sync and acknowledge the rollback revision first.',
-              actor: auth.username,
-            });
+
             const targetRevision = getApplicationSpecRevision(name, targetDigest);
             if (targetRevision?.manifestFormat !== 'deploy.yaml') {
               throw new Error('Preserved profile rollback revision not found');
@@ -2004,12 +1880,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             });
             updateDeploymentStatus(name, 'running');
           }
-          if (
-            profileOperation.workflow === 'logical-major-upgrade' ||
-            profileOperation.workflow === 'logical-rollback'
-          ) {
-            publishActivatedApplicationRevision(name, auth.username);
-          }
+
           addDeployEvent(name, {
             action: `profile:${component}:${operation}`,
             username: auth.username,
@@ -2017,9 +1888,6 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           });
           return json(res, result, 201);
         } catch (profileError) {
-          if (profileError instanceof FleetMutationBlockedError) {
-            return fleetMutationBlocked(res, profileError);
-          }
           return error(res, (profileError as Error).message, 400);
         }
       }
@@ -2058,23 +1926,7 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         const name = deploymentMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        const applicationId = d.appId || registerApplicationIdentity(name);
-        try {
-          assertFleetMutationReady({
-            appId: applicationId,
-            applicationName: name,
-            kind: 'application-delete',
-            mutationFingerprint: applicationDeleteMutationFingerprint(applicationId),
-            consequence:
-              'Deleting this application removes its Home runtime, graph record, and managed data. It cannot proceed while a selected suitcase may still hold an unreceived branch.',
-            actor: auth.username,
-          });
-        } catch (deleteGuardError) {
-          if (deleteGuardError instanceof FleetMutationBlockedError) {
-            return fleetMutationBlocked(res, deleteGuardError);
-          }
-          throw deleteGuardError;
-        }
+
         const activeRevision = d.activeSpecDigest
           ? getApplicationSpecRevision(name, d.activeSpecDigest)
           : null;

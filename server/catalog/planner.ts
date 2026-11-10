@@ -15,7 +15,7 @@ export function planCatalogInstall(input: CatalogPreflightInput): CatalogOperati
   const changePlan = planApplicationChange(
     emptyApplicationSpec(input.applicationName),
     preflight.normalizedSpec,
-    catalogPlanningContext(input.target),
+    { source: 'catalog' },
   );
   const blockers = preflight.findings.filter((finding) => finding.severity === 'blocking');
   blockers.push(...sharedPlanBlockers(changePlan));
@@ -95,11 +95,9 @@ export function planCatalogUpgrade(input: {
   });
   blockers.push(...targetPreflight.findings.filter((finding) => finding.severity === 'blocking'));
   const currentSpec = namedSpec(current.normalizedSpec, installation.applicationName);
-  const changePlan = planApplicationChange(
-    currentSpec,
-    targetPreflight.normalizedSpec,
-    catalogPlanningContext(input.preflight.target),
-  );
+  const changePlan = planApplicationChange(currentSpec, targetPreflight.normalizedSpec, {
+    source: 'catalog',
+  });
   blockers.push(...sharedPlanBlockers(changePlan));
   const steps: CatalogOperationStep[] = [
     {
@@ -198,10 +196,7 @@ function ownershipPlan(
   localBlueprintId?: string,
 ): CatalogOperationPlan {
   const spec = compileApplicationManifest(input.currentSpec ?? input.current.normalizedSpec).spec;
-  const changePlan = planApplicationChange(spec, spec, {
-    source: 'catalog',
-    targetSiteId: input.installation.siteId,
-  });
+  const changePlan = planApplicationChange(spec, spec, { source: 'catalog' });
   const blockers = [] as CatalogOperationPlan['blockers'];
   if (input.installation.mode !== 'managed') {
     blockers.push({
@@ -281,15 +276,6 @@ function namedSpec(
     ...spec,
     metadata: { ...spec.metadata, name },
   }).spec;
-}
-
-function catalogPlanningContext(target: CatalogPreflightInput['target']) {
-  return {
-    source: 'catalog' as const,
-    targetSiteId: target.siteId,
-    targetSiteKind: target.siteKind,
-    ...(target.siteKind === 'suitcase' ? { suitcaseSiteIds: [target.siteId] } : {}),
-  };
 }
 
 function sharedPlanBlockers(

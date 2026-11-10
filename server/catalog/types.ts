@@ -153,8 +153,8 @@ export interface CatalogTrustStore {
 
 export interface CatalogTargetProfile {
   siteId: string;
-  /** Durable topology role, used for suitcase-specific compatibility promises. */
-  siteKind?: 'coordinator' | 'node' | 'suitcase';
+  /** Coordinator or enrolled worker placement. */
+  siteKind?: 'coordinator' | 'node';
   deployLocalVersion: string;
   operatingSystem: 'linux' | 'darwin' | 'windows';
   architecture: 'amd64' | 'arm64';
@@ -186,8 +186,7 @@ export interface CatalogPreflightFinding {
     | 'artifact'
     | 'configuration'
     | 'security'
-    | 'offline'
-    | 'suitcase';
+    | 'offline';
   severity: 'info' | 'warning' | 'blocking';
   summary: string;
   remediation?: string;

@@ -1,8 +1,7 @@
-import { resolveLocalSiteId } from '../multisite.ts';
 import { emit } from '../events.ts';
 import { type ServerResponse, type IncomingMessage } from 'node:http';
 import { sendJson } from '../http.ts';
-import { FleetMutationBlockedError } from '../fleet-mutation-guard.ts';
+
 import {
   authenticate,
   isAdmin,
@@ -30,17 +29,6 @@ export const CONFIGURATION_REQUIRED_STATUS = 'configuration-required';
 
 export const MIGRATION_STATES = new Set(['backing-up', 'restoring']);
 
-/**
- * Graph lifecycle work is always executed by the control surface that owns the
- * local Docker runtime. Home historically stores that location as
- * `coordinator`; a Suitcase stores its durable fleet site id. Keeping this
- * translation at the API boundary lets the exact same operation endpoints work
- * while disconnected without accidentally operating a remote node's graph.
- */
-function localGraphSiteId(): string {
-  return process.env.DEPLOY_SUITCASE === '1' ? resolveLocalSiteId() : 'coordinator';
-}
-
 function graphDeploymentSiteId(deployment: {
   activeNodeId?: string | null;
   desiredNodeId?: string | null;
@@ -52,7 +40,7 @@ export function localGraphSiteFor(deployment: {
   activeNodeId?: string | null;
   desiredNodeId?: string | null;
 }): string | null {
-  const localSiteId = localGraphSiteId();
+  const localSiteId = 'coordinator';
   return graphDeploymentSiteId(deployment) === localSiteId ? localSiteId : null;
 }
 
@@ -96,23 +84,6 @@ export function json(res: ServerResponse, data: unknown, status = 200) {
 
 export function error(res: ServerResponse, message: string, status = 400) {
   json(res, { error: message }, status);
-}
-
-export function fleetMutationBlocked(
-  res: ServerResponse,
-  blocked: FleetMutationBlockedError,
-  details: Record<string, unknown> = {},
-) {
-  return json(
-    res,
-    {
-      error: blocked.message,
-      code: blocked.code,
-      gate: blocked.gate,
-      ...details,
-    },
-    blocked.status,
-  );
 }
 
 // ── Auth ────────────────────────────────────────────────────────────────────

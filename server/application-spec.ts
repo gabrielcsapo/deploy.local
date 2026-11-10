@@ -31,11 +31,11 @@ export type ConfigurationScope = 'application' | 'site';
 export type ComponentRole = 'web' | 'worker' | 'service';
 export type InterfaceProtocol = 'http' | 'https' | 'tcp' | 'udp' | 'postgres' | 'redis';
 export type ExecutionScope = 'perInstance' | 'perSite' | 'writerSite';
-export type ReconciliationConflictPolicy = 'collect' | 'prefer-home' | 'prefer-suitcase';
+type ReconciliationConflictPolicy = 'collect' | 'prefer-home' | 'prefer-suitcase';
 export type RolloutStrategy = 'rolling' | 'recreate' | 'maintenance';
 export type SchemaOverlapContract = 'compatible' | 'incompatible';
 export type PlacementIntent = 'coLocate' | 'spread';
-export type SuitcaseDataMode = 'syncs-across-sites' | 'follows-one-site' | 'site-local';
+type SuitcaseDataMode = 'syncs-across-sites' | 'follows-one-site' | 'site-local';
 
 export interface ApplicationManifest {
   $schema?: string;

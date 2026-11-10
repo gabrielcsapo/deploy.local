@@ -95,12 +95,6 @@ export function ciTarget(application: string, username: string) {
     Object.keys(spec.jobs).length > 0 ||
     Object.values(spec.resources).some((r) => r.source?.type === 'bind') ||
     (d.volumes && JSON.parse(d.volumes).length > 0) ||
-    (d.appId &&
-      sql()
-        .prepare(
-          "SELECT id FROM app_replicas WHERE app_id=? AND removed_at IS NULL AND site_id NOT IN (SELECT id FROM sites WHERE kind='home' UNION SELECT 'coordinator') LIMIT 1",
-        )
-        .get(d.appId)) ||
     d.privilegedDocker ||
     d.gpuEnabled
   )
