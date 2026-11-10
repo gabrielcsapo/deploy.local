@@ -2417,6 +2417,29 @@ test('element-level auto merge is resolved and approval lands both changes', asy
   assert.match(landed, />Done</);
 });
 
+test('a stylesheet both sides added rules to keeps both and never blocks the review', async () => {
+  const f = await reviewFixture('styles-both');
+  const css = join(f.path, 'design/ds/sheet.css');
+  mkdirSync(join(f.path, 'design/ds'), { recursive: true });
+  await f.run(['checkout', '-q', 'main']);
+  writeFileSync(css, '.a{color:red}\n');
+  await f.commit('Stylesheet base');
+  await f.run(['checkout', '-qB', 'design/review', 'main']);
+  writeFileSync(css, '.a{color:red}\n.proposal{gap:8px}\n');
+  await f.commit('Proposal styles');
+  const item = await f.propose();
+  await f.run(['checkout', '-q', 'main']);
+  writeFileSync(css, '.a{color:red}\n.main{gap:4px}\n');
+  await f.commit('Main styles');
+  const review = await f.read(item);
+  assert.equal(review.stale, false);
+  assert.equal(review.resolutions.find((r: any) => r.file === 'ds/sheet.css').kind, 'kept-both');
+  const { answerInboxAsync } = await import('./inbox.ts');
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
+  const landed = await f.run(['show', 'main:design/ds/sheet.css']);
+  assert.match(landed, /\.main\{gap:4px\}\n\.proposal\{gap:8px\}/);
+});
+
 for (const value of ['main', 'proposal'] as const)
   test(`overlapping elements require a choice; ${value} keeps independent changes too`, async () => {
     const f = await mergeFixture(`elements-${value}`, true);

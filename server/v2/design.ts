@@ -294,29 +294,35 @@ async function mergedWrites(
       });
       continue;
     }
-    const dir = await mkdtemp(join(tmpdir(), 'design-merge-'));
-    try {
-      const [ours, old, theirs] = ['main', 'base', 'branch'].map((name) => join(dir, name));
-      await Promise.all([
-        writeFile(ours, targetText),
-        writeFile(old, baseText),
-        writeFile(theirs, fromText),
-      ]);
-      // merge-file exits with the number of conflicts, so any failure stops the approval.
-      const merged = await gitSlots(repo, () =>
-        repositoryGit(dir, ['merge-file', '-p', ours, old, theirs]),
-      ).catch(() => null);
-      if (merged === null)
-        fail(
-          `${input.main} changed ${path.replace(/^design\//, '')} since ${input.branch} started, on the same lines. Ask for changes so the branch is brought up to date, then approve again.`,
-          409,
-        );
-      writes.push({ path, content: merged.toString() });
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const merged = await mergeLines(repo, path, baseText, targetText, fromText);
+    if (merged === null)
+      fail(
+        `${input.main} changed ${path.replace(/^design\//, '')} since ${input.branch} started, on the same lines. Resolve it in the review, then approve again.`,
+        409,
+      );
+    writes.push({ path, content: merged });
   }
   return writes;
+}
+/**
+ * A file that is not a board, merged line by line. A stylesheet where both sides added rules at
+ * the same place keeps both sets, main's first: rules are independent, so neither is lost.
+ * Null when the same lines changed and nothing can be kept from both.
+ */
+async function mergeLines(repo: string, path: string, base: string, target: string, from: string) {
+  const dir = await mkdtemp(join(tmpdir(), 'design-merge-'));
+  try {
+    const [ours, old, theirs] = ['main', 'base', 'branch'].map((name) => join(dir, name));
+    await Promise.all([writeFile(ours, target), writeFile(old, base), writeFile(theirs, from)]);
+    // merge-file exits with the number of conflicts, so a rejection means the lines overlap.
+    const run = (flags: string[]) =>
+      gitSlots(repo, () => repositoryGit(dir, ['merge-file', '-p', ...flags, ours, old, theirs]))
+        .then((bytes) => bytes.toString())
+        .catch(() => null);
+    return (await run([])) ?? (path.endsWith('.css') ? await run(['--union']) : null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 /** A file's whole text at a commit, last newline kept. */
 async function showFile(repo: string, commit: string, path: string) {
@@ -718,12 +724,19 @@ export async function reviewMain(repo: string, context: any) {
     const file = conflictName(path);
     const merged = path.startsWith('design/boards/')
       ? mergeBoard(base, target, from)
-      : {
-          kind: 'same-part' as const,
-          mainChanged: 'File changed',
-          proposalChanged: 'File changed',
-          detail: 'Both changed this file.',
-        };
+      : (await mergeLines(repo, path, base, target, from)) === null
+        ? {
+            kind: 'same-part' as const,
+            mainChanged: 'File changed',
+            proposalChanged: 'File changed',
+            detail: 'Both changed the same lines of this file.',
+          }
+        : {
+            kind: 'kept-both' as const,
+            mainChanged: 'File changed',
+            proposalChanged: 'File changed',
+            detail: 'Different lines changed. Both are kept. Nothing to choose.',
+          };
     resolutions.push({
       file,
       mainExists: Boolean(target),
