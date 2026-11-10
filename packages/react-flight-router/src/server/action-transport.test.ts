@@ -7,6 +7,9 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createServer as createHttpServer } from 'node:http';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
 import { createServer } from './index.js';
 import { ACTION_ENDPOINT, RSC_ACTION_HEADER, RSC_REDIRECT_HEADER } from '../shared/constants.js';
 
@@ -122,6 +125,27 @@ for (const mode of ['worker', 'main thread'] as const) {
       const response = await call(app, 'goAway');
       assert.equal(response.status, 200);
       assert.equal(response.headers.get(RSC_REDIRECT_HEADER), '/signed-out');
+    });
+
+    it('serves the same answer through nodeListener over HTTP', async () => {
+      const server = createHttpServer(app.nodeListener);
+      server.listen(0, '127.0.0.1');
+      await once(server, 'listening');
+      try {
+        const { port } = server.address() as AddressInfo;
+        const response = await fetch(`http://127.0.0.1:${port}${ACTION_ENDPOINT}`, {
+          method: 'POST',
+          headers: { [RSC_ACTION_HEADER]: 'app/actions#unauthorized' },
+          body: '[]',
+        });
+        assert.equal(response.status, 500);
+        assert.equal(
+          ((await response.json()) as { error: { message: string } }).error.message,
+          'Unauthorized',
+        );
+      } finally {
+        server.close();
+      }
     });
 
     it('answers an unknown action with a 404 and a message', async () => {

@@ -17,6 +17,7 @@ import {
   actionRedirectResponse,
 } from './action-error.js';
 import { getRequestSignal } from './request-signal.js';
+import { createNodeListener } from './node-listener.js';
 import { createWorkerPool, type WorkerPool, type WorkerCompletion } from './worker-pool.js';
 import { requestStorage } from './request-context.js';
 import { createSSRModuleLoader } from './ssr-module-loader.js';
@@ -143,6 +144,12 @@ interface CreateServerOptions {
    * so attach any `upgrade` listener to whatever `serve()` returns.
    */
   extend?: ExtendHook;
+  /**
+   * Called with an error the returned `nodeListener` caught while bridging a
+   * Node request (the response is then a 500, or is cut off if it had
+   * started). Default: `console.error`.
+   */
+  onError?: (error: unknown) => void;
 }
 
 /**
@@ -1017,6 +1024,19 @@ export async function createServer(opts: CreateServerOptions) {
   );
 
   return Object.assign(app, {
+    /**
+     * A `(req, res)` listener for `node:http` and the `node:http2`
+     * compatibility API. It strips HTTP/2 pseudo-headers and hop-by-hop
+     * headers, writes at the client's pace, and aborts the render or action
+     * when the client disconnects.
+     *
+     * @example
+     * ```ts
+     * const app = await createServer({ buildDir: './dist' });
+     * http.createServer(app.nodeListener).listen(3000);
+     * ```
+     */
+    nodeListener: createNodeListener((request, env) => app.fetch(request, env), opts.onError),
     /** Stops the server-action worker threads. Call it when the host shuts down. */
     close: async (): Promise<void> => {
       await workerPool?.destroy();
@@ -1030,5 +1050,6 @@ export { renderSSR } from './ssr-renderer.js';
 export { handleAction } from './action-handler.js';
 export { getRequest, requestStorage } from './request-context.js';
 export { redirect } from './redirect.js';
+export { createNodeListener, type NodeRequest, type NodeResponse } from './node-listener.js';
 export type { RequestTimingEvent, TimingEntry, WorkerOptions } from '../shared/types.js';
 export type { ExtendContext, ExtendHook } from '../shared/extend.js';

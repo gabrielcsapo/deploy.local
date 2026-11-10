@@ -35,13 +35,10 @@ function bootOptions(text: string) {
 
 const entries = {
   'server.ts': {
-    // web-response.ts is a pure helper for writing the page body; it starts nothing.
     imports: [
       './server/boot.ts',
       './server/flight-router-error.ts',
-      './server/web-response.ts',
       'node:module',
-      'node:stream',
       'react-flight-router/server',
     ],
     options: ['createClient', 'role'],

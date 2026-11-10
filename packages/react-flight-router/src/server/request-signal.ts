@@ -1,3 +1,5 @@
+import { NODE_REQUEST_SIGNAL } from './node-listener.js';
+
 /**
  * Hono context shape that exposes Node's IncomingMessage / ServerResponse
  * via env.incoming / env.outgoing (provided by @hono/node-server).
@@ -35,6 +37,10 @@ export interface NodeAdapterContext {
  * Falls back to c.req.raw.signal for non-Node adapters.
  */
 export function getRequestSignal(c: NodeAdapterContext): AbortSignal {
+  // createServer's nodeListener aborts this when the response closes early,
+  // which also works for an HTTP/2 stream whose session socket stays open.
+  const fromListener = c.env?.[NODE_REQUEST_SIGNAL];
+  if (fromListener instanceof AbortSignal) return fromListener;
   const incoming = c.env?.incoming;
   const outgoing = c.env?.outgoing;
   const socket = incoming?.socket;
