@@ -6,7 +6,7 @@ import type {
 import { readFileSync } from 'node:fs';
 
 const sentBoard = readFileSync(
-  new URL('../../../design/boards/DesignReviewSent.html', import.meta.url),
+  new URL('../../../design/boards/DesignReviewGridPhone.html', import.meta.url),
   'utf8',
 );
 function approvedRegion(file: string) {

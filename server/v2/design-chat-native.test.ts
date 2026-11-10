@@ -29,7 +29,7 @@ test('iPhone decisions keep the record open and provide the approved onward dest
     answer.replace('if action == "update" { dismiss(); return }', ''),
     /dismiss\(\)/,
   );
-  assert.match(source, /V2ReviewModel\.outcome\(review\)/);
+  assert.match(source, /V2ReviewModel\.outcome\(review(, now: context\.date)?\)/);
   assert.match(source, /Button\("Open the task"\)/);
   assert.match(source, /Button\("Open in Design"\)/);
   assert.match(source, /V2ReviewModel\.sentNotice\(review\)/);
