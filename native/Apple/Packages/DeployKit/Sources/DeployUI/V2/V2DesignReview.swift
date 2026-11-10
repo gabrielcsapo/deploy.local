@@ -39,7 +39,7 @@ struct V2DesignReviewView: View {
     @Environment(\.verticalSizeClass) private var heightClass
     /// The phone is turned sideways: the screen fills the window and the tools stand on the right edge.
     private var sideways: Bool { heightClass == .compact }
-    private var changedBoard: V2DesignReview.Board? { board.flatMap { !$0.added && !$0.isRemoved && !(model.drawing && !model.pinSheet) ? $0 : nil } }
+    private var changedBoard: V2DesignReview.Board? { (model.resolution == nil ? board : nil).flatMap { !$0.added && !$0.isRemoved && !(model.drawing && !model.pinSheet) ? $0 : nil } }
     @State private var active = false
     @ScaledMetric(relativeTo: .title) private var coverHeadingSize = 30
     @ScaledMetric(relativeTo: .largeTitle) private var headingSize = 30
@@ -47,7 +47,8 @@ struct V2DesignReviewView: View {
     private var screens: [V2DesignReview.Board] { review.map(V2ReviewModel.screens) ?? [] }
     private var pages: [V2ReviewModel.Page] { review.map(V2ReviewModel.pages) ?? [.cover] }
     private var board: V2DesignReview.Board? {
-        guard case .screen(let file) = model.page else { return nil }
+        let file: String
+        switch model.page { case .screen(let value), .conflict(let value): file = value; default: return nil }
         return review?.boards.first { $0.file == file }
     }
     private var note: V2DesignReview.Note? {
@@ -63,7 +64,7 @@ struct V2DesignReviewView: View {
     }
     private var canDecide: Bool { model.decisionsReady && store.online && !store.busy && review?.stale != true }
     private var seenKey: String {
-        guard active, scenePhase == .active, !model.obscured else { return "" }
+        guard active, scenePhase == .active, !model.obscured, model.resolution == nil else { return "" }
         if let board, model.preview(board) != nil { return "screen:\(board.file)" }
         if let note { return "note:\(note.id)" }
         return ""
@@ -87,6 +88,9 @@ struct V2DesignReviewView: View {
                     // half off the side. Rebuilding it for the new width puts the current page back in place.
                     GeometryReader { window in
                     TabView(selection: $model.page) {
+                        ForEach(review.resolutions ?? []) { resolution in
+                            conflictPage(resolution).tag(V2ReviewModel.Page.conflict(resolution.file))
+                        }
                         cover(review).tag(V2ReviewModel.Page.cover)
                         ForEach(screens) { board in screenPage(board).tag(V2ReviewModel.Page.screen(board.file)) }
                         ForEach(review.changedNotes) { note in
@@ -99,7 +103,7 @@ struct V2DesignReviewView: View {
                     .clipped()
                     }
                 }
-                if (board != nil || note != nil) && !(sideways && changedBoard != nil) { reviewToolbar }
+                if (board != nil || note != nil || model.resolution != nil) && !(sideways && changedBoard != nil) { reviewToolbar }
             } else {
                 VStack(alignment: .leading, spacing: 18) {
                     V2ReviewShimmer().frame(height: 68).clipShape(RoundedRectangle(cornerRadius: 8))
@@ -127,8 +131,10 @@ struct V2DesignReviewView: View {
             }
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {
-                    Text(model.drawing && !model.pinSheet ? "Draw a comment" : board?.name ?? note?.title ?? (model.page == .decide ? "Finish review" : "Design review")).font(.headline).lineLimit(1).truncationMode(.tail)
-                    if let board {
+                    Text(model.drawing && !model.pinSheet ? "Draw a comment" : board?.name ?? note?.title ?? model.resolution.map { resolutionTitle($0) } ?? (model.page == .decide ? "Finish review" : "Design review")).font(.headline).lineLimit(1).truncationMode(.tail)
+                    if let resolution = model.resolution, let review {
+                        Text("Conflict \((review.resolutions?.firstIndex { $0.file == resolution.file } ?? 0) + 1) of \(review.resolutions?.count ?? 0)").font(.footnote).foregroundStyle(.secondary)
+                    } else if let board {
                         Text(model.drawing && !model.pinSheet ? "\(board.name) · \(screenCounter(board))" : "\(board.changeKind == "new" ? "New · " : board.isRemoved ? "Removed · " : "")\(screenCounter(board))").font(.footnote).foregroundStyle(.secondary)
                     } else if let note, let index = review?.changedNotes.firstIndex(where: { $0.id == note.id }) {
                         Text("Note \(index + 1) of \(review?.changedNotes.count ?? 0)").font(.footnote).foregroundStyle(.secondary)
@@ -146,11 +152,14 @@ struct V2DesignReviewView: View {
                         Button("Place a pin") { if let board { model.placePin(board) } else { model.pinTool = true } }.disabled(model.comparing || model.drawing || review?.item.state != .waiting || (board != nil && board.flatMap(model.preview) == nil))
                         Button("All screens") { model.grid = true }
                     }
+                    if review?.resolutions?.isEmpty == false && review?.item.state == .waiting {
+                        Button(review?.proposer?.isYou == true ? "Ask to update" : "Ask \(review?.proposer?.name ?? "the proposer") to update") { answer("update") }
+                    }
                     Button("Open the Design page") { model.design = true }
                 } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("More").disabled(model.drawing)
             }
         }
-        .sheet(isPresented: $openTask) { V2ConversationView(store: store, taskId: review?.task ?? item.taskId) }
+        .sheet(isPresented: $openTask) { V2ConversationView(store: store, taskId: review?.item.taskId ?? item.taskId) }
         .sheet(isPresented: $model.grid) { gridSheet.presentationDetents([.large]).presentationDragIndicator(.visible) }
         .sheet(isPresented: $model.pinSheet, onDismiss: { model.dismissPinSheet() }) {
             V2ReviewPinSheet(model: model, client: store.client).presentationDetents([.medium, .large]).presentationDragIndicator(.visible).interactiveDismissDisabled(model.saving)
@@ -193,6 +202,9 @@ struct V2DesignReviewView: View {
                 await V2Evidence.reviewReady(failed: model.failed.count + (model.review == nil ? 1 : 0))
             }
         }
+        .task(id: "evidence-\(review?.after ?? "")-\(review?.main ?? "")") {
+            await model.loadEvidence(client: store.client)
+        }
         .task(id: seenKey) {
             let key = seenKey
             guard !key.isEmpty else { return }
@@ -206,7 +218,7 @@ struct V2DesignReviewView: View {
         }
         .onAppear { active = true }
         .onDisappear { active = false }
-        .onChange(of: model.page) { _, _ in model.pinTool = false; model.areaTool = false; model.amount = 1; model.pagingAllowed = true; model.comparing = false; model.peeking = false; model.selectedPin = nil }
+        .onChange(of: model.page) { _, _ in model.pinTool = false; model.areaTool = false; model.amount = model.resolution == nil ? 1 : 0.5; model.pagingAllowed = true; model.comparing = false; model.peeking = false; model.selectedPin = nil }
         .transaction { if reduceMotion { $0.animation = nil; $0.disablesAnimations = true } }
     }
 
@@ -214,14 +226,59 @@ struct V2DesignReviewView: View {
         switch model.page {
         case .cover: cover(review)
         case .decide: decide(review)
+        case .conflict: if let resolution = model.resolution { conflictPage(resolution) }
         case .screen: if let board { screenPage(board) }
         case .note: if let note { V2ReviewNotePage(model: model, note: note) }
         }
     }
     private func screenPage(_ board: V2DesignReview.Board) -> some View {
-        V2ReviewScreenPage(model: model, board: board, client: store.client, active: model.page == .screen(board.file) && !model.obscured)
+        var compared = board
+        if model.page == .conflict(board.file) { compared.before = review?.main }
+        return V2ReviewScreenPage(model: model, board: compared, client: store.client, active: (model.page == .screen(board.file) || model.page == .conflict(board.file)) && !model.obscured)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Screen \(screenCounter(board)), \(board.name), \(board.changeKind)")
+    }
+    private func resolutionTitle(_ resolution: V2ReviewResolution) -> String {
+        review?.boards.first { $0.file == resolution.file }?.name ?? review?.changedNotes.first { "note:\($0.id)" == resolution.file }?.title ?? resolution.file
+    }
+    @ViewBuilder private func conflictPage(_ resolution: V2ReviewResolution) -> some View {
+        if let board = review?.boards.first(where: { $0.file == resolution.file }) { screenPage(board) }
+        else {
+            ScrollView { VStack(alignment: .leading, spacing: 16) {
+                Text("Main").font(.headline); Text(resolution.mainChanged)
+                Text("This proposal").font(.headline); Text(resolution.proposalChanged)
+            }.padding(16) }
+        }
+    }
+    private func conflictToolbar(_ resolution: V2ReviewResolution, _ review: V2DesignReview) -> some View {
+        VStack(spacing: 8) {
+            ProgressView(value: Double((review.resolutions ?? []).filter(\.resolved).count), total: Double(max(1, review.resolutions?.count ?? 0)))
+                .tint(WorkspaceStyle.text(scheme)).accessibilityLabel("Conflicts resolved")
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(resolution.label).font(.subheadline.weight(.semibold))
+                Text(resolution.detail.hasSuffix(".") ? String(resolution.detail.dropLast()) : resolution.detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                Spacer(minLength: 0)
+                Text(V2ReviewModel.resolutionProgress(review)).font(.footnote).foregroundStyle(.secondary).fixedSize()
+            }
+            if let board, model.canCompare(board) {
+                HStack(spacing: 12) {
+                    Text("Main")
+                    Slider(value: $model.amount, in: 0...1).accessibilityLabel("Main to this proposal")
+                    Text("This proposal")
+                }.font(.footnote).frame(minHeight: 44)
+            }
+            if resolution.kind == "same-part" {
+                HStack(spacing: 8) {
+                    Button("Keep main’s") { Task { await model.choose(client: store.client, file: resolution.file, choice: resolution.choice == "main" ? nil : "main") } }
+                        .buttonStyle(V2ReviewActionStyle(primary: false)).accessibilityAddTraits(resolution.choice == "main" ? [.isSelected] : [])
+                    Button("Keep this proposal’s") { Task { await model.choose(client: store.client, file: resolution.file, choice: resolution.choice == "proposal" ? nil : "proposal") } }
+                        .buttonStyle(V2ReviewActionStyle(primary: true)).accessibilityAddTraits(resolution.choice == "proposal" ? [.isSelected] : [])
+                }.disabled(model.saving || !store.online || review.item.state != .waiting)
+                if resolution.choice != nil && review.item.state == .waiting {
+                    Button("Undo") { Task { await model.choose(client: store.client, file: resolution.file, choice: nil) } }.disabled(model.saving)
+                }
+            }
+        }
     }
     private func screenCounter(_ board: V2DesignReview.Board) -> String {
         let sequence = screens.contains { $0.file == board.file } ? screens : review.map(V2ReviewModel.canvasBoards) ?? []
@@ -265,10 +322,10 @@ struct V2DesignReviewView: View {
             }
             VStack(spacing: 6) {
                 if review.stale == true {
-                    Button(V2ReviewModel.conflictCount(review.conflicts ?? [])) { model.conflict = true }.buttonStyle(V2ReviewActionStyle(primary: false))
+                    Button(V2ReviewModel.conflictCount(review.conflicts ?? [])) { model.page = V2ReviewModel.firstConflict(review) ?? .cover; model.conflict = review.resolutions == nil }.buttonStyle(V2ReviewActionStyle(primary: false))
                 } else {
                     Button((review.round ?? 1) > 1 ? "Review \(V2ReviewModel.count(screens.count, "changed screen"))" : "Start review") {
-                        model.page = pages.dropFirst().first ?? .decide
+                        model.page = screens.first.map { .screen($0.file) } ?? review.changedNotes.first.map { .note($0.id) } ?? .decide
                     }.buttonStyle(V2ReviewActionStyle(primary: true))
                 }
                 Button((review.round ?? 1) > 1 ? "\(V2ReviewModel.count(review.boards.count - screens.count, "unchanged screen"))" : "See all screens") { model.grid = true }
@@ -304,11 +361,11 @@ struct V2DesignReviewView: View {
                             Button("Undo") { Task { await model.undoApproval(client: store.client); await store.refresh() } }
                                 .buttonStyle(V2ReviewActionStyle(primary: false)).disabled(model.saving || (review.landing?.secondsRemaining ?? 0) == 0)
                         } else { Button("Open in Design") { model.design = true }.buttonStyle(V2ReviewActionStyle(primary: false)) }
-                    } else if review.task ?? item.taskId != nil {
+                    } else if review.item.taskId ?? item.taskId != nil {
                         Button("Open the task") { openTask = true }.buttonStyle(V2ReviewActionStyle(primary: false))
                     }
                 } else if review.stale == true {
-                    Button("Ask to update") { model.conflict = true }.buttonStyle(V2ReviewActionStyle(primary: true))
+                    Button("Continue review") { model.page = V2ReviewModel.firstConflict(review) ?? .cover; model.conflict = review.resolutions == nil }.buttonStyle(V2ReviewActionStyle(primary: true))
                     Button("Close") { dismiss() }.frame(minHeight: 44)
                 } else {
                     let primary = V2ReviewModel.primaryAction(review)
@@ -342,7 +399,9 @@ struct V2DesignReviewView: View {
     }
     private var reviewToolbar: some View {
         VStack(spacing: 2) {
-            if model.drawing && !model.pinSheet {
+            if let resolution = model.resolution, let review {
+                conflictToolbar(resolution, review)
+            } else if model.drawing && !model.pinSheet {
                 HStack {
                     Button("Cancel") { model.cancelDrawing() }.frame(minWidth: 60, minHeight: 44)
                     Spacer()
@@ -600,7 +659,6 @@ struct V2DesignReviewView: View {
     private func answer(_ action: String, note: String? = nil) {
         Task {
             if await model.answer(client: store.client, action: action, note: note) != nil {
-                if action == "update" { dismiss(); return }
                 model.conflict = false
                 model.asking = false
                 model.page = .decide

@@ -162,3 +162,15 @@ export function buildLine(review: Pick<DesignReview, 'landing' | 'proposer' | 'i
     };
   return { text: 'Nothing builds this yet.' };
 }
+
+/** Automatic merges count as resolved; only overlapping parts need an answer. */
+export function resolutionProgress(resolutions: NonNullable<DesignReview['resolutions']> = []) {
+  const total = resolutions.length;
+  const resolved = resolutions.filter((entry) => entry.kind === 'kept-both' || entry.choice).length;
+  return {
+    total,
+    resolved,
+    canContinue: resolved === total,
+    label: `${resolved} of ${total} resolved`,
+  };
+}

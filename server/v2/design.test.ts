@@ -2369,3 +2369,213 @@ test('an approved design starts its build once it is on main, and only once', as
   assert.match(brief, /- design\/boards\/Project\.html/);
   assert.match(brief, /action "built"/);
 });
+
+async function mergeFixture(name: string, overlap: boolean, malformed = false) {
+  const f = await reviewFixture(name);
+  await f.run(['checkout', '-q', 'main']);
+  const base =
+    '<main data-layer="page"><header data-layer="header" data-name="header row">Old</header><p data-layer="release" data-name="release list">One</p><footer data-layer="footer">End</footer></main>';
+  writeFileSync(join(f.path, 'design/boards/Alpha.html'), base);
+  await f.commit('Element base');
+  await f.run(['checkout', '-qB', 'design/review', 'main']);
+  const proposal = base.replace('>Old<', '>Proposal<').replace('>End<', '>Done<');
+  writeFileSync(join(f.path, 'design/boards/Alpha.html'), proposal);
+  await f.commit('Proposal elements');
+  const item = await f.propose();
+  await f.run(['checkout', '-q', 'main']);
+  const main = malformed
+    ? '<p>No stable layers</p>'
+    : base.replace('>One<', '>Two<').replace('>Old<', overlap ? '>Main<' : '>Old<');
+  writeFileSync(join(f.path, 'design/boards/Alpha.html'), main);
+  await f.commit('Main elements');
+  const choice = async (value: 'main' | 'proposal' | null, snapshot?: any) => {
+    const review = snapshot ?? (await f.read(item));
+    return f.call('/review/choice', {
+      item: item.id,
+      file: 'Alpha.html',
+      choice: value,
+      main: review.main,
+      proposal: review.after,
+    });
+  };
+  return { ...f, item, choice, baseHTML: base, mainHTML: main, proposalHTML: proposal };
+}
+
+test('element-level auto merge is resolved and approval lands both changes', async () => {
+  const f = await mergeFixture('elements-both', false);
+  const review = await f.read(f.item);
+  assert.equal(review.stale, false);
+  assert.equal(review.resolutions[0].kind, 'kept-both');
+  assert.match(review.resolutions[0].mainChanged, /release list/);
+  assert.match(review.resolutions[0].proposalChanged, /header row/);
+  assert.equal(review.boards[0].main, review.main);
+  const { answerInboxAsync } = await import('./inbox.ts');
+  await answerInboxAsync('alice', f.item.id, { actionId: 'approve', on: 'cli' });
+  const landed = await f.run(['show', 'main:design/boards/Alpha.html']);
+  assert.match(landed, />Two</);
+  assert.match(landed, />Proposal</);
+  assert.match(landed, />Done</);
+});
+
+for (const value of ['main', 'proposal'] as const)
+  test(`overlapping elements require a choice; ${value} keeps independent changes too`, async () => {
+    const f = await mergeFixture(`elements-${value}`, true);
+    const { answerInboxAsync } = await import('./inbox.ts');
+    for (const actionId of ['approve', 'changes'])
+      await assert.rejects(
+        () => answerInboxAsync('alice', f.item.id, { actionId, on: 'web', note: 'Adjust' }),
+        /Resolve them in the review/,
+      );
+    const review = await f.read(f.item);
+    assert.equal(review.resolutions[0].kind, 'same-part');
+    assert.equal(
+      (
+        await f.call('/review/pins', {
+          item: f.item.id,
+          board: 'Alpha.html',
+          revision: review.main,
+          width: 1440,
+          x: 10,
+          y: 10,
+          text: 'A note on main',
+        })
+      ).status,
+      200,
+    );
+    assert.equal((await f.choice(value)).status, 200);
+    assert.equal((await f.read(f.item)).stale, false);
+    assert.equal((await f.choice(null)).status, 200);
+    assert.equal((await f.read(f.item)).stale, true);
+    assert.equal((await f.choice(value)).status, 200);
+    await answerInboxAsync('alice', f.item.id, { actionId: 'approve', on: 'web' });
+    const landed = await f.run(['show', 'main:design/boards/Alpha.html']);
+    assert.match(landed, value === 'main' ? />Main</ : />Proposal</);
+    assert.match(landed, />Two</);
+    assert.match(landed, />Done</);
+  });
+
+test('unparseable boards use a whole-screen choice and main moves invalidate saved answers', async () => {
+  const f = await mergeFixture('elements-fallback', true, true);
+  let review = await f.read(f.item);
+  assert.equal(review.resolutions[0].kind, 'same-part');
+  assert.equal((await f.choice('main')).status, 200);
+  writeFileSync(join(f.path, 'design/boards/Alpha.html'), '<p>New main</p>');
+  await f.commit('Moved main');
+  assert.equal((await f.choice('proposal', review)).status, 409);
+  review = await f.read(f.item);
+  assert.equal(review.resolutions[0].choice, null);
+  assert.equal(review.stale, true);
+  const { get } = await import('../workspace/store.ts');
+  assert.deepEqual(get('v2-inbox-native', 'alice', f.item.id).context.choices, {});
+  const { answerInboxAsync } = await import('./inbox.ts');
+  await assert.rejects(
+    () => answerInboxAsync('alice', f.item.id, { actionId: 'approve', on: 'web' }),
+    /Resolve them/,
+  );
+  assert.equal((await f.choice('main')).status, 200);
+  await answerInboxAsync('alice', f.item.id, { actionId: 'approve', on: 'web' });
+  assert.equal(await f.run(['show', 'main:design/boards/Alpha.html']), '<p>New main</p>');
+});
+
+test('owner Ask to update creates and links a task, once, with the conflicting screens', async () => {
+  const f = await mergeFixture('elements-owner', true);
+  const { answerInboxAsync } = await import('./inbox.ts');
+  const { get, list } = await import('../workspace/store.ts');
+  const before = list('task', 'alice').length;
+  await answerInboxAsync('alice', f.item.id, { actionId: 'update', on: 'web' });
+  const review = await f.read(f.item);
+  assert.ok(review.item.taskId);
+  const task = get('task', 'alice', review.item.taskId);
+  assert.equal(task.projectId, f.project.id);
+  assert.equal(task.baseRevision, review.after);
+  const feedback = get('design-review-feedback', 'alice', f.item.id);
+  assert.match(feedback.content, /Alpha.html.*propose again/);
+  assert.equal(feedback.taskId, task.id);
+  await assert.rejects(
+    () => answerInboxAsync('alice', f.item.id, { actionId: 'update', on: 'web' }),
+    /already resolved/,
+  );
+  assert.equal(list('task', 'alice').length, before + 1);
+});
+
+test('different canvas notes merge, the same note takes a reversible choice', async () => {
+  const f = await reviewFixture('elements-notes');
+  f.canvas.notes['section-agents'].text = 'Proposal agent note';
+  writeFileSync(join(f.path, 'design/canvas.json'), JSON.stringify(f.canvas));
+  await f.commit('Proposal note');
+  const item = await f.propose();
+  await f.run(['checkout', '-q', 'main']);
+  const mainCanvas = JSON.parse(await f.run(['show', 'main:design/canvas.json']));
+  mainCanvas.notes['section-other'].text = 'Main other note';
+  writeFileSync(join(f.path, 'design/canvas.json'), JSON.stringify(mainCanvas));
+  await f.commit('Different note');
+  let review = await f.read(item);
+  assert.equal(review.resolutions[0].kind, 'kept-both');
+  mainCanvas.notes['section-agents'].text = 'Main agent note';
+  writeFileSync(join(f.path, 'design/canvas.json'), JSON.stringify(mainCanvas));
+  await f.commit('Same note');
+  review = await f.read(item);
+  assert.equal(review.stale, true);
+  assert.equal(
+    (
+      await f.call('/review/choice', {
+        item: item.id,
+        file: 'note:section-agents',
+        choice: 'main',
+        main: review.main,
+        proposal: review.after,
+      })
+    ).status,
+    200,
+  );
+  const { answerInboxAsync } = await import('./inbox.ts');
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web' });
+  const landed = JSON.parse(await f.run(['show', 'main:design/canvas.json']));
+  assert.equal(landed.notes['section-agents'].text, 'Main agent note');
+  assert.equal(landed.notes['section-other'].text, 'Main other note');
+});
+
+test('a new proposal commit never inherits a choice made for the previous commit', async () => {
+  const f = await mergeFixture('elements-new-proposal', true);
+  assert.equal((await f.choice('main')).status, 200);
+  await f.run(['checkout', '-q', 'design/review']);
+  writeFileSync(
+    join(f.path, 'design/boards/Alpha.html'),
+    f.proposalHTML.replace('>Proposal<', '>Revised<'),
+  );
+  await f.commit('Revise proposal');
+  const next = await f.propose();
+  assert.notEqual(next.id, f.item.id);
+  const review = await f.read(next);
+  assert.equal(review.resolutions[0].choice, null);
+  assert.equal(review.stale, true);
+});
+
+test('Ask to update retains the proposer task and appends its update brief', async () => {
+  const f = await mergeFixture('elements-agent-update', true);
+  const { get, list } = await import('../workspace/store.ts');
+  const taskId = 'elements-agent-task';
+  save('task', 'alice', { id: taskId, projectId: f.project.id, revision: 1 });
+  save('run', 'alice', { id: 'elements-agent-run', taskId, status: 'running' });
+  save('queued-message', 'alice', {
+    id: taskId,
+    taskId,
+    status: 'queued',
+    content: 'Keep this existing request.',
+  });
+  const row = get('v2-inbox-native', 'alice', f.item.id);
+  save('v2-inbox-native', 'alice', {
+    ...row,
+    item: { ...row.item, taskId },
+    context: { ...row.context, taskId },
+  });
+  const before = list('task', 'alice').length;
+  const { answerInboxAsync } = await import('./inbox.ts');
+  await answerInboxAsync('alice', f.item.id, { actionId: 'update', on: 'web' });
+  assert.equal(list('task', 'alice').length, before);
+  assert.equal((await f.read(f.item)).item.taskId, taskId);
+  assert.match(
+    get('queued-message', 'alice', taskId).content,
+    /Keep this existing request\.[\s\S]*Alpha.html[\s\S]*propose again/,
+  );
+});

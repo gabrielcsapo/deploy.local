@@ -71,7 +71,7 @@ export function ReviewStage({
     [chosen, setChosen] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false),
     [tool, setTool] = useState<Tool>('select');
-  const [amount, setAmount] = useState(100),
+  const [amount, setAmount] = useState(board.resolution ? 50 : 100),
     [mode, setMode] = useState(() => savedCompareMode('onion'));
   const [boxes, setBoxes] = useState<Record<string, DesignRect>>({});
   const [oldBoxes, setOldBoxes] = useState<Record<string, DesignRect>>({});
@@ -243,7 +243,7 @@ export function ReviewStage({
               {!board.removed && (
                 <iframe
                   ref={after}
-                  title={`${board.title} · New`}
+                  title={`${board.title} · ${board.resolution ? 'This proposal' : 'New'}`}
                   sandbox="allow-same-origin"
                   src={`${api}/files/${board.after}/boards/${encodeURIComponent(board.file)}`}
                   onLoad={() => load('after')}
@@ -254,7 +254,7 @@ export function ReviewStage({
               {!board.added && (
                 <iframe
                   ref={before}
-                  title={`${board.title} · Old`}
+                  title={`${board.title} · ${board.resolution ? 'Main' : 'Old'}`}
                   sandbox="allow-same-origin"
                   src={`${api}/files/${board.before}/boards/${encodeURIComponent(board.file)}`}
                   onLoad={() => load('before')}
@@ -322,10 +322,10 @@ export function ReviewStage({
                       <i>↔</i>
                     </div>
                     <span className="dl-rv-side" style={{ left: 10 }}>
-                      Old
+                      {board.resolution ? 'Main' : 'Old'}
                     </span>
                     <span className="dl-rv-side" style={{ right: 10 }}>
-                      New
+                      {board.resolution ? 'This proposal' : 'New'}
                     </span>
                   </>
                 )}
@@ -612,16 +612,16 @@ export function ReviewStage({
         ) : (
           <>
             <label className="dl-rv-scrub">
-              <span>Old</span>
+              <span>{board.resolution ? 'Main' : 'Old'}</span>
               <input
-                aria-label="Old to new"
+                aria-label={board.resolution ? 'Main to this proposal' : 'Old to new'}
                 type="range"
                 min={0}
                 max={100}
                 value={amount}
                 onChange={(event) => setAmount(Number(event.target.value))}
               />
-              <span>New</span>
+              <span>{board.resolution ? 'This proposal' : 'New'}</span>
             </label>
             <div className="dl-seg" role="group" aria-label="How to compare">
               {(['onion', 'slider'] as const).map((value) => (

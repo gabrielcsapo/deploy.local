@@ -22,6 +22,8 @@ public struct V2DesignReview: Decodable, Sendable {
         public var changes: [V2ReviewChange]?
         public var seen: Bool?
         public var changedSinceReview: Bool?
+        public var resolution: V2ReviewResolution?
+        public var main: String?
         public var conflict: Bool?
         public var previewWidths: [Int] { widths ?? [isPhone ? w : 1440] }
         public var defaultWidth: Int { previewWidths.contains(w) ? w : (previewWidths.first ?? w) }
@@ -65,6 +67,7 @@ public struct V2DesignReview: Decodable, Sendable {
     public var round: Int?
     public var previousItemId: String?
     public var stale: Bool?
+    public var resolutions: [V2ReviewResolution]?
     public var conflicts: [String]?
     public var groups: [V2ReviewGroup]?
     public var pins: [V2ReviewPin]?
@@ -78,6 +81,18 @@ public struct V2DesignReview: Decodable, Sendable {
         let parts = itemId.split(separator: ":", omittingEmptySubsequences: false)
         return parts.count >= 4 && parts[0] == "design" ? String(parts[1]) : nil
     }
+}
+
+public struct V2ReviewResolution: Decodable, Sendable, Identifiable {
+    public var file: String
+    public var kind: String
+    public var mainChanged: String
+    public var proposalChanged: String
+    public var detail: String
+    public var choice: String?
+    public var id: String { file }
+    public var resolved: Bool { kind == "kept-both" || choice != nil }
+    public var label: String { kind == "kept-both" ? "Kept both" : "Same part" }
 }
 
 public struct V2ReviewLanding: Decodable, Sendable {
@@ -271,7 +286,7 @@ public struct V2DesignProject: Decodable, Identifiable, Sendable {
 /// Pure navigation and decision rules shared by the pager and its tests.
 public enum V2ReviewModel {
     public enum Page: Hashable, Sendable {
-        case cover, screen(String), note(String), decide
+        case cover, conflict(String), screen(String), note(String), decide
     }
     public enum PrimaryAction: Equatable, Sendable {
         case approve, changes(Int), update
@@ -363,7 +378,18 @@ public enum V2ReviewModel {
         return ["changed", "new", "removed"].flatMap { kind in boards.filter { $0.changeKind == kind } }
     }
     public static func pages(_ review: V2DesignReview) -> [Page] {
-        [.cover] + screens(review).map { .screen($0.file) } + review.changedNotes.map { .note($0.id) } + [.decide]
+        (review.resolutions ?? []).map { .conflict($0.file) } + [.cover] + screens(review).map { .screen($0.file) } + review.changedNotes.map { .note($0.id) } + [.decide]
+    }
+    public static func resolutionsReady(_ review: V2DesignReview) -> Bool {
+        guard let resolutions = review.resolutions else { return review.stale != true }
+        return resolutions.allSatisfy(\.resolved)
+    }
+    public static func resolutionProgress(_ review: V2DesignReview) -> String {
+        let resolutions = review.resolutions ?? []
+        return "\(resolutions.filter(\.resolved).count) of \(resolutions.count) resolved"
+    }
+    public static func firstConflict(_ review: V2DesignReview) -> Page? {
+        (review.resolutions?.first { !$0.resolved } ?? review.resolutions?.first).map { .conflict($0.file) }
     }
     public static func primaryAction(_ review: V2DesignReview) -> PrimaryAction {
         if review.stale == true { return .update }
@@ -393,11 +419,20 @@ extension V2Client {
         let response: Response = try await client.request("/api/v2/design/projects")
         return response.projects.filter { $0.boards > 0 }
     }
-    public func reviewPreview(project: String, item: String, board: String, width: Int, scale: Double = 1) async throws -> V2ReviewPreview {
-        try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/preview?item=\(Self.segment(item))&board=\(Self.segment(board))&width=\(width)&scale=\(min(3, max(1, scale)))", timeout: 120)
+    public func reviewPreview(project: String, item: String, board: String, width: Int, scale: Double = 1, main: Bool = false) async throws -> V2ReviewPreview {
+        try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/preview?item=\(Self.segment(item))&board=\(Self.segment(board))&width=\(width)&scale=\(min(3, max(1, scale)))\(main ? "&comparison=main" : "")", timeout: 120)
     }
     /// Reuses the authenticated, origin-checked and certificate-pinned request session.
     public func reviewImage(_ url: String) async throws -> Data { try await client.data(url, timeout: 120) }
+    /// Conflict metadata arrives first; the normal review can then request pixel evidence.
+    public func reviewEvidence(project: String, item: String) async throws -> V2DesignReview {
+        try await client.request("/api/v2/projects/\(Self.segment(project))/design/review?item=\(Self.segment(item))&evidence=all", timeout: 120)
+    }
+    public func reviewChoice(project: String, item: String, file: String, choice: String?, main: String, proposal: String) async throws {
+        var body: [String: JSONValue] = ["item": .string(item), "file": .string(file), "main": .string(main), "proposal": .string(proposal)]
+        body["choice"] = choice.map { .string($0) } ?? .null
+        let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/choice", method: "POST", body: JSONEncoder().encode(body))
+    }
     public func reviewSeen(project: String, item: String, board: String, revision: String) async throws {
         let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/seen", method: "POST", body: JSONEncoder().encode(["item": item, "board": board, "revision": revision]))
     }

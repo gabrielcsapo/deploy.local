@@ -1861,3 +1861,19 @@ a.dl-item:hover {
     max-width: 100%;
   }
 }
+
+/* Review choices use the shared action controls, including their selected and focus states. */
+.dl-rv-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin-top: calc(var(--ds-space-2) + var(--ds-space-1) / 2);
+}
+.dl-rv-choice .dl-btn {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.dl-rv-choice .dl-btn[aria-pressed='true'] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}

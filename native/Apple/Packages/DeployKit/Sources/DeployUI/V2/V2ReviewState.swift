@@ -15,6 +15,8 @@ final class V2ReviewState {
     var displayScale: Double = 1
     var widths: [String: Int] = [:]
     var loading = true
+    var evidenceChecking = false
+    var evidenceRevision = ""
     var checking = false
     var saving = false
     var error: String?
@@ -57,16 +59,21 @@ final class V2ReviewState {
     var note = ""
     var pins: [V2ReviewPin] { review?.pins ?? [] }
     var project: String { review?.projectId ?? review.flatMap { V2DesignReview.project(of: $0.item.id) } ?? "" }
+    var resolution: V2ReviewResolution? {
+        guard case .conflict(let file) = page else { return nil }
+        return review?.resolutions?.first { $0.file == file }
+    }
     var decisionsReady: Bool {
         guard let review, review.pins != nil, review.stale != nil, review.item.state == .waiting else { return false }
         // A conflict's Close and Ask to update wait only for the conflict check, not for previews.
-        if review.stale == true { return !loading && !checking && !saving }
+        if !V2ReviewModel.resolutionsReady(review) { return false }
+        if review.resolutions?.isEmpty == false { return !loading && !checking && !saving }
         return !loading && !checking && !saving && loadingKeys.isEmpty && failed.isEmpty && review.boards.allSatisfy { preview($0) != nil }
     }
     var obscured: Bool { grid || design || conflict || asking || pinSheet || approvalCheck }
     var draftNumber: Int { (pins.map(\.number).max() ?? 0) + 1 }
     func width(_ board: V2DesignReview.Board) -> Int { widths[board.file] ?? board.defaultWidth }
-    func key(_ board: V2DesignReview.Board) -> String { "\(board.file)@\(width(board))@\(displayScale)" }
+    func key(_ board: V2DesignReview.Board) -> String { "\(board.file)@\(width(board))@\(displayScale)@\(resolution?.file == board.file ? review?.main ?? "main" : "old")" }
     func preview(_ board: V2DesignReview.Board) -> Preview? { previews[key(board)] }
 
     func load(client: V2Client, item: InboxItem, scale: Double = 1) async {
@@ -77,7 +84,9 @@ final class V2ReviewState {
             let result = try await client.designReview(project: project, item: item.id)
             try Task.checkCancellation()
             review = result
-            conflict = result.stale == true
+            conflict = result.stale == true && result.resolutions == nil
+            if let first = V2ReviewModel.firstConflict(result) { page = first; amount = 0.5 }
+            loading = false
             // Three screens draw at a time, as on the web: one after another, a 22-screen review
             // took the sum of every preview and its two images.
             try await withThrowingTaskGroup(of: Void.self) { group in
@@ -104,7 +113,7 @@ final class V2ReviewState {
         loadingKeys.insert(key)
         defer { loadingKeys.remove(key) }
         do {
-            let metadata = try await client.reviewPreview(project: project, item: review.item.id, board: board.file, width: width, scale: displayScale)
+            let metadata = try await client.reviewPreview(project: project, item: review.item.id, board: board.file, width: width, scale: displayScale, main: resolution?.file == board.file)
             var before: UIImage?, after: UIImage?
             if let url = metadata.before { before = UIImage(data: try await client.reviewImage(url)); guard before != nil else { throw ClientError.invalidResponse } }
             if let url = metadata.after { after = UIImage(data: try await client.reviewImage(url)); guard after != nil else { throw ClientError.invalidResponse } }
@@ -194,7 +203,7 @@ final class V2ReviewState {
         draft = .init(item: review.item.id, board: board, width: width, revision: revision, x: point.x, y: point.y, noteId: noteId)
         draft?.area = area
         if let screen = review.boards.first(where: { $0.file == board }), let metadata = preview(screen)?.metadata {
-            let before = revision == (screen.before ?? review.before)
+            let before = revision == (screen.before ?? review.before) || revision == screen.main
             // Merged change outlines are not element geometry. Older servers without
             // layer boxes keep the native x/y fallback rather than inventing an anchor.
             let anchor = (metadata.layers?[before ? "before" : "after"] ?? [:]).filter { _, box in
@@ -228,6 +237,35 @@ final class V2ReviewState {
             drawing = false; drawingOrigin = nil; sheetText = ""
         } catch { self.error = coordinatorErrorDescription(error) }
     }
+    func loadEvidence(client: V2Client) async {
+        guard let review, review.resolutions?.isEmpty == false, !evidenceChecking, !saving else { return }
+        let revision = "\(review.after):\(review.main ?? "")"
+        guard evidenceRevision != revision else { return }
+        evidenceChecking = true
+        defer { evidenceChecking = false }
+        do {
+            let fresh = try await client.reviewEvidence(project: project, item: review.item.id)
+            try Task.checkCancellation()
+            // A choice or decision may have been saved while the images were drawing.
+            guard self.review?.main == fresh.main, self.review?.after == fresh.after else { return }
+            self.review?.changes = fresh.changes
+            evidenceRevision = revision
+        } catch { if !Task.isCancelled { self.error = coordinatorErrorDescription(error) } }
+    }
+    func choose(client: V2Client, file: String, choice: String?) async {
+        guard let review, let main = review.main, review.item.state == .waiting, !saving else { return }
+        saving = true; error = nil
+        defer { saving = false }
+        do {
+            try await client.reviewChoice(project: project, item: review.item.id, file: file, choice: choice, main: main, proposal: review.after)
+            var fresh = try await client.designReview(project: project, item: review.item.id)
+            if evidenceRevision == "\(fresh.after):\(fresh.main ?? "")" { fresh.changes = self.review?.changes }
+            self.review = fresh
+        } catch {
+            self.error = coordinatorErrorDescription(error)
+            if let fresh = try? await client.designReview(project: project, item: review.item.id) { self.review = fresh }
+        }
+    }
     func finishReview() { page = .decide }
     func requestApproval() -> Bool {
         guard let review else { return false }
@@ -241,7 +279,7 @@ final class V2ReviewState {
         do {
             self.review = try await client.designReview(project: project, item: review.item.id)
             approvalAwaitingRefresh = false
-            conflict = self.review?.stale == true
+            conflict = self.review?.stale == true && self.review?.resolutions == nil
         } catch { self.error = coordinatorErrorDescription(error) }
     }
     func undoApproval(client: V2Client) async {
@@ -265,7 +303,7 @@ final class V2ReviewState {
             // The server repeats this check atomically in the answer transaction.
             guard fresh.after == review.after else { throw ClientError.response(409, "This design changed. Open the review again.") }
             self.review = fresh
-            if fresh.stale == true && action != "update" { conflict = true; return nil }
+            if !V2ReviewModel.resolutionsReady(fresh) && action != "update" { page = V2ReviewModel.firstConflict(fresh) ?? .cover; conflict = fresh.resolutions == nil; return nil }
             let result = try await client.answer(fresh.item.id, action: action, note: note, delay: action == "approve" ? true : nil)
             self.review?.item = result.item
             if action == "approve" {
@@ -283,7 +321,7 @@ final class V2ReviewState {
         } catch {
             self.error = coordinatorErrorDescription(error)
             if let fresh = try? await client.designReview(project: project, item: review.item.id) {
-                self.review = fresh; conflict = fresh.stale == true
+                self.review = fresh; conflict = fresh.stale == true && fresh.resolutions == nil
             }
             return nil
         }

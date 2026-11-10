@@ -10,6 +10,24 @@ struct V2DesignReviewTests {
         let json = #"{"item":\#(item),"branch":"branch","before":"a","after":"b","boards":[\#(boards)],"notes":[{"id":"note","title":"How agents work","before":[{"text":"Before"}],"after":[{"text":"After","added":true}],"changed":1,"total":1}],"round":\#(round),"stale":false,"pins":[],"groups":[{"id":"one","title":"One","boards":["new","changed1"]},{"id":"two","title":"Two","boards":["removed","changed2"]}]}"#
         return try JSONDecoder().decode(V2DesignReview.self, from: Data(json.utf8))
     }
+    @Test func conflictsOpenFirstAndChoicesControlReadiness() throws {
+        var value = try review()
+        let json = #"[{"file":"changed1","kind":"kept-both","mainChanged":"release list","proposalChanged":"header","detail":"Different parts changed."},{"file":"changed2","kind":"same-part","mainChanged":"Main header","proposalChanged":"Proposal header","detail":"Both changed the header row."}]"#
+        value.resolutions = try JSONDecoder().decode([V2ReviewResolution].self, from: Data(json.utf8))
+        #expect(V2ReviewModel.resolutionProgress(value) == "1 of 2 resolved")
+        #expect(!V2ReviewModel.resolutionsReady(value))
+        #expect(V2ReviewModel.firstConflict(value) == .conflict("changed2"))
+        #expect(Array(V2ReviewModel.pages(value).prefix(3)) == [.conflict("changed1"), .conflict("changed2"), .cover])
+        value.resolutions?[1].choice = "main"
+        #expect(V2ReviewModel.resolutionsReady(value))
+        #expect(V2ReviewModel.resolutionProgress(value) == "2 of 2 resolved")
+        value.resolutions?[1].choice = nil
+        #expect(!V2ReviewModel.resolutionsReady(value))
+        value.resolutions?[1].choice = "proposal"
+        #expect(V2ReviewModel.resolutionsReady(value))
+        value.resolutions = nil; value.stale = true
+        #expect(!V2ReviewModel.resolutionsReady(value))
+    }
     @Test func oldAndNewReviewResponsesDecodeAndRowsPresentTheirEvidence() throws {
         let old = try review()
         #expect(old.changes == nil && old.landing == nil)

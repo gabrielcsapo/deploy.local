@@ -12,8 +12,7 @@ import { request } from '../projects/data';
 import {
   approvalRecord,
   buildLine,
-  conflictCount,
-  conflictLine,
+  resolutionProgress,
   missingSummary,
   reviewHref,
   reviewStep,
@@ -80,14 +79,24 @@ export function DesignItemReview({
     [menu, setMenu] = useState(false);
   const [clock, setClock] = useState(Date.now()),
     [readyFile, setReadyFile] = useState('');
+  const [continued, setContinued] = useState(false);
+  const evidence = useRef<{ revision: string; changes: DesignReviewRow[] } | null>(null);
   const version = useRef(0);
   const load = useCallback(async () => {
     const read = ++version.current;
     try {
       const value = await request<DesignReview>(
-        `${api}/review?item=${encodeURIComponent(item.id)}`,
+        `${api}/review?item=${encodeURIComponent(item.id)}${continued ? '&evidence=all' : ''}`,
       );
       if (read === version.current) {
+        const cached = evidence.current;
+        if (cached?.revision === `${value.main}:${value.after}`)
+          value.changes = cached.changes.map((entry) => ({
+            ...entry,
+            seen: entry.screens.every(
+              (file) => value.boards.find((board) => board.file === file)?.seen,
+            ),
+          }));
         setData(value);
         setError('');
       }
@@ -95,7 +104,7 @@ export function DesignItemReview({
       if (read === version.current)
         setError((failure as Error).message || 'This review could not be loaded.');
     }
-  }, [api, item.id]);
+  }, [api, item.id, continued]);
   const invalidate = useCallback(() => {
     version.current++;
   }, []);
@@ -103,6 +112,37 @@ export function DesignItemReview({
     void load();
     return invalidate;
   }, [load, invalidate]);
+  const evidenceRevision = data?.resolutions?.length ? `${data.main}:${data.after}` : '';
+  useEffect(() => {
+    if (!evidenceRevision || evidence.current?.revision === evidenceRevision) return;
+    let cancelled = false;
+    // This request draws the ordinary changes independently; the conflict already works.
+    void request<DesignReview>(`${api}/review?item=${encodeURIComponent(item.id)}&evidence=all`)
+      .then((fresh) => {
+        if (cancelled || !fresh.changes || `${fresh.main}:${fresh.after}` !== evidenceRevision)
+          return;
+        evidence.current = { revision: evidenceRevision, changes: fresh.changes };
+        setData((current) =>
+          current && `${current.main}:${current.after}` === evidenceRevision
+            ? {
+                ...current,
+                changes: fresh.changes!.map((entry) => ({
+                  ...entry,
+                  seen: entry.screens.every(
+                    (file) => current.boards.find((board) => board.file === file)?.seen,
+                  ),
+                })),
+              }
+            : current,
+        );
+      })
+      .catch(() => {
+        /* Continue review retries through the normal error path. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, item.id, evidenceRevision]);
   const pending = data?.landing?.state === 'pending';
   // Keep the quick refresh through the moment after landing, until the build has started.
   const settling = pending || Boolean(data?.landing?.buildDue && !data.landing.build);
@@ -116,7 +156,7 @@ export function DesignItemReview({
     );
     return () => clearInterval(timer);
   }, [settling, load]);
-  const rows: DesignReviewRow[] =
+  const normalRows: DesignReviewRow[] =
     data?.changes ??
     data?.boards.map((board) => ({
       id: board.file,
@@ -130,7 +170,30 @@ export function DesignItemReview({
       seen: board.seen,
     })) ??
     [];
-  const row = rows.find((entry) => entry.id === selected) ?? rows[0];
+  const resolutions = data?.resolutions ?? [];
+  const resolutionState = resolutionProgress(resolutions);
+  const conflictRows: DesignReviewRow[] = resolutions.map((entry) => ({
+    id: `conflict:${entry.file}`,
+    title:
+      data?.boards.find((board) => board.file === entry.file)?.title ??
+      data?.notes.find((note) => `note:${note.id}` === entry.file)?.title ??
+      entry.file,
+    screens: [entry.file],
+    status: 'changed',
+    added: [],
+    removed: [],
+    variations: 0,
+    nothingElse: false,
+    seen: entry.kind === 'kept-both' || Boolean(entry.choice),
+  }));
+  const rows = [...conflictRows, ...normalRows];
+  const row =
+    rows.find((entry) => entry.id === selected) ??
+    conflictRows.find((entry) => !entry.seen) ??
+    rows[0];
+  const resolution = row?.id.startsWith('conflict:')
+    ? resolutions.find((entry) => entry.file === row.screens[0])
+    : undefined;
   const board = data?.boards.find(
     (entry) => entry.file === row?.screens[Math.min(screenIndex, row.screens.length - 1)],
   );
@@ -141,12 +204,12 @@ export function DesignItemReview({
   const sent = data?.item.answer?.actionId === 'changes';
   const changedRows =
     data && data.round > 1
-      ? rows.filter((entry) =>
+      ? normalRows.filter((entry) =>
           entry.screens.some(
             (file) => data.boards.find((b) => b.file === file)?.changedSinceReview,
           ),
         )
-      : rows;
+      : normalRows;
   const progress = `${changedRows.filter((entry) => entry.seen).length} of ${changedRows.length} looked at`;
   const choose = (entry: DesignReviewRow) => {
     setSelected(entry.id);
@@ -203,7 +266,15 @@ export function DesignItemReview({
   }, []);
   const ready = useCallback((file: string) => setReadyFile(file), []);
   useEffect(() => {
-    if (!row || row.seen || readyFile !== board?.file || !data || !waiting) return;
+    if (
+      row?.id.startsWith('conflict:') ||
+      !row ||
+      row.seen ||
+      readyFile !== board?.file ||
+      !data ||
+      !waiting
+    )
+      return;
     const timer = setTimeout(() => {
       if (document.visibilityState !== 'visible') return;
       void request(`${api}/review/seen`, {
@@ -302,6 +373,32 @@ export function DesignItemReview({
       setBusy(false);
     }
   };
+  const saveChoice = async (file: string, choice: 'main' | 'proposal' | null) => {
+    if (!data) return;
+    setSelected(`conflict:${file}`);
+    setScreenIndex(0);
+    version.current++;
+    setBusy(true);
+    try {
+      await request(`${api}/review/choice`, {
+        method: 'POST',
+        body: JSON.stringify({
+          item: item.id,
+          file,
+          choice,
+          main: data.main,
+          proposal: data.after,
+        }),
+      });
+      if (!choice) setContinued(false);
+      await load();
+    } catch (failure) {
+      await load();
+      setError((failure as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const disabled = busy || !data;
   const nextReview = inbox.items.find(
     (entry) => entry.state === 'waiting' && entry.id.startsWith('design:') && entry.id !== item.id,
@@ -342,7 +439,7 @@ export function DesignItemReview({
             ? `${count(open.length, 'note')} sent to ${data.proposer.name} · ${data.item.answer ? ago(data.item.answer.at).replace(/^now$/, 'just now') : 'just now'}`
             : 'Asked to update'}
       </span>
-      {sent && (data.item.taskId ?? item.taskId) && (
+      {(sent || data.item.answer?.actionId === 'update') && (data.item.taskId ?? item.taskId) && (
         <a
           className="dl-btn secondary"
           href={`/dashboard/tasks/${encodeURIComponent(data.item.taskId ?? item.taskId!)}`}
@@ -351,13 +448,21 @@ export function DesignItemReview({
         </a>
       )}
     </>
-  ) : data?.stale ? (
+  ) : resolutions.length > 0 && (!continued || !resolutionState.canContinue) ? (
     <>
-      <a className="dl-btn secondary" href="/dashboard/design?view=review">
-        Close
-      </a>
-      <Action variant="primary" disabled={disabled} onClick={() => void decide('update')}>
-        Ask to update
+      <span className="dl-rv-status">{resolutionState.label}</span>
+      <Action variant="quiet" disabled={disabled} onClick={() => void decide('update')}>
+        {data.proposer.name === 'You' ? 'Ask to update' : `Ask ${data.proposer.name} to update`}
+      </Action>
+      <Action
+        variant="primary"
+        disabled={disabled || !resolutionState.canContinue}
+        onClick={() => {
+          setContinued(true);
+          if (normalRows[0]) choose(normalRows[0]);
+        }}
+      >
+        Continue review
       </Action>
     </>
   ) : (
@@ -380,6 +485,63 @@ export function DesignItemReview({
   );
   const rowView = (entry: DesignReviewRow) => {
     const active = entry.id === row?.id;
+    const conflict = resolutions.find((part) => entry.id === `conflict:${part.file}`);
+    if (conflict)
+      return (
+        <div className={`dl-rv-row${active ? ' on' : ''}`} key={entry.id}>
+          <button
+            className="dl-rv-row-top"
+            onClick={() => choose(entry)}
+            aria-current={active ? 'true' : undefined}
+          >
+            <i className={`dl-rv-tick${entry.seen ? ' done' : ''}`} />
+            <b>{entry.title}</b>
+            <span>{conflict.kind === 'kept-both' ? 'Kept both' : 'Same part'}</span>
+          </button>
+          <p className={`dl-rv-detail${conflict.kind === 'kept-both' ? ' quiet' : ''}`}>
+            {conflict.detail}
+          </p>
+          {conflict.kind === 'same-part' && (
+            <>
+              <p className="dl-rv-detail quiet">
+                Main: <ins>{conflict.mainChanged}</ins>
+                <br />
+                This proposal: <ins>{conflict.proposalChanged}</ins>
+              </p>
+              <span className="dl-rv-choice">
+                <Action
+                  variant="secondary"
+                  disabled={busy || !waiting}
+                  aria-pressed={conflict.choice === 'main'}
+                  onClick={() =>
+                    void saveChoice(conflict.file, conflict.choice === 'main' ? null : 'main')
+                  }
+                >
+                  Keep main’s
+                </Action>
+                <Action
+                  variant="primary"
+                  disabled={busy || !waiting}
+                  aria-pressed={conflict.choice === 'proposal'}
+                  onClick={() =>
+                    void saveChoice(
+                      conflict.file,
+                      conflict.choice === 'proposal' ? null : 'proposal',
+                    )
+                  }
+                >
+                  Keep this proposal’s
+                </Action>
+                {conflict.choice && waiting && (
+                  <Action disabled={busy} onClick={() => void saveChoice(conflict.file, null)}>
+                    Undo
+                  </Action>
+                )}
+              </span>
+            </>
+          )}
+        </div>
+      );
     const notes = open.filter((pin) => entry.screens.includes(pin.board)).length;
     const meta =
       entry.status === 'looksSame'
@@ -543,36 +705,49 @@ export function DesignItemReview({
       )}
       <div className="dl-rv-bar">
         <button className="dl-rv-pick" aria-expanded={menu} onClick={() => setMenu(!menu)}>
-          <b>{data && data.round > 1 ? 'Your notes' : (row?.title ?? 'Changes')}</b>{' '}
+          <b>
+            {resolution
+              ? row?.title
+              : data && data.round > 1
+                ? 'Your notes'
+                : (row?.title ?? 'Changes')}
+          </b>{' '}
           {data && (
             <span>
-              {data.round > 1
-                ? `· ${data.pins.filter((pin) => pin.resolved).length} of ${data.pins.length} addressed ⌄`
-                : `· ${row ? rows.indexOf(row) + 1 : 0} of ${rows.length} changes ⌄`}
+              {resolution
+                ? `· conflict ${conflictRows.findIndex((entry) => entry.id === row?.id) + 1} of ${conflictRows.length} ⌄`
+                : data.round > 1
+                  ? `· ${data.pins.filter((pin) => pin.resolved).length} of ${data.pins.length} addressed ⌄`
+                  : `· ${row ? rows.indexOf(row) + 1 : 0} of ${rows.length} changes ⌄`}
             </span>
           )}
         </button>
         <span className="dl-rv-grow" />
-        {row && data?.round === 1 && (
-          <>
-            <span>
-              {screenIndex + 1} of {row.screens.length}
-            </span>
-            <button
-              aria-label="Previous screen"
-              disabled={screenIndex === 0}
-              onClick={() => step(-1)}
-            >
-              ‹
-            </button>
-            <button
-              aria-label="Next screen"
-              disabled={screenIndex >= row.screens.length - 1}
-              onClick={() => step(1)}
-            >
-              ›
-            </button>
-          </>
+        {resolution ? (
+          <span>{resolutionState.label}</span>
+        ) : (
+          row &&
+          data?.round === 1 && (
+            <>
+              <span>
+                {screenIndex + 1} of {row.screens.length}
+              </span>
+              <button
+                aria-label="Previous screen"
+                disabled={screenIndex === 0}
+                onClick={() => step(-1)}
+              >
+                ‹
+              </button>
+              <button
+                aria-label="Next screen"
+                disabled={screenIndex >= row.screens.length - 1}
+                onClick={() => step(1)}
+              >
+                ›
+              </button>
+            </>
+          )
         )}
       </div>
       {menu && (
@@ -630,15 +805,26 @@ export function DesignItemReview({
               <span>{record.text}</span>
             </div>
           )}
-          {data?.stale && (
-            <div className="dl-rv-notice">
-              <strong>{conflictCount(data.conflicts)}</strong>
-              {conflictLine(
-                data.conflicts,
-                (file) => data.boards.find((b) => b.file === file)?.title ?? file,
-                data.proposer,
-              )}
-            </div>
+          {resolutions.length > 0 && (
+            <>
+              <div className="dl-rv-notice">
+                <strong>
+                  Main changed {resolutions.length} of these{' '}
+                  {resolutions.every((entry) => !entry.file.startsWith('note:'))
+                    ? 'screens'
+                    : 'screens and notes'}{' '}
+                  too
+                </strong>
+                Choose what to keep on each. Nothing reaches main until you approve.
+              </div>
+              <section className="dl-rv-section">
+                <h2 className="dl-rv-label">
+                  <span>Changed on main too</span>
+                  <span>{resolutionState.label}</span>
+                </h2>
+                {conflictRows.map(rowView)}
+              </section>
+            </>
           )}
           {data && data.round > 1 && (
             <section className="dl-rv-section">
@@ -677,13 +863,15 @@ export function DesignItemReview({
               ))}
             </section>
           )}
-          <section className="dl-rv-section" hidden={data?.stale}>
+          <section className="dl-rv-section">
             <h2 className="dl-rv-label" hidden={!data}>
               <span>{data && data.round > 1 ? 'Changed since your review' : 'Changes'}</span>
-              <span>{progress}</span>
+              <span>
+                {resolutions.length && !continued ? `${changedRows.length} · after this` : progress}
+              </span>
             </h2>
             {data ? (
-              changedRows.map(rowView)
+              (!resolutions.length || continued) && changedRows.map(rowView)
             ) : (
               <p className="dl-rv-detail quiet">Loading the review…</p>
             )}
@@ -714,7 +902,9 @@ export function DesignItemReview({
             </details>
           )}
           <div className="dl-rv-foot">
-            {building ? (
+            {resolutions.length > 0 && waiting && !continued ? (
+              `${data?.proposer.name === 'You' ? 'Ask to update' : `Ask ${data?.proposer.name} to update`} hands ${resolutions.length === 2 ? 'both screens' : 'these screens'} back instead.`
+            ) : building ? (
               <>
                 {building.text}
                 {building.taskId && (
@@ -740,9 +930,18 @@ export function DesignItemReview({
         </aside>
         {board ? (
           <ReviewStage
-            key={`${board.file}:${board.after}`}
+            key={`${row?.id}:${board.file}:${board.after}:${resolution ? data?.main : ''}`}
             api={api}
-            board={board}
+            board={
+              resolution
+                ? {
+                    ...board,
+                    before: data!.main,
+                    added: resolution.mainExists === false,
+                    removed: resolution.proposalExists === false,
+                  }
+                : { ...board, resolution: undefined }
+            }
             pins={
               approved
                 ? []
@@ -754,13 +953,24 @@ export function DesignItemReview({
             setDraft={setDraft}
             save={() => void saveNote()}
             busy={busy}
-            editable={Boolean(waiting && !data?.stale)}
+            editable={Boolean(waiting)}
             ready={ready}
           />
         ) : (
           <div className="dl-rv-stage">
-            <div className="dl-rv-skeleton dl-skel" role="status">
-              {data ? '' : 'Loading the design…'}
+            <div className={resolution ? 'dl-rv-detail' : 'dl-rv-skeleton dl-skel'} role="status">
+              {resolution ? (
+                <>
+                  <b>Main</b>
+                  <p>{resolution.mainChanged}</p>
+                  <b>This proposal</b>
+                  <p>{resolution.proposalChanged}</p>
+                </>
+              ) : data ? (
+                ''
+              ) : (
+                'Loading the design…'
+              )}
             </div>
           </div>
         )}

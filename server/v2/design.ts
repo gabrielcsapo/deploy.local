@@ -1,3 +1,4 @@
+import { mergeBoard, type BoardChoice } from '../design/board-merge.ts';
 import { hasTools } from '../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
 import { reviewEvidence } from '../design/review-evidence.ts';
@@ -53,6 +54,7 @@ import type {
   DesignReviewPin,
   DesignReviewPreview,
   DesignReviewScreen,
+  DesignReviewResolution,
   DesignReviewSummary,
   InboxItem,
 } from '../../shared/v2/contracts.ts';
@@ -236,19 +238,28 @@ async function mergedWrites(
     paths: string[];
     main: string;
     branch: string;
+    resolutions: DesignReviewResolution[];
   },
 ) {
   const blob = (commit: string, path: string) =>
     gitRead(repo, ['rev-parse', '--verify', '--quiet', `${commit}:${path}`]);
-  const writes: { path: string; content: string }[] = [];
+  const writes: { path: string; content: string | null }[] = [];
   for (const path of input.paths) {
     const [base, target, from] = await Promise.all(
       [input.base, input.target, input.from].map((commit) => blob(commit, path)),
     );
-    if (target === base || from === base || target === from || !target || !from) continue;
+    if (target === base || from === base || target === from) continue;
     const [baseText, targetText, fromText] = await Promise.all(
       [input.base, input.target, input.from].map((commit) => showFile(repo, commit, path)),
     );
+    const resolution = input.resolutions.find((entry) => entry.file === conflictName(path));
+    if (path.startsWith('design/boards/')) {
+      const merged = mergeBoard(baseText, targetText, fromText, resolution?.choice ?? undefined);
+      if (merged.kind === 'same-part' && !resolution?.choice)
+        fail('Resolve these screens in the review before deciding.', 409);
+      writes.push({ path, content: merged.content || null });
+      continue;
+    }
     if (path === 'design/canvas.json') {
       const [was, main, branch] = [baseText, targetText, fromText].map((text) => {
         try {
@@ -258,12 +269,30 @@ async function mergedWrites(
         }
       });
       if (was && main && branch) {
-        writes.push({
-          path,
-          content: `${JSON.stringify(mergeCanvas(was, main, branch), null, 2)}\n`,
-        });
+        const merged = mergeCanvas(was, main, branch);
+        for (const resolution of input.resolutions) {
+          if (
+            resolution.choice !== 'main' ||
+            !canvasConflicts(was, main, branch).includes(resolution.file)
+          )
+            continue;
+          const field = resolution.file.startsWith('note:') ? 'notes' : 'boards';
+          const key = field === 'notes' ? resolution.file.slice(5) : resolution.file;
+          const into = merged[field] as Record<string, unknown>;
+          const value = main[field]?.[key];
+          if (value === undefined) delete into[key];
+          else into[key] = value;
+        }
+        writes.push({ path, content: `${JSON.stringify(merged, null, 2)}\n` });
         continue;
       }
+    }
+    if (resolution?.choice) {
+      writes.push({
+        path,
+        content: (resolution.choice === 'main' ? targetText : fromText) || null,
+      });
+      continue;
     }
     const dir = await mkdtemp(join(tmpdir(), 'design-merge-'));
     try {
@@ -379,7 +408,7 @@ async function copyPaths(
     message: string;
     by: string;
     /** New contents for files, written alongside the copied paths. */
-    writes?: { path: string; content: string }[];
+    writes?: { path: string; content: string | null }[];
   },
 ) {
   const dir = await mkdtemp(join(tmpdir(), 'design-copy-'));
@@ -411,6 +440,10 @@ async function copyPaths(
       } else await git(['rm', '--cached', '--quiet', '--ignore-unmatch', '--', path]);
     }
     for (const write of input.writes ?? []) {
+      if (write.content === null) {
+        await git(['rm', '--cached', '--quiet', '--ignore-unmatch', '--', write.path]);
+        continue;
+      }
       const oid = await git(['hash-object', '-w', '--stdin'], write.content);
       await git(['update-index', '--add', '--cacheinfo', `100644,${oid},${write.path}`]);
     }
@@ -672,15 +705,35 @@ export async function reviewMain(repo: string, context: any) {
   if (diff === null) fail('Main could not be checked. Try again.', 409);
   const changed = diff.split('\n');
   const overlapping = conflictPaths(context.paths, changed);
-  const conflicts: string[] = [];
-  if (overlapping.length) {
-    const [mainTree, fromTree] = await Promise.all([
-      reviewTree(repo, main!),
-      reviewTree(repo, context.commit),
-    ]);
-    conflicts.push(
-      ...overlapping.filter((path) => mainTree.get(path) !== fromTree.get(path)).map(conflictName),
+  const resolutions: DesignReviewResolution[] = [];
+  const choiceFor = (file: string): BoardChoice | null => {
+    const saved = context.choices?.[file];
+    return saved?.main === main && saved?.proposal === context.commit ? saved.choice : null;
+  };
+  for (const path of overlapping) {
+    const [base, target, from] = await Promise.all(
+      [context.base, main, context.commit].map((commit) => showFile(repo, commit, path)),
     );
+    if (target === from || base === from) continue;
+    const file = conflictName(path);
+    const merged = path.startsWith('design/boards/')
+      ? mergeBoard(base, target, from)
+      : {
+          kind: 'same-part' as const,
+          mainChanged: 'File changed',
+          proposalChanged: 'File changed',
+          detail: 'Both changed this file.',
+        };
+    resolutions.push({
+      file,
+      mainExists: Boolean(target),
+      proposalExists: Boolean(from),
+      kind: merged.kind,
+      mainChanged: merged.mainChanged,
+      proposalChanged: merged.proposalChanged,
+      detail: merged.detail,
+      choice: choiceFor(file),
+    });
   }
   if (changed.includes('design/canvas.json') && context.paths.includes('design/canvas.json')) {
     const [base, target, from] = await Promise.all([
@@ -688,9 +741,76 @@ export async function reviewMain(repo: string, context: any) {
       canvasAt(repo, main!),
       canvasAt(repo, context.commit),
     ]);
-    conflicts.push(...canvasConflicts(base, target, from));
+    const conflicts = canvasConflicts(base, target, from);
+    for (const file of conflicts) {
+      const existing = resolutions.find((entry) => entry.file === file);
+      if (existing) {
+        existing.kind = 'same-part';
+        continue;
+      }
+      const note = file.startsWith('note:');
+      const key = file.slice(5);
+      resolutions.push({
+        file,
+        kind: 'same-part',
+        choice: choiceFor(file),
+        mainChanged: note ? (target?.notes?.[key]?.text ?? 'Removed') : 'Screen placement changed',
+        proposalChanged: note
+          ? (from?.notes?.[key]?.text ?? 'Removed')
+          : 'Screen placement changed',
+        detail: note ? 'Both changed this note.' : 'Both changed this screen’s placement.',
+      });
+    }
+    const mainNotes = Object.keys({ ...base?.notes, ...target?.notes }).filter(
+      (key) => JSON.stringify(base?.notes?.[key]) !== JSON.stringify(target?.notes?.[key]),
+    );
+    for (const key of Object.keys({ ...base?.notes, ...from?.notes })) {
+      if (
+        !mainNotes.length ||
+        mainNotes.includes(key) ||
+        JSON.stringify(base?.notes?.[key]) === JSON.stringify(from?.notes?.[key])
+      )
+        continue;
+      resolutions.push({
+        file: `note:${key}`,
+        kind: 'kept-both',
+        choice: null,
+        mainChanged: mainNotes
+          .map((key) => target?.notes?.[key]?.text?.split('\n')[0] ?? 'Removed note')
+          .join(', '),
+        proposalChanged: from?.notes?.[key]?.text?.split('\n')[0] ?? 'Removed note',
+        detail: 'Different notes changed. Both are kept. Nothing to choose.',
+      });
+    }
   }
-  return { main: main!, conflicts: [...new Set(conflicts)], updated: changed.some(Boolean) };
+  return {
+    main: main!,
+    resolutions,
+    conflicts: resolutions
+      .filter((entry) => entry.kind === 'same-part' && !entry.choice)
+      .map((entry) => entry.file),
+    updated: changed.some(Boolean),
+  };
+}
+
+/** Discard observed obsolete answers durably, without overwriting a choice saved while
+ * this read was in flight. A later reset of main must not resurrect an old answer. */
+function discardObsoleteChoices(owner: string, row: any, main: string) {
+  const obsolete = Object.entries(row.context.choices ?? {}).filter(([, value]) => {
+    const choice = value as { main: string; proposal: string };
+    return choice.main !== main || choice.proposal !== row.context.commit;
+  });
+  if (!obsolete.length) return;
+  const current = get('v2-inbox-native', owner, row.id);
+  const choices = { ...current.context.choices };
+  let changed = false;
+  for (const [file, saved] of obsolete) {
+    if (JSON.stringify(choices[file]) !== JSON.stringify(saved)) continue;
+    delete choices[file];
+    changed = true;
+  }
+  if (changed)
+    save('v2-inbox-native', owner, { ...current, context: { ...current.context, choices } });
 }
 
 function reviewLineage(owner: string, context: any): string[] {
@@ -751,17 +871,19 @@ async function reviewSummary(
 ): Promise<DesignReviewSummary> {
   const { context } = row;
   const repo = project.repositoryPath;
-  const [{ conflicts }, baseTree, fromTree] = await Promise.all([
+  const [current, baseTree, fromTree] = await Promise.all([
     status ?? reviewMain(repo, context),
     reviewTree(repo, context.base),
     reviewTree(repo, context.commit),
   ]);
+  discardObsoleteChoices(owner, row, current.main);
   return summaryOf(
     owner,
     project,
     row,
-    conflicts,
+    current.conflicts,
     reviewBoardPaths(context).map((path) => [baseTree.has(path), fromTree.has(path)]),
+    current.resolutions,
   );
 }
 
@@ -772,6 +894,7 @@ function summaryOf(
   row: any,
   conflicts: string[],
   screens: [before: boolean, after: boolean][],
+  resolutions: DesignReviewResolution[] = [],
 ): DesignReviewSummary {
   const { context, item } = row;
   const counts = { screens: screens.length, changed: 0, new: 0, removed: 0 };
@@ -788,6 +911,7 @@ function summaryOf(
     counts,
     stale: conflicts.length > 0,
     conflicts,
+    resolutions,
   };
 }
 
@@ -857,6 +981,7 @@ async function buildReviewScreens(
   comparison: string,
   paths: string[],
   canvases: { canvas: Canvas | null; beforeCanvas: Canvas | null; originalCanvas: Canvas | null },
+  metadataOnly = false,
 ): Promise<ReviewBuilt> {
   const { canvas, beforeCanvas, originalCanvas } = canvases;
   const pages = canvas ? sections(canvas) : [];
@@ -931,7 +1056,7 @@ async function buildReviewScreens(
         changedSinceReview,
       };
       let rendered;
-      if (before && after) {
+      if (before && after && !metadataOnly) {
         try {
           const [a, b] = await Promise.all([
             renderBoardLayout(repo, screen.before, file, screen.w, screen.h),
@@ -957,10 +1082,16 @@ async function buildReviewScreens(
   };
 }
 
-export async function designReview(owner: string, project: any, row: any): Promise<DesignReview> {
+export async function designReview(
+  owner: string,
+  project: any,
+  row: any,
+  fullEvidence = false,
+): Promise<DesignReview> {
   const { context, item } = row;
   const repo = project.repositoryPath;
   const status = await reviewMain(repo, context);
+  discardObsoleteChoices(owner, row, status.main);
   const comparison = context.previousCommit ?? context.base;
   const [canvas, beforeCanvas, originalCanvas] = await Promise.all([
     canvasAt(repo, context.commit),
@@ -982,20 +1113,34 @@ export async function designReview(owner: string, project: any, row: any): Promi
   const previousPaths = lineage.flatMap(
     (id) => reviewRow(owner, project.id, id).context.paths as string[],
   );
-  const paths = [...new Set([...(context.paths as string[]), ...previousPaths])].filter((path) =>
-    path.startsWith('design/boards/'),
-  );
+  const paths = [
+    ...new Set([
+      ...(context.paths as string[]),
+      ...previousPaths,
+      ...status.resolutions
+        .filter((entry) => boardPattern.test(entry.file))
+        .map((entry) => `design/boards/${entry.file}`),
+    ]),
+  ].filter((path) => path.startsWith('design/boards/'));
   const seen = list('design-review-seen', owner);
-  const builtKey = `${reviewScreenKey(repo, row)}:${context.commit}:${paths.join(',')}`;
+  const metadataOnly = status.resolutions.length > 0 && !fullEvidence;
+  const builtKey = `${reviewScreenKey(repo, row)}:${context.commit}:${paths.join(',')}:${metadataOnly}`;
   let built = reviewBuilt.get(builtKey);
   if (!built) {
     let building = reviewBuilding.get(builtKey);
     if (!building) {
-      building = buildReviewScreens(repo, context, comparison, paths, {
-        canvas,
-        beforeCanvas,
-        originalCanvas,
-      }).finally(() => reviewBuilding.delete(builtKey));
+      building = buildReviewScreens(
+        repo,
+        context,
+        comparison,
+        paths,
+        {
+          canvas,
+          beforeCanvas,
+          originalCanvas,
+        },
+        metadataOnly,
+      ).finally(() => reviewBuilding.delete(builtKey));
       reviewBuilding.set(builtKey, building);
     }
     built = await building;
@@ -1016,7 +1161,14 @@ export async function designReview(owner: string, project: any, row: any): Promi
             sha1(await showFile(repo, entry.revision, path)) === revision.afterHashes.get(path));
         if (wasSeen) break;
       }
-      return { ...screen, seen: wasSeen, conflict: status.conflicts.includes(screen.file) };
+      const resolution = status.resolutions.find((entry) => entry.file === screen.file);
+      return {
+        ...screen,
+        seen: wasSeen,
+        conflict: status.conflicts.includes(screen.file),
+        resolution,
+        main: resolution ? status.main : undefined,
+      };
     }),
   );
   const pageOrder = [...new Set([...pages.map((p) => p.id), ...oldPages.map((p) => p.id)])];
@@ -1045,7 +1197,7 @@ export async function designReview(owner: string, project: any, row: any): Promi
     ? await gitRead(repo, ['show', '-s', '--format=%cI', status.main])
     : null;
   return {
-    ...summaryOf(owner, project, row, status.conflicts, revision.counts),
+    ...summaryOf(owner, project, row, status.conflicts, revision.counts, status.resolutions),
     item,
     task: context.taskId
       ? (list('task', owner).find((entry) => entry.id === context.taskId)?.title ?? null)
@@ -1109,7 +1261,7 @@ async function mutateReviewPin(owner: string, project: any, method: string, body
         const note = body.noteId && review.notes.find((entry) => entry.id === body.noteId);
         const revision = body.revision;
         const allowedRevisions = board
-          ? [board.before, board.after]
+          ? [board.before, board.after, ...(board.main ? [board.main] : [])]
           : [review.before, review.after];
         if (!text || (!board && !note) || !allowedRevisions.includes(revision))
           fail('Name the screen or note and revision for this pin');
@@ -1138,7 +1290,8 @@ async function mutateReviewPin(owner: string, project: any, method: string, body
             !validReviewDrawing(drawing) ||
             drawing.nativeWidth !== width ||
             drawing.nativeHeight !== board.h ||
-            revision !== board[drawing.side] ||
+            (revision !== board[drawing.side] &&
+              !(drawing.side === 'before' && revision === board.main)) ||
             Math.abs(drawing.anchor.x * width - x) > 0.01 ||
             Math.abs(drawing.anchor.y * drawing.nativeHeight - y) > 0.01
           )
@@ -1331,11 +1484,13 @@ async function prepareDecision(
   context: any,
 ) {
   const status = await reviewMain(repo, context);
+  discardObsoleteChoices(owner, { id: item.id, context }, status.main);
   if (body.actionId !== 'update' && status.conflicts.length)
-    fail('These screens conflict with main. Ask to update before deciding.', 409);
-  if (body.actionId === 'update' && !status.conflicts.length)
+    fail('These screens conflict with main. Resolve them in the review before deciding.', 409);
+  if (body.actionId === 'update' && !status.resolutions.length)
     fail('This proposal has no conflicts with main. Refresh the review.', 409);
-  if (body.actionId !== 'approve') return { conflicts: status.conflicts };
+  if (body.actionId !== 'approve')
+    return { conflicts: status.resolutions.map((entry) => entry.file) };
   if (body.delay === true)
     return { conflicts: status.conflicts, landingAt: new Date(Date.now() + 30000).toISOString() };
   // Use exactly the commit checked above; update-ref below rejects a concurrent main move.
@@ -1347,13 +1502,36 @@ async function prepareDecision(
     paths: context.paths,
     main: context.main,
     branch: context.branch,
+    resolutions: status.resolutions,
   });
   const instances = await instanceWrites(repo, target, context.commit, context.paths);
+  // Sync the resolved contents, never replace a merged board with the branch’s instance copy.
+  const library = parseLibrary(
+    merged.find((write) => write.path === libraryPath)?.content ??
+      (await showFile(
+        repo,
+        context.paths.includes(libraryPath) ? context.commit : target,
+        libraryPath,
+      )),
+  );
+  const writes = new Map([...instances, ...merged].map((write) => [write.path, write]));
+  if (library)
+    for (const path of context.paths as string[]) {
+      if (path.startsWith('design/boards/') && !writes.has(path)) {
+        const content = await showFile(repo, context.commit, path);
+        if (content) writes.set(path, { path, content });
+      }
+    }
+  if (library)
+    for (const write of writes.values()) {
+      if (write.path.startsWith('design/boards/') && write.content)
+        write.content = syncInstances(write.content, library);
+    }
   const commit = await copyPaths(repo, {
     target,
     from: context.commit,
     paths: context.paths,
-    writes: [...merged, ...instances],
+    writes: [...writes.values()],
     branch: context.main,
     message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}${body.landingId ? `\n\nDesign-Review: ${body.landingId}` : ''}`,
     by: owner,
@@ -1438,6 +1616,19 @@ function decideDesign(
       event(owner, context.taskId, null, 'message.queued', { status: 'queued' });
     } else queueMessage(owner, context.taskId, { content });
   }
+  if (body.actionId === 'update' && !context.taskId) {
+    const task = queueTask(owner, {
+      projectId: project.id,
+      title: `Update design: ${item.title}`,
+      ref: context.commit,
+      prompt: content,
+    });
+    const row = get('v2-inbox-native', owner, item.id);
+    context.taskId = task.id;
+    item.taskId = task.id;
+    save('v2-inbox-native', owner, { ...row, item, context });
+    event(owner, project.id, null, 'v2.inbox', { item });
+  }
   save('design-review-feedback', owner, {
     id: item.id,
     projectId: project.id,
@@ -1453,7 +1644,15 @@ registerInboxSource('design', decideDesign, async ({ owner, body, context, check
   const repo = requireRepository(owner, context.projectId).repositoryPath as string;
   return withRepositoryWrites(repo, async () =>
     // Checked again: another answer may have held the lock while this one waited for it.
-    answer(await prepareDecision(owner, repo, check(), body, context)),
+    answer(
+      await prepareDecision(
+        owner,
+        repo,
+        check(),
+        body,
+        reviewRow(owner, context.projectId, check().id).context,
+      ),
+    ),
   );
 });
 
@@ -2798,7 +2997,12 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
 
   if (sub === '/review' && req.method === 'GET') {
     const row = reviewRow(owner, project.id, url.searchParams.get('item'));
-    const review = await designReview(owner, project, row);
+    const review = await designReview(
+      owner,
+      project,
+      row,
+      url.searchParams.get('evidence') === 'all',
+    );
     if (url.searchParams.get('previews') === 'all') {
       for (const board of review.boards) {
         board.previews = {};
@@ -2815,10 +3019,59 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const board = boards.find((entry) => entry.file === url.searchParams.get('board'));
     const width = Number(url.searchParams.get('width'));
     if (!board || !board.widths.includes(width)) fail('Name a screen and one of its widths');
+    const comparison =
+      url.searchParams.get('comparison') === 'main' ? await reviewMain(repo, row.context) : null;
+    const resolution = comparison?.resolutions.find((entry) => entry.file === board!.file);
     return sendJson(
       res,
-      await reviewPreview(repo, project.id, board!, width, undefined, previewScale(url)),
+      await reviewPreview(
+        repo,
+        project.id,
+        comparison
+          ? {
+              ...board!,
+              before: comparison.main,
+              added: resolution?.mainExists === false,
+              removed: resolution?.proposalExists === false,
+            }
+          : board!,
+        width,
+        undefined,
+        previewScale(url),
+      ),
     );
+  }
+
+  if (sub === '/review/choice' && req.method === 'POST') {
+    const body = await readJson(req);
+    await withRepositoryWrites(repo, async () => {
+      const row = reviewRow(owner, project.id, body?.item);
+      if (row.item.state !== 'waiting') fail('This review has already been answered', 409);
+      const status = await reviewMain(repo, row.context);
+      if (body.main !== status.main || body.proposal !== row.context.commit)
+        fail('The design changed. Refresh the review and choose again.', 409);
+      if (![null, 'main', 'proposal'].includes(body.choice)) fail('Choose main or this proposal');
+      if (
+        !status.resolutions.some((entry) => entry.file === body.file && entry.kind === 'same-part')
+      )
+        fail('That screen needs no choice', 409);
+      const choices = Object.fromEntries(
+        Object.entries(row.context.choices ?? {}).filter(([, value]) => {
+          const saved = value as { main: string; proposal: string };
+          return saved.main === status.main && saved.proposal === row.context.commit;
+        }),
+      );
+      if (body.choice === null) delete choices[body.file];
+      else
+        choices[body.file] = {
+          choice: body.choice,
+          version: id(),
+          main: status.main,
+          proposal: row.context.commit,
+        };
+      save('v2-inbox-native', owner, { ...row, context: { ...row.context, choices } });
+    });
+    return sendJson(res, { ok: true });
   }
 
   if (sub === '/review/seen' && req.method === 'POST') {

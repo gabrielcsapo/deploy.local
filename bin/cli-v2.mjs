@@ -182,11 +182,26 @@ export async function runInbox(api, args, options, prompt) {
   const items = await readInbox(api);
   if (items === null)
     throw cliError("This deploy.local doesn't support the inbox yet", 'deploy upgrade', 2);
+  let unresolved = new Set();
+  if (items.some((item) => item.id.startsWith('design:')) && (!options.json || args.length)) {
+    try {
+      const reviews = await api('/api/v2/design/reviews');
+      unresolved = new Set(
+        (reviews.proposals ?? []).filter((review) => review.stale).map((review) => review.id),
+      );
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
+  }
+  const resolveMessage = (id) =>
+    `Resolve the conflicting screens in the review: /dashboard/inbox?item=${encodeURIComponent(id)}`;
   if (args.length) {
     const item = items.find((item) => item.id === args[0]);
     if (!item) throw cliError('That item is no longer waiting on you.', 'deploy inbox', 2);
     const action = item.actions.find((action) => action.id === args[1]);
     if (!action) throw cliError('Choose one of this item’s actions.', 'deploy inbox --json', 2);
+    if (unresolved.has(item.id) && ['approve', 'changes'].includes(action.id))
+      throw cliError(resolveMessage(item.id), 'open the review', 2);
     if (
       !(await confirmChange(
         `${item.title}\n${action.confirm || action.label}`,
@@ -200,6 +215,7 @@ export async function runInbox(api, args, options, prompt) {
   if (options.json) return { items };
   if (!items.length) console.log('Nothing waiting on you.');
   for (const item of items) {
+    if (unresolved.has(item.id)) console.log(`  ${resolveMessage(item.id)}`);
     console.log(`\n! ${item.title}  · ${item.from}\n  ${item.text}`);
     console.log(
       `  ${item.actions.map((action, i) => `[${i + 1}] ${action.label}`).join('  ')}  [s] Skip  [q] Quit`,
@@ -213,6 +229,10 @@ export async function runInbox(api, args, options, prompt) {
     if (choice === 'q') break;
     const action = item.actions[Number(choice) - 1];
     if (!action) continue;
+    if (unresolved.has(item.id) && ['approve', 'changes'].includes(action.id)) {
+      console.log(`  ${resolveMessage(item.id)}`);
+      continue;
+    }
     if (action.confirm && !(await confirmChange(action.confirm, options.yes, prompt))) continue;
     const result = await contracts.answerInbox(api, item.id, action.id);
     const answered = result.item || result;

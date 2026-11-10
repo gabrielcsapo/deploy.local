@@ -506,6 +506,26 @@ function Components({ state }: { state: ComponentState }) {
             />
           </div>
         </Section>
+        <Section title="Review choices">
+          <span className="dl-rv-choice">
+            <Action
+              {...state}
+              variant="secondary"
+              aria-pressed={segment === 'waiting'}
+              onClick={() => setSegment('waiting')}
+            >
+              Keep main’s
+            </Action>
+            <Action
+              {...state}
+              variant="primary"
+              aria-pressed={segment === 'answered'}
+              onClick={() => setSegment('answered')}
+            >
+              Keep this proposal’s
+            </Action>
+          </span>
+        </Section>
         <Section title="Design comparison">
           <DesignCompare
             before={

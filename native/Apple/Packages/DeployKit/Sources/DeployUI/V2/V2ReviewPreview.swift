@@ -59,12 +59,12 @@ struct V2ReviewScreenPage: View {
                 ZStack(alignment: .topTrailing) {
                     V2ReviewZoomPreview(preview: preview, board: board, model: model, change: change,
                                         fitCommand: fitCommand + model.fitToggle, active: active, viewport: $viewport)
-                    if model.peeking { Text("Before").font(.footnote.bold()).padding(.horizontal, 9).padding(.vertical, 4).background(.regularMaterial, in: Capsule()).padding(12) }
+                    if model.peeking { Text(model.resolution == nil ? "Before" : "Main").font(.footnote.bold()).padding(.horizontal, 9).padding(.vertical, 4).background(.regularMaterial, in: Capsule()).padding(12) }
                     if model.canCompare(board) && model.comparisonMode == "slider" && !model.peeking {
                         GeometryReader { geometry in
                             ZStack(alignment: .topLeading) {
                                 HStack {
-                                    revisionLabel("Old"); Spacer(); revisionLabel("New")
+                                    revisionLabel(model.resolution == nil ? "Old" : "Main"); Spacer(); revisionLabel(model.resolution == nil ? "New" : "This proposal")
                                 }.padding(12)
                                 Rectangle().fill(WorkspaceStyle.text(scheme)).frame(width: 2).overlay {
                                     Image(systemName: "arrow.left.and.right").font(.body).frame(width: 44, height: 44)

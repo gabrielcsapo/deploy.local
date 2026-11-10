@@ -328,3 +328,100 @@ describe('the design’s own boards', () => {
     assert.deepEqual(stale, [], 'Render these boards again from the library (syncInstances)');
   });
 });
+
+// Merging follows stable layer IDs, independent of HTML line breaks.
+describe('board element merges', () => {
+  const base =
+    '<main data-layer="page"><header data-layer="header">Old</header><p data-layer="release">One</p><footer data-layer="footer">End</footer></main>';
+  it('keeps different elements, own tail text, attributes and child order', async () => {
+    const { mergeBoard } = await import('./board-merge.ts');
+    const main = base.replace('>One<', '>Two<');
+    const proposal = base.replace('>Old<', '>New<');
+    const result = mergeBoard(base, main, proposal);
+    assert.equal(result.kind, 'kept-both');
+    assert.equal(result.content, proposal.replace('>One<', '>Two<'));
+    assert.match(result.detail, /header here, the release on main/);
+    assert.equal(new Set(layerIds(result.content)).size, layerIds(result.content).length);
+    const mixed = '<p data-layer="p">before <b data-layer="b">bold</b> after</p>';
+    assert.equal(
+      mergeBoard(mixed, mixed.replace(' after', ' tail'), mixed.replace('bold', 'strong')).content,
+      mixed.replace(' after', ' tail').replace('bold', 'strong'),
+    );
+    const reordered = base.replace(
+      '<header data-layer="header">Old</header><p data-layer="release">One</p>',
+      '<p data-layer="release">One</p><header data-layer="header">Old</header>',
+    );
+    assert.equal(
+      mergeBoard(base, reordered, proposal).content,
+      reordered.replace('>Old<', '>New<'),
+    );
+  });
+  it('chooses only overlapping elements and retains independent edits', async () => {
+    const { mergeBoard } = await import('./board-merge.ts');
+    const main = base.replace('>Old<', '>Main<').replace('>One<', '>Two<');
+    const proposal = base.replace('>Old<', '>Proposal<').replace('>End<', '>Done<');
+    for (const choice of ['main', 'proposal'] as const) {
+      const result = mergeBoard(base, main, proposal, choice);
+      assert.equal(result.kind, 'same-part');
+      assert.equal(result.fallback, false);
+      assert.equal(
+        result.content,
+        base
+          .replace('>Old<', choice === 'main' ? '>Main<' : '>Proposal<')
+          .replace('>One<', '>Two<')
+          .replace('>End<', '>Done<'),
+      );
+    }
+  });
+  it('handles deletion against descendant edits without losing unrelated changes', async () => {
+    const { mergeBoard } = await import('./board-merge.ts');
+    const source = base.replace('Old', '<b data-layer="child">Old</b>');
+    const main = source
+      .replace('<header data-layer="header"><b data-layer="child">Old</b></header>', '')
+      .replace('>One<', '>Two<');
+    const proposal = source.replace('>Old<', '>New<').replace('>End<', '>Done<');
+    for (const choice of ['main', 'proposal'] as const) {
+      const result = mergeBoard(source, main, proposal, choice);
+      assert.equal(result.kind, 'same-part');
+      assert.equal(result.fallback, false);
+      assert.match(result.content, />Two</);
+      assert.match(result.content, />Done</);
+      assert.equal(result.content.includes('data-layer="child"'), choice === 'proposal');
+    }
+  });
+  it('keeps independent child additions and removals while conflicting orders need a choice', async () => {
+    const { mergeBoard } = await import('./board-merge.ts');
+    const main = base.replace(
+      '<p data-layer="release">One</p>',
+      '<p data-layer="new-main">Main addition</p>',
+    );
+    const proposal = base.replace(
+      '<footer data-layer="footer">End</footer>',
+      '<p data-layer="new-proposal">Proposal addition</p>',
+    );
+    const merged = mergeBoard(base, main, proposal);
+    assert.equal(merged.kind, 'kept-both');
+    assert.equal(merged.fallback, false);
+    assert.match(merged.content, /Main addition/);
+    assert.match(merged.content, /Proposal addition/);
+    assert.doesNotMatch(merged.content, /data-layer="release"|data-layer="footer"/);
+    const first = '<p data-layer="a">A</p>',
+      second = '<p data-layer="b">B</p>';
+    const a = base.replace('</main>', first + second + '</main>');
+    const b = base.replace('</main>', second + first + '</main>');
+    assert.equal(mergeBoard(base, a, b).kind, 'same-part');
+  });
+  it('falls back on malformed, missing or duplicate layers', async () => {
+    const { mergeBoard } = await import('./board-merge.ts');
+    for (const invalid of [
+      '<p>Unlayered</p>',
+      '<p data-layer="x"><b data-layer="y"></p>',
+      '<p data-layer="x"></p><p data-layer="x"></p>',
+    ]) {
+      const result = mergeBoard(base, invalid, base.replace('Old', 'New'), 'main');
+      assert.equal(result.fallback, true);
+      assert.equal(result.kind, 'same-part');
+      assert.equal(result.content, invalid);
+    }
+  });
+});

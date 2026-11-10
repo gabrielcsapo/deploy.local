@@ -393,7 +393,19 @@ export type DesignReviewPin = {
   reply: string | null;
   createdAt: string;
 };
+export type DesignReviewResolution = {
+  file: string;
+  mainExists?: boolean;
+  proposalExists?: boolean;
+  kind: 'kept-both' | 'same-part';
+  mainChanged: string;
+  proposalChanged: string;
+  detail: string;
+  choice: 'main' | 'proposal' | null;
+};
 export type DesignReviewScreen = {
+  resolution?: DesignReviewResolution;
+  main?: string;
   file: string;
   title: string;
   w: number;
@@ -450,6 +462,7 @@ export type DesignReviewSummary = {
   counts: { screens: number; changed: number; new: number; removed: number };
   stale: boolean;
   conflicts: string[];
+  resolutions?: DesignReviewResolution[];
 };
 export type DesignReview = DesignReviewSummary & {
   item: InboxItem;

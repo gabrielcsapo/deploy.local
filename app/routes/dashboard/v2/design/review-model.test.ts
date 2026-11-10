@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  resolutionProgress,
   conflictCount,
   conflictLine,
   missingSummary,
@@ -294,4 +295,39 @@ test('an approved review says who decided and what happens next, without inventi
     buildLine({ item, proposer: you, landing: landed }).text,
     'Nothing builds this yet.',
   );
+});
+
+test('Continue waits only for same-part choices, counts automatic merges, and Undo blocks again', () => {
+  const both = {
+    file: 'Overview.html',
+    kind: 'kept-both' as const,
+    mainChanged: 'release list',
+    proposalChanged: 'header',
+    detail: '',
+    choice: null,
+  };
+  const same = { ...both, file: 'Settings.html', kind: 'same-part' as const };
+  assert.deepEqual(resolutionProgress([both, same]), {
+    total: 2,
+    resolved: 1,
+    canContinue: false,
+    label: '1 of 2 resolved',
+  });
+  for (const choice of ['main', 'proposal'] as const)
+    assert.equal(resolutionProgress([both, { ...same, choice }]).canContinue, true);
+  assert.equal(resolutionProgress([both, same]).canContinue, false);
+  assert.equal(resolutionProgress([]).canContinue, true);
+  const rows = [
+    { id: 'conflict:Overview', screens: ['Overview'] },
+    { id: 'conflict:Settings', screens: ['Settings'] },
+    { id: 'header', screens: ['Overview', 'Settings'] },
+  ];
+  assert.deepEqual(reviewStep(rows, { id: 'conflict:Settings', screen: 0 }, 'ArrowRight'), {
+    id: 'header',
+    screen: 0,
+  });
+  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 0 }, 'ArrowLeft'), {
+    id: 'conflict:Settings',
+    screen: 0,
+  });
 });
