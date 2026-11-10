@@ -1,3 +1,4 @@
+import { requireTaskTools } from './task-workspace.ts';
 import { sendJson } from '../http.ts';
 import { updateBase } from './update-base.ts';
 import { applicationTool } from './application-deployment.ts';
@@ -74,26 +75,28 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
         200,
       );
     return send(
-      body.name === 'deploy_update_base'
-        ? await updateBase(scope.owner, scope.taskId, body.args || {}, scope.runId)
-        : body.name === 'deploy_commit'
-          ? await commitCheckpoint(scope, body.args || {})
-          : body.name === 'deploy_create_repository'
-            ? await createRepository(scope, body.args || {})
-            : body.name === 'deploy_application'
-              ? await applicationTool(scope, body.args || {})
-              : body.name === 'deploy_ask_user'
-                ? questionTool(scope, body.args || {})
-                : body.name === 'deploy_control'
-                  ? interactiveTool(scope, body.args || {})
-                  : body.name === 'deploy_project'
-                    ? await projectTool(scope, body.args || {})
-                    : body.name === 'deploy_design'
-                      ? // Loaded when used: the design module registers itself with the v2 inbox.
-                        await (await import('../v2/design.ts')).designTool(scope, body.args || {})
-                      : body.name === 'deploy_read_artifact'
-                        ? readJobArtifact(scope, body.args || {})
-                        : coordinationTool(scope, body.name, body.args || {}),
+      body.name === 'deploy_require_tools'
+        ? await requireTaskTools(scope, body.args || {})
+        : body.name === 'deploy_update_base'
+          ? await updateBase(scope.owner, scope.taskId, body.args || {}, scope.runId)
+          : body.name === 'deploy_commit'
+            ? await commitCheckpoint(scope, body.args || {})
+            : body.name === 'deploy_create_repository'
+              ? await createRepository(scope, body.args || {})
+              : body.name === 'deploy_application'
+                ? await applicationTool(scope, body.args || {})
+                : body.name === 'deploy_ask_user'
+                  ? questionTool(scope, body.args || {})
+                  : body.name === 'deploy_control'
+                    ? interactiveTool(scope, body.args || {})
+                    : body.name === 'deploy_project'
+                      ? await projectTool(scope, body.args || {})
+                      : body.name === 'deploy_design'
+                        ? // Loaded when used: the design module registers itself with the v2 inbox.
+                          await (await import('../v2/design.ts')).designTool(scope, body.args || {})
+                        : body.name === 'deploy_read_artifact'
+                          ? readJobArtifact(scope, body.args || {})
+                          : await coordinationTool(scope, body.name, body.args || {}),
       200,
     );
   } catch (error: any) {

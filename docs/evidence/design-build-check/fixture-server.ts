@@ -211,6 +211,36 @@ async function seed(state: string, noCapture = false) {
     buildDue: true,
     build: { taskId, at: approved.toISOString() },
   });
+  if (state === 'TaskNeedsComputer') {
+    // A build that said it needs Xcode: the coordinator and bazzite answered no, the Mac is offline.
+    save('task', owner, {
+      ...get('task', owner, taskId),
+      status: 'queued',
+      needs: { tools: ['xcodebuild'], why: 'the approved design changes 4 iPhone screens' },
+      pendingPlacement: {},
+    });
+    const beat = new Date().toISOString();
+    save('worker', owner, { id: 'bazzite', name: 'bazzite', heartbeat: beat, status: 'online' });
+    save('worker', owner, {
+      id: 'mbp',
+      name: 'MacBook Pro',
+      heartbeat: ago(90),
+      status: 'offline',
+    });
+    for (const [workerId, has] of [
+      ['local', false],
+      ['bazzite', false],
+      ['mbp', true],
+    ] as const)
+      save('tool-probe', owner, {
+        id: `${workerId}:xcodebuild`,
+        workerId,
+        tool: 'xcodebuild',
+        has,
+        answeredAt: beat,
+      });
+    return;
+  }
   if (state === 'TaskDesignCheck') return;
   const differs = state !== 'TaskDesignChecked';
   const comparisons: { board: string; width: number; screenshotId: string }[] = [];
@@ -289,9 +319,14 @@ const handler: import('node:http').RequestListener = async (req, res) => {
     if (url.pathname === '/__fixture') {
       const state = url.searchParams.get('state') ?? 'TaskDesignCheck';
       if (
-        !['TaskDesignCheck', 'TaskDesignChecked', 'DesignBuiltDiffers', 'fixed', 'kept'].includes(
-          state,
-        )
+        ![
+          'TaskDesignCheck',
+          'TaskNeedsComputer',
+          'TaskDesignChecked',
+          'DesignBuiltDiffers',
+          'fixed',
+          'kept',
+        ].includes(state)
       )
         return send({ error: 'Unknown state' }, 400);
       await seed(state, url.searchParams.has('noCapture'));

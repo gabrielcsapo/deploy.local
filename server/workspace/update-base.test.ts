@@ -500,3 +500,18 @@ for (const remote of [false, true])
         /capture a new checkpoint/,
       );
     });
+
+test('base updates keep a resumed workspace on its own private branch', async () => {
+  const f = fixture();
+  save('task', 'alice', { ...f.task, workspaceGeneration: 'moved' });
+  writeFileSync(join(f.task.workspacePath, 'own.txt'), 'preserved edit');
+  const target = move(f);
+  const result = await update(f.task);
+  assert.equal(result.status, 'succeeded', result.error);
+  assert.equal(get('task', 'alice', f.task.id).baseRevision, target);
+  assert.equal(
+    git(f.task.workspacePath, ['symbolic-ref', 'HEAD']),
+    `refs/heads/task/${f.task.id}-moved`,
+  );
+  assert.equal(readFileSync(join(f.task.workspacePath, 'own.txt'), 'utf8'), 'preserved edit');
+});

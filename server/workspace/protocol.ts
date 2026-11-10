@@ -1,3 +1,4 @@
+import { pendingToolProbes, recordToolAnswers } from './tool-probes.ts';
 import { resumeQuestionAnswers } from './questions.ts';
 import { workerBuildReport } from './worker-update.ts';
 import { runAgentContext } from './agent-context-store.ts';
@@ -10,6 +11,11 @@ import { checkpointId } from './turn-checkpoint.ts';
 import { filePatchLimit, fullPatchLimit, reviewFilePath } from './review.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
 import { reconcileStalePoll, unknownReport } from './run-recovery.ts';
+
+/** Questions ride the reply only when there are some, so the reply is unchanged for everyone else. */
+function withToolProbes<T extends object>(reply: T, toolProbes: string[]) {
+  return toolProbes.length ? { ...reply, toolProbes } : reply;
+}
 /**
  * Per-file patches a task computer uploads with its turn, so the Changes view can load a file's
  * full patch even though the coordinator cannot read that computer's workspace. Worker reports
@@ -57,7 +63,8 @@ export function workerCommand(owner: string, path: string, body: any) {
       throw Object.assign(new Error('Worker identity is already online in another process'), {
         status: 409,
       });
-    return save('worker', owner, {
+    recordToolAnswers(owner, body.workerId, body.toolAnswers);
+    const registered = save('worker', owner, {
       ...workerBuildReport(body),
       instanceId,
       id: body.workerId,
@@ -123,6 +130,7 @@ export function workerCommand(owner: string, path: string, body: any) {
       heartbeat: now(),
       status: 'online',
     });
+    return withToolProbes(registered, pendingToolProbes(owner, body.workerId));
   }
   const m = path.match(/^\/workers\/([^/]+)\/(poll|events|complete)$/);
   if (!m) return undefined;
@@ -130,8 +138,9 @@ export function workerCommand(owner: string, path: string, body: any) {
   if (worker.instanceId && worker.instanceId !== String(body.instanceId || worker.id))
     throw Object.assign(new Error('Worker process identity changed'), { status: 409 });
   save('worker', owner, { ...worker, ...workerBuildReport(body), heartbeat: now() });
-  if (m[2] === 'poll')
-    return db.transaction(() => {
+  if (m[2] === 'poll') {
+    recordToolAnswers(owner, worker.id, body.toolAnswers);
+    const assignment = db.transaction(() => {
       let current = list('run', owner).find(
         (r) => r.workerId === worker.id && ['starting', 'running', 'unknown'].includes(r.status),
       );
@@ -178,9 +187,17 @@ export function workerCommand(owner: string, path: string, body: any) {
       return {
         run: claimed,
         task,
+        ...(task.resumeCheckpointId
+          ? {
+              taskCheckpoint: get('checkpoint', owner, task.resumeCheckpointId).snapshot,
+              taskCheckpointBaseRef: get('checkpoint', owner, task.resumeCheckpointId).baseRef,
+            }
+          : {}),
         project: task.projectId ? get('project', owner, task.projectId) : null,
       };
     })();
+    return withToolProbes(assignment, pendingToolProbes(owner, worker.id));
+  }
   const run = get('run', owner, body.runId);
   if (run.workerId !== worker.id || run.generation !== body.generation)
     throw Object.assign(new Error('Stale worker assignment'), { status: 409 });
@@ -285,8 +302,13 @@ export function workerCommand(owner: string, path: string, body: any) {
       const task = get('task', owner, run.taskId);
       save('task', owner, {
         ...task,
-        status:
-          body.status === 'unknown' ? 'blocked' : body.status === 'failed' ? 'failed' : 'review',
+        status: task.pendingPlacement
+          ? 'waiting'
+          : body.status === 'unknown'
+            ? 'blocked'
+            : body.status === 'failed'
+              ? 'failed'
+              : 'review',
         revision: task.revision + 1,
         updatedAt: now(),
         remoteWorkspacePath: body.workspacePath || null,

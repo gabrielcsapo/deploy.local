@@ -65,11 +65,16 @@ export function runWorkerTerminal(
           msg.workerId !== assignment.workerId ||
           msg.instanceId !== assignment.instanceId ||
           msg.taskId !== assignment.taskId ||
+          msg.workspaceGeneration !== assignment.workspaceGeneration ||
           msg.command !== assignment.command
         )
           throw new Error('Terminal assignment mismatch');
         const { cols, rows } = terminalSize(msg.cols, msg.rows);
-        const directory = taskShellDirectory(root, assignment.taskId);
+        const directory = taskShellDirectory(
+          root,
+          assignment.taskId,
+          assignment.workspaceGeneration,
+        );
         if (assignment.command && directory.notice) throw new Error(directory.notice);
         pty = assignment.command
           ? createShellCommand(assignment.command, directory.cwd)

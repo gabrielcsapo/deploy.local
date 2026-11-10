@@ -147,3 +147,17 @@ test('a missing workspace says so instead of exposing a filesystem error', async
   const result = (await read('', false, 'missing')).body;
   assert.equal(result.omitted, 'This task’s workspace is no longer on this computer');
 });
+
+test('managed file reads follow a resumed task workspace', async () => {
+  const { useManagedWorkspaceDirectory } = await import('./task-files.ts');
+  useManagedWorkspaceDirectory((workerId, taskId) =>
+    workerId === 'managed-alice' && taskId === 'managed-moved' ? root : '/does/not/exist',
+  );
+  save('task', 'alice', {
+    ...task,
+    id: 'managed',
+    workerId: 'managed-alice',
+    workspaceGeneration: 'moved',
+  });
+  assert.match((await read('web/format-time.mjs', true, 'managed')).body.content, /format = 1/);
+});

@@ -98,8 +98,16 @@ export async function executeBaseUpdate(
     }
     const original = plan.action === 'abort' ? originalJournal(journal) : null;
     const commit = plan.action === 'abort' ? original?.head || journal.head : plan.commit;
-    await gitText(cwd, ['update-ref', `refs/heads/task/${plan.taskId}`, commit]);
-    await gitText(cwd, ['symbolic-ref', 'HEAD', `refs/heads/task/${plan.taskId}`]);
+    await gitText(cwd, [
+      'update-ref',
+      `refs/heads/task/${plan.taskId}${operation.workspaceGeneration ? '-' + operation.workspaceGeneration : ''}`,
+      commit,
+    ]);
+    await gitText(cwd, [
+      'symbolic-ref',
+      'HEAD',
+      `refs/heads/task/${plan.taskId}${operation.workspaceGeneration ? '-' + operation.workspaceGeneration : ''}`,
+    ]);
     await gitText(cwd, ['read-tree', commit]);
     if (plan.action === 'abort' && existsSync(indexBackup))
       copyFileSync(indexBackup, join(gitDir, 'index'));

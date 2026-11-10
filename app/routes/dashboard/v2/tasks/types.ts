@@ -1,3 +1,4 @@
+import type { TaskRequirementsSnapshot } from '../../../../../shared/v2/contracts';
 import type {
   ConversationEvent,
   Release,
@@ -66,6 +67,7 @@ export type TaskCheck = {
 };
 export type TaskView = {
   designCheck?: TaskDesignCheck;
+  needs?: TaskRequirementsSnapshot['needs'];
   task: {
     id: string;
     title: string;

@@ -21,6 +21,19 @@ const tool = (
 });
 export const coordinationTools = [
   ...projectTools,
+  tool(
+    'deploy_require_tools',
+    'State the executable tools this task needs (for example xcodebuild, docker, swift). Needs accumulate. Pause edits while calling: a checkpoint is captured automatically. If this computer has not answered yes to every need, the run stops and the task resumes from that checkpoint on a qualifying computer, or waits for one. Optional why is one short line.',
+    {
+      needs: {
+        type: 'array',
+        items: { type: 'string', pattern: '^[a-zA-Z0-9][a-zA-Z0-9+._-]{0,40}$' },
+        maxItems: 100,
+      },
+      why: { type: 'string', maxLength: 300 },
+    },
+    ['needs'],
+  ),
   designToolSchema,
   tool(
     'deploy_update_base',
@@ -231,6 +244,14 @@ export async function callCoordinationTool(name: string, args: any) {
   };
   if (name === 'deploy_attach')
     return streamWorkspaceAttachment(process.cwd(), args.path, args.caption || '', endpoint, token);
+  if (name === 'deploy_require_tools') {
+    const result = await call(args);
+    if (!result.checkpointRequired) return result;
+    const checkpoint = await callCoordinationTool('deploy_checkpoint', {
+      operationId: crypto.randomUUID(),
+    });
+    args = { ...args, checkpointId: checkpoint.checkpointId };
+  }
   const initial = await call(args);
   return name === 'deploy_create_repository'
     ? continueRepositoryCreation(process.cwd(), args, initial, call)

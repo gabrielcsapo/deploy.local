@@ -1,3 +1,4 @@
+import { taskRequirementsSnapshot } from '../workspace/task-workspace.ts';
 import { approvedTaskDesign, taskDesignCheck } from './design-check.ts';
 import { ensureDesignCheckBoards } from './design.ts';
 import { mergingPackages } from '../packages/pipeline-read.ts';
@@ -86,6 +87,7 @@ export function taskSnapshot(owner: string, id: string) {
     .map((pull) => ({ ...pull, files: pullFiles(owner, pull.id) }));
   const designCheck = taskDesignCheck(owner, id);
   return {
+    ...taskRequirementsSnapshot(owner, task),
     ...(designCheck ? { designCheck } : {}),
     task: {
       id: task.id,

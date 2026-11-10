@@ -30,9 +30,19 @@ import { latestCheckpointSummary } from './checkpoint-publish.ts';
 import { stopRestartedRun } from './run-recovery.ts';
 export const git = (cwd: string, args: string[]) =>
   gitStringSync(cwd, args, { maxBuffer: 16 * 1024 * 1024, timeout: 60000 });
-export function startRun(owner: string, taskId: string, input: any, answeredQuestionId?: string) {
+export function startRun(
+  owner: string,
+  taskId: string,
+  input: any,
+  answeredQuestionId?: string,
+  checkpointContinuation = false,
+) {
   const task = get('task', owner, taskId);
   revise(task, input.revision);
+  if (task.pendingPlacement)
+    throw Object.assign(new Error('Task is waiting for a computer with its required tools'), {
+      status: 409,
+    });
   if (
     task.baseUpdate &&
     ['queued', 'preparing', 'prepared', 'failed'].includes(task.baseUpdate.status)
@@ -78,15 +88,24 @@ export function startRun(owner: string, taskId: string, input: any, answeredQues
     throw new Error('Message required (maximum 100000 characters)');
   const attachmentIds = attachments.map((a) => a.id);
   const msg = { id: id(), taskId, role: 'user', content, attachmentIds, createdAt: now() };
-  for (const attachment of attachments)
-    save('attachment', owner, { ...attachment, messageId: msg.id });
-  cancelTaskQuestions(owner, taskId, answeredQuestionId);
-  save('message', owner, msg);
-  // Sending directly (or releasing the queue) supersedes any queued or held follow-up.
-  remove('queued-message', owner, taskId);
-  event(owner, taskId, null, 'message', msg);
+  // Re-placement continues the same turn; it must not invent a user message or discard a follow-up.
+  if (!checkpointContinuation) {
+    for (const attachment of attachments)
+      save('attachment', owner, { ...attachment, messageId: msg.id });
+    cancelTaskQuestions(owner, taskId, answeredQuestionId);
+    save('message', owner, msg);
+    // Sending directly (or releasing the queue) supersedes any queued or held follow-up.
+    remove('queued-message', owner, taskId);
+    event(owner, taskId, null, 'message', msg);
+  }
   const prior = list('run', owner)
-    .filter((r) => r.taskId === taskId && r.sessionId && r.adapter === (input.adapter || 'codex'))
+    .filter(
+      (r) =>
+        r.taskId === taskId &&
+        r.sessionId &&
+        r.adapter === (input.adapter || 'codex') &&
+        (!task.workspaceGeneration || r.workspaceGeneration === task.workspaceGeneration),
+    )
     .at(-1);
   const run = {
     id: id(),
@@ -94,6 +113,7 @@ export function startRun(owner: string, taskId: string, input: any, answeredQues
     adapter,
     attachmentIds,
     workerId: task.workerId || 'local',
+    ...(task.workspaceGeneration ? { workspaceGeneration: task.workspaceGeneration } : {}),
     ...settings,
     status: 'queued',
     sessionId: prior?.sessionId || null,
@@ -138,8 +158,9 @@ export function startRun(owner: string, taskId: string, input: any, answeredQues
   const shellContext = shellPromptContext(owner, taskId);
   run.prompt += shellContext.text;
   save('run', owner, { ...run, shellVersions: shellContext.versions });
-  for (const attachment of attachments)
-    save('attachment', owner, { ...attachment, messageId: msg.id, runId: run.id });
+  if (!checkpointContinuation)
+    for (const attachment of attachments)
+      save('attachment', owner, { ...attachment, messageId: msg.id, runId: run.id });
   // A follow-up reopens a merged or done task: it is a conversation, not a closed ticket.
   save('task', owner, {
     ...task,
@@ -197,6 +218,7 @@ export function stopRun(owner: string, taskId: string, input: any) {
   save('task', owner, {
     ...task,
     ...(!stillActive && !check ? { status: 'review' } : {}),
+    ...(task.pendingPlacement ? { pendingPlacement: undefined, pendingLaunch: undefined } : {}),
     revision: task.revision + 1,
     updatedAt: now(),
   });

@@ -48,6 +48,9 @@ export function terminalStatus(owner: string, workerId: string) {
 export function terminalTask(owner: string, workerId: string, taskId: string) {
   const task = get('task', owner, taskId);
   if (task.workerId !== workerId) throw new Error('Task is assigned to another computer');
+  if (task.pendingPlacement)
+    throw new Error('Task is waiting for a computer with its required tools');
+  return { workspaceGeneration: task.workspaceGeneration as string | undefined };
 }
 export function shellCommand(
   owner: string,

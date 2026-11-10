@@ -200,3 +200,36 @@ test('Checks follows the latest checkpoint without attributing unpublished resul
   const beforeCheckpoint = taskCheckpoints({ ...view, pulls: [], checkpoints: [], checks }, []);
   assert.equal(beforeCheckpoint.checks[0].id, 'current');
 });
+
+test('a task waiting for a computer says what it needs, who was asked and what they said', async () => {
+  const { waitingForComputer } = await import('./presentation.ts');
+  assert.equal(waitingForComputer(undefined), null);
+  assert.equal(waitingForComputer({ tools: ['docker'], waiting: false, asked: [] }), null);
+  const banner = waitingForComputer({
+    tools: ['xcodebuild'],
+    why: 'the approved design changes 4 iPhone screens.',
+    waiting: true,
+    asked: [
+      { id: 'ser', name: 'SER', online: true, has: { xcodebuild: false } },
+      { id: 'baz', name: 'bazzite', online: true, has: { xcodebuild: false } },
+      { id: 'mbp', name: 'MacBook Pro', online: false, has: { xcodebuild: true } },
+    ],
+  })!;
+  assert.equal(banner.title, 'Waiting for a computer with xcodebuild');
+  assert.equal(
+    banner.detail,
+    'deploy.local asked your computers. MacBook Pro has xcodebuild and is offline; the task starts there when it is back. Nothing has run yet.',
+  );
+  assert.equal(
+    banner.asked,
+    'The task said it needs xcodebuild: the approved design changes 4 iPhone screens. · Asked 3 computers · SER no · bazzite no · MacBook Pro yes, offline',
+  );
+  assert.match(
+    waitingForComputer({
+      tools: ['docker'],
+      waiting: true,
+      asked: [{ id: 'a', name: 'SER', online: true, has: { docker: null } }],
+    })!.asked,
+    /SER not answered/,
+  );
+});

@@ -1,21 +1,19 @@
 import { advanceAllPipelinePackages } from '../packages/pipelines.ts';
 import { claimWorker } from './worker-lease.ts';
 import { startSupervisorHeartbeat } from '../supervisor-heartbeat.ts';
+import { startServiceLoop } from './service-loop.ts';
 import { db, now } from './store.ts';
 import { reconcilePipelines, scanPipelineTriggers } from './pipelines.ts';
 import { advancePipelineDeployments } from './pipeline-deployment.ts';
 claimWorker('pipelines');
 startSupervisorHeartbeat();
-let busy = false;
 let publishing = false;
-const timer = setInterval(async () => {
-  if (busy) return;
-  busy = true;
-  try {
-    db.prepare("UPDATE worker SET heartbeat=? WHERE id='pipelines' AND pid=?").run(
-      now(),
-      process.pid,
-    );
+const loop = startServiceLoop({
+  beat: () =>
+    db
+      .prepare("UPDATE worker SET heartbeat=? WHERE id='pipelines' AND pid=?")
+      .run(now(), process.pid),
+  pass: async () => {
     reconcilePipelines();
     await scanPipelineTriggers();
     if (!publishing) {
@@ -27,14 +25,11 @@ const timer = setInterval(async () => {
           publishing = false;
         });
     }
-  } catch (error: any) {
-    console.error('Pipeline service:', error.message);
-  } finally {
-    busy = false;
-  }
-}, 1000);
+  },
+  onError: (error) => console.error('Pipeline service:', (error as Error).message),
+});
 const stop = () => {
-  clearInterval(timer);
+  loop.stop();
   db.prepare("DELETE FROM worker WHERE id='pipelines' AND pid=?").run(process.pid);
 };
 process.on('SIGINT', stop);

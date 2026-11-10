@@ -394,3 +394,25 @@ export async function restoreCheckpoint(
   }
   applySnapshot(snapshot, destination, Boolean(snapshot.base));
 }
+
+/** Apply a validated handoff to a newly prepared Git workspace, before any agent starts. */
+export function restoreTaskCheckpoint(value: Snapshot, destination: string) {
+  const snapshot = validateSnapshot(value);
+  const markerResult = gitResultSync(destination, [
+    'rev-parse',
+    '--git-path',
+    'deploy-task-checkpoint',
+  ]);
+  if (markerResult.status !== 0) throw new Error('Task checkpoint needs a Git workspace');
+  const marker = resolve(destination, markerResult.stdout.toString().trim());
+  try {
+    if (readFileSync(marker, 'utf8') === snapshot.digest) return;
+  } catch {}
+  if (snapshot.base) {
+    const result = gitResultSync(destination, ['rev-parse', 'HEAD']);
+    if (result.status !== 0 || result.stdout.toString().trim() !== snapshot.base.commit)
+      throw new Error('Task checkpoint base does not match the prepared workspace');
+  }
+  applySnapshot(snapshot, destination, true);
+  writeFileSync(marker, snapshot.digest, { mode: 0o600 });
+}
