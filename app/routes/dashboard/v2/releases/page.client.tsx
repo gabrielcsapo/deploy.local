@@ -93,8 +93,21 @@ function StepList({ steps }: { steps: Release['steps'] }) {
   );
 }
 
-function ReleaseOutput({ release, logs }: { release: Release; logs: string }) {
+function ReleaseOutput({
+  release,
+  logs,
+  onShown,
+}: {
+  release: Release;
+  logs: string;
+  onShown: (id: string) => void;
+}) {
   const [output, setOutput] = useState('');
+  const shown = !!output.trim();
+  // Its head carries Full log, so the page drops its own link while this is on screen.
+  useEffect(() => {
+    if (shown) onShown(release.id);
+  }, [shown, release.id, onShown]);
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -116,7 +129,7 @@ function ReleaseOutput({ release, logs }: { release: Release; logs: string }) {
       clearTimeout(timer);
     };
   }, [release.id]);
-  if (!output.trim()) return null;
+  if (!shown) return null;
   return (
     <Group
       title="Output"
@@ -144,6 +157,7 @@ export default function Releases() {
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const [dialog, setDialog] = useState(false);
+  const [outputFor, setOutputFor] = useState('');
   const [busy, setBusy] = useState(false);
   const [decisionError, setDecisionError] = useState('');
   const [dataLoss, setDataLoss] = useState<RollbackDataLoss>();
@@ -454,6 +468,7 @@ export default function Releases() {
                         key={selected.id}
                         release={selected}
                         logs={`${base}/logs${appQuery}`}
+                        onShown={setOutputFor}
                       />
                     )}
                     {selected.state !== 'running' && (
@@ -504,9 +519,11 @@ export default function Releases() {
                       </Group>
                     )}
                     <div className="v2-release-links">
-                      <a className="dl-btn quiet" href={`${base}/logs`}>
-                        Full log
-                      </a>
+                      {!(selected.state === 'running' && outputFor === selected.id) && (
+                        <a className="dl-btn quiet" href={`${base}/logs`}>
+                          Full log
+                        </a>
+                      )}
                       {selected.state === 'failed' && (
                         <>
                           <a
