@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { PassThrough, Readable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readBody, readBytes, readJson, RequestBodyTooLargeError, sendJson } from './http.ts';
+import {
+  plainPath,
+  readBody,
+  readBytes,
+  readJson,
+  RequestBodyTooLargeError,
+  sendJson,
+} from './http.ts';
 
 const request = (chunks: (Buffer | string)[]) =>
   Readable.from(chunks.map((v) => Buffer.from(v))) as unknown as IncomingMessage;
@@ -76,4 +83,17 @@ test('sendJson preserves headers, status, JSON and optional ended-response guard
     headers: { 'Content-Type': 'application/vnd.git-lfs+json' },
   });
   assert.deepEqual(writes, [[400, { 'Content-Type': 'application/vnd.git-lfs+json' }], 'null']);
+});
+
+test('a path escaped the way the iPhone app writes it matches the plain route', () => {
+  // The iPhone project page on 2026-11-10: pull requests and issues answered 404 for this form.
+  assert.equal(
+    plainPath('/api/workspace/projects/37bba42d%2D72d2%2D4005%2D8b95%2Da1ee577a0ab4/pulls'),
+    '/api/workspace/projects/37bba42d-72d2-4005-8b95-a1ee577a0ab4/pulls',
+  );
+  assert.equal(plainPath('/projects/deploy%2Elocal/issues'), '/projects/deploy.local/issues');
+  // A slash, a colon or a space stays escaped, so it cannot change which route matches.
+  assert.equal(plainPath('/projects/a%2Fb/pulls'), '/projects/a%2Fb/pulls');
+  assert.equal(plainPath('/projects/app%3AImmich%20two'), '/projects/app%3AImmich%20two');
+  assert.equal(plainPath('/projects/100%'), '/projects/100%');
 });

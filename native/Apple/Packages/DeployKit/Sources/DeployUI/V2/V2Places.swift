@@ -91,7 +91,7 @@ struct V2WorkerView: View {
             VStack(alignment: .leading, spacing: 24) {
                 V2LoadRegion(state: read.state, copy: .resource("App details"), lastHeard: store.snapshot.updatedAt, status: true, retry: { await load() }) {
                     if let app {
-                        HStack { V2Status(state: app.state); Text([app.kind == .worker ? "Worker" : "Web app", project.map { "part of \($0.name)" }, app.release].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.secondary) }
+                        HStack { V2Status(state: app.state); Text([app.kind == .worker ? "Worker" : "Web app", project.map { "part of \($0.name)" }, app.release.map { String($0.prefix(7)) }].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.secondary) }
                         V2Group(title: "Health") {
                             if let jobs = app.jobs { V2Row(title: "Jobs", subtitle: "\(Int(jobs.failRate * 100))% failing · usually \(Int(jobs.baselineFailRate * 100))%", icon: "chart.line.uptrend.xyaxis") }
                             if let queue = app.queue { Divider(); V2Row(title: "Queue", subtitle: "\(Int(queue.depth).formatted()) waiting · oldest \(Int(queue.oldestSec / 60)) min", icon: "tray") }
@@ -103,12 +103,12 @@ struct V2WorkerView: View {
                         if let project {
                             V2Group(title: "App") {
                                 NavigationLink { V2ReleasesView(store: store, project: project) } label: {
-                                    V2Row(title: "Releases", subtitle: [app.release, app.releasedAt.flatMap { V2Store.date($0) }.map { "live since \($0.formatted(date: .omitted, time: .shortened))" }].compactMap { $0 }.joined(separator: " · "), icon: "shippingbox")
+                                    V2Row(title: "Releases", subtitle: [app.release.map { String($0.prefix(7)) }, app.releasedAt.flatMap { V2Store.date($0) }.map { "live since \($0.formatted(date: .omitted, time: .shortened))" }].compactMap { $0 }.joined(separator: " · "), icon: "shippingbox")
                                 }
                             }
                         }
                         if let release = app.release {
-                            V2Group(title: "Release \(release)") {
+                            V2Group(title: "Release \(release.prefix(7))") {
                                 ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == app.project && $0.release == release } ?? []) { sibling in V2Row(title: sibling.name, subtitle: sibling.kind == .worker ? "Worker" : "Web app", state: sibling.state) }
                             }
                         }

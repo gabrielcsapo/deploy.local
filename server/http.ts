@@ -80,3 +80,15 @@ export function readBody(req: IncomingMessage, maxBytes = 1024 * 1024): Promise<
     req.on('error', reject);
   });
 }
+
+/**
+ * A path with its needlessly escaped characters written plainly: `%2D` is `-`. Letters, digits and
+ * `-._~` mean the same escaped or not (RFC 3986), and the iPhone app escapes all but letters and
+ * digits. Anything else, `%2F` above all, stays escaped so it cannot change which route matches.
+ */
+export function plainPath(pathname: string): string {
+  return pathname.replace(/%([0-9a-fA-F]{2})/g, (escaped, hex: string) => {
+    const character = String.fromCharCode(Number.parseInt(hex, 16));
+    return /[A-Za-z0-9\-._~]/.test(character) ? character : escaped;
+  });
+}

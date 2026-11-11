@@ -32,7 +32,7 @@ struct V2ProjectSection: View {
                 }
                 V2LoadRegion(state: store.loadState("live"), copy: .resource("Project details"), lastHeard: store.snapshot.resourceDates["live"], status: true, retry: { await store.refreshResources(["live"]) }) {
                     ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { V2AppPresentation.projectID(for: $0) == project.id } ?? []) { app in
-                        NavigationLink(value: V2ProjectRoute.app(app.id)) { V2Row(title: project.apps?.count == 1 ? "App" : app.name, subtitle: [app.release, app.name].compactMap { $0 }.joined(separator: " · "), state: app.state) }
+                        NavigationLink(value: V2ProjectRoute.app(app.id)) { V2Row(title: project.apps?.count == 1 ? "App" : app.name, subtitle: [app.release.map { String($0.prefix(7)) }, app.name].compactMap { $0 }.joined(separator: " · "), state: app.state) }
                     }
                     if project.apps?.isEmpty == false { V2Row(title: "Logs", subtitle: "Live · view on a computer", icon: "text.alignleft") }
                 }

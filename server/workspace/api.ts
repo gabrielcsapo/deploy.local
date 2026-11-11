@@ -1,4 +1,4 @@
-import { sendJson } from '../http.ts';
+import { plainPath, sendJson } from '../http.ts';
 import type { WorkspaceState, TaskDetail, Message } from '../../shared/v2/contracts.ts';
 import { updateBase, baseUpdateWorker } from './update-base.ts';
 import { taskQueue, moveQueuedRun } from './run-queue.ts';
@@ -146,7 +146,8 @@ export async function workspaceApi(
   workerIdentity?: string,
 ) {
   const url = new URL(req.url!, 'http://localhost'),
-    path = url.pathname.slice('/api/workspace'.length),
+    // The iPhone app writes a project ID as 37bba42d%2D72d2…; routes match the plain form.
+    path = plainPath(url.pathname).slice('/api/workspace'.length),
     method = req.method;
   const send = async (value: any, status = 200) => {
     const headers: Record<string, string> = {
