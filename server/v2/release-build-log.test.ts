@@ -6,7 +6,8 @@ import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'release-build-log-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { db, save } = await import('../workspace/store.ts');
-const { releaseBuildLogId, releaseBuildOutput } = await import('./release-build-log.ts');
+const { releaseBuildLogId, releaseBuildOutput, releaseJobBuildLogId } =
+  await import('./release-build-log.ts');
 const { buildLogFilePath } = await import('../store.ts');
 const { releasesApi } = await import('./releases-api.ts');
 const { routeFetch } = await import('./test-request.ts');
@@ -27,6 +28,26 @@ test('an uploaded release maps to the build log its upload opened', () => {
   assert.equal(releaseBuildLogId(undefined), null);
 });
 
+test('a release job finds its build log through the plan ID it carries', () => {
+  // Forma on 2026-11-11: the job carried 4b83164c… (the plan), the log was filed under
+  // 8707edfc… (the release), and five minutes of build output were dropped.
+  save('v2-release', 'owner', {
+    id: 'release-forma',
+    release: { id: 'release-forma', state: 'running' },
+    plan: { apps: [], migrations: [], runtime: { id: 'plan-forma', apps: [] } },
+  });
+  save('v2-upload-release', 'owner', { id: '1336', releaseId: 'release-forma' });
+  assert.equal(releaseJobBuildLogId('plan-forma'), 1336);
+  // A plan no release holds, and a release without an upload, have no log.
+  assert.equal(releaseJobBuildLogId('plan-unknown'), null);
+  save('v2-release', 'owner', {
+    id: 'release-pr',
+    release: { id: 'release-pr', state: 'running' },
+    plan: { apps: [], migrations: [], runtime: { id: 'plan-pr', apps: [] } },
+  });
+  assert.equal(releaseJobBuildLogId('plan-pr'), null);
+  assert.equal(releaseJobBuildLogId(undefined), null);
+});
 test('output is owner scoped, empty before output exists, and refreshed from the append-only log', async () => {
   save('v2-release', 'owner', { id: 'tail', release: { id: 'tail', projectId: 'gym' } });
   const url = 'http://localhost/api/v2/releases/tail/output';

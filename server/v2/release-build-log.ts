@@ -17,6 +17,20 @@ export function releaseBuildLogId(releaseId: unknown, owner?: string): number | 
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
+/**
+ * The build log for a release job on a computer. The job does not carry the release's ID: it
+ * carries the ID of the release's plan (`plan.runtime.id`), which the release record holds.
+ */
+export function releaseJobBuildLogId(planId: unknown): number | null {
+  if (typeof planId !== 'string' || !planId) return null;
+  const row = db
+    .prepare(
+      "SELECT json_extract(data,'$.id') AS id FROM records WHERE kind='v2-release' AND json_extract(data,'$.plan.runtime.id')=? LIMIT 1",
+    )
+    .get(planId) as { id?: string } | undefined;
+  return releaseBuildLogId(row?.id ?? planId);
+}
+
 /** Read only a bounded suffix, even when the append-only log is many gigabytes. */
 export async function releaseBuildOutput(owner: string, releaseId: string): Promise<string> {
   const id = releaseBuildLogId(releaseId, owner);

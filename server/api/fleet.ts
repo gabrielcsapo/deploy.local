@@ -50,7 +50,7 @@ import { type ApiRouteContext } from './context.ts';
 import { handleRemoteTelemetry, issueRemoteTelemetryToken } from '../telemetry-remote.ts';
 import { getRequestsSqlite } from '../requests-db.ts';
 import { readDeploymentRecord } from '../store.ts';
-import { releaseBuildLogId } from '../v2/release-build-log.ts';
+import { releaseJobBuildLogId } from '../v2/release-build-log.ts';
 
 interface AgentJobActivity {
   stage: string;
@@ -449,7 +449,7 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           // A release on another computer builds there; without this its output was dropped.
           const buildLogId =
             job.type === 'project-release'
-              ? (releaseBuildLogId(payload.releaseId) ?? 0)
+              ? (releaseJobBuildLogId(payload.releaseId) ?? 0)
               : Number(payload.buildLogId);
           if (Number.isSafeInteger(buildLogId) && buildLogId > 0) {
             appendFileSync(buildLogFilePath(buildLogId), buildOutput);

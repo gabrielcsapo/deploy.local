@@ -166,6 +166,20 @@ test('a release on another computer hands back its pull and build output', async
   await f.runtime.verify(plan);
   assert.deepEqual(f.output, [`${f.names[0]}: Pulling test:1\n`]);
 });
+test('a release job carries its plan ID, which is how its build log is found', async () => {
+  const f = fixture();
+  const seen: string[] = [];
+  const runtime = new CoordinatorReleaseRuntime({
+    remote: async (node, application, payload, artifact) => {
+      seen.push(payload.releaseId);
+      return f.transport(node, application, payload, artifact);
+    },
+  });
+  const plan = await runtime.plan(f.project);
+  await runtime.prepare(plan);
+  assert.ok(seen.length);
+  assert.ok(seen.every((id) => id === (plan.runtime as { id: string }).id));
+});
 test('a failed switch on the second computer restores both original processes and routes', async () => {
   const f = fixture();
   const first = await f.runtime.plan(f.project);
