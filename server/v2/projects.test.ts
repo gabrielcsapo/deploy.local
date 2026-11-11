@@ -116,6 +116,32 @@ test('migrates repository membership, adds a second app, persists links and isol
   );
 });
 
+test('a standalone app that was deleted leaves no empty project behind', async () => {
+  const database = store.getSqlite()!;
+  database
+    .prepare('INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?)')
+    .run('gone', 'owner', 'app:gone');
+  assert.equal(
+    (await projectsForOwner('owner')).some((project) => project.id === 'app:gone'),
+    false,
+  );
+  assert.equal(
+    database.prepare('SELECT 1 FROM project_applications WHERE application=?').get('gone'),
+    undefined,
+  );
+  // A removal that can still be retried keeps its row.
+  database
+    .prepare('INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?)')
+    .run('leaving', 'owner', 'app:leaving');
+  workspace.save('v2-project-removal', 'owner', { id: 'app:leaving', project: { apps: [] } });
+  await projectsForOwner('owner');
+  assert.ok(
+    database.prepare('SELECT 1 FROM project_applications WHERE application=?').get('leaving'),
+  );
+  workspace.remove('v2-project-removal', 'owner', 'app:leaving');
+  await projectsForOwner('owner');
+});
+
 test('migrates configuration once without plaintext secrets and applies shared values with app overrides', async () => {
   const declarations = {
     TOKEN: { type: 'secret' as const, required: true, scope: 'application' as const },

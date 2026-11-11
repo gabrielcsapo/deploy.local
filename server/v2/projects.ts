@@ -87,9 +87,24 @@ export async function projectsForOwner(owner: string): Promise<Project[]> {
           )
           .run(change.application, owner, change.projectId);
     })();
-  const persisted = database
+  const stored = database
     .prepare('SELECT project_id AS projectId, application FROM project_applications WHERE owner=?')
     .all(owner) as { projectId: string; application: string }[];
+  // A standalone app's own project is nothing without the app. A row left behind after the app
+  // was deleted would list an empty project that cannot be opened or removed, so drop it. A
+  // removal that is still retryable keeps its rows until it finishes.
+  const removing = new Set(list('v2-project-removal', owner).map((row) => row.id));
+  const leftover = stored.filter(
+    (link) =>
+      link.projectId.startsWith('app:') &&
+      !removing.has(link.projectId) &&
+      !apps.some((app) => app.name === link.application),
+  );
+  for (const link of leftover)
+    database
+      .prepare('DELETE FROM project_applications WHERE owner=? AND application=? AND project_id=?')
+      .run(owner, link.application, link.projectId);
+  const persisted = stored.filter((link) => !leftover.includes(link));
   for (const link of persisted)
     if (!projects.some((project) => project.id === link.projectId))
       projects.push({
