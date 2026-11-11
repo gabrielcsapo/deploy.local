@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-flight-router/client';
+import { useLocation, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
   Banner,
@@ -24,7 +24,7 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, eventFeed } from '../data/hooks';
 import './releases.css';
-import { projectPath, projectTabItems } from '../projects/routing';
+import { appTabItems, projectPath, projectTabItems } from '../projects/routing';
 import { useData, request as workspaceRequest, type Overview } from '../projects/data';
 import { formatTime } from '../data/time';
 import { missingVariable } from './presentation';
@@ -93,8 +93,48 @@ function StepList({ steps }: { steps: Release['steps'] }) {
   );
 }
 
+function ReleaseOutput({ release, logs }: { release: Release; logs: string }) {
+  const [output, setOutput] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function refresh() {
+      try {
+        const body = await request(`/releases/${encodeURIComponent(release.id)}/output`, {
+          signal: controller.signal,
+        });
+        if (!controller.signal.aborted) setOutput(body.output);
+      } catch {
+        // A transient read failure keeps the last received output; the next poll retries.
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(() => void refresh(), 2000);
+      }
+    }
+    void refresh();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [release.id]);
+  if (!output.trim()) return null;
+  return (
+    <Group
+      title="Output"
+      end={
+        <a className="dl-btn quiet" href={logs}>
+          Full log
+        </a>
+      }
+    >
+      <Term aria-label="Release build output">{output}</Term>
+    </Group>
+  );
+}
+
 export default function Releases() {
   const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  const appKey = searchParams.get('app');
   const segments = pathname.split('/').filter(Boolean).map(decodeURIComponent);
   const projectKey = segments[2],
     releaseId = segments[4];
@@ -110,6 +150,12 @@ export default function Releases() {
   const [targetId, setTargetId] = useState('');
   const base = projectPath(projectKey);
   const overview = useData<Overview>(`/api/v2/projects/${encodeURIComponent(projectKey)}/overview`);
+  const selectedApp = project?.apps.find((app) => app.name === appKey || app.id === appKey);
+  const tabs =
+    selectedApp && project?.apps.length !== 1
+      ? appTabItems(base, selectedApp)
+      : projectTabItems(base, overview.data, releases?.length || 0);
+  const appQuery = selectedApp ? `?app=${encodeURIComponent(selectedApp.name)}` : '';
   const apiProject = `/projects/${encodeURIComponent(projectKey)}`;
   useEffect(() => {
     let loaded = false;
@@ -252,8 +298,8 @@ export default function Releases() {
       <div className="dl-scroll">
         <div className="dl-page wide v2-releases-page">
           <Tabs
-            value={`${base}/releases`}
-            items={projectTabItems(base, overview.data, releases?.length || 0)}
+            value={tabs.find((tab) => tab.label === 'Releases')?.href ?? `${base}/releases`}
+            items={tabs}
           />
           {error && (
             <Banner
@@ -289,7 +335,7 @@ export default function Releases() {
                     className={`dl-nav ${selected?.id === release.id ? 'on' : ''}`}
                     aria-current={selected?.id === release.id ? 'page' : undefined}
                     key={release.id}
-                    href={`${base}/releases/${encodeURIComponent(release.id)}`}
+                    href={`${base}/releases/${encodeURIComponent(release.id)}${appQuery}`}
                   >
                     <Icon name="send" size={14} />
                     <span className="dl-t">
@@ -402,6 +448,13 @@ export default function Releases() {
                         )}
                         <StepList steps={selected.steps} />
                       </div>
+                    )}
+                    {selected.state === 'running' && (
+                      <ReleaseOutput
+                        key={selected.id}
+                        release={selected}
+                        logs={`${base}/logs${appQuery}`}
+                      />
                     )}
                     {selected.state !== 'running' && (
                       <Term aria-label="Release log">

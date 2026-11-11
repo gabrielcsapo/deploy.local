@@ -1,3 +1,4 @@
+import { releaseBuildOutput } from './release-build-log.ts';
 import { sendJson } from '../http.ts';
 import { readJson } from '../http.ts';
 import { list } from '../workspace/store.ts';
@@ -67,7 +68,7 @@ export async function releasesApi(
     /^\/projects\/([^/]+)\/(releases(?:\/plan)?|rollback|rollbacks)$/,
   );
   const uploadRoute = path.match(/^\/releases\/uploads\/([0-9]+)$/);
-  const releaseRoute = path.match(/^\/releases\/([^/]+)$/);
+  const releaseRoute = path.match(/^\/releases\/([^/]+)(?:\/(output))?$/);
   if (
     path !== '/projects' &&
     path !== '/approvals' &&
@@ -107,7 +108,10 @@ export async function releasesApi(
     if (releaseRoute && req.method === 'GET') {
       const project = url.searchParams.get('project');
       const projectId = project ? (await resolveProject(owner, project)).id : undefined;
-      return send({ release: releaseById(owner, decodeURIComponent(releaseRoute[1]), projectId) });
+      const release = releaseById(owner, decodeURIComponent(releaseRoute[1]), projectId);
+      if (releaseRoute[2] === 'output')
+        return send({ output: await releaseBuildOutput(owner, release.id) });
+      return send({ release });
     }
     if (projectRoute) {
       const project = await resolveProject(owner, decodeURIComponent(projectRoute[1]));

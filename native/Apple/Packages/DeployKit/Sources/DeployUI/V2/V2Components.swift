@@ -58,13 +58,20 @@ struct V2Row: View {
     var chevron = false
     var compact = false
     var pendingSubtitle = false
+    var titleHealth: V2AppPresentation.ProjectHealth? = nil
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 12) {
             if let identity { AgentAvatar(glyph: identity.glyph, color: identity.color, size: 30) } else if let avatar { V2Avatar(name: avatar, size: compact ? 32 : 26) }
             else { Image(systemName: attention ? "exclamationmark.circle" : icon).foregroundStyle(attention ? WorkspaceStyle.warning(scheme) : WorkspaceStyle.secondary(scheme)).frame(width: 20) }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 17)).foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(2)
+                HStack {
+                    Text(title).font(.system(size: 17)).foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(2)
+                    if let titleHealth {
+                        Spacer(minLength: 4)
+                        V2Status(state: titleHealth.state, label: titleHealth.label)
+                    }
+                }
                 if let subtitle, !subtitle.isEmpty { Text(subtitle).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme)).lineLimit(2) }
                 else if pendingSubtitle { V2Skeleton(width: 130, height: 9).frame(height: 18) }
             }.multilineTextAlignment(.leading)
@@ -167,11 +174,12 @@ struct V2Avatar: View {
 }
 struct V2Status: View {
     let state: HealthState
+    var label: String? = nil
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 4) {
             Circle().fill(color).frame(width: 5, height: 5)
-            Text(state.rawValue.capitalized).font(.system(size: 11))
+            Text(label ?? state.rawValue.capitalized).font(.system(size: 11))
         }.foregroundStyle(WorkspaceStyle.secondary(scheme))
     }
     private var color: Color {

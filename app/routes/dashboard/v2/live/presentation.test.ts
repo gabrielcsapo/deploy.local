@@ -57,15 +57,34 @@ test('Running describes a shared release, and never claims mixed releases have o
   assert.equal(appAddress({ ...app, address: undefined }), 'no address');
   assert.equal(
     runningSubtitle([app, { ...app, appId: 'jobs' }], 'gabriel/forma'),
-    'Release a1b2c3d from gabriel/forma on main, shipped 2:28 AM. Open an app for its health on Live.',
+    'Release a1b2c3d from gabriel/forma on main, shipped 2:28 AM. Open an app for its health, releases, logs and settings.',
   );
   assert.equal(
     runningSubtitle([app, { ...app, release: 'older' }], 'gabriel/forma'),
-    'Open an app for its health on Live.',
+    'Open an app for its health, releases, logs and settings.',
   );
-  assert.equal(runningSubtitle([]), 'Open an app for its health on Live.');
+  assert.equal(runningSubtitle([]), 'Open an app for its health, releases, logs and settings.');
   assert.equal(
     runningSubtitle([{ ...app, releasedAt: undefined, source: undefined }]),
-    'Release uuid. Open an app for its health on Live.',
+    'Release uuid. Open an app for its health, releases, logs and settings.',
   );
+});
+
+test('project health uses Live states with failure counts and no status for empty projects', async () => {
+  const { projectHealth } = await import('./presentation.ts');
+  const healthy = { state: 'healthy' as const, summary: 'GET /healthz 200' };
+  const failed = { state: 'failing' as const, summary: 'Jobs failing' };
+  const stopped = { state: 'stopped' as const, summary: 'Stopped by you' };
+  assert.equal(projectHealth([]), undefined);
+  assert.deepEqual(projectHealth([healthy]), { kind: 'healthy', label: 'Healthy' });
+  assert.deepEqual(projectHealth([healthy, failed, failed]), {
+    kind: 'failed',
+    label: '2 failing',
+  });
+  assert.deepEqual(
+    projectHealth([{ state: 'warning', summary: '92% of 4 GB for 20 min' }, healthy]),
+    { kind: 'attention', label: 'High memory' },
+  );
+  assert.deepEqual(projectHealth([stopped]), { kind: 'inactive', label: 'Not running' });
+  assert.deepEqual(projectHealth([stopped, healthy]), { kind: 'healthy', label: 'Healthy' });
 });

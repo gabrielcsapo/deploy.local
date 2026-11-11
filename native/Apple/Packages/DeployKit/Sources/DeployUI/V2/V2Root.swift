@@ -78,8 +78,8 @@ struct V2Tabs: View {
                         try? await Task.sleep(for: .seconds(1))
                     }
                 }
-                case .projects: V2ProjectsView(store: store, workspace: workspace)
-                case .live: V2LiveView(store: store, open: { app = $0 })
+                case .projects: V2ProjectsView(store: store, workspace: workspace, requestedApp: $app)
+                case .live: V2LiveView(store: store, open: { app = $0; tab = .projects })
                 case .computers: V2ComputersView(store: store)
                 case .settings: V2SettingsView(store: store, workspace: workspace)
                 }
@@ -111,9 +111,6 @@ struct V2Tabs: View {
             .sheet(isPresented: Binding(get: { agent != nil }, set: { if !$0 { agent = nil } })) {
                 if let agent { V2ConversationView(store: store, taskId: evidenceAgentTask ?? store.snapshot.agentTasks[agent], agent: agent) }
             }
-            .sheet(isPresented: Binding(get: { app != nil }, set: { if !$0 { app = nil } })) {
-                if let app { V2WorkerView(store: store, appId: app) }
-            }
             .sheet(isPresented: Binding(get: { decision != nil && !designDecision }, set: { if !$0 { decision = nil } })) {
                 if let item = store.snapshot.inbox.first(where: { $0.id == decision }) {
                     if item.kind == .question {
@@ -137,6 +134,7 @@ struct V2Tabs: View {
                 guard V2Evidence.agentsBoard == nil else { return }
                 let route = UserDefaults.standard.dictionary(forKey: "deploy.v2.notificationRoute") as? [String: String] ?? [:]
                 decision = route["inboxItemId"]; app = route["appId"]
+                if app != nil { tab = .projects }
                 UserDefaults.standard.removeObject(forKey: "deploy.v2.notificationRoute")
             }
             .task { openEvidence() }
@@ -149,7 +147,7 @@ struct V2Tabs: View {
                 let keys: [String]
                 switch old {
                 case .work: keys = workKeys
-                case .projects: keys = ["projects"]
+                case .projects: keys = ["projects", "live"]
                 case .live: keys = ["live"]
                 case .computers: keys = ["computers", "workspace"]
                 case .settings: keys = []
@@ -163,19 +161,19 @@ struct V2Tabs: View {
             .onChange(of: store.snapshot.updatedAt) { _, _ in openEvidence() }
             .onChange(of: store.selectedTaskId) { _, id in if id != nil { task = id } }
             .onChange(of: store.openedInboxId) { _, id in decision = id }
-            .onChange(of: store.openedAppId) { _, id in app = id }
+            .onChange(of: store.openedAppId) { _, id in if let id { app = id; tab = .projects } }
             .onReceive(NotificationCenter.default.publisher(for: .v2OpenNotification)) { notification in
                 if let id = notification.userInfo?["inboxItemId"] as? String { decision = id }
-                if let id = notification.userInfo?["appId"] as? String { tab = .live; app = id }
+                if let id = notification.userInfo?["appId"] as? String { tab = .projects; app = id }
                 Task { await store.refresh() }
             }
     }
-    private var modalOpen: Bool { compose || newAgent || inbox || task != nil || agent != nil || app != nil || decision != nil || signIn }
+    private var modalOpen: Bool { compose || newAgent || inbox || task != nil || agent != nil || decision != nil || signIn }
     private var workKeys: [String] { ["agents", "waiting", "workspace"] }
     private var visibleKeys: [String] {
         switch tab {
         case .work: workKeys
-        case .projects: ["projects"]
+        case .projects: ["projects", "live"]
         case .live: ["live"]
         case .computers: ["computers", "workspace"]
         case .settings: []
@@ -208,10 +206,10 @@ struct V2Tabs: View {
         case "ChangesPhone", "AttachPhone", "AttachedPhone", "ModelPhone": task = "meal"
         case "AnsweredPhone": answered = true; inbox = true
         case "LivePhone", "LiveLoadingPhone": tab = .live
-        case "WorkerPhone": tab = .live; app = "home-gym-sync"
+        case "WorkerPhone": tab = .projects; app = "home-gym-sync"
         case "Phone", "RollbackPhone": evidenceAgentTask = "warden"; agent = "warden"
         case "ScoutPhone", "AgentInfoPhone", "AgentMenuPhone": evidenceAgentTask = "scout"; agent = "scout"
-        case "ProjectsLoadingPhone", "ProjectPhone", "ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone": tab = .projects
+        case "ProjectsCarePhone", "ProjectsLoadingPhone", "ProjectPhone", "ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone": tab = .projects
         case "ComputePhone": tab = .computers
         case "SettingsPhone", "SettingsApprovalsPhone", "RestorePhone", "PackagesPhone", "PackageVersionsPhone", "SettingsPackagesRowPhone": tab = .settings
         default: break

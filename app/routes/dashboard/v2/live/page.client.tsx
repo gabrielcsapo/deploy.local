@@ -13,7 +13,6 @@ import {
   Item,
   Skeleton,
   Status,
-  Tabs,
   Term,
 } from '@/components/ui';
 import type {
@@ -30,9 +29,15 @@ import { liveRequest, useLive } from './data';
 import { formatTime } from '../data/time';
 import { authenticatedFetch } from '../data/hooks';
 import { useData, type Overview as ProjectOverview } from '../projects/data';
-import { projectPath, projectSegment } from '../projects/routing';
+import { appPath, projectPath } from '../projects/routing';
 import './style.css';
-import { appAddress, latestError, releaseLabel, repositoryName } from './presentation';
+import {
+  appAddress,
+  appHealthLabel,
+  latestError,
+  releaseLabel,
+  repositoryName,
+} from './presentation';
 
 const roles: Record<Role, string> = {
   coordinator: 'Coordinator',
@@ -41,7 +46,6 @@ const roles: Record<Role, string> = {
   'serve-models': 'Serve models',
   'use-screen': 'Use the screen',
 };
-const appPath = (app: string) => `/dashboard/live/${projectSegment(app)}`;
 const age = (at?: string) => formatTime(at, 'elapsed');
 function StartApp({ appId, refresh }: { appId: string; refresh: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -188,20 +192,7 @@ function HealthStatus({ app }: { app: AppHealth }) {
               : 'healthy'
       }
     >
-      {app.state === 'warning' && /memory|% of \d+(?:\.\d+)? GB/i.test(app.summary)
-        ? 'High memory'
-        : {
-            healthy: 'Healthy',
-            warning: app.summary.includes('baseline')
-              ? 'Learning baseline'
-              : app.summary.includes('overdue')
-                ? 'Report overdue'
-                : app.summary.includes('waiting')
-                  ? 'Queue delayed'
-                  : 'Checks unavailable',
-            failing: 'Failing',
-            stopped: 'Stopped',
-          }[app.state]}
+      {appHealthLabel(app)}
     </Status>
   );
 }
@@ -257,7 +248,7 @@ function Decision({
               {item.actions.find((action) => action.id === 'rollback')?.label ?? 'Roll back'}
             </Action>
             {worker && (
-              <a className="dl-btn secondary" href={appPath(worker.appId)}>
+              <a className="dl-btn secondary" href={appPath(worker)}>
                 Open worker
               </a>
             )}
@@ -383,7 +374,7 @@ function Computer({
               <tr key={app.appId}>
                 <td className="dl-name">
                   <div className="live-stack">
-                    <a href={appPath(app.appId)}>{app.name}</a>
+                    <a href={appPath(app)}>{app.name}</a>
                     <span className="dl-meta dl-truncate">
                       <ProjectOrigin app={app} names={names} />
                       {' · '}
@@ -509,7 +500,7 @@ function Overview({
                     <Icon name="folder" size={12} />
                   </Glyph>
                 }
-                title={app.name}
+                title={<a href={appPath(app)}>{app.name}</a>}
                 description={
                   <>
                     <ProjectOrigin app={app} names={names} /> · {app.summary}
@@ -598,7 +589,7 @@ function ProvenanceCell({
     </Cell>
   );
 }
-function Worker({
+export function AppDetail({
   detail,
   live,
   items,
@@ -613,34 +604,18 @@ function Worker({
 }) {
   const app = detail.app;
   const overview = useData<ProjectOverview>(
-    app.project && !app.project.startsWith('app:')
-      ? `/api/v2/projects/${encodeURIComponent(app.project)}/overview`
-      : undefined,
+    `/api/v2/projects/${encodeURIComponent(app.project || `app:${app.name}`)}/overview`,
   );
   const repository = overview.data?.repository;
   const source = detail.release?.source ?? app.source;
   const computer = live.computers.find((c) => c.apps.some((a) => a.appId === app.appId));
-  const project = app.project && projectPath(app.project);
+  const project = projectPath(app.project || `app:${app.name}`);
   const decision = items.find((item) => item.kind === 'rollback' && item.projectId === app.project);
   const siblings = live.computers
     .flatMap((c) => c.apps)
     .filter((a) => detail.release?.apps.some((entry) => entry.appId === a.appId));
   return (
     <>
-      <Tabs
-        value={appPath(app.appId)}
-        items={[
-          { label: 'Overview', href: appPath(app.appId) },
-          ...(project
-            ? [
-                {
-                  label: 'Settings',
-                  href: `${project}/apps/${encodeURIComponent(app.appId)}/settings`,
-                },
-              ]
-            : []),
-        ]}
-      />
       <div className="dl-page-head">
         <div className="dl-t">
           <h1 className="dl-title live-title">
@@ -651,28 +626,14 @@ function Worker({
           </span>
         </div>
         <span className="dl-end">
-          {project && (
-            <a
-              className="dl-btn secondary"
-              href={`${project}/logs?app=${encodeURIComponent(app.appId)}`}
-            >
-              Logs
-            </a>
-          )}
           {decision && project && <RollbackAction item={decision} refresh={refresh} />}
         </span>
       </div>
       <div className="dl-group live-provenance" aria-label="Where it comes from">
         <ProvenanceCell
           label="Project"
-          href={app.project && !app.project.startsWith('app:') ? project || undefined : undefined}
-          value={
-            app.project && !app.project.startsWith('app:')
-              ? (projectName ?? 'Unavailable')
-              : app.fromDiscover
-                ? 'From Discover'
-                : 'No project'
-          }
+          href={project}
+          value={projectName ?? overview.data?.project.name ?? app.name}
           description={
             overview.data
               ? `${overview.data.project.apps.length} ${overview.data.project.apps.length === 1 ? 'app' : 'apps'}, one release`
@@ -695,7 +656,7 @@ function Worker({
           label="Release"
           href={
             app.release && project
-              ? `${project}/releases/${encodeURIComponent(app.release)}`
+              ? `${project}/releases/${encodeURIComponent(app.release)}?app=${encodeURIComponent(app.appId)}`
               : undefined
           }
           value={
@@ -777,7 +738,7 @@ function Worker({
               app.state === 'stopped'
                 ? 'Not running'
                 : app.restarts
-                  ? `Restarted ${app.restarts.count} times in ${app.restarts.windowSec / 60} min`
+                  ? `Running · restarted ${app.restarts.count} times in ${app.restarts.windowSec / 60} min`
                   : 'Restart history unavailable'
             }
             lead={
@@ -827,7 +788,7 @@ function Worker({
                 key={sibling.appId}
                 title={sibling.name}
                 description={sibling.kind === 'worker' ? 'Worker' : 'Web app'}
-                href={sibling.appId !== app.appId ? appPath(sibling.appId) : undefined}
+                href={sibling.appId !== app.appId ? appPath(sibling) : undefined}
                 lead={
                   <Glyph kind="plain">
                     <Icon name="folder" size={12} />
@@ -880,7 +841,9 @@ export default function LivePage() {
   const names = Object.fromEntries(
     projects.data?.projects.map((project) => [project.id, project.name]) ?? [],
   );
-  const projectName = detail?.app.project ? names[detail.app.project] : undefined;
+  useEffect(() => {
+    if (appId && detail) window.location.replace(appPath(detail.app));
+  }, [appId, detail]);
   return (
     <>
       <Head
@@ -930,14 +893,8 @@ export default function LivePage() {
                 slowLabel="Live is taking longer than usual"
               />
             )
-          ) : appId && detail ? (
-            <Worker
-              detail={detail}
-              live={live}
-              items={items}
-              projectName={projectName}
-              refresh={retry}
-            />
+          ) : appId ? (
+            <Skeleton rows={5} label="Opening app" />
           ) : (
             <Overview live={live} items={items} names={names} refresh={retry} />
           )}

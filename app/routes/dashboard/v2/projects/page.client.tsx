@@ -1,5 +1,5 @@
 'use client';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
@@ -14,11 +14,12 @@ import {
   IconButton,
   Item,
   Skeleton,
+  Status,
   Tabs,
 } from '@/components/ui';
 import type { LiveResponse, Project, Release } from '../../../../../shared/v2/contracts';
 import { request, useData, type Overview, type Work } from './data';
-import { projectPath, projectSegment, projectTabItems } from './routing';
+import { appPath, appTabItems, projectPath, projectSegment, projectTabItems } from './routing';
 import { AppOverview, Health, ReleaseList } from './app.client';
 import { ProjectCode, ProjectIssues } from './code.client';
 import { ProjectConfiguration } from './settings.client';
@@ -34,12 +35,18 @@ import { remembered, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
 import { parsePatch } from '../tasks/api';
-import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
+import {
+  appAddress,
+  projectHealth,
+  releaseLabel,
+  repositoryName,
+  runningSubtitle,
+} from '../live/presentation';
 
 function Header({
   title,
   subtitle,
-  newTask = true,
+  newTask = false,
 }: {
   title: ReactNode;
   subtitle?: string;
@@ -59,7 +66,7 @@ function Header({
         />
       }
       actions={
-        subtitle === 'Project' && newTask ? (
+        newTask ? (
           <a className="dl-btn primary" href="/dashboard">
             New task
           </a>
@@ -133,7 +140,7 @@ function Account() {
 }
 function ProjectList() {
   const projects = useData<{ projects: Project[] }>('/api/v2/projects');
-  const live = useData<LiveResponse>('/api/v2/live');
+  const live = useResource<LiveResponse>('/api/v2/live');
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -169,7 +176,7 @@ function ProjectList() {
               const apps = live.data?.computers
                 .flatMap((computer) => computer.apps)
                 .filter((app) => project.apps.some((entry) => entry.id === app.appId));
-              const failed = apps?.find((app) => app.state === 'failing');
+              const health = projectHealth(apps ?? []);
               return (
                 <Item
                   key={project.id}
@@ -186,7 +193,11 @@ function ProjectList() {
                         ? apps?.[0]?.address || '1 app'
                         : 'Repository only · no app'
                   }
-                  end={project.apps.length ? <Health app={failed || apps?.[0]} /> : undefined}
+                  end={
+                    project.apps.length && health ? (
+                      <Status kind={health.kind}>{health.label}</Status>
+                    ) : undefined
+                  }
                   href={projectPath(project.id)}
                 />
               );
@@ -275,15 +286,24 @@ function ProjectPage({
     ) ?? [];
   const params = new URLSearchParams(search);
   const appList = section === '' && params.get('tab') === 'apps';
+  const single = project?.apps.length === 1;
+  const contextApp = params.get('app');
   const selectedApp = appKey
     ? project?.apps.find((app) => app.id === appKey || app.name === appKey)
-    : undefined;
+    : section === 'logs' && contextApp
+      ? project?.apps.find((app) => app.id === contextApp || app.name === contextApp)
+      : undefined;
+  const pageApp = selectedApp ?? (single ? project?.apps[0] : undefined);
+  useEffect(() => {
+    if (single && selectedApp && section === 'apps' && !appSettings && !appRequests)
+      window.location.replace(base);
+  }, [single, selectedApp, section, appSettings, appRequests, base]);
   const appBase = selectedApp ? `${base}/apps/${projectSegment(selectedApp.name)}` : '';
   // A one-app project is its own app page, so its requests live at the project's /requests.
   const requestsApp =
     selectedApp ??
     (section === 'requests' && project?.apps.length === 1 ? project.apps[0] : undefined);
-  const requestsBase = selectedApp ? `${appBase}/requests` : `${base}/requests`;
+  const requestsBase = selectedApp && !single ? `${appBase}/requests` : `${base}/requests`;
   const showRequests =
     !!requestsApp && (appRequests || section === 'requests') && requestsApp.kind !== 'worker';
   const liveAddress = live.data?.computers
@@ -301,11 +321,22 @@ function ProjectPage({
     !!data?.repository?.empty &&
     !data.tasks.length &&
     !project?.apps.length;
-  const single =
-    project?.apps.length === 1 &&
-    !data?.tasks.length &&
-    !data?.pulls.length &&
-    !data?.issues.length;
+  const tabs =
+    pageApp && !single ? appTabItems(base, pageApp) : projectTabItems(base, data, releases.length);
+  const activeLabel = appSettings
+    ? 'Settings'
+    : showRequests
+      ? 'Requests'
+      : appList
+        ? 'Apps'
+        : ({
+            logs: 'Logs',
+            code: 'Code',
+            pulls: 'Pull requests',
+            issues: 'Issues',
+            pipelines: 'Pipelines',
+            settings: 'Settings',
+          }[section] ?? 'Overview');
   async function addApp() {
     setBusy(true);
     setError('');
@@ -328,7 +359,7 @@ function ProjectPage({
         title={
           (showRequests && requestId && (
             <nav className="v2-crumbs" aria-label="Breadcrumb">
-              <a href={selectedApp ? appBase : base}>{requestsApp!.name}</a>
+              <a href={selectedApp && !single ? appBase : base}>{requestsApp!.name}</a>
               <Icon name="chevron" size={14} />
               <a href={requestsBase}>Requests</a>
               <Icon name="chevron" size={14} />
@@ -337,7 +368,23 @@ function ProjectPage({
               </span>
             </nav>
           )) ||
-          selectedApp?.name ||
+          (pageApp && (
+            <nav className="v2-crumbs" aria-label="Breadcrumb">
+              <a href="/dashboard/projects">Projects</a>
+              <Icon name="chevron" size={14} />
+              {single ? (
+                <span aria-current="page">{project?.name}</span>
+              ) : (
+                <>
+                  <a href={base}>{project?.name}</a>
+                  <Icon name="chevron" size={14} />
+                  <span className="dl-truncate" aria-current="page">
+                    {pageApp.name}
+                  </span>
+                </>
+              )}
+            </nav>
+          )) ||
           project?.name ||
           // Until the project loads, its name from the project list, never its ID.
           remembered<{ projects: Project[] }>('/api/v2/projects')?.projects.find(
@@ -346,13 +393,13 @@ function ProjectPage({
           ''
         }
         subtitle={
-          showRequests && requestId
+          (showRequests && requestId) || pageApp
             ? undefined
             : selectedApp
               ? `${selectedApp.kind === 'worker' ? 'Worker' : 'Web app'} in ${project?.name}`
               : 'Project'
         }
-        newTask={!starting}
+        newTask={!starting && !selectedApp}
       />
       <div className="dl-scroll">
         <div
@@ -377,38 +424,9 @@ function ProjectPage({
             data && (
               <>
                 <Tabs
-                  value={
-                    selectedApp
-                      ? `${appBase}${appSettings ? '/settings' : appRequests ? '/requests' : ''}`
-                      : appList
-                        ? `${base}?tab=apps`
-                        : section
-                          ? `${base}/${section}`
-                          : base
-                  }
-                  items={
-                    selectedApp
-                      ? [
-                          {
-                            label: 'Overview',
-                            href: `${base}/apps/${projectSegment(selectedApp.name)}`,
-                          },
-                          ...(selectedApp.kind === 'worker'
-                            ? []
-                            : [{ label: 'Requests', href: `${appBase}/requests` }]),
-                          {
-                            label: 'Settings',
-                            href: `${base}/apps/${projectSegment(selectedApp.name)}/settings`,
-                          },
-                        ]
-                      : projectTabItems(base, data, releases.length)
-                  }
+                  value={tabs.find((tab) => tab.label === activeLabel)?.href ?? base}
+                  items={tabs}
                 />
-                {selectedApp && (
-                  <a className="dl-meta" href={base}>
-                    ← {project.name}
-                  </a>
-                )}
                 {history.error && (
                   <Banner
                     title="Release history is unavailable"
@@ -433,6 +451,7 @@ function ProjectPage({
                     app={selectedApp}
                     overview={data}
                     releases={releases}
+                    single={single}
                     settings={appSettings}
                   />
                 ) : section === 'apps' ? (
@@ -460,11 +479,14 @@ function ProjectPage({
                       app={project.apps[0]}
                       overview={data}
                       releases={releases}
+                      single
                     />
-                    <p className="dl-meta">
-                      Pull requests and issues get their own tabs once there are some. Add a second
-                      app and an Apps tab appears.
-                    </p>
+                    {!data.pulls.length && !data.issues.length && (
+                      <p className="dl-meta">
+                        Pull requests and issues get their own tabs once there are some. Add a
+                        second app and an Apps tab appears.
+                      </p>
+                    )}
                     <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
                   </>
                 ) : (
@@ -548,7 +570,7 @@ function ProjectPage({
                               }
                               description={`${app.kind === 'worker' ? 'Worker' : 'Web app'} · ${appAddress(app)} · ${computer}`}
                               end={<Health app={app} />}
-                              href={`/dashboard/live/${projectSegment(app.appId)}`}
+                              href={appPath(app)}
                             >
                               <span className="dl-c dl-mono dl-hide-narrow">
                                 {releaseLabel(app.release, app.source)}

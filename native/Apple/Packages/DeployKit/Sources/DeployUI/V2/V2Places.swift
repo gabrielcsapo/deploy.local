@@ -81,39 +81,46 @@ struct V2WorkerView: View {
     @State private var read = V2Read<V2LiveApp>()
     private var detail: V2LiveApp? { read.value }
     @State private var error: String?
-    @Environment(\.dismiss) private var dismiss
     private var app: V2LiveApp? { detail ?? store.snapshot.live?.computers.flatMap(\.apps).first { $0.id == appId } }
+    private var project: V2Project? {
+        guard let app else { return nil }
+        return store.snapshot.projects.first { $0.id == V2AppPresentation.projectID(for: app) }
+    }
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    V2LoadRegion(state: read.state, copy: .resource("App details"), lastHeard: store.snapshot.updatedAt, status: true, retry: { await load() }) {
-                        if let app {
-                            HStack { V2Status(state: app.state); Text([app.kind.rawValue.capitalized, app.project, app.release].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.secondary) }
-                            V2Group(title: "Health") {
-                                if let jobs = app.jobs { V2Row(title: "Jobs", subtitle: "\(Int(jobs.failRate * 100))% failing · usually \(Int(jobs.baselineFailRate * 100))%", icon: "chart.line.uptrend.xyaxis") }
-                                if let queue = app.queue { Divider(); V2Row(title: "Queue", subtitle: "\(Int(queue.depth).formatted()) waiting · oldest \(Int(queue.oldestSec / 60)) min", icon: "tray") }
-                                if let process = app.restarts { Divider(); V2Row(title: "Process", subtitle: "Restarted \(Int(process.count)) times in \(Int(process.windowSec / 60)) min", icon: "arrow.clockwise") }
-                                if let heartbeat = app.heartbeatAt { Divider(); V2Row(title: "Heartbeat", subtitle: V2Store.date(heartbeat)?.formatted(.relative(presentation: .named)) ?? heartbeat, icon: "checkmark.circle") }
-                                if let http = app.http { V2Row(title: "HTTP \(Int(http.status))", subtitle: "\(Int(http.p95ms)) ms p95 · \(Int(http.reqPerMin)) req/min", icon: "network") }
-                                if app.jobs == nil && app.http == nil { V2Row(title: "Status", subtitle: app.summary, icon: "waveform.path.ecg") }
-                            }
-                            if let release = app.release {
-                                V2Group(title: "Release \(release)") {
-                                    ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == app.project && $0.release == release } ?? []) { sibling in V2Row(title: sibling.name, subtitle: sibling.kind == .worker ? "Worker" : "Web app", state: sibling.state) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                V2LoadRegion(state: read.state, copy: .resource("App details"), lastHeard: store.snapshot.updatedAt, status: true, retry: { await load() }) {
+                    if let app {
+                        HStack { V2Status(state: app.state); Text([app.kind == .worker ? "Worker" : "Web app", project.map { "part of \($0.name)" }, app.release].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.secondary) }
+                        V2Group(title: "Health") {
+                            if let jobs = app.jobs { V2Row(title: "Jobs", subtitle: "\(Int(jobs.failRate * 100))% failing · usually \(Int(jobs.baselineFailRate * 100))%", icon: "chart.line.uptrend.xyaxis") }
+                            if let queue = app.queue { Divider(); V2Row(title: "Queue", subtitle: "\(Int(queue.depth).formatted()) waiting · oldest \(Int(queue.oldestSec / 60)) min", icon: "tray") }
+                            if let process = app.restarts { Divider(); V2Row(title: "Process", subtitle: "Restarted \(Int(process.count)) times in \(Int(process.windowSec / 60)) min", icon: "arrow.clockwise") }
+                            if let heartbeat = app.heartbeatAt { Divider(); V2Row(title: "Heartbeat", subtitle: V2Store.date(heartbeat)?.formatted(.relative(presentation: .named)) ?? heartbeat, icon: "checkmark.circle") }
+                            if let http = app.http { V2Row(title: "HTTP \(Int(http.status))", subtitle: "\(Int(http.p95ms)) ms p95 · \(Int(http.reqPerMin)) req/min", icon: "network") }
+                            if app.jobs == nil && app.http == nil { V2Row(title: "Status", subtitle: app.summary, icon: "waveform.path.ecg") }
+                        }
+                        if let project {
+                            V2Group(title: "App") {
+                                NavigationLink { V2ReleasesView(store: store, project: project) } label: {
+                                    V2Row(title: "Releases", subtitle: [app.release, app.releasedAt.flatMap { V2Store.date($0) }.map { "live since \($0.formatted(date: .omitted, time: .shortened))" }].compactMap { $0 }.joined(separator: " · "), icon: "shippingbox")
                                 }
                             }
-                            if let decision = store.waiting.first(where: { $0.kind == .rollback && $0.projectId == app.project }) { V2Decision(item: decision, store: store) }
                         }
-                        if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
+                        if let release = app.release {
+                            V2Group(title: "Release \(release)") {
+                                ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == app.project && $0.release == release } ?? []) { sibling in V2Row(title: sibling.name, subtitle: sibling.kind == .worker ? "Worker" : "Web app", state: sibling.state) }
+                            }
+                        }
+                        if let decision = store.waiting.first(where: { $0.kind == .rollback && $0.projectId == app.project }) { V2Decision(item: decision, store: store) }
                     }
-                }.padding(16)
-            }.background(Color(.systemGroupedBackground)).navigationTitle(app?.name ?? appId).navigationBarTitleDisplayMode(.inline)
-                .toolbar { Button("Done") { dismiss() } }
-                .task(id: appId) { await load() }.refreshable { await load() }
-                .onDisappear { read.leave() }
-                .loadingHeader(title: app?.name ?? appId, read.state)
-        }
+                    if let error { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
+                }
+            }.padding(16)
+        }.background(Color(.systemGroupedBackground)).navigationTitle(app?.name ?? appId).navigationBarTitleDisplayMode(.inline)
+            .task(id: appId) { await load() }.refreshable { await load() }
+            .onDisappear { read.leave() }
+            .loadingHeader(title: app?.name ?? appId, read.state)
     }
     private func load() async {
         let cached = store.snapshot.live?.computers.flatMap(\.apps).first { $0.id == appId }
@@ -121,32 +128,65 @@ struct V2WorkerView: View {
     }
 
 }
+enum V2ProjectRoute: Hashable {
+    case project(String)
+    case app(String)
+}
+
 struct V2ProjectsView: View {
     @Bindable var store: V2Store
     @Bindable var workspace: WorkspaceStore
-    @State private var selected: V2Project?
+    @Binding var requestedApp: String?
+    @State private var path: [V2ProjectRoute] = []
     @State private var detailLoading: [V2LoadState] = []
     var body: some View {
-        NavigationStack {
-            V2Page(title: "Projects", loading: [store.loadState("projects")] + detailLoading) {
+        NavigationStack(path: $path) {
+            V2Page(title: "Projects", loading: [store.loadState("projects")]) {
                 V2LoadRegion(state: store.loadState("projects"), copy: .projects, lastHeard: store.snapshot.resourceDates["projects"], icons: false, skeleton: AnyView(V2GroupedSkeleton(projects: true)),
-                             retry: { await store.refreshResources(["projects"]) }) {
+                             retry: { await store.refreshResources(["projects", "live"]) }) {
                     V2Group(title: "Projects") {
                         ForEach(store.snapshot.projects) { project in
-                            Button { selected = project } label: { V2Row(title: project.name, subtitle: project.summary ?? summary(project.id), icon: "folder",
-                                pendingSubtitle: project.summary == nil && !store.loadState("workspace").hasData && !store.loadState("live").hasData && (store.loadState("workspace").showsSkeleton || store.loadState("live").showsSkeleton)) }
+                            let apps = store.snapshot.live?.computers.flatMap(\.apps).filter { V2AppPresentation.projectID(for: $0) == project.id } ?? []
+                            NavigationLink(value: V2ProjectRoute.project(project.id)) {
+                                V2Row(title: project.name, subtitle: project.summary ?? summary(project.id), icon: "folder",
+                                      pendingSubtitle: project.summary == nil && !store.loadState("workspace").hasData && !store.loadState("live").hasData && (store.loadState("workspace").showsSkeleton || store.loadState("live").showsSkeleton),
+                                      titleHealth: project.apps?.isEmpty == true ? nil : V2AppPresentation.health(apps))
+                            }
                             if project.id != store.snapshot.projects.last?.id { Divider().padding(.leading, 46) }
                         }
                     }
                     if store.snapshot.projects.isEmpty { V2Empty(title: "No projects yet", message: "Describe what you want to build in Work.") }
-                    if let project = selected ?? store.snapshot.projects.first { V2ProjectSection(store: store, project: project, status: { detailLoading = $0 }) }
                     if let error = store.projectsError { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
                 }
-            }.refreshable { await store.refreshResources(["projects"]) }
+            }.refreshable { await store.refreshResources(["projects", "live"]) }
+                .navigationDestination(for: V2ProjectRoute.self) { route in
+                    switch route {
+                    case .project(let id):
+                        if let project = store.snapshot.projects.first(where: { $0.id == id }) {
+                            V2Page(title: project.name, loading: detailLoading) {
+                                V2ProjectSection(store: store, project: project, status: { detailLoading = $0 })
+                            }.navigationTitle(project.name).navigationBarTitleDisplayMode(.inline)
+                        }
+                    case .app(let id): V2WorkerView(store: store, appId: id)
+                    }
+                }
+                .onChange(of: requestedApp, initial: true) { _, _ in openRequestedApp() }
+                .onChange(of: store.snapshot.projects) { _, _ in openRequestedApp() }
+                .onChange(of: store.snapshot.live) { _, _ in openRequestedApp() }
         }
     }
+    private func openRequestedApp() {
+        guard let id = requestedApp else { return }
+        let app = store.snapshot.live?.computers.flatMap(\.apps).first { $0.id == id }
+        let project = store.snapshot.projects.first { project in
+            project.apps?.contains(where: { $0.id == id || $0.name == id }) == true || app.map { V2AppPresentation.projectID(for: $0) == project.id } == true
+        }
+        guard let project else { return }
+        path = [.project(project.id), .app(id)]
+        requestedApp = nil
+    }
     private func summary(_ id: String) -> String {
-        let apps = store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == id } ?? []
+        let apps = store.snapshot.live?.computers.flatMap(\.apps).filter { V2AppPresentation.projectID(for: $0) == id } ?? []
         if apps.isEmpty { return store.loadState("workspace").hasData ? "\(store.tasks.filter { $0.projectId == id }.count) tasks" : "" }
         let failing = apps.filter { $0.state == .failing }.count
         return failing > 0 ? "\(failing) of \(apps.count) apps failing" : "\(apps.count) apps · Live"
