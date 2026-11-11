@@ -31,6 +31,14 @@ import {
   removeAgentDockerObjects,
 } from './agent-services.mjs';
 import { loadWorkerConfig, enableWorkerTlsTrust } from './worker-runtime.mjs';
+import {
+  ensureRelay,
+  publishedHostPort,
+  relayRepairs,
+  containerHasRelay,
+  reportedApps,
+  runtimeStartCommand,
+} from './agent-relays.mjs';
 import { readNodeStatus } from '../server/workspace/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
@@ -80,7 +88,6 @@ import {
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { connect, createServer } from 'node:net';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { getCACertificates, setDefaultCACertificates } from 'node:tls';
@@ -887,38 +894,20 @@ function agentCapabilities() {
           { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
         )
       : null;
-  const reportedApps =
+  const apps =
     containers?.status === 0
-      ? containers.stdout
-          .trim()
-          .split('\n')
-          .filter(Boolean)
-          .map((line) => {
-            const [id, containerName, status, detail, graphDeploymentName] = line.split('\t');
-            const name =
-              graphDeploymentName ||
-              containerName.replace(/^deploy-sh-/, '').replace(/-prev-\d+$/, '');
-            const relay = agentRelays.get(name);
-            return {
-              id,
-              name,
-              containerName,
-              status,
-              detail,
-              relayPort:
-                !relay?.containerName || relay.containerName === containerName
-                  ? relay?.relayPort
-                  : undefined,
-            };
-          })
-          .filter((app) => app.containerName.startsWith('deploy-sh-'))
+      ? reportedApps(
+          containers.stdout
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => {
+              const [id, containerName, status, detail, label] = line.split('\t');
+              return { id, containerName, status, detail, label };
+            }),
+          agentRelayList(),
+        )
       : [];
-  const apps = reportedApps.reduce((selected, app) => {
-    const existing = selected.findIndex((candidate) => candidate.name === app.name);
-    if (existing === -1) selected.push(app);
-    else if (app.relayPort) selected[existing] = app;
-    return selected;
-  }, []);
   return {
     cpuCount: cpus().length,
     memoryBytes: totalmem(),
@@ -933,6 +922,16 @@ function agentCapabilities() {
             .slice(0, 240),
     apps,
   };
+}
+
+function agentRelayList() {
+  return [...agentRelays.entries()].map(([name, relay]) => ({
+    name,
+    targetPort: relay.targetPort,
+    relayPort: relay.relayPort,
+    wantedPort: relay.wantedPort,
+    containerName: relay.containerName,
+  }));
 }
 
 function agentLanAddress() {
@@ -1294,69 +1293,19 @@ function persistAgentRelays() {
     deploymentName,
     targetPort: relay.targetPort,
     relayPort: relay.relayPort,
+    wantedPort: relay.wantedPort,
     containerName: relay.containerName,
   }));
   writeFileSync(agentRelayStatePath(), JSON.stringify(relays, null, 2));
 }
 
-function listenAgentRelay(server, preferredPort) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const onError = (err) => {
-      server.off('listening', onListening);
-      rejectPromise(err);
-    };
-    const onListening = () => {
-      server.off('error', onError);
-      resolvePromise(server.address().port);
-    };
-    server.once('error', onError);
-    server.once('listening', onListening);
-    server.listen(preferredPort || 0);
+function ensureAgentRelay(deploymentName, targetPort, preferredPort, containerName) {
+  return ensureRelay(agentRelays, persistAgentRelays, {
+    name: deploymentName,
+    targetPort,
+    preferredPort,
+    containerName,
   });
-}
-
-async function ensureAgentRelay(deploymentName, targetPort, preferredPort, containerName) {
-  const previous = agentRelays.get(deploymentName);
-  if (
-    previous &&
-    previous.targetPort === targetPort &&
-    (!preferredPort || previous.relayPort === preferredPort)
-  ) {
-    return previous.relayPort;
-  }
-  if (previous) {
-    for (const socket of previous.sockets) socket.destroy();
-    await new Promise((resolvePromise) => previous.server.close(resolvePromise));
-    agentRelays.delete(deploymentName);
-  }
-  const sockets = new Set();
-  const server = createServer((client) => {
-    const target = connect({ host: '127.0.0.1', port: targetPort });
-    sockets.add(client);
-    sockets.add(target);
-    client.pipe(target);
-    target.pipe(client);
-    const close = () => {
-      sockets.delete(client);
-      sockets.delete(target);
-      client.destroy();
-      target.destroy();
-    };
-    client.on('close', close);
-    target.on('close', close);
-    client.on('error', close);
-    target.on('error', close);
-  });
-  let relayPort;
-  try {
-    relayPort = await listenAgentRelay(server, preferredPort);
-  } catch (err) {
-    if (!preferredPort) throw err;
-    relayPort = await listenAgentRelay(server, 0);
-  }
-  agentRelays.set(deploymentName, { server, sockets, targetPort, relayPort, containerName });
-  persistAgentRelays();
-  return relayPort;
 }
 
 async function restoreAgentRelays() {
@@ -1378,7 +1327,7 @@ async function restoreAgentRelays() {
       await ensureAgentRelay(
         relay.deploymentName,
         relay.targetPort,
-        relay.relayPort,
+        Number.isInteger(relay.wantedPort) ? relay.wantedPort : relay.relayPort,
         relay.containerName,
       );
     } catch (err) {
@@ -1387,28 +1336,98 @@ async function restoreAgentRelays() {
   }
 }
 
-async function discoverAgentRelays() {
+function runningAppHostPorts() {
   const containers = spawnSync(
     'docker',
     ['ps', '--filter', 'name=deploy-sh-', '--format', '{{.Names}}'],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
   );
-  if (containers.status !== 0) return;
+  if (containers.status !== 0) return null;
+  const hostPorts = new Map();
   for (const containerName of containers.stdout.trim().split('\n').filter(Boolean)) {
     if (!/^deploy-sh-.+/.test(containerName) || /-prev-\d+$/.test(containerName)) continue;
-    const deploymentName = containerName.replace(/^deploy-sh-/, '');
-    if (agentRelays.has(deploymentName)) continue;
     const ports = spawnSync('docker', ['port', containerName], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    const targetPort = Number(ports.stdout.match(/->\s+.*:(\d+)\s*$/m)?.[1] || 0);
-    if (!Number.isInteger(targetPort) || targetPort <= 0) continue;
+    const hostPort = publishedHostPort(ports.stdout);
+    if (Number.isInteger(hostPort) && hostPort > 0) hostPorts.set(containerName, hostPort);
+  }
+  return hostPorts;
+}
+
+async function discoverAgentRelays(hostPorts = runningAppHostPorts()) {
+  if (!hostPorts) return;
+  for (const [containerName, targetPort] of hostPorts) {
+    if (containerHasRelay(agentRelayList(), containerName)) continue;
+    const deploymentName = containerName.replace(/^deploy-sh-/, '');
     try {
       await ensureAgentRelay(deploymentName, targetPort);
     } catch (err) {
       console.error(`Unable to expose ${deploymentName} to the coordinator: ${err.message}`);
     }
+  }
+}
+
+let startingRuntimeAt = 0;
+
+/** Colima has no service of its own; without this nothing starts it after the Mac restarts. */
+function startContainerRuntime() {
+  if (Date.now() - startingRuntimeAt < 5 * 60_000) return;
+  const context = spawnSync(
+    'docker',
+    ['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+  );
+  const start = runtimeStartCommand({
+    platform: platform(),
+    dockerHost: process.env.DOCKER_HOST || (context.status === 0 ? context.stdout.trim() : ''),
+  });
+  if (!start) return;
+  startingRuntimeAt = Date.now();
+  console.log(`Docker is not running; starting it with ${start.command} ${start.args.join(' ')}`);
+  const child = spawn(start.command, start.args, { stdio: 'ignore', detached: true });
+  child.on('error', (err) => console.error(`Unable to start ${start.command}: ${err.message}`));
+  child.on('exit', (code) => {
+    if (code) console.error(`${start.command} ${start.args.join(' ')} exited with ${code}`);
+  });
+  child.unref();
+}
+
+let repairingAgentRelays = false;
+
+/**
+ * Keeps apps reachable after Docker or the computer restarts: starts the runtime when it is down,
+ * then points each relay at the port its container came back on.
+ */
+async function repairAgentRelays() {
+  if (repairingAgentRelays) return;
+  repairingAgentRelays = true;
+  try {
+    const hostPorts = runningAppHostPorts();
+    if (!hostPorts) {
+      if (spawnSync('docker', ['version', '--format', '{{.Server.Version}}']).status !== 0)
+        startContainerRuntime();
+      return;
+    }
+    for (const repair of relayRepairs(agentRelayList(), hostPorts)) {
+      const before = { ...agentRelays.get(repair.name) };
+      const relayPort = await ensureAgentRelay(
+        repair.name,
+        repair.targetPort,
+        repair.relayPort,
+        repair.containerName,
+      );
+      if (before.targetPort !== repair.targetPort || before.relayPort !== relayPort)
+        console.log(
+          `Relay ${repair.name} on port ${relayPort} now forwards to port ${repair.targetPort}`,
+        );
+    }
+    await discoverAgentRelays(hostPorts);
+  } catch (err) {
+    console.error(`Unable to check app relays: ${err.message || err}`);
+  } finally {
+    repairingAgentRelays = false;
   }
 }
 
@@ -2303,7 +2322,8 @@ async function cmdAgentRun() {
       console.warn('[telemetry] relay unavailable:', error.message || error);
     }
     await restoreAgentRelays();
-    await discoverAgentRelays();
+    await repairAgentRelays();
+    setInterval(() => void repairAgentRelays(), 15_000).unref();
   }
   enableLocalTlsTrust(config.coordinatorUrl);
   let reportedError = '';

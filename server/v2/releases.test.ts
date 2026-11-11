@@ -133,6 +133,51 @@ test('failed verify leaves every app untouched, skips activate and watch', async
   assert(!f.calls.includes('activate'));
   assert.equal(list('v2-project-run', f.owner).length, 0);
 });
+test('a project locked by a failed cleanup unlocks once the computer can clean up', async () => {
+  // The iMac on 2026-11-10: Docker was down, so Verify failed and so did removing the copy.
+  const f = fixture();
+  let dockerUp = false;
+  f.runtime.verify = async () => {
+    throw new Error('failed to connect to the docker API');
+  };
+  f.runtime.dispose = async () => {
+    f.calls.push('dispose');
+    if (!dockerUp) throw new Error('failed to connect to the docker API');
+  };
+  f.ship();
+  await f.service.settled();
+  assert.match(projectReleases(f.owner, project.id)[0].steps.at(-1)!.detail!, /^Cleanup requires/);
+  assert.throws(() => f.ship(), { status: 409 });
+  // Still down: nothing changes and the project stays locked.
+  await f.service.retryCleanup();
+  assert.throws(() => f.ship(), { status: 409 });
+  dockerUp = true;
+  await f.service.retryCleanup();
+  assert.equal(list('v2-project-run', f.owner).length, 0);
+  assert.equal(projectReleases(f.owner, project.id)[0].state, 'failed');
+  f.runtime.verify = async () => {};
+  f.runtime.dispose = async () => {};
+  f.ship();
+  await f.service.settled();
+  assert.equal(projectReleases(f.owner, project.id)[0].state, 'live');
+  assert.deepEqual([...f.running.values()], ['1', '1']);
+});
+test('cleanup is not retried for a release that got past Verify', async () => {
+  const f = fixture();
+  f.runtime.activate = async () => {
+    throw new Error('activation failed');
+  };
+  f.runtime.dispose = async () => {
+    f.calls.push('dispose');
+    if (f.calls.filter((call) => call === 'dispose').length === 1) throw new Error('docker down');
+  };
+  f.ship();
+  await f.service.settled();
+  await f.service.retryCleanup();
+  assert.equal(f.calls.filter((call) => call === 'dispose').length, 1);
+  assert.equal(list('v2-project-run', f.owner).length, 1);
+  db.prepare("DELETE FROM records WHERE kind='v2-project-run' AND owner=?").run(f.owner);
+});
 test('rollback moves all apps and reverses the crossed migrations', async () => {
   const f = fixture();
   const first = f.ship();

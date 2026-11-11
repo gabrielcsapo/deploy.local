@@ -59,6 +59,8 @@ type ReleaseRecord = {
   previousId?: string;
   activated?: boolean;
   recoveryRequired?: boolean;
+  /** Only removing this release's copy failed; nothing on the computer was changed. */
+  cleanupOwed?: boolean;
 };
 type RollbackRecord = {
   id: string;
@@ -248,6 +250,47 @@ export class ProjectReleaseService {
   }
   async settled() {
     await Promise.all(this.pending);
+  }
+
+  private cleaning = false;
+  /**
+   * A release that failed before Verify finished changed nothing on its computers; it only owes
+   * the removal of its own copy. When that removal failed too (the computer's Docker was down),
+   * try it again here, so the project does not stay locked until the coordinator restarts.
+   */
+  async retryCleanup() {
+    if (this.cleaning) return;
+    this.cleaning = true;
+    try {
+      const reservations = db
+        .prepare("SELECT owner,data FROM records WHERE kind='v2-project-run'")
+        .all() as { owner: string; data: string }[];
+      for (const reservation of reservations) {
+        const run = JSON.parse(reservation.data);
+        const record = list('v2-release', reservation.owner).find(
+          (row) => row.id === run.operationId,
+        ) as ReleaseRecord | undefined;
+        if (!record?.plan || !record.recoveryRequired || record.release.state !== 'failed')
+          continue;
+        const taken = record.release.steps;
+        if (taken.find((step) => step.name === 'verify')?.state === 'done') continue;
+        // Records written before cleanupOwed existed carry only the message.
+        if (!record.cleanupOwed && !taken.at(-1)?.detail?.startsWith('Cleanup requires recovery'))
+          continue;
+        try {
+          await this.runtime.dispose(record.plan);
+        } catch {
+          continue;
+        }
+        record.recoveryRequired = false;
+        record.cleanupOwed = false;
+        persistRelease(reservation.owner, record);
+        unlock(reservation.owner, run.id, run.operationId);
+        console.log(`[releases] cleaned up failed release ${record.id}; project unlocked`);
+      }
+    } finally {
+      this.cleaning = false;
+    }
   }
 
   /** Called once at coordinator startup, before admitting new project work. */
@@ -516,6 +559,7 @@ export class ProjectReleaseService {
         if (record.plan && !record.recoveryRequired) await this.runtime.dispose(record.plan);
       } catch (error) {
         record.recoveryRequired = true;
+        record.cleanupOwed = true;
         release.state = 'failed';
         release.steps.at(-1)!.detail =
           `Cleanup requires recovery: ${error instanceof Error ? error.message : String(error)}`;

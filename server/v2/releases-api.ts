@@ -25,7 +25,15 @@ export const projectReleaseService = new ProjectReleaseService(new SelfReleaseRu
 projectReleaseService.registerInbox();
 let recovery: Promise<void> | undefined;
 export function recoverProjectReleases() {
-  return (recovery ??= projectReleaseService.recover());
+  return (recovery ??= projectReleaseService.recover().finally(() => {
+    setInterval(
+      () =>
+        void projectReleaseService
+          .retryCleanup()
+          .catch((error) => console.error('[releases] cleanup retry failed:', error)),
+      60_000,
+    ).unref();
+  }));
 }
 
 /** Resolve private project context before entering the synchronous inbox answer transaction. */
