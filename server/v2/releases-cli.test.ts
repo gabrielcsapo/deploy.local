@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-const { followDeploy, followRollback, printRelease } = await import(
-  new URL('../../bin/cli-v2.mjs', import.meta.url).href
-);
+const { followDeploy, followRelease, followRollback, printRelease, releaseReporter, elapsed } =
+  await import(new URL('../../bin/cli-v2.mjs', import.meta.url).href);
 const steps = ['prepare', 'verify', 'activate', 'watch'].map((name) => ({
   name,
   state: 'done',
@@ -75,4 +74,133 @@ test('timeouts retain real running steps; failures retain their failed step', as
     ).state,
     'failed',
   );
+});
+
+const at = (seconds: number) =>
+  new Date(Date.UTC(2026, 10, 11, 5, 17, 33) + seconds * 1000).toISOString();
+function reported(live = false, now = Date.parse(at(443))) {
+  let text = '';
+  const reporter = releaseReporter({
+    write: (chunk: string) => (text += chunk),
+    live,
+    now: () => now,
+  });
+  return { reporter, text: () => text };
+}
+
+test('deploy shows each step as it finishes and ends once the release is in use', async () => {
+  // Forma on 2026-11-11: the old output sat silent for seven minutes, then said "still running".
+  const reads = [
+    {
+      id: '8707edfc-40f2',
+      state: 'running',
+      steps: [{ name: 'prepare', state: 'running', startedAt: at(0) }],
+    },
+    {
+      id: '8707edfc-40f2',
+      state: 'running',
+      steps: [
+        { name: 'prepare', state: 'done', startedAt: at(0), endedAt: at(4) },
+        { name: 'verify', state: 'running', startedAt: at(4) },
+      ],
+    },
+    {
+      id: '8707edfc-40f2',
+      state: 'running',
+      steps: [
+        { name: 'prepare', state: 'done', startedAt: at(0), endedAt: at(4) },
+        { name: 'verify', state: 'done', startedAt: at(4), endedAt: at(297) },
+        { name: 'activate', state: 'done', startedAt: at(297), endedAt: at(443) },
+        { name: 'watch', state: 'running', startedAt: at(443) },
+      ],
+    },
+    { id: 'never-read', state: 'live', steps: [] },
+  ];
+  const r = reported();
+  let read = 0;
+  const release = await followRelease(
+    async () => ({ release: reads[read++] }),
+    { id: '8707edfc-40f2', state: 'running', steps: [] },
+    60_000,
+    { onChange: (value: any) => r.reporter.update(value), untilActivated: true },
+  );
+  // It stopped at Activate instead of waiting ten minutes for Watch.
+  assert.equal(read, 3);
+  r.reporter.finish(release, { url: 'https://forma.local', startedAt: Date.parse(at(0)) });
+  assert.equal(
+    r.text(),
+    [
+      '  ✓ Prepared release              4.0 s',
+      '  ✓ Verified                      4 min 53 s',
+      '  ✓ Activated                     2 min 26 s',
+      '    deploy.local checks health for 10 minutes after this',
+      '',
+      '✓ Released 8707edf in 7 min 23 s',
+      '  https://forma.local',
+      '  Next: deploy logs · deploy rollback',
+      '',
+    ].join('\n'),
+  );
+});
+
+test('a terminal shows the running step with its time so far, then replaces it', () => {
+  const r = reported(true, Date.parse(at(16)));
+  const running = {
+    id: 'r',
+    state: 'running',
+    steps: [{ name: 'verify', state: 'running', startedAt: at(4) }],
+  };
+  r.reporter.update(running);
+  r.reporter.update(running);
+  assert.equal(r.text(), '\r\x1b[2K  · Verifying                     12 s');
+  r.reporter.update({
+    id: 'r',
+    state: 'running',
+    steps: [{ name: 'verify', state: 'done', startedAt: at(4), endedAt: at(20) }],
+  });
+  assert.ok(r.text().endsWith('\r\x1b[2K  ✓ Verified                      16 s\n'));
+});
+
+test('a release that fails Verify says what failed and that nothing changed', () => {
+  const r = reported();
+  const failed = {
+    id: '7d0bee9b-597e',
+    state: 'failed',
+    steps: [
+      { name: 'prepare', state: 'done', startedAt: at(0), endedAt: at(5) },
+      {
+        name: 'verify',
+        state: 'failed',
+        startedAt: at(5),
+        endedAt: at(85),
+        detail:
+          'Creating graph network failed\nall predefined address pools have been fully subnetted\n',
+      },
+      { name: 'activate', state: 'skipped' },
+      { name: 'watch', state: 'skipped' },
+    ],
+  };
+  r.reporter.update(failed);
+  r.reporter.finish(failed);
+  assert.equal(
+    r.text(),
+    [
+      '  ✓ Prepared release              5.0 s',
+      '  ✗ Verify failed: Creating graph network failed',
+      '      all predefined address pools have been fully subnetted',
+      '',
+      '✗ Nothing changed. Every app stayed on its previous release.',
+      '  Next: deploy logs --build',
+      '',
+    ].join('\n'),
+  );
+});
+
+test('times read as people say them', () => {
+  assert.deepEqual([400, 18_900, 41_000, 293_000].map(elapsed), [
+    '0.4 s',
+    '19 s',
+    '41 s',
+    '4 min 53 s',
+  ]);
 });

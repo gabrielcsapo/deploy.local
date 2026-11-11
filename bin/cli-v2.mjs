@@ -352,19 +352,20 @@ export function printRelease(release) {
 }
 
 // Follow the durable build receipt, not an old running container during a new upload.
-export async function followDeploy(api, name, accepted, timeoutMs) {
+export async function followDeploy(api, name, accepted, timeoutMs, watch = {}) {
   const deadline = Date.now() + timeoutMs;
   if (accepted.release || accepted.releaseId)
     return followRelease(
       api,
       accepted.release || { id: accepted.releaseId, state: 'running', steps: [] },
       timeoutMs,
+      watch,
     );
   if (accepted.projectRelease && accepted.buildLogId) {
     do {
       const result = await contracts.uploadRelease(api, accepted.buildLogId);
       if (result.release)
-        return followRelease(api, result.release, Math.max(0, deadline - Date.now()));
+        return followRelease(api, result.release, Math.max(0, deadline - Date.now()), watch);
       if (Date.now() >= deadline)
         return { name, state: 'running', steps: [], buildLogId: accepted.buildLogId };
       await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
@@ -404,16 +405,119 @@ export async function followDeploy(api, name, accepted, timeoutMs) {
   };
 }
 
-export async function followRelease(api, accepted, timeoutMs) {
+/** A release is in people's hands once Activate is done; Watch only keeps checking its health. */
+export function releaseActivated(release) {
+  return (
+    release.state === 'live' ||
+    (release.state === 'running' &&
+      (release.steps || []).some((step) => step.name === 'activate' && step.state === 'done'))
+  );
+}
+
+/**
+ * Follows a release until it settles. `watch.onChange` hears every read, so a terminal can show
+ * each step as it happens; `watch.untilActivated` stops once the release is switched on instead
+ * of sitting through the ten minutes of Watch.
+ */
+export async function followRelease(api, accepted, timeoutMs, watch = {}) {
   let release = accepted.release || accepted;
   const deadline = Date.now() + timeoutMs;
   while (release.state === 'running') {
     const response = await contracts.release(api, release.id);
     release = response.release || response;
+    watch.onChange?.(release);
     if (release.state !== 'running' || Date.now() >= deadline) break;
+    if (watch.untilActivated && releaseActivated(release)) break;
     await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
   }
   return release;
+}
+
+export function elapsed(milliseconds) {
+  const seconds = Math.max(0, milliseconds) / 1000;
+  if (seconds < 10) return `${seconds.toFixed(1)} s`;
+  if (seconds < 60) return `${Math.round(seconds)} s`;
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)} min ${whole % 60} s`;
+}
+
+/** One step line: a mark, what happened, and how long it took. */
+export function stepLine(mark, label, detail = '') {
+  return `  ${mark} ${detail ? label.padEnd(30) : label}${detail}`.trimEnd();
+}
+
+const STEP_WORDS = {
+  prepare: ['Preparing release', 'Prepared release', 'Prepare failed'],
+  verify: ['Verifying', 'Verified', 'Verify failed'],
+  activate: ['Activating', 'Activated', 'Activate failed'],
+};
+
+/**
+ * Prints a release step by step while it runs: one line per finished step, and on a terminal the
+ * running step with its time so far. Watch is not a line: it runs after the release is in use.
+ */
+export function releaseReporter({ write, live = false, now = () => Date.now() }) {
+  const printed = new Set();
+  let running = '';
+  const span = (step) =>
+    step.startedAt
+      ? elapsed((step.endedAt ? Date.parse(step.endedAt) : now()) - Date.parse(step.startedAt))
+      : '';
+  const clear = () => {
+    if (running) write('\r\x1b[2K');
+    running = '';
+  };
+  return {
+    update(release) {
+      for (const step of release.steps || []) {
+        const words = STEP_WORDS[step.name];
+        if (!words || printed.has(step.name)) continue;
+        if (step.state === 'done') {
+          clear();
+          write(`${stepLine('✓', words[1], span(step))}\n`);
+          printed.add(step.name);
+        } else if (step.state === 'failed') {
+          clear();
+          const [headline, ...rest] = String(step.detail || '')
+            .trim()
+            .split('\n')
+            .filter(Boolean);
+          write(`${stepLine('✗', headline ? `${words[2]}: ${headline}` : words[2])}\n`);
+          for (const line of rest.slice(0, 6)) write(`      ${line}\n`);
+          printed.add(step.name);
+        } else if (step.state === 'running' && live) {
+          const line = stepLine('·', words[0], span(step));
+          if (line !== running) write(`\r\x1b[2K${line}`);
+          running = line;
+        }
+      }
+    },
+    /** The closing lines: the result, where it is, and what to do next. */
+    finish(release, { url, startedAt } = {}) {
+      clear();
+      const id = String(release.id || '').slice(0, 7);
+      const took = startedAt ? ` in ${elapsed(now() - startedAt)}` : '';
+      if (releaseActivated(release)) {
+        if (release.state === 'running')
+          write('    deploy.local checks health for 10 minutes after this\n');
+        write(`\n✓ Released ${id}${took}\n`);
+        if (url) write(`  ${url}\n`);
+        write('  Next: deploy logs · deploy rollback\n');
+      } else if (release.state === 'failed') {
+        const untouched = (release.steps || []).some(
+          (step) => step.name === 'activate' && step.state === 'skipped',
+        );
+        write(
+          untouched
+            ? '\n✗ Nothing changed. Every app stayed on its previous release.\n'
+            : `\n✗ Release ${id} failed.\n`,
+        );
+        write('  Next: deploy logs --build\n');
+      } else {
+        write(`\nRelease ${id} is still running; stopped waiting.\n  Next: deploy status\n`);
+      }
+    },
+  };
 }
 
 export async function followRollback(api, project, accepted, timeoutMs) {

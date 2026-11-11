@@ -60,6 +60,10 @@ import {
   waitInbox,
   confirmChange,
   followDeploy,
+  releaseReporter,
+  releaseActivated,
+  stepLine,
+  elapsed,
   followRollback,
   releaseSteps,
   printRelease,
@@ -2539,7 +2543,11 @@ async function cmdDeploy(
   const bundleMs = Date.now() - bundleStartedAt;
   if (!values.json)
     console.log(
-      `  ✓ Packed ${files.length} files · ${formatBytes(statSync(tarball).size)} · ${(bundleMs / 1000).toFixed(2)} s`,
+      stepLine(
+        '✓',
+        `Packed ${files.length} files`,
+        `${formatBytes(statSync(tarball).size)} · ${elapsed(bundleMs)}`,
+      ),
     );
   try {
     unlinkSync(listFile);
@@ -2597,16 +2605,32 @@ async function cmdDeploy(
     return;
   }
 
+  // In a terminal each step shows as it happens and the command ends once the release is in
+  // use. --json keeps waiting for the release to settle, as scripts expect.
+  const reporter = values.json
+    ? null
+    : releaseReporter({
+        write: (text) => process.stdout.write(text),
+        live: !!process.stdout.isTTY,
+      });
+  const watch = reporter
+    ? { onChange: (release) => reporter.update(release), untilActivated: true }
+    : {};
   const result = deployment?.release
-    ? await followDeploy(api, name, deployment, waitTimeout())
+    ? await followDeploy(api, name, deployment, waitTimeout(), watch)
     : deployment?.accepted
-      ? await followDeploy(api, name, deployment, waitTimeout())
+      ? await followDeploy(api, name, deployment, waitTimeout(), watch)
       : { name, state: 'live', steps: releaseSteps('live', 'Build and startup completed') };
   result.url = appUrl(serverUrl, name);
+  // Only a project release reports real steps; the older receipt keeps its plain summary.
+  const stepped = (result.steps || []).some((step) => step.startedAt);
   if (values.json) outputJson(result);
-  else printRelease(result);
+  else if (stepped) {
+    reporter.update(result);
+    reporter.finish(result, { url: result.url, startedAt: bundleStartedAt });
+  } else printRelease(result);
   if (result.state === 'failed') process.exitCode = 1;
-  if (result.state === 'running') process.exitCode = 1;
+  if (result.state === 'running' && !(reporter && releaseActivated(result))) process.exitCode = 1;
 }
 
 async function cmdList(serverUrl) {
