@@ -2328,6 +2328,20 @@ test('approved designs show build reports and only linked open tasks without rep
   assert.match((await readApproved())[0].detail, /being built$/);
 });
 
+test('an approved design is built on a computer that is online, not left waiting for none', async () => {
+  // SER on 2026-11-10: six builds sat queued for a worker named "local" that nothing runs as.
+  const f = await reviewFixture('review-build-computer');
+  const item = await f.propose();
+  const { get, save } = await import('../workspace/store.ts');
+  const { answerInboxAsync } = await import('./inbox.ts');
+  const { landDesignApprovals } = await import('./design.ts');
+  save('worker', 'alice', { id: 'ser', name: 'SER', heartbeat: new Date().toISOString() });
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
+  await landDesignApprovals();
+  const landing = get('design-review-landing', 'alice', item.id);
+  assert.equal(landing.build.started, true);
+  assert.equal(get('task', 'alice', landing.build.taskId).workerId, 'ser');
+});
 test('an approved design starts its build once it is on main, and only once', async () => {
   const f = await reviewFixture('review-build-loop');
   const item = await f.propose();

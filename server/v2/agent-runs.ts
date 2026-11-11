@@ -4,9 +4,9 @@ import type {
   LooksAfterItem,
 } from '../../shared/v2/contracts.ts';
 import { db, get, list, now, save, events } from '../workspace/store.ts';
-import { computers } from '../workspace/coordination.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
-import { getComputers, getModels } from './computers.ts';
+import { getModels } from './computers.ts';
+import { onlineTaskWorker } from './task-computer.ts';
 import { createInboxItem, registerInboxAction } from './inbox.ts';
 import { fail } from '../errors.ts';
 import { agentControl } from './phone-preferences.ts';
@@ -31,28 +31,8 @@ export function agentRuns(owner: string, agentId: string, itemId?: string) {
  * always addressed to a real worker, preferring one with the run's provider connected.
  */
 function workerFor(owner: string, agent: Agent, adapter = 'codex'): string {
-  const wanted = agent.computers.map((value) => value.toLowerCase());
-  const workers = new Map(
-    computers(owner)
-      .filter((worker) => worker.status === 'online')
-      .map((worker) => [worker.id, worker as any]),
-  );
-  const ready = getComputers(owner)
-    .filter((computer) => computer.online && computer.roles.includes('take-tasks'))
-    .filter(
-      (computer) =>
-        !wanted.length ||
-        wanted.includes(computer.id.toLowerCase()) ||
-        wanted.includes(computer.name.toLowerCase()),
-    )
-    .sort((a, b) => Number(b.id === 'coordinator') - Number(a.id === 'coordinator'))
-    .flatMap((computer) => computer.workerIds.filter((id) => workers.has(id)));
-  const connected = ready.find((id) =>
-    workers
-      .get(id)
-      .connections?.some((value: any) => value.provider === adapter && value.available),
-  );
-  const workerId = connected ?? ready[0];
+  const wanted = agent.computers;
+  const workerId = onlineTaskWorker(owner, { adapter, wanted });
   if (!workerId)
     fail(
       wanted.length

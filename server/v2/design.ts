@@ -36,6 +36,7 @@ import {
 } from '../workspace/repository-git.ts';
 import { db, event, get, id, list, now, remove, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
+import { onlineTaskWorker } from './task-computer.ts';
 import { readJson, sendJson } from './attachments.ts';
 import { createInboxItem, registerInboxSource, syncInbox } from './inbox.ts';
 import { fail } from '../errors.ts';
@@ -1635,6 +1636,7 @@ function decideDesign(
       title: `Update design: ${item.title}`,
       ref: context.commit,
       prompt: content,
+      ...serverTaskComputer(owner),
     });
     const row = get('v2-inbox-native', owner, item.id);
     context.taskId = task.id;
@@ -1697,6 +1699,12 @@ export function designBuildBrief(input: {
  * task when a person proposed it from the Design page. Runs after the landing transaction, and
  * again on boot for any landing that has no build yet, so a crash between the two loses nothing.
  */
+/** A task nobody picked a computer for goes to one that is online and takes tasks. */
+function serverTaskComputer(owner: string) {
+  const workerId = onlineTaskWorker(owner);
+  return workerId ? { workerId } : {};
+}
+
 function startDesignBuild(owner: string, landing: any) {
   const row = list('v2-inbox-native', owner).find((entry) => entry.id === landing.id);
   const done = (build: Record<string, unknown>) =>
@@ -1730,6 +1738,7 @@ function startDesignBuild(owner: string, landing: any) {
       title: `Build: ${row.item.title}`,
       ref: landing.commit ?? context.main ?? 'HEAD',
       prompt: content,
+      ...serverTaskComputer(owner),
     });
     // Link the review to its builder: "built" reports and To review find it through the task.
     const item = { ...row.item, taskId: task.id };
