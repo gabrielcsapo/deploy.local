@@ -73,6 +73,8 @@ export async function executeReleaseNodeJob(input: {
   relay?: (name: string, port: number, container: string) => Promise<number>;
   workerProbeMs?: number;
   probePort?: AgentGraphExecutionInput['probePort'];
+  /** Image pull and build output, as Docker prints it. */
+  onBuildOutput?: AgentGraphExecutionInput['onBuildOutput'];
 }): Promise<ReleaseNodeResult> {
   const { payload, docker, application } = input;
   if (
@@ -194,6 +196,7 @@ export async function executeReleaseNodeJob(input: {
         graph,
         probePort: input.probePort,
         internalNetwork: true,
+        onBuildOutput: input.onBuildOutput,
       },
       docker,
     );
@@ -255,6 +258,7 @@ export async function executeReleaseNodeJob(input: {
           artifactSpecDigest: record.graph.specDigest,
           artifactSpec: record.graph.spec,
           probePort: input.probePort,
+          onBuildOutput: input.onBuildOutput,
         },
         {
           run: async (args, options) => {
@@ -387,6 +391,7 @@ export async function executeReleaseAgentJob(input: {
   relay: NonNullable<Parameters<typeof executeReleaseNodeJob>[0]['relay']>;
   probePort?: AgentGraphExecutionInput['probePort'];
   workerProbeMs?: number;
+  onBuildOutput?: AgentGraphExecutionInput['onBuildOutput'];
 }) {
   let directory: string | undefined;
   try {

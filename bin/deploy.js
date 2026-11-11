@@ -2038,13 +2038,35 @@ async function processAgentJob(config, job) {
       });
       return;
     } else if (job.type === 'project-release') {
-      result = await executeReleaseAgentJob({
-        root: resolve(agentConfigPath(), '..', 'data'),
-        job,
-        download: (path) => downloadAgentArtifact(config, job, path),
-        docker: agentBuildDocker(config, job),
-        relay: (name, port, container) => ensureAgentRelay(name, port, undefined, container),
-      });
+      // Sent in batches so the coordinator can show the build while it runs.
+      let pendingOutput = '';
+      let outputFlush = Promise.resolve();
+      const flushOutput = () => {
+        const output = pendingOutput;
+        pendingOutput = '';
+        if (!output) return outputFlush;
+        outputFlush = outputFlush
+          .then(() => reportAgentJobProgress(config, job, { stage: 'building', output }))
+          .catch(() => {});
+        return outputFlush;
+      };
+      const outputTimer = setInterval(() => void flushOutput(), 1000);
+      try {
+        result = await executeReleaseAgentJob({
+          root: resolve(agentConfigPath(), '..', 'data'),
+          job,
+          download: (path) => downloadAgentArtifact(config, job, path),
+          docker: agentBuildDocker(config, job),
+          relay: (name, port, container) => ensureAgentRelay(name, port, undefined, container),
+          onBuildOutput: (output) => {
+            pendingOutput += output;
+            if (pendingOutput.length >= 64 * 1024) void flushOutput();
+          },
+        });
+      } finally {
+        clearInterval(outputTimer);
+        await flushOutput();
+      }
     } else if (job.type === 'deploy') {
       result = await executeAgentDeploy(config, job);
     } else if (job.type === 'recreate') {

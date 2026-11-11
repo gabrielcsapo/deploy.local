@@ -22,9 +22,16 @@ class FakeNode implements AgentGraphDocker {
   containers = new Map<string, { app: string; component: string; running: boolean }>();
   calls: string[][] = [];
   failActivation = false;
-  async run(args: readonly string[]) {
+  missingImage = false;
+  async run(args: readonly string[], options?: { onOutput?: (output: string) => void }) {
     this.calls.push([...args]);
     let stdout = '';
+    if (this.missingImage && args[0] === 'image' && args.length === 3)
+      return { exitCode: 1, stdout: '', stderr: 'No such image' };
+    if (args[0] === 'pull') {
+      this.missingImage = false;
+      options?.onOutput?.(`Pulling ${args[1]}\n`);
+    }
     if (args[0] === 'image') stdout = `sha256:${'1'.repeat(64)}`;
     if (args[0] === 'ps') {
       const app = args
@@ -71,6 +78,7 @@ function fixture() {
   ]);
   const names = ['web-' + suffix, 'sync-' + suffix];
   const calls: string[] = [];
+  const output: string[] = [];
   for (const [index, [id]] of [...computers].entries()) {
     getSqlite()!
       .prepare('INSERT INTO nodes(id,name,address,enrolled_at,last_seen_at) VALUES(?,?,?,?,?)')
@@ -107,6 +115,7 @@ function fixture() {
       probePort: async () => true,
       workerProbeMs: 0,
       relay: async () => 5189,
+      onBuildOutput: (text) => output.push(`${application}: ${text}`),
     });
   };
   const runtime = new CoordinatorReleaseRuntime({ remote: transport });
@@ -119,7 +128,7 @@ function fixture() {
       kind: index ? ('worker' as const) : ('web' as const),
     })),
   };
-  return { runtime, project, computers, calls, names, transport };
+  return { runtime, project, computers, calls, names, transport, output };
 }
 test('two fake computers stage copies, verify the whole project, switch and roll back', async () => {
   const f = fixture();
@@ -148,6 +157,14 @@ test('two fake computers stage copies, verify the whole project, switch and roll
   await f.runtime.rollback(next, rollback);
   await f.runtime.watch(rollback, 0);
   assert(f.calls.some((call) => call.startsWith('activate:sync')));
+});
+test('a release on another computer hands back its pull and build output', async () => {
+  const f = fixture();
+  [...f.computers.values()][0].missingImage = true;
+  const plan = await f.runtime.plan(f.project);
+  await f.runtime.prepare(plan);
+  await f.runtime.verify(plan);
+  assert.deepEqual(f.output, [`${f.names[0]}: Pulling test:1\n`]);
 });
 test('a failed switch on the second computer restores both original processes and routes', async () => {
   const f = fixture();

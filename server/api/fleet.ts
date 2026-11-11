@@ -50,6 +50,7 @@ import { type ApiRouteContext } from './context.ts';
 import { handleRemoteTelemetry, issueRemoteTelemetryToken } from '../telemetry-remote.ts';
 import { getRequestsSqlite } from '../requests-db.ts';
 import { readDeploymentRecord } from '../store.ts';
+import { releaseBuildLogId } from '../v2/release-build-log.ts';
 
 interface AgentJobActivity {
   stage: string;
@@ -439,15 +440,20 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           typeof body.message === 'string' ? body.message.slice(0, 500) : undefined,
         );
         const buildOutput =
-          job.type === 'deploy' && typeof body.output === 'string'
+          (job.type === 'deploy' || job.type === 'project-release') &&
+          typeof body.output === 'string'
             ? body.output.slice(0, 512 * 1024)
             : '';
         if (buildOutput) {
-          const payload = JSON.parse(job.payload) as { buildLogId?: number };
-          const buildLogId = Number(payload.buildLogId);
+          const payload = JSON.parse(job.payload) as { buildLogId?: number; releaseId?: string };
+          // A release on another computer builds there; without this its output was dropped.
+          const buildLogId =
+            job.type === 'project-release'
+              ? (releaseBuildLogId(payload.releaseId) ?? 0)
+              : Number(payload.buildLogId);
           if (Number.isSafeInteger(buildLogId) && buildLogId > 0) {
             appendFileSync(buildLogFilePath(buildLogId), buildOutput);
-            agentJobsWithStreamedBuildOutput.add(job.id);
+            if (job.type === 'deploy') agentJobsWithStreamedBuildOutput.add(job.id);
             for (const outputLine of buildOutput.split('\n')) {
               if (!outputLine) continue;
               const timestampedLine = outputLine.match(/^\[([^\]]+)]\s?(.*)$/);
