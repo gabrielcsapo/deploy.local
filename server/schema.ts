@@ -1141,6 +1141,7 @@ export const agentJobs = sqliteTable(
     error: text('error'),
     createdAt: integer('created_at').notNull(),
     claimedAt: integer('claimed_at'),
+    progress: text('progress'),
     completedAt: integer('completed_at'),
   },
   (table) => ({

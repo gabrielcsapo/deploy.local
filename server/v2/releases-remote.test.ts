@@ -1,10 +1,19 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, copyFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  readdirSync,
+  copyFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import type { AgentGraphDocker } from '../agent-graph-runtime.ts';
+import type { WorkerReleasePart } from './release-progress.ts';
 import type { ReleaseNodeTransport } from './releases-remote.ts';
 const root = mkdtempSync(join(tmpdir(), 'release-nodes-'));
 process.env.DEPLOY_DATA_DIR = root;
@@ -101,6 +110,9 @@ function fixture() {
   const names = ['web-' + suffix, 'sync-' + suffix];
   const calls: string[] = [];
   const output: string[] = [];
+  const progress: { phase: string; app: string; parts: WorkerReleasePart[] }[] = [];
+  const results: { phase: string; parts?: WorkerReleasePart[]; verifyEmptyResources?: string[] }[] =
+    [];
   for (const [index, [id]] of [...computers].entries()) {
     getSqlite()!
       .prepare('INSERT INTO nodes(id,name,address,enrolled_at,last_seen_at) VALUES(?,?,?,?,?)')
@@ -119,7 +131,7 @@ function fixture() {
       desiredNodeId: id,
     });
   }
-  const transport: ReleaseNodeTransport = async (node, application, payload, artifact) => {
+  const transport: ReleaseNodeTransport = async (node, application, payload, artifact, onParts) => {
     calls.push(`${payload.phase}:${application}`);
     if (payload.phase === 'quiesce')
       assert.equal(
@@ -127,7 +139,7 @@ function fixture() {
         0,
         'every app verified before any app stopped',
       );
-    return executeReleaseAgentJob({
+    const result = await executeReleaseAgentJob({
       root: join(root, node),
       job: { deploymentName: application, payload, artifactUrl: artifact ? '/source' : null },
       download: async (path) => {
@@ -137,8 +149,18 @@ function fixture() {
       probePort: async () => true,
       workerProbeMs: 0,
       relay: async () => 5189,
+      onProgress: (parts) => {
+        progress.push({ phase: payload.phase, app: application, parts: structuredClone(parts) });
+        onParts?.(parts);
+      },
       onBuildOutput: (text) => output.push(`${application}: ${text}`),
     });
+    results.push({
+      phase: payload.phase,
+      parts: result.parts,
+      verifyEmptyResources: result.verifyEmptyResources,
+    });
+    return result;
   };
   const runtime = new CoordinatorReleaseRuntime({ remote: transport });
   const project = {
@@ -150,7 +172,7 @@ function fixture() {
       kind: index ? ('worker' as const) : ('web' as const),
     })),
   };
-  return { runtime, project, computers, calls, names, transport, output };
+  return { runtime, project, computers, calls, names, transport, output, progress, results };
 }
 test('two fake computers stage copies, verify the whole project, switch and roll back', async () => {
   const f = fixture();
@@ -323,4 +345,250 @@ test('remote Verify migrations off keeps app verification and activation migrati
   await f.runtime.activate(plan);
   await f.runtime.migrate(plan);
   assert.equal(jobs().length, 2);
+});
+
+test('Verify emits real parts in order, including open parts, and returns their timings', async () => {
+  const f = fixture();
+  const plan = await f.runtime.plan(f.project);
+  await f.runtime.prepare(plan);
+  await f.runtime.verify(plan);
+  const names = ['copy data', 'build image', 'start', 'wait for health'];
+  for (const app of f.names) {
+    const reports = f.progress.filter((entry) => entry.phase === 'verify' && entry.app === app);
+    const final = reports.at(-1)!.parts;
+    assert.deepEqual(
+      final.map((part) => part.name),
+      names,
+    );
+    for (let index = 0; index < final.length; index++) {
+      const part = final[index];
+      assert.ok(part.endedAt);
+      assert.ok(part.endedAt >= part.startedAt);
+      if (index) assert.ok(part.startedAt >= final[index - 1].endedAt!);
+      assert.ok(
+        reports.some(
+          ({ parts }) => parts.length === index + 1 && !Object.hasOwn(parts[index], 'endedAt'),
+        ),
+      );
+    }
+  }
+  for (const result of f.results.filter((entry) => entry.phase === 'verify'))
+    assert.deepEqual(
+      result.parts?.map((part) => part.name),
+      names,
+    );
+  assert.ok(
+    f.results
+      .filter((entry) => entry.phase === 'prepare')
+      .every((entry) => entry.parts?.length === 0),
+  );
+  await f.runtime.activate(plan);
+  for (const result of f.results.filter((entry) => entry.phase === 'activate'))
+    assert.deepEqual(
+      result.parts?.map((part) => part.name),
+      names.slice(1),
+    );
+});
+
+test('release heartbeat covers a quiet download every thirty seconds and stops on failure', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'], now: 1_800_000_000_000 });
+  const reports: number[] = [];
+  let downloading!: () => void;
+  let finish!: () => void;
+  const started = new Promise<void>((resolve) => (downloading = resolve));
+  const blocked = new Promise<void>((resolve) => (finish = resolve));
+  const operation = executeReleaseAgentJob({
+    root: join(root, 'heartbeat'),
+    job: {
+      deploymentName: 'quiet',
+      payload: { version: 1, releaseId: 'quiet', phase: 'prepare' },
+      artifactUrl: '/source',
+    },
+    download: async () => {
+      downloading();
+      await blocked;
+      throw new Error('download interrupted');
+    },
+    docker: new FakeNode(),
+    relay: async () => 0,
+    onProgress: async (parts) => {
+      assert.deepEqual(parts, []);
+      reports.push(Date.now());
+      if (reports.length === 1) throw new Error('coordinator temporarily unavailable');
+    },
+  });
+  const rejected = assert.rejects(operation, /download interrupted/);
+  await started;
+  for (let i = 0; i < 3; i++) {
+    t.mock.timers.tick(30_000);
+    // Flush the serialized asynchronous reports without advancing the real clock.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  assert.deepEqual(
+    reports,
+    [0, 30_000, 60_000, 90_000].map((time) => 1_800_000_000_000 + time),
+  );
+  finish();
+  await rejected;
+  const count = reports.length;
+  t.mock.timers.tick(60_000);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(reports.length, count);
+});
+
+test('a failed Verify includes the ended operation in its final error receipt', async () => {
+  const f = fixture();
+  const plan = await f.runtime.plan(f.project);
+  await f.runtime.prepare(plan);
+  const node = [...f.computers.values()][0];
+  const run = node.run.bind(node);
+  node.run = async (args, options) =>
+    args[0] === 'create'
+      ? { exitCode: 1, stdout: '', stderr: 'cannot create copy' }
+      : run(args, options);
+  await assert.rejects(f.runtime.verify(plan), (error: any) => {
+    assert.match(error.message, /cannot create copy/);
+    assert.deepEqual(
+      error.parts.map((part: WorkerReleasePart) => part.name),
+      ['copy data', 'build image', 'start'],
+    );
+    assert.ok(error.parts.every((part: WorkerReleasePart) => part.endedAt));
+    assert.deepEqual(f.progress.at(-1)!.parts, error.parts);
+    return true;
+  });
+});
+
+test('remote worker timings reach the persisted project release steps', async () => {
+  const { ProjectReleaseService, releaseById } = await import('./releases.ts');
+  const f = fixture();
+  const service = new ProjectReleaseService(f.runtime, { watchMs: 0 });
+  const release = service.ship('owner', f.project, { source: { kind: 'ship', ref: 'main' } });
+  await service.settled();
+  const saved = releaseById('owner', release.id);
+  assert.equal(saved.state, 'live');
+  assert.deepEqual(
+    saved.steps.find((step) => step.name === 'verify')!.parts?.map((part) => [part.app, part.name]),
+    f.names.flatMap((app) =>
+      ['copy data', 'build image', 'start', 'wait for health'].map((name) => [app, name]),
+    ),
+  );
+  assert.ok(
+    saved.steps.find((step) => step.name === 'verify')!.parts?.every((part) => part.endedAt),
+  );
+});
+
+for (const mode of ['mixed', 'all-empty', 'default', 'backup'] as const) {
+  test(`Verify resource data: ${mode}`, async () => {
+    const { createHash } = await import('node:crypto');
+    const { observeReleaseParts } = await import('./release-progress.ts');
+    const f = fixture();
+    const resources = ['data', 'uploads', 'media', 'database'];
+    const empty = mode === 'default' ? [] : mode === 'all-empty' ? resources : ['data', 'media'];
+    // Spell out the established paths so this test catches drift in the shared mapping.
+    const folder = (name: string) => (['data', 'uploads'].includes(name) ? name : `graph/${name}`);
+    for (const [index, [node]] of [...f.computers].entries()) {
+      const app = f.names[index];
+      const path = join(root, app, 'deploy.yaml');
+      writeFileSync(
+        path,
+        readFileSync(path, 'utf8').replace(
+          '    health:',
+          `    mounts:
+${resources.map((name) => `      /${name}: {resource: ${name}}`).join('\n')}
+    health:`,
+        ) +
+          `resources:
+${resources.map((name) => `  ${name}: {type: volume${empty.includes(name) ? ', verify: empty' : ''}}`).join('\n')}
+`,
+      );
+      const volumes = join(root, node, 'volumes', app);
+      for (const name of resources) {
+        mkdirSync(join(volumes, folder(name)), { recursive: true });
+        writeFileSync(join(volumes, folder(name), 'value'), name);
+      }
+      if (mode !== 'all-empty') {
+        writeFileSync(join(volumes, 'unclaimed'), 'keep root entry');
+        mkdirSync(join(volumes, 'graph', 'unclaimed'));
+        writeFileSync(join(volumes, 'graph', 'unclaimed', 'value'), 'keep graph entry');
+      }
+    }
+    const plan = await f.runtime.plan(f.project);
+    await f.runtime.prepare(plan);
+    const backup = mode === 'backup' ? await f.runtime.backup(plan) : undefined;
+    const step: import('../../shared/v2/contracts.ts').Release['steps'][number] = {
+      name: 'verify',
+      state: 'running',
+    };
+    let persisted = '';
+    observeReleaseParts(plan, step, () => {
+      persisted = JSON.stringify(step);
+    });
+    await f.runtime.verify(plan, backup);
+    assert.deepEqual(
+      JSON.parse(persisted).verifyEmptyResources,
+      f.names.flatMap((app) =>
+        (backup ? [] : [...empty].sort()).map((resource) => ({ app, resource })),
+      ),
+    );
+    for (const [index, [node, computer]] of [...f.computers].entries()) {
+      const app = f.names[index];
+      const releaseId = (plan.runtime as { id: string }).id;
+      const key = createHash('sha256').update(`${releaseId}:${app}`).digest('hex').slice(0, 20);
+      const copy = join(root, node, 'project-releases', key, 'data');
+      const volumes = join(root, node, 'volumes', app);
+      for (const name of resources) {
+        const target = join(copy, folder(name));
+        assert.deepEqual(readdirSync(target), !backup && empty.includes(name) ? [] : ['value']);
+        if (backup || !empty.includes(name))
+          assert.equal(readFileSync(join(target, 'value'), 'utf8'), name);
+        assert.equal(readFileSync(join(volumes, folder(name), 'value'), 'utf8'), name);
+        assert.ok(
+          computer.calls.some(
+            (args) => args[0] === 'create' && args.includes(`type=bind,src=${target},dst=/${name}`),
+          ),
+          `Verify mounts the expected folder for ${name}`,
+        );
+      }
+      if (mode !== 'all-empty') {
+        assert.equal(readFileSync(join(copy, 'unclaimed'), 'utf8'), 'keep root entry');
+        assert.equal(
+          readFileSync(join(copy, 'graph', 'unclaimed', 'value'), 'utf8'),
+          'keep graph entry',
+        );
+      }
+      const final = f.progress
+        .filter((entry) => entry.phase === 'verify' && entry.app === app)
+        .at(-1)!.parts;
+      assert.equal(
+        final.filter((part) => part.name === 'copy data').length,
+        mode === 'all-empty' ? 0 : 1,
+      );
+    }
+    for (const result of f.results.filter((entry) => entry.phase === 'verify'))
+      assert.deepEqual(result.verifyEmptyResources, backup ? [] : [...empty].sort());
+  });
+}
+
+test('Verify stores empty resource names beside parts in the release record', async () => {
+  const { ProjectReleaseService, releaseById } = await import('./releases.ts');
+  const f = fixture();
+  for (const name of f.names) {
+    const path = join(root, name, 'deploy.yaml');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8') + 'resources:\n  media: {type: volume, verify: empty}\n',
+    );
+  }
+  const service = new ProjectReleaseService(f.runtime, { watchMs: 0 });
+  const release = service.ship('owner', f.project, { source: { kind: 'ship', ref: 'main' } });
+  await service.settled();
+  const saved = releaseById('owner', release.id);
+  assert.equal(saved.state, 'live');
+  const verify = saved.steps.find((step) => step.name === 'verify')!;
+  assert.deepEqual(
+    verify.verifyEmptyResources,
+    f.names.map((app) => ({ app, resource: 'media' })),
+  );
+  assert.ok(verify.parts?.length);
+  assert.ok(verify.parts.every((part) => part.name !== 'copy data'));
 });

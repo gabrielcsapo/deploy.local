@@ -3,13 +3,14 @@ import { DATA_DIR, getDb } from './connection.ts';
 import { assertDeployRole, deployRoleEnabled } from './nodes.ts';
 import { randomBytes } from 'node:crypto';
 import { agentJobs } from '../schema.ts';
-import { eq, and, sql, lt, desc } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import {
   withUpdateAdmission,
   updateReservation,
   computerUpdateAllowed,
   reserveComputerUpdate,
 } from '../v2/update-admission.ts';
+import { parseReleaseParts } from '../v2/release-progress.ts';
 import { hasActiveAgentExecSessions } from '../agent-exec.ts';
 
 function agentJobPayloadAddress(id: string) {
@@ -80,6 +81,7 @@ export function claimAgentJob(nodeId: string) {
       if (updateReservation(nodeId)) return null;
       // Agent/service crashes can strand a claimed job. Builds have a 15-minute
       // ceiling, so a 20-minute lease safely makes abandoned work claimable.
+      // Release heartbeats extend that lease; abandoned jobs remain recoverable after a restart.
       tx.update(agentJobs)
         .set({ status: 'queued', claimedAt: null })
         .where(
@@ -87,7 +89,7 @@ export function claimAgentJob(nodeId: string) {
             eq(agentJobs.nodeId, nodeId),
             eq(agentJobs.status, 'running'),
             sql`${agentJobs.type} != 'self-update'`,
-            lt(agentJobs.claimedAt, Date.now() - 20 * 60_000),
+            sql`coalesce(json_extract(${agentJobs.progress}, '$.receivedAt'), ${agentJobs.claimedAt}) < ${Date.now() - 20 * 60_000}`,
           ),
         )
         .run();
@@ -166,9 +168,11 @@ export function requeueFailedAgentJob(id: string, payload: Record<string, unknow
       .set({
         status: 'queued',
         claimedAt: null,
+        createdAt: Date.now(),
         completedAt: null,
         error: null,
         result: null,
+        progress: null,
         payload: encryptAgentJobPayload(id, payload),
       })
       .where(and(eq(agentJobs.id, id), eq(agentJobs.status, 'failed')))
@@ -207,4 +211,25 @@ export function completeAgentJob(
     })
     .where(eq(agentJobs.id, id))
     .run();
+}
+
+/** The receipt time is coordinator-owned; worker clocks cannot extend the idle deadline. */
+export function recordReleaseJobProgress(id: string, nodeId: string, parts: unknown) {
+  const parsed = parts === undefined ? undefined : parseReleaseParts(parts);
+  const db = getDb();
+  return db.transaction(() => {
+    const job = getAgentJob(id);
+    if (!job || job.nodeId !== nodeId || job.type !== 'project-release' || job.status !== 'running')
+      throw new Error('Release job has not been claimed by this computer');
+    const previous = job.progress ? JSON.parse(job.progress) : {};
+    db.update(agentJobs)
+      .set({
+        progress: JSON.stringify({
+          receivedAt: Date.now(),
+          parts: parsed ?? previous.parts ?? [],
+        }),
+      })
+      .where(eq(agentJobs.id, id))
+      .run();
+  });
 }

@@ -17,6 +17,7 @@ import {
   claimAgentJob,
   getAgentJob,
   completeAgentJob,
+  recordReleaseJobProgress,
   buildLogFilePath,
   saveBackup,
   getFleetPlacementState,
@@ -431,14 +432,23 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
         const job = getAgentJob(agentJobProgressMatch[1]);
         if (!job || job.nodeId !== nodeId) return error(res, 'Job not found', 404);
         const body = JSON.parse((await readBody(req)).toString() || '{}');
+        if (job.type === 'project-release' && body.parts !== undefined) {
+          try {
+            recordReleaseJobProgress(job.id, nodeId!, body.parts);
+          } catch (err) {
+            return error(res, (err as Error).message, 409);
+          }
+        }
         const processedBytes = Math.max(0, Number(body.processedBytes || 0));
         const totalBytes = Math.max(0, Number(body.totalBytes || 0));
         const stage = String(body.stage || 'working').slice(0, 80);
-        updateAgentActivity(
-          job.id,
-          { stage, processedBytes, totalBytes },
-          typeof body.message === 'string' ? body.message.slice(0, 500) : undefined,
-        );
+        if (job.type !== 'project-release' || body.parts === undefined) {
+          updateAgentActivity(
+            job.id,
+            { stage, processedBytes, totalBytes },
+            typeof body.message === 'string' ? body.message.slice(0, 500) : undefined,
+          );
+        }
         const buildOutput =
           (job.type === 'deploy' || job.type === 'project-release') &&
           typeof body.output === 'string'

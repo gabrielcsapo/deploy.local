@@ -121,6 +121,54 @@ describe('deploy.yaml application graph', () => {
     assert.equal(result.canonicalJson.includes('password-value'), false);
   });
 
+  it('leaves Verify out of the admitted spec unless an app asks for empty, so old digests hold', () => {
+    const manifest = parseApplicationManifest(GRAPH_MANIFEST);
+    const defaults = compileApplicationManifest(manifest);
+    // Copy is the default and is not written: an app admitted before this field keeps its digest.
+    assert.equal('verify' in defaults.spec.resources.database, false);
+    manifest.resources!.database.verify = 'copy';
+    assert.equal(compileApplicationManifest(manifest).digest, defaults.digest);
+    manifest.resources!.database.verify = 'empty';
+    const empty = compileApplicationManifest(manifest);
+    assert.equal(empty.spec.resources.database.verify, 'empty');
+    assert.notEqual(empty.digest, defaults.digest);
+    assert.equal(
+      compileDeployYaml(renderDeployYaml(empty.spec)).spec.resources.database.verify,
+      'empty',
+    );
+  });
+
+  it('rejects invalid Verify modes and any Verify option on external or bind resources', () => {
+    for (const resource of [
+      { type: 'volume', verify: 'skip' },
+      {
+        type: 'volume',
+        verify: 'empty',
+        ownership: 'external',
+        source: { type: 'bind', hostPath: '/data' },
+      },
+      { type: 'volume', verify: 'copy', source: { type: 'bind', hostPath: '/data' } },
+    ]) {
+      const manifest = parseApplicationManifest(GRAPH_MANIFEST);
+      Object.assign(manifest.resources!.database, resource);
+      assert.throws(
+        () => compileApplicationManifest(manifest),
+        /resources.database.verify.*(?:copy.*empty|never copied)/,
+      );
+    }
+  });
+
+  it('rejects any job mounting an empty Verify resource and says how to resolve it', () => {
+    const manifest = parseApplicationManifest(GRAPH_MANIFEST);
+    manifest.resources!.uploads.verify = 'empty';
+    assert.throws(
+      () => compileApplicationManifest(manifest),
+      /jobs.migrate.*uploads.*remove the job or remove verify: empty/,
+    );
+    delete manifest.jobs!.migrate;
+    assert.equal(compileApplicationManifest(manifest).spec.resources.uploads.verify, 'empty');
+  });
+
   it('produces the same digest regardless of YAML comments and map ordering', () => {
     const reordered = `
 kind: Application

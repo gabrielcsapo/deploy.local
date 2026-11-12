@@ -308,3 +308,11 @@ test('other pages send desktop setup to the install page instead of calling down
     );
   }
 });
+
+test('deploy.yaml explains empty Verify volumes and their limits', () => {
+  const text = plain(fixture.render(fixture.docPath('deploy-yaml')));
+  assert.match(text, /verify: copy.*default.*verify: empty/);
+  assert.match(text, /not allowed with external ownership, a bind source or a lifecycle job/);
+  assert.match(text, /proves the build starts and answers, but not that it works with real data/);
+  assert.match(text, /Activate, where the previous release is started again/);
+});

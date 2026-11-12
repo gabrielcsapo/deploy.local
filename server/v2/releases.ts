@@ -1,3 +1,4 @@
+import { observeReleaseParts } from './release-progress.ts';
 import { recordTelemetryRelease } from '../telemetry-runtime.ts';
 import { CopyWarmer, queueCopies } from '../packages/copies.ts';
 import { npmRegistry } from '../packages/npm.ts';
@@ -488,6 +489,8 @@ export class ProjectReleaseService {
         step.state = 'running';
         step.startedAt = now();
         persistRelease(owner, record);
+        if (record.plan)
+          observeReleaseParts(record.plan, step, () => persistRelease(owner, record));
         if (step.name === 'prepare') {
           record.plan = await this.runtime.plan(project, ref, choices);
           record.plan.verifyMigrations = projectReleasePolicy(owner, project.id).verifyMigrations;
@@ -507,6 +510,7 @@ export class ProjectReleaseService {
               .scan(owner, repository, release.source.commit, record.id, 'release', false)
               .catch(() => queueCopies(owner, project.id));
           }
+          observeReleaseParts(record.plan, step, () => persistRelease(owner, record));
           await this.runtime.prepare(record.plan);
         } else if (step.name === 'verify') await this.runtime.verify(record.plan!);
         else if (step.name === 'activate') {
@@ -719,6 +723,9 @@ export class ProjectReleaseService {
                 step.state = 'running';
                 step.startedAt = now();
                 persistRollback(owner, record);
+                observeReleaseParts([record.targetPlan!, record.fromPlan!], step, () =>
+                  persistRollback(owner, record),
+                );
                 if (step.name === 'prepare') await this.runtime.prepare(record.targetPlan!);
                 if (step.name === 'verify') await this.runtime.verify(record.targetPlan!, backup);
                 if (step.name === 'activate') {

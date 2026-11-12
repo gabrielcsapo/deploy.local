@@ -372,7 +372,20 @@ export function planApplicationChange(
     }
     if (!before || !after || semanticEqual(before, after)) continue;
 
-    const changes = diffAddresses(before, after, ['resources', key]);
+    const allChanges = diffAddresses(before, after, ['resources', key]);
+    const verifyAddress = pointer(['resources', key, 'verify']);
+    if (allChanges.includes(verifyAddress)) {
+      actions.push(
+        action({
+          classification: 'metadata-update',
+          address,
+          changedAddresses: [verifyAddress],
+          reason: `Update application metadata at ${formatAddresses([verifyAddress])}`,
+        }),
+      );
+    }
+    const changes = allChanges.filter((changedAddress) => changedAddress !== verifyAddress);
+    if (changes.length === 0) continue;
     const durable = before.durability === 'durable' || after.durability === 'durable';
     actions.push(
       action({
@@ -815,6 +828,7 @@ const RESOURCE_FIELDS: Record<keyof ResourceSpec, true> = {
   access: true,
   consistencyGroup: true,
   ownership: true,
+  verify: true,
   backup: true,
   suitcase: true,
   source: true,

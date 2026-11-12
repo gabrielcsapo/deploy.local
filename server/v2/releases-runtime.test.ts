@@ -374,3 +374,43 @@ test('repository plans capture the exact archived commit, subject and ref', asyn
     'an unversioned upload does not claim repository HEAD',
   );
 });
+
+test('coordinator Verify skips empty resources while rollback still restores their backups', async () => {
+  const f = fixture();
+  for (const name of f.names) {
+    const path = join(root, name, 'deploy.yaml');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8') +
+        'resources:\n  media: {type: volume, verify: empty}\n  database: {type: volume}\n',
+    );
+  }
+  const plan = await f.runtime.plan(f.project);
+  const { graphVolumeName } = await import('../graph-docker-adapter.ts');
+  const apps = (plan.runtime as { apps: { applicationId: string }[] }).apps;
+  for (const app of apps)
+    for (const name of ['media', 'database'])
+      await f.docker.ensureVolume(graphVolumeName(app.applicationId, name));
+  const exports: string[] = [];
+  const exportVolume = f.docker.exportVolume.bind(f.docker);
+  f.docker.exportVolume = async (volume, path) => {
+    exports.push(volume);
+    return exportVolume(volume, path);
+  };
+  const restores: string[] = [];
+  f.docker.restoreVolume = async (...args: unknown[]) => {
+    restores.push(args[0] as string);
+  };
+  await f.runtime.prepare(plan);
+  await f.runtime.verify(plan);
+  assert.deepEqual(
+    exports.sort(),
+    apps.map((app) => graphVolumeName(app.applicationId, 'database')).sort(),
+  );
+  assert.equal(restores.length, 2);
+  await f.runtime.activate(plan);
+  const backup = await f.runtime.backup(plan);
+  restores.length = 0;
+  await f.runtime.verify(plan, backup);
+  assert.equal(restores.length, 4);
+});

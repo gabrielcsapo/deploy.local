@@ -1,3 +1,4 @@
+import { timeReleasePart } from './v2/release-progress.ts';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
@@ -63,6 +64,7 @@ export interface AgentGraphExecutionInput {
   noCache?: boolean;
   healthTimeoutMs?: number;
   onBuildOutput?: (output: string) => void;
+  onPart?: (name: 'build image' | 'start' | 'wait for health', state: 'start' | 'end') => void;
   onProgress?: (stage: string, message: string) => void | Promise<void>;
   /** Deterministic health transport used by tests; production probes the target-local port. */
   probePort?: (port: number, protocol: string, path: string) => Promise<boolean>;
@@ -173,14 +175,7 @@ export async function executeAgentApplicationGraph(
       providers.set(resourceName, { source: resource.source.hostPath, type: 'bind' });
       continue;
     }
-    // Legacy repository deployments have always persisted their two platform-managed
-    // mounts directly beneath the deployment volume root. Keep those stable identities
-    // when the application is migrated to a graph so adopting the graph does not attach
-    // an empty replacement directory in front of existing data.
-    const source =
-      resourceName === 'data' || resourceName === 'uploads'
-        ? resolve(input.volumeDirectory, resourceName)
-        : resolve(input.volumeDirectory, 'graph', safeIdentifier(resourceName));
+    const source = graphResourceDirectory(input.volumeDirectory, resourceName);
     mkdirSync(source, { recursive: true, mode: 0o700 });
     providers.set(resourceName, { source, type: 'bind' });
   }
@@ -190,7 +185,9 @@ export async function executeAgentApplicationGraph(
     const component = graph.execution.components[componentName];
     await input.onProgress?.('building graph', `Preparing ${component.displayName}`);
     const releaseDigest = componentReleaseDigest(graph.spec, componentName);
-    const image = await prepareComponentImage(input, docker, component, releaseDigest);
+    const image = await timeReleasePart(input.onPart, 'build image', () =>
+      prepareComponentImage(input, docker, component, releaseDigest),
+    );
     prepared.set(componentName, { plan: component, image, releaseDigest });
   }
 
@@ -431,19 +428,24 @@ async function createGraphInstance(input: {
     `deploy-sh.release=${input.releaseDigest}`,
   );
   args.push(...input.component.runtime.runArgs, input.image, ...(input.component.command ?? []));
-  const created = await input.docker.run(args);
-  assertCommand(created, `Creating ${input.component.name} instance ${input.index + 1}`);
+  const created = await timeReleasePart(input.input.onPart, 'start', async () => {
+    const container = await input.docker.run(args);
+    assertCommand(container, `Creating ${input.component.name} instance ${input.index + 1}`);
+    const started = await input.docker.run(['start', containerName]);
+    assertCommand(started, `Starting ${containerName}`);
+    return container;
+  });
   const containerId = created.stdout.trim();
-  const started = await input.docker.run(['start', containerName]);
-  assertCommand(started, `Starting ${containerName}`);
-  const hostPorts = await waitForGraphHealth(
-    input.docker,
-    containerName,
-    input.component,
-    graph.profileValues[input.component.name] ?? {},
-    componentHealthTimeoutMs(input.component, input.input.healthTimeoutMs),
-    input.input.probePort,
-    input.input.internalNetwork,
+  const hostPorts = await timeReleasePart(input.input.onPart, 'wait for health', () =>
+    waitForGraphHealth(
+      input.docker,
+      containerName,
+      input.component,
+      graph.profileValues[input.component.name] ?? {},
+      componentHealthTimeoutMs(input.component, input.input.healthTimeoutMs),
+      input.input.probePort,
+      input.input.internalNetwork,
+    ),
   );
   await provisionProfile(input.docker, containerName, input.component, graph.profileValues);
   return {
@@ -971,6 +973,13 @@ function boundedDockerName(value: string, maxLength = 120): string {
   if (normalized.length <= maxLength) return normalized;
   const suffix = createHash('sha256').update(normalized).digest('hex').slice(0, 10);
   return `${normalized.slice(0, maxLength - suffix.length - 1)}-${suffix}`;
+}
+
+/** Keep legacy data/uploads mounts stable; other graph resources use normalized names. */
+export function graphResourceDirectory(volumeDirectory: string, resourceName: string): string {
+  return resourceName === 'data' || resourceName === 'uploads'
+    ? resolve(volumeDirectory, resourceName)
+    : resolve(volumeDirectory, 'graph', safeIdentifier(resourceName));
 }
 
 function safeIdentifier(value: string): string {

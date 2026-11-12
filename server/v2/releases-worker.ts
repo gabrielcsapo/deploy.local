@@ -1,3 +1,4 @@
+import { timeReleasePart, type WorkerReleasePart } from './release-progress.ts';
 import { execFile } from 'node:child_process';
 import { uncopyableResources } from './release-shared-data.ts';
 import { copyAppData } from './release-copy.ts';
@@ -5,11 +6,12 @@ import { promisify } from 'node:util';
 import { inspectUploadArchive } from '../upload-archive.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import { decryptSecret, encryptSecret, loadOrCreateSecretKey } from '../secrets.ts';
-import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import {
   executeAgentApplicationGraph,
+  graphResourceDirectory,
   type AgentApplicationGraphPayload,
   type AgentGraphDocker,
   type AgentGraphExecutionResult,
@@ -46,6 +48,7 @@ type NodeReceipt = {
   previous: string[];
   graph: AgentApplicationGraphPayload;
   verified?: AgentGraphExecutionResult;
+  verifyEmptyResources?: string[];
   active?: AgentGraphExecutionResult;
   port?: number | null;
   jobs: string[][];
@@ -55,6 +58,8 @@ type NodeReceipt = {
   reversing?: string;
 };
 export type ReleaseNodeResult = {
+  parts?: WorkerReleasePart[];
+  verifyEmptyResources?: string[];
   phase: NodeReceipt['phase'];
   verified: boolean;
   result?: AgentGraphExecutionResult;
@@ -64,7 +69,7 @@ export type ReleaseNodeResult = {
 };
 
 /** Node-local durable barrier. A Verify job never changes the live app's relay or data. */
-export async function executeReleaseNodeJob(input: {
+type ReleaseNodeInput = {
   root: string;
   application: string;
   payload: ReleaseNodePayload;
@@ -75,8 +80,62 @@ export async function executeReleaseNodeJob(input: {
   probePort?: AgentGraphExecutionInput['probePort'];
   /** Image pull and build output, as Docker prints it. */
   onBuildOutput?: AgentGraphExecutionInput['onBuildOutput'];
-}): Promise<ReleaseNodeResult> {
+  onProgress?: (parts: WorkerReleasePart[]) => void | Promise<void>;
+};
+
+/** One heartbeat covers downloads, long copies, Docker operations and cleanup. */
+async function withReleaseProgress(
+  input: Pick<ReleaseNodeInput, 'onProgress'>,
+  run: (
+    onPart: (name: WorkerReleasePart['name'], state: 'start' | 'end') => void,
+  ) => Promise<ReleaseNodeResult>,
+): Promise<ReleaseNodeResult> {
+  const parts: WorkerReleasePart[] = [];
+  let pending = Promise.resolve();
+  const report = () => {
+    const snapshot = structuredClone(parts);
+    // A lost progress request must not abort work that can still leave a durable receipt.
+    pending = pending
+      .then(() => input.onProgress?.(snapshot))
+      .then(
+        () => {},
+        () => {},
+      );
+  };
+  const onPart = (name: WorkerReleasePart['name'], state: 'start' | 'end') => {
+    if (state === 'start') parts.push({ name, startedAt: new Date().toISOString() });
+    else {
+      const part = parts.findLast((candidate) => candidate.name === name && !candidate.endedAt);
+      if (part) part.endedAt = new Date().toISOString();
+    }
+    report();
+  };
+  report();
+  const timer = setInterval(report, 30_000);
+  timer.unref();
+  try {
+    const result = await run(onPart);
+    return { ...result, parts };
+  } catch (error) {
+    throw Object.assign(error instanceof Error ? error : new Error(String(error)), { parts });
+  } finally {
+    clearInterval(timer);
+    report();
+    await pending;
+  }
+}
+
+export function executeReleaseNodeJob(input: ReleaseNodeInput): Promise<ReleaseNodeResult> {
+  return withReleaseProgress(input, (onPart) => executeReleaseNode(input, onPart));
+}
+
+async function executeReleaseNode(
+  input: ReleaseNodeInput,
+  onPart: (name: WorkerReleasePart['name'], state: 'start' | 'end') => void,
+): Promise<ReleaseNodeResult> {
   const { payload, docker, application } = input;
+  const copyData = (source: string, target: string) =>
+    timeReleasePart(onPart, 'copy data', () => copyAppData(source, target));
   if (
     payload.version !== 1 ||
     !/^[a-zA-Z0-9_-]+$/.test(payload.releaseId) ||
@@ -181,16 +240,49 @@ export async function executeReleaseNodeJob(input: {
     await removeCopy();
     await rm(copy, { recursive: true, force: true });
     await mkdir(volumes, { recursive: true });
+    record.verifyEmptyResources = [];
     if (payload.backupId && payload.backupReleaseId) {
       const backupKey = createHash('sha256')
         .update(`${payload.backupReleaseId}:${application}`)
         .digest('hex')
         .slice(0, 20);
-      await copyAppData(
+      await copyData(
         join(input.root, 'project-releases', backupKey, `backup-${payload.backupId}`),
         copy,
       );
-    } else await copyAppData(volumes, copy);
+    } else {
+      record.verifyEmptyResources = Object.entries(record.graph.spec.resources)
+        .filter(([, resource]) => resource.verify === 'empty')
+        .map(([name]) => name);
+      const empty = new Set(
+        record.verifyEmptyResources.map((name) => graphResourceDirectory(volumes, name)),
+      );
+      const copies: string[] = [];
+      // Only descend into ancestors of omitted resources (normally graph/). Unknown entries
+      // and whole copied resources retain copyAppData's cloning and symlink behavior.
+      const collect = async (dataDirectory: string) => {
+        await mkdir(join(copy, relative(volumes, dataDirectory)), { recursive: true });
+        for (const entry of await readdir(dataDirectory, { withFileTypes: true })) {
+          const dataSource = join(dataDirectory, entry.name);
+          if (empty.has(dataSource)) continue;
+          if (
+            entry.isDirectory() &&
+            [...empty].some((emptyPath) => emptyPath.startsWith(dataSource + sep))
+          )
+            await collect(dataSource);
+          else copies.push(dataSource);
+        }
+      };
+      await collect(volumes);
+      for (const name of record.verifyEmptyResources)
+        await mkdir(graphResourceDirectory(copy, name), { recursive: true, mode: 0o700 });
+      // Keep one timing for the complete copy, and none when all data is intentionally empty.
+      if (copies.length || !empty.size)
+        await timeReleasePart(onPart, 'copy data', async () => {
+          for (const dataSource of copies)
+            await copyAppData(dataSource, join(copy, relative(volumes, dataSource)));
+        });
+    }
     const graph = structuredClone(record.graph);
     graph.applicationId = temporaryName;
     if (payload.skipMigrations && !payload.backupId) graph.spec.jobs = {};
@@ -209,6 +301,7 @@ export async function executeReleaseNodeJob(input: {
         probePort: input.probePort,
         internalNetwork: true,
         onBuildOutput: input.onBuildOutput,
+        onPart,
       },
       docker,
     );
@@ -271,6 +364,7 @@ export async function executeReleaseNodeJob(input: {
           artifactSpec: record.graph.spec,
           probePort: input.probePort,
           onBuildOutput: input.onBuildOutput,
+          onPart,
         },
         {
           run: async (args, options) => {
@@ -314,7 +408,7 @@ export async function executeReleaseNodeJob(input: {
   if (payload.phase === 'backup') {
     const backupId = payload.backupId;
     if (!backupId || !/^[a-zA-Z0-9_-]+$/.test(backupId)) throw new Error('Backup id required');
-    await copyAppData(volumes, join(directory, `backup-${backupId}`));
+    await copyData(volumes, join(directory, `backup-${backupId}`));
   }
   if (payload.phase === 'restore') {
     const backupId = payload.backupId;
@@ -326,10 +420,7 @@ export async function executeReleaseNodeJob(input: {
       .slice(0, 20);
     const restore = join(directory, 'restored-data');
     await rm(restore, { recursive: true, force: true });
-    await copyAppData(
-      join(input.root, 'project-releases', backupKey, `backup-${backupId}`),
-      restore,
-    );
+    await copyData(join(input.root, 'project-releases', backupKey, `backup-${backupId}`), restore);
     await rm(volumes, { recursive: true, force: true });
     await rename(restore, volumes);
   }
@@ -380,6 +471,9 @@ export async function executeReleaseNodeJob(input: {
   return {
     phase: record.phase,
     verified: !!record.verified,
+    ...(payload.phase === 'verify'
+      ? { verifyEmptyResources: record.verifyEmptyResources ?? [] }
+      : {}),
     result: record.active,
     port: record.port,
     images: Object.fromEntries(
@@ -404,25 +498,31 @@ export async function executeReleaseAgentJob(input: {
   probePort?: AgentGraphExecutionInput['probePort'];
   workerProbeMs?: number;
   onBuildOutput?: AgentGraphExecutionInput['onBuildOutput'];
+  onProgress?: ReleaseNodeInput['onProgress'];
 }) {
-  let directory: string | undefined;
-  try {
-    if (input.job.artifactUrl) {
-      await mkdir(join(input.root, 'project-releases'), { recursive: true, mode: 0o700 });
-      directory = await mkdtemp(join(input.root, 'project-releases', 'download-'));
-      const archive = join(directory, 'source.tar.gz');
-      await input.download(archive);
-      await inspectUploadArchive(archive);
-      await mkdir(join(directory, 'source'));
-      await promisify(execFile)('tar', ['-xzf', archive, '-C', join(directory, 'source')]);
+  return withReleaseProgress(input, async (onPart) => {
+    let directory: string | undefined;
+    try {
+      if (input.job.artifactUrl) {
+        await mkdir(join(input.root, 'project-releases'), { recursive: true, mode: 0o700 });
+        directory = await mkdtemp(join(input.root, 'project-releases', 'download-'));
+        const archive = join(directory, 'source.tar.gz');
+        await input.download(archive);
+        await inspectUploadArchive(archive);
+        await mkdir(join(directory, 'source'));
+        await promisify(execFile)('tar', ['-xzf', archive, '-C', join(directory, 'source')]);
+      }
+      return await executeReleaseNode(
+        {
+          ...input,
+          application: input.job.deploymentName,
+          payload: input.job.payload,
+          sourceDirectory: directory ? join(directory, 'source') : undefined,
+        },
+        onPart,
+      );
+    } finally {
+      if (directory) await rm(directory, { recursive: true, force: true });
     }
-    return await executeReleaseNodeJob({
-      ...input,
-      application: input.job.deploymentName,
-      payload: input.job.payload,
-      sourceDirectory: directory ? join(directory, 'source') : undefined,
-    });
-  } finally {
-    if (directory) await rm(directory, { recursive: true, force: true });
-  }
+  });
 }

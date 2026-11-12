@@ -189,6 +189,26 @@ describe('semantic application change planning', () => {
     assert.equal(changePlan.restartRequired, true);
   });
 
+  it('changes Verify policy without replacing data and still detects incompatible edits', () => {
+    const desired = clone(BASE_SPEC);
+    desired.resources.database.verify = 'empty';
+    const plan = planApplicationChange(BASE_SPEC, desired);
+    assert.deepEqual(
+      plan.actions.map((item) => item.classification),
+      ['metadata-update'],
+    );
+    assert.deepEqual(plan.actions[0].changedAddresses, ['/resources/database/verify']);
+    assert.equal(plan.blocked, false);
+    assert.equal(plan.destructive, false);
+    assert.equal(plan.restartRequired, false);
+    desired.resources.database.access = 'multipleReaders';
+    const incompatible = planApplicationChange(BASE_SPEC, desired);
+    assert.equal(incompatible.destructive, true);
+    assert.ok(
+      incompatible.actions.some((item) => item.classification === 'resource-incompatible-change'),
+    );
+  });
+
   it('treats a durable resource key rename as remove plus create', () => {
     const desired = clone(BASE_SPEC);
     desired.resources['postgres-data'] = desired.resources.database;

@@ -45,6 +45,7 @@ export {
   requeueFailedAgentJob,
   getRecentAgentJobs,
   completeAgentJob,
+  recordReleaseJobProgress,
 } from './store/agent-jobs.ts';
 export {
   saveDeployment,

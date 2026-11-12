@@ -1,3 +1,4 @@
+import { reportReleaseParts, reportVerifyEmptyResources } from './release-progress.ts';
 import { readFile } from 'node:fs/promises';
 import { dispatchReleaseNodeJob, type ReleaseNodeTransport } from './releases-remote.ts';
 import type { ReleaseNodePhase, ReleaseNodePayload, ReleaseNodeResult } from './releases-worker.ts';
@@ -361,7 +362,13 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         runtime: context.runtime,
       });
     }
-    return this.remote(
+    const onParts = (parts: NonNullable<ReleaseNodeResult['parts']>) =>
+      reportReleaseParts(
+        plan,
+        `${runtime.id}:${phase}:${app.name}`,
+        parts.map((part) => ({ ...part, app: app.name })),
+      );
+    const result = await this.remote(
       app.nodeId!,
       app.name,
       {
@@ -374,7 +381,10 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         ...extra,
       },
       artifact,
+      onParts,
     );
+    if (result.parts) onParts(result.parts);
+    return result;
   }
   async prepare(plan: ReleasePlan) {
     for (const app of (plan.runtime as RuntimePlan).apps) {
@@ -405,6 +415,16 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     }
   }
   async verify(plan: ReleasePlan, backup?: ReleaseBackup) {
+    reportVerifyEmptyResources(
+      plan,
+      backup
+        ? []
+        : (plan.runtime as RuntimePlan).apps.flatMap((app) =>
+            Object.entries(app.spec.resources)
+              .filter(([, resource]) => resource.verify === 'empty')
+              .map(([resource]) => ({ app: app.name, resource })),
+          ),
+    );
     for (const app of (plan.runtime as RuntimePlan).apps) {
       if (app.nodeId && app.nodeId !== 'coordinator') {
         const entry = (backup?.runtime as any[] | undefined)?.find((row) => row.name === app.name);
@@ -470,7 +490,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
             )
               throw new Error(`Backup data for ${resource} is corrupt`);
             await this.docker.restoreVolume(destination, archive);
-          } else if (await this.docker.volumeExists(source)) {
+          } else if (definition.verify !== 'empty' && (await this.docker.volumeExists(source))) {
             const archive = join(
               root,
               `${Object.keys(app.spec.resources).indexOf(resource)}.tar.gz`,

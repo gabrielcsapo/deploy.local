@@ -162,6 +162,7 @@ export interface VolumeResourceManifest {
   access?: 'singleWriter' | 'multipleReaders' | 'sharedWriters';
   consistencyGroup?: string;
   ownership?: 'application' | 'external';
+  verify?: 'copy' | 'empty';
   backup?: {
     policy?: 'include' | 'exclude' | 'required';
     retentionCopies?: number;
@@ -299,6 +300,7 @@ export interface ApplicationSpec {
       access: 'singleWriter' | 'multipleReaders' | 'sharedWriters';
       consistencyGroup: string;
       ownership: 'application' | 'external';
+      verify?: 'copy' | 'empty';
       backup: {
         policy: 'include' | 'exclude' | 'required';
         retentionCopies: number;
@@ -534,6 +536,9 @@ export function compileApplicationManifest(manifest: ApplicationManifest): Compi
       access: resource.access ?? 'singleWriter',
       consistencyGroup: resource.consistencyGroup ?? 'application',
       ownership: resource.ownership ?? 'application',
+      // Only an explicit choice is canonical: writing the default here would change the digest
+      // of every app that was admitted before this field existed.
+      ...(resource.verify === 'empty' ? { verify: 'empty' as const } : {}),
       backup: {
         policy: resource.backup?.policy ?? (durability === 'durable' ? 'include' : 'exclude'),
         retentionCopies: resource.backup?.retentionCopies ?? 1,
@@ -1327,6 +1332,7 @@ function validateResourceMap(value: unknown, path: string, issues: string[]) {
         'access',
         'consistencyGroup',
         'ownership',
+        'verify',
         'backup',
         'suitcase',
         'source',
@@ -1358,6 +1364,13 @@ function validateResourceMap(value: unknown, path: string, issues: string[]) {
       validateName(item.consistencyGroup, `${itemPath}.consistencyGroup`, issues);
     if (item.ownership !== undefined)
       enumeration(item.ownership, ['application', 'external'], `${itemPath}.ownership`, issues);
+    if (item.verify !== undefined) {
+      enumeration(item.verify, ['copy', 'empty'], `${itemPath}.verify`, issues);
+      if (item.ownership === 'external' || item.source !== undefined)
+        issues.push(
+          `${itemPath}.verify is not allowed on external resources or resources with a source; those resources are never copied`,
+        );
+    }
     let backup: VolumeResourceManifest['backup'];
     if (item.backup !== undefined) {
       const contract = record(item.backup, `${itemPath}.backup`, issues);
@@ -1474,6 +1487,7 @@ function validateResourceMap(value: unknown, path: string, issues: string[]) {
       access: item.access as VolumeResourceManifest['access'],
       consistencyGroup: item.consistencyGroup as string | undefined,
       ownership: item.ownership as VolumeResourceManifest['ownership'],
+      verify: item.verify as VolumeResourceManifest['verify'],
       backup,
       suitcase,
       source,
@@ -1648,6 +1662,12 @@ function validateGraphReferences(
       issues.push(
         `${sourceName}.jobs.${jobName}.component references unknown component "${job.component}"`,
       );
+    }
+    for (const mount of Object.values(components[job.component]?.mounts ?? {})) {
+      if (resources[mount.resource]?.verify === 'empty')
+        issues.push(
+          `${sourceName}.jobs.${jobName} mounts resource "${mount.resource}" with verify: empty; remove the job or remove verify: empty from the resource`,
+        );
     }
     for (const [variable, reference] of Object.entries(job.environment ?? {})) {
       validateValueReference(reference, `${sourceName}.jobs.${jobName}.environment.${variable}`);

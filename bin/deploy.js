@@ -1583,6 +1583,7 @@ async function reportAgentJobProgress(config, job, progress) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(progress),
+    signal: AbortSignal.timeout(15_000),
   });
 }
 
@@ -2092,6 +2093,7 @@ async function processAgentJob(config, job) {
           download: (path) => downloadAgentArtifact(config, job, path),
           docker: agentBuildDocker(config, job),
           relay: (name, port, container) => ensureAgentRelay(name, port, undefined, container),
+          onProgress: (parts) => reportAgentJobProgress(config, job, { parts }),
           onBuildOutput: (output) => {
             pendingOutput += output;
             if (pendingOutput.length >= 64 * 1024) void flushOutput();
@@ -2219,6 +2221,7 @@ async function processAgentJob(config, job) {
       result: {
         buildOutput: err.buildOutput || '',
         buildDuration: err.buildDuration || 0,
+        ...(job.type === 'project-release' && err.parts ? { parts: err.parts } : {}),
       },
     }).catch((reportErr) => {
       console.error(`Unable to report failed job ${job.id}: ${reportErr.message}`);

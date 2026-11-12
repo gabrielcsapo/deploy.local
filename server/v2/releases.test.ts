@@ -543,3 +543,34 @@ test('releases retain verified commit metadata while keeping their stable identi
   assert.notEqual(stored.id, source.commit);
   assert.deepEqual(stored.source, { kind: 'ship', ref: 'main', ...source });
 });
+
+test('release parts persist in order for multiple apps while running and after completion', async () => {
+  const { reportReleaseParts } = await import('./release-progress.ts');
+  const f = fixture();
+  let proceed!: () => void;
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => (started = resolve));
+  const paused = new Promise<void>((resolve) => (proceed = resolve));
+  const first = { name: 'copy data' as const, app: 'web', startedAt: '2026-11-12T12:00:00.000Z' };
+  f.runtime.verify = async (plan) => {
+    reportReleaseParts(plan, 'verify:web', [first]);
+    started();
+    await paused;
+    reportReleaseParts(plan, 'verify:web', [{ ...first, endedAt: '2026-11-12T12:01:00.000Z' }]);
+    reportReleaseParts(plan, 'verify:sync', [{ ...first, app: 'sync' }]);
+  };
+  const release = f.ship();
+  await ready;
+  const running = get('v2-release', f.owner, release.id).release.steps[1];
+  assert.equal(running.state, 'running');
+  assert.deepEqual(running.parts, [first]);
+  assert.equal(Object.hasOwn(running.parts[0], 'endedAt'), false);
+  proceed();
+  await f.service.settled();
+  const saved = projectReleases(f.owner, project.id)[0].steps[1].parts!;
+  assert.deepEqual(
+    saved.map((part) => part.app),
+    ['web', 'sync'],
+  );
+  assert.equal(saved[0].endedAt, '2026-11-12T12:01:00.000Z');
+});

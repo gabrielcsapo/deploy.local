@@ -102,6 +102,13 @@ export type InboxItem = {
   };
 };
 
+export type ReleasePart = {
+  name: 'copy data' | 'build image' | 'start' | 'wait for health';
+  app: string;
+  startedAt: string;
+  endedAt?: string;
+};
+
 // A release is the whole project.
 export type Release = {
   id: string; // Stable release identity; display source.commit when available.
@@ -123,6 +130,8 @@ export type Release = {
     startedAt?: string;
     endedAt?: string;
     detail?: string;
+    parts?: ReleasePart[];
+    verifyEmptyResources?: { app: string; resource: string }[];
   }[];
   state: 'running' | 'live' | 'failed' | 'rolled-back' | 'superseded';
 };

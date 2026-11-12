@@ -1381,7 +1381,13 @@ export const docs: Doc[] = [
         <p>
           Host mounts, external data and privileged apps cannot use isolated project verification.
           For supported apps, migration jobs without a reverse command require a pre-release backup.
-          Review {docLink('releases', 'Releases and rollback')} before shipping data changes.
+          A volume resource accepts <code>verify: copy</code> (the default) or{' '}
+          <code>verify: empty</code> to start Verify on an empty folder; this option is not allowed
+          with external ownership, a bind source or a lifecycle job that mounts the resource. With{' '}
+          <code>verify: empty</code>, Verify proves the build starts and answers, but not that it
+          works with real data. A migration that fails on real data is found at Activate, where the
+          previous release is started again. Review {docLink('releases', 'Releases and rollback')}{' '}
+          before shipping data changes.
         </p>,
       ),
       section(
