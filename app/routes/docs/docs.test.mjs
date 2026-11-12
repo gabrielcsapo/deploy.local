@@ -292,7 +292,9 @@ test('the desktop steps describe what the desktop app actually shows', () => {
   assert.match(main, /if \(worker\.selection\.useScreen\) show\('permissions'\)/);
   assert.match(views, /button\(`Add \$\{state\.name\}`, 'join', true\)/);
   assert.match(views, /The worker keeps running when you close the window\./);
-  assert.match(views, /trayText\('Quit', 'The worker stops until you open the app again'\)/);
+  // A computer that only takes tasks stops working on Quit; one that runs apps keeps them up.
+  assert.match(views, /'The worker stops until you open the app again'/);
+  assert.match(views, /'Apps keep running\. Tasks wait until you open the app again\.'/);
 });
 
 test('other pages send desktop setup to the install page instead of calling downloads unavailable', () => {
