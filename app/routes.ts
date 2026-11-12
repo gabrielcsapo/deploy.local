@@ -276,6 +276,16 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
+            id: 'v2-projects-p-performance',
+            path: 'projects/:p/performance',
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
+          },
+          {
+            id: 'v2-projects-p-apps-app-performance',
+            path: 'projects/:p/apps/:app/performance',
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
+          },
+          {
             id: 'v2-projects-p-request',
             path: 'projects/:p/requests/:id',
             component: () => import('./routes/dashboard/v2/projects/page.js'),

@@ -8,7 +8,9 @@ const DAY = 24 * HOUR;
 // CLS uses the same histogram in thousandths. Zero has its own bucket.
 export const HISTOGRAM_BOUNDS = [0, ...Array.from({ length: 230 }, (_, i) => 1.1 ** i)];
 type Histogram = number[];
-type Phases = Record<string, { sum: number; count: number }>;
+// Phase histograms use signed log buckets so sub-millisecond route matching
+// keeps the same <10% precision as longer phases. Older rollups have only sums.
+type Phases = Record<string, { sum: number; count: number; histogram?: Record<string, number> }>;
 type Aggregate = {
   count: number;
   errors4: number;
@@ -50,6 +52,10 @@ function merge(target: Aggregate, source: Aggregate) {
     const phase = (target.phases[key] ??= { sum: 0, count: 0 });
     phase.sum += value.sum;
     phase.count += value.count;
+    for (const [bucket, count] of Object.entries(value.histogram ?? {})) {
+      const histogram = (phase.histogram ??= {});
+      histogram[bucket] = (histogram[bucket] ?? 0) + count;
+    }
   }
 }
 function add(
@@ -66,7 +72,27 @@ function add(
     const phase = (agg.phases[key] ??= { sum: 0, count: 0 });
     phase.sum += value;
     phase.count++;
+    const histogram = (phase.histogram ??= {});
+    const bucket = value === 0 ? 'zero' : String(Math.ceil(Math.log(value) / Math.log(1.1)));
+    histogram[bucket] = (histogram[bucket] ?? 0) + 1;
   }
+}
+function phasePercentiles(phases: Phases) {
+  return Object.fromEntries(
+    Object.entries(phases).map(([name, phase]) => {
+      const buckets = Object.entries(phase.histogram ?? {})
+        .map(([bucket, count]) => ({ ms: bucket === 'zero' ? 0 : 1.1 ** Number(bucket), count }))
+        .sort((a, b) => a.ms - b.ms);
+      const measured = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+      const percentile = (p: number) => {
+        // Never present a new subset as the percentile of a legacy/mixed rollup.
+        if (!measured || measured !== phase.count) return null;
+        let count = 0;
+        return buckets.find((bucket) => (count += bucket.count) >= Math.ceil(measured * p))!.ms;
+      };
+      return [name, { p50: percentile(0.5), p95: percentile(0.95) }];
+    }),
+  );
 }
 function summary(agg: Aggregate) {
   return {
@@ -76,6 +102,7 @@ function summary(agg: Aggregate) {
     errorRate: agg.count ? agg.errors5 / agg.count : 0,
     errors4xx: agg.errors4,
     errors5xx: agg.errors5,
+    phases: phasePercentiles(agg.phases),
   };
 }
 function hasControlCharacter(value: string) {
@@ -693,6 +720,7 @@ export function readPerformance(
         return {
           route,
           ...summary(agg),
+          phases: phasePercentiles(phases),
           slowestPhase: slowest
             ? { name: slowest[0], ms: slowest[1].sum / slowest[1].count }
             : null,

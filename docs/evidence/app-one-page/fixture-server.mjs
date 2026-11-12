@@ -183,6 +183,12 @@ server.on('request', async (req, res) => {
       slowest: [],
       errorPaths: [],
     });
+  if (path.endsWith('/performance') && path.startsWith('/api/')) {
+    // Capture-only: PERFORMANCE_FIXTURE names a JSON file in the API's shape.
+    const { readFileSync } = await import('node:fs');
+    if (!process.env.PERFORMANCE_FIXTURE) return send({ error: 'No performance fixture' }, 404);
+    return send(JSON.parse(readFileSync(process.env.PERFORMANCE_FIXTURE, 'utf8')));
+  }
   if (path.endsWith('/requests')) return send({ rows: [], total: 0, page: 1, pageSize: 50 });
   if (path.startsWith('/api/')) return send({ error: 'Fixture endpoint unavailable' }, 404);
   if (path.startsWith('/dashboard')) {

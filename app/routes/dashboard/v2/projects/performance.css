@@ -1,0 +1,126 @@
+.v2-performance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-6);
+  min-width: 0;
+}
+.v2-performance .dl-section {
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+.v2-performance .dl-section-sub,
+.v2-performance .dl-list-note {
+  margin: 0;
+  line-height: 20px;
+}
+.v2-performance .dl-item {
+  min-height: 64px;
+  box-sizing: border-box;
+  align-items: center;
+}
+.v2-performance .dl-item .dl-t {
+  gap: var(--ds-space-1);
+}
+.v2-performance .dl-item .dl-t > span {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+.v2-performance .dl-item .dl-t > span + span {
+  line-height: 20px;
+}
+.v2-performance .dl-item .dl-c {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+  max-width: 35%;
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+}
+.v2-performance .dl-page-head {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.v2-performance :is(.dl-title, .dl-section-title) {
+  overflow-wrap: anywhere;
+}
+.v2-performance .perf-facts {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--ds-space-4);
+  row-gap: var(--ds-space-1);
+  font-size: var(--ds-type-meta);
+  color: var(--ds-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.v2-performance .perf-facts span {
+  white-space: nowrap;
+}
+.v2-performance .perf-rating {
+  font-size: var(--ds-type-ui);
+  font-weight: 400;
+}
+.v2-performance .good {
+  color: var(--ds-success);
+}
+.v2-performance .needs-work {
+  color: var(--ds-warning);
+}
+.v2-performance .poor {
+  color: var(--ds-danger);
+}
+.v2-performance details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.v2-performance details > summary::-webkit-details-marker {
+  display: none;
+}
+.v2-performance details + details {
+  border-top: 1px solid var(--ds-line);
+}
+.v2-performance details[open] > summary .dl-chev {
+  transform: rotate(90deg);
+}
+.v2-performance .perf-detail {
+  padding: 0 var(--ds-space-4) var(--ds-space-4);
+}
+.v2-performance .perf-detail .dl-group {
+  border-radius: var(--ds-radius-control);
+}
+.v2-performance .perf-detail .dl-item {
+  min-height: 52px;
+}
+.v2-performance .perf-stack {
+  margin: 0;
+  padding: var(--ds-space-4);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-meta);
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ds-secondary);
+}
+.v2-performance .perf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+.v2-performance :where(a, button, summary):focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 3px;
+}
+.v2-performance .dl-seg {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .v2-performance .dl-item .dl-c {
+    max-width: 38%;
+  }
+}

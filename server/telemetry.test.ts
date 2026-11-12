@@ -427,3 +427,104 @@ test('release error verdict includes an exact one-percentage-point increase', as
     db.close();
   }
 });
+
+test('phase percentiles retain sub-ms timing, merge buckets, and prefer detailed server phases', async () => {
+  const t = await collector();
+  const db = fixture();
+  try {
+    t.writeEdgeTelemetry(db, [
+      { name: 'app', entry: { ...entry(), phases: { match: 1, render: 80 } } },
+    ]);
+    for (const [at, rsc] of [
+      [now - 60_000, 10],
+      [now, 20],
+      [now + 60_000, 90],
+    ]) {
+      t.ingestServer(
+        db,
+        'app',
+        {
+          v: 1,
+          records: [
+            {
+              t: at,
+              kind: 'page',
+              route: '/photos/:id',
+              status: 200,
+              ms: 100,
+              phases: { match: 0.1, rsc, ssr: 0, stream: 7 },
+              build: null,
+              aborted: false,
+            },
+          ],
+        },
+        now + 60_000,
+      );
+    }
+    const result = t.readPerformance(db, 'app', '1h', now + 120_000);
+    assert.equal(result.summary.requests, 1); // server records never double-count edge traffic
+    const phases = result.routes[0].phases;
+    assert.ok(phases.match.p50! >= 0.1 && phases.match.p50! < 0.11);
+    assert.ok(phases.rsc.p50! >= 20 && phases.rsc.p50! < 22);
+    assert.ok(phases.rsc.p95! >= 90 && phases.rsc.p95! < 99);
+    assert.deepEqual(phases.ssr, { p50: 0, p95: 0 });
+    assert.equal(phases.render, undefined);
+    assert.equal(result.routes[0].slowestPhase?.name, 'rsc');
+  } finally {
+    db.close();
+  }
+});
+
+test('legacy and mixed phase rollups cannot fabricate percentiles from averages', async () => {
+  const t = await collector();
+  const db = fixture();
+  try {
+    t.writeEdgeTelemetry(db, [{ name: 'app', entry: { ...entry(), phases: { match: 1 } } }]);
+    db.prepare('UPDATE telemetry_routes SET phases=?').run(
+      JSON.stringify({ match: { sum: 1, count: 1 } }),
+    );
+    assert.deepEqual(t.readPerformance(db, 'app', '1h', now + 60_000).routes[0].phases.match, {
+      p50: null,
+      p95: null,
+    });
+    t.writeEdgeTelemetry(db, [
+      {
+        name: 'app',
+        entry: { ...entry(100, 200, '/photos/:id', now + 60_000), phases: { match: 3 } },
+      },
+    ]);
+    assert.deepEqual(t.readPerformance(db, 'app', '1h', now + 120_000).routes[0].phases.match, {
+      p50: null,
+      p95: null,
+    });
+  } finally {
+    db.close();
+  }
+});
+
+test('release snapshots retain measured phase percentiles on both sides', async () => {
+  const t = await collector();
+  const db = fixture();
+  try {
+    const batch = (timestamp: number, render: number) =>
+      Array.from({ length: 50 }, () => ({
+        name: 'app',
+        entry: { ...entry(100, 200, '/', timestamp), phases: { match: 0.1, render } },
+      }));
+    t.writeEdgeTelemetry(db, batch(now - 60_000, 10));
+    t.registerTelemetryRelease(db, 'app', 'new', now);
+    t.writeEdgeTelemetry(db, batch(now + 1000, 20));
+    const result = t.readPerformance(db, 'app', '1h', now + 3_660_000).releases[0]?.comparison;
+    // The release falls just outside 1h, but remains visible in the day window.
+    assert.equal(result, undefined);
+    const comparison = t.readPerformance(db, 'app', '24h', now + 3_660_000).releases[0].comparison;
+    assert.ok(comparison.routes[0].before.phases.render.p50 >= 10);
+    assert.ok(comparison.routes[0].before.phases.render.p50 < 11);
+    assert.ok(comparison.routes[0].after.phases.render.p50 >= 20);
+    assert.ok(comparison.routes[0].after.phases.render.p50 < 22);
+    assert.equal(comparison.before.requests, 50);
+    assert.equal(comparison.after.requests, 50);
+  } finally {
+    db.close();
+  }
+});

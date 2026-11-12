@@ -26,6 +26,7 @@ import { ProjectConfiguration } from './settings.client';
 import { ProjectPipelines } from './pipelines.client';
 import { ProjectLogs } from './logs.client';
 import { AppRequest, AppRequests } from './requests.client';
+import { AppPerformance } from './performance.client';
 import { formatRequestClock, type RequestDetail } from './requests';
 import './projects.css';
 import { NewProjectDialog } from './new-project.client';
@@ -113,6 +114,7 @@ export default function Projects() {
       appKey={parts[3] === 'apps' ? parts[4] : undefined}
       appSettings={parts[5] === 'settings'}
       appRequests={parts[5] === 'requests'}
+      appPerformance={parts[5] === 'performance'}
       requestId={
         parts[3] === 'requests' ? parts[4] : parts[5] === 'requests' ? parts[6] : undefined
       }
@@ -219,6 +221,7 @@ function ProjectPage({
   appKey,
   appSettings,
   appRequests,
+  appPerformance,
   requestId,
   search,
 }: {
@@ -227,6 +230,7 @@ function ProjectPage({
   appKey?: string;
   appSettings: boolean;
   appRequests: boolean;
+  appPerformance: boolean;
   requestId?: string;
   search: string;
 }) {
@@ -295,9 +299,16 @@ function ProjectPage({
       : undefined;
   const pageApp = selectedApp ?? (single ? project?.apps[0] : undefined);
   useEffect(() => {
-    if (single && selectedApp && section === 'apps' && !appSettings && !appRequests)
+    if (
+      single &&
+      selectedApp &&
+      section === 'apps' &&
+      !appSettings &&
+      !appRequests &&
+      !appPerformance
+    )
       window.location.replace(base);
-  }, [single, selectedApp, section, appSettings, appRequests, base]);
+  }, [single, selectedApp, section, appSettings, appRequests, appPerformance, base]);
   const appBase = selectedApp ? `${base}/apps/${projectSegment(selectedApp.name)}` : '';
   // A one-app project is its own app page, so its requests live at the project's /requests.
   const requestsApp =
@@ -306,9 +317,16 @@ function ProjectPage({
   const requestsBase = selectedApp && !single ? `${appBase}/requests` : `${base}/requests`;
   const showRequests =
     !!requestsApp && (appRequests || section === 'requests') && requestsApp.kind !== 'worker';
+  const performanceApp =
+    selectedApp ?? (single && section === 'performance' ? project?.apps[0] : undefined);
+  const showPerformance =
+    !!performanceApp &&
+    (appPerformance || section === 'performance') &&
+    performanceApp.kind !== 'worker';
+  const performanceBase = selectedApp && !single ? `${appBase}/performance` : `${base}/performance`;
   const liveAddress = live.data?.computers
     .flatMap((computer) => computer.apps)
-    .find((app) => app.appId === requestsApp?.name)?.address;
+    .find((app) => app.appId === (requestsApp ?? performanceApp)?.name)?.address;
   const requestDetail = useData<RequestDetail>(
     showRequests && requestId
       ? `/api/v2/apps/${projectSegment(requestsApp!.name)}/requests/${encodeURIComponent(requestId)}`
@@ -327,16 +345,18 @@ function ProjectPage({
     ? 'Settings'
     : showRequests
       ? 'Requests'
-      : appList
-        ? 'Apps'
-        : ({
-            logs: 'Logs',
-            code: 'Code',
-            pulls: 'Pull requests',
-            issues: 'Issues',
-            pipelines: 'Pipelines',
-            settings: 'Settings',
-          }[section] ?? 'Overview');
+      : showPerformance
+        ? 'Performance'
+        : appList
+          ? 'Apps'
+          : ({
+              logs: 'Logs',
+              code: 'Code',
+              pulls: 'Pull requests',
+              issues: 'Issues',
+              pipelines: 'Pipelines',
+              settings: 'Settings',
+            }[section] ?? 'Overview');
   async function addApp() {
     setBusy(true);
     setError('');
@@ -403,7 +423,7 @@ function ProjectPage({
       />
       <div className="dl-scroll">
         <div
-          className={`dl-page ${showRequests ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
+          className={`dl-page ${showRequests || showPerformance ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
         >
           {overview.error && (
             <Banner
@@ -445,6 +465,12 @@ function ProjectPage({
                   <ProjectLogs project={project} selected={params.get('app') || ''} />
                 ) : showRequests ? (
                   <AppRequests app={requestsApp!.name} address={liveAddress} base={requestsBase} />
+                ) : showPerformance ? (
+                  <AppPerformance
+                    app={performanceApp!.name}
+                    address={liveAddress}
+                    base={performanceBase}
+                  />
                 ) : selectedApp ? (
                   <AppOverview
                     project={project}

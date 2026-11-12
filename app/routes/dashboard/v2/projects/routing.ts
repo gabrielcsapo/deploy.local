@@ -27,6 +27,7 @@ export function projectTabs(input: {
     ...(input.pipeline ? ['Pipelines'] : []),
     ...(input.releases || input.apps === 1 ? ['Releases'] : []),
     ...(input.apps === 1 && input.requests ? ['Requests'] : []),
+    ...(input.apps === 1 && input.requests ? ['Performance'] : []),
     ...(input.apps ? ['Logs'] : []),
     'Settings',
   ];
@@ -90,7 +91,10 @@ export function appTabItems(base: string, app: { name: string; kind?: string }, 
     { label: 'Overview', href: single ? base : appBase },
     ...(app.kind === 'worker'
       ? []
-      : [{ label: 'Requests', href: `${single ? base : appBase}/requests` }]),
+      : [
+          { label: 'Requests', href: `${single ? base : appBase}/requests` },
+          { label: 'Performance', href: `${single ? base : appBase}/performance` },
+        ]),
     { label: 'Releases', href: `${base}/releases${query}` },
     { label: 'Logs', href: `${base}/logs${query}` },
     { label: 'Settings', href: `${appBase}/settings` },

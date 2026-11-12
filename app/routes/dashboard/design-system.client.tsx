@@ -614,6 +614,49 @@ function Components({ state }: { state: ComponentState }) {
           }
         />
       </Section>
+      <Section
+        title="Timing waterfall"
+        description="Server phases share one scale; the thin marker is the route p95."
+      >
+        <div className="dl-waterfall" data-waterfall="compact">
+          <div className="dl-waterfall-legend dl-meta" aria-label="Timing colors">
+            <span>
+              <i data-phase="match" aria-hidden="true" />
+              Route match
+            </span>
+            <span>
+              <i data-phase="data" aria-hidden="true" />
+              Data loading
+            </span>
+            <span>
+              <i data-phase="render" aria-hidden="true" />
+              Page render
+            </span>
+            <span>
+              <i data-phase="stream" aria-hidden="true" />
+              Streaming
+            </span>
+          </div>
+          <div data-axis-labels>
+            <span className="dl-meta">0 ms</span>
+            <span className="dl-meta">100 ms</span>
+          </div>
+          <div data-timing-row>
+            <span>/watch/:id</span>
+            <span
+              className="dl-bar"
+              role="img"
+              aria-label="Route match 0.1 ms, Data loading 18 ms, Page render 9 ms, Streaming 7 ms; p95 88 ms"
+            >
+              <span data-phase="match" style={{ left: '0%', width: '0.1%' }} />
+              <span data-phase="data" style={{ left: '0.1%', width: '18%' }} />
+              <span data-phase="render" style={{ left: '18.1%', width: '9%' }} />
+              <span data-phase="stream" style={{ left: '27.1%', width: '7%' }} />
+              <i style={{ left: '88%' }} />
+            </span>
+          </div>
+        </div>
+      </Section>
       <div className="ds-grid ds-halves">
         <Section title="Term">
           <Term {...state} aria-label="Example release output">

@@ -1,3 +1,5 @@
+@import './waterfall.css';
+
 /* deploy.local v2 web primitives, ported from the v2 component reference.
    Four sizes inside the app: meta 12 · ui 13 · body 15 · title 22, and replies at 16.
    One near-black action per screen; violet is the brand, never a button fill. */
