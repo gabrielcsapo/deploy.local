@@ -289,6 +289,24 @@ test('stopping a waiting task cancels its durable launch', async () => {
   assert.equal(taskRequirementsSnapshot(owner, get('task', owner, task.id)).needs?.waiting, false);
 });
 
+test('a closed task does not start when a computer with its tools appears', async () => {
+  const { setTaskOutcome } = await import('./service.ts');
+  const owner = fixture();
+  const task = queueTask(owner, { needs: ['xcodebuild'], prompt: 'Build later' });
+  const closed = setTaskOutcome(owner, task.id, 'close', { revision: task.revision });
+  assert.equal(closed.status, 'done');
+  // One closed before closing cleared the wait.
+  const old = queueTask(owner, { needs: ['xcodebuild'], prompt: 'Closed earlier' });
+  save('task', owner, { ...get('task', owner, old.id), status: 'done' });
+  answer(owner, 'mac', { xcodebuild: true });
+  await startWaitingTasks();
+  assert.equal(list('run', owner).length, 0);
+  for (const id of [task.id, old.id]) {
+    assert.equal(get('task', owner, id).status, 'done');
+    assert.equal(taskRequirementsSnapshot(owner, get('task', owner, id)).needs?.waiting, false);
+  }
+});
+
 test('a repository handoff restores changed and deleted files over its exact base', async () => {
   const { git } = await import('./service.ts');
   const source = mkdtempSync(join(tmpdir(), 'needs-delta-'));

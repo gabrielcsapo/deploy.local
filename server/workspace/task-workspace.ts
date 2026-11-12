@@ -121,6 +121,15 @@ export async function startWaitingTasks() {
       db.transaction(() => {
         const task = get('task', row.owner, row.id);
         if (!task.pendingPlacement) return;
+        // Tasks closed before closing cleared the wait still carry one.
+        if (task.status === 'done') {
+          save('task', row.owner, {
+            ...task,
+            pendingPlacement: undefined,
+            pendingLaunch: undefined,
+          });
+          return;
+        }
         if (
           list('run', row.owner).some(
             (run) =>

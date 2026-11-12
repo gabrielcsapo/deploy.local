@@ -249,6 +249,8 @@ export function setTaskOutcome(
   const saved = save('task', owner, {
     ...task,
     status,
+    // A closed task must not start when a computer with its tools appears later.
+    ...(action === 'close' ? { pendingPlacement: undefined, pendingLaunch: undefined } : {}),
     closedAt: action === 'close' ? now() : null,
     revision: task.revision + 1,
     updatedAt: now(),
