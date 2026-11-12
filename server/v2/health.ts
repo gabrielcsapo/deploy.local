@@ -141,6 +141,25 @@ export type WebEvidence = {
   };
   restarts?: { count: number; windowSec: number };
 };
+/** An app is failing after this many checks in a row go unanswered or come back wrong. */
+export const missesToFail = 3;
+export type CheckHistory = { misses: number; good?: NonNullable<WebEvidence['check']> };
+/**
+ * One slow answer is not an outage. Until three checks in a row miss, the last good answer
+ * stands, refreshed to the time of the newest check so it does not also go stale.
+ */
+export function settleCheck(
+  history: CheckHistory | undefined,
+  check: NonNullable<WebEvidence['check']>,
+): { history: CheckHistory; check: NonNullable<WebEvidence['check']> } {
+  if (check.status !== 0 && check.status < 300)
+    return { history: { misses: 0, good: check }, check };
+  const misses = (history?.misses ?? 0) + 1;
+  const next = { misses, good: history?.good };
+  return misses < missesToFail && history?.good
+    ? { history: next, check: { ...history.good, at: check.at } }
+    : { history: next, check };
+}
 export function webHealth(input: WebEvidence, now: number): AppHealth {
   const { appId, heartbeatAt, restarts, metrics, check } = input;
   const result: AppHealth = {

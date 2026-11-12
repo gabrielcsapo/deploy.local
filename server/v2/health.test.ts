@@ -150,3 +150,21 @@ test('fresh job reports cannot override stopped or offline runtime evidence', as
     'failing',
   );
 });
+
+test('an app fails after three missed checks in a row, not one', async () => {
+  const { settleCheck } = await import('./health.ts');
+  const good = { path: '/health', status: 200, at: 1000, durationMs: 5 };
+  const miss = (at: number) => ({ path: '/health', status: 0, at, durationMs: 3000 });
+  let step = settleCheck(undefined, good);
+  step = settleCheck(step.history, miss(2000));
+  assert.deepEqual(step.check, { ...good, at: 2000 });
+  step = settleCheck(step.history, miss(3000));
+  assert.equal(step.check.status, 200);
+  step = settleCheck(step.history, miss(4000));
+  assert.equal(step.check.status, 0);
+  step = settleCheck(step.history, { ...good, at: 5000 });
+  assert.deepEqual(step.history, { misses: 0, good: { ...good, at: 5000 } });
+  // An app that has never answered is failing from its first check.
+  assert.equal(settleCheck(undefined, miss(1)).check.status, 0);
+  assert.equal(settleCheck(undefined, { ...good, status: 500 }).check.status, 500);
+});

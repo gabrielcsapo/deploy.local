@@ -7,7 +7,7 @@ import { list } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Project, ProjectSettings } from '../../shared/v2/contracts.ts';
-import { getDeployment, getSqlite } from '../store.ts';
+import { getDeployment, getNodes, getSqlite } from '../store.ts';
 import {
   decryptSecret,
   encryptSecret,
@@ -306,9 +306,11 @@ export async function settingsApi(
         })),
       apps: project.apps.map((app) => {
         const record = getDeployment(app.name)!;
+        const nodeId = record.activeNodeId || record.desiredNodeId || 'coordinator';
         return {
           ...app,
-          computer: record.activeNodeId || record.desiredNodeId,
+          // The computer's name, as every other page shows it, not its internal ID.
+          computer: getNodes().find((node) => node.id === nodeId)?.name || nodeId,
           memoryLimit: record.memoryLimit,
         };
       }),

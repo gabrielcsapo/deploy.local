@@ -36,6 +36,8 @@ import {
   workerHealth,
   workerRuntimeHealth,
   type WebEvidence,
+  type CheckHistory,
+  settleCheck,
   type WorkerState,
 } from './health.ts';
 
@@ -115,6 +117,9 @@ function readyEndpoint(
     .get(appId) as { host: string; port: number } | undefined;
   return row && isIP(row.host) ? row : undefined;
 }
+
+/** Each web app's run of missed checks, so one slow answer does not read as an outage. */
+const checkHistory = new Map<string, CheckHistory>();
 
 async function checkHttp(host: string, port: number, path: string): Promise<WebEvidence['check']> {
   if (!isIP(host) || !path.startsWith('/') || path.startsWith('//')) return;
@@ -278,10 +283,16 @@ async function collectLive(owner: string): Promise<LiveResponse> {
         host: nodeId === 'coordinator' ? '127.0.0.1' : (node?.address ?? ''),
         port: deployment.port,
       };
-      const check =
+      const sampled =
         online && deployment.status === 'running' && target.port && config.path
           ? await checkHttp(target.host, target.port, config.path)
           : undefined;
+      let check = sampled;
+      if (sampled) {
+        const settled = settleCheck(checkHistory.get(deployment.name), sampled);
+        checkHistory.set(deployment.name, settled.history);
+        check = settled.check;
+      } else checkHistory.delete(deployment.name);
       health = webHealth(
         {
           appId: deployment.name,
