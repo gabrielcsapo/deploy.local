@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { runInNewContext } from 'node:vm';
 import {
   artifactHashes,
@@ -23,6 +24,8 @@ import {
   releaseOverride,
   waitForHealthy,
   supportsReadiness,
+  activationPlan,
+  releaseCommand,
 } from './linux-release.mjs';
 
 function fixture(t) {
@@ -404,4 +407,156 @@ test('both updater orders work: old prepare can select a new endpoint, and old t
     'https://deploy.local/api/health/ready',
     'https://deploy.local/api/health/ready',
   ]);
+});
+
+function runtimeFixture(t) {
+  const f = fixture(t);
+  for (const release of [f.previous, f.next]) {
+    mkdirSync(join(release, 'dist'));
+    for (const file of ['supervisor.js', 'edge.js', 'server.js', 'log-worker.js'])
+      writeFileSync(join(release, 'dist', file), file);
+    writeFileSync(join(release, 'pnpm-lock.yaml'), 'lock');
+    writeFileSync(join(release, 'package.json'), '{}');
+  }
+  return f;
+}
+
+for (const [file, mode, reason] of [
+  ['dist/server.js', 'control', /preserving edge/],
+  ['dist/edge.js', 'restart', /edge.*full service restart/],
+  ['dist/supervisor.js', 'restart', /supervisor.*full service restart/],
+  ['dist/log-worker.js', 'restart', /runtime dependencies/],
+  ['pnpm-lock.yaml', 'restart', /runtime dependencies/],
+  ['package.json', 'restart', /runtime dependencies/],
+]) {
+  test(`activation selects and rolls back the right processes when ${file} changes`, async (t) => {
+    const f = runtimeFixture(t);
+    writeFileSync(join(f.next, file), 'changed');
+    const plan = activationPlan(f.previous, f.next);
+    assert.equal(plan.mode, mode);
+    assert.match(plan.reason, reason);
+    const actions = [];
+    await assert.rejects(
+      promote({
+        ...f,
+        release: f.next,
+        validate() {},
+        plan: activationPlan,
+        restart() {
+          actions.push(['restart', realpathSync(f.current)]);
+        },
+        replaceControl(target) {
+          actions.push(['control', target]);
+        },
+        healthy(target, options) {
+          assert.equal(options.mode, mode);
+          if (target === f.next) throw new Error('failed startup');
+        },
+      }),
+      /restored/,
+    );
+    assert.deepEqual(actions, [
+      [mode, f.next],
+      [mode, f.previous],
+    ]);
+    assert.equal(realpathSync(f.current), f.previous);
+  });
+}
+
+test('successful control activation never requests a service restart', async (t) => {
+  const f = runtimeFixture(t),
+    actions = [];
+  writeFileSync(join(f.next, 'dist/server.js'), 'new control');
+  await promote({
+    ...f,
+    release: f.next,
+    validate() {},
+    plan: activationPlan,
+    restart() {
+      assert.fail('edge must survive');
+    },
+    replaceControl(target) {
+      actions.push(target);
+    },
+    healthy(target, options) {
+      assert.equal(options.mode, 'control');
+      actions.push(target);
+    },
+  });
+  assert.deepEqual(actions, [f.next, f.next]);
+});
+
+test('a failed switch command restores control without falling back to a service restart', async (t) => {
+  const f = runtimeFixture(t),
+    commands = [];
+  await assert.rejects(
+    promote({
+      ...f,
+      release: f.next,
+      validate() {},
+      plan: activationPlan,
+      restart() {
+        assert.fail('edge must survive');
+      },
+      replaceControl(target) {
+        commands.push(target);
+        if (target === f.next) throw new Error('switch failed');
+      },
+      healthy() {},
+    }),
+    /restored/,
+  );
+  assert.deepEqual(commands, [f.next, f.previous]);
+});
+
+test('control readiness requires the same supervisor and checks the rollback version', async (t) => {
+  const f = readinessFixture(t);
+  await waitForHealthy(f.config, f.next, '20', { ...f.options, mode: 'control' });
+  assert.deepEqual(f.sleeps, [60000]);
+  await assert.rejects(
+    waitForHealthy(f.config, f.next, '19', {
+      ...f.options,
+      mode: 'control',
+    }),
+    /did not become ready/,
+  );
+  f.response.version = 'wrong';
+  await assert.rejects(
+    waitForHealthy(f.config, f.next, '20', {
+      ...f.options,
+      mode: 'control',
+      rollback: true,
+    }),
+    /did not become ready/,
+  );
+});
+
+test('release command frames its request and rejects failed or wrong identity replies', async () => {
+  for (const response of [
+    { release: '/next', pid: 42 },
+    { error: 'switch failed' },
+    { release: '/old', pid: 42 },
+    null,
+  ]) {
+    class FakeSocket extends EventEmitter {
+      setTimeout() {}
+      write(line) {
+        assert.deepEqual(JSON.parse(line), { release: '/next' });
+        const bytes = JSON.stringify(response);
+        this.emit('data', bytes.slice(0, 2));
+        this.emit('data', bytes.slice(2));
+        this.emit('end');
+      }
+    }
+    const socket = new FakeSocket();
+    const pending = releaseCommand({ current: '/releases/current' }, '/next', {
+      connect(path) {
+        assert.equal(path, '/releases/supervisor-release.sock');
+        queueMicrotask(() => socket.emit('connect'));
+        return socket;
+      },
+    });
+    if (response?.release === '/next') assert.deepEqual(await pending, response);
+    else await assert.rejects(pending);
+  }
 });

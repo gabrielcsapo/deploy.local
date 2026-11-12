@@ -2,6 +2,7 @@
 /** One-time host setup, then ordinary-user release activation with automatic rollback. */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createConnection } from 'node:net';
 import {
   existsSync,
   lstatSync,
@@ -129,6 +130,64 @@ export function pointCurrent(current, release) {
   }
 }
 
+/** Compare runtime bytes, not commits: control/UI changes need not disturb routing.
+ * Extras are single-file bundles; edge also starts log-worker and loads external
+ * packages. A changed dependency manifest conservatively requires a full restart.
+ */
+export function activationPlan(previous, release) {
+  const same = (name) => {
+    const a = join(previous, name),
+      b = join(release, name);
+    if (!existsSync(a) || !existsSync(b)) return !existsSync(a) && !existsSync(b);
+    return (
+      createHash('sha256').update(readFileSync(a)).digest('hex') ===
+      createHash('sha256').update(readFileSync(b)).digest('hex')
+    );
+  };
+  if (!same('dist/supervisor.js'))
+    return { mode: 'restart', reason: 'supervisor changed; full service restart' };
+  if (
+    ['dist/edge.js', 'dist/log-worker.js', 'package.json', 'pnpm-lock.yaml'].some(
+      (file) => !same(file),
+    )
+  )
+    return {
+      mode: 'restart',
+      reason:
+        'edge or runtime dependencies changed; full service restart (listener handoff unavailable)',
+    };
+  return {
+    mode: 'control',
+    reason: 'control release; replacing control and workers, preserving edge',
+  };
+}
+
+/** Private Unix socket owned by the configured deployer; never use the public status socket. */
+export function releaseCommand(config, release, { connect = createConnection } = {}) {
+  return new Promise((done, reject) => {
+    const socket = connect(join(dirname(config.current), 'supervisor-release.sock'));
+    let buffer = '';
+    socket.setTimeout(90_000, () => socket.destroy(new Error('Release switch timed out')));
+    socket.on('error', reject);
+    socket.on('connect', () => socket.write(JSON.stringify({ release }) + '\n'));
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      if (buffer.length > 16_384) socket.destroy(new Error('Oversized release response'));
+    });
+    socket.on('end', () => {
+      try {
+        const result = JSON.parse(buffer);
+        if (result.error) throw new Error(result.error);
+        if (result.release !== release || !result.pid)
+          throw new Error('Release switch identity mismatch');
+        done(result);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
 /** Validate before swapping; keep the previous release on any restart/readiness failure. */
 export async function promote({
   current,
@@ -137,18 +196,22 @@ export async function promote({
   restart,
   healthy,
   point = pointCurrent,
+  plan = () => ({ mode: 'restart' }),
+  replaceControl,
 }) {
   validate(release);
   const previous = realpathSync(current);
+  const selected = plan(previous, release);
+  const change = (target) => (selected.mode === 'control' ? replaceControl(target) : restart());
   point(current, release);
   try {
-    await restart();
-    await healthy(release, { rollback: false });
+    await change(release);
+    await healthy(release, { rollback: false, mode: selected.mode });
   } catch (failure) {
     point(current, previous);
     try {
-      await restart();
-      await healthy(previous, { rollback: true });
+      await change(previous);
+      await healthy(previous, { rollback: true, mode: selected.mode });
     } catch (rollbackFailure) {
       const recoveryError = new AggregateError(
         [failure, rollbackFailure],
@@ -171,11 +234,11 @@ export async function waitForHealthy(
   config,
   release,
   previousPid,
-  { rollback = false, runCommand = run, sleep = pause } = {},
+  { rollback = false, mode = 'restart', runCommand = run, sleep = pause } = {},
 ) {
   // Never mistake an old server's HTML fallback (200) for readiness JSON. A known
   // pre-readiness target uses the old probe, including when explicitly reactivated.
-  const ready = !rollback && supportsReadiness(release);
+  const ready = (mode === 'control' || !rollback) && supportsReadiness(release);
   const expected = ready
     ? JSON.parse(readFileSync(join(release, manifestName), 'utf8')).revision
     : undefined;
@@ -191,11 +254,11 @@ export async function waitForHealthy(
     ]);
     if (
       !Number(pid) ||
-      pid === previousPid ||
+      (mode === 'control' ? pid !== previousPid : pid === previousPid) ||
       directory !== config.current ||
       realpathSync(directory) !== release
     )
-      throw new Error('The selected release has not restarted yet.');
+      throw new Error('The selected release process identity does not match.');
     const body = runCommand('curl', [
       '--cacert',
       join(config.data, 'certs/ca.crt'),
@@ -246,11 +309,17 @@ async function activate(path) {
   const lock = join(dirname(config.current), '.release-update.lock');
   mkdirSync(lock, { mode: 0o700 });
   try {
-    let previousPid;
+    let previousPid = run('systemctl', ['show', service, '-p', 'MainPID', '--value']);
     await promote({
       current: config.current,
       release,
       validate: verifyRelease,
+      plan: (previous, target) => {
+        const plan = activationPlan(previous, target);
+        console.log(`Activation: ${plan.reason}`);
+        return plan;
+      },
+      replaceControl: (target) => releaseCommand(config, target),
       restart: () => {
         previousPid = run('systemctl', ['show', service, '-p', 'MainPID', '--value']);
         run('systemctl', ['--no-ask-password', 'restart', service]);

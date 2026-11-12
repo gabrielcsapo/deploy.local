@@ -1,6 +1,6 @@
 import { processMetrics, slowProcessLine, type ProcessMetrics } from './process-metrics.ts';
 import { CoordinatorExecutor, serveCoordinatorExecutor } from './v2/coordinator-executor.ts';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 /**
  * deploy.local supervisor — the production entry point.
@@ -26,8 +26,18 @@ import { SupervisorRelay } from './supervisor-relay.ts';
 import { rotateLogIfLarge } from './log-rotation.ts';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer, type Socket, type Server } from 'node:net';
-import { mkdirSync, unlinkSync, chmodSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import {
+  mkdirSync,
+  unlinkSync,
+  chmodSync,
+  chownSync,
+  existsSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+  renameSync,
+} from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -54,6 +64,7 @@ const children: Array<{
 let shuttingDown = false;
 const switching = new Set<string>();
 let updateServer: Server | undefined;
+let releaseServer: Server | undefined;
 
 // ── Status socket ────────────────────────────────────────────────────────────
 // Event stream for external observers (the macOS menu bar app) — NDJSON over
@@ -269,6 +280,7 @@ function shutdown(signal: NodeJS.Signals) {
   pushStatus();
   statusServer?.close();
   updateServer?.close();
+  releaseServer?.close();
   try {
     unlinkSync(SOCK_PATH);
   } catch {
@@ -310,30 +322,188 @@ const specs: ChildSpec[] = [
   },
 ];
 
+/** Serialize intentional stops with the exit/backoff handler. */
+async function stopChild(child: (typeof children)[number]) {
+  const previous = child.proc;
+  if (!previous) return;
+  await new Promise<void>((done, reject) => {
+    const cleanup = () => {
+      clearTimeout(force);
+      clearTimeout(deadline);
+      previous.removeListener('exit', stopped);
+    };
+    const stopped = () => {
+      cleanup();
+      done();
+    };
+    const force = setTimeout(() => previous.kill('SIGKILL'), 15_000);
+    const deadline = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Previous ${child.spec.name} did not stop`));
+    }, 20_000);
+    previous.once('exit', stopped);
+    previous.kill('SIGTERM');
+  });
+}
+
+// Edge handoff cannot be achieved by sharing just ports 80/443: tcp-proxy
+// owns dynamic listeners, ipc.ts unlinks a singleton edge.sock, and runtime.close
+// tears down routing state before HTTP/2/WebSocket draining completes. A future
+// handoff must transfer every listener, acknowledge readiness, switch IPC/mDNS
+// ownership and drain existing sessions before retiring the old runtime.
+// The installed release config is root-owned. Only the supervisor actually
+// launched from its selected release may expose this ordinary-deployer command.
+// Keep this separate from the world-writable status socket and the private v2
+// staged-bundle protocol. The current symlink remains the durable boot decision.
+const releaseConfigPath = process.env.DEPLOY_RELEASE_CONFIG || '/etc/deploy-local-release.json';
+const releaseConfig = existsSync(releaseConfigPath)
+  ? (JSON.parse(readFileSync(releaseConfigPath, 'utf8')) as {
+      current: string;
+      releases: string;
+      uid: number;
+      data: string;
+    })
+  : undefined;
+const managesReleases =
+  releaseConfig &&
+  realpathSync(releaseConfig.current) === dirname(here) &&
+  realpathSync(releaseConfig.data) === realpathSync(dataDir);
+const retainedFiles = [
+  'dist/supervisor.js',
+  'dist/edge.js',
+  'dist/log-worker.js',
+  'package.json',
+  'pnpm-lock.yaml',
+];
+const runtimeHash = (root: string, name: string) => {
+  const file = resolve(root, name);
+  return existsSync(file) ? createHash('sha256').update(readFileSync(file)).digest('hex') : null;
+};
+const retainedHashes = managesReleases
+  ? retainedFiles.map((name) => runtimeHash(dirname(here), name))
+  : [];
+
+function recordReleaseSelection(release: string) {
+  // Invalidate an older staged-control selection before recording the Linux
+  // release it belonged to. Later v2 activations may persist again, and survive
+  // ordinary reboots as long as this Linux release is still selected.
+  const active = resolve(updater.root, 'active.json');
+  if (existsSync(active)) unlinkSync(active);
+  const selection = resolve(updater.root, 'linux-release.json');
+  writeFileSync(`${selection}.tmp`, JSON.stringify({ release }), { mode: 0o600, flush: true });
+  renameSync(`${selection}.tmp`, selection);
+}
+
+async function serveReleaseSwitch() {
+  if (!managesReleases || !releaseConfig) return;
+  const config = releaseConfig;
+  const path = resolve(dirname(config.current), 'supervisor-release.sock');
+  try {
+    unlinkSync(path);
+  } catch {
+    /* No stale socket. */
+  }
+  const server = createNetServer((socket) => {
+    let buffer = '';
+    socket.setTimeout(5000, () => socket.destroy());
+    socket.on('error', () => {});
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      if (buffer.length > 16_384) return socket.destroy();
+      if (!buffer.includes('\n')) return;
+      socket.pause();
+      socket.setTimeout(0);
+      void (async () => {
+        let acquired = false;
+        const managed = children.filter((child) => child.spec.name !== 'edge');
+        try {
+          if (shuttingDown || updater.busy)
+            throw new Error('A coordinator switch is already in progress');
+          const request = JSON.parse(buffer.slice(0, buffer.indexOf('\n')));
+          const release = realpathSync(request.release);
+          if (
+            dirname(release) !== realpathSync(config.releases) ||
+            release !== realpathSync(config.current)
+          )
+            throw new Error('Release must be the selected configured release');
+          if (retainedFiles.some((name, i) => runtimeHash(release, name) !== retainedHashes[i]))
+            throw new Error('Retained runtime changed; full service restart required');
+          for (const child of managed)
+            if (
+              !existsSync(
+                resolve(
+                  release,
+                  'dist',
+                  child.spec.name === 'control' ? 'server.js' : basename(child.spec.entry),
+                ),
+              )
+            )
+              throw new Error(`Release is missing ${child.spec.name}`);
+          updater.busy = acquired = true;
+          for (const child of managed) switching.add(child.spec.name);
+          // Control and its background workers move together; only edge keeps
+          // its listeners, IPC endpoint, caches and established app connections.
+          for (const child of managed) await stopChild(child);
+          recordReleaseSelection(release);
+          for (const child of managed) {
+            child.spec.entry = resolve(
+              release,
+              'dist',
+              child.spec.name === 'control' ? 'server.js' : basename(child.spec.entry),
+            );
+            child.spec.cwd = release;
+            if (child.spec.name === 'control')
+              child.spec.env = {
+                DEPLOY_ROLE: 'control',
+                DEPLOY_SUPERVISOR_TOKEN: randomUUID(),
+                DEPLOY_COORDINATOR_VERSION: '',
+                DEPLOY_COORDINATOR_RELEASE: '',
+              };
+            start(child);
+          }
+          updater.currentEntry = resolve(release, 'dist/server.js');
+          updater.currentCwd = release;
+          updater.currentVersion = updater.currentId = undefined;
+          socket.end(JSON.stringify({ release, pid: process.pid }) + '\n');
+        } catch (error) {
+          socket.end(JSON.stringify({ error: (error as Error).message }) + '\n');
+        } finally {
+          if (acquired) {
+            for (const child of managed) {
+              switching.delete(child.spec.name);
+              if (!child.proc) start(child);
+            }
+            updater.busy = false;
+          }
+        }
+      })();
+    });
+  });
+  await new Promise<void>((done, reject) => {
+    server.once('error', reject);
+    server.listen(path, () => {
+      try {
+        chmodSync(path, 0o600);
+        if (process.getuid?.() === 0) chownSync(path, config.uid, -1);
+        done();
+      } catch (error) {
+        server.close();
+        reject(error);
+      }
+    });
+  });
+  return server;
+}
+
 const updater = new CoordinatorExecutor({
   root: dataDir,
   entry: resolve(here, 'server.js'),
   switchBuild: async (entry, version, id, cwd) => {
-    const child = children.find((child) => child.spec.name === 'control');
+    const child = children.find((candidate) => candidate.spec.name === 'control');
     if (!child) throw new Error('Coordinator supervision is unavailable');
     switching.add('control');
     try {
-      if (child.proc) {
-        const previous = child.proc;
-        await new Promise<void>((resolve, reject) => {
-          const force = setTimeout(() => previous.kill('SIGKILL'), 15_000);
-          const deadline = setTimeout(
-            () => reject(new Error('Previous coordinator did not stop')),
-            20_000,
-          );
-          previous.once('exit', () => {
-            clearTimeout(force);
-            clearTimeout(deadline);
-            resolve();
-          });
-          previous.kill('SIGTERM');
-        });
-      }
+      await stopChild(child);
       const token = randomUUID();
       child.spec.entry = entry;
       child.spec.cwd = cwd;
@@ -372,6 +542,22 @@ const updater = new CoordinatorExecutor({
   },
 });
 await updater.recover();
+if (managesReleases) {
+  const release = dirname(here);
+  const selection = resolve(updater.root, 'linux-release.json');
+  const sameRelease =
+    existsSync(selection) && JSON.parse(readFileSync(selection, 'utf8')).release === release;
+  const staged = updater.currentEntry.startsWith(resolve(updater.root, 'builds') + '/');
+  if (!sameRelease || !staged) {
+    // A changed Linux release supersedes stale staged-bundle state. A genuine
+    // v2 activation on the same release retains its normal crash recovery.
+    recordReleaseSelection(release);
+    updater.currentEntry = resolve(here, 'server.js');
+    updater.currentCwd = release;
+    updater.currentVersion = updater.currentId = undefined;
+  }
+  for (const spec of specs) spec.cwd = release;
+}
 specs.find((spec) => spec.name === 'control')!.entry = updater.currentEntry;
 specs.find((spec) => spec.name === 'control')!.cwd = updater.currentCwd;
 specs.find((spec) => spec.name === 'control')!.env.DEPLOY_COORDINATOR_VERSION =
@@ -396,6 +582,7 @@ for (const spec of specs) {
   start(child);
 }
 startWatchdog();
+releaseServer = await serveReleaseSwitch();
 
 // The service manager appends this process's output to files under <data>/logs
 // (scripts/service.mjs) and nothing else bounds them.
