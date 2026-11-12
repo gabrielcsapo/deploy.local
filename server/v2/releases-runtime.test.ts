@@ -409,6 +409,14 @@ test('coordinator Verify skips empty resources while rollback still restores the
   );
   assert.equal(restores.length, 2);
   await f.runtime.activate(plan);
+  // A second release of an app that is now running: its emptied resource is still skipped,
+  // not reported as an unavailable volume.
+  exports.length = 0;
+  await f.runtime.verify(plan);
+  assert.deepEqual(
+    exports.sort(),
+    apps.map((app) => graphVolumeName(app.applicationId, 'database')).sort(),
+  );
   const backup = await f.runtime.backup(plan);
   restores.length = 0;
   await f.runtime.verify(plan, backup);

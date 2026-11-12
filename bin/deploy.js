@@ -32,7 +32,6 @@ import {
 } from './agent-services.mjs';
 import { loadWorkerConfig, enableWorkerTlsTrust } from './worker-runtime.mjs';
 import {
-  ensureRelay,
   publishedHostPort,
   relayRepairs,
   relayRemovals,
@@ -46,6 +45,8 @@ import { readNodeStatus } from '../server/workspace/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
+import { createRelayController } from './relay-client.mjs';
+import { runRelayProcess } from './relay-process.mjs';
 import { downloadWorkerBuild, installWorkerBuild } from './worker-update.mjs';
 import { ensureWorkerBuild } from './agent-install.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
@@ -1294,52 +1295,20 @@ function agentRelayStatePath() {
   return resolve(agentConfigPath(), '..', 'data', 'relays.json');
 }
 
-function persistAgentRelays() {
-  const relays = [...agentRelays.entries()].map(([deploymentName, relay]) => ({
-    deploymentName,
-    targetPort: relay.targetPort,
-    relayPort: relay.relayPort,
-    wantedPort: relay.wantedPort,
-    containerName: relay.containerName,
+let agentRelayController;
+function relayController() {
+  return (agentRelayController ||= createRelayController({
+    path: agentRelayStatePath(),
+    relays: agentRelays,
   }));
-  writeFileSync(agentRelayStatePath(), JSON.stringify(relays, null, 2));
 }
 
 function ensureAgentRelay(deploymentName, targetPort, preferredPort, containerName) {
-  return ensureRelay(agentRelays, persistAgentRelays, {
-    name: deploymentName,
-    targetPort,
-    preferredPort,
-    containerName,
-  });
+  return relayController().ensure(deploymentName, targetPort, preferredPort, containerName);
 }
 
 async function restoreAgentRelays() {
-  let saved = [];
-  try {
-    saved = JSON.parse(readFileSync(agentRelayStatePath(), 'utf8'));
-  } catch {
-    return;
-  }
-  for (const relay of saved) {
-    if (
-      typeof relay?.deploymentName !== 'string' ||
-      !Number.isInteger(relay.targetPort) ||
-      !Number.isInteger(relay.relayPort)
-    ) {
-      continue;
-    }
-    try {
-      await ensureAgentRelay(
-        relay.deploymentName,
-        relay.targetPort,
-        Number.isInteger(relay.wantedPort) ? relay.wantedPort : relay.relayPort,
-        relay.containerName,
-      );
-    } catch (err) {
-      console.error(`Unable to restore relay for ${relay.deploymentName}: ${err.message}`);
-    }
-  }
+  await relayController().restore();
 }
 
 async function appContainerRows() {
@@ -1417,6 +1386,7 @@ async function repairAgentRelays() {
   if (repairingAgentRelays) return;
   repairingAgentRelays = true;
   try {
+    await relayController().refresh();
     // Only consider relays that existed before this snapshot: a job can create one while Docker
     // is answering. Do not retire a relay that the job has since repointed, either.
     const relays = agentRelayList();
@@ -1467,12 +1437,7 @@ async function repairAgentRelays() {
 }
 
 async function removeAgentRelay(deploymentName) {
-  const relay = agentRelays.get(deploymentName);
-  if (!relay) return;
-  for (const socket of relay.sockets) socket.destroy();
-  await new Promise((resolvePromise) => relay.server.close(resolvePromise));
-  agentRelays.delete(deploymentName);
-  persistAgentRelays();
+  await relayController().remove(deploymentName);
 }
 
 async function agentContainerExists(deploymentName) {
@@ -2310,6 +2275,9 @@ async function cmdAgentRun() {
     for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => controller.abort());
     await superviseWorker({
       executable,
+      // The supervisor's executable is not swapped by worker self-updates. Even a relay crash
+      // restarts the same relay code until this supervisor is replaced and restarted.
+      relay: { executable: process.execPath, path: agentRelayStatePath() },
       previous: installed ? paths.previous : undefined,
       afterInstall: seal,
       root: process.env.DEPLOY_DATA_DIR,
@@ -3930,6 +3898,8 @@ try {
         const coordinatorUrl = positionals[2] || serverUrl;
         enableLocalTlsTrust(coordinatorUrl);
         await cmdAgentJoin(coordinatorUrl, values.name);
+      } else if (agentCommand === 'relay') {
+        await runRelayProcess();
       } else if (agentCommand === 'run') {
         await cmdAgentRun();
       } else if (agentCommand === 'install') {

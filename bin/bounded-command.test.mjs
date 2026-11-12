@@ -87,4 +87,9 @@ test('Docker queries remain short while builds, foreground jobs, and copies get 
   ])
     assert.equal(dockerCommandTimeout(args), DATA_COMMAND_TIMEOUT_MS);
   assert.equal(dockerCommandTimeout(['run', '-d', 'image']), 5 * 60_000);
+  // A job's own arguments are not Docker's: this migration keeps the long limit.
+  assert.equal(
+    dockerCommandTimeout(['run', '--rm', 'image', 'migrate', '-d', 'database']),
+    DATA_COMMAND_TIMEOUT_MS,
+  );
 });

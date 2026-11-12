@@ -24,6 +24,7 @@ import { resolve, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream } from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { computeBuildInfo } from './build-info.mjs';
 
 // esbuild is a transitive dep (via vite). Resolve through vite so we don't
@@ -106,9 +107,9 @@ function outputBinaryPath(target) {
 
 // ── Steps ────────────────────────────────────────────────────────────────────
 
-async function step1_bundle(buildInfo) {
+export async function bundleCli(buildInfo, output = CLI_DIR) {
   console.log('\n[1/5] Bundling CLI for SEA...');
-  mkdirSync(CLI_DIR, { recursive: true });
+  mkdirSync(output, { recursive: true });
 
   // The CLI is ESM with top-level await and import.meta.dirname.
   // SEA consumes a CommonJS bootstrap, so we:
@@ -120,13 +121,15 @@ async function step1_bundle(buildInfo) {
   // but esbuild's postinstall replaces that path with a native binary, which
   // Node then tries to parse as JS and fails.
   await esbuild.build({
+    // Static imports include the internal `agent relay` entry in the same SEA as the worker.
+    // The supervisor launches itself with that subcommand; no sidecar download is required.
     entryPoints: [resolve(ROOT, 'bin/deploy.js')],
     bundle: true,
     platform: 'node',
     // Browser control is optional and uses a locally installed Playwright runtime.
     external: ['playwright'],
     format: 'esm',
-    outfile: resolve(CLI_DIR, 'deploy.mjs'),
+    outfile: resolve(output, 'deploy.mjs'),
     // Bake the build stamp in as a JSON string (not an object literal) so the
     // ESM→CJS post-processing below has nothing structural to trip over. Run
     // from source, the identifier is undefined and the CLI falls back to git.
@@ -146,7 +149,7 @@ async function step1_bundle(buildInfo) {
   console.log('  Bundled bin/deploy.js → dist/cli/deploy.mjs');
 
   // Step 2: convert to a CJS-compatible SEA bootstrap
-  let code = readFileSync(resolve(CLI_DIR, 'deploy.mjs'), 'utf-8');
+  let code = readFileSync(resolve(output, 'deploy.mjs'), 'utf-8');
 
   // Strip shebang (SEA doesn't need it)
   code = code.replace(/^#!.*\n/, '');
@@ -175,7 +178,7 @@ ${code}
 })().catch((err) => { console.error(err.message || err); process.exit(1); });
 `;
 
-  writeFileSync(resolve(CLI_DIR, 'deploy.cjs'), code);
+  writeFileSync(resolve(output, 'deploy.cjs'), code);
   console.log('  Converted ESM bundle to CJS wrapper');
 }
 
@@ -350,7 +353,7 @@ async function main() {
   console.log(`  Embedded runtime: Node.js ${NODE_VERSION}`);
   console.log(`  Targets: ${TARGETS.map((t) => `${t.os}-${t.arch}`).join(', ')}`);
 
-  await step1_bundle(buildInfo);
+  await bundleCli(buildInfo);
   // step3 must run before step2 — blob generation needs the matching-version
   // host node binary from the cache.
   await step3_downloadNodeBinaries();
@@ -369,7 +372,8 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('\nBuild failed:', err.message);
-  process.exit(1);
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  main().catch((err) => {
+    console.error('\nBuild failed:', err.message);
+    process.exit(1);
+  });

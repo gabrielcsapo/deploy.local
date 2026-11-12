@@ -51,13 +51,24 @@ export function relayContainerRows(result) {
   }
 }
 
+/**
+ * The place a container fills in its app: its name without the per-start id, so
+ * `deploy-sh-forma-web-1-a75f027a` and `deploy-sh-forma-web-1-dd4662d9` are the same place and
+ * `deploy-sh-forma-worker-1-…` is not. In an app of several components a running worker must not
+ * count as the replacement of a stopped web container.
+ */
+function containerPlace(row) {
+  const place = row.containerName.replace(/-prev-\d+$/, '').replace(/-[0-9a-f]{8}$/, '');
+  return `${containerAppName(row)}\n${place}`;
+}
+
 /** Relays safe to retire from a successful `docker ps -a` snapshot in this repair pass. */
 export function relayRemovals(relays, rows) {
   if (!Array.isArray(rows)) return [];
-  const runningApps = new Set(
+  const filled = new Set(
     rows
       .filter((row) => row.status === 'running' && row.containerName.startsWith('deploy-sh-'))
-      .map(containerAppName),
+      .map(containerPlace),
   );
   return relays.filter((relay) => {
     const containerName = relayContainerName(relay.name, relay);
@@ -65,7 +76,7 @@ export function relayRemovals(relays, rows) {
     const container = rows.find((row) => row.containerName === containerName);
     if (!container) return true;
     if (container.status === 'running') return false;
-    return runningApps.has(containerAppName(container));
+    return filled.has(containerPlace(container));
   });
 }
 
@@ -172,7 +183,7 @@ export function runtimeStartCommand({ platform, dockerHost, dockerError }) {
   };
 }
 
-function listenRelay(server, preferredPort) {
+function listenRelay(server, preferredPort, host) {
   return new Promise((resolvePromise, rejectPromise) => {
     const onError = (err) => {
       server.off('listening', onListening);
@@ -184,7 +195,7 @@ function listenRelay(server, preferredPort) {
     };
     server.once('error', onError);
     server.once('listening', onListening);
-    server.listen(preferredPort || 0);
+    server.listen(preferredPort || 0, host);
   });
 }
 
@@ -195,14 +206,14 @@ function listenRelay(server, preferredPort) {
 export async function ensureRelay(
   relays,
   persist,
-  { name, targetPort, preferredPort, containerName },
+  { name, targetPort, preferredPort, containerName, host },
 ) {
   const previous = relays.get(name);
   if (previous && previous.targetPort !== targetPort) {
     // The relay keeps its port, so the coordinator's address for the app stays valid. Only where
     // it forwards changes: Docker gives a container a new host port every time it starts.
     previous.targetPort = targetPort;
-    for (const socket of previous.sockets) socket.destroy();
+    // Established streams finish against their original target; new connections use this one.
     persist();
   }
   if (previous && containerName && !previous.containerName) {
@@ -232,12 +243,18 @@ export async function ensureRelay(
   });
   let relayPort;
   try {
-    relayPort = await listenRelay(server, preferredPort);
+    relayPort = await listenRelay(server, preferredPort, host);
   } catch (err) {
     if (!preferredPort) throw err;
     // The wanted port is busy. A relay that already works keeps its port until it frees up.
-    if (previous) return previous.relayPort;
-    relayPort = await listenRelay(server, 0);
+    if (previous) {
+      if (previous.wantedPort !== preferredPort) {
+        previous.wantedPort = preferredPort;
+        persist();
+      }
+      return previous.relayPort;
+    }
+    relayPort = await listenRelay(server, 0, host);
   }
   if (previous) {
     for (const socket of previous.sockets) socket.destroy();

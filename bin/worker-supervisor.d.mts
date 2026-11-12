@@ -3,6 +3,15 @@ export function workerUpdateReceipt(root: string): any;
 export function superviseWorker(input: {
   executable: string;
   args?: string[];
+  relay?: {
+    executable: string;
+    args?: string[];
+    path: string;
+    startupMs?: number;
+    retryMs?: number;
+    maxRetryMs?: number;
+    killGraceMs?: number;
+  };
   root: string;
   version: string;
   stableMs?: number;

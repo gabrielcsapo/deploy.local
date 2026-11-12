@@ -119,7 +119,9 @@ export function dockerCommandTimeout(args) {
   if (
     ['build', 'pull', 'push', 'save', 'load', 'cp', 'exec'].includes(args[0]) ||
     (args[0] === 'buildx' && args[1] === 'build') ||
-    (args[0] === 'run' && !args.includes('-d') && !args.includes('--detach'))
+    // Only Docker's own flag, right after `run`: a migration's own arguments may contain -d
+    // (`run --rm image migrate -d database`) and must keep the long limit.
+    (args[0] === 'run' && args[1] !== '-d' && args[1] !== '--detach')
   )
     return DATA_COMMAND_TIMEOUT_MS;
   if (

@@ -490,7 +490,10 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
             )
               throw new Error(`Backup data for ${resource} is corrupt`);
             await this.docker.restoreVolume(destination, archive);
-          } else if (definition.verify !== 'empty' && (await this.docker.volumeExists(source))) {
+          } else if (definition.verify === 'empty') {
+            // The app asked for Verify on an empty folder: the copy's volume is created empty.
+            // Without this branch a running app's durable volume read as "unavailable".
+          } else if (await this.docker.volumeExists(source)) {
             const archive = join(
               root,
               `${Object.keys(app.spec.resources).indexOf(resource)}.tar.gz`,

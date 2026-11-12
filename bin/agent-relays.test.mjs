@@ -258,6 +258,25 @@ test('a stopped container relay is removed only if another container of its app 
   );
 });
 
+test('a running sibling component is not a replacement for a stopped one', () => {
+  // An app of a web component and a worker: the worker running does not make the stopped
+  // web container's relay removable, or the app is unreachable when web comes back.
+  const worker = {
+    containerName: 'deploy-sh-forma-worker-1-0c1d2e3f',
+    status: 'running',
+    label: 'forma',
+  };
+  assert.deepEqual(relayRemovals([oldRelay], [oldContainer, worker]), []);
+  // A second web replica in another slot is not a replacement either.
+  const replica = {
+    containerName: 'deploy-sh-forma-web-2-0c1d2e3f',
+    status: 'running',
+    label: 'forma',
+  };
+  assert.deepEqual(relayRemovals([oldRelay], [oldContainer, replica]), []);
+  assert.deepEqual(relayRemovals([oldRelay], [oldContainer, worker, runningContainer]), [oldRelay]);
+});
+
 test('a running container relay is never removed, regardless of published ports or other copies', () => {
   assert.deepEqual(
     relayRemovals([oldRelay], [{ ...oldContainer, status: 'running' }, runningContainer]),
@@ -337,4 +356,31 @@ test('a removable relay is closed only after staying removable for the whole gra
   assert.deepEqual(relaysDueForRemoval([oldRelay], since, 50_000, 60_000), []);
   assert.deepEqual(relaysDueForRemoval([oldRelay], since, 109_000, 60_000), []);
   assert.deepEqual(relaysDueForRemoval([oldRelay], since, 110_000, 60_000), [oldRelay]);
+});
+
+test('updating an existing target leaves its listener and established sockets untouched', async () => {
+  let destroyed = 0,
+    saves = 0;
+  const server = {};
+  const socket = { destroy: () => destroyed++ };
+  const relay = {
+    targetPort: 1234,
+    relayPort: 5678,
+    wantedPort: 5678,
+    server,
+    sockets: new Set([socket]),
+  };
+  const relays = new Map([['a', relay]]);
+  assert.equal(
+    await ensureRelay(relays, () => saves++, { name: 'a', targetPort: 2345, preferredPort: 5678 }),
+    5678,
+  );
+  assert.equal(relays.get('a'), relay);
+  assert.equal(relay.server, server);
+  assert.equal(relay.sockets.has(socket), true);
+  assert.equal(relay.targetPort, 2345);
+  assert.equal(destroyed, 0);
+  assert.equal(saves, 1);
+  await ensureRelay(relays, () => saves++, { name: 'a', targetPort: 2345, preferredPort: 5678 });
+  assert.equal(saves, 1);
 });

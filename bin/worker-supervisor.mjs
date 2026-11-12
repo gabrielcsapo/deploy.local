@@ -12,6 +12,8 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { installWorkerBuild } from './worker-update.mjs';
+import { superviseRelays } from './relay-supervisor.mjs';
+import { RELAY_PROTOCOL } from './relay-process.mjs';
 
 const receiptPath = (root) => join(root, 'worker-update.json');
 export function workerUpdateReceipt(root) {
@@ -40,6 +42,8 @@ const digest = (path) => createHash('sha256').update(readFileSync(path)).digest(
 export async function superviseWorker({
   executable,
   args = ['agent', 'run'],
+  // The embedded CLI enables relays using its stable supervisor executable.
+  relay,
   root,
   version,
   stableMs = 30_000,
@@ -92,7 +96,15 @@ export async function superviseWorker({
   // Never infer success from the installed filename after an executor interruption.
   if (receipt && ['staging', 'starting'].includes(receipt.state))
     await restore('Update interrupted before startup was confirmed; restored the previous build.');
+  const relays = relay ? superviseRelays({ ...relay, log }) : null;
+  if (!signal?.aborted) await relays?.start();
   return new Promise((resolve, reject) => {
+    const finish = async (error) => {
+      await relays?.stop();
+      signal?.removeEventListener('abort', stop);
+      if (error) reject(error);
+      else resolve();
+    };
     const clearTimers = () => {
       clearTimeout(bootTimer);
       clearTimeout(stableTimer);
@@ -104,14 +116,14 @@ export async function superviseWorker({
       stopping = true;
       clearTimers();
       terminate(child);
-      if (!child && !updating) resolve();
+      if (!child && !updating) void finish();
     };
     signal?.addEventListener('abort', stop, { once: true });
     function fail(error) {
       stopping = true;
       clearTimers();
       terminate(child);
-      reject(error);
+      void finish(error);
     }
     function terminate(target) {
       if (!target) return;
@@ -119,10 +131,14 @@ export async function superviseWorker({
       killTimer = setTimeout(() => target.kill('SIGKILL'), killGraceMs);
     }
     function start() {
-      if (stopping) return resolve();
+      if (stopping) return void finish();
       const token = randomUUID();
       child = spawn(executable, args, {
-        env: { ...process.env, DEPLOY_WORKER_CHILD: token },
+        env: {
+          ...process.env,
+          DEPLOY_WORKER_CHILD: token,
+          DEPLOY_RELAY_PROTOCOL: relays ? String(RELAY_PROTOCOL) : '',
+        },
         stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
       });
       const current = child;
@@ -143,6 +159,7 @@ export async function superviseWorker({
       }, watchdogIntervalMs);
       child.on('error', fail);
       child.on('message', (message) => {
+        void relays?.handle(message, current).catch(fail);
         if (message?.type === 'worker-heartbeat' && message.token === token && ready)
           lastHeartbeat = Date.now();
         if (
@@ -236,8 +253,9 @@ export async function superviseWorker({
         child = null;
         // Installation and rollback own the executable until their async work completes.
         await updateTask;
-        if (stopping) return resolve();
+        if (stopping) return void finish();
         try {
+          await relays?.workerExited(current);
           // A requested exit of the old process begins the candidate's first startup.
           if (receipt?.state === 'starting' && expected === receipt.targetVersion)
             await restore(
