@@ -6,6 +6,9 @@ import {
   ensureRelay,
   publishedHostPort,
   relayRepairs,
+  relayRemovals,
+  relaysDueForRemoval,
+  relayContainerRows,
   containerHasRelay,
   reportedApps,
   runtimeStartCommand,
@@ -224,4 +227,114 @@ test('the worker starts Colima on a Mac and leaves every other runtime alone', (
     }),
     null,
   );
+});
+
+const oldRelay = {
+  name: 'release-old',
+  containerName: 'deploy-sh-forma-web-1-a75f027a',
+  relayPort: 64500,
+};
+const oldContainer = { containerName: oldRelay.containerName, status: 'exited', label: 'forma' };
+const runningContainer = {
+  containerName: 'deploy-sh-forma-web-1-dd4662d9',
+  status: 'running',
+  label: 'forma',
+};
+
+test('a relay is removed when its container is gone, even with no other app running', () => {
+  assert.deepEqual(relayRemovals([oldRelay], []), [oldRelay]);
+});
+
+test('a stopped container relay is removed only if another container of its app is running', () => {
+  assert.deepEqual(relayRemovals([oldRelay], [oldContainer, runningContainer]), [oldRelay]);
+  assert.deepEqual(relayRemovals([oldRelay], [oldContainer]), []);
+  assert.deepEqual(
+    relayRemovals([oldRelay], [oldContainer, { ...runningContainer, status: 'exited' }]),
+    [],
+  );
+  assert.deepEqual(
+    relayRemovals([oldRelay], [oldContainer, { ...runningContainer, label: 'another-app' }]),
+    [],
+  );
+});
+
+test('a running container relay is never removed, regardless of published ports or other copies', () => {
+  assert.deepEqual(
+    relayRemovals([oldRelay], [{ ...oldContainer, status: 'running' }, runningContainer]),
+    [],
+  );
+});
+
+test('legacy relays without containerName are matched by their deployment name', () => {
+  const legacy = { name: 'Forma-Web-1-a75f027a', relayPort: 64500 };
+  assert.deepEqual(relayRemovals([legacy], []), [legacy]);
+  assert.deepEqual(relayRemovals([legacy], [oldContainer, runningContainer]), [legacy]);
+  assert.deepEqual(relayRemovals([legacy], [oldContainer]), []);
+  assert.deepEqual(relayRemovals([legacy], [{ ...oldContainer, status: 'running' }]), []);
+});
+
+test('unlabelled containers use the same app name and previous-copy pattern as the heartbeat', () => {
+  const legacy = { name: 'groffee-prev-123' };
+  const stopped = { containerName: 'deploy-sh-groffee-prev-123', status: 'exited', label: '' };
+  assert.deepEqual(
+    relayRemovals(
+      [legacy],
+      [stopped, { containerName: 'deploy-sh-groffee', status: 'running', label: '' }],
+    ),
+    [legacy],
+  );
+  assert.deepEqual(
+    relayRemovals(
+      [legacy],
+      [stopped, { containerName: 'deploy-sh-groffee-other', status: 'running', label: '' }],
+    ),
+    [],
+  );
+});
+
+test('relays with no identifiable container are kept', () => {
+  assert.deepEqual(relayRemovals([{ name: 'release-unknown' }, { name: '' }, {}], []), []);
+});
+
+test('failed, timed out, missing or unreadable container lists never remove relays', () => {
+  for (const result of [
+    null,
+    { status: 1, stdout: '' },
+    { status: null, timedOut: true, stdout: '' },
+    { status: 0, timedOut: true, stdout: '' },
+    { status: 0 },
+    { status: 0, stdout: 'not JSON' },
+    { status: 0, stdout: JSON.stringify(oldContainer) + '\ntruncated' },
+    { status: 0, stdout: '{}' },
+    { status: 0, stdout: 'null' },
+  ]) {
+    const rows = relayContainerRows(result);
+    assert.equal(rows, null);
+    assert.deepEqual(relayRemovals([oldRelay], rows), []);
+  }
+  assert.deepEqual(relayRemovals([oldRelay], undefined), []);
+});
+
+test('a successful Docker inventory distinguishes an empty list from stopped and running containers', () => {
+  assert.deepEqual(relayContainerRows({ status: 0, stdout: '' }), []);
+  assert.deepEqual(
+    relayContainerRows({
+      status: 0,
+      stdout: [oldContainer, runningContainer].map((row) => JSON.stringify(row)).join('\n') + '\n',
+    }),
+    [oldContainer, runningContainer],
+  );
+});
+
+test('a removable relay is closed only after staying removable for the whole grace period', () => {
+  // A failed release starts its previous container again within minutes, on the same relay.
+  const since = new Map();
+  assert.deepEqual(relaysDueForRemoval([oldRelay], since, 1000, 60_000), []);
+  assert.deepEqual(relaysDueForRemoval([oldRelay], since, 30_000, 60_000), []);
+  // Its container came back: the clock starts again the next time it is removable.
+  assert.deepEqual(relaysDueForRemoval([], since, 40_000, 60_000), []);
+  assert.equal(since.size, 0);
+  assert.deepEqual(relaysDueForRemoval([oldRelay], since, 50_000, 60_000), []);
+  assert.deepEqual(relaysDueForRemoval([oldRelay], since, 109_000, 60_000), []);
+  assert.deepEqual(relaysDueForRemoval([oldRelay], since, 110_000, 60_000), [oldRelay]);
 });

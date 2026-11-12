@@ -35,6 +35,9 @@ import {
   ensureRelay,
   publishedHostPort,
   relayRepairs,
+  relayRemovals,
+  relaysDueForRemoval,
+  relayContainerRows,
   containerHasRelay,
   reportedApps,
   runtimeStartCommand,
@@ -1335,20 +1338,28 @@ async function restoreAgentRelays() {
   }
 }
 
-async function runningAppHostPorts() {
-  const containers = await runBounded('docker', [
-    'ps',
-    '--filter',
-    'name=deploy-sh-',
-    '--format',
-    '{{.Names}}',
-  ]);
-  if (containers.status !== 0) return null;
+async function appContainerRows() {
+  return relayContainerRows(
+    await runBounded('docker', [
+      'ps',
+      '-a',
+      '--filter',
+      'name=deploy-sh-',
+      '--format',
+      '{"containerName":{{json .Names}},"status":{{json .State}},"label":{{json (.Label "deploy-sh.app")}}}',
+    ]),
+  );
+}
+
+async function runningAppHostPorts(rows = undefined) {
+  const containers = rows === undefined ? await appContainerRows() : rows;
+  if (!containers) return null;
   const hostPorts = new Map();
-  for (const containerName of containers.stdout.trim().split('\n').filter(Boolean)) {
+  for (const { containerName, status } of containers) {
+    if (status !== 'running') continue;
     if (!/^deploy-sh-.+/.test(containerName) || /-prev-\d+$/.test(containerName)) continue;
     const ports = await runBounded('docker', ['port', containerName]);
-    const hostPort = publishedHostPort(ports.stdout);
+    const hostPort = ports.status === 0 && !ports.timedOut ? publishedHostPort(ports.stdout) : 0;
     if (Number.isInteger(hostPort) && hostPort > 0) hostPorts.set(containerName, hostPort);
   }
   return hostPorts;
@@ -1394,6 +1405,7 @@ async function startContainerRuntime() {
   child.unref();
 }
 
+const removableRelaysSince = new Map();
 let repairingAgentRelays = false;
 
 /**
@@ -1404,13 +1416,34 @@ async function repairAgentRelays() {
   if (repairingAgentRelays) return;
   repairingAgentRelays = true;
   try {
-    const hostPorts = await runningAppHostPorts();
-    if (!hostPorts) {
+    // Only consider relays that existed before this snapshot: a job can create one while Docker
+    // is answering. Do not retire a relay that the job has since repointed, either.
+    const relays = agentRelayList();
+    const containers = await appContainerRows();
+    if (!containers) {
       const version = await runBounded('docker', ['version', '--format', '{{.Server.Version}}']);
       // A daemon that is there but not answering is busy, not stopped: starting it again would not help.
       if (version.status !== 0 && !version.timedOut) await startContainerRuntime();
       return;
     }
+    for (const stale of relaysDueForRemoval(
+      relayRemovals(relays, containers),
+      removableRelaysSince,
+    )) {
+      const current = agentRelays.get(stale.name);
+      if (
+        !current ||
+        current.targetPort !== stale.targetPort ||
+        current.containerName !== stale.containerName ||
+        current.relayPort !== stale.relayPort
+      )
+        continue;
+      await removeAgentRelay(stale.name);
+      console.log(
+        `Removed relay ${stale.name} on port ${stale.relayPort}: its container has been gone or replaced for an hour`,
+      );
+    }
+    const hostPorts = await runningAppHostPorts(containers);
     for (const repair of relayRepairs(agentRelayList(), hostPorts)) {
       const before = { ...agentRelays.get(repair.name) };
       const relayPort = await ensureAgentRelay(
@@ -3276,7 +3309,8 @@ async function cmdRecovery(action, args, options, serverUrl) {
 }
 
 function waitTimeout() {
-  const seconds = values['wait-timeout'] === undefined ? 600 : Number(values['wait-timeout']);
+  if (values['wait-timeout'] === undefined) return Infinity;
+  const seconds = Number(values['wait-timeout']);
   if (!Number.isFinite(seconds) || seconds < 0)
     throw cliError('--wait-timeout must be a nonnegative number of seconds.', 'deploy --help', 2);
   return seconds * 1000;

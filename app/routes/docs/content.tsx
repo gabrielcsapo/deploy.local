@@ -1324,8 +1324,8 @@ export const docs: Doc[] = [
             skipped; the CLI does not invent those checks.
           </p>
           <p>
-            A release can take longer than the CLI’s default 600-second wait.{' '}
-            <code>--wait-timeout &lt;seconds&gt;</code> allows more time. A timeout means still
+            The CLI follows a release until it finishes, however long that takes.{' '}
+            <code>--wait-timeout &lt;seconds&gt;</code> stops waiting sooner. A timeout means still
             running, not Live. Irreversible rollback needs data-loss review in the app.
           </p>
         </>,

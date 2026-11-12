@@ -14,7 +14,79 @@ export function publishedHostPort(output) {
 
 /** The container a relay serves. Relays made before container names were saved use their own name. */
 export function relayContainerName(name, relay) {
-  return relay?.containerName || `deploy-sh-${String(name).toLowerCase()}`;
+  if (relay?.containerName) return relay.containerName;
+  // A release receipt's key is not a container name. Older app relays used the container's name.
+  if (typeof name !== 'string' || !name || name.startsWith('release-')) return null;
+  return `deploy-sh-${name.toLowerCase()}`;
+}
+
+function containerAppName(row) {
+  return row.label || row.containerName.replace(/^deploy-sh-/, '').replace(/-prev-\d+$/, '');
+}
+
+/** A failed, timed out or unreadable Docker listing is unknown, never an empty inventory. */
+export function relayContainerRows(result) {
+  if (result?.status !== 0 || result.timedOut || typeof result.stdout !== 'string') return null;
+  try {
+    const rows = result.stdout
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    if (
+      rows.some(
+        (row) =>
+          !row ||
+          typeof row.containerName !== 'string' ||
+          !row.containerName ||
+          typeof row.status !== 'string' ||
+          !row.status ||
+          typeof row.label !== 'string',
+      )
+    )
+      return null;
+    return rows;
+  } catch {
+    return null;
+  }
+}
+
+/** Relays safe to retire from a successful `docker ps -a` snapshot in this repair pass. */
+export function relayRemovals(relays, rows) {
+  if (!Array.isArray(rows)) return [];
+  const runningApps = new Set(
+    rows
+      .filter((row) => row.status === 'running' && row.containerName.startsWith('deploy-sh-'))
+      .map(containerAppName),
+  );
+  return relays.filter((relay) => {
+    const containerName = relayContainerName(relay.name, relay);
+    if (!containerName) return false;
+    const container = rows.find((row) => row.containerName === containerName);
+    if (!container) return true;
+    if (container.status === 'running') return false;
+    return runningApps.has(containerAppName(container));
+  });
+}
+
+/** How long a relay must stay removable before it is closed. */
+export const RELAY_GRACE_MS = 60 * 60_000;
+
+/**
+ * A failed release starts its previous containers again, and the coordinator still routes to
+ * their relay ports; a recreated container is missing for a moment. So a removable relay is
+ * closed only after it has been removable on every pass for the grace period. `since` is kept
+ * by the caller between passes and maps a relay's name to when it first became removable.
+ */
+export function relaysDueForRemoval(removals, since, now = Date.now(), graceMs = RELAY_GRACE_MS) {
+  const names = new Set(removals.map((relay) => relay.name));
+  for (const name of [...since.keys()]) if (!names.has(name)) since.delete(name);
+  const due = [];
+  for (const relay of removals) {
+    if (!since.has(relay.name)) since.set(relay.name, now);
+    else if (now - since.get(relay.name) >= graceMs) due.push(relay);
+  }
+  return due;
 }
 
 /**
@@ -54,8 +126,7 @@ export function reportedApps(rows, relays) {
   const apps = [];
   for (const row of rows) {
     if (!row.containerName?.startsWith('deploy-sh-')) continue;
-    const name =
-      row.label || row.containerName.replace(/^deploy-sh-/, '').replace(/-prev-\d+$/, '');
+    const name = containerAppName(row);
     const relay =
       relays.find((candidate) => candidate.containerName === row.containerName) ||
       relays.find(

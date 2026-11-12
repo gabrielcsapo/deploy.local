@@ -351,9 +351,41 @@ export function printRelease(release) {
   );
 }
 
+// Only status reads are retried. A successful read resets the outage window; the caller's
+// deadline still covers the entire wait, including an upload becoming a release.
+function releasePoller(
+  timeoutMs,
+  { now = Date.now, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {},
+) {
+  const deadline = now() + timeoutMs;
+  return {
+    remaining: () => Math.max(0, deadline - now()),
+    expired: () => now() >= deadline,
+    pastDeadline: () => now() > deadline,
+    pause: () => sleep(Math.min(1000, Math.max(0, deadline - now()))),
+    async read(request) {
+      let failedAt;
+      for (;;) {
+        try {
+          return await request();
+        } catch (error) {
+          // Authentication, missing receipts and other client errors need attention, not retries.
+          if (error.status !== undefined && (error.status < 500 || error.status >= 600))
+            throw error;
+          failedAt ??= now();
+          if (now() >= deadline) return undefined;
+          if (now() - failedAt >= 120_000) throw error;
+          await sleep(Math.min(1000, deadline - now(), 120_000 - (now() - failedAt)));
+          if (now() >= deadline) return undefined;
+        }
+      }
+    },
+  };
+}
+
 // Follow the durable build receipt, not an old running container during a new upload.
-export async function followDeploy(api, name, accepted, timeoutMs, watch = {}) {
-  const deadline = Date.now() + timeoutMs;
+export async function followDeploy(api, name, accepted, timeoutMs = Infinity, watch = {}) {
+  const poll = releasePoller(timeoutMs, watch);
   if (accepted.release || accepted.releaseId)
     return followRelease(
       api,
@@ -363,13 +395,13 @@ export async function followDeploy(api, name, accepted, timeoutMs, watch = {}) {
     );
   if (accepted.projectRelease && accepted.buildLogId) {
     do {
-      const result = await contracts.uploadRelease(api, accepted.buildLogId);
-      if (result.release)
-        return followRelease(api, result.release, Math.max(0, deadline - Date.now()), watch);
-      if (Date.now() >= deadline)
+      const result = await poll.read(() => contracts.uploadRelease(api, accepted.buildLogId));
+      if (result?.release) return followRelease(api, result.release, poll.remaining(), watch);
+      if (poll.expired())
         return { name, state: 'running', steps: [], buildLogId: accepted.buildLogId };
-      await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
-    } while (Date.now() <= deadline);
+      await poll.pause();
+    } while (!poll.pastDeadline());
+    return { name, state: 'running', steps: [], buildLogId: accepted.buildLogId };
   }
   const path = `/api/deployments/${encodeURIComponent(name)}`;
   if (!accepted.buildLogId)
@@ -379,8 +411,8 @@ export async function followDeploy(api, name, accepted, timeoutMs, watch = {}) {
       steps: releaseSteps('running', 'Accepted; no build receipt was supplied'),
     };
   do {
-    const result = await api(`${path}/build-logs`);
-    const build = result.logs?.find((entry) => entry.id === accepted.buildLogId);
+    const result = await poll.read(() => api(`${path}/build-logs`));
+    const build = result?.logs?.find((entry) => entry.id === accepted.buildLogId);
     if (build?.status === 'complete' || typeof build?.success === 'boolean') {
       const state = build.success ? 'live' : 'failed';
       return {
@@ -394,9 +426,9 @@ export async function followDeploy(api, name, accepted, timeoutMs, watch = {}) {
         ...(build.success ? {} : { errors: failureLines(build.output) }),
       };
     }
-    if (Date.now() >= deadline) break;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
-  } while (Date.now() <= deadline);
+    if (poll.expired()) break;
+    await poll.pause();
+  } while (!poll.pastDeadline());
   return {
     name,
     state: 'running',
@@ -419,16 +451,17 @@ export function releaseActivated(release) {
  * each step as it happens; `watch.untilActivated` stops once the release is switched on instead
  * of sitting through the ten minutes of Watch.
  */
-export async function followRelease(api, accepted, timeoutMs, watch = {}) {
+export async function followRelease(api, accepted, timeoutMs = Infinity, watch = {}) {
   let release = accepted.release || accepted;
-  const deadline = Date.now() + timeoutMs;
+  const poll = releasePoller(timeoutMs, watch);
   while (release.state === 'running') {
-    const response = await contracts.release(api, release.id);
+    const response = await poll.read(() => contracts.release(api, release.id));
+    if (!response) break;
     release = response.release || response;
     watch.onChange?.(release);
-    if (release.state !== 'running' || Date.now() >= deadline) break;
+    if (release.state !== 'running' || poll.expired()) break;
     if (watch.untilActivated && releaseActivated(release)) break;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
+    await poll.pause();
   }
   return release;
 }
@@ -520,9 +553,9 @@ export function releaseReporter({ write, live = false, now = () => Date.now() })
   };
 }
 
-export async function followRollback(api, project, accepted, timeoutMs) {
+export async function followRollback(api, project, accepted, timeoutMs = Infinity, watch = {}) {
   let rollback = accepted.rollback || accepted;
-  const deadline = Date.now() + timeoutMs;
+  const poll = releasePoller(timeoutMs, watch);
   for (;;) {
     const steps = rollback.steps || [];
     const state = steps.some((step) => step.state === 'failed')
@@ -530,16 +563,15 @@ export async function followRollback(api, project, accepted, timeoutMs) {
       : steps.length && steps.every((step) => ['done', 'skipped'].includes(step.state))
         ? 'rolled-back'
         : 'running';
-    if (state !== 'running' || Date.now() >= deadline) return { ...rollback, state };
-    const response = await contracts.rollbacks(api, project);
+    if (state !== 'running' || poll.expired()) return { ...rollback, state };
+    const response = await poll.read(() => contracts.rollbacks(api, project));
+    if (!response) return { ...rollback, state };
     const found = (response.rollbacks || response).find((entry) => entry.id === rollback.id);
     if (!found)
       throw cliError('The rollback receipt is unavailable.', `deploy releases ${project}`);
     rollback = found;
     if (!rollback.steps.some((step) => ['running', 'waiting'].includes(step.state))) continue;
-    await new Promise((resolve) =>
-      setTimeout(resolve, Math.min(1000, Math.max(0, deadline - Date.now()))),
-    );
+    await poll.pause();
   }
 }
 

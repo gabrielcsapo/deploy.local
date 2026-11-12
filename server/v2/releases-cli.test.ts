@@ -204,3 +204,186 @@ test('times read as people say them', () => {
     '4 min 53 s',
   ]);
 });
+
+// Advance only the injected clock: these tests simulate minutes without wall-clock waits.
+function pollingClock() {
+  let time = 0;
+  return {
+    now: () => time,
+    sleep: async (ms: number) => {
+      time += ms;
+    },
+  };
+}
+const runningRelease = {
+  id: 'slow',
+  state: 'running',
+  steps: [{ name: 'prepare', state: 'running' }],
+};
+const liveRelease = { ...runningRelease, state: 'live', steps };
+
+test('default release waiting follows past ten minutes, to activation or the final state', async () => {
+  for (const untilActivated of [false, true]) {
+    const clock = pollingClock();
+    const activated = {
+      ...runningRelease,
+      steps: steps.map((step) => ({ ...step, state: step.name === 'watch' ? 'running' : 'done' })),
+    };
+    const result = await followRelease(
+      async () => ({
+        release:
+          clock.now() < 660_000 ? runningRelease : clock.now() < 720_000 ? activated : liveRelease,
+      }),
+      runningRelease,
+      undefined,
+      { ...clock, untilActivated },
+    );
+    assert.deepEqual(result, untilActivated ? activated : liveRelease);
+    assert.equal(clock.now(), untilActivated ? 660_000 : 720_000);
+  }
+});
+
+const followCases = [
+  {
+    name: 'release',
+    follow: (api: any, timeout: number | undefined, clock: any) =>
+      followRelease(api, runningRelease, timeout, clock),
+    running: { release: runningRelease },
+    done: { release: liveRelease },
+    finalState: 'live',
+  },
+  {
+    name: 'upload receipt',
+    follow: (api: any, timeout: number | undefined, clock: any) =>
+      followDeploy(api, 'gym', { projectRelease: true, buildLogId: 42 }, timeout, clock),
+    running: { release: null },
+    done: { release: liveRelease },
+    finalState: 'live',
+  },
+  {
+    name: 'legacy build receipt',
+    follow: (api: any, timeout: number | undefined, clock: any) =>
+      followDeploy(api, 'gym', { buildLogId: 42 }, timeout, clock),
+    running: { logs: [{ id: 42, status: 'running' }] },
+    done: { logs: [{ id: 42, status: 'complete', success: true }] },
+    finalState: 'live',
+  },
+  {
+    name: 'rollback',
+    follow: (api: any, timeout: number | undefined, clock: any) =>
+      followRollback(api, 'gym', runningRelease, timeout, clock),
+    running: { rollbacks: [runningRelease] },
+    done: { rollbacks: [{ ...runningRelease, steps }] },
+    finalState: 'rolled-back',
+  },
+];
+for (const scenario of followCases) {
+  test(`${scenario.name}: default wait lasts past ten minutes`, async () => {
+    const clock = pollingClock();
+    const result = await scenario.follow(
+      async () => (clock.now() < 660_000 ? scenario.running : scenario.done),
+      undefined,
+      clock,
+    );
+    assert.equal(result.state, scenario.finalState);
+    assert.equal(clock.now(), 660_000);
+  });
+  test(`${scenario.name}: explicit timeouts still stop, including zero`, async () => {
+    for (const timeout of [0, 2500]) {
+      const clock = pollingClock();
+      const result = await scenario.follow(async () => scenario.running, timeout, clock);
+      assert.equal(result.state, 'running');
+      assert.equal(clock.now(), timeout);
+    }
+  });
+  test(`${scenario.name}: fetch failures and coordinator restarts are retried`, async () => {
+    const clock = pollingClock();
+    let calls = 0;
+    const result = await scenario.follow(
+      async () => {
+        calls++;
+        if (calls === 1) throw new TypeError('fetch failed');
+        if (calls <= 3)
+          throw Object.assign(new Error('Restarting'), { status: calls === 2 ? 502 : 503 });
+        return scenario.done;
+      },
+      undefined,
+      clock,
+    );
+    assert.equal(result.state, scenario.finalState);
+    assert.equal(calls, 4);
+    assert.equal(clock.now(), 3000);
+  });
+  test(`${scenario.name}: two minutes of consecutive failures give up`, async () => {
+    const clock = pollingClock();
+    const error = new TypeError('fetch failed');
+    await assert.rejects(
+      scenario.follow(
+        async () => {
+          throw error;
+        },
+        undefined,
+        clock,
+      ),
+      (caught: unknown) => caught === error,
+    );
+    assert.equal(clock.now(), 120_000);
+  });
+  test(`${scenario.name}: an explicit timeout also bounds retries`, async () => {
+    const clock = pollingClock();
+    const result = await scenario.follow(
+      async () => {
+        throw new TypeError('fetch failed');
+      },
+      2500,
+      clock,
+    );
+    assert.equal(result.state, 'running');
+    assert.equal(clock.now(), 2500);
+  });
+  test(`${scenario.name}: a successful read resets the consecutive failure window`, async () => {
+    const clock = pollingClock();
+    const result = await scenario.follow(
+      async () => {
+        if (clock.now() === 90_000) return scenario.running;
+        if (clock.now() >= 180_000) return scenario.done;
+        throw new TypeError('fetch failed');
+      },
+      undefined,
+      clock,
+    );
+    assert.equal(result.state, scenario.finalState);
+    assert.equal(clock.now(), 180_000);
+  });
+  test(`${scenario.name}: authentication errors fail immediately`, async () => {
+    const clock = pollingClock();
+    await assert.rejects(
+      scenario.follow(
+        async () => {
+          throw Object.assign(new Error('Unauthorized'), { status: 401 });
+        },
+        undefined,
+        clock,
+      ),
+      /Unauthorized/,
+    );
+    assert.equal(clock.now(), 0);
+  });
+}
+
+test('upload and release polling share the explicit timeout', async () => {
+  const clock = pollingClock();
+  const result = await followDeploy(
+    async (path: string) => {
+      if (path.includes('/uploads/'))
+        return { release: clock.now() < 2000 ? null : runningRelease };
+      return { release: runningRelease };
+    },
+    'gym',
+    { projectRelease: true, buildLogId: 42 },
+    3500,
+    clock,
+  );
+  assert.deepEqual(result, runningRelease);
+  assert.equal(clock.now(), 3500);
+});
