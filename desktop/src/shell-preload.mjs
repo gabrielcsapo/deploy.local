@@ -4,7 +4,17 @@ window.addEventListener('DOMContentLoaded', () => {
   ipcRenderer.on('shell:state', (_event, state) => {
     const focused = document.activeElement;
     const action = focused?.getAttribute('data-action') || focused?.value;
+    const draft =
+      document.querySelector('button[value="join"]') && state.page === 'setup'
+        ? [...document.querySelectorAll('input[type="checkbox"]')]
+            .filter((input) => input.name !== 'runApps')
+            .map((input) => [input.name, input.checked])
+        : [];
     document.body.innerHTML = render(state);
+    for (const [name, checked] of draft) {
+      const input = document.querySelector(`input[name="${name}"]`);
+      if (input && !input.disabled) input.checked = checked;
+    }
     if (action) {
       const target = [...document.querySelectorAll('button, input[data-action]')].find(
         (element) => (element.dataset.action || element.value) === action,

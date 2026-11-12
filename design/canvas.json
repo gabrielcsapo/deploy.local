@@ -2818,6 +2818,34 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — an app’s settings: address, health and memory"
+    },
+    "SetupRunApps.html": {
+      "x": 14950,
+      "y": 5160,
+      "w": 1440,
+      "h": 900,
+      "title": "This computer, on a Mac that runs apps: they outlive the app"
+    },
+    "SetupTakeOver.html": {
+      "x": 14950,
+      "y": 7380,
+      "w": 1440,
+      "h": 900,
+      "title": "This computer already has a worker from the command line: move it to the app"
+    },
+    "TrayRunsApps.html": {
+      "x": 11700,
+      "y": 16524,
+      "w": 1440,
+      "h": 900,
+      "title": "Menu bar on a computer that runs apps"
+    },
+    "TrayNeedsRepair.html": {
+      "x": 11700,
+      "y": 17544,
+      "w": 1440,
+      "h": 900,
+      "title": "Menu bar when this computer cannot reach its apps: what is wrong and the fix"
     }
   },
   "order": [
@@ -2837,6 +2865,8 @@
     "SignIn.html",
     "CliLogin.html",
     "Setup.html",
+    "SetupRunApps.html",
+    "SetupTakeOver.html",
     "SetupLinux.html",
     "Permissions.html",
     "Welcome.html",
@@ -2893,6 +2923,8 @@
     "LiveDark.html",
     "LivePhone.html",
     "Tray.html",
+    "TrayRunsApps.html",
+    "TrayNeedsRepair.html",
     "CliStatus.html",
     "LockScreen.html",
     "Notification.html",
@@ -4573,6 +4605,13 @@
       "x": 7390,
       "y": 13904,
       "text": "For approval. An app does not have to declare a health check to be watched.\n• With no check declared, deploy.local asks the app’s own address: GET /. Any answer that is not a server error (below 500) is healthy, so a sign-in redirect counts. Live, the menu bar and the app page say “GET / 200” as they do for a declared check.\n• A declared check keeps its stricter rule: it must answer 2xx.\n• A release uses the same default for its gate before going live: the new copy must answer GET / where it used to only accept a connection.\n• “Health checks unavailable” is left for an app with no address to ask, such as one that only listens on a raw port. A worker is still judged by its heartbeat and jobs.\n• Failing still takes three missed checks in a row."
+    },
+    "desktop-runs-worker": {
+      "fill": "orange",
+      "w": 440,
+      "x": 14470,
+      "y": 5160,
+      "text": "For approval. The desktop app is the one place a computer’s worker is installed, changed, repaired and removed.\n• Setup offers Run apps on any computer with Docker. Turning it on installs one background service, so apps keep running when the app is quit and start again after a restart. Take tasks still lives with the app.\n• The menu bar says what this computer is doing. When it cannot reach its apps it says what is wrong in plain words and offers the fix: Restart Docker, or Repair the worker. Nobody opens a terminal to find out.\n• A computer set up earlier from the command line is offered a move. Nothing changes until you accept. The computer keeps its name, its apps, their addresses and their ports. An older copy that needs a password to remove is named, not hidden.\n• The terminal keeps one command, for a computer you cannot sit at: install and join with a code. The other deploy agent commands go away once every computer has moved.\n• Not drawn here: Windows, and the Linux versions of these four screens (same content in the Linux window, as SetupLinux)."
     }
   },
   "starts": {}

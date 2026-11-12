@@ -40,13 +40,15 @@ export async function ensureWorkerBuild(
     install = installWorkerBuild,
     seal = sealWorkerBundle,
     restartServices = () => {},
+    readBuildInfo = workerBuildInfo,
+    manifestFor = workerBuildManifest,
     print = console.log,
   } = {},
 ) {
   const hadWorker = isFile(paths.executable);
   let before;
   try {
-    if (hadWorker) before = workerBuildInfo(paths.executable);
+    if (hadWorker) before = await readBuildInfo(paths.executable);
   } catch {
     /* An unreadable build must be replaced, not treated as current. */
   }
@@ -61,7 +63,7 @@ export async function ensureWorkerBuild(
     changed = false,
     restored = false;
   try {
-    const manifest = await workerBuildManifest(serverUrl);
+    const manifest = await manifestFor(serverUrl);
     const target = manifest.targets?.[`${platform}-${arch}`];
     if (!target) throw new Error('No matching worker build is available for this computer.');
     const identity = readJson(identityPath);
@@ -110,13 +112,13 @@ export async function ensureWorkerBuild(
         arch,
         install,
       });
-      if (paths.app) seal(paths.app, { signSupervisor: false });
+      if (paths.app) await seal(paths.app, { signSupervisor: false });
       // A previous automatic-update receipt names the old version. It must not make the new
       // supervisor reject readiness or restore an interrupted automatic update over this repair.
       rmSync(updateReceiptPath, { force: true });
     }
     servicesStarted = true;
-    await restartServices({ rollback: false });
+    await restartServices({ rollback: false, changed });
     if (paths.app) {
       const staged = `${identityPath}.tmp`;
       const sealedIdentity = {
@@ -174,7 +176,7 @@ export async function ensureWorkerBuild(
     let restartError;
     if (servicesStarted && hadWorker && restored) {
       try {
-        await restartServices({ rollback: true });
+        await restartServices({ rollback: true, changed });
       } catch (failure) {
         restartError = failure;
       }

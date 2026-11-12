@@ -28,6 +28,14 @@ await build({
 });
 await build({
   absWorkingDir: directory,
+  entryPoints: ['src/app-worker.mjs'],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  outfile: 'build/app-worker.mjs',
+});
+await build({
+  absWorkingDir: directory,
   entryPoints: ['src/shell-preload.mjs'],
   bundle: true,
   platform: 'node',

@@ -1,8 +1,9 @@
 # deploy.local Desktop
 
 The Electron client loads the coordinator's `/dashboard`. This directory has its own dependency
-lock and is not part of the root workspace. It does not install a system service. It is the desktop app on Mac, Windows and Linux; the earlier Swift Mac target is retired.
-Closing a window keeps its child worker running; Quit stops that worker.
+lock and is not part of the root workspace. It is the desktop app on Mac, Windows and Linux; the earlier Swift Mac target is retired.
+Take tasks runs as a child: closing a window keeps it running; Quit stops it. On macOS, Run apps
+installs a persistent login service that keeps running after Quit (see below).
 
 ## Develop and package
 
@@ -27,7 +28,8 @@ Run packaging on the destination OS for release acceptance.
 
 `assets/design-tokens.css` is generated at build time from `../app/design-tokens.css` and is not tracked. Desktop tests do not require it or a prior build.
 
-The build reads and bundles `../server/workspace/remote-worker.ts` and its dependencies. The
+The build reads and bundles `../server/workspace/remote-worker.ts`, the app-worker install modules
+from `../bin/`, and their dependencies. The
 local `worker.ts` shares a coordinator database and therefore must not run on a desktop client.
 The remote worker uses Electron's bundled Node runtime, its own directory inside app user data,
 and the existing `/api/workspace/workers/enroll` API. Git and provider CLIs must already be
@@ -206,3 +208,132 @@ For isolated manual update states, `scripts/update-fixture.mjs` serves manifest/
 on `127.0.0.1:5194` and proxies the remaining requests to a disposable coordinator on 5190–5193.
 Its JSON config names `manifest`, `archive` and `mode` (`normal`, `slow`, `corrupt`, `network`).
 It rereads the config on each request. It is excluded from packaged apps.
+
+## Run apps on a Mac
+
+Run apps is separate from Take tasks. On macOS, setup detects Docker through the login's
+service PATH (including Intel Homebrew and Docker Desktop's CLI directory). The switch is
+available when the Docker CLI is installed, even if its daemon is stopped. Turning it on
+immediately enrolls and installs the execution agent. The Add button applies the other roles.
+Turning Run apps off changes coordinator admission only; existing apps and enrollment stay.
+
+`src/app-worker.mjs` bundles the shared `bin/agent-install.mjs`, enrollment and service helpers
+into `build/app-worker.mjs`. It never invokes a `deploy` executable from PATH. Its external
+commands all use `runBounded`, including version probes, codesign, launchctl, Docker, Colima
+and the optional administrator prompt. GUI-launched commands receive the service PATH.
+The shared repair transaction accepts asynchronous manifest, version and sealing hooks;
+the CLI retains its existing defaults and commands.
+
+Fresh installation uses the signed-in owner's pinned `CoordinatorClient`:
+
+1. `POST /api/v2/computers/enrollment` with `{ name }` creates the join code (owner/admin API).
+2. Shared `joinAgent` redeems it with `POST /api/agent/enroll`, carrying `code`, `name`,
+   platform, architecture and `{ deploy: true, tasks: false, computer: false, browser: false }`.
+3. `GET /cli/version` selects `darwin-arm64` or `darwin-x64`.
+   `GET /cli?os=darwin&arch=<arch>&version=<version>` downloads through the pinned client.
+   Size and SHA-256 are checked before signing/probing or executing any downloaded code.
+4. A fresh service obtains `/ca.crt` through the pinned client and uses that private file as
+   `NODE_EXTRA_CA_CERTS`. No certificate is installed in the system trust store.
+
+The app maintains `~/Library/LaunchAgents/sh.deploy.agent.plist`, running
+`~/Applications/deploy.local Worker.app/Contents/MacOS/deploy-worker-supervisor agent run`.
+Enrollment remains in `~/Library/Application Support/deploy.local/agent.json`; the original
+`data` directory, `relays.json` and relay ports are preserved. `desktop-worker.json` beside
+`agent.json` is the desktop ownership marker, bound to the coordinator and node id.
+A different coordinator's enrollment is never overwritten. A failed fresh install keeps
+its enrollment; the next Move/Repair can finish without creating another computer.
+
+A command-line install opens the take-over page. Leave it as it is persists until the next
+password sign-in. Move it to this app never enrolls again. A current build with a running
+service already pointing at its supervisor is left running. Replacement programs restart
+immediately; failed repairs restore the previous bundle and plist and attempt its restart.
+Quit waits for an in-flight repair/restart, then stops only the task child. The launchd app
+worker continues after closing or quitting the desktop and starts at the next login.
+
+An unused `/Library/LaunchDaemons/sh.deploy.agent.plist` is shown by path. After take-over,
+Remove older copy on that row asks macOS once for administrator privileges to boot out and
+remove that plist only. An actively running all-users service is not a leftover: take-over
+refuses to create a second running service. No operation here removes enrollment or data.
+Removing the primary worker is not exposed by these boards; CLI removal is unchanged.
+
+Menu status reads `/api/v2/live` and `/api/v2/computers`, matches this computer by node id,
+and combines them with bounded service/Docker probes cached for 15 seconds. The four states
+are `running`, `docker-not-answering`, `service-stopped`, and `cannot-reach-coordinator`.
+Previously read apps remain visible on connection failure. `deployDesktop.worker.status()`
+adds `appWorker` with this state, detection, apps and computer health; it contains no agent
+secret. Shell repair, take-over, Docker restart and leftover actions use the existing local
+trusted-sender checks; the remote preload adds no new callable capabilities.
+
+Restart Docker supports Colima: stop (60 seconds), start (180 seconds), then one more start
+after 5 seconds if the first fails, including a timeout. A timed-out stop still attempts start.
+Docker Desktop, OrbStack and other runtimes need manual restart. Linux and Windows retain
+Take tasks and their current screen-control limitations; Run apps says “Not supported here yet”
+and does not install or inspect services. Serve models remains unavailable on every platform.
+
+## Local Intel Mac package
+
+Install desktop dependencies as described above, then on a Mac run:
+
+```sh
+CSC_IDENTITY_AUTO_DISCOVERY=false pnpm --dir desktop package:mac:x64
+```
+
+This explicitly selects Electron x64 and produces `desktop/dist/mac/deploy.local Desktop.app`.
+It does not publish a download. `scripts/build-desktop-download.mjs` still publishes arm64 only.
+Intel builds disable Use the screen with an explicit message, even if an ARM helper is present;
+Take tasks and Run apps remain available. No native helper compilation is needed for this build.
+The coordinator must already offer a verified `darwin-x64` worker in `/cli/version`.
+Actual macOS 13 compatibility, signing/LaunchServices acceptance, Docker and Colima recovery
+must be verified on the Intel iMac; no Electron or service was run by the sandbox tests.
+
+The new fake-only suite is `node --test desktop/test/app-worker.test.mjs`. It covers detection,
+owner enrollment, byte-preserving take-over, repair rollback, timed-out commands, Colima retry,
+status caching, privilege scope and both setup/tray variants. Run all desktop tests with
+`node --test desktop/test`; the existing capture coordinator test also needs a loopback listener.
+
+Board differences to verify on the iMac: enrollment dates are not supplied by the Computers API,
+so take-over shows “In Computers · runs apps” without a date; actual runtime names, unavailable
+Docker, service/coordinator failures and progress use factual dynamic text. The older-copy path
+and its post-move removal button make the required removal action explicit. Serve models remains
+disabled with its existing explanation; Intel screen control is disabled. When both jobs are
+selected, the tray also retains the existing task row. The approved Run apps quit sentence wraps
+to stay readable. Screenshots and visual comparison at 1440/700 remain required outside this sandbox.
+
+### Intel iMac acceptance (fresh command-line take-over, forma running)
+
+1. On the iMac, record the existing node id/name, forma's address and response, and a private
+   backup/hash of `agent.json` and `data/relays.json`. Do not paste the secret into the task.
+   Confirm which login LaunchAgent is active and whether the system plist is unused. Keep
+   continuously requesting forma from another computer throughout take-over.
+2. Verify the coordinator serves a `darwin-x64` worker manifest. Package the x64 desktop app,
+   copy it to the iMac and open it normally on macOS 13. Complete any OS launch acceptance,
+   coordinator fingerprint confirmation and owner sign-in. Do not run the CLI installer.
+3. Confirm SetupTakeOver names the existing iMac and forma, shows the old all-users plist if
+   present, and has made no service/enrollment changes. Choose Leave it as it is; relaunch
+   without signing out and confirm it does not ask again. Sign in again to offer the move.
+4. Choose Move it to this app. Confirm the node id/name, enrollment file and relay ports have
+   not changed and there is no duplicate computer. For a current supervisor install, verify
+   its PID is unchanged and continuous requests have no gap. If the program needed repair,
+   measure the brief restart and verify forma immediately answers at the same address/port.
+5. Confirm `desktop-worker.json` exists for that node and there is one running login service.
+   The unused system copy must remain until explicitly selected. Choose Remove older copy,
+   cancel the administrator prompt once, check it remains, then retry and approve. Verify
+   only that plist/service is removed and the app, agent config and relays remain intact.
+6. Confirm the menu shows Running 1 app, forma · healthy, Run apps / Docker is answering,
+   and the approved Quit sentence. Turn Run apps off/on and confirm it changes admission
+   without stopping forma. Enable Take tasks separately if wanted; its row should coexist.
+7. In a planned interruption, make Colima stop answering and wait for the next status probe.
+   Check the failing dot, elapsed sentence and Restart Docker / Repair the worker actions.
+   Choose Restart Docker, observe progress and verify forma recovers at the original port.
+   Exercise first-start retry if the network-helper race occurs. The app must stay responsive.
+8. Stop only the login service in a controlled test. Confirm service-stopped offers Repair
+   without Restart Docker. Repair it, check it returns to Running and compare config/relays.
+   Interrupt coordinator connectivity separately: expect cannot-reach-coordinator, retain
+   known app names, restore connectivity, and confirm recovery without another enrollment.
+9. Quit the desktop and keep checking forma. Relaunch, then restart/log in to the Mac; verify
+   the background worker returns and the tray recovers. Quit during a controlled repair too:
+   it must wait for that operation rather than abandon a stopped service.
+10. Capture setup/take-over and both tray states at the board widths (1440/700) and compare
+    with the approved HTML using the design capture/pair tools. Verify wrapping, keyboard
+    focus, scrolling, the disabled Intel screen control, and the documented differences.
+    Do not remove the CLI surface or publish this app until this acceptance is complete.

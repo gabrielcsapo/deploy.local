@@ -14,7 +14,8 @@
     "package:mac": "pnpm build && electron-builder --mac --dir",
     "package": "pnpm build && electron-builder",
     "package:check": "pnpm build && node scripts/package-check.mjs",
-    "capture:electron": "pnpm build && node scripts/capture-electron.mjs"
+    "capture:electron": "pnpm build && node scripts/capture-electron.mjs",
+    "package:mac:x64": "pnpm build && electron-builder --mac --x64 --dir"
   },
   "devDependencies": {
     "@fontsource/hanken-grotesk": "5.2.8",
@@ -34,7 +35,8 @@
       "assets/**",
       "build/shell-preload.cjs",
       "build/build-info.json",
-      "package.json"
+      "package.json",
+      "build/app-worker.mjs"
     ],
     "extraResources": [
       {

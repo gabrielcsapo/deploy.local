@@ -136,7 +136,9 @@ test('vault refuses plaintext Linux backend and roundtrips through safeStorage',
   }
 });
 test('unsupported roles are rejected, and screen use cannot outlive task permission', () => {
-  assert.throws(() => roles({ runApps: true }));
+  assert.equal(roles({ runApps: true }, 'darwin').runApps, true);
+  for (const platform of ['linux', 'win32'])
+    assert.throws(() => roles({ runApps: true }, platform), /not supported here yet/);
   assert.throws(() => roles({ serveModels: true }));
   assert.throws(() => roles({ takeTasks: true, useScreen: true }, 'linux', true));
   assert.throws(() => roles({ useScreen: true }, 'darwin', true));

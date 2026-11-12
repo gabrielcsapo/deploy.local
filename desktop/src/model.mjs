@@ -37,7 +37,17 @@ export function relativeTime(at, now = Date.now()) {
   if (elapsed < 86400000) return `${Math.floor(elapsed / 3600000)}h`;
   return `${Math.floor(elapsed / 86400000)}d`;
 }
-export function trayModel({ online, summary, live, inbox = [], worker, computers, workerId, now }) {
+export function trayModel({
+  online,
+  summary,
+  live,
+  inbox = [],
+  worker,
+  computers,
+  workerId,
+  now,
+  appWorker,
+}) {
   summary = live?.summary || summary;
   const computer = computers?.find((entry) => entry.workerIds.includes(workerId));
   const coordinator = computers?.find((entry) => entry.roles.includes('coordinator'));
@@ -49,14 +59,19 @@ export function trayModel({ online, summary, live, inbox = [], worker, computers
     connection: online ? 'Connected' : 'Offline · retrying every 10 s',
     count: inbox.length,
     live: liveLabel(summary),
-    failing: Number(summary?.failing || 0) > 0,
-    icon: !online
-      ? 'offline'
-      : summary?.failing
+    failing:
+      Number(summary?.failing || 0) > 0 ||
+      !!(appWorker?.install !== 'none' && appWorker?.state && appWorker.state !== 'running'),
+    icon:
+      appWorker?.install !== 'none' && appWorker?.state && appWorker.state !== 'running'
         ? 'failing'
-        : summary?.warning
-          ? 'warning'
-          : 'connected',
+        : !online
+          ? 'offline'
+          : summary?.failing
+            ? 'failing'
+            : summary?.warning
+              ? 'warning'
+              : 'connected',
     running: Number.isFinite(summary?.running) ? `${summary.running} running` : 'Unavailable',
     coordinator: coordinator?.name,
     computersOnline: computers?.filter((entry) => entry.online).length,
@@ -92,7 +107,9 @@ export function roles(value, platform = process.platform, helper = false) {
   const result = Object.fromEntries(
     ['takeTasks', 'runApps', 'serveModels', 'useScreen'].map((key) => [key, value?.[key] === true]),
   );
-  if (result.runApps || result.serveModels)
+  if (result.runApps && platform !== 'darwin')
+    throw new Error('Run apps is not supported here yet.');
+  if (result.serveModels)
     throw new Error(
       'Run apps and Serve models need runtime setup on this computer. The coordinator does not support changing them yet.',
     );

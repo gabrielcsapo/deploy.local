@@ -180,14 +180,14 @@ export function serviceProgramArguments({ agentDir, self, ...options }) {
 }
 const xmlText = (value) =>
   String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-export function workerAppInfoPlist() {
+export function workerAppInfoPlist({ minimumVersion = '14.0' } = {}) {
   const entries = {
     CFBundleIdentifier: WORKER_APP_ID,
     CFBundleExecutable: 'deploy-worker',
     CFBundlePackageType: 'APPL',
     CFBundleName: 'deploy.local Worker',
     CFBundleDisplayName: 'deploy.local Worker',
-    LSMinimumSystemVersion: '14.0',
+    LSMinimumSystemVersion: minimumVersion,
     NSLocalNetworkUsageDescription:
       'deploy.local Worker connects to your deploy.local coordinator on this network to run coding tasks and build jobs.',
   };

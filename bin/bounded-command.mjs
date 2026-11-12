@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
  * one answer. The result has spawnSync's shape; a command that outlives its time is killed and
  * reports status null with `timedOut`.
  */
-export function runBounded(command, args, { timeoutMs = 8000, start = spawn } = {}) {
+export function runBounded(command, args, { timeoutMs = 8000, start = spawn, env } = {}) {
   return new Promise((resolve) => {
     let stdout = '',
       stderr = '',
@@ -19,7 +19,7 @@ export function runBounded(command, args, { timeoutMs = 8000, start = spawn } = 
     };
     let child;
     try {
-      child = start(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      child = start(command, args, { stdio: ['ignore', 'pipe', 'pipe'], ...(env ? { env } : {}) });
     } catch (error) {
       return resolve({ status: null, stdout, stderr: String(error?.message || error), error });
     }

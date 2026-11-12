@@ -48,6 +48,8 @@ for (const archive of packages) {
     JSON.parse(await readFile(join(root, 'build/build-info.json'), 'utf8')),
   );
   assert.ok(extract('src/update-helper.sh').startsWith('#!/bin/sh'));
+  assert.match(extract('build/app-worker.mjs'), /ensureWorkerBuild/);
+  assert.doesNotMatch(extract('build/app-worker.mjs'), /from ["']\.\.\/\.\.\/bin\//);
   assert.match(main, /contextIsolation: true/);
   assert.match(main, /sandbox: true/);
   console.log(

@@ -415,3 +415,8 @@ body:has(> main.tray) {
   height: 52px;
   -webkit-app-region: drag;
 }
+
+.worker-health .tray-text small,
+.runs-apps form:last-child .tray-text small {
+  white-space: normal;
+}

@@ -224,7 +224,7 @@ function AddComputer({ onClose }: { onClose: () => void }) {
             in.
           </p>
         )}
-        <Section title="For a server without a screen">
+        <Section title="Or from a terminal">
           <div className="computers-join">
             <Field
               label="Computer name"

@@ -19,7 +19,7 @@ import { hostname, cpus, totalmem, platform, release } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { safeStorage } from 'electron';
 import { CoordinatorClient, coordinatorOrigin, inspectCertificate, validPin } from './client.mjs';
-import { InboxModel, trayModel, externalUrl } from './model.mjs';
+import { InboxModel, trayModel, externalUrl, roles } from './model.mjs';
 import { icon } from './icons.mjs';
 import { Vault } from './vault.mjs';
 import { WorkerManager } from './worker.mjs';
@@ -57,6 +57,7 @@ let quitting = false,
   watchWindow,
   client,
   worker,
+  appWorker,
   vault,
   saved = {},
   polling = false,
@@ -77,6 +78,7 @@ const state = {
   origin: coordinatorOrigin(process.env.DEPLOY_COORDINATOR_URL || 'https://deploy.local'),
   name: hostname(),
   platform: platform(),
+  arch: process.arch,
   hardware: `${cpus()[0]?.model || platform()} · ${Math.round(totalmem() / 1024 ** 3)} GB · ${platform()} ${release()}`,
   online: false,
   roles: { takeTasks: true },
@@ -85,6 +87,7 @@ function publicState(page = state.page) {
   return {
     ...state,
     page,
+    name: state.appWorker?.name || state.name,
     inbox: inbox.waiting(),
     workerId: saved.enrollment?.workerId,
     worker: worker?.status(),
@@ -329,13 +332,13 @@ async function confirmExternal(value) {
   });
   if (response === 1) await shell.openExternal(url);
 }
-function save() {
+function save(selection = { ...worker.selection, runApps: saved.roles?.runApps ?? false }) {
   saved = {
     ...saved,
     origin: client.origin,
     pin: client.pin,
     credentials: client.credentials,
-    roles: worker.selection,
+    roles: selection,
   };
   vault.write(saved);
 }
@@ -504,12 +507,59 @@ async function poll() {
       setTimeout(poll, state.online ? (failures ? 1000 : 100) : 10000);
   }
 }
+async function refreshAppWorker(force = false) {
+  if (!appWorker || !client?.credentials) return;
+  const current = appWorker;
+  try {
+    const result = await current.status(force);
+    if (appWorker === current) state.appWorker = result;
+  } catch (error) {
+    if (appWorker === current) state.error = error.message;
+  }
+  update();
+}
+async function connectAppWorker() {
+  if (process.platform !== 'darwin' || fixture) return;
+  const { AppWorker } = await import('../build/app-worker.mjs');
+  appWorker = new AppWorker({
+    client,
+    onProgress: (message) => {
+      state.workerProgress = message;
+      update();
+    },
+  });
+  await refreshAppWorker(true);
+}
+async function setup() {
+  await refreshAppWorker();
+  if (state.appWorker?.install === 'desktop')
+    state.roles = { ...state.roles, runApps: state.appWorker.enabled };
+  show(state.appWorker?.install === 'command-line' && !saved.workerDeclined ? 'takeover' : 'setup');
+}
+async function changeRunApps(enabled) {
+  if (!appWorker) throw new Error('Run apps is not supported here yet.');
+  const detected = await appWorker.detect();
+  if (detected.install === 'command-line')
+    throw new Error('Move the worker to this app before changing Run apps.');
+  if (enabled && detected.install === 'none') await appWorker.install();
+  else if (detected.install === 'desktop') await appWorker.setEnabled(enabled);
+  state.roles = { ...state.roles, runApps: enabled };
+  save({ ...worker.selection, runApps: enabled });
+  await refreshAppWorker(true);
+}
 async function setRoles(value) {
   if (!client?.credentials) throw new Error('Sign in first.');
   if (!vault.available()) throw new Error('Unlock your system keychain before joining.');
-  saved.enrollment = await worker.configure(value, client, saved.enrollment);
+  const selection = roles(value, process.platform, worker.status().screenSupported);
+  if (
+    selection.runApps !== !!state.appWorker?.enabled &&
+    (selection.runApps || state.appWorker?.install === 'desktop')
+  )
+    await changeRunApps(selection.runApps);
+  saved.enrollment = await worker.configure(selection, client, saved.enrollment);
+  state.roles = worker.selection;
   try {
-    save();
+    save(worker.selection);
   } catch (error) {
     await worker.stop();
     throw error;
@@ -519,10 +569,14 @@ async function setRoles(value) {
   return worker.status();
 }
 async function switchCoordinator() {
+  await appWorker?.operation?.catch(() => {});
   generation++;
   await updater?.dispose();
   updater = null;
   await worker.stop();
+  appWorker = null;
+  state.appWorker = undefined;
+  state.workerProgress = undefined;
   webWindow?.destroy();
   webWindow = undefined;
   await session.fromPartition('persist:coordinator').clearStorageData();
@@ -556,6 +610,23 @@ ipcMain.handle('shell:action', async (event, body) => {
   trustedSender(event, true);
   try {
     state.error = '';
+    if (
+      appWorker?.busy &&
+      [
+        'connect',
+        'trust',
+        'signin',
+        'join',
+        'take-over',
+        'leave-worker',
+        'run-apps',
+        'setup-run-apps',
+        'repair-worker',
+        'restart-docker',
+        'remove-leftover',
+      ].includes(body.action)
+    )
+      throw new Error('The worker is already being changed. Wait for it to finish.');
     if (body.action === 'connect') {
       if (fixture && body.address !== fixture.origin)
         throw new Error('Capture uses only its fixture coordinator.');
@@ -572,10 +643,12 @@ ipcMain.handle('shell:action', async (event, body) => {
       if (!client || !vault.available())
         throw new Error('Unlock your system keychain to sign in securely.');
       await client.login(body.username, body.password);
+      saved.workerDeclined = false;
       save();
+      await connectAppWorker();
       startUpdater();
       await refresh();
-      show('setup');
+      await setup();
       void poll();
     } else if (body.action === 'join') {
       await setRoles(
@@ -595,8 +668,42 @@ ipcMain.handle('shell:action', async (event, body) => {
       state.page = 'dashboard';
       await dashboard('/dashboard');
     } else if (body.action === 'back') show('connect');
-    else if (body.action === 'roles') show('setup');
-    else if (body.action === 'take-tasks') {
+    else if (body.action === 'roles') await setup();
+    else if (body.action === 'leave-worker') {
+      saved.workerDeclined = true;
+      save();
+      await dashboard();
+    } else if (body.action === 'take-over') {
+      if (!appWorker) throw new Error('Run apps is not supported here yet.');
+      await appWorker.takeOver();
+      state.roles = { ...state.roles, runApps: true };
+      save({ ...worker.selection, runApps: true });
+      await refreshAppWorker(true);
+      await setup();
+    } else if (body.action === 'run-apps' || body.action === 'setup-run-apps') {
+      if (body.action === 'setup-run-apps')
+        state.roles = {
+          ...state.roles,
+          ...Object.fromEntries(
+            ['takeTasks', 'serveModels', 'useScreen'].map((key) => [key, body[key] === 'on']),
+          ),
+        };
+      await changeRunApps(body.runApps === 'on');
+    } else if (['repair-worker', 'restart-docker', 'remove-leftover'].includes(body.action)) {
+      if (!appWorker) throw new Error('Run apps is not supported here yet.');
+      if (
+        body.action === 'repair-worker' &&
+        (await appWorker.detect()).install === 'command-line'
+      ) {
+        await refreshAppWorker(true);
+        show('takeover');
+        return;
+      }
+      if (body.action === 'repair-worker') await appWorker.repair();
+      else if (body.action === 'restart-docker') await appWorker.restartDocker();
+      else await appWorker.removeLeftover(body.path);
+      await refreshAppWorker(true);
+    } else if (body.action === 'take-tasks') {
       if (!state.online) throw new Error('Reconnect before changing Take new tasks.');
       const { computer } = await client.takeNewTasks(
         saved.enrollment?.workerId,
@@ -632,6 +739,11 @@ ipcMain.handle('shell:action', async (event, body) => {
       );
     update();
   } catch (error) {
+    if (body.action === 'setup-run-apps') {
+      await refreshAppWorker(true);
+      if (state.appWorker?.install === 'command-line' && !saved.workerDeclined)
+        state.page = 'takeover';
+    }
     state.error = error.message;
     update();
   }
@@ -655,7 +767,14 @@ const handlers = {
       throw new Error('Badge must match Waiting on you.');
     update();
   },
-  'desktop:worker-status': () => worker.status(),
+  'desktop:worker-status': async () => {
+    await refreshAppWorker();
+    return {
+      ...worker.status(),
+      roles: saved.roles || worker.selection,
+      appWorker: state.appWorker,
+    };
+  },
   'desktop:worker-roles': async (value) => {
     const result = await dialog.showMessageBox({
       message: 'Change this computer’s roles?',
@@ -665,9 +784,13 @@ const handlers = {
     });
     if (result.response === 1) {
       state.roles = value;
-      show('setup');
+      await setup();
     }
-    return worker.status();
+    return {
+      ...worker.status(),
+      roles: saved.roles || worker.selection,
+      appWorker: state.appWorker,
+    };
   },
   'desktop:control': (id) => {
     if (!worker.status().screenSupported)
@@ -833,7 +956,10 @@ async function start() {
       root: join(app.getPath('userData'), 'workers'),
       executable: process.execPath,
       entry: join(resources, 'worker/worker.mjs'),
-      helper: process.platform === 'darwin' && existsSync(helperPath) ? helperPath : undefined,
+      helper:
+        process.platform === 'darwin' && process.arch !== 'x64' && existsSync(helperPath)
+          ? helperPath
+          : undefined,
       onChange: update,
       onControls: (taskIds) => {
         for (const id of taskIds) controlTasks.add(id);
@@ -847,10 +973,16 @@ async function start() {
     tray.popUpContextMenu(
       Menu.buildFromTemplate([
         { label: 'Open deploy.local', click: () => void dashboard() },
-        { label: 'Computer roles', click: () => show('setup') },
+        { label: 'Computer roles', click: () => void setup() },
         { label: 'Use another coordinator', click: () => void switchCoordinator() },
         { type: 'separator' },
-        { label: 'Quit — stops the worker', click: () => app.quit() },
+        {
+          label:
+            state.appWorker?.install && state.appWorker.install !== 'none'
+              ? 'Quit — apps keep running'
+              : 'Quit — stops the worker',
+          click: () => app.quit(),
+        },
       ]),
     ),
   );
@@ -865,7 +997,7 @@ async function start() {
             click: () => void dashboard('/dashboard'),
           },
           { label: 'Open deploy.local', accelerator: 'CmdOrCtrl+O', click: () => void dashboard() },
-          { label: 'Computer roles', click: () => show(client ? 'setup' : 'connect') },
+          { label: 'Computer roles', click: () => (client ? void setup() : show('connect')) },
           { type: 'separator' },
           { role: 'quit' },
         ],
@@ -889,26 +1021,36 @@ async function start() {
     event.preventDefault();
     quitting = true;
     generation++;
-    void Promise.all([worker.stop(), updater?.dispose()]).finally(() => app.quit());
+    void Promise.all([
+      worker.stop(),
+      updater?.dispose(),
+      appWorker?.operation?.catch(() => {}),
+    ]).finally(() => app.quit());
   });
   if (saved.origin && saved.credentials) {
     client = new CoordinatorClient(saved.origin, saved);
     startUpdater();
     state.origin = client.origin;
     state.roles = saved.roles;
+    await connectAppWorker();
     state.page = 'dashboard';
     try {
       await refresh();
-      if (saved.roles) await setRoles(saved.roles);
+      if (saved.roles) {
+        saved.enrollment = await worker.configure(saved.roles, client, saved.enrollment);
+        save();
+      }
     } catch {
       // Offline at launch: the main window opens with the offline notice and recovers on its own.
     }
     if (client.credentials) {
       // Open the restored page without tying startup acknowledgement to coordinator availability.
-      void dashboard(handoff ? returnPage(handoff.page, client.origin) : undefined);
+      if (state.appWorker?.install === 'command-line' && !saved.workerDeclined) await setup();
+      else void dashboard(handoff ? returnPage(handoff.page, client.origin) : undefined);
     }
     void poll();
   } else show('connect');
+  setInterval(() => void refreshAppWorker(), 15000).unref();
   update();
   if (!(await acknowledgeStart(handoff))) app.quit();
 }
