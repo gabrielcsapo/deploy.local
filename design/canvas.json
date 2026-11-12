@@ -4566,6 +4566,13 @@
       "x": 13320,
       "y": 15584,
       "text": "For approval. iPhone gets an app’s Logs and Settings, so its app page has the same places as the web one.\n• The app page lists Releases, Logs and Settings under App.\n• Logs are the app’s own lines as it writes them, newest at the bottom, wrapped to the screen. Filter by text or level. Live says the stream is open. From a project, the same screen shows every app, each line starting with its app’s name.\n• Settings shows the address, the health check, where it runs and the memory limit, which can be changed here. Everything else is the project’s.\n• Nothing here is new to the server: the phone reads what the web pages read."
+    },
+    "health-default": {
+      "fill": "orange",
+      "w": 440,
+      "x": 7390,
+      "y": 13904,
+      "text": "For approval. An app does not have to declare a health check to be watched.\n• With no check declared, deploy.local asks the app’s own address: GET /. Any answer that is not a server error (below 500) is healthy, so a sign-in redirect counts. Live, the menu bar and the app page say “GET / 200” as they do for a declared check.\n• A declared check keeps its stricter rule: it must answer 2xx.\n• A release uses the same default for its gate before going live: the new copy must answer GET / where it used to only accept a connection.\n• “Health checks unavailable” is left for an app with no address to ask, such as one that only listens on a raw port. A worker is still judged by its heartbeat and jobs.\n• Failing still takes three missed checks in a row."
     }
   },
   "starts": {}
