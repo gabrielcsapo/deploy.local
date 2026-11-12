@@ -180,6 +180,34 @@ export function chartTicks(from: number, to: number, range: RequestRange, now = 
   });
 }
 
+/** Nearest plotted bucket at a horizontal fraction of the chart, clamped to its ends. */
+export function chartBucket(position: number, count: number): number | null {
+  if (count < 1 || !Number.isFinite(position)) return null;
+  return Math.round(Math.max(0, Math.min(1, position)) * (count - 1));
+}
+
+export function chartKeyBucket(key: string, current: number | null, count: number): number | null {
+  if (count < 1 || key === 'Escape') return null;
+  switch (key) {
+    case 'Home':
+      return 0;
+    case 'End':
+      return count - 1;
+    case 'ArrowLeft':
+      return Math.max(0, (current ?? count) - 1);
+    case 'ArrowRight':
+      return Math.min(count - 1, (current ?? -1) + 1);
+    default:
+      return current;
+  }
+}
+
+export function chartReadout(point: RequestSummary['series']['points'][number], now = Date.now()) {
+  const requests = Math.round(point.perMinute);
+  const errors = Math.round(point.serverErrorsPerMinute);
+  return `${formatWhen(point.at, now)} · ${formatCount(requests)} request${requests === 1 ? '' : 's'} a minute · ${formatCount(errors)} server error${errors === 1 ? '' : 's'}`;
+}
+
 /** What the chart says under its title. */
 export function errorsLine(summary: RequestSummary, now = Date.now()) {
   const first = summary.firstServerError;

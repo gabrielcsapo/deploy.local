@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   chartTicks,
+  chartBucket,
+  chartKeyBucket,
+  chartReadout,
   errorRateLine,
   errorsLine,
   formatBytes,
@@ -17,6 +20,57 @@ import {
 const now = new Date(2026, 10, 4, 14, 31, 7).getTime();
 const summary = (patch: Partial<RequestSummary>) =>
   ({ range: '24h', serverErrorRate: 0, usualServerErrorRate: null, ...patch }) as RequestSummary;
+
+test('pointing chooses the nearest plotted bucket at either chart width', () => {
+  for (const width of [1440, 700]) {
+    assert.equal(chartBucket((width * 0.36) / width, 5), 1);
+    assert.equal(chartBucket((width * 0.39) / width, 5), 2);
+    assert.equal(chartBucket(0, 5), 0);
+    assert.equal(chartBucket(1, 5), 4);
+  }
+  assert.equal(chartBucket(-0.5, 5), 0);
+  assert.equal(chartBucket(1.5, 5), 4);
+  assert.equal(chartBucket(0.8, 1), 0);
+  assert.equal(chartBucket(0.5, 0), null);
+  assert.equal(chartBucket(NaN, 5), null);
+});
+
+test('keyboard navigation moves one bucket, clamps at ends, and dismisses', () => {
+  assert.equal(chartKeyBucket('ArrowRight', null, 5), 0);
+  assert.equal(chartKeyBucket('ArrowLeft', null, 5), 4);
+  assert.equal(chartKeyBucket('ArrowRight', 2, 5), 3);
+  assert.equal(chartKeyBucket('ArrowLeft', 2, 5), 1);
+  assert.equal(chartKeyBucket('ArrowLeft', 0, 5), 0);
+  assert.equal(chartKeyBucket('ArrowRight', 4, 5), 4);
+  assert.equal(chartKeyBucket('Home', 3, 5), 0);
+  assert.equal(chartKeyBucket('End', 1, 5), 4);
+  assert.equal(chartKeyBucket('Escape', 2, 5), null);
+  assert.equal(chartKeyBucket('Tab', 2, 5), 2);
+  for (const key of ['Home', 'End', 'ArrowLeft', 'ArrowRight']) {
+    assert.equal(chartKeyBucket(key, null, 0), null);
+    assert.equal(chartKeyBucket(key, null, 1), 0);
+  }
+});
+
+test('the chart readout uses page time and count formatting and agrees with rounded counts', () => {
+  const at = new Date(2026, 10, 4, 14, 10).getTime();
+  assert.equal(
+    chartReadout({ at, perMinute: 66, serverErrorsPerMinute: 5 }, now),
+    '2:10 PM · 66 requests a minute · 5 server errors',
+  );
+  assert.equal(
+    chartReadout({ at, perMinute: 1, serverErrorsPerMinute: 1 }, now),
+    '2:10 PM · 1 request a minute · 1 server error',
+  );
+  assert.equal(
+    chartReadout({ at, perMinute: 0, serverErrorsPerMinute: 0 }, now),
+    '2:10 PM · 0 requests a minute · 0 server errors',
+  );
+  assert.equal(
+    chartReadout({ at: at - 86_400_000, perMinute: 1234.4, serverErrorsPerMinute: 0.8 }, now),
+    'yesterday at 2:10 PM · 1,234 requests a minute · 1 server error',
+  );
+});
 
 test('durations, sizes and rates read as the board writes them', () => {
   assert.equal(formatDuration(24), '24 ms');

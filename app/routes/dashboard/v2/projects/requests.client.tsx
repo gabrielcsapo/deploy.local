@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type PointerEvent } from 'react';
 import { useRouter, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
@@ -18,6 +18,9 @@ import { useData } from './data';
 import { projectSegment } from './routing';
 import {
   chartTicks,
+  chartBucket,
+  chartKeyBucket,
+  chartReadout,
   errorRateLine,
   errorsLine,
   formatBytes,
@@ -51,6 +54,22 @@ function StatusCode({ status, children }: { status: number; children?: string })
 
 function Chart({ summary }: { summary: RequestSummary }) {
   const points = summary.series.points;
+  const [bucket, setBucket] = useState<number | null>(null);
+  const selectedPoint = bucket === null ? undefined : points[bucket];
+  const clearBucket = () => setBucket(null);
+  const pointAt = (event: PointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (
+      event.clientX < bounds.left ||
+      event.clientX > bounds.right ||
+      event.clientY < bounds.top ||
+      event.clientY > bounds.bottom
+    ) {
+      clearBucket();
+      return;
+    }
+    setBucket(chartBucket((event.clientX - bounds.left) / bounds.width, points.length));
+  };
   const top = Math.max(1, ...points.map((point) => point.perMinute));
   const x = (index: number) => (points.length > 1 ? (index / (points.length - 1)) * 800 : 0);
   const y = (value: number) => 138 - (value / top) * 128;
@@ -68,11 +87,16 @@ function Chart({ summary }: { summary: RequestSummary }) {
           <span className="v2-requests-key error" />
           Server errors
         </span>
-        {summary.peak && (
-          <span className="dl-meta v2-requests-peak">
-            Peak {formatCount(summary.peak.perMinute)} a minute {peakWhen(summary.peak.at)}
-          </span>
-        )}
+        <span
+          className={selectedPoint || summary.peak ? 'dl-meta v2-requests-peak' : 'dl-sr'}
+          aria-live="polite"
+        >
+          {selectedPoint
+            ? chartReadout(selectedPoint)
+            : summary.peak
+              ? `Peak ${formatCount(summary.peak.perMinute)} a minute ${peakWhen(summary.peak.at)}`
+              : ''}
+        </span>
       </span>
       <svg
         viewBox="0 0 800 140"
@@ -81,6 +105,20 @@ function Chart({ summary }: { summary: RequestSummary }) {
         height="140"
         role="img"
         aria-label={`Requests and server errors over ${rangeWords(summary.range)}`}
+        tabIndex={0}
+        onPointerDown={pointAt}
+        onPointerMove={pointAt}
+        onPointerLeave={clearBucket}
+        onPointerCancel={clearBucket}
+        onPointerUp={(event) => {
+          if (event.pointerType === 'touch') clearBucket();
+        }}
+        onBlur={clearBucket}
+        onKeyDown={(event) => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(event.key)) return;
+          event.preventDefault();
+          setBucket((current) => chartKeyBucket(event.key, current, points.length));
+        }}
       >
         <path d="M0 20H800M0 60H800M0 100H800" className="v2-requests-grid" />
         {summary.releases.map((release) => (
@@ -94,6 +132,16 @@ function Chart({ summary }: { summary: RequestSummary }) {
         ))}
         <path d={line((point) => point.perMinute)} className="v2-requests-line" />
         <path d={line((point) => point.serverErrorsPerMinute)} className="v2-requests-line error" />
+        {selectedPoint && bucket !== null && (
+          <g aria-hidden="true">
+            <path d={`M${x(bucket)} 0V140`} className="v2-requests-guide" />
+            <path d={`M${x(bucket)} ${y(selectedPoint.perMinute)}h0`} className="v2-requests-dot" />
+            <path
+              d={`M${x(bucket)} ${y(selectedPoint.serverErrorsPerMinute)}h0`}
+              className="v2-requests-dot error"
+            />
+          </g>
+        )}
       </svg>
       <span className="v2-requests-ticks">
         {chartTicks(summary.from, summary.to, summary.range).map((tick, index) => (
@@ -205,7 +253,7 @@ export function AppRequests({
           <section className="dl-section">
             <h2 className="dl-section-title">Requests and server errors</h2>
             <p className="dl-section-sub">{errorsLine(data)}</p>
-            <Chart summary={data} />
+            <Chart key={`${data.from}:${data.to}`} summary={data} />
           </section>
           <div className="dl-cols">
             <section className="dl-section">

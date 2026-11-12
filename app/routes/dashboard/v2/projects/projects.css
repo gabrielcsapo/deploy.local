@@ -151,6 +151,7 @@
 }
 .v2-requests-chart svg {
   display: block;
+  touch-action: pan-y;
 }
 .v2-requests-legend {
   display: flex;
@@ -192,8 +193,19 @@
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
-.v2-requests-line.error {
+.v2-requests-line.error,
+.v2-requests-dot.error {
   stroke: var(--ds-danger);
+}
+.v2-requests-guide,
+.v2-requests-dot {
+  stroke: var(--ds-secondary);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.v2-requests-dot {
+  stroke-width: 7;
+  stroke-linecap: round;
 }
 .v2-requests-ticks {
   display: flex;

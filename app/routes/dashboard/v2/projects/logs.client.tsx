@@ -4,18 +4,28 @@ import { Action, Banner, ChipSelect, Icon, Status } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, request } from './data';
 import { projectSegment } from './routing';
+import { logStreamStatus, type LogStreamState } from './logs';
+
+const connecting: LogStreamState = { openStreams: 0, hasOpened: false, finished: false };
+
 export function ProjectLogs({ project, selected }: { project: Project; selected: string }) {
   const [lines, setLines] = useState<{ app: string; text: string }[]>([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
   const [level, setLevel] = useState('');
-  const [live, setLive] = useState(false);
+  const [stream, setStream] = useState(connecting);
   const [retry, setRetry] = useState(0);
+  const status = logStreamStatus(stream, Boolean(error));
+  const reconnect = () => {
+    setError('');
+    setStream(connecting);
+    setRetry((n) => n + 1);
+  };
   useEffect(() => {
     const controller = new AbortController();
     setLines([]);
     setError('');
-    setLive(false);
+    setStream(connecting);
     async function start() {
       try {
         const { sources } = await request<{ sources: { app: string; url: string }[] }>(
@@ -26,12 +36,17 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
         await Promise.all(
           sources.map(async (source) => {
             const response = await authenticatedFetch(source.url, { signal: controller.signal });
+            if (controller.signal.aborted) return;
             if (!response.ok || !response.body)
               throw new Error(`${source.app}: logs are unavailable`);
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let pending = '';
-            setLive(true);
+            setStream((state) => ({
+              ...state,
+              openStreams: state.openStreams + 1,
+              hasOpened: true,
+            }));
             const append = (text: string[]) => {
               if (!controller.signal.aborted)
                 setLines((old) =>
@@ -52,14 +67,16 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
               }
             } finally {
               reader.releaseLock();
+              if (!controller.signal.aborted)
+                setStream((state) => ({ ...state, openStreams: state.openStreams - 1 }));
             }
           }),
         );
-        if (!controller.signal.aborted) setLive(false);
+        if (!controller.signal.aborted) setStream((state) => ({ ...state, finished: true }));
       } catch (error) {
         if (!controller.signal.aborted) {
           setError((error as Error).message);
-          setLive(false);
+          setStream((state) => ({ ...state, openStreams: 0, finished: true }));
           controller.abort();
         }
       }
@@ -108,14 +125,14 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
             ]}
           />
         </label>
-        <Status kind={live ? 'active' : 'inactive'}>{live ? 'Live' : 'Paused'}</Status>
+        <Status kind={status.kind}>{status.label}</Status>
+        {status.reconnect && (
+          <Action variant="quiet" onClick={reconnect}>
+            Reconnect
+          </Action>
+        )}
       </div>
-      {error && (
-        <Banner
-          title={error}
-          action={<Action onClick={() => setRetry((n) => n + 1)}>Reconnect</Action>}
-        />
-      )}
+      {error && <Banner title={error} action={<Action onClick={reconnect}>Retry</Action>} />}
       <pre className="v2-project-logs" aria-label="Project logs">
         {lines
           .filter(
@@ -134,7 +151,8 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
               {line.text}
             </div>
           ))}
-        {!lines.length && (live ? 'Waiting for logs…' : 'No log lines received.')}
+        {!lines.length &&
+          (status.label === 'Live' ? 'Waiting for logs…' : 'No log lines received.')}
       </pre>
     </>
   );

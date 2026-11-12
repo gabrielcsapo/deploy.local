@@ -161,7 +161,7 @@ server.on('request', async (req, res) => {
       '2:31:07 PM  error  sync batch 8812 failed\n  column "started" does not exist\n  at readWorkouts (src/sync/workouts.ts:41)\n  retrying in 30 s (attempt 3 of 5)\n',
     );
   }
-  if (path.endsWith('/requests/summary'))
+  if (path.startsWith('/api/') && path.endsWith('/requests/summary'))
     return send({
       range: '24h',
       from: Date.now() - 86400000,
@@ -176,8 +176,15 @@ server.on('request', async (req, res) => {
       p99: 900,
       sentBytes: 1200000000,
       receivedBytes: 84000000,
-      series: { bucketMs: 60000, points: [] },
-      peak: null,
+      series: {
+        bucketMs: 3600000,
+        points: Array.from({ length: 25 }, (_, i) => ({
+          at: Date.now() - (24 - i) * 3600000,
+          perMinute: Math.round(20 + 14 * Math.sin(i / 3)),
+          serverErrorsPerMinute: i > 20 ? i - 19 : 0,
+        })),
+      },
+      peak: { perMinute: 41, at: Date.now() - 20 * 3600000 },
       releases: [],
       firstServerError: null,
       slowest: [],
@@ -189,7 +196,8 @@ server.on('request', async (req, res) => {
     if (!process.env.PERFORMANCE_FIXTURE) return send({ error: 'No performance fixture' }, 404);
     return send(JSON.parse(readFileSync(process.env.PERFORMANCE_FIXTURE, 'utf8')));
   }
-  if (path.endsWith('/requests')) return send({ rows: [], total: 0, page: 1, pageSize: 50 });
+  if (path.startsWith('/api/') && path.endsWith('/requests'))
+    return send({ rows: [], total: 0, page: 1, pageSize: 50 });
   if (path.startsWith('/api/')) return send({ error: 'Fixture endpoint unavailable' }, 404);
   if (path.startsWith('/dashboard')) {
     const html = await vite.transformIndexHtml(
