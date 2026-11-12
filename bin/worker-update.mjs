@@ -5,16 +5,16 @@ import {
   openSync,
   chmodSync,
   existsSync,
-  linkSync,
+  copyFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runBounded, runCodesign } from './bounded-command.mjs';
 
 /** Verify before executing, and keep the old inode until the replacement passes its probe. */
-export function installWorkerBuild({
+export async function installWorkerBuild({
   path,
   bytes,
   sha256,
@@ -25,6 +25,7 @@ export function installWorkerBuild({
   previous = `${path}.previous`,
   platform = process.platform,
   probe = probeWorker,
+  sign = runCodesign,
 }) {
   if (
     !/^[a-f0-9]{64}$/.test(sha256) ||
@@ -51,22 +52,22 @@ export function installWorkerBuild({
     writeFileSync(staged, bytes, { mode: 0o700, flag: 'wx', flush: true });
     chmodSync(staged, 0o755);
     if (platform === 'darwin') {
-      const signed = spawnSync('codesign', ['--sign', '-', '--force', staged], {
-        encoding: 'utf8',
-      });
+      const signed = await sign(['--sign', '-', '--force', staged]);
       if (signed.status !== 0)
-        throw new Error('Unable to sign the worker build; the installed build was kept.');
+        throw new Error(
+          `Unable to sign the worker build; the installed build was kept. ${signed.stderr || ''}`,
+        );
     }
-    probe(staged, version, commit);
+    await probe(staged, version, commit);
     if (hadPrevious) {
       rmSync(previous, { force: true });
-      linkSync(path, previous);
+      copyFileSync(path, previous);
       syncDirectory();
     }
     renameSync(staged, path);
     swapped = true;
     syncDirectory();
-    probe(path, version, commit);
+    await probe(path, version, commit);
     return { version, previous: hadPrevious ? previous : undefined };
   } catch (error) {
     if (swapped) {
@@ -79,8 +80,8 @@ export function installWorkerBuild({
     rmSync(staged, { force: true });
   }
 }
-export function workerBuildInfo(path) {
-  const result = spawnSync(path, ['version', '--json'], { encoding: 'utf8', timeout: 30_000 });
+export async function workerBuildInfo(path) {
+  const result = await runBounded(path, ['version', '--json'], { timeoutMs: 30_000 });
   if (result.error || result.status !== 0)
     throw new Error('The worker build failed its startup check.');
   let info;
@@ -91,8 +92,8 @@ export function workerBuildInfo(path) {
   }
   return info;
 }
-function probeWorker(path, version, commit) {
-  const info = workerBuildInfo(path);
+async function probeWorker(path, version, commit) {
+  const info = await workerBuildInfo(path);
   if (info.version !== version || (commit && info.commit !== commit))
     throw new Error('The worker build does not match the coordinator release.');
 }

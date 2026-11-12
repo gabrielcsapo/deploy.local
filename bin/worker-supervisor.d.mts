@@ -7,10 +7,14 @@ export function superviseWorker(input: {
   version: string;
   stableMs?: number;
   startupMs?: number;
+  heartbeatMs?: number;
+  watchdogIntervalMs?: number;
+  killGraceMs?: number;
+  log?: (message: string) => void;
   install?: typeof installWorkerBuild;
   download?: (request: any) => Promise<Buffer>;
   signal?: AbortSignal;
-  onUpdated?: (receipt: any) => void;
+  onUpdated?: (receipt: any) => void | Promise<void>;
   previous?: string;
-  afterInstall?: (executable: string) => void;
+  afterInstall?: (executable: string) => void | Promise<void>;
 }): Promise<void>;

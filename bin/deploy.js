@@ -74,8 +74,13 @@ import {
 
 import { parseArgs, format } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
-import { execSync, execFileSync, spawn, spawnSync } from 'node:child_process';
-import { runBounded } from './bounded-command.mjs';
+import { execSync, execFileSync, spawnSync } from 'node:child_process';
+import {
+  runBounded,
+  runChecked,
+  dockerCommandTimeout,
+  DATA_COMMAND_TIMEOUT_MS,
+} from './bounded-command.mjs';
 import { createInterface } from 'node:readline';
 import { arch, cpus, homedir, networkInterfaces, platform, totalmem } from 'node:os';
 import {
@@ -128,7 +133,7 @@ const RC_PATH = resolve(homedir(), '.deployrc');
 
 // scripts/build-cli.mjs bakes the build stamp in as a JSON string at bundle
 // time. Run from source there is no stamp, so read the checkout instead.
-const BUILD_INFO = (() => {
+const BUILD_INFO = await (async () => {
   if (typeof __DEPLOY_BUILD_INFO__ === 'string') {
     try {
       return JSON.parse(__DEPLOY_BUILD_INFO__);
@@ -139,13 +144,13 @@ const BUILD_INFO = (() => {
   return sourceBuildInfo();
 })();
 
-function sourceBuildInfo() {
+async function sourceBuildInfo() {
   let commit = 'unknown';
   let dirty = false;
   try {
-    const opts = { cwd: import.meta.dirname, stdio: ['ignore', 'pipe', 'ignore'] };
-    commit = execSync('git rev-parse HEAD', opts).toString().trim() || 'unknown';
-    dirty = execSync('git status --porcelain', opts).toString().trim() !== '';
+    const opts = { cwd: import.meta.dirname };
+    commit = (await runChecked('git', ['rev-parse', 'HEAD'], opts)).trim() || 'unknown';
+    dirty = (await runChecked('git', ['status', '--porcelain'], opts)).trim() !== '';
   } catch {
     /* not a git checkout */
   }
@@ -990,10 +995,10 @@ function selfProgramArguments() {
   return [executable];
 }
 
-function installExecutionAgentService(keepSupervisor = false) {
+async function installExecutionAgentService(keepSupervisor = false) {
   // Keep the service executor on an immutable inode, independent of every future worker swap.
   // Reinstalling restarts the service, so this is the one safe moment to move it to the current build.
-  if (!keepSupervisor) linkWorkerSupervisor(dirname(agentConfigPath()));
+  if (!keepSupervisor) await linkWorkerSupervisor(dirname(agentConfigPath()));
   const args = [...programArguments().agent, 'agent', 'run'];
   if (platform() === 'darwin') {
     const label = 'sh.deploy.agent';
@@ -1041,23 +1046,21 @@ function installExecutionAgentService(keepSupervisor = false) {
     writeFileSync(plistPath, plist);
     const domain = `gui/${uid}`;
     const serviceTarget = `${domain}/${label}`;
-    const pause = (milliseconds) => {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
-    };
-    spawnSync('launchctl', ['bootout', serviceTarget], { stdio: 'ignore' });
+    const pause = (milliseconds) => new Promise((done) => setTimeout(done, milliseconds));
+    await runBounded('launchctl', ['bootout', serviceTarget], { timeoutMs: 120_000 });
 
     let loaded;
     for (let attempt = 1; attempt <= 4; attempt++) {
-      if (attempt > 1) pause(attempt * 250);
-      loaded = spawnSync('launchctl', ['bootstrap', domain, plistPath], {
-        encoding: 'utf8',
+      if (attempt > 1) await pause(attempt * 250);
+      loaded = await runBounded('launchctl', ['bootstrap', domain, plistPath], {
+        timeoutMs: 120_000,
       });
       if (loaded.status === 0) break;
       // launchd can return EIO while a KeepAlive process from the previous
       // definition is still exiting. Ensure both label and plist are unloaded
       // before retrying instead of telling the user to run the agent as root.
-      spawnSync('launchctl', ['bootout', serviceTarget], { stdio: 'ignore' });
-      spawnSync('launchctl', ['bootout', domain, plistPath], { stdio: 'ignore' });
+      await runBounded('launchctl', ['bootout', serviceTarget], { timeoutMs: 120_000 });
+      await runBounded('launchctl', ['bootout', domain, plistPath], { timeoutMs: 120_000 });
     }
     if (loaded?.status !== 0) {
       const detail = String(loaded?.stderr || 'launchctl bootstrap failed').trim();
@@ -1065,13 +1068,13 @@ function installExecutionAgentService(keepSupervisor = false) {
         `${detail}\nThe user agent could not be restarted after 4 attempts. Do not use sudo; wait a moment and retry.`,
       );
     }
-    const kicked = spawnSync('launchctl', ['kickstart', '-k', serviceTarget], {
-      encoding: 'utf8',
+    const kicked = await runBounded('launchctl', ['kickstart', '-k', serviceTarget], {
+      timeoutMs: 120_000,
     });
     if (kicked.status !== 0)
       throw new Error(kicked.stderr || 'launchctl could not start the agent service');
-    const started = spawnSync('launchctl', ['print', `${domain}/${label}`], {
-      encoding: 'utf8',
+    const started = await runBounded('launchctl', ['print', `${domain}/${label}`], {
+      timeoutMs: 8000,
     });
     if (started.status !== 0) {
       throw new Error(started.stderr || 'launchd did not retain the agent service');
@@ -1108,19 +1111,19 @@ Environment=${systemdQuote(`DEPLOY_AGENT_CONFIG=${agentConfigPath()}`)}${taskUse
 WantedBy=multi-user.target
 `,
   );
-  const reload = spawnSync('systemctl', ['daemon-reload'], { encoding: 'utf8' });
+  const reload = await runBounded('systemctl', ['daemon-reload'], { timeoutMs: 120_000 });
   if (reload.status !== 0) throw new Error(reload.stderr || 'systemctl daemon-reload failed');
-  const enabled = spawnSync('systemctl', ['enable', '--now', 'deploy-local-agent.service'], {
-    encoding: 'utf8',
+  const enabled = await runBounded('systemctl', ['enable', '--now', 'deploy-local-agent.service'], {
+    timeoutMs: 120_000,
   });
   if (enabled.status !== 0) throw new Error(enabled.stderr || 'systemctl enable failed');
-  const restarted = spawnSync('systemctl', ['restart', 'deploy-local-agent.service'], {
-    encoding: 'utf8',
+  const restarted = await runBounded('systemctl', ['restart', 'deploy-local-agent.service'], {
+    timeoutMs: 120_000,
   });
   if (restarted.status !== 0) throw new Error(restarted.stderr || 'systemctl restart failed');
 }
 
-function installRoleServices(config, { repair = false, rollback = false } = {}) {
+async function installRoleServices(config, { repair = false, rollback = false } = {}) {
   const plan = servicePlan(config.roles);
   if (plan.worker && (!config.workerId || !config.workerToken))
     throw new Error(
@@ -1150,8 +1153,8 @@ function installRoleServices(config, { repair = false, rollback = false } = {}) 
       'Automatic updates need the execution agent. Run sudo deploy agent install from this login to add it.',
     );
   }
-  if (agent) installExecutionAgentService(rollback);
-  if (plan.worker) installWorkerService(programArguments().worker);
+  if (agent) await installExecutionAgentService(rollback);
+  if (plan.worker) await installWorkerService(programArguments().worker);
   return plan;
 }
 /** Download the coordinator's worker build; on a Mac into the worker app, which is then sealed. */
@@ -1160,10 +1163,11 @@ async function downloadWorker(serverUrl, agentDir) {
   mkdirSync(agentDir, { recursive: true });
   mkdirSync(dirname(executable), { recursive: true });
   const installed = await downloadWorkerBuild(serverUrl, executable, undefined, previous);
-  if (app) sealWorkerBundle(app);
+  if (app) await sealWorkerBundle(app);
   return installed;
 }
-function connectionSummary(config, services = installedServices()) {
+async function connectionSummary(config, services) {
+  services ??= await installedServices();
   const plan = servicePlan(config.roles);
   const state = (enabled, service, label) =>
     !enabled ? 'off' : service?.running ? `${label} running` : `${label} not running`;
@@ -1193,8 +1197,8 @@ async function cmdAgentJoin(serverUrl, requestedName) {
     version: installedWorker.version,
     configPath,
   });
-  if (!process.env.DEPLOY_AGENT_CONFIG) installRoleServices(enrolled);
-  console.log(connectionSummary(enrolled));
+  if (!process.env.DEPLOY_AGENT_CONFIG) await installRoleServices(enrolled);
+  console.log(await connectionSummary(enrolled));
 }
 async function coordinatorRoles(config) {
   enableLocalTlsTrust(config.coordinatorUrl);
@@ -1229,11 +1233,11 @@ async function cmdAgentInstall() {
     await ensureWorkerBuild(config.coordinatorUrl, dirname(agentConfigPath()), {
       restartServices: ({ rollback }) => installRoleServices(config, { repair: true, rollback }),
     });
-  } else installRoleServices(config);
-  console.log(connectionSummary(config));
+  } else await installRoleServices(config);
+  console.log(await connectionSummary(config));
 }
-function cmdAgentUninstall() {
-  uninstallServices();
+async function cmdAgentUninstall() {
+  await uninstallServices();
   rmSync(agentConfigPath(), { force: true });
   console.log(
     'Local agent and task-worker services and credentials removed. The coordinator record is kept.',
@@ -1397,12 +1401,9 @@ async function startContainerRuntime() {
   if (!start) return;
   startingRuntimeAt = Date.now();
   console.log(`Docker is not running; starting it with ${start.command} ${start.args.join(' ')}`);
-  const child = spawn(start.command, start.args, { stdio: 'ignore', detached: true });
-  child.on('error', (err) => console.error(`Unable to start ${start.command}: ${err.message}`));
-  child.on('exit', (code) => {
-    if (code) console.error(`${start.command} ${start.args.join(' ')} exited with ${code}`);
+  void runBounded(start.command, start.args, { timeoutMs: 10 * 60_000 }).then((result) => {
+    if (result.status !== 0) console.error(`Unable to start ${start.command}: ${result.stderr}`);
   });
-  child.unref();
 }
 
 const removableRelaysSince = new Map();
@@ -1474,20 +1475,29 @@ async function removeAgentRelay(deploymentName) {
   persistAgentRelays();
 }
 
-function agentContainerExists(deploymentName) {
+async function agentContainerExists(deploymentName) {
   return (
-    spawnSync('docker', ['container', 'inspect', `deploy-sh-${deploymentName.toLowerCase()}`])
-      .status === 0
+    (
+      await runBounded('docker', [
+        'container',
+        'inspect',
+        `deploy-sh-${deploymentName.toLowerCase()}`,
+      ])
+    ).status === 0
   );
 }
 
-function agentGraphContainerNames(deploymentName) {
-  const result = spawnSync(
-    'docker',
-    ['ps', '-a', '--filter', `label=deploy-sh.app=${deploymentName}`, '--format', '{{.Names}}'],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-  );
-  return result.status === 0 ? result.stdout.trim().split('\n').filter(Boolean) : [];
+async function agentGraphContainerNames(deploymentName) {
+  const result = await runBounded('docker', [
+    'ps',
+    '-a',
+    '--filter',
+    `label=deploy-sh.app=${deploymentName}`,
+    '--format',
+    '{{.Names}}',
+  ]);
+  if (result.status !== 0) throw new Error(result.stderr || 'Unable to list app containers');
+  return result.stdout.trim().split('\n').filter(Boolean);
 }
 
 async function claimAgentJobFromCoordinator(config) {
@@ -1587,73 +1597,44 @@ async function reportAgentJobProgress(config, job, progress) {
   });
 }
 
-function agentDirectorySize(directory) {
-  return new Promise((resolvePromise) => {
-    const sizeCheck = spawn('du', ['-sk', directory], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    let stdout = '';
-    sizeCheck.stdout.on('data', (chunk) => {
-      stdout += chunk.toString();
-    });
-    sizeCheck.on('error', () => resolvePromise(0));
-    sizeCheck.on('close', (code) => {
-      if (code !== 0) {
-        resolvePromise(0);
-        return;
-      }
-      resolvePromise(Number.parseInt(stdout.trim().split(/\s+/)[0] || '0', 10) * 1024);
-    });
-  });
+async function agentDirectorySize(directory) {
+  const result = await runBounded('du', ['-sk', directory], { timeoutMs: 30_000 });
+  return result.status === 0
+    ? Number.parseInt(result.stdout.trim().split(/\s+/)[0] || '0', 10) * 1024
+    : 0;
 }
 
 async function extractAgentArchive(config, job, archivePath, volumeDir) {
   await inspectUploadArchive(archivePath);
   const totalBytes = Math.max(0, Number(job.payload?.totalBytes || 0));
-  return new Promise((resolvePromise, rejectPromise) => {
-    const extraction = spawn('tar', ['-xzf', archivePath, '-C', volumeDir], {
-      stdio: ['ignore', 'ignore', 'pipe'],
+  let currentReport = null;
+  const report = (message) => {
+    if (currentReport) return currentReport;
+    currentReport = (async () => {
+      const processedBytes = await agentDirectorySize(volumeDir);
+      await reportAgentJobProgress(config, job, {
+        stage: 'extracting backup',
+        processedBytes,
+        totalBytes,
+        message,
+      }).catch(() => {});
+    })().finally(() => {
+      currentReport = null;
     });
-    let stderr = '';
-    extraction.stderr.on('data', (chunk) => {
-      stderr += chunk.toString();
+    return currentReport;
+  };
+  void report('Extracting managed volumes');
+  const timer = setInterval(() => void report(), 1000);
+  timer.unref();
+  try {
+    await runChecked('tar', ['-xzf', archivePath, '-C', volumeDir], {
+      timeoutMs: DATA_COMMAND_TIMEOUT_MS,
     });
-    let currentReport = null;
-    const report = (message) => {
-      if (currentReport) return currentReport;
-      currentReport = (async () => {
-        const processedBytes = await agentDirectorySize(volumeDir);
-        await reportAgentJobProgress(config, job, {
-          stage: 'extracting backup',
-          processedBytes,
-          totalBytes,
-          message,
-        }).catch(() => {});
-      })().finally(() => {
-        currentReport = null;
-      });
-      return currentReport;
-    };
-    void report('Extracting managed volumes');
-    const timer = setInterval(() => void report(), 1000);
-    timer.unref();
-    extraction.on('error', (err) => {
-      clearInterval(timer);
-      rejectPromise(err);
-    });
-    extraction.on('close', (code) => {
-      clearInterval(timer);
-      if (code !== 0) {
-        rejectPromise(new Error(`Backup extraction failed (${code}): ${stderr.trim()}`));
-        return;
-      }
-      void (async () => {
-        await currentReport;
-        await report('Managed-volume extraction completed');
-        resolvePromise();
-      })();
-    });
-  });
+    await currentReport;
+    await report('Managed-volume extraction completed');
+  } finally {
+    clearInterval(timer);
+  }
 }
 
 async function uploadAgentBackup(config, job, archivePath) {
@@ -1672,28 +1653,12 @@ async function uploadAgentBackup(config, job, archivePath) {
   return body;
 }
 
-function runAgentGraphDocker(args, options = {}) {
-  return new Promise((resolvePromise) => {
-    const command = spawn('docker', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    command.stdout.on('data', (chunk) => {
-      const output = chunk.toString();
-      stdout += output;
-      options.onOutput?.(output);
-    });
-    command.stderr.on('data', (chunk) => {
-      const output = chunk.toString();
-      stderr += output;
-      options.onOutput?.(output);
-    });
-    command.on('error', (error) => {
-      resolvePromise({ exitCode: 1, stdout, stderr: `${stderr}${error.message}` });
-    });
-    command.on('close', (code) => {
-      resolvePromise({ exitCode: Number.isInteger(code) ? code : 1, stdout, stderr });
-    });
+async function runAgentGraphDocker(args, options = {}) {
+  const result = await runBounded('docker', args, {
+    timeoutMs: dockerCommandTimeout(args),
+    ...options,
   });
+  return { ...result, exitCode: result.status ?? 1 };
 }
 
 async function agentBuildPackages(config, job) {
@@ -1744,7 +1709,9 @@ async function executeAgentDeploy(config, job) {
       totalBytes: 0,
       message: 'Unpacking application source',
     }).catch(() => {});
-    execFileSync('tar', ['-xzf', artifactPath, '-C', sourceDir], { stdio: 'pipe' });
+    await runChecked('tar', ['-xzf', artifactPath, '-C', sourceDir], {
+      timeoutMs: DATA_COMMAND_TIMEOUT_MS,
+    });
   } finally {
     rmSync(artifactPath, { force: true });
   }
@@ -2010,10 +1977,8 @@ async function executeAgentRecreate(config, job) {
   mkdirSync(resolve(volumeDir, 'data'), { recursive: true });
   mkdirSync(resolve(volumeDir, 'uploads'), { recursive: true });
   const containerName = `deploy-sh-${job.deploymentName.toLowerCase()}`;
-  const activeImageId = execFileSync(
-    'docker',
-    ['inspect', '--format', '{{.Image}}', containerName],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+  const activeImageId = (
+    await runChecked('docker', ['inspect', '--format', '{{.Image}}', containerName])
   ).trim();
   if (!activeImageId) {
     throw new Error(`Active container image is unavailable for ${job.deploymentName}`);
@@ -2108,8 +2073,8 @@ async function processAgentJob(config, job) {
     } else if (job.type === 'recreate') {
       result = await executeAgentRecreate(config, job);
     } else if (job.type === 'restart') {
-      const graphContainers = agentGraphContainerNames(job.deploymentName);
-      execFileSync(
+      const graphContainers = await agentGraphContainerNames(job.deploymentName);
+      await runChecked(
         'docker',
         [
           'restart',
@@ -2117,12 +2082,12 @@ async function processAgentJob(config, job) {
             ? graphContainers
             : [`deploy-sh-${job.deploymentName.toLowerCase()}`]),
         ],
-        { stdio: 'pipe' },
+        { timeoutMs: 120_000 },
       );
       result = { restarted: true };
     } else if (job.type === 'start' || job.type === 'stop') {
-      const graphContainers = agentGraphContainerNames(job.deploymentName);
-      execFileSync(
+      const graphContainers = await agentGraphContainerNames(job.deploymentName);
+      await runChecked(
         'docker',
         [
           job.type,
@@ -2130,16 +2095,15 @@ async function processAgentJob(config, job) {
             ? graphContainers
             : [`deploy-sh-${job.deploymentName.toLowerCase()}`]),
         ],
-        { stdio: 'pipe' },
+        { timeoutMs: 120_000 },
       );
       result = { [job.type]: true };
     } else if (job.type === 'delete') {
       agentTelemetryTokens.delete(job.deploymentName);
-      removeAgentDockerObjects({
+      await removeAgentDockerObjects({
         deploymentName: job.deploymentName,
         applicationId: job.payload?.applicationId,
-        docker: (args) =>
-          spawnSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
+        docker: (args) => runBounded('docker', args, { timeoutMs: dockerCommandTimeout(args) }),
       });
       if (job.payload?.deleteVolumes !== false) {
         rmSync(resolve(agentConfigPath(), '..', 'data', 'volumes', job.deploymentName), {
@@ -2155,10 +2119,10 @@ async function processAgentJob(config, job) {
         job.deploymentName,
         job.payload?.containerName,
       );
-      const logResult = spawnSync(
+      const logResult = await runBounded(
         'docker',
         ['logs', '--tail', String(job.payload?.tail || 1000), containerName],
-        { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+        { maxOutput: 10 * 1024 * 1024 },
       );
       if (logResult.status !== 0) throw new Error(logResult.stderr || 'Unable to read logs');
       result = { logs: `${logResult.stdout || ''}${logResult.stderr || ''}` };
@@ -2175,10 +2139,10 @@ async function processAgentJob(config, job) {
       }).catch(() => {});
       const volumeEntries = ['data', 'uploads'];
       if (existsSync(resolve(volumeDir, 'graph'))) volumeEntries.push('graph');
-      execFileSync('tar', ['-czf', archivePath, '-C', volumeDir, ...volumeEntries], {
-        stdio: 'pipe',
-      });
       try {
+        await runChecked('tar', ['-czf', archivePath, '-C', volumeDir, ...volumeEntries], {
+          timeoutMs: DATA_COMMAND_TIMEOUT_MS,
+        });
         await reportAgentJobProgress(config, job, {
           stage: 'uploading backup',
           processedBytes: 0,
@@ -2201,9 +2165,9 @@ async function processAgentJob(config, job) {
         rmSync(volumeDir, { recursive: true, force: true });
         mkdirSync(volumeDir, { recursive: true });
         await extractAgentArchive(config, job, archivePath, volumeDir);
-        if (job.payload?.restart !== false && agentContainerExists(job.deploymentName)) {
-          execFileSync('docker', ['restart', `deploy-sh-${job.deploymentName.toLowerCase()}`], {
-            stdio: 'pipe',
+        if (job.payload?.restart !== false && (await agentContainerExists(job.deploymentName))) {
+          await runChecked('docker', ['restart', `deploy-sh-${job.deploymentName.toLowerCase()}`], {
+            timeoutMs: 120_000,
           });
         }
         result = { restored: true };
@@ -2341,12 +2305,7 @@ async function cmdAgentRun() {
       installed && paths.app
         ? () => sealWorkerBundle(paths.app, { signSupervisor: false })
         : undefined;
-    if (seal)
-      try {
-        sealWorkerBundle(paths.app, { signSupervisor: false, ifNeeded: true });
-      } catch (error) {
-        console.error(error.message || error);
-      }
+    if (seal) await sealWorkerBundle(paths.app, { signSupervisor: false, ifNeeded: true });
     const controller = new AbortController();
     for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => controller.abort());
     await superviseWorker({
@@ -2362,6 +2321,15 @@ async function cmdAgentRun() {
   }
   if (process.env.DEPLOY_WORKER_CHILD && process.connected)
     process.once('disconnect', () => process.exit(1));
+  if (process.env.DEPLOY_WORKER_CHILD && process.connected) {
+    setInterval(() => {
+      if (process.connected)
+        process.send?.(
+          { type: 'worker-heartbeat', token: process.env.DEPLOY_WORKER_CHILD },
+          () => {},
+        );
+    }, 10_000).unref();
+  }
   const runApps = servicePlan(config.roles).apps;
   // Even discovery failure must not fall back to issuing tokens into the worker's own DB.
   configureRemoteTelemetry(async (name) => {
@@ -2430,7 +2398,7 @@ async function cmdAgentRun() {
 
 async function cmdAgentStatus(json = false) {
   const config = readAgentConfig();
-  const services = installedServices();
+  const services = await installedServices();
   let roles = null,
     coordinatorError = null;
   if (config) {
@@ -2933,7 +2901,7 @@ async function cmdUpgrade(serverUrl, { check = false, force = false } = {}) {
   if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
   const bytes = Buffer.from(await res.arrayBuffer());
 
-  installWorkerBuild({
+  await installWorkerBuild({
     path: installPath,
     bytes,
     sha256: expected.sha256,
@@ -2942,7 +2910,7 @@ async function cmdUpgrade(serverUrl, { check = false, force = false } = {}) {
   });
 
   console.log(`\nUpgraded ${installPath}`);
-  const installed = spawnSync(installPath, ['version'], { encoding: 'utf-8' });
+  const installed = await runBounded(installPath, ['version'], { timeoutMs: 30_000 });
   console.log(installed.stdout?.trim() || `deploy ${manifest.version}`);
 }
 
@@ -3967,7 +3935,7 @@ try {
       } else if (agentCommand === 'install') {
         await cmdAgentInstall();
       } else if (agentCommand === 'uninstall') {
-        cmdAgentUninstall();
+        await cmdAgentUninstall();
       } else if (agentCommand === 'status') {
         await cmdAgentStatus(!!values.json);
       } else {

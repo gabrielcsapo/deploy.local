@@ -12,7 +12,9 @@ import {
   readdirSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { runBounded, runCodesign } from './bounded-command.mjs';
 import { agentConfigPath } from './agent-enrollment.mjs';
 import { agentUser, ownUserFile, taskWorkerUser, userDirectory } from './agent-user.mjs';
 import {
@@ -48,50 +50,58 @@ export function assertAgentJobAllowed(job, roles) {
  * exits 0 for a missing container on newer Docker and a failed listing looks like an empty one, so
  * neither exit code says the app is gone. Only a successful listing with nothing in it does.
  */
-export function removeAgentDockerObjects({ deploymentName, applicationId, docker }) {
+export async function removeAgentDockerObjects({ deploymentName, applicationId, docker }) {
   const labels = [`deploy-sh.app=${deploymentName}`];
   if (applicationId) labels.push(`deploy-sh.app-id=${applicationId}`);
-  const list = (args) => {
-    const result = docker(args);
+  const list = async (args) => {
+    const result = await docker(args);
     if (result.status !== 0)
       throw new Error(`docker ${args[0]} failed: ${(result.stderr || '').trim() || 'no output'}`);
     return (result.stdout || '').trim().split('\n').filter(Boolean);
   };
   const legacy = `deploy-sh-${deploymentName.toLowerCase()}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const containers = () => [
-    ...new Set([
-      ...labels.flatMap((label) =>
-        list(['ps', '-a', '--filter', `label=${label}`, '--format', '{{.Names}}']),
-      ),
-      ...list([
-        'ps',
-        '-a',
-        '--filter',
-        `name=^/${legacy}(-prev-[0-9]+)?$`,
-        '--format',
-        '{{.Names}}',
-      ]),
-    ]),
-  ];
-  const networks = () => [
+  const containers = async () => [
     ...new Set(
-      labels.flatMap((label) =>
-        list(['network', 'ls', '--filter', `label=${label}`, '--format', '{{.Name}}']),
-      ),
+      (
+        await Promise.all([
+          ...labels.map((label) =>
+            list(['ps', '-a', '--filter', `label=${label}`, '--format', '{{.Names}}']),
+          ),
+          list([
+            'ps',
+            '-a',
+            '--filter',
+            `name=^/${legacy}(-prev-[0-9]+)?$`,
+            '--format',
+            '{{.Names}}',
+          ]),
+        ])
+      ).flat(),
     ),
   ];
-  const removeAll = (find, command) => {
-    const found = find();
+  const networks = async () => [
+    ...new Set(
+      (
+        await Promise.all(
+          labels.map((label) =>
+            list(['network', 'ls', '--filter', `label=${label}`, '--format', '{{.Name}}']),
+          ),
+        )
+      ).flat(),
+    ),
+  ];
+  const removeAll = async (find, command) => {
+    const found = await find();
     if (found.length === 0) return;
-    const removal = docker([...command, ...found]);
-    const still = find();
+    const removal = await docker([...command, ...found]);
+    const still = await find();
     if (still.length > 0)
       throw new Error(
         `Could not remove ${still.join(', ')}: ${(removal.stderr || '').trim() || 'no output'}`,
       );
   };
-  removeAll(containers, ['rm', '-f']);
-  removeAll(networks, ['network', 'rm']);
+  await removeAll(containers, ['rm', '-f']);
+  await removeAll(networks, ['network', 'rm']);
 }
 
 export function isFile(path) {
@@ -207,14 +217,18 @@ ${Object.entries(entries)
  * Call after anything in Contents/MacOS changes. `signSupervisor: false` leaves a running
  * supervisor alone; `ifNeeded` only seals a bundle that fails verification.
  */
-export function sealWorkerBundle(
+export async function sealWorkerBundle(
   app,
-  { run = spawnSync, signSupervisor = true, ifNeeded = false } = {},
+  { run = runBounded, signSupervisor = true, ifNeeded = false } = {},
 ) {
-  const codesign = (args, action) =>
-    checked(run('codesign', args, { encoding: 'utf8' }), `Worker app ${action}`);
+  const codesign = async (args, action) =>
+    checked(await runCodesign(args, { run }), `Worker app ${action}`);
   const verify = ['--verify', '--strict', '--deep', app];
-  if (ifNeeded && run('codesign', verify, { encoding: 'utf8' }).status === 0) return false;
+  if (ifNeeded) {
+    const result = await runCodesign(verify, { run });
+    if (result.timedOut) checked(result, 'Worker app verification');
+    if (result.status === 0) return false;
+  }
   const macos = join(app, 'Contents/MacOS'),
     plist = join(app, 'Contents/Info.plist'),
     supervisor = join(macos, 'deploy-worker-supervisor');
@@ -223,20 +237,37 @@ export function sealWorkerBundle(
   // An interrupted install can leave its staged copy behind, which the seal would reject.
   for (const name of readdirSync(macos))
     if (/^deploy-worker(-supervisor)?\.stage-\d+$/.test(name)) rmSync(join(macos, name));
-  if (signSupervisor && isFile(supervisor))
-    codesign(
-      ['--force', '--sign', '-', '--identifier', WORKER_APP_ID, supervisor],
-      'supervisor signing',
-    );
-  codesign(['--force', '--sign', '-', app], 'signing');
-  codesign(verify, 'verification');
+  // Keep the resource seal and executable bytes intact if signing is interrupted or times out.
+  // The supervisor restores the old executable separately after a failed update.
+  const backup = await mkdtemp(join(dirname(app), '.worker-seal-'));
+  try {
+    await cp(app, join(backup, 'app'), { recursive: true, preserveTimestamps: true });
+    try {
+      if (signSupervisor && isFile(supervisor))
+        await codesign(
+          ['--force', '--sign', '-', '--identifier', WORKER_APP_ID, supervisor],
+          'supervisor signing',
+        );
+      await codesign(['--force', '--sign', '-', app], 'signing');
+      await codesign(verify, 'verification');
+    } catch (error) {
+      // Rename the saved bundle back; do not overwrite a running executable's inode.
+      const failed = join(backup, 'failed');
+      renameSync(app, failed);
+      renameSync(join(backup, 'app'), app);
+      error.workerBundleRestored = true;
+      throw error;
+    }
+  } finally {
+    await rm(backup, { recursive: true, force: true });
+  }
   return true;
 }
 /**
  * Give the supervisor the current build. Only call while (re)installing the agent service,
  * which restarts it. On Linux a hard link; on macOS a signed copy inside the sealed app.
  */
-export function linkWorkerSupervisor(agentDir, options = {}) {
+export async function linkWorkerSupervisor(agentDir, options = {}) {
   const platform = options.platform ?? process.platform;
   const { app, executable, supervisor } = workerExecutablePaths(agentDir, options);
   if (!isFile(executable)) return null;
@@ -246,7 +277,7 @@ export function linkWorkerSupervisor(agentDir, options = {}) {
     copyFileSync(executable, staged);
     chmodSync(staged, 0o755);
     renameSync(staged, supervisor);
-    sealWorkerBundle(app, { run: options.run });
+    await sealWorkerBundle(app, { run: options.run });
     return supervisor;
   }
   if (existsSync(supervisor) && statSync(supervisor).ino === statSync(executable).ino)
@@ -358,16 +389,18 @@ export function workerServiceFile(user = agentUser(), platform = process.platfor
     ? join(user.home, 'Library/LaunchAgents/sh.deploy.worker.plist')
     : join(user.home, '.config/systemd/user/deploy-local-worker.service');
 }
-function userSystemctl(args, user = agentUser(), run = spawnSync) {
+function userSystemctl(args, user = agentUser(), run = runBounded) {
   const environment = [
     `XDG_RUNTIME_DIR=/run/user/${user.uid}`,
     `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${user.uid}/bus`,
   ];
   return user.name
     ? run('sudo', ['-u', user.name, 'env', ...environment, 'systemctl', '--user', ...args], {
-        encoding: 'utf8',
+        timeoutMs: args.includes('is-active') ? 8000 : 120_000,
       })
-    : run('systemctl', ['--user', ...args], { encoding: 'utf8' });
+    : run('systemctl', ['--user', ...args], {
+        timeoutMs: args.includes('is-active') ? 8000 : 120_000,
+      });
 }
 function checked(result, action) {
   if (result.status !== 0)
@@ -375,7 +408,7 @@ function checked(result, action) {
       `${action} failed. ${String(result.stderr || result.error?.message || '').trim()}`,
     );
 }
-export function installWorkerService(programArguments) {
+export async function installWorkerService(programArguments) {
   const user = agentUser();
   if (user.uid === 0)
     throw new Error(
@@ -403,85 +436,94 @@ export function installWorkerService(programArguments) {
   if (process.platform === 'darwin') {
     const domain = `gui/${user.uid}`,
       target = `${domain}/sh.deploy.worker`;
-    spawnSync('launchctl', ['bootout', target], { stdio: 'ignore' });
+    await runBounded('launchctl', ['bootout', target], { timeoutMs: 120_000 });
     let loaded;
     for (let attempt = 1; attempt <= 4; attempt++) {
-      if (attempt > 1) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 250);
-      loaded = spawnSync('launchctl', ['bootstrap', domain, file], { encoding: 'utf8' });
+      if (attempt > 1) await delay(attempt * 250);
+      loaded = await runBounded('launchctl', ['bootstrap', domain, file], { timeoutMs: 120_000 });
       if (loaded.status === 0) break;
       // KeepAlive can briefly retain the old process during a repair.
-      spawnSync('launchctl', ['bootout', target], { stdio: 'ignore' });
-      spawnSync('launchctl', ['bootout', domain, file], { stdio: 'ignore' });
+      await runBounded('launchctl', ['bootout', target], { timeoutMs: 120_000 });
+      await runBounded('launchctl', ['bootout', domain, file], { timeoutMs: 120_000 });
     }
     checked(loaded, 'Worker launchd bootstrap (retry agent install from your normal login)');
     checked(
-      spawnSync('launchctl', ['kickstart', '-k', target], { encoding: 'utf8' }),
+      await runBounded('launchctl', ['kickstart', '-k', target], { timeoutMs: 120_000 }),
       'Worker launchd start',
     );
   } else {
-    checked(userSystemctl(['daemon-reload'], user), 'User systemd reload');
+    checked(await userSystemctl(['daemon-reload'], user), 'User systemd reload');
     checked(
-      userSystemctl(['enable', '--now', 'deploy-local-worker.service'], user),
+      await userSystemctl(['enable', '--now', 'deploy-local-worker.service'], user),
       'User worker enable (ensure the login user has a systemd session)',
     );
-    checked(userSystemctl(['restart', 'deploy-local-worker.service'], user), 'User worker restart');
+    checked(
+      await userSystemctl(['restart', 'deploy-local-worker.service'], user),
+      'User worker restart',
+    );
   }
 }
 /** After a confirmed update, restart the task worker so it runs the new build too. */
-export function restartWorkerService({
+export async function restartWorkerService({
   platform = process.platform,
   user = taskWorkerUser(),
   exists = existsSync,
-  run = spawnSync,
+  run = runBounded,
 } = {}) {
   if (!exists(workerServiceFile(user, platform))) return false;
   checked(
     platform === 'darwin'
-      ? run('launchctl', ['kickstart', '-k', `gui/${user.uid}/sh.deploy.worker`], {
-          encoding: 'utf8',
+      ? await run('launchctl', ['kickstart', '-k', `gui/${user.uid}/sh.deploy.worker`], {
+          timeoutMs: 120_000,
         })
-      : userSystemctl(['restart', 'deploy-local-worker.service'], user, run),
+      : await userSystemctl(['restart', 'deploy-local-worker.service'], user, run),
     'Task worker restart',
   );
   return true;
 }
-export function installedServices() {
+export async function installedServices() {
   const agentFile =
     process.platform === 'darwin'
       ? resolve(agentUser().home, 'Library/LaunchAgents/sh.deploy.agent.plist')
       : '/etc/systemd/system/deploy-local-agent.service';
   return Object.fromEntries(
-    [
-      ['agent', agentFile],
-      ['worker', workerServiceFile()],
-    ].map(([name, file]) => {
-      const installed = existsSync(file);
-      const result = !installed
-        ? null
-        : process.platform === 'darwin'
-          ? spawnSync('launchctl', ['print', `gui/${agentUser().uid}/sh.deploy.${name}`], {
-              encoding: 'utf8',
-            })
-          : name === 'worker'
-            ? userSystemctl(['is-active', '--quiet', 'deploy-local-worker.service'])
-            : spawnSync('systemctl', ['is-active', '--quiet', 'deploy-local-agent.service']);
-      const running =
-        installed &&
-        result?.status === 0 &&
-        (process.platform !== 'darwin' || /state = running\b/.test(result.stdout || ''));
-      return [name, { installed, running }];
-    }),
+    await Promise.all(
+      [
+        ['agent', agentFile],
+        ['worker', workerServiceFile()],
+      ].map(async ([name, file]) => {
+        const installed = existsSync(file);
+        const result = !installed
+          ? null
+          : process.platform === 'darwin'
+            ? await runBounded('launchctl', ['print', `gui/${agentUser().uid}/sh.deploy.${name}`], {
+                timeoutMs: 8000,
+              })
+            : name === 'worker'
+              ? await userSystemctl(['is-active', '--quiet', 'deploy-local-worker.service'])
+              : await runBounded('systemctl', [
+                  'is-active',
+                  '--quiet',
+                  'deploy-local-agent.service',
+                ]);
+        const running =
+          installed &&
+          result?.status === 0 &&
+          (process.platform !== 'darwin' || /state = running\b/.test(result.stdout || ''));
+        return [name, { installed, running }];
+      }),
+    ),
   );
 }
-export function uninstallServices() {
+export async function uninstallServices() {
   if (process.platform === 'darwin') {
     for (const name of ['agent', 'worker']) {
       const file = resolve(agentUser().home, `Library/LaunchAgents/sh.deploy.${name}.plist`);
       if (!existsSync(file)) continue;
       const target = `gui/${agentUser().uid}/sh.deploy.${name}`;
-      spawnSync('launchctl', ['bootout', target], { encoding: 'utf8' });
-      const retained = spawnSync('launchctl', ['print', target], { stdio: 'ignore' });
-      if (retained.status === 0)
+      await runBounded('launchctl', ['bootout', target], { timeoutMs: 120_000 });
+      const retained = await runBounded('launchctl', ['print', target], { timeoutMs: 8000 });
+      if (retained.status === 0 || retained.timedOut || retained.error)
         throw new Error(`Could not stop ${name}; credentials kept. Retry agent uninstall.`);
       rmSync(file);
     }
@@ -491,25 +533,25 @@ export function uninstallServices() {
       if (process.getuid?.() !== 0)
         throw new Error('Use sudo to remove the execution agent system service.');
       checked(
-        spawnSync('systemctl', ['disable', '--now', 'deploy-local-agent.service'], {
-          encoding: 'utf8',
+        await runBounded('systemctl', ['disable', '--now', 'deploy-local-agent.service'], {
+          timeoutMs: 120_000,
         }),
         'Execution agent stop',
       );
       rmSync(agent);
       checked(
-        spawnSync('systemctl', ['daemon-reload'], { encoding: 'utf8' }),
+        await runBounded('systemctl', ['daemon-reload'], { timeoutMs: 120_000 }),
         'System systemd reload',
       );
     }
     const worker = workerServiceFile();
     if (existsSync(worker)) {
       checked(
-        userSystemctl(['disable', '--now', 'deploy-local-worker.service']),
+        await userSystemctl(['disable', '--now', 'deploy-local-worker.service']),
         'User worker stop',
       );
       rmSync(worker);
-      checked(userSystemctl(['daemon-reload']), 'User systemd reload');
+      checked(await userSystemctl(['daemon-reload']), 'User systemd reload');
     }
   }
 }

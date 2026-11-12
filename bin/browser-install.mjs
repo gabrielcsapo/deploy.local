@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { runBounded } from './bounded-command.mjs';
 import { createRequire } from 'node:module';
 import { isSea } from 'node:sea';
 import { resolve, dirname, join } from 'node:path';
@@ -41,36 +41,29 @@ export async function installChromium({
   browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH,
   env = process.env,
   onProgress = () => {},
+  run = runBounded,
 } = {}) {
   onProgress('Preparing Chromium…');
-  await new Promise((resolveInstall, reject) => {
-    const child = spawn(executable, [cli, 'install', 'chromium'], {
-      env: {
-        ...env,
-        ...(browsersPath ? { PLAYWRIGHT_BROWSERS_PATH: browsersPath } : {}),
-        ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let output = '';
-    let pending = '';
-    const read = (chunk) => {
-      output = (output + chunk.toString()).slice(-16000);
-      pending += chunk.toString();
+  let pending = '';
+  const result = await run(executable, [cli, 'install', 'chromium'], {
+    timeoutMs: 30 * 60_000,
+    maxOutput: 16000,
+    env: {
+      ...env,
+      ...(browsersPath ? { PLAYWRIGHT_BROWSERS_PATH: browsersPath } : {}),
+      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+    },
+    onOutput: (chunk) => {
+      pending += chunk;
       const lines = pending.split(/[\r\n]/);
       pending = lines.pop().slice(-2000);
       for (const line of lines) {
         const stage = browserInstallProgress(line);
         if (stage) onProgress(stage);
       }
-    };
-    child.stdout.on('data', read);
-    child.stderr.on('data', read);
-    child.once('error', () => reject(new Error('The Chromium installer could not start.')));
-    child.once('close', (code) => {
-      if (code === 0) resolveInstall();
-      else reject(new Error(browserInstallFailure(output)));
-    });
+    },
   });
+  if (result.error) throw new Error('The Chromium installer could not start.');
+  if (result.status !== 0) throw new Error(browserInstallFailure(result.stdout + result.stderr));
   onProgress('Chromium installed.');
 }

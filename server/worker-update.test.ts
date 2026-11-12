@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { installWorkerBuild } from '../bin/worker-update.mjs';
 
-test('worker verifies matching build and rolls back a failed replacement', () => {
+test('worker verifies matching build and rolls back a failed replacement', async () => {
   const root = mkdtempSync(join(tmpdir(), 'worker-update-'));
   const path = join(root, 'worker');
   const bytes = Buffer.from('#!/bin/sh\nprintf \'{"version":"new"}\\n\'\n');
@@ -20,11 +20,17 @@ test('worker verifies matching build and rolls back a failed replacement', () =>
   };
   try {
     writeFileSync(path, 'old');
-    assert.throws(() => installWorkerBuild({ ...options, sha256: '0'.repeat(64) }), /checksum/);
+    await assert.rejects(
+      () => installWorkerBuild({ ...options, sha256: '0'.repeat(64) }),
+      /checksum/,
+    );
     assert.equal(readFileSync(path, 'utf8'), 'old');
-    assert.throws(() => installWorkerBuild({ ...options, version: 'wrong' }), /does not match/);
+    await assert.rejects(
+      () => installWorkerBuild({ ...options, version: 'wrong' }),
+      /does not match/,
+    );
     assert.equal(readFileSync(path, 'utf8'), 'old');
-    assert.throws(
+    await assert.rejects(
       () =>
         installWorkerBuild({
           ...options,
@@ -35,10 +41,13 @@ test('worker verifies matching build and rolls back a failed replacement', () =>
       /startup failed/,
     );
     assert.equal(readFileSync(path, 'utf8'), 'old');
-    assert.equal(installWorkerBuild(options).version, 'new');
+    assert.equal((await installWorkerBuild(options)).version, 'new');
     assert.equal(readFileSync(`${path}.previous`, 'utf8'), 'old');
     assert.equal(readFileSync(path, 'utf8'), bytes.toString());
-    assert.throws(() => installWorkerBuild({ ...options, platform: 'win32' }), /desktop app/);
+    await assert.rejects(
+      () => installWorkerBuild({ ...options, platform: 'win32' }),
+      /desktop app/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

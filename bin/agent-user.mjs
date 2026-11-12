@@ -4,7 +4,11 @@ import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
 function loginUser(uid) {
-  const result = spawnSync('getent', ['passwd', String(uid)], { encoding: 'utf8' });
+  const result = spawnSync('getent', ['passwd', String(uid)], {
+    encoding: 'utf8',
+    timeout: 2000,
+    killSignal: 'SIGKILL',
+  });
   const [name, , userId, groupId, , home] = (result.stdout || '').trim().split(':');
   if (result.status !== 0 || uid <= 0 || Number(userId) !== uid || !home?.startsWith('/'))
     throw new Error(

@@ -7,8 +7,8 @@ export function installWorkerBuild(input: {
   commit?: string;
   previous?: string;
   platform?: string;
-  probe?: (path: string, version: string, commit?: string) => void;
-}): { version: string; previous: string | undefined };
+  probe?: (path: string, version: string, commit?: string) => void | Promise<void>;
+}): Promise<{ version: string; previous: string | undefined }>;
 export function downloadWorkerBuild(
   serverUrl: string,
   path: string,
@@ -26,5 +26,5 @@ export interface WorkerBuildManifest {
   commit?: string;
   targets: Record<string, { sha256: string; size: number }>;
 }
-export function workerBuildInfo(path: string): { version: string; commit?: string };
+export function workerBuildInfo(path: string): Promise<{ version: string; commit?: string }>;
 export function workerBuildManifest(serverUrl: string): Promise<WorkerBuildManifest>;

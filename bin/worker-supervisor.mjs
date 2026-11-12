@@ -44,6 +44,10 @@ export async function superviseWorker({
   version,
   stableMs = 30_000,
   startupMs = 60_000,
+  heartbeatMs = 120_000,
+  watchdogIntervalMs = 10_000,
+  killGraceMs = 10_000,
+  log = console.error,
   install = installWorkerBuild,
   download = async (request) => {
     const response = await fetch(request.url, { signal: AbortSignal.timeout(120_000) });
@@ -64,43 +68,55 @@ export async function superviseWorker({
     stopping = false,
     bootTimer,
     stableTimer,
-    updating = false;
+    updating = false,
+    updateTask,
+    watchdogTimer,
+    killTimer,
+    restartTimer;
   let receipt = workerUpdateReceipt(root);
-  function restore(reason) {
+  async function restore(reason, reseal = true) {
+    let restored = false;
     if (digest(executable) !== receipt.previousDigest) {
       if (!existsSync(previous) || digest(previous) !== receipt.previousDigest)
         throw new Error('Previous worker build is missing; automatic recovery stopped.');
       renameSync(previous, executable);
+      restored = true;
     }
     receipt = { ...receipt, state: 'failed', version: receipt.previousVersion, error: reason };
     // Record the rollback before sealing: the seal changes the bytes the digest check compares.
     persist(root, receipt);
-    try {
-      afterInstall(executable);
-    } catch (error) {
-      console.error(`Restored the previous worker build, but ${error.message || error}`);
-    }
+    // If staging/signing failed before the swap, the old sealed binary is untouched.
+    if (restored && reseal) await afterInstall(executable);
   }
+
   // Never infer success from the installed filename after an executor interruption.
   if (receipt && ['staging', 'starting'].includes(receipt.state))
-    restore('Update interrupted before startup was confirmed; restored the previous build.');
+    await restore('Update interrupted before startup was confirmed; restored the previous build.');
   return new Promise((resolve, reject) => {
     const clearTimers = () => {
       clearTimeout(bootTimer);
       clearTimeout(stableTimer);
+      clearInterval(watchdogTimer);
+      clearTimeout(killTimer);
+      clearTimeout(restartTimer);
     };
     const stop = () => {
       stopping = true;
       clearTimers();
-      child?.kill('SIGTERM');
-      if (!child) resolve();
+      terminate(child);
+      if (!child && !updating) resolve();
     };
     signal?.addEventListener('abort', stop, { once: true });
     function fail(error) {
       stopping = true;
       clearTimers();
-      child?.kill('SIGTERM');
+      terminate(child);
       reject(error);
+    }
+    function terminate(target) {
+      if (!target) return;
+      target.kill('SIGTERM');
+      killTimer = setTimeout(() => target.kill('SIGKILL'), killGraceMs);
     }
     function start() {
       if (stopping) return resolve();
@@ -109,12 +125,26 @@ export async function superviseWorker({
         env: { ...process.env, DEPLOY_WORKER_CHILD: token },
         stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
       });
-      let ready = false;
+      const current = child;
+      let ready = false,
+        lastHeartbeat = Date.now(),
+        terminating = false;
       const expected =
         receipt?.state === 'starting' ? receipt.targetVersion : receipt?.version || version;
-      bootTimer = setTimeout(() => child.kill('SIGKILL'), startupMs);
+      bootTimer = setTimeout(() => current.kill('SIGKILL'), startupMs);
+      watchdogTimer = setInterval(() => {
+        if (!ready || updating || terminating || stopping) return;
+        if (Date.now() - lastHeartbeat <= heartbeatMs) return;
+        terminating = true;
+        log(
+          `Worker ${current.pid} heartbeat stopped for ${Math.round(heartbeatMs / 1000)} s; restarting`,
+        );
+        terminate(current);
+      }, watchdogIntervalMs);
       child.on('error', fail);
-      child.on('message', async (message) => {
+      child.on('message', (message) => {
+        if (message?.type === 'worker-heartbeat' && message.token === token && ready)
+          lastHeartbeat = Date.now();
         if (
           message?.type === 'worker-ready' &&
           message.token === token &&
@@ -122,9 +152,10 @@ export async function superviseWorker({
           !ready
         ) {
           ready = true;
+          lastHeartbeat = Date.now();
           clearTimeout(bootTimer);
           if (receipt?.state === 'starting') {
-            stableTimer = setTimeout(() => {
+            stableTimer = setTimeout(async () => {
               receipt = {
                 ...receipt,
                 state: 'complete',
@@ -133,7 +164,7 @@ export async function superviseWorker({
               };
               persist(root, receipt);
               try {
-                onUpdated(receipt);
+                await onUpdated(receipt);
               } catch (error) {
                 console.error(`Worker updated, but ${error.message || error}`);
               }
@@ -142,6 +173,8 @@ export async function superviseWorker({
         }
         if (
           message?.type !== 'worker-update' ||
+          terminating ||
+          stopping ||
           updating ||
           !ready ||
           receipt?.state === 'starting'
@@ -149,58 +182,68 @@ export async function superviseWorker({
           return;
         updating = true;
         const request = message.request;
-        try {
-          receipt = {
-            ...request,
-            state: 'staging',
-            previousVersion: expected,
-            previousDigest: digest(executable),
-          };
-          persist(root, receipt);
-          const bytes = await download(request);
-          if (stopping || !child) throw new Error('Worker stopped before installation');
-          install({
-            path: executable,
-            bytes,
-            sha256: request.sha256,
-            size: request.size,
-            version: request.targetVersion,
-            previous,
-          });
-          afterInstall(executable);
-          receipt.state = 'starting';
-          persist(root, receipt);
-          child.kill('SIGTERM');
-        } catch (error) {
+        updateTask = (async () => {
           try {
-            if (receipt?.state === 'staging') restore(String(error.message || error));
-            else {
-              receipt = {
-                ...request,
-                state: 'failed',
-                version: expected,
-                error: String(error.message || error),
-              };
-              persist(root, receipt);
+            receipt = {
+              ...request,
+              state: 'staging',
+              previousVersion: expected,
+              previousDigest: digest(executable),
+            };
+            persist(root, receipt);
+            const bytes = await download(request);
+            if (stopping || !child) throw new Error('Worker stopped before installation');
+            await install({
+              path: executable,
+              bytes,
+              sha256: request.sha256,
+              size: request.size,
+              version: request.targetVersion,
+              previous,
+            });
+            await afterInstall(executable);
+            if (stopping || child !== current)
+              throw new Error('Worker stopped during installation');
+            receipt.state = 'starting';
+            persist(root, receipt);
+            terminating = true;
+            terminate(current);
+          } catch (error) {
+            log(`Worker update abandoned: ${error.message || error}`);
+            try {
+              if (receipt?.state === 'staging')
+                await restore(String(error.message || error), !error.workerBundleRestored);
+              else {
+                receipt = {
+                  ...request,
+                  state: 'failed',
+                  version: expected,
+                  error: String(error.message || error),
+                };
+                persist(root, receipt);
+              }
+            } catch (restoreError) {
+              return fail(restoreError);
             }
-          } catch (restoreError) {
-            return fail(restoreError);
+          } finally {
+            updating = false;
+            lastHeartbeat = Date.now();
           }
-        } finally {
-          updating = false;
-        }
+        })();
       });
-      child.on('exit', () => {
+      child.on('exit', async () => {
         clearTimers();
         child = null;
+        // Installation and rollback own the executable until their async work completes.
+        await updateTask;
         if (stopping) return resolve();
         try {
           // A requested exit of the old process begins the candidate's first startup.
           if (receipt?.state === 'starting' && expected === receipt.targetVersion)
-            restore(
+            await restore(
               'The replacement failed its sustained startup check; restored the previous build.',
             );
-          setTimeout(start, 250);
+          restartTimer = setTimeout(start, 250);
         } catch (error) {
           fail(error);
         }

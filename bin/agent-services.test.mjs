@@ -148,22 +148,22 @@ test('on Linux the task worker service runs the swappable build, the agent the s
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test('on Linux installing links the supervisor to the current build without touching it otherwise', () => {
+test('on Linux installing links the supervisor to the current build without touching it otherwise', async () => {
   const dir = agentDirectory(['deploy-worker'], ['worker']);
   try {
     const executable = join(dir, 'deploy-worker');
-    const supervisor = linkWorkerSupervisor(dir, linux);
+    const supervisor = await linkWorkerSupervisor(dir, linux);
     assert.equal(supervisor, join(dir, 'deploy-worker-supervisor'));
     assert.equal(statSync(supervisor).ino, statSync(executable).ino);
     // An update swaps in a new inode; the next install moves the supervisor to it.
     rmSync(executable);
     writeFileSync(executable, 'new', { mode: 0o755 });
     assert.notEqual(statSync(supervisor).ino, statSync(executable).ino);
-    linkWorkerSupervisor(dir, linux);
+    await linkWorkerSupervisor(dir, linux);
     assert.equal(statSync(supervisor).ino, statSync(executable).ino);
     assert.equal(readFileSync(supervisor, 'utf8'), 'new');
     const empty = agentDirectory([], ['worker']);
-    assert.equal(linkWorkerSupervisor(empty, linux), null);
+    assert.equal(await linkWorkerSupervisor(empty, linux), null);
     rmSync(empty, { recursive: true, force: true });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -258,7 +258,7 @@ function recorder(status = () => 0) {
   };
   return { calls, run };
 }
-test('sealing signs the supervisor with the app identifier, then the bundle, then verifies', () => {
+test('sealing signs the supervisor with the app identifier, then the bundle, then verifies', async () => {
   const { home, app, macos } = macLayout();
   try {
     const supervisor = join(macos, 'deploy-worker-supervisor');
@@ -266,7 +266,7 @@ test('sealing signs the supervisor with the app identifier, then the bundle, the
     writeFileSync(supervisor, 'build');
     writeFileSync(join(macos, 'deploy-worker.stage-123'), 'partial');
     const { calls, run } = recorder();
-    assert.equal(sealWorkerBundle(app, { run }), true);
+    assert.equal(await sealWorkerBundle(app, { run }), true);
     assert.deepEqual(calls, [
       ['codesign', '--force', '--sign', '-', '--identifier', 'local.deploy.worker', supervisor],
       ['codesign', '--force', '--sign', '-', app],
@@ -291,7 +291,7 @@ test('sealing signs the supervisor with the app identifier, then the bundle, the
     // An existing Info.plist is kept; a running supervisor is not re-signed.
     writeFileSync(join(app, 'Contents/Info.plist'), 'custom');
     calls.length = 0;
-    sealWorkerBundle(app, { run, signSupervisor: false });
+    await sealWorkerBundle(app, { run, signSupervisor: false });
     assert.equal(readFileSync(join(app, 'Contents/Info.plist'), 'utf8'), 'custom');
     assert.deepEqual(calls, [
       ['codesign', '--force', '--sign', '-', app],
@@ -299,11 +299,11 @@ test('sealing signs the supervisor with the app identifier, then the bundle, the
     ]);
     // ifNeeded leaves a bundle that already verifies alone.
     calls.length = 0;
-    assert.equal(sealWorkerBundle(app, { run, ifNeeded: true }), false);
+    assert.equal(await sealWorkerBundle(app, { run, ifNeeded: true }), false);
     assert.deepEqual(calls, [['codesign', '--verify', '--strict', '--deep', app]]);
     const failing = recorder((args) => (args[0] === '--verify' ? 1 : 0));
-    assert.throws(
-      () => sealWorkerBundle(app, { run: failing.run }),
+    await assert.rejects(
+      async () => await sealWorkerBundle(app, { run: failing.run }),
       /Worker app verification failed\. refused/,
     );
     assert.equal(failing.calls.length, 3);
@@ -311,17 +311,17 @@ test('sealing signs the supervisor with the app identifier, then the bundle, the
     rmSync(home, { recursive: true, force: true });
   }
 });
-test('on a Mac installing gives the supervisor a signed copy, never a hard link', () => {
+test('on a Mac installing gives the supervisor a signed copy, never a hard link', async () => {
   const { home, agentDir, app, macos, mac } = macLayout();
   try {
     const { calls, run } = recorder();
-    assert.equal(linkWorkerSupervisor(agentDir, { ...mac, run }), null);
+    assert.equal(await linkWorkerSupervisor(agentDir, { ...mac, run }), null);
     assert.deepEqual(calls, []);
     const executable = join(macos, 'deploy-worker'),
       supervisor = join(macos, 'deploy-worker-supervisor');
     writeFileSync(executable, 'build-1', { mode: 0o755 });
     writeFileSync(supervisor, 'stale');
-    assert.equal(linkWorkerSupervisor(agentDir, { ...mac, run }), supervisor);
+    assert.equal(await linkWorkerSupervisor(agentDir, { ...mac, run }), supervisor);
     assert.equal(readFileSync(supervisor, 'utf8'), 'build-1');
     assert.notEqual(statSync(supervisor).ino, statSync(executable).ino);
     assert.equal(statSync(supervisor).mode & 0o777, 0o755);
@@ -363,14 +363,14 @@ test('a Mac install removes the bare builds the previous install left beside age
     rmSync(home, { recursive: true, force: true });
   }
 });
-test('an update keeps the replaced build outside the app bundle', () => {
+test('an update keeps the replaced build outside the app bundle', async () => {
   const { home, agentDir, macos } = macLayout();
   try {
     const path = join(macos, 'deploy-worker'),
       previous = join(agentDir, 'deploy-worker-app.previous');
     writeFileSync(path, 'old', { mode: 0o755 });
     const bytes = Buffer.from('new');
-    installWorkerBuild({
+    await installWorkerBuild({
       path,
       bytes,
       sha256: createHash('sha256').update(bytes).digest('hex'),
@@ -387,7 +387,7 @@ test('an update keeps the replaced build outside the app bundle', () => {
     rmSync(home, { recursive: true, force: true });
   }
 });
-test('after an update the task worker service restarts on the new build', () => {
+test('after an update the task worker service restarts on the new build', async () => {
   const calls = [];
   const run = (command, args) => {
     calls.push([command, ...args]);
@@ -395,15 +395,25 @@ test('after an update the task worker service restarts on the new build', () => 
   };
   const exists = () => true;
   assert.equal(
-    restartWorkerService({ platform: 'darwin', user: { uid: 501, home: '/Users/a' }, exists, run }),
+    await restartWorkerService({
+      platform: 'darwin',
+      user: { uid: 501, home: '/Users/a' },
+      exists,
+      run,
+    }),
     true,
   );
   assert.equal(
-    restartWorkerService({ platform: 'linux', user: { uid: 1000, home: '/home/a' }, exists, run }),
+    await restartWorkerService({
+      platform: 'linux',
+      user: { uid: 1000, home: '/home/a' },
+      exists,
+      run,
+    }),
     true,
   );
   // The Linux execution agent is a root system service; it restarts the login user's unit.
-  restartWorkerService({
+  await restartWorkerService({
     platform: 'linux',
     user: { uid: 1000, name: 'a', home: '/home/a' },
     exists,
@@ -428,7 +438,7 @@ test('after an update the task worker service restarts on the new build', () => 
   calls.length = 0;
   const checked = [];
   assert.equal(
-    restartWorkerService({
+    await restartWorkerService({
       platform: 'darwin',
       user: { uid: 501, home: '/Users/a' },
       exists: (file) => (checked.push(file), false),
@@ -438,9 +448,9 @@ test('after an update the task worker service restarts on the new build', () => 
   );
   assert.deepEqual(checked, ['/Users/a/Library/LaunchAgents/sh.deploy.worker.plist']);
   assert.deepEqual(calls, []);
-  assert.throws(
-    () =>
-      restartWorkerService({
+  await assert.rejects(
+    async () =>
+      await restartWorkerService({
         platform: 'darwin',
         user: { uid: 501, home: '/Users/a' },
         exists,
@@ -650,12 +660,12 @@ function fakeAgentDocker({ containers = [], networks = [], refuses = [], listing
   return state;
 }
 
-test('removing an app from a computer takes graph and legacy containers, then networks', () => {
+test('removing an app from a computer takes graph and legacy containers, then networks', async () => {
   const state = fakeAgentDocker({
     containers: ['graph-web-1', 'deploy-sh-web', 'deploy-sh-web-prev-1', 'deploy-sh-web2'],
     networks: ['graph-private', 'other-network'],
   });
-  removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker });
+  await removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker });
   assert.deepEqual([...state.containers], ['deploy-sh-web2']);
   assert.deepEqual([...state.networks], ['other-network']);
   const firstNetworkRemoval = state.calls.findIndex((call) => call.startsWith('network rm'));
@@ -663,9 +673,9 @@ test('removing an app from a computer takes graph and legacy containers, then ne
   assert.ok(lastContainerRemoval < firstNetworkRemoval);
 });
 
-test('removing an app from a computer also finds objects by application id', () => {
+test('removing an app from a computer also finds objects by application id', async () => {
   const state = fakeAgentDocker({ containers: ['graph-web-1'], networks: ['graph-private'] });
-  removeAgentDockerObjects({
+  await removeAgentDockerObjects({
     deploymentName: 'renamed',
     applicationId: 'app-1',
     docker: state.docker,
@@ -674,32 +684,34 @@ test('removing an app from a computer also finds objects by application id', () 
   assert.equal(state.networks.size, 0);
 });
 
-test('removing an app with nothing left on the computer succeeds without removing anything', () => {
+test('removing an app with nothing left on the computer succeeds without removing anything', async () => {
   const state = fakeAgentDocker({ containers: ['deploy-sh-web2'] });
-  removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker });
+  await removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker });
   assert.equal(
     state.calls.some((call) => call.startsWith('rm') || call.startsWith('network rm')),
     false,
   );
 });
 
-test('anything Docker keeps fails the removal by name', () => {
+test('anything Docker keeps fails the removal by name', async () => {
   const stuckContainer = fakeAgentDocker({ containers: ['graph-web-1'], refuses: ['graph-web-1'] });
-  assert.throws(
-    () => removeAgentDockerObjects({ deploymentName: 'web', docker: stuckContainer.docker }),
+  await assert.rejects(
+    async () =>
+      await removeAgentDockerObjects({ deploymentName: 'web', docker: stuckContainer.docker }),
     /Could not remove graph-web-1/,
   );
   const stuckNetwork = fakeAgentDocker({ networks: ['graph-private'], refuses: ['graph-private'] });
-  assert.throws(
-    () => removeAgentDockerObjects({ deploymentName: 'web', docker: stuckNetwork.docker }),
+  await assert.rejects(
+    async () =>
+      await removeAgentDockerObjects({ deploymentName: 'web', docker: stuckNetwork.docker }),
     /Could not remove graph-private: has active endpoints/,
   );
 });
 
-test('a daemon that cannot answer is a failure, not an empty computer', () => {
+test('a daemon that cannot answer is a failure, not an empty computer', async () => {
   const state = fakeAgentDocker({ containers: ['graph-web-1'], listingFails: true });
-  assert.throws(
-    () => removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker }),
+  await assert.rejects(
+    async () => await removeAgentDockerObjects({ deploymentName: 'web', docker: state.docker }),
     /Cannot connect to the daemon/,
   );
   assert.equal(state.containers.size, 1);

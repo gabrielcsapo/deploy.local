@@ -194,7 +194,7 @@ test('a repaired Mac worker runs through its supervisor and reports selfUpdate',
   const controller = new AbortController();
   let running;
   f.options.restartServices = async () => {
-    linkWorkerSupervisor(f.root, { ...f.layout, run: () => ({ status: 0 }) });
+    await linkWorkerSupervisor(f.root, { ...f.layout, run: () => ({ status: 0 }) });
     const args = serviceProgramArguments({
       agentDir: f.root,
       self: ['/unused/deploy'],
@@ -226,8 +226,8 @@ test('a repaired Mac worker runs through its supervisor and reports selfUpdate',
 function executionService(platform, failure) {
   const source = readFileSync(new URL('./deploy.js', import.meta.url), 'utf8');
   const body = source.slice(
-    source.indexOf('function installExecutionAgentService('),
-    source.indexOf('function installRoleServices('),
+    source.indexOf('async function installExecutionAgentService('),
+    source.indexOf('async function installRoleServices('),
   );
   const calls = [];
   const install = runInNewContext(`(${body.trim()})`, {
@@ -244,23 +244,23 @@ function executionService(platform, failure) {
     systemdQuote: String,
     agentUser: () => ({ uid: 501 }),
     process: { getuid: () => (platform === 'darwin' ? 501 : 0), env: {} },
-    spawnSync: (command, args) => {
+    runBounded: (command, args) => {
       calls.push([command, ...args]);
       return { status: args[0] === failure ? 1 : 0, stderr: 'fixture service failure' };
     },
   });
   return { install, calls };
 }
-test('Linux repair explicitly restarts an already enabled execution agent', () => {
+test('Linux repair explicitly restarts an already enabled execution agent', async () => {
   const f = executionService('linux');
-  f.install();
+  await f.install();
   assert.ok(
     f.calls.some((call) => call.join(' ') === 'systemctl restart deploy-local-agent.service'),
   );
 });
-test('Mac repair rejects a failed execution-agent kickstart for rollback', () => {
+test('Mac repair rejects a failed execution-agent kickstart for rollback', async () => {
   const f = executionService('darwin', 'kickstart');
-  assert.throws(f.install, /fixture service failure/);
+  await assert.rejects(f.install, /fixture service failure/);
 });
 
 test('a downloaded build with the right version but wrong commit is rejected before swapping', async (t) => {

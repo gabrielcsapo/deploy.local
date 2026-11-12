@@ -32,6 +32,7 @@ import{existsSync,readFileSync,writeFileSync}from'node:fs';
 if(process.argv[2]==='version'){console.log(JSON.stringify({version:${JSON.stringify(version)}}));process.exit(0)}
 const root=${JSON.stringify(root)};
 writeFileSync(root+'/started-'+${JSON.stringify(version)},'1');
+writeFileSync(root+'/pid-'+${JSON.stringify(version)},String(process.pid));
 process.send({type:'worker-ready',token:process.env.DEPLOY_WORKER_CHILD,version:${JSON.stringify(version)}});
 if(${JSON.stringify(version)}==='old'&&!existsSync(root+'/requested')){writeFileSync(root+'/requested','1');process.send({type:'worker-update',request:JSON.parse(readFileSync(root+'/request.json','utf8'))})}
 ${crash ? 'setTimeout(()=>process.exit(9),50);' : ''}
@@ -247,4 +248,180 @@ test('an interrupted update restores and seals the previous build before any wor
     await running;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+for (const mode of ['healthy', 'stale', 'frozen', 'startup'])
+  test(`watchdog handles a ${mode} child`, async (t) => {
+    const root = mkdtempSync(join(tmpdir(), 'worker-watchdog-'));
+    const script = join(root, 'child.mjs');
+    const starts = join(root, 'starts');
+    const ready = join(root, 'ready');
+    writeFileSync(
+      script,
+      `
+import {appendFileSync,writeFileSync} from 'node:fs';
+appendFileSync(${JSON.stringify(starts)},process.pid+'\\n');
+const token=process.env.DEPLOY_WORKER_CHILD;
+process.on('SIGTERM',()=>{});
+setTimeout(()=>{
+  process.send({type:'worker-ready',token,version:'test'});
+  writeFileSync(${JSON.stringify(ready)},'ready');
+  if (${JSON.stringify(mode)}==='frozen') setTimeout(()=>{while(true){}},30);
+  if (${JSON.stringify(mode)}==='healthy'||${JSON.stringify(mode)}==='startup')
+    setInterval(()=>process.send({type:'worker-heartbeat',token}),20);
+},${mode === 'startup' ? 450 : 0});
+setInterval(()=>{},1000);
+`,
+    );
+    const logs = [];
+    const controller = new AbortController();
+    const running = superviseWorker({
+      executable: process.execPath,
+      args: [script],
+      root,
+      version: 'test',
+      heartbeatMs: 180,
+      watchdogIntervalMs: 20,
+      killGraceMs: 80,
+      startupMs: 1500,
+      signal: controller.signal,
+      log: (line) => logs.push(line),
+    });
+    t.after(async () => {
+      controller.abort();
+      await running;
+      rmSync(root, { recursive: true, force: true });
+    });
+    const pids = () => (existsSync(starts) ? readFileSync(starts, 'utf8').trim().split('\n') : []);
+    await waitFor(() => existsSync(ready));
+    if (mode === 'healthy' || mode === 'startup') {
+      await delay(550);
+      assert.equal(pids().length, 1);
+      assert.deepEqual(logs, []);
+    } else {
+      await waitFor(() => pids().length >= 2);
+      assert.notEqual(pids()[0], pids()[1]);
+      assert.match(logs[0], /heartbeat stopped.*restarting/);
+      assert.throws(() => process.kill(Number(pids()[0]), 0), /ESRCH/);
+    }
+  });
+
+for (const phase of ['staged binary', 'bundle'])
+  test(`a ${phase} codesign timeout abandons the update and leaves the old worker running`, async (t) => {
+    const { runBounded, runCodesign } = await import('./bounded-command.mjs');
+    const { sealWorkerBundle } = await import('./agent-services.mjs');
+    const { root, macos, executable, previous } = appLayout();
+    const app = join(macos, '../..');
+    const old = binary(root, 'old');
+    const next = binary(root, 'new');
+    writeFileSync(executable, old, { mode: 0o755 });
+    writeFileSync(join(app, 'seal'), 'old seal');
+    writeFileSync(
+      join(root, 'request.json'),
+      JSON.stringify({
+        targetVersion: 'new',
+        sha256: sha256(next),
+        size: next.length,
+      }),
+    );
+    const logs = [];
+    const controller = new AbortController();
+    const hangingSign = (_command, _args, options) =>
+      runBounded(process.execPath, ['-e', 'setInterval(()=>{},1000)'], {
+        ...options,
+        timeoutMs: 450,
+      });
+    let ticks = 0;
+    const ticking = setInterval(() => ticks++, 20);
+    const running = superviseWorker({
+      executable,
+      previous,
+      root,
+      version: 'old',
+      signal: controller.signal,
+      heartbeatMs: 150,
+      watchdogIntervalMs: 20,
+      log: (line) => logs.push(line),
+      download: async () => next,
+      install: (options) =>
+        installWorkerBuild({
+          ...options,
+          platform: phase === 'bundle' ? 'linux' : 'darwin',
+          sign: (args) => runCodesign(args, { run: hangingSign }),
+        }),
+      afterInstall:
+        phase === 'bundle'
+          ? () =>
+              sealWorkerBundle(app, {
+                signSupervisor: false,
+                run: async (command, args, options) => {
+                  writeFileSync(executable, 'half signed');
+                  writeFileSync(join(app, 'seal'), 'broken seal');
+                  return hangingSign(command, args, options);
+                },
+              })
+          : () => {
+              throw new Error('Unchanged old worker must not need sealing');
+            },
+    });
+    t.after(async () => {
+      controller.abort();
+      await running;
+      clearInterval(ticking);
+      rmSync(root, { recursive: true, force: true });
+    });
+    await waitFor(() => existsSync(join(root, 'pid-old')));
+    const originalPid = Number(readFileSync(join(root, 'pid-old'), 'utf8'));
+    await waitFor(() => workerUpdateReceipt(root)?.state === 'failed');
+    assert.equal(Number(readFileSync(join(root, 'pid-old'), 'utf8')), originalPid);
+    process.kill(originalPid, 0);
+    assert.match(workerUpdateReceipt(root).error, /timed out/);
+    assert.equal(workerUpdateReceipt(root).version, 'old');
+    assert.deepEqual(readFileSync(executable), old);
+    assert.equal(readFileSync(join(app, 'seal'), 'utf8'), 'old seal');
+    assert.equal(existsSync(join(root, 'started-new')), false);
+    assert.deepEqual(readdirSync(macos), ['deploy-worker']);
+    assert.ok(ticks >= 10, 'supervisor event loop ran while signing waited');
+    assert.equal(
+      logs.some((line) => line.includes('heartbeat stopped')),
+      false,
+      'watchdog did not interrupt an update longer than its heartbeat limit',
+    );
+    assert.ok(logs.some((line) => line.includes('Worker update abandoned:')));
+  });
+
+test('a child exit during installation cannot start the candidate before rollback finishes', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'worker-update-exit-'));
+  const executable = join(root, 'worker');
+  const old = binary(root, 'old', true);
+  const next = binary(root, 'new');
+  writeFileSync(executable, old, { mode: 0o755 });
+  writeFileSync(
+    join(root, 'request.json'),
+    JSON.stringify({ targetVersion: 'new', sha256: sha256(next), size: next.length }),
+  );
+  const controller = new AbortController();
+  let sealing = false;
+  const running = superviseWorker({
+    executable,
+    root,
+    version: 'old',
+    signal: controller.signal,
+    download: async () => next,
+    install: (options) => installWorkerBuild({ ...options, platform: 'linux' }),
+    afterInstall: async () => {
+      sealing = true;
+      await delay(450);
+    },
+  });
+  t.after(async () => {
+    controller.abort();
+    await running;
+    rmSync(root, { recursive: true, force: true });
+  });
+  await waitFor(() => sealing);
+  await delay(300);
+  assert.equal(existsSync(join(root, 'started-new')), false);
+  await waitFor(() => workerUpdateReceipt(root)?.state === 'failed');
+  assert.deepEqual(readFileSync(executable), old);
 });
