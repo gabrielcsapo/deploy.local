@@ -35,6 +35,7 @@ import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
 import { inspectWorkspace, summaryPatchLimit, workspaceFilePatches } from './review.ts';
 import { refreshCommitBaseline } from './commit-baseline.ts';
+import { cloneTaskRepository, needsClone } from './task-clone.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints, turnFilePatch } from './turn-checkpoint.ts';
 import { randomUUID } from 'node:crypto';
 import {
@@ -180,7 +181,7 @@ async function start(assignment: any) {
   };
   persist();
   try {
-    if (!existsSync(state.workspacePath)) {
+    if (assignment.project ? needsClone(state.workspacePath) : !existsSync(state.workspacePath)) {
       mkdirSync(state.workspacePath, { recursive: true });
       if (!assignment.project) {
         const baseline = initializeScratchWorkspace(state.workspacePath);
@@ -191,11 +192,11 @@ async function start(assignment: any) {
           assignment.task.resumeBaseRevision ||
           assignment.task.workspaceCommit?.commit ||
           assignment.task.baseRevision;
-        git(state.workspacePath, [
-          'clone',
+        await cloneTaskRepository(
+          state.workspacePath,
           origin + '/api/workspace/git/' + assignment.project.id,
-          '.',
-        ]);
+          { env: gitEnv },
+        );
         try {
           git(state.workspacePath, ['cat-file', '-e', `${initialRevision}^{commit}`]);
         } catch {
