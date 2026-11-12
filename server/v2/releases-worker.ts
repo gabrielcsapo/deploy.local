@@ -133,6 +133,18 @@ export async function executeReleaseNodeJob(input: {
   }
   async function removeCopy() {
     for (const name of await containers(temporaryName)) await command(['rm', '-f', name]);
+    // Every release verifies under a new name, so a network left behind is never reused and
+    // Docker runs out of address pools after enough releases.
+    const networks = await command([
+      'network',
+      'ls',
+      '--filter',
+      `label=deploy-sh.app=${temporaryName}`,
+      '--format',
+      '{{.Name}}',
+    ]);
+    for (const name of networks.stdout.trim().split('\n').filter(Boolean))
+      await command(['network', 'rm', name]);
   }
   if (payload.phase === 'prepare') {
     if (!receipt) {

@@ -21,6 +21,7 @@ after(() => {
 class FakeNode implements AgentGraphDocker {
   containers = new Map<string, { app: string; component: string; running: boolean }>();
   calls: string[][] = [];
+  networks = new Map<string, string>();
   failActivation = false;
   missingImage = false;
   async run(args: readonly string[], options?: { onOutput?: (output: string) => void }) {
@@ -33,6 +34,27 @@ class FakeNode implements AgentGraphDocker {
       options?.onOutput?.(`Pulling ${args[1]}\n`);
     }
     if (args[0] === 'image') stdout = `sha256:${'1'.repeat(64)}`;
+    if (args[0] === 'network') {
+      const name = args.at(-1)!;
+      if (args[1] === 'inspect')
+        return { exitCode: this.networks.has(name) ? 0 : 1, stdout: '', stderr: '' };
+      if (args[1] === 'create')
+        this.networks.set(
+          name,
+          args.find((arg) => arg.startsWith('deploy-sh.app='))!.slice('deploy-sh.app='.length),
+        );
+      if (args[1] === 'rm') this.networks.delete(name);
+      if (args[1] === 'ls') {
+        const app = args
+          .find((arg) => arg.startsWith('label=deploy-sh.app='))!
+          .slice('label=deploy-sh.app='.length);
+        stdout = [...this.networks]
+          .filter(([, owner]) => owner === app)
+          .map(([name]) => name)
+          .join('\n');
+      }
+      return { exitCode: 0, stdout, stderr: '' };
+    }
     if (args[0] === 'ps') {
       const app = args
         .find((arg) => arg.startsWith('label=deploy-sh.app='))!
@@ -157,6 +179,25 @@ test('two fake computers stage copies, verify the whole project, switch and roll
   await f.runtime.rollback(next, rollback);
   await f.runtime.watch(rollback, 0);
   assert(f.calls.some((call) => call.startsWith('activate:sync')));
+});
+test('a release removes its test network and keeps the one the app runs on', async () => {
+  const f = fixture();
+  const testNetworks = () =>
+    [...f.computers.values()].flatMap((node) =>
+      [...node.networks.values()].filter((app) => app.startsWith('verify-')),
+    );
+  const first = await f.runtime.plan(f.project);
+  await f.runtime.prepare(first);
+  await f.runtime.verify(first);
+  assert.deepEqual(testNetworks(), []);
+  assert(
+    [...f.computers.values()].every((node) =>
+      node.calls.some((call) => call[0] === 'network' && call[1] === 'rm'),
+    ),
+    'each computer made a test network and removed it',
+  );
+  await f.runtime.activate(first);
+  assert.equal([...f.computers.values()].flatMap((node) => [...node.networks]).length, 2);
 });
 test('a release on another computer hands back its pull and build output', async () => {
   const f = fixture();
