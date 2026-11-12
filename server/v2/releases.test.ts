@@ -162,6 +162,38 @@ test('a project locked by a failed cleanup unlocks once the computer can clean u
   assert.equal(projectReleases(f.owner, project.id)[0].state, 'live');
   assert.deepEqual([...f.running.values()], ['1', '1']);
 });
+test('a release whose recovery after a restart could not reach its computer unlocks later', async () => {
+  // Forma on 2026-11-11: a release was running when the coordinator restarted, the iMac's
+  // Docker was down, and the project stayed locked after Docker came back.
+  const f = fixture();
+  let dockerUp = false;
+  f.runtime.verify = async () => {
+    throw new Error('failed to connect to the docker API');
+  };
+  f.runtime.dispose = async () => {
+    if (!dockerUp) throw new Error('Cannot connect to the Docker daemon');
+  };
+  f.ship();
+  await f.service.settled();
+  // What recovery wrote before it marked such releases as owing cleanup.
+  const record = list('v2-release', f.owner)[0];
+  record.cleanupOwed = false;
+  const steps = record.release.steps;
+  steps[0].state = 'failed';
+  steps[0].detail = 'Recovery: Computer release job has not completed; recovery will follow';
+  steps[1].state = 'skipped';
+  steps[1].detail = undefined;
+  steps[2].state = 'failed';
+  steps[2].detail =
+    'Recovery: Release computer operation failed: Cannot connect to the Docker daemon';
+  steps[3].detail = undefined;
+  save('v2-release', f.owner, record);
+  await f.service.retryCleanup();
+  assert.throws(() => f.ship(), { status: 409 });
+  dockerUp = true;
+  await f.service.retryCleanup();
+  assert.equal(list('v2-project-run', f.owner).length, 0);
+});
 test('cleanup is not retried for a release that got past Verify', async () => {
   const f = fixture();
   f.runtime.activate = async () => {

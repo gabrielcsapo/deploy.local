@@ -274,8 +274,16 @@ export class ProjectReleaseService {
           continue;
         const taken = record.release.steps;
         if (taken.find((step) => step.name === 'verify')?.state === 'done') continue;
-        // Records written before cleanupOwed existed carry only the message.
-        if (!record.cleanupOwed && !taken.at(-1)?.detail?.startsWith('Cleanup requires recovery'))
+        // Records written before cleanupOwed existed carry only the message, on whichever step
+        // failed: the run's own cleanup, or the recovery after a coordinator restart.
+        if (
+          !record.cleanupOwed &&
+          !taken.some(
+            (step) =>
+              step.detail?.startsWith('Cleanup requires recovery') ||
+              step.detail?.startsWith('Recovery: '),
+          )
+        )
           continue;
         try {
           await this.runtime.dispose(record.plan);
@@ -310,7 +318,15 @@ export class ProjectReleaseService {
         try {
           if (!release.project) fail('Recovery requires the saved project membership', 409);
           if (release.release.steps.find((step) => step.name === 'verify')?.state !== 'done') {
-            if (release.plan) await this.runtime.dispose(release.plan);
+            if (release.plan)
+              try {
+                await this.runtime.dispose(release.plan);
+              } catch (error) {
+                // The computer could not be reached now. Nothing but the release's own copy
+                // is left to remove, so the minute-by-minute cleanup may finish this later.
+                release.cleanupOwed = true;
+                throw error;
+              }
             throw Object.assign(
               new Error('Coordinator restarted before Verify completed; original project retained'),
               { safeToUnlock: true },
