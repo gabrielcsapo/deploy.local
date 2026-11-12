@@ -660,3 +660,8 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 /* Resolving a conflict in review: the two answers sit under the screen they decide. */
 .dl-rv-choice{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .dl-rv-choice .dl-btn{flex:1 1 auto;justify-content:center}
+/* Logs on a phone: raw lines that wrap, since four columns do not fit 390 px. */
+.dl-ph-log{font-family:var(--font-mono);font-size:12px;line-height:18px;padding:4px 0}
+.dl-ph-log-row{padding:6px 20px;color:var(--ink-soft);overflow-wrap:anywhere}
+.dl-ph-log-row.error{background:color-mix(in srgb,var(--danger) 6%,transparent)}
+.dl-ph-log-row.warn{background:color-mix(in srgb,var(--warning) 6%,transparent)}
