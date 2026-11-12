@@ -72,6 +72,7 @@ import {
 import { parseArgs, format } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
 import { execSync, execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runBounded } from './bounded-command.mjs';
 import { createInterface } from 'node:readline';
 import { arch, cpus, homedir, networkInterfaces, platform, totalmem } from 'node:os';
 import {
@@ -878,25 +879,19 @@ function agentPlacementLabels() {
   );
 }
 
-function agentCapabilities() {
-  const docker = spawnSync('docker', ['version', '--format', '{{.Server.Version}}'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+/** Never blocks: a Docker daemon that hangs is reported as unreachable, not waited for. */
+async function agentCapabilities() {
+  const docker = await runBounded('docker', ['version', '--format', '{{.Server.Version}}']);
   const containers =
     docker.status === 0
-      ? spawnSync(
-          'docker',
-          [
-            'ps',
-            '-a',
-            '--filter',
-            'name=deploy-sh-',
-            '--format',
-            '{{.ID}}\\t{{.Names}}\\t{{.State}}\\t{{.Status}}\\t{{.Label "deploy-sh.app"}}',
-          ],
-          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-        )
+      ? await runBounded('docker', [
+          'ps',
+          '-a',
+          '--filter',
+          'name=deploy-sh-',
+          '--format',
+          '{{.ID}}\\t{{.Names}}\\t{{.State}}\\t{{.Status}}\\t{{.Label "deploy-sh.app"}}',
+        ])
       : null;
   const apps =
     containers?.status === 0
@@ -1191,7 +1186,7 @@ async function cmdAgentJoin(serverUrl, requestedName) {
     coordinatorUrl: serverUrl,
     code,
     name: requestedName,
-    capabilities: agentCapabilities(),
+    capabilities: await agentCapabilities(),
     version: installedWorker.version,
     configPath,
   });
@@ -1271,7 +1266,7 @@ async function sendAgentHeartbeat(config) {
       architecture: arch(),
       agentVersion: BUILD_INFO.version,
       address: agentLanAddress(),
-      capabilities: agentHeartbeatCapabilities(agentCapabilities(), config.roles),
+      capabilities: agentHeartbeatCapabilities(await agentCapabilities(), config.roles),
       updateReport: workerUpdateReceipt(resolve(agentConfigPath(), '..', 'data')),
     }),
   });
@@ -1340,27 +1335,27 @@ async function restoreAgentRelays() {
   }
 }
 
-function runningAppHostPorts() {
-  const containers = spawnSync(
-    'docker',
-    ['ps', '--filter', 'name=deploy-sh-', '--format', '{{.Names}}'],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-  );
+async function runningAppHostPorts() {
+  const containers = await runBounded('docker', [
+    'ps',
+    '--filter',
+    'name=deploy-sh-',
+    '--format',
+    '{{.Names}}',
+  ]);
   if (containers.status !== 0) return null;
   const hostPorts = new Map();
   for (const containerName of containers.stdout.trim().split('\n').filter(Boolean)) {
     if (!/^deploy-sh-.+/.test(containerName) || /-prev-\d+$/.test(containerName)) continue;
-    const ports = spawnSync('docker', ['port', containerName], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
+    const ports = await runBounded('docker', ['port', containerName]);
     const hostPort = publishedHostPort(ports.stdout);
     if (Number.isInteger(hostPort) && hostPort > 0) hostPorts.set(containerName, hostPort);
   }
   return hostPorts;
 }
 
-async function discoverAgentRelays(hostPorts = runningAppHostPorts()) {
+async function discoverAgentRelays(known) {
+  const hostPorts = known ?? (await runningAppHostPorts());
   if (!hostPorts) return;
   for (const [containerName, targetPort] of hostPorts) {
     if (containerHasRelay(agentRelayList(), containerName)) continue;
@@ -1376,13 +1371,14 @@ async function discoverAgentRelays(hostPorts = runningAppHostPorts()) {
 let startingRuntimeAt = 0;
 
 /** Colima has no service of its own; without this nothing starts it after the Mac restarts. */
-function startContainerRuntime() {
+async function startContainerRuntime() {
   if (Date.now() - startingRuntimeAt < 5 * 60_000) return;
-  const context = spawnSync(
-    'docker',
-    ['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-  );
+  const context = await runBounded('docker', [
+    'context',
+    'inspect',
+    '--format',
+    '{{.Endpoints.docker.Host}}',
+  ]);
   const start = runtimeStartCommand({
     platform: platform(),
     dockerHost: process.env.DOCKER_HOST || (context.status === 0 ? context.stdout.trim() : ''),
@@ -1408,10 +1404,11 @@ async function repairAgentRelays() {
   if (repairingAgentRelays) return;
   repairingAgentRelays = true;
   try {
-    const hostPorts = runningAppHostPorts();
+    const hostPorts = await runningAppHostPorts();
     if (!hostPorts) {
-      if (spawnSync('docker', ['version', '--format', '{{.Server.Version}}']).status !== 0)
-        startContainerRuntime();
+      const version = await runBounded('docker', ['version', '--format', '{{.Server.Version}}']);
+      // A daemon that is there but not answering is busy, not stopped: starting it again would not help.
+      if (version.status !== 0 && !version.timedOut) await startContainerRuntime();
       return;
     }
     for (const repair of relayRepairs(agentRelayList(), hostPorts)) {
