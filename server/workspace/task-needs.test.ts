@@ -67,6 +67,12 @@ test('probes accept executable names and reject command lines before spawning', 
     assert.throws(() => probeTool(name), /bare tool names/);
 });
 
+test('a Mac with developer tools has xcrun, which cannot look itself up', async (t) => {
+  if (process.platform !== 'darwin' || !(await probeTool('xcodebuild')))
+    return t.skip('needs a Mac with Xcode');
+  assert.equal(await probeTool('xcrun'), true);
+});
+
 test('probes find exact executable names on PATH without aliases or version-flag requirements', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'tool-path-'));
   const previous = process.env.PATH;

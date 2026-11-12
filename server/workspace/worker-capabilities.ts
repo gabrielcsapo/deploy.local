@@ -42,6 +42,8 @@ export function toolNames(value: unknown): string[] {
  */
 function realOnMac(name: string, path: string) {
   if (platform() !== 'darwin' || !path.startsWith('/usr/bin/')) return true;
+  // xcrun cannot find itself. It is real once it has developer tools to run.
+  if (name === 'xcrun') return probe('/usr/bin/xcode-select', ['-p']);
   return probe('/usr/bin/xcrun', ['--find', name]);
 }
 export function probeTool(name: string): Promise<boolean> {
