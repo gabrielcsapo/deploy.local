@@ -568,6 +568,11 @@ export class ProjectReleaseService {
       for (const waiting of release.steps.filter((entry) => entry.state === 'waiting'))
         waiting.state = 'skipped';
       if (record.recoveryRequired) step.detail += ' Project remains locked for recovery.';
+      // A computer that was too slow to answer during Prepare or Verify has changed nothing
+      // that is live. It only owes the removal of its copy, which waits behind the slow job
+      // on that computer, so the retry can unlock the project without a coordinator restart.
+      if (record.recoveryRequired && (step.name === 'prepare' || step.name === 'verify'))
+        record.cleanupOwed = true;
       release.state = 'failed';
       persistRelease(owner, record);
     } finally {

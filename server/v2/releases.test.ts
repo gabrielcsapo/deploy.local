@@ -194,6 +194,33 @@ test('a release whose recovery after a restart could not reach its computer unlo
   await f.service.retryCleanup();
   assert.equal(list('v2-project-run', f.owner).length, 0);
 });
+test('a release whose computer was too slow in Verify unlocks once its copy is removed', async () => {
+  // Forma on 2026-11-12: the iMac took 28 minutes over Verify, the coordinator stopped waiting
+  // after 20, and the project stayed locked although nothing live had changed.
+  const f = fixture();
+  let jobDone = false;
+  f.runtime.verify = async () => {
+    throw Object.assign(new Error('Computer release job has not completed'), {
+      requiresRecovery: true,
+    });
+  };
+  f.runtime.dispose = async () => {
+    f.calls.push('dispose');
+    if (!jobDone) throw new Error('Computer release job has not completed');
+  };
+  f.ship();
+  await f.service.settled();
+  assert.match(
+    projectReleases(f.owner, project.id)[0].steps[1].detail!,
+    /Project remains locked for recovery/,
+  );
+  assert.throws(() => f.ship(), { status: 409 });
+  await f.service.retryCleanup();
+  assert.throws(() => f.ship(), { status: 409 });
+  jobDone = true;
+  await f.service.retryCleanup();
+  assert.equal(list('v2-project-run', f.owner).length, 0);
+});
 test('cleanup is not retried for a release that got past Verify', async () => {
   const f = fixture();
   f.runtime.activate = async () => {
