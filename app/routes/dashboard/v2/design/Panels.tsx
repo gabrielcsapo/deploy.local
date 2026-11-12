@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Action, Icon, type IconName } from '@/components/ui';
+import { Skeleton, Action, Icon, type IconName } from '@/components/ui';
 import type { InboxItem, Project } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch } from '../data/hooks';
 import { useData } from '../projects/data';
@@ -260,7 +260,7 @@ function BoardLayers({
       onToggle={() => setOpen(!open)}
       onClick={() => select({ board: file, layer: null })}
     >
-      {nodes ? render(nodes, 1) : <div className="dz-row muted">Loading layers…</div>}
+      {nodes ? render(nodes, 1) : <Skeleton rows={3} label="Loading layers" />}
     </Row>
   );
 }

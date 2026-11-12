@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { Action, Group, Head, IconButton, Item } from '@/components/ui';
+import { Skeleton, Action, Group, Head, IconButton, Item } from '@/components/ui';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
 import type { DesignApproved, DesignReviewSummary } from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
@@ -90,9 +90,7 @@ export function ToReview({
           <section>
             <h2>Waiting on you</h2>
             <Group>
-              {!reviews.data && (
-                <div className="dl-review-skeleton dl-skel" aria-label="Loading reviews" />
-              )}
+              {!reviews.data && <Skeleton rows={3} label="Loading reviews" />}
               {reviews.data?.proposals.map((proposal) => (
                 <Item
                   key={proposal.id}

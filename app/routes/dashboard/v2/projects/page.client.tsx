@@ -523,14 +523,16 @@ function ProjectPage({
                         <span className="dl-v">
                           {data.tasks.filter((task) => task.status !== 'completed').length}
                         </span>
-                        <span className="dl-meta">
+                        <div className="dl-meta">
                           {running} running ·{' '}
-                          {inbox.loading
-                            ? 'Loading decisions…'
-                            : inbox.error
-                              ? 'Decisions unavailable'
-                              : `${waiting.length} waiting on you`}
-                        </span>
+                          {inbox.loading ? (
+                            <Skeleton rows={1} label="Loading decisions" />
+                          ) : inbox.error ? (
+                            'Decisions unavailable'
+                          ) : (
+                            `${waiting.length} waiting on you`
+                          )}
+                        </div>
                       </div>
                       <div className="dl-stat">
                         <span className="dl-meta">Pull requests</span>

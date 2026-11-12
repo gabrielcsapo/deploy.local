@@ -592,7 +592,8 @@
   border-bottom: 1px solid var(--ds-line);
   color: var(--ds-text);
 }
-.dl-desc-log pre {
+.dl-desc-log pre,
+.dl-desc-log-body {
   margin: 0;
   padding: 10px 12px;
   overflow: auto;

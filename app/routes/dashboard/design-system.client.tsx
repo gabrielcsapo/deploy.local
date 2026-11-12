@@ -347,6 +347,9 @@ function States({ state }: { state: ComponentState }) {
           description="Skeleton rows in the real layout. After 10 s, say what is slow."
         >
           <Skeleton {...state} label="Loading projects" slowLabel="" />
+          <div className="ds-gap-top">
+            <Skeleton {...state} block label="Loading the design" />
+          </div>
           <div className="dl-notice ds-gap-top">
             <Icon name="running" className="dl-run" size={14} />
             Connecting to SER… taking longer than usual

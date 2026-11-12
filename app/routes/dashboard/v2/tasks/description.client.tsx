@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Action, Banner, Icon, Seg } from '@/components/ui';
+import { Skeleton, Action, Banner, Icon, Seg } from '@/components/ui';
 import { getAuth } from '../../detail/shared';
 import { authenticatedFetch } from '../data/hooks';
 import { formatTime } from '../data/time';
@@ -49,7 +49,13 @@ function TextPreview({ file }: { file: PullFile }) {
           </button>
         )}
       </div>
-      <pre>{text === null ? 'Loading…' : (all ? lines : lines.slice(0, 6)).join('\n')}</pre>
+      {text === null ? (
+        <div className="dl-desc-log-body">
+          <Skeleton block label="Loading" />
+        </div>
+      ) : (
+        <pre>{(all ? lines : lines.slice(0, 6)).join('\n')}</pre>
+      )}
     </div>
   );
 }

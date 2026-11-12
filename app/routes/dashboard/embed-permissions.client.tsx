@@ -3,7 +3,7 @@
 import type { ComputerRole } from '../../../server/computer-roles';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-flight-router/client';
-import { Button, StatusBadge, Toggle } from '../../components/ui';
+import { Skeleton, Button, StatusBadge, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { getAuth } from './detail/shared';
 import type {
@@ -161,7 +161,7 @@ export default function EmbedPermissionsClient() {
               {error}
             </p>
           )}
-          {computers === null && !error && <p className="ds-context-hint">Loading…</p>}
+          {computers === null && !error && <Skeleton rows={3} label="Loading" />}
           {computers?.length === 0 && <p className="ds-context-hint">No task computers yet.</p>}
           {computers?.map((computer) => {
             const isLocal = local?.node.workerId === computer.id;

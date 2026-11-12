@@ -1,7 +1,7 @@
-import { Skeleton } from './ui/Skeleton';
+import { Skeleton } from './ui/v2/Skeleton';
 import type { ReactNode } from 'react';
-export function LoadingState({ message = 'Loading…' }: { message?: string }) {
-  return <Skeleton label={message} />;
+export function LoadingState({ message = 'Loading' }: { message?: string }) {
+  return <Skeleton rows={5} label={message} />;
 }
 
 export function ErrorBanner({ message, action }: { message: string; action?: ReactNode }) {

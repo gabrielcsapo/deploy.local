@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import {
+  Skeleton,
   Action,
   Banner,
   Composer,
@@ -281,13 +282,12 @@ function InstallApp() {
                     />
                   ))}
                 </Group>
-                {!resources.length && (
-                  <p className="dl-meta">
-                    {detail
-                      ? 'This app declares no persistent data.'
-                      : 'Loading data requirements…'}
-                  </p>
-                )}
+                {!resources.length &&
+                  (detail ? (
+                    <p className="dl-meta">This app declares no persistent data.</p>
+                  ) : (
+                    <Skeleton rows={2} label="Loading data requirements" />
+                  ))}
               </section>
               <div>
                 <h2 className="dl-section-title">First account</h2>

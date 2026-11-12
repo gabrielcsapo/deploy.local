@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
-import { Action, Dialog, Empty, Field, Icon, type IconName } from '@/components/ui';
+import { Skeleton, Action, Dialog, Empty, Field, Icon, type IconName } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { getAuth } from '../../detail/shared';
 import { useInbox } from '../data/hooks';
@@ -1167,7 +1167,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
             }
           />
         ) : (
-          <div className="dz-loading">Loading the design…</div>
+          <Skeleton block label="Loading the design" />
         )}
         {overlay && ask && (
           <OverlayBar

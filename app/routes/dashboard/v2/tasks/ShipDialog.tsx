@@ -1,6 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Action, Banner, ChipSelect, Dialog, Group, Seg, Setting, Steps } from '@/components/ui';
+import {
+  Skeleton,
+  Action,
+  Banner,
+  ChipSelect,
+  Dialog,
+  Group,
+  Seg,
+  Setting,
+  Steps,
+} from '@/components/ui';
 import type { Release } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch } from '../data/hooks';
 import { ReleaseProgress } from '../conversation/Conversation';
@@ -95,7 +105,7 @@ export function ShipDialog({
             {view.releases.length ? 'A new release' : 'The first release'} of {view.project?.name}.
             After this, changes arrive as pull requests you merge.
           </p>
-          {!plan && !error && <p role="status">Loading release choices…</p>}
+          {!plan && !error && <Skeleton rows={3} label="Loading release choices" />}
           {plan?.apps.map((app) => (
             <Group key={app.appId}>
               <div className="dl-inset">

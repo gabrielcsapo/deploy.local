@@ -143,7 +143,7 @@ function AutoRollback({
   );
 }
 function LatestError({ appId, checkedAt }: { appId: string; checkedAt: string }) {
-  const [excerpt, setExcerpt] = useState('Loading error lines…');
+  const [excerpt, setExcerpt] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     let disposed = false;
@@ -177,7 +177,13 @@ function LatestError({ appId, checkedAt }: { appId: string; checkedAt: string })
       clearTimeout(timer);
     };
   }, [appId, checkedAt]);
-  return <Term aria-label="Latest error">{excerpt}</Term>;
+  return excerpt === null ? (
+    <div className="dl-term">
+      <Skeleton block label="Loading error lines" />
+    </div>
+  ) : (
+    <Term aria-label="Latest error">{excerpt}</Term>
+  );
 }
 function HealthStatus({ app }: { app: AppHealth }) {
   return (

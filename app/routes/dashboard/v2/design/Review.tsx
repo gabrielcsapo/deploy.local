@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import { useState } from 'react';
 import { DesignItemReview } from './ItemReview';
 import { alsoChanged, reviewCrop, reviewHref, counted } from './review-model';
@@ -283,7 +284,11 @@ function CardShot({
 }) {
   const src = side === 'before' ? preview?.beforeSrc : preview?.afterSrc;
   if (!preview || !src)
-    return <div className="dzr-card-mini dl-skel" aria-label={`Loading ${title}`} />;
+    return (
+      <div className="dzr-card-mini">
+        <Skeleton block label={`Loading ${title}`} />
+      </div>
+    );
   const region = cardRegion(preview, side);
   return (
     <div className="dzr-card-mini">

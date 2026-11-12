@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import { useEffect, useRef, useState } from 'react';
 import type {
   DesignReviewPin,
@@ -227,7 +228,11 @@ export function ReviewCrop({
   changed: boolean;
 }) {
   if (!preview)
-    return <div className="dl-review-skeleton dl-skel" aria-label={`Loading ${title}`} />;
+    return (
+      <div className="dl-review-skeleton">
+        <Skeleton block label={`Loading ${title}`} />
+      </div>
+    );
   const crop = preview.crop;
   return (
     <div className="dl-review-image">

@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Action } from '@/components/ui';
+import { Skeleton, Action } from '@/components/ui';
 import {
   savedCompareMode,
   saveCompareMode,
@@ -574,8 +574,8 @@ export function ReviewStage({
         </div>
       </div>
       {!readyFrames && (
-        <div className="dl-rv-stage-loading dl-skel" role="status">
-          Loading the design…
+        <div className="dl-rv-stage-loading">
+          <Skeleton block label="Loading the design" />
         </div>
       )}
       <div className="dl-rv-dock">

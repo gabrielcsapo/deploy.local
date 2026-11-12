@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
-import { Icon } from '@/components/ui';
+import { Skeleton, Icon } from '@/components/ui';
 import { useData } from '../projects/data';
 import { boardName, layerFacts, layerName, type Section } from './model';
 
@@ -142,7 +142,7 @@ export function AssetsPanel({
     );
     return names.map((name) => ({ name, items: found.filter((item) => item.group === name) }));
   }, [library, query]);
-  if (library === undefined) return <div className="dz-row muted">Loading the design system…</div>;
+  if (library === undefined) return <Skeleton rows={4} label="Loading the design system" />;
   if (!library)
     return (
       <div className="dz-as-empty">

@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Action } from '@/components/ui';
+import { Skeleton, Action } from '@/components/ui';
 import type {
   DesignReview,
   DesignReviewPin,
@@ -873,7 +873,7 @@ export function DesignItemReview({
             {data ? (
               (!resolutions.length || continued) && changedRows.map(rowView)
             ) : (
-              <p className="dl-rv-detail quiet">Loading the review…</p>
+              <Skeleton rows={3} label="Loading the review" />
             )}
           </section>
           {data && data.round > 1 && (
@@ -958,20 +958,16 @@ export function DesignItemReview({
           />
         ) : (
           <div className="dl-rv-stage">
-            <div className={resolution ? 'dl-rv-detail' : 'dl-rv-skeleton dl-skel'} role="status">
-              {resolution ? (
-                <>
-                  <b>Main</b>
-                  <p>{resolution.mainChanged}</p>
-                  <b>This proposal</b>
-                  <p>{resolution.proposalChanged}</p>
-                </>
-              ) : data ? (
-                ''
-              ) : (
-                'Loading the design…'
-              )}
-            </div>
+            {resolution ? (
+              <div className="dl-rv-detail" role="status">
+                <b>Main</b>
+                <p>{resolution.mainChanged}</p>
+                <b>This proposal</b>
+                <p>{resolution.proposalChanged}</p>
+              </div>
+            ) : (
+              <Skeleton block label="Loading the design" />
+            )}
           </div>
         )}
       </div>

@@ -433,13 +433,9 @@
   bottom: 0;
   transform: translate(50%, 50%);
 }
-.dz-loading {
+.dz-stage > .dl-skeleton-block {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ds-tertiary);
 }
 .dz-stage > .dl-empty {
   position: absolute;
