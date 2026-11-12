@@ -747,7 +747,9 @@ async function waitForGraphHealth(
       } else {
         const endpoint = Object.values(component.interfaces)[0];
         if (!endpoint) return ports;
-        if (await probe(endpoint, '/', false)) return ports;
+        // No check declared: an HTTP app must answer GET / (any status below 500), the same
+        // default Live watches it with. Anything else only has to accept a connection.
+        if (await probe(endpoint, '/', true)) return ports;
       }
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));

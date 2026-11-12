@@ -238,7 +238,10 @@ describe('connected-agent application graph executor', () => {
     // Docker publishes no ports on an internal network, so `docker port` finds none.
     const docker = new (class extends FakeDocker {
       async run(args: readonly string[]) {
-        return args[0] === 'port' ? failure() : super.run(args);
+        if (args[0] === 'port') return failure();
+        const result = await super.run(args);
+        // The apps declare no check, so each HTTP one is asked for GET / from inside.
+        return args.includes('wget') ? { ...result, stderr: '  HTTP/1.1 302 Found' } : result;
       }
     })();
     const graph = JSON.parse(JSON.stringify(graphPayload())) as AgentApplicationGraphPayload;
@@ -267,7 +270,15 @@ describe('connected-agent application graph executor', () => {
       (command) => command[0] === 'run' && command[3]?.startsWith('container:'),
     );
     assert.equal(probes.length, 3);
-    assert.deepEqual(probes[0].slice(-6), ['nc', '-z', '-w', '1', '127.0.0.1', '4000']);
+    assert.deepEqual(probes[0].slice(-7), [
+      'wget',
+      '-S',
+      '-O',
+      '/dev/null',
+      '-T',
+      '1',
+      'http://127.0.0.1:4000/',
+    ]);
     assert.ok(probes[0][4].startsWith('busybox:1.37@sha256:'));
   });
 

@@ -85,15 +85,21 @@ function appConfiguration(deployment: NonNullable<ReturnType<typeof getDeploymen
         if (components.length === 1) {
           kind = components[0].role === 'worker' ? 'worker' : 'web';
           const check = components[0].health;
-          if (check && components[0].interfaces?.[check.interface]?.protocol === 'http')
-            path = check.path ?? '/';
+          // A health block with no path only sets how long start-up may take; the app is still
+          // watched with the default check below.
+          if (check?.path && components[0].interfaces?.[check.interface]?.protocol === 'http')
+            path = check.path;
         }
       } catch {
         /* Invalid legacy configuration has no usable check. */
       }
     }
   }
-  return { kind, path };
+  // With no check declared, a web app is asked at its own address. `declared` keeps the stricter
+  // rule for checks an app wrote itself.
+  const declared = path !== undefined;
+  if (!declared && kind === 'web') path = '/';
+  return { kind, path, declared };
 }
 
 /**
@@ -287,9 +293,9 @@ async function collectLive(owner: string): Promise<LiveResponse> {
         online && deployment.status === 'running' && target.port && config.path
           ? await checkHttp(target.host, target.port, config.path)
           : undefined;
-      let check = sampled;
-      if (sampled) {
-        const settled = settleCheck(checkHistory.get(deployment.name), sampled);
+      let check = sampled && !config.declared ? { ...sampled, lenient: true } : sampled;
+      if (check) {
+        const settled = settleCheck(checkHistory.get(deployment.name), check);
         checkHistory.set(deployment.name, settled.history);
         check = settled.check;
       } else checkHistory.delete(deployment.name);

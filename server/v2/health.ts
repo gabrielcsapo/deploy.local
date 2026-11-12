@@ -132,7 +132,11 @@ export type WebEvidence = {
   status: string;
   online: boolean;
   heartbeatAt?: string;
-  check?: { path: string; status: number; at: number; durationMs: number };
+  /**
+   * `lenient` marks the default check of an app that declared none: any answer below 500 is
+   * healthy, so a redirect to a sign-in page counts. A declared check must answer 2xx.
+   */
+  check?: { path: string; status: number; at: number; durationMs: number; lenient?: boolean };
   metrics?: {
     rps: number | null;
     errPct: number | null;
@@ -144,6 +148,8 @@ export type WebEvidence = {
 /** An app is failing after this many checks in a row go unanswered or come back wrong. */
 export const missesToFail = 3;
 export type CheckHistory = { misses: number; good?: NonNullable<WebEvidence['check']> };
+const checkAnswered = (check: NonNullable<WebEvidence['check']>) =>
+  check.status !== 0 && check.status < (check.lenient ? 500 : 300);
 /**
  * One slow answer is not an outage. Until three checks in a row miss, the last good answer
  * stands, refreshed to the time of the newest check so it does not also go stale.
@@ -152,8 +158,7 @@ export function settleCheck(
   history: CheckHistory | undefined,
   check: NonNullable<WebEvidence['check']>,
 ): { history: CheckHistory; check: NonNullable<WebEvidence['check']> } {
-  if (check.status !== 0 && check.status < 300)
-    return { history: { misses: 0, good: check }, check };
+  if (checkAnswered(check)) return { history: { misses: 0, good: check }, check };
   const misses = (history?.misses ?? 0) + 1;
   const next = { misses, good: history?.good };
   return misses < missesToFail && history?.good
@@ -189,7 +194,7 @@ export function webHealth(input: WebEvidence, now: number): AppHealth {
         p95ms: metrics.p95Ms,
         reqPerMin: Math.round(metrics.rps * 60),
       };
-    if (check.status === 0 || check.status >= 300)
+    if (!checkAnswered(check))
       return {
         ...result,
         state: 'failing',

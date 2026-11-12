@@ -168,3 +168,25 @@ test('an app fails after three missed checks in a row, not one', async () => {
   assert.equal(settleCheck(undefined, miss(1)).check.status, 0);
   assert.equal(settleCheck(undefined, { ...good, status: 500 }).check.status, 500);
 });
+
+test('an app with no declared check is healthy on any answer below 500', async () => {
+  const { settleCheck, webHealth } = await import('./health.ts');
+  const base = { appId: 'groffee', status: 'running', online: true };
+  const at = 1000;
+  const check = (status: number, lenient = true) => ({
+    path: '/',
+    status,
+    at,
+    durationMs: 4,
+    lenient,
+  });
+  assert.equal(webHealth({ ...base, check: check(302) }, at).state, 'healthy');
+  assert.equal(webHealth({ ...base, check: check(302) }, at).summary, 'GET / 302');
+  assert.equal(webHealth({ ...base, check: check(404) }, at).state, 'healthy');
+  assert.equal(webHealth({ ...base, check: check(503) }, at).state, 'failing');
+  assert.equal(webHealth({ ...base, check: check(0) }, at).summary, 'GET / did not respond');
+  // A check the app declared itself still has to answer 2xx.
+  assert.equal(webHealth({ ...base, check: check(302, false) }, at).state, 'failing');
+  assert.equal(settleCheck(undefined, check(302)).history.misses, 0);
+  assert.equal(settleCheck(undefined, check(302, false)).history.misses, 1);
+});
