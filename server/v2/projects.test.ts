@@ -349,10 +349,10 @@ test('dotted project paths preserve resource identity, query strings and route s
     'Logs',
     'Settings',
   ]);
-  // A one-app project is its own app page: a web app's requests are a project tab.
+  // A one-app project is its own app page: a web app's requests and performance are project tabs.
   assert.deepEqual(
     projectTabs({ code: true, pulls: 0, issues: 0, apps: 1, releases: 2, requests: true }),
-    ['Overview', 'Code', 'Releases', 'Requests', 'Logs', 'Settings'],
+    ['Overview', 'Code', 'Releases', 'Requests', 'Performance', 'Logs', 'Settings'],
   );
   assert.equal(
     projectTabs({
