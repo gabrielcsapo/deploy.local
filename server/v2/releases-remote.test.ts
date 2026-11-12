@@ -12,7 +12,7 @@ import {
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import type { AgentGraphDocker } from '../agent-graph-runtime.ts';
+import type { AgentGraphDocker, AgentGraphExecutionInput } from '../agent-graph-runtime.ts';
 import type { WorkerReleasePart } from './release-progress.ts';
 import type { ReleaseNodeTransport } from './releases-remote.ts';
 const root = mkdtempSync(join(tmpdir(), 'release-nodes-'));
@@ -113,6 +113,9 @@ function fixture() {
   const progress: { phase: string; app: string; parts: WorkerReleasePart[] }[] = [];
   const results: { phase: string; parts?: WorkerReleasePart[]; verifyEmptyResources?: string[] }[] =
     [];
+  const probes: { watch: AgentGraphExecutionInput['probePort']; silenceMs?: number } = {
+    watch: async () => true,
+  };
   for (const [index, [id]] of [...computers].entries()) {
     getSqlite()!
       .prepare('INSERT INTO nodes(id,name,address,enrolled_at,last_seen_at) VALUES(?,?,?,?,?)')
@@ -146,8 +149,9 @@ function fixture() {
         if (artifact) copyFileSync(artifact, path);
       },
       docker: computers.get(node)!,
-      probePort: async () => true,
+      probePort: payload.phase === 'watch' ? probes.watch : async () => true,
       workerProbeMs: 0,
+      watchSilenceMs: probes.silenceMs ?? 0,
       relay: async () => 5189,
       onProgress: (parts) => {
         progress.push({ phase: payload.phase, app: application, parts: structuredClone(parts) });
@@ -172,8 +176,157 @@ function fixture() {
       kind: index ? ('worker' as const) : ('web' as const),
     })),
   };
-  return { runtime, project, computers, calls, names, transport, output, progress, results };
+  return {
+    runtime,
+    project,
+    computers,
+    calls,
+    names,
+    transport,
+    output,
+    progress,
+    results,
+    probes,
+  };
 }
+
+async function watchFixture(components?: string) {
+  const f = fixture();
+  if (components)
+    writeFileSync(
+      join(root, f.names[0], 'deploy.yaml'),
+      `apiVersion: deploy.local/v1\nkind: Application\ncomponents:\n${components}`,
+    );
+  const plan = await f.runtime.plan(f.project);
+  await f.runtime.prepare(plan);
+  await f.runtime.verify(plan);
+  await f.runtime.activate(plan);
+  return { ...f, plan, watch: () => f.runtime.watch(plan, 0) };
+}
+
+test('Watch does not fail a remote app that is silent for less than a minute', async () => {
+  // The coordinator asks every five seconds. Forma answered nothing for 15 seconds during one
+  // long query on 2026-11-12; three quick misses must not roll such an app back.
+  const f = await watchFixture();
+  f.probes.silenceMs = 60_000;
+  f.probes.watch = async () => false;
+  for (let i = 0; i < 5; i++) await f.watch();
+  f.probes.watch = async () => true;
+  await f.watch();
+});
+test('Watch fails a running but hung remote app only after three persisted misses', async (t) => {
+  const f = await watchFixture();
+  f.probes.watch = undefined;
+  const signals: AbortSignal[] = [];
+  t.mock.method(globalThis, 'fetch', (_url: string, options: RequestInit) => {
+    signals.push(options.signal!);
+    // Even a transport that never settles cannot hold Watch past its probe budget.
+    return new Promise<Response>(() => {});
+  });
+  await f.watch();
+  await f.watch();
+  await assert.rejects(f.watch(), /did not answer its health check/);
+  assert.equal(signals.length, 5);
+  assert(signals.every((signal) => signal.aborted));
+  assert(
+    [...f.computers.values()].every((node) =>
+      [...node.containers.values()].every((c) => c.running),
+    ),
+  );
+});
+
+test('one slow remote Watch answer is tolerated and a success resets the miss streak', async () => {
+  const f = await watchFixture();
+  f.probes.watch = async () => new Promise<boolean>(() => {});
+  await f.watch();
+  f.probes.watch = async () => true;
+  await f.watch();
+  f.probes.watch = async () => false;
+  await f.watch();
+  await f.watch();
+  await assert.rejects(f.watch(), /did not answer its health check/);
+});
+
+for (const check of [
+  '',
+  '    health: {interface: http}\n',
+  '    health: {interface: http, path: /ready}\n',
+]) {
+  test(`remote Watch applies HTTP status rules with ${check.trim() || 'no declared check'}`, async (t) => {
+    const f = await watchFixture(
+      '  app:\n    image: test:1\n    role: web\n    interfaces:\n      http: {port: 8080, protocol: http}\n' +
+        check,
+    );
+    f.probes.watch = undefined;
+    const urls: string[] = [];
+    let status = 404;
+    t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+      urls.push(url);
+      assert.equal(options.redirect, 'manual');
+      // The second app remains healthy; only the first app's result is under test.
+      return new Response(null, { status: urls.length % 2 ? status : 200 });
+    });
+    await f.watch();
+    await f.watch();
+    if (check.includes('path:')) await assert.rejects(f.watch(), /did not answer its health check/);
+    else await f.watch();
+    assert.equal(urls[0], `http://127.0.0.1:5188${check.includes('path:') ? '/ready' : '/'}`);
+    // A 5xx response is a miss even for the default check.
+    status = 503;
+    if (!check.includes('path:')) {
+      await f.watch();
+      await f.watch();
+      await assert.rejects(f.watch(), /did not answer its health check/);
+    }
+  });
+}
+
+test('Watch probes every HTTP component and keeps separate streaks when only the worker fails', async (t) => {
+  const f = await watchFixture(
+    ['app', 'worker']
+      .map(
+        (name) =>
+          `  ${name}:\n    image: test:1\n    role: ${name === 'app' ? 'web' : 'worker'}\n    interfaces:\n      http: {port: 8080, protocol: http}\n    health: {interface: http, path: /${name}}\n`,
+      )
+      .join(''),
+  );
+  f.probes.watch = undefined;
+  const paths: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    const path = new URL(url).pathname;
+    paths.push(path);
+    return new Response(null, { status: path === '/worker' ? 503 : 200 });
+  });
+  await f.watch();
+  await f.watch();
+  await assert.rejects(f.watch(), /did not answer its health check/);
+  assert.equal(paths.filter((path) => path === '/app').length, 3);
+  assert.equal(paths.filter((path) => path === '/worker').length, 3);
+});
+
+for (const interfaces of [
+  '',
+  '    interfaces:\n      tcp: {port: 9000, protocol: tcp}\n',
+  '    interfaces:\n      tcp: {port: 9000, protocol: tcp}\n      http: {port: 8080, protocol: http}\n    health: {interface: tcp}\n',
+]) {
+  test(`remote Watch retains container checks for non-HTTP components: ${interfaces.trim() || 'worker'}`, async () => {
+    const f = await watchFixture(`  app:\n    image: test:1\n    role: worker\n${interfaces}`);
+    const probes: string[] = [];
+    f.probes.watch = async (_port, protocol) => {
+      probes.push(protocol);
+      return true;
+    };
+    await f.watch();
+    // Only the fixture's second app has an HTTP check.
+    assert.deepEqual(probes, ['http']);
+    const first = [...f.computers.values()][0];
+    for (const container of first.containers.values()) container.running = false;
+    probes.length = 0;
+    await assert.rejects(f.watch(), /stopped during Watch/);
+    assert.deepEqual(probes, []);
+  });
+}
+
 test('two fake computers stage copies, verify the whole project, switch and roll back', async () => {
   const f = fixture();
   const first = await f.runtime.plan(f.project);

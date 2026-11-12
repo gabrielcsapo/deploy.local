@@ -2,6 +2,7 @@ import { timeReleasePart, type WorkerReleasePart } from './release-progress.ts';
 import { execFile } from 'node:child_process';
 import { uncopyableResources } from './release-shared-data.ts';
 import { copyAppData } from './release-copy.ts';
+import { missesToFail } from './health.ts';
 import { promisify } from 'node:util';
 import { inspectUploadArchive } from '../upload-archive.ts';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -56,6 +57,8 @@ type NodeReceipt = {
   running?: number;
   reversed?: string[];
   reversing?: string;
+  watchMisses?: Record<string, number>;
+  watchMissingSince?: Record<string, number>;
 };
 export type ReleaseNodeResult = {
   parts?: WorkerReleasePart[];
@@ -77,6 +80,8 @@ type ReleaseNodeInput = {
   sourceDirectory?: string;
   relay?: (name: string, port: number, container: string) => Promise<number>;
   workerProbeMs?: number;
+  /** How long an app must have been silent before Watch reports it (default one minute). */
+  watchSilenceMs?: number;
   probePort?: AgentGraphExecutionInput['probePort'];
   /** Image pull and build output, as Docker prints it. */
   onBuildOutput?: AgentGraphExecutionInput['onBuildOutput'];
@@ -458,6 +463,7 @@ async function executeReleaseNode(
   }
   if (payload.phase === 'watch') {
     if (!record.active || record.phase !== 'activated') throw new Error('Release is not active');
+    let unhealthy = false;
     for (const instance of record.active.instances) {
       const state = await command([
         'inspect',
@@ -466,7 +472,34 @@ async function executeReleaseNode(
         instance.containerName,
       ]);
       if (state.stdout.trim() !== 'true') throw new Error(`${application} stopped during Watch`);
+      const component = record.graph.execution.components[instance.component];
+      // Use the same endpoint and target-local port as waitForGraphHealth. Non-HTTP
+      // checks keep Watch's container-only behavior, including profiled services.
+      const endpoint = component.health
+        ? component.interfaces[component.health.interface]
+        : Object.values(component.interfaces)[0];
+      if (!endpoint || (endpoint.protocol !== 'http' && endpoint.protocol !== 'https')) continue;
+      const port =
+        component.runtime.networkMode === 'host'
+          ? endpoint.port
+          : instance.hostPorts[endpoint.port];
+      const healthy =
+        !!port &&
+        (await probeWatchHttp(port, endpoint.protocol, component.health?.path, input.probePort));
+      const misses = (record.watchMisses ??= {});
+      const since = (record.watchMissingSince ??= {});
+      misses[instance.id] = healthy ? 0 : Math.min((misses[instance.id] ?? 0) + 1, missesToFail);
+      if (healthy) delete since[instance.id];
+      else since[instance.id] ??= Date.now();
+      // The coordinator asks every five seconds, so three misses alone is fifteen seconds: an
+      // app busy with one long query would be rolled back. It must also have been silent a minute.
+      unhealthy ||=
+        misses[instance.id] >= missesToFail &&
+        Date.now() - since[instance.id] >= (input.watchSilenceMs ?? 60_000);
     }
+    // Persist even the failing sample, so retries and worker restarts keep the streak.
+    await persist();
+    if (unhealthy) throw new Error(`${application} did not answer its health check`);
   }
   return {
     phase: record.phase,
@@ -488,6 +521,40 @@ async function executeReleaseNode(
   };
 }
 
+/** One bounded sample, rather than the graph gate's startup retry loop. */
+async function probeWatchHttp(
+  port: number,
+  protocol: string,
+  declaredPath: string | undefined,
+  probePort: AgentGraphExecutionInput['probePort'],
+): Promise<boolean> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => {
+          resolve(false);
+          controller.abort();
+        }, 3000);
+      }),
+      (async () => {
+        if (probePort) return probePort(port, protocol, declaredPath ?? '/');
+        const response = await fetch(`${protocol}://127.0.0.1:${port}${declaredPath ?? '/'}`, {
+          redirect: 'manual',
+          signal: controller.signal,
+        });
+        return response.status >= 200 && response.status < (declaredPath ? 300 : 500);
+      })(),
+    ]);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+}
+
 /** Thin adapter for the installed worker's existing authenticated artifact and Docker transports. */
 export async function executeReleaseAgentJob(input: {
   root: string;
@@ -497,6 +564,8 @@ export async function executeReleaseAgentJob(input: {
   relay: NonNullable<Parameters<typeof executeReleaseNodeJob>[0]['relay']>;
   probePort?: AgentGraphExecutionInput['probePort'];
   workerProbeMs?: number;
+  /** How long an app must have been silent before Watch reports it (default one minute). */
+  watchSilenceMs?: number;
   onBuildOutput?: AgentGraphExecutionInput['onBuildOutput'];
   onProgress?: ReleaseNodeInput['onProgress'];
 }) {
