@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Action, Banner, Dialog, Group, Seg, Setting, Steps } from '@/components/ui';
+import { Action, Banner, ChipSelect, Dialog, Group, Seg, Setting, Steps } from '@/components/ui';
 import type { Release } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch } from '../data/hooks';
 import { ReleaseProgress } from '../conversation/Conversation';
@@ -101,19 +101,16 @@ export function ShipDialog({
               <div className="dl-inset">
                 {plan.apps.length > 1 && <p>{app.appId}</p>}
                 <Setting label="Runs on" description="Run apps">
-                  <select
-                    className="dl-matrix-select"
-                    aria-label={`Runs on · ${app.appId}`}
+                  <ChipSelect
+                    label={`Runs on · ${app.appId}`}
                     value={app.computerId}
                     disabled={pending}
-                    onChange={(event) => choose(app.appId, { computerId: event.target.value })}
-                  >
-                    {plan.computers.map((computer) => (
-                      <option key={computer.id} value={computer.id}>
-                        {computer.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => choose(app.appId, { computerId: value })}
+                    options={plan.computers.map((computer) => ({
+                      value: computer.id,
+                      label: computer.name,
+                    }))}
+                  />
                 </Setting>
                 <Setting label="Address" description="A local address">
                   <div className="dl-field">
@@ -140,18 +137,16 @@ export function ShipDialog({
                   />
                 </Setting>
                 <Setting label="Data" description="Verify on a copy before switching">
-                  <select
-                    className="dl-matrix-select"
-                    aria-label={`Data · ${app.appId}`}
+                  <ChipSelect
+                    label={`Data · ${app.appId}`}
                     value={app.data}
                     disabled={pending}
-                    onChange={(event) =>
-                      choose(app.appId, { data: event.target.value as 'keep' | 'new' })
-                    }
-                  >
-                    <option value="keep">Keep existing data</option>
-                    <option value="new">New data</option>
-                  </select>
+                    onChange={(value) => choose(app.appId, { data: value as 'keep' | 'new' })}
+                    options={[
+                      { value: 'keep', label: 'Keep existing data' },
+                      { value: 'new', label: 'New data' },
+                    ]}
+                  />
                 </Setting>
               </div>
             </Group>

@@ -135,9 +135,6 @@
 .v2-work-ready {
   color: var(--ds-success);
 }
-.v2-release-count {
-  width: 64px;
-}
 
 .v2-requests-head {
   align-items: center;
@@ -321,4 +318,13 @@
 }
 .v2-project-start-push a {
   color: var(--ds-accent);
+}
+.v2-release-count {
+  width: 64px;
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  border: 1px solid var(--ds-edge);
+  border-radius: var(--ds-radius-control);
+  font: inherit;
+  padding: 4px 8px;
 }

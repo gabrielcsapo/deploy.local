@@ -155,7 +155,7 @@ server.on('request', async (req, res) => {
       });
     return send({ values: [], appliesOn: 'next-release' });
   }
-  if (path.endsWith('/logs')) {
+  if (path.startsWith('/api/') && path.endsWith('/logs')) {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     return res.end(
       '2:31:07 PM  error  sync batch 8812 failed\n  column "started" does not exist\n  at readWorkouts (src/sync/workouts.ts:41)\n  retrying in 30 s (attempt 3 of 5)\n',

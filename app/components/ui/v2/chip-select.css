@@ -1,0 +1,37 @@
+.dl-choice {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.dl-choice > button {
+  max-width: 100%;
+}
+.dl-choice > button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dl-choice > button > svg {
+  flex: none;
+}
+.dl-choice-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: max-content;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: var(--ds-text);
+  font-family: var(--ds-font);
+}
+.dl-choice-menu:not(:popover-open) {
+  display: none;
+}
+.dl-choice-menu .dl-menu-item {
+  flex-shrink: 0;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.dl-choice-menu .dl-menu-item[data-active] {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}

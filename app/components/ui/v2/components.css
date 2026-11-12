@@ -1765,18 +1765,10 @@ a.dl-item:hover {
 .dl-send:not(:disabled):hover {
   opacity: 0.9;
 }
-.dl-model:not(:disabled):hover,
-.dl-matrix-select:hover {
+.dl-model:not(:disabled):hover {
   background: var(--ds-selected);
 }
-.dl-matrix-select {
-  background: var(--ds-surface);
-  color: var(--ds-text);
-  border: 1px solid var(--ds-edge);
-  border-radius: var(--ds-radius-control);
-  font: inherit;
-  padding: 4px 8px;
-}
+
 .dl-dialog {
   padding: var(--ds-space-5);
   position: fixed;

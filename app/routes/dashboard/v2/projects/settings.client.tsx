@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Action,
   Banner,
+  ChipSelect,
   Dialog,
   Field,
   Glyph,
@@ -229,7 +230,7 @@ export function ProjectConfiguration({
           </Setting>
           <Setting label="Keep earlier releases" description="For instant rollback">
             <input
-              className="dl-matrix-select v2-release-count"
+              className="v2-release-count"
               type="number"
               aria-label="Keep earlier releases"
               min={1}
@@ -357,30 +358,32 @@ export function ProjectConfiguration({
           {!existing && (
             <label>
               Kind
-              <select
-                className="dl-matrix-select"
+              <ChipSelect
+                label="Kind"
                 value={type}
-                onChange={(event) => setType(event.target.value)}
-              >
-                <option value="secret">Secret</option>
-                <option value="string">Variable</option>
-                <option value="number">Number</option>
-                <option value="boolean">Boolean</option>
-              </select>
+                onChange={setType}
+                options={[
+                  { value: 'secret', label: 'Secret' },
+                  { value: 'string', label: 'Variable' },
+                  { value: 'number', label: 'Number' },
+                  { value: 'boolean', label: 'Boolean' },
+                ]}
+              />
             </label>
           )}
           {type === 'boolean' ? (
             <label>
               Value
-              <select
-                className="dl-matrix-select"
+              <ChipSelect
+                label="Value"
                 value={value}
-                onChange={(event) => setValue(event.target.value)}
-              >
-                <option value="">Choose a value</option>
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
+                onChange={setValue}
+                options={[
+                  { value: '', label: 'Choose a value' },
+                  { value: 'true', label: 'true' },
+                  { value: 'false', label: 'false' },
+                ]}
+              />
             </label>
           ) : (
             <Field
@@ -393,19 +396,19 @@ export function ProjectConfiguration({
           )}
           <label>
             Available to
-            <select
-              className="dl-matrix-select"
+            <ChipSelect
+              label="Available to"
               disabled={existing}
               value={app}
-              onChange={(event) => setApp(event.target.value)}
-            >
-              <option value="">All apps</option>
-              {project.apps.map((app) => (
-                <option key={app.id} value={app.name}>
-                  {app.name} · {app.kind === 'worker' ? 'Worker' : 'Web app'}
-                </option>
-              ))}
-            </select>
+              onChange={setApp}
+              options={[
+                { value: '', label: 'All apps' },
+                ...project.apps.map((app) => ({
+                  value: app.name,
+                  label: `${app.name} · ${app.kind === 'worker' ? 'Worker' : 'Web app'}`,
+                })),
+              ]}
+            />
           </label>
           {type === 'secret' && (
             <Banner title="Encrypted and given to the app when it starts">

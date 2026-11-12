@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Action, Banner, Icon, Status } from '@/components/ui';
+import { Action, Banner, ChipSelect, Icon, Status } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, request } from './data';
 import { projectSegment } from './routing';
@@ -81,36 +81,32 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
         </div>
         <label>
           <span className="dl-sr">App</span>
-          <select
-            className="dl-matrix-select"
+          <ChipSelect
+            label="App"
             value={selected}
-            onChange={(event) => {
+            onChange={(value) => {
               const url = new URL(window.location.href);
-              if (event.target.value) url.searchParams.set('app', event.target.value);
+              if (value) url.searchParams.set('app', value);
               else url.searchParams.delete('app');
               window.location.assign(url);
             }}
-          >
-            <option value="">All apps</option>
-            {project.apps.map((app) => (
-              <option key={app.id} value={app.name}>
-                {app.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'All apps' },
+              ...project.apps.map((app) => ({ value: app.name, label: app.name })),
+            ]}
+          />
         </label>
         <label>
           <span className="dl-sr">Level</span>
-          <select
-            className="dl-matrix-select"
+          <ChipSelect
+            label="Level"
             value={level}
-            onChange={(event) => setLevel(event.target.value)}
-          >
-            <option value="">Any level</option>
-            <option>info</option>
-            <option>warn</option>
-            <option>error</option>
-          </select>
+            onChange={setLevel}
+            options={[
+              { value: '', label: 'Any level' },
+              ...['info', 'warn', 'error'].map((value) => ({ value, label: value })),
+            ]}
+          />
         </label>
         <Status kind={live ? 'active' : 'inactive'}>{live ? 'Live' : 'Paused'}</Status>
       </div>

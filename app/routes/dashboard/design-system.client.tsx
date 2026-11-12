@@ -7,6 +7,7 @@ import {
   Action,
   Approval,
   Banner,
+  ChipSelect,
   Composer,
   Dialog,
   Diff,
@@ -79,6 +80,8 @@ const colorNames = {
 
 function Foundations({ theme, state }: { theme: 'light' | 'dark'; state: ComponentState }) {
   const [on, setOn] = useState(true);
+  const [level, setLevel] = useState('');
+  const [keep, setKeep] = useState('5');
   const [off, setOff] = useState(false);
   const [answer, setAnswer] = useState(false);
   const [message, setMessage] = useState('Merge #18 and start the pipeline.');
@@ -142,6 +145,31 @@ function Foundations({ theme, state }: { theme: 'light' | 'dark'; state: Compone
         </Section>
       </div>
       <div className="ds-grid ds-thirds">
+        <Section title="Choice menu">
+          <div className="ds-row">
+            <ChipSelect
+              label="Level"
+              value={level}
+              onChange={setLevel}
+              disabled={state.disabled || state.loading}
+              options={[
+                { value: '', label: 'Any level' },
+                ...['info', 'warn', 'error'].map((value) => ({ value, label: value })),
+              ]}
+            />
+            <ChipSelect
+              label="Keep earlier releases"
+              variant="secondary"
+              value={keep}
+              onChange={setKeep}
+              disabled={state.disabled || state.loading}
+              options={Array.from({ length: 100 }, (_, index) => ({
+                value: String(index + 1),
+                label: String(index + 1),
+              }))}
+            />
+          </div>
+        </Section>
         <Section
           title="Buttons"
           description="Near-black for the next decision, bordered for the alternative, plain text to dismiss."

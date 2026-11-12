@@ -4,6 +4,7 @@ import { useLocation, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
   Banner,
+  ChipSelect,
   Dialog,
   Empty,
   Glyph,
@@ -577,22 +578,20 @@ export default function Releases() {
         <p>Every app will move together from {selected?.id.slice(0, 7)} to the selected release.</p>
         <label className="v2-release-target">
           Target release
-          <select
-            className="dl-matrix-select"
+          <ChipSelect
+            label="Target release"
             value={target?.id || ''}
-            onChange={(event) => {
-              setTargetId(event.target.value);
+            onChange={(value) => {
+              setTargetId(value);
               setDataLoss(undefined);
               setDecisionError('');
             }}
             disabled={busy}
-          >
-            {candidates.map((release) => (
-              <option key={release.id} value={release.id}>
-                {release.id.slice(0, 7)} · {release.source.ref}
-              </option>
-            ))}
-          </select>
+            options={candidates.map((release) => ({
+              value: release.id,
+              label: `${release.id.slice(0, 7)} · ${release.source.ref}`,
+            }))}
+          />
         </label>
         {selected?.migrations.length ? (
           <ul>

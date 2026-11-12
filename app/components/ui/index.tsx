@@ -158,6 +158,7 @@ export { Dialog } from './v2/Dialog';
 export { Banner } from './v2/Banner';
 export { Empty } from './v2/Empty';
 export { Skeleton } from './v2/Skeleton';
+export { ChipSelect } from './v2/ChipSelect';
 export { Matrix } from './v2/Matrix';
 export { Steps } from './v2/Steps';
 export { Term } from './v2/Term';

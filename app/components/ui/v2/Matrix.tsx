@@ -1,5 +1,6 @@
 'use client';
 import { useId } from 'react';
+import { ChipSelect } from './ChipSelect';
 import { type ComponentState, stateProps } from './shared';
 export type ApprovalMode = 'ask' | 'allow' | 'never';
 export function Matrix({
@@ -21,18 +22,18 @@ export function Matrix({
     action: (typeof actions)[number],
     layout: string,
   ) => (
-    <select
+    <ChipSelect
       id={`${id}-${layout}-${agent.id}-${action.id}`}
-      aria-label={`${agent.name}: ${action.name}`}
+      label={`${agent.name}: ${action.name}`}
       value={values[agent.id]?.[action.id] || 'ask'}
       disabled={disabled || loading}
-      onChange={(event) => onChange(agent.id, action.id, event.target.value as ApprovalMode)}
-      className="dl-matrix-select"
-    >
-      <option value="ask">Ask me</option>
-      <option value="allow">Allow</option>
-      <option value="never">Never</option>
-    </select>
+      onChange={(value) => onChange(agent.id, action.id, value as ApprovalMode)}
+      options={[
+        { value: 'ask', label: 'Ask me' },
+        { value: 'allow', label: 'Allow' },
+        { value: 'never', label: 'Never' },
+      ]}
+    />
   );
   return (
     <div {...stateProps({ disabled, loading })}>
