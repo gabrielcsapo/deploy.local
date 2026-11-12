@@ -2766,6 +2766,30 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — main changed this screen too: choose what to keep"
+    },
+    "AppRequestsHover.html": {
+      "x": 19960,
+      "y": 20604,
+      "w": 1440,
+      "h": 1700,
+      "title": "App requests: pointing at the chart reads one minute",
+      "expand": "fill"
+    },
+    "LogsDisconnected.html": {
+      "x": 16920,
+      "y": 20244,
+      "w": 1440,
+      "h": 900,
+      "title": "Logs: the stream has stopped",
+      "expand": "fill"
+    },
+    "LogsConnecting.html": {
+      "x": 16920,
+      "y": 21264,
+      "w": 1440,
+      "h": 900,
+      "title": "Logs: opening the stream",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2862,6 +2886,8 @@
     "App.html",
     "AppSettings.html",
     "Logs.html",
+    "LogsDisconnected.html",
+    "LogsConnecting.html",
     "ProjectSettings.html",
     "SecretEdit.html",
     "Compute.html",
@@ -3080,6 +3106,7 @@
     "DesignReviewGridPhone.html",
     "DesignReviewDecidePhone.html",
     "AppRequests.html",
+    "AppRequestsHover.html",
     "AppRequest.html",
     "AppPerformance.html",
     "AppPerformanceTotals.html",
@@ -4493,6 +4520,13 @@
       "x": 22540,
       "y": 15384,
       "text": "Performance as it ships on the web, approved by the owner on November 11, 2026 as a smaller first page.\n• Ranges are 1 hour, 24 hours and 7 days.\n• A route opens to its server phases. Phase bars appear for traffic measured after this ships; older traffic has totals only.\n• Not built yet, and off these boards until SER serves them: 30 days, the in-browser timeline, slowest requests and the single-request page (AppPerformanceRequest boards), an error’s hourly count and the releases it was seen in.\n• The finding in Waiting on you and the iPhone screens are not built either; their boards are unchanged."
+    },
+    "chart-hover-logs-status": {
+      "fill": "orange",
+      "w": 420,
+      "x": 19500,
+      "y": 20604,
+      "text": "For approval. Two small answers to “what am I looking at?”\n• Requests chart: pointing at it reads that minute. A line marks the minute, a dot sits on each series, and the legend row says the time, requests a minute and server errors in place of the peak. Moving off brings the peak back. Touch: drag across the chart. Keyboard: focus the chart, then Left and Right.\n• Logs says what its stream is doing. Connecting while it opens, Live while lines can arrive, Disconnected with Reconnect when it stops. “Paused” goes away: nothing was paused. A read that fails keeps its banner and Retry."
     }
   },
   "starts": {}
