@@ -7,6 +7,16 @@ description: "Add interactivity with client components using the 'use client' di
 
 By default, all components in React Flight Router are React Server Components -- they run on the server, have no bundle cost, and can use `async`/`await` for data fetching. When you need interactivity (state, effects, event handlers, browser APIs), mark a file with the `"use client"` directive to make it a client component.
 
+## A client component as a route
+
+A route's `component` can import a `"use client"` module directly; no server wrapper is needed. It receives `params` and `searchParams` as props, which must stay serializable:
+
+```ts
+{ id: 'settings', path: 'settings', component: () => import('./routes/settings.client.js') }
+```
+
+Use a server component when the page reads data on the server; a client route renders its first HTML in SSR and then runs in the browser.
+
 ## The "use client" directive
 
 Add `"use client"` as the very first line of a file to mark all exports in that file as client components:

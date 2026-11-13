@@ -49,6 +49,10 @@ export const routes = [{ id: 'root', path: '', component: page, children: [
   { id: 'a', path: 'a', component: redirectTo('/b?from=a') },
   { id: 'b', path: 'b', component: redirectTo('https://elsewhere.test/c') },
   { id: 'loop', path: 'loop', component: redirectTo('/loop') },
+  { id: 'old', path: 'old', redirect: '/b?from=old' },
+  { id: 'temporary', path: 'temporary/:id', redirectStatus: 307,
+    redirect: ({ params, url }) => '/items/' + params.id + url.search },
+  { id: 'from-redirect', path: 'via', component: redirectTo('/old') },
 ] }];
 `,
   );
@@ -125,6 +129,35 @@ describe('createServer', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe('http://localhost/loop');
     expect(globals.__hops.length).toBe(6);
+    await app.close();
+  });
+
+  it('answers a route that declares redirect with a real HTTP redirect', async () => {
+    const app = await createServer({ buildDir: BUILD_DIR });
+    globals.__hops = [];
+    const moved = await app.fetch(new Request('http://localhost/old'));
+    expect(moved.status).toBe(308);
+    expect(moved.headers.get('location')).toBe('http://localhost/b?from=old');
+    expect(globals.__hops).toEqual([]);
+    const temporary = await app.fetch(new Request('http://localhost/temporary/7?q=1'));
+    expect(temporary.status).toBe(307);
+    expect(temporary.headers.get('location')).toBe('http://localhost/items/7?q=1');
+    // A page whose redirect() lands on a declared redirect hands the browser the declared one.
+    const via = await app.fetch(new Request('http://localhost/via'));
+    expect(via.status).toBe(308);
+    expect(via.headers.get('location')).toBe('http://localhost/b?from=old');
+    await app.close();
+  });
+
+  it('answers a declared redirect on the RSC endpoint with a payload the client follows', async () => {
+    const app = await createServer({ buildDir: BUILD_DIR });
+    const response = await app.fetch(new Request('http://localhost/__rsc?url=%2Ftemporary%2F7'));
+    expect(response.status).toBe(200);
+    expect(JSON.parse(await response.text()).redirect).toEqual({
+      url: '/items/7',
+      status: 307,
+      declared: true,
+    });
     await app.close();
   });
 

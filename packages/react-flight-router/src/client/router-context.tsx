@@ -447,9 +447,14 @@ export function RouterProvider({
         // Discard if a newer navigation started while we were fetching
         if (navId !== navigationIdRef.current) return;
 
-        // A server component called redirect() — follow it client-side.
+        // A server component called redirect(), or the route declares one — follow it
+        // client-side. A declared redirect keeps the fragment, as an HTTP redirect does.
         if (payload.redirect) {
-          navigate(payload.redirect.url, { replace: true }, navigation);
+          const destination =
+            payload.redirect.declared && targetUrl.hash && !payload.redirect.url.includes('#')
+              ? payload.redirect.url + targetUrl.hash
+              : payload.redirect.url;
+          navigate(destination, { replace: true }, navigation);
           return;
         }
 

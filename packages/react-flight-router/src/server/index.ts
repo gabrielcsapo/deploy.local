@@ -1071,15 +1071,21 @@ export async function createServer(opts: CreateServerOptions) {
         let result = await doRenderRSC(url, undefined, undefined, logger, renderAbort.signal);
 
         // A page that calls redirect() is answered with its destination's
-        // page, which the client puts in the address bar. Follow chains of
+        // page, which the client puts in the address bar. A route that
+        // declares `redirect` gets a real HTTP redirect instead. Follow chains of
         // them, rendering each hop with getRequest() describing that hop.
         let current = url;
         for (let hops = 0; result.redirect; hops++) {
           const target = new URL(result.redirect.url, current);
           void result.stream.cancel().catch(() => {});
-          // Another site, or a chain that does not end: let the browser
-          // follow a real redirect (and apply its own loop limit).
-          if (target.origin !== url.origin || hops >= MAX_SSR_REDIRECTS) {
+          // A route that declares `redirect`, another site, or a chain that
+          // does not end: let the browser follow a real redirect (and apply
+          // its own loop limit).
+          if (
+            result.redirect.declared ||
+            target.origin !== url.origin ||
+            hops >= MAX_SSR_REDIRECTS
+          ) {
             return { location: target.href, effectiveStatus: result.redirect.status };
           }
           current = target;

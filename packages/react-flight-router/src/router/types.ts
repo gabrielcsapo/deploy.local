@@ -1,14 +1,25 @@
 import type { ReactNode, ComponentType } from 'react';
 
-export interface RouteConfig {
+/** HTTP statuses a redirect may use. 307 and 308 keep the request method; 301 and 302 may not. */
+export type RedirectStatus = 301 | 302 | 307 | 308;
+
+/**
+ * Where a route sends its visitors: a path or URL, or a function of the matched params and the
+ * request URL that returns one. The function runs on the server for every request it matches,
+ * so it must be pure: no browser state, no I/O that differs per visitor unless it reads it from
+ * the request.
+ */
+export type RouteRedirect =
+  | string
+  | ((match: { params: Record<string, string>; url: URL }) => string);
+
+interface RouteFields {
   /** Unique route identifier */
   id: string;
   /** URL path segment (e.g., 'about', ':id', 'posts/:slug') */
   path?: string;
   /** Whether this is an index route (matches when parent path is exact) */
   index?: boolean;
-  /** Lazy import of route module */
-  component: () => Promise<RouteModule>;
   /** Nested child routes */
   children?: RouteConfig[];
   /** Component to render when no child routes match within this layout.
@@ -27,7 +38,27 @@ export interface RouteConfig {
    *  Each slot has its own route subtree, matched against `?@<name>=<path>` in the URL.
    *  A slot is rendered with `<Outlet name="<name>" />` inside this layout. */
   slots?: Record<string, RouteConfig[]>;
+  /** Status for `redirect`. Defaults to 308. */
+  redirectStatus?: RedirectStatus;
 }
+
+/**
+ * A route renders a component, or redirects. A redirecting route needs no component: a document
+ * request is answered with a real HTTP redirect, and client navigation follows it.
+ */
+export type RouteConfig = RouteFields &
+  (
+    | {
+        /** Lazy import of route module. May be a server component or a "use client" module. */
+        component: () => Promise<RouteModule>;
+        redirect?: undefined;
+      }
+    | {
+        component?: undefined;
+        /** Answer every request this route matches with a redirect to this destination. */
+        redirect: RouteRedirect;
+      }
+  );
 
 export interface RouteModule {
   /** Build-injected source key for stylesheet selection. */

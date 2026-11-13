@@ -72,6 +72,15 @@ export function repositoryDestination(path: string): string | null {
   return `/dashboard/projects/${encodeURIComponent(project)}${section}` + url.search + url.hash;
 }
 
+/**
+ * The router's `redirect` for old pages whose new place needs no lookup. It lands where the
+ * client redirect did: a mapped page, else Live.
+ */
+export function declaredRedirect({ url }: { url: URL }): string {
+  const path = url.pathname + url.search;
+  return staticRedirect(path) || repositoryDestination(path) || '/dashboard/live';
+}
+
 export async function legacyDestination(
   path: string,
   projectForApplication: (application: string) => Promise<string | null>,
@@ -134,7 +143,10 @@ export async function lookupApplicationProject(
   }
 }
 
-/** Apply before the host's RSC/SSR handler; the router itself renders redirects as HTTP 200. */
+/**
+ * Apply before the host's RSC/SSR handler. Routes with a declared `redirect` would get the same
+ * 308 from the router; this also answers old application pages when the host can find the project.
+ */
 export async function permanentRedirectResponse(
   request: Request,
   projectForApplication: (application: string) => Promise<string | null>,

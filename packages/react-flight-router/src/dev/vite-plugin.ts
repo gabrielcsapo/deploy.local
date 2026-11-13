@@ -6,7 +6,7 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { useClientPlugin } from '../build/plugin-use-client.js';
 import { useServerPlugin } from '../build/plugin-use-server.js';
-import { renderRSC, clearRouteMatchCache } from '../server/rsc-renderer.js';
+import { renderRSC, clearRouteMatchCache, type RenderRSCResult } from '../server/rsc-renderer.js';
 import { handleAction } from '../server/action-handler.js';
 import { createDevManifests } from './dev-manifest.js';
 import { withStaleModuleRetry } from './stale-module.js';
@@ -451,12 +451,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 if (!res.writableFinished) ssrAbort.abort();
               });
 
-              const {
-                htmlStream: ssrHtmlStream,
-                rscStream: inlineStream,
-                cssUrls,
-                status,
-              } = await withStaleModuleRetry(
+              const rendered = await withStaleModuleRetry(
                 () =>
                   devRenderSSR(
                     server,
@@ -470,6 +465,19 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                   ),
                 evictStaleModules,
               );
+              // A route that declares `redirect` is a real HTTP redirect, as in production.
+              if ('location' in rendered) {
+                timing.headers(logger, res);
+                res.writeHead(rendered.status, { Location: rendered.location });
+                res.end();
+                return;
+              }
+              const {
+                htmlStream: ssrHtmlStream,
+                rscStream: inlineStream,
+                cssUrls,
+                status,
+              } = rendered;
 
               // Get Vite's head injections (HMR client, React Refresh preamble)
               // by processing a minimal HTML stub through Vite's plugin pipeline.
@@ -616,7 +624,7 @@ async function devRenderRSC(
   previousUrl?: URL,
   logger?: FlightLogger,
   timing?: DevTimingHooks,
-): Promise<{ stream: ReadableStream; status: number; params: Record<string, string> }> {
+): Promise<RenderRSCResult> {
   logger?.time('loadRoutes');
   const routes = await loadRoutes(server, routesFile);
   logger?.timeEnd('loadRoutes');
@@ -655,19 +663,18 @@ async function devRenderSSR(
   logger?: FlightLogger,
   timing?: DevTimingHooks,
   onSSRError?: (error: unknown) => void,
-): Promise<{
-  htmlStream: ReadableStream;
-  rscStream: ReadableStream;
-  cssUrls: string[];
-  status: number;
-  params: Record<string, string>;
-}> {
+): Promise<
+  | {
+      htmlStream: ReadableStream;
+      rscStream: ReadableStream;
+      cssUrls: string[];
+      status: number;
+      params: Record<string, string>;
+    }
+  | { location: string; status: number }
+> {
   // 1. Render RSC stream and tee: one for SSR deserialization, one for client inlining
-  const {
-    stream: rscStream,
-    status: rscStatus,
-    params,
-  } = await devRenderRSC(
+  const rsc = await devRenderRSC(
     server,
     routesFile,
     url,
@@ -678,6 +685,11 @@ async function devRenderSSR(
     logger,
     timing,
   );
+  if (rsc.redirect?.declared) {
+    void rsc.stream.cancel().catch(() => {});
+    return { location: new URL(rsc.redirect.url, url).href, status: rsc.redirect.status };
+  }
+  const { stream: rscStream, status: rscStatus, params } = rsc;
   const [streamForSSR, streamForInline] = rscStream.tee();
 
   // 2. Load SSR dependencies from the app's node_modules (not react-flight-router's).

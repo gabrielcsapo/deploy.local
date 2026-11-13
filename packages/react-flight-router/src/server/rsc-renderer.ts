@@ -1,12 +1,21 @@
 import { createElement } from 'react';
 import { matchRoutes, matchSlots, matchedRoutePattern } from '../router/route-matcher.js';
 import { diffSegments } from '../router/segment-diff.js';
-import type { RouteConfig, RouteMatch, RouteModule, SlotMatch } from '../router/types.js';
+import type {
+  RedirectStatus,
+  RouteConfig,
+  RouteMatch,
+  RouteModule,
+  SlotMatch,
+} from '../router/types.js';
 import type { RSCClientManifest, ModuleLoader } from '../shared/types.js';
 import type { FlightLogger } from '../shared/logger.js';
 import { routeStylesheets, type RouteModuleLoader } from './route-css.js';
 import type { Manifests } from '../shared/types.js';
 import { RedirectError } from './redirect.js';
+
+/** What registerClientReference stamps on a "use client" module's exports. */
+const CLIENT_REFERENCE = Symbol.for('react.client.reference');
 
 // LRU cache for route matching results by pathname.
 // Routes are static after build, so the same pathname always yields the same matches.
@@ -144,10 +153,19 @@ export interface RenderRSCResult {
   status: number;
   /** Matched route params — used for masking PII in log output */
   params: Record<string, string>;
-  /** Set when a route component called redirect() */
-  redirect?: { url: string; status: 301 | 302 };
+  /**
+   * Set when a route component called redirect(), or when the matched route declares
+   * `redirect` (then `declared` is true and a document request gets a real HTTP redirect).
+   */
+  redirect?: { url: string; status: RedirectStatus; declared?: boolean };
   /** True when no route matched at all and the root route has no notFound. */
   unmatched?: boolean;
+}
+
+/** The destination a matched route's `redirect` names for this URL. */
+export function resolveRouteRedirect(match: RouteMatch, url: URL): string {
+  const redirect = match.route.redirect!;
+  return typeof redirect === 'string' ? redirect : redirect({ params: match.params, url });
 }
 
 /**
@@ -215,6 +233,28 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   const matchMs = logger?.timeEnd('matchRoutes') ?? performance.now() - matchStarted;
   const route = matchedRoutePattern(matches);
   opts.onMatch?.(route, matchMs);
+
+  // A route that declares `redirect` renders nothing: the outermost one in the chain answers.
+  const redirecting = matches.find((match) => match.route.redirect !== undefined);
+  if (redirecting) {
+    const destination = resolveRouteRedirect(redirecting, url);
+    const status = redirecting.route.redirectStatus ?? 308;
+    const redirect = { url: destination, status, declared: true };
+    const payload = {
+      ...(opts.telemetry ? { route } : {}),
+      url: url.pathname + url.search,
+      segments: {},
+      params: {},
+      status,
+      redirect,
+    };
+    return {
+      stream: renderToReadableStream(payload, clientManifest, { onError: () => {} }),
+      status,
+      params: {},
+      redirect,
+    };
+  }
   const cssFiles = opts.stylesheets
     ? await abortable(
         routeStylesheets(
@@ -490,15 +530,23 @@ async function buildSegmentMap(
       const match = matches[i];
       const startMs = logger ? performance.now() : 0;
       try {
+        if (!match.route.component)
+          throw new Error(`Route "${match.route.id}" has neither a component nor a redirect`);
         const mod = await loadRouteModule(match.route.component);
-        const Component = mod.default as (props: {
+        const Component = mod.default as ((props: {
           params: Record<string, string>;
           searchParams: Record<string, string>;
-        }) => unknown;
-        // Execute the component so RedirectError propagates out of Promise.all.
+        }) => unknown) & { $$typeof?: symbol };
+        const props = { params: match.params, searchParams };
+        // A "use client" route module is a client reference on the server: it can't be called
+        // here, so it goes into the payload as an element and renders on the client (and in SSR).
+        // Server components are executed so RedirectError propagates out of Promise.all.
         // The result (a React element tree) is stored directly in the segment map;
         // renderToReadableStream serializes it just like it would a component element.
-        const rendered = await Component({ params: match.params, searchParams });
+        const rendered =
+          Component.$$typeof === CLIENT_REFERENCE
+            ? createElement(Component as never, props)
+            : await Component(props);
         return {
           index: i,
           rendered,

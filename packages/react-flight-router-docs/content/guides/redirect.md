@@ -1,9 +1,41 @@
 ---
 title: 'Redirects'
-description: 'Redirect users from server components using the redirect() function. Works for both initial page loads and client-side navigation without extra round trips.'
+description: 'Redirect users with a redirect declared on a route, or from server components using the redirect() function. Works for both initial page loads and client-side navigation.'
 ---
 
 # Redirects
+
+There are two ways to send a visitor elsewhere: declare `redirect` on a route when the destination follows from the URL alone, or call `redirect()` in a server component when it depends on something else, such as a session.
+
+## Declared redirects
+
+A route with `redirect` has no component. A document request is answered with a real HTTP redirect (`308` unless you set `redirectStatus`), and client navigation follows it, keeping the URL's fragment as a browser does:
+
+```ts
+// app/routes.ts
+export const routes: RouteConfig[] = [
+  {
+    id: 'root',
+    path: '',
+    component: () => import('./root.js'),
+    children: [
+      // A fixed destination.
+      { id: 'old-about', path: 'about-us', redirect: '/about' },
+      // A destination computed from the params and the request URL.
+      {
+        id: 'old-post',
+        path: 'blog/:slug',
+        redirectStatus: 301,
+        redirect: ({ params, url }) => `/posts/${params.slug}${url.search}`,
+      },
+    ],
+  },
+];
+```
+
+The function runs on the server for each request it matches, so it can't read browser state such as local storage. When finding the destination needs that, render a client component that calls `navigate()` instead. If several routes in the matched chain declare `redirect`, the outermost one answers.
+
+## `redirect()` in a server component
 
 The `redirect()` function lets you redirect the user to a different URL directly from a server component. It works for both the initial page load (SSR) and client-side navigation.
 
@@ -26,7 +58,7 @@ Writing `return redirect(...)` makes the early-exit intent clear — it reads li
 
 ## Status codes
 
-The default status code is `302` (temporary redirect). Pass `301` as the second argument for a permanent redirect:
+The default status code is `302` (temporary redirect). Pass `301`, `307` or `308` as the second argument:
 
 ```tsx
 // 302 — temporary (default)
@@ -34,9 +66,12 @@ return redirect('/login');
 
 // 301 — permanent
 return redirect('/new-location', 301);
+
+// 307 and 308 — temporary and permanent, and the method is kept
+return redirect('/new-location', 308);
 ```
 
-Use `301` for content that has permanently moved (e.g., a renamed route). Use `302` for conditional redirects like auth guards.
+Use `301` or `308` for content that has permanently moved (e.g., a renamed route). Use `302` or `307` for conditional redirects like auth guards. The status matters when the redirect is answered as a real HTTP redirect (another origin, or a long chain).
 
 ## How it works
 
@@ -46,7 +81,7 @@ When a redirect is detected during the initial page load, the server renders the
 
 This avoids the extra round trip that a traditional `302` response would require — the browser receives the destination page content in the very first response.
 
-A destination that redirects again is followed too, up to five hops, and `getRequest()` describes each hop's own URL. A redirect to another origin, or a chain longer than that, is answered with a real `301`/`302` and a `Location` header, so the browser follows it (and applies its own loop limit).
+A destination that redirects again is followed too, up to five hops, and `getRequest()` describes each hop's own URL. A redirect to another origin, or a chain longer than that, is answered with a real redirect with that status and a `Location` header, so the browser follows it (and applies its own loop limit).
 
 ### Client-side navigation
 

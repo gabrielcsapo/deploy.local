@@ -86,110 +86,53 @@ export interface ParsedRoute {
 }
 
 /**
- * Parse the routes.ts file to extract the route tree structure.
- * Strips TypeScript types and dynamic imports, then evaluates the structure.
- * Returns empty array on any failure — build should never fail due to formatting.
+ * Parse the routes file to extract the route tree structure for display.
+ * Strips TypeScript types and replaces `component: () => import("./x")` with the resolved file,
+ * then evaluates the module. Relative imports (a feature's own `RouteConfig[]`, a redirect
+ * helper) are parsed the same way, so routes composed from several files still show.
+ * Returns an empty array on any failure: the build never fails because of formatting.
  */
 export async function parseRoutes(routesFilePath: string): Promise<ParsedRoute[]> {
   try {
-    const raw = readFileSync(routesFilePath, 'utf-8');
-
-    // Strip import type lines
-    let cleaned = raw.replace(/import\s+type\s+[^;]*;\s*/g, '');
-
-    // Replace component: () => import("./path") with componentPath: "./path"
-    cleaned = cleaned.replace(
-      /component\s*:\s*\(\)\s*=>\s*import\(\s*["']([^"']+)["']\s*\)\s*/g,
-      'componentPath: "$1" ',
-    );
-
-    // Use esbuild (via Vite) to strip remaining TS syntax
-    const result = await transformWithEsbuild(cleaned, routesFilePath, {
-      loader: 'ts',
-    });
-
-    // Strip exports and convert to a function body that returns the routes array
-    let code = result.code;
-    // Handle `export const routes = [...]`
-    code = code.replace(/export\s+const\s+routes\s*=\s*/, 'return ');
-    // Handle esbuild ESM split: `const routes = [...]; export { routes };`
-    code = code.replace(/const\s+routes\s*=\s*/, 'return ');
-    code = code.replace(/export\s*\{[^}]*\}\s*;?/g, '');
-
-    const fn = new Function(code);
-    return fn();
+    const exports = await parseRouteModule(resolve(routesFilePath), new Map());
+    return Array.isArray(exports.routes) ? (exports.routes as ParsedRoute[]) : [];
   } catch {
     return [];
   }
 }
 
-// ---------------------------------------------------------------------------
-// Route validation
-// ---------------------------------------------------------------------------
-
-export interface RouteValidationError {
-  routeId: string;
-  filePath: string;
-}
-
-/**
- * Validate that route component files are NOT marked with 'use client'.
- * Route components must be server components (or plain components without the directive).
- * Client-only logic should be in separate .client.tsx files imported by the route component.
- *
- * This prevents manifest collisions where a client component route and its
- * children share similar module IDs, and ensures proper RSC rendering.
- */
-export function validateRouteComponents(
-  routes: ParsedRoute[],
-  routesDir: string,
-): RouteValidationError[] {
-  const errors: RouteValidationError[] = [];
-
-  function walk(routes: ParsedRoute[]) {
-    for (const route of routes) {
-      if (route.componentPath) {
-        const componentFile = resolveModulePath(route.componentPath, routesDir);
-        if (componentFile) {
-          try {
-            const content = readFileSync(componentFile, 'utf-8');
-            if (/^['"]use client['"];?/m.test(content.trimStart())) {
-              errors.push({ routeId: route.id, filePath: componentFile });
-            }
-          } catch {
-            // Skip files we can't read
-          }
-        }
-      }
-      if (route.children) {
-        walk(route.children);
-      }
+async function parseRouteModule(
+  file: string,
+  seen: Map<string, Promise<Record<string, unknown>>>,
+): Promise<Record<string, unknown>> {
+  const existing = seen.get(file);
+  if (existing) return existing;
+  const parsing = (async () => {
+    const directory = dirname(file);
+    let cleaned = readFileSync(file, 'utf-8').replace(/import\s+type\s+[^;]*;\s*/g, '');
+    cleaned = cleaned.replace(
+      /component\s*:\s*\(\)\s*=>\s*import\(\s*["']([^"']+)["']\s*\)\s*/g,
+      (_, path: string) => `componentPath: ${JSON.stringify(resolve(directory, path))} `,
+    );
+    const result = await transformWithEsbuild(cleaned, file, { loader: 'ts', format: 'cjs' });
+    // Relative imports are parsed first (CommonJS `require` is synchronous); anything else
+    // (a package) is unavailable here and reads as an empty module.
+    const required = new Map<string, Record<string, unknown>>();
+    for (const [, specifier] of result.code.matchAll(/require\(["']([^"']+)["']\)/g)) {
+      if (!specifier.startsWith('.')) continue;
+      const target = resolveModulePath(specifier, directory);
+      if (target) required.set(specifier, await parseRouteModule(target, seen));
     }
-  }
-
-  walk(routes);
-  return errors;
-}
-
-export function printRouteValidationErrors(errors: RouteValidationError[]): void {
-  console.error('');
-  console.error(c.bold(`  ✗ Route components must not use the "use client" directive`));
-  console.error('');
-  console.error(`  Route components are rendered as server components. Move client-side`);
-  console.error(`  logic into a separate .client.tsx file and import it from the route.`);
-  console.error('');
-  for (const err of errors) {
-    console.error(`    ${c.yellow('→')} ${err.routeId}  ${c.dim(err.filePath)}`);
-  }
-  console.error('');
-  console.error(`  Example fix:`);
-  console.error('');
-  console.error(c.dim(`    // app/routes/my-route.tsx (server component)`));
-  console.error(c.dim(`    import MyRouteClient from "./my-route.client";`));
-  console.error(c.dim(`    export default function MyRoute() {`));
-  console.error(c.dim(`      return <MyRouteClient />;`));
-  console.error(c.dim(`    }`));
-  console.error('');
+    const module = { exports: {} as Record<string, unknown> };
+    new Function('require', 'module', 'exports', result.code)(
+      (specifier: string) => required.get(specifier) ?? {},
+      module,
+      module.exports,
+    );
+    return module.exports;
+  })();
+  seen.set(file, parsing);
+  return parsing;
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +317,8 @@ export function resolveRouteClientModules(
         const componentFile = resolveModulePath(route.componentPath, routesDir);
         if (componentFile) {
           const deps = findClientDeps(componentFile, new Set());
+          // A "use client" route component is its own client module.
+          if (clientModules.has(componentFile)) deps.add(componentFile);
           result.set(route.id, deps);
         } else {
           result.set(route.id, new Set());

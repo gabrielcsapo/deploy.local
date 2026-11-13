@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] (2026-11-12)
+
+### Features
+
+- **A route can declare `redirect`**: a path or URL, or a function of the matched `params` and the request `url`, with `redirectStatus` (`301`, `302`, `307` or `308`; default `308`). A redirecting route has no component. A document request gets a real HTTP redirect with `Location`, in production and in development; the RSC endpoint carries it in the payload and client navigation follows it with `replace`, keeping the URL's fragment. `RouteRedirect` and `RedirectStatus` are exported from `react-flight-router/router`.
+- **`redirect()` takes `307` and `308`** as well as `301` and `302`, in server components and server actions.
+- **A route's `component` can be a `"use client"` module.** The router renders it as a client element with `params` and `searchParams` props instead of calling it on the server, so a page that is only a client component needs no server wrapper. The build no longer rejects such routes.
+- The build's route table reads routes composed from other files: relative imports in the routes file (a feature's own `RouteConfig[]`, a redirect helper) are followed.
+
+### Types
+
+- `RouteConfig` is now a union: a route has `component`, or `redirect` without one. Code that reads `route.component` sees `(() => Promise<RouteModule>) | undefined`.
+
 ## [0.14.0] (2026-11-10)
 
 ### Breaking

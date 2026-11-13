@@ -1,6 +1,7 @@
 import { Worker, MessageChannel } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import type { ErrorRecord } from './telemetry.js';
+import type { RedirectStatus } from '../router/types.js';
 import type { ActionTimings, TimingEntry } from '../shared/types.js';
 import type { SerializedRequestContext } from '../shared/types.js';
 
@@ -32,7 +33,7 @@ export type WorkerPhaseTimings = Pick<
 export type DispatchHead =
   | { kind: 'stream' }
   | { kind: 'error'; status: number; message: string; digest?: string }
-  | { kind: 'redirect'; url: string; status: 301 | 302 };
+  | { kind: 'redirect'; url: string; status: RedirectStatus };
 
 /** Result of dispatching a task to the worker pool */
 export interface DispatchResult {
@@ -271,7 +272,7 @@ export function createWorkerPool(config: WorkerPoolConfig): WorkerPool {
             message?: string;
             digest?: string;
             url?: string;
-            redirectStatus?: 301 | 302;
+            redirectStatus?: RedirectStatus;
             errorRecord?: ErrorRecord;
             timings?: TimingEntry[];
             actionTimings?: WorkerPhaseTimings;
