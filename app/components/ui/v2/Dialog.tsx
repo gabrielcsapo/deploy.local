@@ -46,7 +46,7 @@ export function Dialog({
   return createPortal(
     <dialog
       ref={ref}
-      className={`dl-dialog ${className}`}
+      className={`dl-dialog dl-modal ${className}`}
       aria-labelledby={id}
       aria-busy={loading || undefined}
       onCancel={(event) => {

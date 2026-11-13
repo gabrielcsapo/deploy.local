@@ -115,7 +115,7 @@ export function MarkupView({
   return (
     <dialog
       ref={dialog}
-      className="dl-dialog dl-markup"
+      className="dl-dialog dl-modal dl-markup"
       aria-label="Mark up screenshot"
       onCancel={(event) => {
         event.preventDefault();

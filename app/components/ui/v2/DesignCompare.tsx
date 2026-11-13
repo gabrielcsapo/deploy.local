@@ -38,8 +38,8 @@ export function DesignCompare({
     if (rect) setPercent(afterAt(x, rect.left, rect.width));
   };
   return (
-    <div className="dl-design-compare">
-      <div className="dl-design-compare-bar">
+    <div className="dl-compare-slider">
+      <div className="dl-compare-slider-bar">
         {children}
         {single ? (
           <span className="dl-tag">{removed ? 'Removed' : 'New board'}</span>
@@ -58,11 +58,11 @@ export function DesignCompare({
           </>
         )}
       </div>
-      <div className="dl-design-compare-image" ref={surface}>
+      <div className="dl-compare-slider-image" ref={surface}>
         <div aria-hidden="true">{removed ? before : added ? after : before}</div>
         {!single && (
           <div
-            className="dl-design-compare-after"
+            className="dl-compare-slider-after"
             aria-hidden="true"
             style={
               mode === 'slider'
@@ -75,10 +75,10 @@ export function DesignCompare({
         )}
         {!single && mode === 'slider' && (
           <>
-            <span className="dl-design-compare-label before">Before · main</span>
-            <span className="dl-design-compare-label after">After · this branch</span>
+            <span className="dl-compare-slider-label before">Before · main</span>
+            <span className="dl-compare-slider-label after">After · this branch</span>
             <div
-              className="dl-design-compare-handle"
+              className="dl-compare-slider-handle"
               role="slider"
               tabIndex={0}
               aria-label="Compare"
@@ -122,7 +122,7 @@ export function DesignCompare({
         <span className="dl-meta">{removed ? 'Before' : 'After only · no previous version'}</span>
       )}
       {!single && mode === 'onion' && (
-        <label className="dl-design-compare-opacity">
+        <label className="dl-compare-slider-opacity">
           <span>
             After opacity <span>{opacity}%</span>
           </span>

@@ -1,28 +1,28 @@
-.dl-design-compare {
+.dl-compare-slider {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--ds-space-4);
   min-width: 0;
 }
-.dl-design-compare-bar {
+.dl-compare-slider-bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--ds-space-3);
 }
-.dl-design-compare-image {
+.dl-compare-slider-image {
   position: relative;
   max-width: 100%;
   border-radius: var(--ds-radius-control);
   background: var(--ds-canvas);
   box-shadow: 0 0 0 1px var(--ds-line);
 }
-.dl-design-compare-after {
+.dl-compare-slider-after {
   position: absolute;
   inset: 0;
 }
-.dl-design-compare-label {
+.dl-compare-slider-label {
   position: absolute;
   top: 8px;
   z-index: 5;
@@ -33,13 +33,13 @@
   font-size: var(--ds-type-meta);
   pointer-events: none;
 }
-.dl-design-compare-label.before {
+.dl-compare-slider-label.before {
   left: 8px;
 }
-.dl-design-compare-label.after {
+.dl-compare-slider-label.after {
   right: 8px;
 }
-.dl-design-compare-handle {
+.dl-compare-slider-handle {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -52,7 +52,7 @@
   cursor: ew-resize;
   touch-action: none;
 }
-.dl-design-compare-handle::before {
+.dl-compare-slider-handle::before {
   content: '';
   position: absolute;
   top: 0;
@@ -61,7 +61,7 @@
   background: var(--ds-action);
   box-shadow: 0 0 0 1px var(--ds-surface);
 }
-.dl-design-compare-handle > span {
+.dl-compare-slider-handle > span {
   position: relative;
   display: flex;
   align-items: center;
@@ -74,21 +74,21 @@
   color: var(--ds-text);
   box-shadow: var(--ds-shadow-sm);
 }
-.dl-design-compare-handle:focus-visible {
+.dl-compare-slider-handle:focus-visible {
   outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
 }
-.dl-design-compare-opacity {
+.dl-compare-slider-opacity {
   width: 100%;
   max-width: 320px;
   font-size: var(--ds-type-meta);
   color: var(--ds-secondary);
 }
-.dl-design-compare-opacity > span {
+.dl-compare-slider-opacity > span {
   display: flex;
   justify-content: space-between;
 }
-.dl-design-compare-opacity input {
+.dl-compare-slider-opacity input {
   display: block;
   width: 100%;
   min-height: 44px;

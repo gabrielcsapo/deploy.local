@@ -22,9 +22,6 @@
   white-space: normal;
   overflow: visible;
 }
-.dl-dialog {
-  width: 100%;
-}
 .dl-app *,
 .dl-sheet * {
   box-sizing: border-box;
@@ -105,7 +102,8 @@
 .dl-model:not(:disabled):hover {
   background: var(--ds-selected);
 }
-.dl-dialog {
+/* The modal's placement. `.dl-dialog` is the card itself and comes from the design system. */
+.dl-modal {
   position: fixed;
   inset: 0;
   margin: auto;
@@ -118,10 +116,10 @@
   max-height: calc(100dvh - 48px);
   overflow: auto;
 }
-.dl-dialog:not([open]) {
+.dl-modal:not([open]) {
   display: none;
 }
-.dl-dialog::backdrop {
+.dl-modal::backdrop {
   background: color-mix(in srgb, var(--ds-text) 18%, transparent);
 }
 .dl-dialog-foot {
