@@ -18,8 +18,6 @@ import { routeCSSPlugin, type ModuleGraph } from './route-css.js';
 import {
   type RollupOutput,
   parseRoutes,
-  validateRouteComponents,
-  printRouteValidationErrors,
   flattenRoutes,
   resolveRouteClientModules,
   computeRouteSizes,
@@ -136,21 +134,9 @@ export async function build(opts: BuildOptions): Promise<void> {
   const version = readPackageVersion();
   printHeader(version);
 
-  // Parse routes for display and validation
+  // Parse routes for display
   const parsedRoutes = await parseRoutes(routesEntry);
   const routesDir = dirname(routesEntry);
-
-  // Validate that route components are not "use client" — they must be server components
-  if (parsedRoutes.length > 0) {
-    const validationErrors = validateRouteComponents(parsedRoutes, routesDir);
-    if (validationErrors.length > 0) {
-      printRouteValidationErrors(validationErrors);
-      throw new Error(
-        `Build failed: ${validationErrors.length} route component(s) have "use client" directive. ` +
-          `Route components must be server components.`,
-      );
-    }
-  }
 
   // Load the app's vite.config to pick up user-configured plugins (e.g., Tailwind)
   // and resolve config (e.g., path aliases like @/).

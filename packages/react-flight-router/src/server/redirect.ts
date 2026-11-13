@@ -1,7 +1,9 @@
+import type { RedirectStatus } from '../router/types.js';
+
 export class RedirectError extends Error {
   constructor(
     public readonly destination: string,
-    public readonly status: 301 | 302,
+    public readonly status: RedirectStatus,
   ) {
     super(`Redirect to ${destination}`);
     this.name = 'RedirectError';
@@ -11,7 +13,8 @@ export class RedirectError extends Error {
 /**
  * Redirect to a new URL from a server component or server action.
  *
- * During SSR (initial page load), the server returns an HTTP 301/302 response.
+ * During SSR (initial page load), the server renders the destination (same origin) or returns
+ * an HTTP redirect with this status. 307 and 308 keep the request method; 301 and 302 may not.
  * During client-side navigation, the RSC payload includes redirect info and
  * the router navigates to the destination URL.
  *
@@ -26,6 +29,6 @@ export class RedirectError extends Error {
  * }
  * ```
  */
-export function redirect(url: string, status: 301 | 302 = 302): never {
+export function redirect(url: string, status: RedirectStatus = 302): never {
   throw new RedirectError(url, status);
 }

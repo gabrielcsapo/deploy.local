@@ -15,6 +15,79 @@ function mockRenderToReadableStream(model: unknown) {
   });
 }
 
+describe('rsc-renderer: declared redirect and client route components', () => {
+  beforeEach(() => {
+    clearRouteMatchCache();
+  });
+
+  it('answers a route with redirect without loading any component', async () => {
+    const load = vi.fn(noop);
+    const routes: RouteConfig[] = [
+      {
+        id: 'root',
+        path: '',
+        component: load,
+        children: [
+          {
+            id: 'old',
+            path: 'old/:name',
+            redirect: ({ params, url }) => `/new/${params.name}${url.search}`,
+          },
+          { id: 'gone', path: 'gone', redirect: '/elsewhere', redirectStatus: 301 },
+        ],
+      },
+    ];
+    const render = (path: string) =>
+      renderRSC({
+        url: new URL('http://localhost' + path),
+        routes,
+        clientManifest: {},
+        renderToReadableStream: mockRenderToReadableStream as any,
+        loadModule: async () => ({ default: () => null }),
+      });
+    const old = await render('/old/x?a=1');
+    expect(old.redirect).toEqual({ url: '/new/x?a=1', status: 308, declared: true });
+    expect(old.status).toBe(308);
+    const gone = await render('/gone');
+    expect(gone.redirect).toEqual({ url: '/elsewhere', status: 301, declared: true });
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('renders a "use client" route module as an element instead of calling it', async () => {
+    const ClientPage = Object.assign(
+      () => {
+        throw new Error('Cannot call client component on server');
+      },
+      { $$typeof: Symbol.for('react.client.reference') },
+    );
+    let model: any;
+    const routes: RouteConfig[] = [
+      {
+        id: 'root',
+        path: '',
+        component: () => Promise.resolve({ default: () => 'layout' }),
+        children: [
+          { id: 'page', path: 'page', component: () => Promise.resolve({ default: ClientPage }) },
+        ],
+      },
+    ];
+    const result = await renderRSC({
+      url: new URL('http://localhost/page?tab=a'),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: ((value: unknown) => {
+        model = value;
+        return new ReadableStream({ start: (c) => c.close() });
+      }) as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+    expect(result.status).toBe(200);
+    const element = model.segments['root/page'];
+    expect(element.type).toBe(ClientPage);
+    expect(element.props).toEqual({ params: {}, searchParams: { tab: 'a' } });
+  });
+});
+
 describe('rsc-renderer: redirect', () => {
   beforeEach(() => {
     clearRouteMatchCache();

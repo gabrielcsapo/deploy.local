@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { RedirectError } from './redirect.js';
+import type { RedirectStatus } from '../router/types.js';
 import {
   ACTION_ERROR_CONTENT_TYPE,
   RSC_CONTENT_TYPE,
@@ -16,7 +17,7 @@ export interface ActionFailure {
 /** A `redirect()` thrown inside an action. */
 export interface ActionRedirect {
   url: string;
-  status: 301 | 302;
+  status: RedirectStatus;
 }
 
 /**
@@ -30,7 +31,8 @@ export function asRedirect(error: unknown): ActionRedirect | null {
     error.name === 'RedirectError' &&
     typeof (error as { destination?: unknown }).destination === 'string'
   ) {
-    const status = (error as { status?: unknown }).status === 301 ? 301 : 302;
+    const raw = (error as { status?: unknown }).status;
+    const status: RedirectStatus = raw === 301 || raw === 307 || raw === 308 ? raw : 302;
     return { url: (error as unknown as { destination: string }).destination, status };
   }
   return null;
