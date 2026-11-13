@@ -14,7 +14,8 @@ export async function buildDocs() {
     routeSource.indexOf("id: 'dashboard',"),
   );
   const entries = [
-    ...docsRoutes.matchAll(/id: 'docs-([^']+)'[\s\S]*?component: \(\) => import\('([^']+)'\)/g),
+    // Within one route object: a declared redirect has no component.
+    ...docsRoutes.matchAll(/id: 'docs-([^']+)'[^{}]*?component: \(\) => import\('([^']+)'\)/g),
   ]
     .filter((match) => match[2].startsWith('./routes/docs/'))
     .map((match, index) => ({
