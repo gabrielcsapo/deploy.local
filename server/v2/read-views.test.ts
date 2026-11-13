@@ -203,20 +203,16 @@ test('update progress stays live while service probing is cached', async () => {
   assert.deepEqual(starts, []);
 });
 
-test('server ref writes invalidate the next read; outside writes expire at the cadence', async (t) => {
+test('a ref moved by the server or by another process is seen on the next read', async () => {
   const { gitText } = await import('../git.ts');
-  const { REPOSITORY_VIEW_CADENCE_MS } = await import('../workspace/repository-views.ts');
   const overview = '/api/v2/projects/p/overview';
   assert.equal((await request(overview)).repository.head, main);
   await gitText(repo, ['update-ref', 'refs/heads/main', proposal, main]);
   assert.equal((await request(overview)).repository.head, proposal);
-  // A process which does not use our Git helpers gets no in-memory notification.
+  // A process that does not use our Git helpers sends no notification, but it rewrites the
+  // ref's file, and the views notice that without starting Git.
   git('update-ref', 'refs/heads/main', main, proposal);
-  assert.equal((await request(overview)).repository.head, proposal);
-  const now = Date.now();
-  const clock = t.mock.method(Date, 'now', () => now + REPOSITORY_VIEW_CADENCE_MS);
   assert.equal((await request(overview)).repository.head, main);
-  clock.mock.restore();
 });
 
 test('project, deployment and membership writes stay live after warm-up', async () => {
@@ -287,7 +283,8 @@ test('transaction and decision helpers bypass a warm view', async () => {
   await request('/api/v2/projects/p/overview');
   await commitText(repo, ['rev-parse', '--verify', `${main}^{tree}`]);
   git('update-ref', 'refs/heads/main', proposal, main);
-  assert.equal(await presentationCommit(repo, 'refs/heads/main'), main);
+  // The view has already noticed the move; what a transaction adds is that it asks Git itself.
+  assert.equal(await presentationCommit(repo, 'refs/heads/main'), proposal);
   starts = [];
   let transactionRead!: Promise<string>;
   workspace.db.transaction(() => {

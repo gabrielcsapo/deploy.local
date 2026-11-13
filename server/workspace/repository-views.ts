@@ -1,6 +1,11 @@
 import { resolve } from 'node:path';
 import { immutable, materialized } from '../materialized.ts';
-import { onRepositoryChange, repositoryChanged, repositoryIdentity } from '../git-changes.ts';
+import {
+  noticeRepositoryChange,
+  onRepositoryChange,
+  repositoryChanged,
+  repositoryIdentity,
+} from '../git-changes.ts';
 import { gitRead, gitText, repositoryGit } from '../git.ts';
 import { db, get, onRecordChange } from './store.ts';
 import { keyedSlots } from './repository-lock.ts';
@@ -32,6 +37,8 @@ export function repositoryView<V>(
       if (db.inTransaction) return compute(key);
       observeRecords();
       observeRepository();
+      // A push or sync by another process shows at once: the cadence is only the fallback.
+      noticeRepositoryChange(repositoryOf(key));
       return view.read(key);
     },
   };
