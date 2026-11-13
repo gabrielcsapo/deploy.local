@@ -342,7 +342,7 @@ a.dl-item:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 .dl-menu-item:has(.agent-avatar)>span:not(.agent-avatar){flex:1;min-width:0}.dl-menu-item:has(.agent-avatar)>time{flex:none}
 .agent-receipt{display:block;padding:6px 0;line-height:20px}
 .dl-phone .agent-receipt{padding:12px 0;font-size:13px}
-.dl-btn:disabled,.dl-btn[aria-disabled="true"]{background:var(--surface);color:var(--muted);border-color:var(--line);box-shadow:none;cursor:not-allowed}
+.dl-btn:disabled,.dl-btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
 
 /* Project care: the existing lists, decisions and conversations at both widths. */
 body:has(> .dl-care){margin:0;background:var(--paper)}

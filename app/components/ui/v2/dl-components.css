@@ -1652,6 +1652,11 @@ a.dl-item:hover {
     display: flex;
   }
 }
+.dl-btn:disabled,
+.dl-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .dl-chev {
   color: var(--ds-muted);
   flex: none;
