@@ -2902,6 +2902,14 @@
       "h": 900,
       "title": "Design review on the canvas: changed frames marked, a checkbox on each",
       "expand": "fill"
+    },
+    "DesignReviewCanvasApproved.html": {
+      "x": 9764,
+      "y": 56580,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — approved and on main, built when you ask",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3290,7 +3298,8 @@
     "AppLogsEmptyPhone.html",
     "AppLogsErrorPhone.html",
     "AppSettingsPhone.html",
-    "DesignReviewCanvas.html"
+    "DesignReviewCanvas.html",
+    "DesignReviewCanvasApproved.html"
   ],
   "notes": {
     "intro": {
@@ -4604,7 +4613,7 @@
       "w": 560,
       "x": 6640,
       "y": 63060,
-      "text": "Closing the loop on an approved design. When the design lands on main its build starts: the proposer’s task is told to build it, or a Build task starts when a person proposed it.\n• A task linked to an approved design gets an Approved design check on its Checks tab: Matches the approved design. Until the builder reports, the header reads Design not checked, Merge and release is off, and More offers Merge without the design check.\n• The builder renders each changed board, captures the app at the same widths and reports matches or differs. Matches turns the check green and the task can read Ready to merge. Compare opens the pairs.\n• Differs brings one item to Waiting on you with the design and the app side by side at the width that differs, what differs and why. Fix the app sends it back to the same task. Keep it and update the design passes the check as Kept and has the builder change the board in the same task to match the app; that answer is its approval, and the board lands with the merge. No third choice; Open the task is a link.\n• A task with no approved design shows none of this."
+      "text": "Closing the loop on an approved design. Approving a design puts it on main and starts nothing; you ask for the build from the approved review on the canvas or in the proposer’s chat (see build-on-ask).\n• A task linked to an approved design gets an Approved design check on its Checks tab: Matches the approved design. Until the builder reports, the header reads Design not checked, Merge and release is off, and More offers Merge without the design check.\n• The builder renders each changed board, captures the app at the same widths and reports matches or differs. Matches turns the check green and the task can read Ready to merge. Compare opens the pairs.\n• Differs brings one item to Waiting on you with the design and the app side by side at the width that differs, what differs and why. Fix the app sends it back to the same task. Keep it and update the design passes the check as Kept and has the builder change the board in the same task to match the app; that answer is its approval, and the board lands with the merge. No third choice; Open the task is a link.\n• A task with no approved design shows none of this."
     },
     "sidebar-quiet": {
       "fill": "purple",
@@ -4703,6 +4712,13 @@
       "x": 11244,
       "y": 55600,
       "text": "For approval: a review happens on the canvas\n\nReviewing a design opens the Design canvas on the proposal’s branch, not a separate review surface. Same frames, same panels, same tools.\n\n• Changed and new frames stay at full strength, tagged Changed or New, with the changed areas marked on them. Everything else is dimmed. Before and After switches what the frames show.\n• Each changed frame has a checkbox beside its name. Ticking it approves that frame. The bar counts them: 1 of 3 approved.\n• The arrows in the tool bar, and ← →, move to the previous and next changed frame and zoom to it. Space ticks the frame you are on.\n• Because it is the canvas, a reviewer can do more than write: comment on a layer, draw, or edit the frame. Those land on the branch as suggestions for the proposer.\n• Links on a frame work as they do everywhere on the canvas, and the frame they open is right there beside it. There is nothing to go back from.\n• Changes on this branch, in the right panel, is the list of what changed. The review’s own list, viewer and dock go away, and so does their code.\n• Approve design is available at any time; unticked frames are named before it goes through. Ask for changes sends the comments, drawings and edits.\n\nThis replaces the DesignReview boards on web once approved; they stay on the canvas until then. iPhone keeps its pager."
+    },
+    "build-on-ask": {
+      "fill": "purple",
+      "w": 440,
+      "x": 11244,
+      "y": 56580,
+      "text": "Approving a design does not start a build\n\nApproving puts the design on main and stops there. No task starts on its own.\n\nThe canvas stays on the review, now approved: every changed frame ticked, and the bar reads Approved · on main as <commit> · not built yet. Ask for changes and Approve design give way to one button: Build.\n\n• Build does the usual thing: it carries on in the task that proposed the design, so that conversation builds it. The approval also shows in that chat, where saying “build it” or pressing Build does the same.\n• The arrow beside it chooses where: In <proposer>’s task, or In a new task. The choice is remembered for the next design. A design a person proposed has no task to carry on in, so Build starts a new task and there is no arrow.\n• Nothing is timed. Build is there today or next week.\n\nOnce a task is building it the bar names who and links the task in place of “not built yet”, and the buttons go. The design check on that task works as before (design-build-check): the app is compared with the approved boards before it can merge.\n\nThis replaces “When the design lands on main its build starts” in design-build-check. iPhone: the approved page says Not built yet; building is started from web or the chat."
     }
   },
   "starts": {}
