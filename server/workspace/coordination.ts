@@ -267,6 +267,19 @@ export function jobSnapshot(job: any) {
   if (output.length <= limit) return job;
   return { ...job, output: output.slice(-limit), outputTruncated: true };
 }
+/**
+ * Jobs in one state, oldest first. Every worker polls once a second; reading only the queued or
+ * running jobs keeps a poll from parsing every finished job's record and output each time.
+ */
+function jobsWithStatus(owner: string, status: string): any[] {
+  return (
+    db
+      .prepare(
+        "SELECT data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.status')=? ORDER BY rowid",
+      )
+      .all(owner, status) as { data: string }[]
+  ).map((row) => JSON.parse(row.data));
+}
 export function coordinationTool(scope: AgentScope, name: string, args: any) {
   const { owner, taskId, runId } = scope;
   if (name === 'deploy_list_computers') return { computers: computers(owner) };
@@ -484,9 +497,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
       }
       if (action === 'poll') {
         // An old in-flight job is never reassigned automatically after a restart.
-        for (const job of list('job', owner).filter(
-          (j) => j.workerId === workerId && j.status === 'running',
-        )) {
+        for (const job of jobsWithStatus(owner, 'running').filter((j) => j.workerId === workerId)) {
           if (job.instanceId === body.instanceId) return jobAssignment(owner, workerId, job);
           save('job', owner, {
             ...job,
@@ -499,9 +510,8 @@ export function jobCommand(owner: string, workerId: string, action: string, body
         }
         if (!workerRole(owner, workerId, 'take-tasks')) return { job: null };
         const computer = computers(owner).find((candidate) => candidate.id === workerId);
-        const pending = list('job', owner).find(
+        const pending = jobsWithStatus(owner, 'queued').find(
           (j) =>
-            j.status === 'queued' &&
             !j.stopRequested &&
             (j.workerId === workerId || (!j.workerId && j.requirements)) &&
             computer &&
