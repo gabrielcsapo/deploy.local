@@ -1,5 +1,5 @@
 import type { RouteConfig } from 'react-flight-router/router';
-import { pullRoutes } from '../tasks/routes';
+import { pullRoutes } from '../tasks/routes.ts';
 import { releasesRoutes } from '../releases/routes';
 
 export const projectSectionRoutes: RouteConfig[] = [
