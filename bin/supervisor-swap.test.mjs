@@ -206,7 +206,7 @@ test('a helper the manager never executes fails its queued receipt and is not re
   const f = fixture(t, 'linux');
   await scheduleSupervisorSwap(f.options);
   const path = join(f.root, 'supervisor-swap.json');
-  atomicJson(path, { ...JSON.parse(readFileSync(path)), at: Date.now() - 61000 });
+  atomicJson(path, { ...JSON.parse(readFileSync(path)), at: Date.now() - 301_000 });
   assert.equal(supervisorSwapReceipt(f.root).state, 'failed');
   assert.equal(await scheduleSupervisorSwap(f.options), false);
 });

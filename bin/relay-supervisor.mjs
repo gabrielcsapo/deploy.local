@@ -7,7 +7,12 @@ export function superviseRelays({
   executable,
   args = ['agent', 'relay'],
   path,
-  startupMs = 5_000,
+  // A relay process is the path traffic takes, so it is given time and never killed for being
+  // slow. On 2026-11-12 the iMac's disk was busy, a sync took over 5 s, and the old 5 s limits
+  // killed a relay that was forwarding Forma perfectly well; its replacement then could not
+  // start within 5 s either, and Forma was down for 11 minutes.
+  startupMs = 120_000,
+  requestMs = 20_000,
   retryMs = 250,
   maxRetryMs = 5_000,
   killGraceMs = 1_000,
@@ -109,16 +114,26 @@ export function superviseRelays({
       const timer = setTimeout(() => {
         pending.delete(id);
         resolve(null);
-      }, startupMs);
+      }, requestMs);
       pending.set(id, { resolve, timer });
       send(child, { type: 'relay-sync', protocol: RELAY_PROTOCOL, id });
     });
   }
   async function handle(message, worker) {
+    const alive = () => !!child && ready;
+    const busy = () =>
+      send(worker, {
+        type: 'relay-result',
+        id: message.id,
+        error: 'The relay process did not answer in time; its relays are left as they are',
+      });
     let result = await request();
+    // Slow but running: it is still forwarding. Leave it alone; the worker asks again next pass.
+    if (!result && alive() && !stopped && !exited.has(worker)) return busy();
     // A crash during a request is recoverable: replay the desired file after a restart.
     if (!result && !stopped && !fallback && !exited.has(worker)) result = await request();
     if (stopped || exited.has(worker)) return;
+    if (!result && alive()) return busy();
     if (!result) {
       // Grant in-process ownership only after all remote listeners are gone. Suspend retries
       // while this worker owns sockets; its next replacement can try the relay process again.

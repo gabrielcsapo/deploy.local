@@ -20,7 +20,7 @@ import {
   restartWorkerService,
 } from './agent-services.mjs';
 
-export const SUPERVISOR_STARTUP_MS = 60_000;
+export const SUPERVISOR_STARTUP_MS = 300_000;
 const SIGN_MS = 10 * 60_000;
 export const launcherCapable = (info) =>
   Number.isSafeInteger((info?.executable || info)?.launcherProtocol) &&

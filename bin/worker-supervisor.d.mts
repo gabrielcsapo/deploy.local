@@ -28,4 +28,5 @@ export function superviseWorker(input: {
   onUpdated?: (receipt: any) => void | Promise<void>;
   previous?: string;
   afterInstall?: (executable: string) => void | Promise<void>;
+  beforeWorker?: () => void | Promise<void>;
 }): Promise<void>;

@@ -57,7 +57,9 @@ export async function superviseWorker({
   executableProtocol = globalThis.deployLauncherBuild?.launcherProtocol,
   version,
   stableMs = 30_000,
-  startupMs = 60_000,
+  // Five minutes: on a slow disk the iMac's worker needed more than the old 60 s, was judged
+  // failed, and the rollback started the chain that took its relays down.
+  startupMs = 300_000,
   heartbeatMs = 120_000,
   watchdogIntervalMs = 10_000,
   killGraceMs = 10_000,
@@ -77,6 +79,9 @@ export async function superviseWorker({
   // macOS re-seals the worker app here. Sealing rewrites the signature bytes, so `previousDigest`
   // is always taken from the sealed build an update replaces, and `previous` keeps those bytes.
   afterInstall = () => {},
+  // Runs after the relays are up and before the first worker starts (macOS checks the app's
+  // seal here). It can be slow or fail; neither may stop relays or the worker from starting.
+  beforeWorker = async () => {},
 }) {
   let child,
     stopping = false,
@@ -114,7 +119,13 @@ export async function superviseWorker({
   if (receipt && ['staging', 'starting'].includes(receipt.state))
     await restore('Update interrupted before startup was confirmed; restored the previous build.');
   const relays = relay ? superviseRelays({ ...relay, log }) : null;
+  // Relays first: nothing that can stall comes before the path traffic takes.
   if (!signal?.aborted) await relays?.start();
+  try {
+    if (!signal?.aborted) await beforeWorker();
+  } catch (error) {
+    log(`Start-up check did not finish; starting the worker anyway: ${error.message || error}`);
+  }
   return new Promise((resolve, reject) => {
     const finish = async (error) => {
       await relays?.stop();

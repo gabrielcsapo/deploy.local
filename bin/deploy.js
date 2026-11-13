@@ -2328,7 +2328,6 @@ async function cmdAgentRun() {
       installed && paths.app
         ? () => sealWorkerBundle(paths.app, { signSupervisor: false })
         : undefined;
-    if (seal) await sealWorkerBundle(paths.app, { signSupervisor: false, ifNeeded: true });
     const controller = new AbortController();
     for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => controller.abort());
     await superviseWorker({
@@ -2337,6 +2336,11 @@ async function cmdAgentRun() {
       relay: { executable: process.execPath, path: agentRelayStatePath() },
       previous: installed ? paths.previous : undefined,
       afterInstall: seal,
+      // After the relays are up: this check waited ten minutes on a busy disk and, as the
+      // first thing the supervisor did, kept the relays from ever starting.
+      beforeWorker: seal
+        ? () => sealWorkerBundle(paths.app, { signSupervisor: false, ifNeeded: true })
+        : undefined,
       root: process.env.DEPLOY_DATA_DIR,
       agentDir,
       version: BUILD_INFO.version,

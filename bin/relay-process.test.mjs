@@ -12,7 +12,8 @@ import { createHash } from 'node:crypto';
 import { createRelayController, relayRequest } from './relay-client.mjs';
 import { spawn } from 'node:child_process';
 import { bundleCli } from '../scripts/build-cli.mjs';
-import { closeRelay, readRelayState, writeRelayState } from './relay-process.mjs';
+import { RELAY_PROTOCOL, closeRelay, readRelayState, writeRelayState } from './relay-process.mjs';
+import { superviseRelays } from './relay-supervisor.mjs';
 
 async function waitFor(check) {
   for (let i = 0; i < 500; i++) {
@@ -521,3 +522,44 @@ WORKER
     assert.equal(readFileSync(join(root, 'heartbeat'), 'utf8'), 'new');
   },
 );
+
+test('a relay process that is slow to answer is left running, never killed or replaced', async (t) => {
+  // The iMac on 2026-11-12: its disk was busy, a sync took longer than the 5 s limit, and the
+  // supervisor killed a relay process that was forwarding Forma. Its replacement could not
+  // start within 5 s either. Forma was down for 11 minutes.
+  const root = mkdtempSync(join(tmpdir(), 'relay-slow-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const script = join(root, 'slow-relay.mjs');
+  // Reports ready, then never answers a sync: forwarding fine, control channel stalled.
+  writeFileSync(
+    script,
+    `import { writeFileSync } from 'node:fs';
+writeFileSync(${JSON.stringify(join(root, 'pid'))}, String(process.pid));
+process.send({ type: 'relay-ready', protocol: ${RELAY_PROTOCOL} });
+process.on('message', () => {});
+setInterval(() => {}, 1000);`,
+  );
+  const logs = [];
+  const relays = superviseRelays({
+    executable: process.execPath,
+    args: [script],
+    path: join(root, 'relays.json'),
+    requestMs: 150,
+    log: (line) => logs.push(line),
+  });
+  t.after(() => relays.stop());
+  assert.equal(await relays.start(), true);
+  const pid = Number(readFileSync(join(root, 'pid'), 'utf8'));
+  const replies = [];
+  const worker = { connected: true, send: (message) => replies.push(message) };
+  for (let i = 0; i < 3; i++)
+    await relays.handle({ type: 'relay-sync', protocol: RELAY_PROTOCOL, id: `sync-${i}` }, worker);
+  assert.equal(replies.length, 3);
+  for (const reply of replies) {
+    assert.match(reply.error, /left as they are/);
+    assert.equal(reply.unavailable, undefined, 'the worker is never told to take the relays over');
+  }
+  assert.doesNotThrow(() => process.kill(pid, 0), 'the same relay process is still running');
+  assert.equal(Number(readFileSync(join(root, 'pid'), 'utf8')), pid);
+  assert.equal(logs.filter((line) => line.includes('Relay process exited')).length, 0);
+});

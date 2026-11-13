@@ -425,3 +425,45 @@ test('a child exit during installation cannot start the candidate before rollbac
   await waitFor(() => workerUpdateReceipt(root)?.state === 'failed');
   assert.deepEqual(readFileSync(executable), old);
 });
+
+test('relays start before the start-up check, and a check that fails does not stop the worker', async () => {
+  // The supervisor used to check the app's seal first. On a busy disk that check waited ten
+  // minutes and timed out, the supervisor quit, and relays never started.
+  const root = mkdtempSync(join(tmpdir(), 'worker-order-'));
+  const executable = join(root, 'deploy-worker');
+  writeFileSync(executable, binary(root, 'old'), { mode: 0o755 });
+  writeFileSync(join(root, 'requested'), '1');
+  const relayScript = join(root, 'relay.mjs');
+  writeFileSync(
+    relayScript,
+    `import { writeFileSync } from 'node:fs';
+writeFileSync(${JSON.stringify(join(root, 'relay-started'))}, '1');
+process.send({ type: 'relay-ready', protocol: 1 });
+setInterval(() => {}, 1000);`,
+  );
+  const order = [];
+  const logs = [];
+  const controller = new AbortController();
+  const done = superviseWorker({
+    executable,
+    relay: { executable: process.execPath, args: [relayScript], path: join(root, 'relays.json') },
+    root,
+    version: 'old',
+    signal: controller.signal,
+    log: (line) => logs.push(line),
+    beforeWorker: async () => {
+      order.push(existsSync(join(root, 'relay-started')) ? 'check after relays' : 'check first');
+      order.push(existsSync(join(root, 'started-old')) ? 'worker first' : 'check before worker');
+      throw new Error('codesign --verify did not answer in 600 s (timed out)');
+    },
+  });
+  try {
+    await waitFor(() => existsSync(join(root, 'started-old')));
+    assert.deepEqual(order, ['check after relays', 'check before worker']);
+    assert.ok(logs.some((line) => /starting the worker anyway/.test(line)));
+  } finally {
+    controller.abort();
+    await done.catch(() => {});
+    rmSync(root, { recursive: true, force: true });
+  }
+});
