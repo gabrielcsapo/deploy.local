@@ -114,9 +114,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dl-nav .dl-t {
-  min-width: 0;
-}
 .dl-nav .dl-t > span {
   display: block;
   overflow: hidden;
@@ -142,20 +139,9 @@
   flex-direction: column;
   gap: 8px;
 }
-.dl-list-note {
-  margin: 0;
-  color: var(--ds-tertiary);
-  font-size: var(--ds-type-meta);
-  line-height: 1.5;
-}
 .dl-list .dl-item {
-  min-height: 52px;
-  padding: 12px 16px;
   width: 100%;
   text-align: left;
-}
-.dl-list .dl-item:has(.dl-t > span + span) {
-  min-height: 64px;
 }
 .dl-list .dl-t > span {
   white-space: normal;
@@ -168,7 +154,6 @@
     grid-template-columns: repeat(7, 1fr);
   }
 }
-
 .dl-composer {
   position: relative;
 }
@@ -202,7 +187,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .dl-agent-new-dialog {
   max-width: 420px;
 }
@@ -218,7 +202,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .dl-nav:has(.dl-agent-avatar) {
   height: auto;
   min-height: 52px;
@@ -230,7 +213,6 @@
   width: 28px;
   flex: none;
 }
-
 .dl-list > .dl-group-head:has(.dl-section-title) {
   padding: 0;
   border: 0;

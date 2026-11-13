@@ -12,6 +12,7 @@ import { readCapture, type CaptureRecord } from '../capture.ts';
 import { list } from '../workspace/store.ts';
 import { fail } from '../errors.ts';
 import type { Release } from '../../shared/v2/contracts.ts';
+import { dispatch, routes } from '../routes.ts';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -462,18 +463,22 @@ export async function requestDetail(owner: string, name: string, id: number, now
   };
 }
 
-export async function requestsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const url = new URL(req.url!, 'http://localhost');
-  const route = url.pathname.match(/^\/api\/v2\/apps\/([^/]+)\/requests(?:\/(summary|\d+))?$/);
-  if (!route) return false;
-  if (req.method !== 'GET') fail('Method not allowed', 405);
-  const name = decodeURIComponent(route[1]);
+const route = routes<string>();
+
+async function requestsRoute(
+  res: ServerResponse,
+  url: URL,
+  owner: string,
+  app: string,
+  which: string | undefined,
+) {
+  const name = decodeURIComponent(app);
   const range = rangeOf(url.searchParams.get('range'));
   const value =
-    route[2] === 'summary'
+    which === 'summary'
       ? await requestSummary(owner, name, range)
-      : route[2]
-        ? await requestDetail(owner, name, Number(route[2]))
+      : which
+        ? await requestDetail(owner, name, Number(which))
         : requestList(owner, name, {
             range,
             path: url.searchParams.get('path') ?? undefined,
@@ -482,5 +487,33 @@ export async function requestsApi(req: IncomingMessage, res: ServerResponse, own
           });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(value));
-  return true;
+}
+
+const methodNotAllowed = () => fail('Method not allowed', 405);
+
+export const requestsRoutes = [
+  route({
+    method: 'GET',
+    path: '/api/v2/apps/:app/requests',
+    handler: ({ res, url, params, context }) =>
+      requestsRoute(res, url, context, params.app, undefined),
+  }),
+  route({
+    method: 'GET',
+    path: '/api/v2/apps/:app/requests/:which(summary|\\d+)',
+    handler: ({ res, url, params, context }) =>
+      requestsRoute(res, url, context, params.app, params.which),
+  }),
+  route({ method: '*', path: '/api/v2/apps/:app/requests', handler: methodNotAllowed }),
+  route({
+    method: '*',
+    path: '/api/v2/apps/:app/requests/:which(summary|\\d+)',
+    handler: methodNotAllowed,
+  }),
+];
+
+const requestsDispatch = dispatch(requestsRoutes);
+
+export async function requestsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
+  return requestsDispatch(req, res, owner);
 }
