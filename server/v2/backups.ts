@@ -55,6 +55,7 @@ import {
   type ReleaseRuntime,
 } from './releases.ts';
 import { CoordinatorReleaseRuntime } from './releases-runtime.ts';
+import { dispatch, routes } from '../routes.ts';
 
 type BackupEntry = {
   name: string;
@@ -817,49 +818,88 @@ export async function backupsApi(
   owner: string,
   operations = service,
 ): Promise<boolean> {
-  const path = new URL(req.url!, 'http://localhost').pathname;
-  if (!path.startsWith('/api/v2/backups')) return false;
-  const send = (value: unknown, status = 200) => sendJson(res, value, status);
   try {
-    if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
-      return send({ error: 'Only a signed-in person can restore backups' }, 403);
-    if (path === '/api/v2/backups' && req.method === 'GET')
-      return send(await operations.listing(owner));
-    if (path === '/api/v2/backups/run' && req.method === 'POST') {
-      if (!isAdmin(owner))
-        return send({ error: 'Only the owner can back up the coordinator' }, 403);
-      const result = await maintenance.runBackup();
-      return send(result, result.success ? 200 : 409);
-    }
-    const route = path.match(
-      /^\/api\/v2\/backups\/([^/]+)\/(restore|test)(?:\/([^/]+)\/(switch|cancel))?$/,
-    );
-    if (!route) return send({ error: 'Not found' }, 404);
-    if (req.method !== 'POST') return send({ error: 'Method not allowed' }, 405);
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-      size += chunk.length;
-      if (size > 16_384) {
-        req.resume();
-        fail('Request body too large', 413);
-      }
-      chunks.push(Buffer.from(chunk));
-    }
-    const body = size ? JSON.parse(Buffer.concat(chunks).toString()) : {};
-    const backupId = decodeURIComponent(route[1]);
-    if (route[2] === 'test' && !route[3])
-      return send(await operations.test(owner, backupId, body.passphrase));
-    if (route[2] !== 'restore') return send({ error: 'Not found' }, 404);
-    if (!route[3]) return send({ restore: await operations.restore(owner, backupId) }, 201);
-    const restoreId = decodeURIComponent(route[3]);
-    if (route[4] === 'switch')
-      return send(
-        { restore: await operations.switch(owner, backupId, restoreId, body.confirm) },
-        202,
-      );
-    return send({ restore: await operations.cancel(owner, backupId, restoreId) });
+    return await backupsDispatch(req, res, { owner, operations });
   } catch (error: any) {
-    return send({ error: error.message }, error.status || 400);
+    return sendJson(res, { error: error.message }, error.status || 400);
   }
+}
+
+interface BackupsContext {
+  owner: string;
+  operations: BackupService;
+}
+
+const route = routes<BackupsContext>();
+
+export const backupsRoutes = [
+  route({
+    method: 'GET',
+    path: '/api/v2/backups',
+    handler: async ({ res, context }) =>
+      sendJson(res, await context.operations.listing(context.owner)),
+  }),
+  route({
+    method: 'POST',
+    path: '/api/v2/backups/run',
+    handler: async ({ res, context }) => {
+      if (!isAdmin(context.owner))
+        return sendJson(res, { error: 'Only the owner can back up the coordinator' }, 403);
+      const result = await maintenance.runBackup();
+      return sendJson(res, result, result.success ? 200 : 409);
+    },
+  }),
+  route({
+    method: '*',
+    path: '/api/v2/backups/:backup/:action(restore|test)',
+    handler: ({ req, res, params, context }) =>
+      backupRoute(req, res, context, [params.backup, params.action]),
+  }),
+  route({
+    method: '*',
+    path: '/api/v2/backups/:backup/:action(restore|test)/:restore/:step(switch|cancel)',
+    handler: ({ req, res, params, context }) =>
+      backupRoute(req, res, context, [params.backup, params.action, params.restore, params.step]),
+  }),
+];
+
+const backupsDispatch = dispatch(backupsRoutes, {
+  scope: '/api/v2/backups',
+  before: ({ req, res }) =>
+    !!(req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token']) &&
+    sendJson(res, { error: 'Only a signed-in person can restore backups' }, 403),
+  notFound: ({ res }) => sendJson(res, { error: 'Not found' }, 404),
+});
+
+async function backupRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  { owner, operations }: BackupsContext,
+  route: [backup: string, action: string, restore?: string, step?: string],
+) {
+  const send = (value: unknown, status = 200) => sendJson(res, value, status);
+  if (req.method !== 'POST') return send({ error: 'Method not allowed' }, 405);
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+    size += chunk.length;
+    if (size > 16_384) {
+      req.resume();
+      fail('Request body too large', 413);
+    }
+    chunks.push(Buffer.from(chunk));
+  }
+  const body = size ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+  const backupId = decodeURIComponent(route[0]);
+  if (route[1] === 'test' && !route[2])
+    return send(await operations.test(owner, backupId, body.passphrase));
+  if (route[1] !== 'restore') return send({ error: 'Not found' }, 404);
+  if (!route[2]) return send({ restore: await operations.restore(owner, backupId) }, 201);
+  const restoreId = decodeURIComponent(route[2]);
+  if (route[3] === 'switch')
+    return send(
+      { restore: await operations.switch(owner, backupId, restoreId, body.confirm) },
+      202,
+    );
+  return send({ restore: await operations.cancel(owner, backupId, restoreId) });
 }

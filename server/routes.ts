@@ -3,9 +3,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 /**
  * A feature's HTTP routes as a table: method, path pattern, optional input parsing and a handler.
  *
- * Patterns are literal paths with `:name` for one segment (`[^/]+`) and `:name*` for one or more
- * segments (`.+?`). Parameters arrive raw, exactly as they appear in the path, so a handler decodes
- * them where it needs to and a bad escape fails where it always did.
+ * Patterns are literal paths with `:name` for one segment (`[^/]+`), `:name(a|b|\\d+)` for one
+ * segment that must match that expression (no capturing groups, no `/`), and `:name*` for one or
+ * more segments (`.+?`). Parameters arrive raw, exactly as they appear in the path, so a handler
+ * decodes them where it needs to and a bad escape fails where it always did.
  *
  * Routes are tried in order. A handler writes its own response; returning `false` means "not
  * mine" and dispatch goes on to the next route. Method `'*'` matches any method, which is how a
@@ -15,9 +16,11 @@ export type Method = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPT
 
 type SegmentParam<S extends string> = S extends `:${infer Name}*`
   ? { [K in Name]: string }
-  : S extends `:${infer Name}`
+  : S extends `:${infer Name}(${string})`
     ? { [K in Name]: string }
-    : {};
+    : S extends `:${infer Name}`
+      ? { [K in Name]: string }
+      : {};
 
 /** `'/a/:id/files/:rest*'` → `{ id: string; rest: string }`. */
 export type PathParams<P extends string> = P extends `${infer Head}/${infer Tail}`
@@ -59,10 +62,11 @@ export function compilePath(pattern: string) {
   const source = pattern
     .split('/')
     .map((segment) => {
-      const param = segment.match(/^:([A-Za-z_][A-Za-z0-9_]*)(\*)?$/);
+      const param = segment.match(/^:([A-Za-z_][A-Za-z0-9_]*)(?:\((.+)\)|(\*))?$/);
       if (!param) return escape(segment);
       names.push(param[1]);
-      return param[2] ? '(.+?)' : '([^/]+)';
+      if (param[2]) return `((?:${param[2]}))`;
+      return param[3] ? '(.+?)' : '([^/]+)';
     })
     .join('/');
   const regex = new RegExp(`^${source}$`);
@@ -101,6 +105,11 @@ export interface DispatchOptions<C> {
   scope?: string | RegExp | ((path: string) => boolean);
   /** The path routes match against. Defaults to the URL's pathname. */
   path?: (url: URL, req: IncomingMessage) => string;
+  /**
+   * Runs once a request is in scope, before any route. Returning true means it answered the
+   * request itself (a credential check, say) and no route runs.
+   */
+  before?: (request: RouteRequest<C, {}, undefined>) => unknown;
   /** Runs when the request is in scope but no route took it. Without it, dispatch returns false. */
   notFound?: (request: RouteRequest<C, {}, undefined>) => unknown;
 }
@@ -122,6 +131,12 @@ export function dispatch<C>(table: readonly Route<C>[], options: DispatchOptions
     const url = new URL(req.url!, 'http://localhost');
     const path = options.path ? options.path(url, req) : url.pathname;
     if (!inScope(path)) return false;
+    if (
+      options.before &&
+      (await options.before({ req, res, url, path, params: {}, input: undefined, context })) ===
+        true
+    )
+      return true;
     for (const route of table) {
       if (!allows(route.method, req.method)) continue;
       const params = route.match(path);

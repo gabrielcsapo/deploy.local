@@ -7,6 +7,7 @@ import { compileDeployYaml } from '../application-spec.ts';
 import { repositorySource } from '../workspace/repositories.ts';
 import { gitText } from '../workspace/repository-git.ts';
 import { fail } from '../errors.ts';
+import { dispatch, routes } from '../routes.ts';
 
 export type RepositoryPreview = {
   found: { name: string; detail: string }[];
@@ -71,9 +72,28 @@ export async function inspectRepository(sourcePath: unknown): Promise<Repository
   }
 }
 
-export async function startApi(req: IncomingMessage, res: ServerResponse, _owner: string) {
-  if (new URL(req.url!, 'http://localhost').pathname !== '/api/v2/start/inspect') return false;
-  if (req.method !== 'POST') fail('Method not allowed', 405);
+const route = routes<string>();
+
+export const startRoutes = [
+  route({
+    method: 'POST',
+    path: '/api/v2/start/inspect',
+    handler: ({ req, res }) => inspectRoute(req, res),
+  }),
+  route({
+    method: '*',
+    path: '/api/v2/start/inspect',
+    handler: () => fail('Method not allowed', 405),
+  }),
+];
+
+const startDispatch = dispatch(startRoutes);
+
+export async function startApi(req: IncomingMessage, res: ServerResponse, owner: string) {
+  return startDispatch(req, res, owner);
+}
+
+async function inspectRoute(req: IncomingMessage, res: ServerResponse) {
   const chunks: Buffer[] = [];
   let bytes = 0;
   for await (const chunk of req.iterator({ destroyOnReturn: false })) {
