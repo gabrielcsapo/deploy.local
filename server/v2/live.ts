@@ -1,3 +1,4 @@
+import { appMeasurements } from './measurements.ts';
 import { dispatch, routes } from '../routes.ts';
 import { stateRefresh } from './state-refresh.ts';
 import { projectsForOwner } from './projects.ts';
@@ -301,6 +302,7 @@ async function collectLive(owner: string): Promise<LiveResponse> {
     );
     const app: LiveApp = {
       ...health,
+      ...appMeasurements(deployment, now, metrics),
       name: deployment.name,
       project: names.get(deployment.name) ?? `app:${deployment.name}`,
       ...(kind === 'web' && deployment.port ? { address: `https://${deployment.name}.local` } : {}),

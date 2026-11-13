@@ -535,7 +535,7 @@ function Detail({ computer, refresh }: { computer: Computer; refresh: () => void
         {[
           {
             name: 'CPU',
-            value: computer.cpu === undefined ? 'Unavailable' : `${computer.cpu}%`,
+            value: computer.cpu === undefined ? 'Not measured' : `${computer.cpu}%`,
             percent: computer.cpu,
           },
           ...(['memory', 'disk'] as const).map((key) => ({
@@ -544,7 +544,7 @@ function Detail({ computer, refresh }: { computer: Computer; refresh: () => void
               ? computer[key].used === undefined
                 ? `${gb(computer[key].total)} GB total`
                 : `${gb(computer[key].used!)} of ${gb(computer[key].total)} GB`
-              : 'Unavailable',
+              : 'Not measured',
             percent:
               computer[key]?.used !== undefined && computer[key]!.total
                 ? (computer[key]!.used! / computer[key]!.total) * 100
@@ -554,6 +554,11 @@ function Detail({ computer, refresh }: { computer: Computer; refresh: () => void
           <div key={metric.name} className="computers-metric">
             <span className="dl-meta">{metric.name}</span>
             <span className="dl-title">{metric.value}</span>
+            {metric.value === 'Not measured' && (
+              <span className="dl-meta">
+                This computer has not reported {metric.name.toLowerCase()} usage
+              </span>
+            )}
             {metric.percent !== undefined && (
               <progress max={100} value={metric.percent} aria-label={metric.name} />
             )}

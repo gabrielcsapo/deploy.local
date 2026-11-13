@@ -10,6 +10,7 @@ import {
   Glyph,
   Group,
   Head,
+  Icon,
   IconButton,
   Item,
 } from '@/components/ui';
@@ -165,7 +166,26 @@ function InstallApp() {
   const resources = Object.entries(blueprint?.application?.resources || {}) as [string, any][];
   return (
     <>
-      <Head title="Discover" subtitle={release?.name} />
+      <Head
+        menu={
+          <IconButton
+            icon="menu"
+            label="Show sidebar"
+            className="dl-menu-btn"
+            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+          />
+        }
+        title={
+          <nav className="dl-crumbs" aria-label="Breadcrumb">
+            <a className="dl-crumb" href="/dashboard/projects">
+              Projects
+            </a>
+            <Icon name="chevron" size={14} className="dl-crumb-sep" />
+            <span aria-current="page">Discover</span>
+          </nav>
+        }
+        subtitle={release?.name}
+      />
       <div className="dl-page v2-start-page v2-install-page">
         {result ? (
           <>

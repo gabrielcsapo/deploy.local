@@ -25,12 +25,12 @@ export const tasksRoutes: RouteConfig[] = [
 export const pullRoutes: RouteConfig[] = [
   {
     id: 'v2-projects-p-pulls',
-    path: 'projects/:p/pulls',
+    path: 'pulls',
     component: () => import('./pulls.js'),
   },
   {
     id: 'v2-projects-p-pulls-id',
-    path: 'projects/:p/pulls/:id',
+    path: 'pulls/:id',
     component: () => import('./pulls.js'),
   },
 ];

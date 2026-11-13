@@ -59,7 +59,8 @@ test('missing, legacy and partial timings do not become invented zero phases', (
   assert.deepEqual(serverSegments({ match: phases.match, render: { p50: 20, p95: 40 } }), []);
   assert.deepEqual(serverSegments({ ...phases, ssr: { p50: null, p95: null } }), []);
   assert.deepEqual(serverSegments({ ...phases, stream: { p50: 10, p95: 2 } }), []);
-  assert.equal(timing(null), 'Unavailable');
+  assert.equal(timing(null), 'Not measured · Timing was not recorded');
+  assert.equal(timing(null, 0), '— · No requests to time');
   assert.equal(timing(0), '0 ms');
   assert.equal(timing(0.1), '0.1 ms');
   assert.equal(timing(0.01), 'under 0.1 ms');

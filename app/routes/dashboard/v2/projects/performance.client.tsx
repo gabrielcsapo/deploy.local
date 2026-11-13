@@ -105,8 +105,8 @@ function RouteRow({ route, scale }: { route: PerformanceRoute; scale: number }) 
           <span>
             {formatCount(route.requests)} {route.requests === 1 ? 'request' : 'requests'}
           </span>
-          <span>p50 {timing(route.p50)}</span>
-          <span>p95 {timing(route.p95)}</span>
+          <span>p50 {timing(route.p50, route.requests)}</span>
+          <span>p95 {timing(route.p95, route.requests)}</span>
           <span>{percent(route.errorRate)} errors</span>
         </span>
         {segments.length > 0 && (
@@ -115,7 +115,7 @@ function RouteRow({ route, scale }: { route: PerformanceRoute; scale: number }) 
               segments={segments}
               scale={scale}
               marker={route.p95}
-              label={`${route.route}: ${segments.map((part) => `${part.label} ${timing(part.p50)}`).join(', ')}; route p95 ${timing(route.p95)}, scale 0 to ${timing(scale)}`}
+              label={`${route.route}: ${segments.map((part) => `${part.label} ${timing(part.p50)}`).join(', ')}; route p95 ${timing(route.p95, route.requests)}, scale 0 to ${timing(scale)}`}
             />
           </span>
         )}
@@ -172,7 +172,7 @@ function Rating({
   const word = rating(metric, value);
   return (
     <span className={`perf-rating ${word?.toLowerCase().replace(' ', '-') ?? ''}`}>
-      {word ?? 'Unavailable'}
+      {word ?? 'Not measured · Browser did not report this metric'}
     </span>
   );
 }
@@ -217,7 +217,9 @@ function ExperienceMetrics({ page }: { page: PageExperience }) {
         description="Content moves unexpectedly"
         end={
           <>
-            {page.cls === null ? 'Unavailable' : Number(page.cls.toFixed(3))}
+            {page.cls === null
+              ? 'Not measured · Browser did not report layout shift'
+              : Number(page.cls.toFixed(3))}
             {page.cls !== null && (
               <>
                 {' '}
@@ -303,7 +305,9 @@ function PageExperiences({ data }: { data: PerformanceData }) {
                 <span>{page.route}</span>
                 <span>
                   Interaction delay {timing(page.inp)} · layout shift{' '}
-                  {page.cls === null ? 'Unavailable' : Number(page.cls.toFixed(3))}
+                  {page.cls === null
+                    ? 'Not measured · Browser did not report layout shift'
+                    : Number(page.cls.toFixed(3))}
                 </span>
               </span>
               <span className="dl-c">

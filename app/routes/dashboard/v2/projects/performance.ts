@@ -59,8 +59,9 @@ export function performanceHref(base: string, range: PerformanceRange, error?: s
 }
 
 /** Retain sub-ms phases and small, nonzero error rates instead of rounding them to zero. */
-export function timing(ms: number | null | undefined) {
-  if (ms == null || !Number.isFinite(ms) || ms < 0) return 'Unavailable';
+export function timing(ms: number | null | undefined, requests?: number) {
+  if (ms == null && requests === 0) return '— · No requests to time';
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return 'Not measured · Timing was not recorded';
   if (ms === 0) return '0 ms';
   if (ms < 0.1) return 'under 0.1 ms';
   if (ms < 10) return `${Number(ms.toFixed(1))} ms`;
@@ -68,7 +69,8 @@ export function timing(ms: number | null | undefined) {
   return `${Number((ms / 1000).toFixed(3))} s`;
 }
 export function percent(rate: number | null | undefined) {
-  if (rate == null || !Number.isFinite(rate) || rate < 0) return 'Unavailable';
+  if (rate == null || !Number.isFinite(rate) || rate < 0)
+    return 'Not measured · Rate was not recorded';
   if (rate > 0 && rate < 0.0001) return 'under 0.01%';
   return `${Number((rate * 100).toFixed(2))}%`;
 }
@@ -176,7 +178,7 @@ export function releaseVerdict(comparison: ReleaseComparison | null) {
 export function releaseEvidence(comparison: ReleaseComparison | null) {
   if (!comparison) return '';
   const { before, after, verdict } = comparison;
-  const latency = `p95 ${timing(before.p95)} → ${timing(after.p95)}`;
+  const latency = `p95 ${timing(before.p95, before.requests)} → ${timing(after.p95, after.requests)}`;
   const errors = `errors ${percent(before.errorRate)} → ${percent(after.errorRate)}`;
   if (verdict === 'more-errors') {
     const difference = Number(((after.errorRate - before.errorRate) * 100).toFixed(2));

@@ -9,12 +9,9 @@ import {
   Empty,
   Glyph,
   Group,
-  Head,
   Icon,
-  IconButton,
   Item,
   Skeleton,
-  Tabs,
   Term,
 } from '@/components/ui';
 import type {
@@ -25,8 +22,8 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, eventFeed } from '../data/hooks';
 import './releases.css';
-import { appTabItems, projectPath, projectTabItems } from '../projects/routing';
-import { useData, request as workspaceRequest, type Overview } from '../projects/data';
+import { projectPath } from '../projects/routing';
+import { request as workspaceRequest } from '../projects/data';
 import { formatTime } from '../data/time';
 import { missingVariable } from './presentation';
 
@@ -164,12 +161,7 @@ export default function Releases() {
   const [dataLoss, setDataLoss] = useState<RollbackDataLoss>();
   const [targetId, setTargetId] = useState('');
   const base = projectPath(projectKey);
-  const overview = useData<Overview>(`/api/v2/projects/${encodeURIComponent(projectKey)}/overview`);
   const selectedApp = project?.apps.find((app) => app.name === appKey || app.id === appKey);
-  const tabs =
-    selectedApp && project?.apps.length !== 1
-      ? appTabItems(base, selectedApp)
-      : projectTabItems(base, overview.data, releases?.length || 0);
   const appQuery = selectedApp ? `?app=${encodeURIComponent(selectedApp.name)}` : '';
   const apiProject = `/projects/${encodeURIComponent(projectKey)}`;
   useEffect(() => {
@@ -286,272 +278,241 @@ export default function Releases() {
   }
   return (
     <>
-      <Head
-        title={project?.name || projectKey}
-        subtitle="Project"
-        actions={
-          <>
-            <IconButton
-              icon="search"
-              label="Search projects"
-              onClick={() => window.location.assign('/dashboard/projects')}
-            />
-            <a className="dl-btn primary" href="/dashboard">
-              New task
-            </a>
-          </>
-        }
-        menu={
-          <IconButton
-            icon="menu"
-            label="Show sidebar"
-            className="dl-menu-btn"
-            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+      <div className="v2-releases-page">
+        {error && (
+          <Banner
+            title={error}
+            action={
+              <Action variant="quiet" onClick={() => setRetry((n) => n + 1)}>
+                Retry
+              </Action>
+            }
           />
-        }
-      />
-      <div className="dl-scroll">
-        <div className="dl-page wide v2-releases-page">
-          <Tabs
-            value={tabs.find((tab) => tab.label === 'Releases')?.href ?? `${base}/releases`}
-            items={tabs}
-          />
-          {error && (
-            <Banner
-              title={error}
-              action={
-                <Action variant="quiet" onClick={() => setRetry((n) => n + 1)}>
-                  Retry
-                </Action>
-              }
-            />
-          )}
-          {!releases && !error && (
-            <Skeleton rows={4} slowLabel="Releases are taking longer to load." />
-          )}
-          {releases?.length === 0 && (
-            <Empty
-              title="No releases yet"
-              icon="folder"
-              actions={
-                <a className="dl-btn primary" href="/dashboard">
-                  New task
-                </a>
-              }
-            >
-              Releases move every app in this project together.
-            </Empty>
-          )}
-          {!!releases?.length && (
-            <div className="v2-releases-layout">
-              <nav className="v2-releases-nav" aria-label="Releases">
-                {releases.map((release) => (
-                  <a
-                    className={`dl-nav ${selected?.id === release.id ? 'on' : ''}`}
-                    aria-current={selected?.id === release.id ? 'page' : undefined}
-                    key={release.id}
-                    href={`${base}/releases/${encodeURIComponent(release.id)}${appQuery}`}
-                  >
-                    <Icon name="send" size={14} />
-                    <span className="dl-t">
-                      <span className="dl-strong dl-mono">{release.id.slice(0, 7)}</span>
-                      <span className="dl-meta">
-                        {release.startedBy} ·{' '}
-                        {release.source.kind === 'cli' ? 'from the CLI' : release.source.ref}
-                      </span>
+        )}
+        {!releases && !error && (
+          <Skeleton rows={4} slowLabel="Releases are taking longer to load." />
+        )}
+        {releases?.length === 0 && (
+          <Empty
+            title="No releases yet"
+            icon="folder"
+            actions={
+              <a className="dl-btn primary" href="/dashboard">
+                New task
+              </a>
+            }
+          >
+            Releases move every app in this project together.
+          </Empty>
+        )}
+        {!!releases?.length && (
+          <div className="v2-releases-layout">
+            <nav className="v2-releases-nav" aria-label="Releases">
+              {releases.map((release) => (
+                <a
+                  className={`dl-nav ${selected?.id === release.id ? 'on' : ''}`}
+                  aria-current={selected?.id === release.id ? 'page' : undefined}
+                  key={release.id}
+                  href={`${base}/releases/${encodeURIComponent(release.id)}${appQuery}`}
+                >
+                  <Icon name="send" size={14} />
+                  <span className="dl-t">
+                    <span className="dl-strong dl-mono">{release.id.slice(0, 7)}</span>
+                    <span className="dl-meta">
+                      {release.startedBy} ·{' '}
+                      {release.source.kind === 'cli' ? 'from the CLI' : release.source.ref}
                     </span>
-                    {stateLabel(release) && <span className="dl-tag">{stateLabel(release)}</span>}
-                  </a>
-                ))}
-              </nav>
-              <section className="v2-release-detail" aria-label="Release detail">
-                {!selected ? (
-                  <Empty title="Release not found">Select a release from this project.</Empty>
-                ) : (
-                  <>
-                    <div className="dl-page-head">
-                      <div className="dl-t">
-                        <h1 className="v2-release-title">{selected.source.ref}</h1>
-                        <span className="dl-meta">
-                          {selected.id.slice(0, 7)} · {selected.source.kind} · started by{' '}
-                          {selected.startedBy}
-                        </span>
-                      </div>
-                      {(selected.state === 'live' || (selected.state === 'failed' && !untouched)) &&
-                        candidates.length > 0 && (
-                          <Action
-                            disabled={
-                              busy ||
-                              rolling ||
-                              releases.some((release) => release.state === 'running')
-                            }
-                            onClick={() => {
-                              setDialog(true);
-                              setDataLoss(undefined);
-                              setDecisionError('');
-                              setTargetId('');
-                            }}
-                          >
-                            Roll back release
-                          </Action>
-                        )}
+                  </span>
+                  {stateLabel(release) && <span className="dl-tag">{stateLabel(release)}</span>}
+                </a>
+              ))}
+            </nav>
+            <section className="v2-release-detail" aria-label="Release detail">
+              {!selected ? (
+                <Empty title="Release not found">Select a release from this project.</Empty>
+              ) : (
+                <>
+                  <div className="dl-page-head">
+                    <div className="dl-t">
+                      <h1 className="v2-release-title">{selected.source.ref}</h1>
+                      <span className="dl-meta">
+                        {selected.id.slice(0, 7)} · {selected.source.kind} · started by{' '}
+                        {selected.startedBy}
+                      </span>
                     </div>
-                    {rollback && (
-                      <div className="dl-approval v2-release-progress">
+                    {(selected.state === 'live' || (selected.state === 'failed' && !untouched)) &&
+                      candidates.length > 0 && (
+                        <Action
+                          disabled={
+                            busy ||
+                            rolling ||
+                            releases.some((release) => release.state === 'running')
+                          }
+                          onClick={() => {
+                            setDialog(true);
+                            setDataLoss(undefined);
+                            setDecisionError('');
+                            setTargetId('');
+                          }}
+                        >
+                          Roll back release
+                        </Action>
+                      )}
+                  </div>
+                  {rollback && (
+                    <div className="dl-approval v2-release-progress">
+                      <div className="dl-approval-head">
+                        <Glyph kind={rollback.approvedBy === 'rule' ? 'warden' : 'plain'}>
+                          {rollback.approvedBy === 'rule' ? 'W' : <Icon name="clock" />}
+                        </Glyph>
+                        <div className="dl-t">
+                          <p className="dl-approval-title">
+                            {rolling
+                              ? `Rolling back ${project?.name || projectKey}`
+                              : rollback.steps.some((step) => step.state === 'failed')
+                                ? 'Rollback needs attention'
+                                : `${rollback.approvedBy === 'rule' ? 'Automatically rolled back' : 'Rolled back'} ${project?.name || projectKey} to ${rollback.to.slice(0, 7)}`}
+                          </p>
+                          <p className="dl-approval-text">{rollback.reason}</p>
+                          <span className="dl-meta">
+                            {rollback.approvedBy === 'rule'
+                              ? `Allowed by rule ${rollback.ruleId}`
+                              : `Approved by ${rollback.approvedBy}`}
+                          </span>
+                          <StepList steps={rollback.steps} />
+                        </div>
+                      </div>
+                      {rollback.approvedBy === 'rule' && (
+                        <div className="dl-approval-actions">
+                          <a className="dl-btn quiet" href="/dashboard/settings/approvals">
+                            Edit the rule
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {selected.state === 'failed' && (
+                    <Banner
+                      kind="danger"
+                      title={
+                        untouched
+                          ? `${failedStep?.name === 'verify' ? 'Verify' : 'Prepare'} failed. Nothing changed.`
+                          : 'Release failed. Review the release before rolling back.'
+                      }
+                    >
+                      {untouched
+                        ? 'Every app stayed on its previous release.'
+                        : 'The release log shows where work stopped.'}
+                    </Banner>
+                  )}
+                  {(selected.state === 'running' || selected.state === 'failed') && (
+                    <div className="dl-approval v2-release-progress">
+                      {selected.state === 'running' && (
                         <div className="dl-approval-head">
-                          <Glyph kind={rollback.approvedBy === 'rule' ? 'warden' : 'plain'}>
-                            {rollback.approvedBy === 'rule' ? 'W' : <Icon name="clock" />}
-                          </Glyph>
+                          <Icon name="running" className="dl-run dl-spin" size={18} />
                           <div className="dl-t">
                             <p className="dl-approval-title">
-                              {rolling
-                                ? `Rolling back ${project?.name || projectKey}`
-                                : rollback.steps.some((step) => step.state === 'failed')
-                                  ? 'Rollback needs attention'
-                                  : `${rollback.approvedBy === 'rule' ? 'Automatically rolled back' : 'Rolled back'} ${project?.name || projectKey} to ${rollback.to.slice(0, 7)}`}
+                              {selected.steps.find((step) => step.state === 'running')?.name ===
+                              'verify'
+                                ? 'Verifying'
+                                : 'Releasing'}{' '}
+                              {selected.id.slice(0, 7)}
                             </p>
-                            <p className="dl-approval-text">{rollback.reason}</p>
-                            <span className="dl-meta">
-                              {rollback.approvedBy === 'rule'
-                                ? `Allowed by rule ${rollback.ruleId}`
-                                : `Approved by ${rollback.approvedBy}`}
-                            </span>
-                            <StepList steps={rollback.steps} />
+                            <p className="dl-approval-text">
+                              Every app is prepared and verified before activation.
+                            </p>
                           </div>
                         </div>
-                        {rollback.approvedBy === 'rule' && (
-                          <div className="dl-approval-actions">
-                            <a className="dl-btn quiet" href="/dashboard/settings/approvals">
-                              Edit the rule
-                            </a>
-                          </div>
-                        )}
-                      </div>
+                      )}
+                      <StepList steps={selected.steps} />
+                    </div>
+                  )}
+                  {selected.state === 'running' && (
+                    <ReleaseOutput
+                      key={selected.id}
+                      release={selected}
+                      logs={`${base}/logs${appQuery}`}
+                      onShown={setOutputFor}
+                    />
+                  )}
+                  {selected.state !== 'running' && (
+                    <Term aria-label="Release log">
+                      {selected.state === 'failed' && failedStep?.detail
+                        ? failedStep.detail
+                        : selected.steps
+                            .map((step) => `[${step.name}]  ${step.detail || step.state}`)
+                            .join('\n')}
+                    </Term>
+                  )}
+                  {selected.state !== 'failed' && (
+                    <Group title="In this release">
+                      {selected.apps.map((app) => (
+                        <Item
+                          key={app.appId}
+                          lead={
+                            <Glyph kind="plain">
+                              <Icon
+                                name={
+                                  project?.apps.find((entry) => entry.id === app.appId)?.kind ===
+                                  'worker'
+                                    ? 'computer'
+                                    : 'folder'
+                                }
+                                size={12}
+                              />
+                            </Glyph>
+                          }
+                          description={`${app.from?.slice(0, 7) || 'First release'} → ${app.to.slice(0, 7)}`}
+                          title={
+                            project?.apps.find((entry) => entry.id === app.appId)?.name || app.appId
+                          }
+                        />
+                      ))}
+                      {selected.migrations.map((migration) => (
+                        <Item
+                          key={migration.id}
+                          description={
+                            migration.reversible
+                              ? 'Reversible migration'
+                              : 'Pre-release backup required'
+                          }
+                          title={migration.title}
+                        />
+                      ))}
+                    </Group>
+                  )}
+                  <div className="v2-release-links">
+                    {!(selected.state === 'running' && outputFor === selected.id) && (
+                      <a className="dl-btn quiet" href={`${base}/logs`}>
+                        Full log
+                      </a>
                     )}
                     {selected.state === 'failed' && (
-                      <Banner
-                        kind="danger"
-                        title={
-                          untouched
-                            ? `${failedStep?.name === 'verify' ? 'Verify' : 'Prepare'} failed. Nothing changed.`
-                            : 'Release failed. Review the release before rolling back.'
-                        }
-                      >
-                        {untouched
-                          ? 'Every app stayed on its previous release.'
-                          : 'The release log shows where work stopped.'}
-                      </Banner>
-                    )}
-                    {(selected.state === 'running' || selected.state === 'failed') && (
-                      <div className="dl-approval v2-release-progress">
-                        {selected.state === 'running' && (
-                          <div className="dl-approval-head">
-                            <Icon name="running" className="dl-run dl-spin" size={18} />
-                            <div className="dl-t">
-                              <p className="dl-approval-title">
-                                {selected.steps.find((step) => step.state === 'running')?.name ===
-                                'verify'
-                                  ? 'Verifying'
-                                  : 'Releasing'}{' '}
-                                {selected.id.slice(0, 7)}
-                              </p>
-                              <p className="dl-approval-text">
-                                Every app is prepared and verified before activation.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        <StepList steps={selected.steps} />
-                      </div>
-                    )}
-                    {selected.state === 'running' && (
-                      <ReleaseOutput
-                        key={selected.id}
-                        release={selected}
-                        logs={`${base}/logs${appQuery}`}
-                        onShown={setOutputFor}
-                      />
-                    )}
-                    {selected.state !== 'running' && (
-                      <Term aria-label="Release log">
-                        {selected.state === 'failed' && failedStep?.detail
-                          ? failedStep.detail
-                          : selected.steps
-                              .map((step) => `[${step.name}]  ${step.detail || step.state}`)
-                              .join('\n')}
-                      </Term>
-                    )}
-                    {selected.state !== 'failed' && (
-                      <Group title="In this release">
-                        {selected.apps.map((app) => (
-                          <Item
-                            key={app.appId}
-                            lead={
-                              <Glyph kind="plain">
-                                <Icon
-                                  name={
-                                    project?.apps.find((entry) => entry.id === app.appId)?.kind ===
-                                    'worker'
-                                      ? 'computer'
-                                      : 'folder'
-                                  }
-                                  size={12}
-                                />
-                              </Glyph>
-                            }
-                            description={`${app.from?.slice(0, 7) || 'First release'} → ${app.to.slice(0, 7)}`}
-                            title={
-                              project?.apps.find((entry) => entry.id === app.appId)?.name ||
-                              app.appId
-                            }
-                          />
-                        ))}
-                        {selected.migrations.map((migration) => (
-                          <Item
-                            key={migration.id}
-                            description={
-                              migration.reversible
-                                ? 'Reversible migration'
-                                : 'Pre-release backup required'
-                            }
-                            title={migration.title}
-                          />
-                        ))}
-                      </Group>
-                    )}
-                    <div className="v2-release-links">
-                      {!(selected.state === 'running' && outputFor === selected.id) && (
-                        <a className="dl-btn quiet" href={`${base}/logs`}>
-                          Full log
+                      <>
+                        <a
+                          className="dl-btn primary"
+                          href={`${base}/settings${missingVariable(failedStep?.detail) ? `?key=${encodeURIComponent(missingVariable(failedStep?.detail)!)}` : ''}`}
+                        >
+                          {missingVariable(failedStep?.detail)
+                            ? 'Add the variable'
+                            : 'Project settings'}
                         </a>
-                      )}
-                      {selected.state === 'failed' && (
-                        <>
-                          <a
-                            className="dl-btn primary"
-                            href={`${base}/settings${missingVariable(failedStep?.detail) ? `?key=${encodeURIComponent(missingVariable(failedStep?.detail)!)}` : ''}`}
-                          >
-                            {missingVariable(failedStep?.detail)
-                              ? 'Add the variable'
-                              : 'Project settings'}
-                          </a>
-                          <Action disabled={!project || busy} onClick={() => void fixInTask()}>
-                            Fix it in a task
-                          </Action>
-                        </>
-                      )}
-                    </div>
-                    {selected.state === 'running' && (
-                      <span className="dl-meta">
-                        You can leave this page. Progress is saved with the release.
-                      </span>
+                        <Action disabled={!project || busy} onClick={() => void fixInTask()}>
+                          Fix it in a task
+                        </Action>
+                      </>
                     )}
-                  </>
-                )}
-              </section>
-            </div>
-          )}
-        </div>
+                  </div>
+                  {selected.state === 'running' && (
+                    <span className="dl-meta">
+                      You can leave this page. Progress is saved with the release.
+                    </span>
+                  )}
+                </>
+              )}
+            </section>
+          </div>
+        )}
       </div>
       <Dialog
         open={dialog}

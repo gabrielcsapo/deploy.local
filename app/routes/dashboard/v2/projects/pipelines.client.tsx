@@ -33,6 +33,8 @@ const failureSummary = (entry: any) =>
 export function ProjectPipelines({ projectId }: { projectId: string }) {
   const path = `/api/workspace/projects/${encodeURIComponent(projectId)}/pipelines`;
   const runs = useData<any>(path);
+  const runSelector = useRef<HTMLButtonElement>(null);
+  const [runsOpen, setRunsOpen] = useState(false);
   const [selected, setSelected] = useState<string>();
   const selectedId = selected || runs.data?.runs[0]?.id;
   const detail = useData<any>(selectedId ? `${path}/${encodeURIComponent(selectedId)}` : undefined);
@@ -51,6 +53,7 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
     return () => clearInterval(timer);
   }, [path, selectedId]);
   const run = detail.data?.pipeline;
+  const selectedRun = runs.data?.runs.find((entry: any) => entry.id === selectedId);
   const jobs = detail.data?.jobs || [];
   const computers = [...new Set(jobs.map((job: any) => job.computer).filter(Boolean))].join(', ');
   async function start() {
@@ -79,14 +82,53 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
       )}
       {!runs.data && !runs.error && <Skeleton rows={4} />}
       <div className="v2-pipelines">
-        <nav className="v2-pipeline-list" aria-label="Pipeline runs">
+        {selectedRun && (
+          <button
+            type="button"
+            ref={runSelector}
+            className="dl-nav v2-pipeline-selected"
+            aria-expanded={runsOpen}
+            aria-controls="project-pipeline-runs"
+            onClick={() => setRunsOpen((open) => !open)}
+          >
+            <Icon
+              name={
+                selectedRun.status === 'succeeded'
+                  ? 'check'
+                  : selectedRun.status === 'failed'
+                    ? 'close'
+                    : 'running'
+              }
+            />
+            <span className="dl-t">
+              <span className="dl-strong dl-mono">{selectedRun.commit.slice(0, 7)}</span>
+              <span className="dl-meta">
+                {selectedRun.trigger === 'push'
+                  ? `Push to ${selectedRun.branch || 'main'}`
+                  : formatTime(selectedRun.createdAt)}{' '}
+                · {elapsed(selectedRun.createdAt, selectedRun.completedAt) || selectedRun.status}
+              </span>
+            </span>
+            <span className="dl-meta">{runs.data.runs.length} runs</span>
+            <Icon name="down" size={14} />
+          </button>
+        )}
+        <nav
+          id="project-pipeline-runs"
+          className={`v2-pipeline-list ${runsOpen ? 'is-open' : ''}`}
+          aria-label="Pipeline runs"
+        >
           {runs.data?.runs.map((entry: any) => (
             <button
               type="button"
               key={entry.id}
               className={`dl-nav ${selectedId === entry.id ? 'on' : ''}`}
               aria-current={selectedId === entry.id ? 'true' : undefined}
-              onClick={() => setSelected(entry.id)}
+              onClick={() => {
+                setSelected(entry.id);
+                setRunsOpen(false);
+                runSelector.current?.focus();
+              }}
             >
               <Icon
                 name={
@@ -123,6 +165,7 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
           ))}
         </nav>
         <div className="v2-pipeline-detail">
+          {!detail.data && !detail.error && selectedId && <Skeleton rows={4} />}
           <div className="dl-page-head">
             <div className="dl-t">
               {run && (
@@ -222,6 +265,22 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
                     }
                   />
                 ))}
+              </Group>
+            </section>
+          )}
+          {run?.deployment && (
+            <section className="dl-section">
+              <h2 className="dl-section-title">Release</h2>
+              <Group>
+                <Item
+                  title={run.deployment.status}
+                  description={run.deployment.error}
+                  href={
+                    run.deployment.releaseId
+                      ? `/dashboard/projects/${encodeURIComponent(projectId)}/releases/${encodeURIComponent(run.deployment.releaseId)}`
+                      : undefined
+                  }
+                />
               </Group>
             </section>
           )}

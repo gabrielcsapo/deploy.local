@@ -45,3 +45,33 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.v2-pipeline-selected {
+  display: none;
+}
+@media (max-width: 819px) {
+  .v2-pipeline-selected {
+    display: flex;
+    width: 100%;
+    height: auto;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--ds-surface);
+    box-shadow: 0 0 0 1px var(--ds-line);
+    text-align: left;
+  }
+  .v2-pipeline-selected .dl-meta {
+    display: block;
+  }
+  .v2-pipeline-list {
+    display: none;
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .v2-pipeline-list.is-open {
+    display: flex;
+  }
+  .v2-pipeline-detail {
+    flex-basis: 100%;
+  }
+}

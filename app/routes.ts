@@ -7,13 +7,8 @@ import {
 import { designRoutes } from './routes/dashboard/v2/design/routes.ts';
 import { inboxRoutes } from './routes/dashboard/v2/inbox/routes.ts';
 import { liveRoutes } from './routes/dashboard/v2/live/routes.ts';
-import { tasksRoutes, pullRoutes } from './routes/dashboard/v2/tasks/routes.ts';
-import {
-  projectsRoutes,
-  projectSectionRoutes,
-  projectLogSettingsRoutes,
-} from './routes/dashboard/v2/projects/routes.ts';
-import { releasesRoutes } from './routes/dashboard/v2/releases/routes.ts';
+import { tasksRoutes } from './routes/dashboard/v2/tasks/routes.ts';
+import { projectsRoutes } from './routes/dashboard/v2/projects/routes.ts';
 import { computersRoutes } from './routes/dashboard/v2/computers/routes.ts';
 import { agentsRoutes } from './routes/dashboard/v2/agents/routes.ts';
 import { settingsRoutes } from './routes/dashboard/v2/settings/routes.ts';
@@ -212,10 +207,6 @@ export const routes: RouteConfig[] = [
           ...liveRoutes,
           ...tasksRoutes,
           ...projectsRoutes,
-          ...pullRoutes,
-          ...projectSectionRoutes,
-          ...releasesRoutes,
-          ...projectLogSettingsRoutes,
           ...computersRoutes,
           ...agentsRoutes,
           ...startRoutes,

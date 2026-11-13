@@ -75,7 +75,7 @@ test('one-app projects retain code, pull requests and issues alongside app tabs'
   assert.equal(tabs.find((tab) => tab.label === 'Overview')?.href, '/p');
   assert.equal(tabs.find((tab) => tab.label === 'Requests')?.href, '/p/requests');
   assert.equal(tabs.find((tab) => tab.label === 'Performance')?.href, '/p/performance');
-  assert.equal(tabs.find((tab) => tab.label === 'Settings')?.href, '/p/apps/web/settings');
+  assert.equal(tabs.find((tab) => tab.label === 'Settings')?.href, '/p/settings');
   assert.equal(tabs.find((tab) => tab.label === 'Pull requests')?.count, 1);
 });
 
@@ -91,4 +91,34 @@ test('a one-worker project has no Performance tab', () => {
     0,
   );
   assert.ok(!tabs.some((tab) => ['Performance', 'Requests'].includes(tab.label)));
+});
+
+test('all project tabs and nested details share a single persistent parent segment', () => {
+  const paths = [
+    '',
+    '/code',
+    '/pulls',
+    '/pulls/1',
+    '/issues',
+    '/apps/web',
+    '/apps/web/settings',
+    '/pipelines',
+    '/releases',
+    '/releases/r1',
+    '/requests',
+    '/requests/1',
+    '/performance',
+    '/logs',
+    '/settings',
+  ];
+  const matches = paths.map((suffix) => matchRoutes(routes, `/dashboard/projects/gym${suffix}`));
+  for (const matched of matches) {
+    assert.equal(matched.at(-2)!.route.id, 'v2-project-layout');
+    assert.equal(matched.filter(({ route }) => route.id === 'v2-project-layout').length, 1);
+  }
+  assert.ok(
+    !matchRoutes(routes, '/dashboard/projects').some(
+      ({ route }) => route.id === 'v2-project-layout',
+    ),
+  );
 });

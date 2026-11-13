@@ -97,6 +97,6 @@ export function appTabItems(base: string, app: { name: string; kind?: string }, 
         ]),
     { label: 'Releases', href: `${base}/releases${query}` },
     { label: 'Logs', href: `${base}/logs${query}` },
-    { label: 'Settings', href: `${appBase}/settings` },
+    { label: 'Settings', href: `${single ? base : appBase}/settings` },
   ];
 }

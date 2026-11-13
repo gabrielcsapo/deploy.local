@@ -13,11 +13,18 @@ export async function request<T = any>(path: string, init: RequestInit = {}): Pr
 }
 /** Data for a path; a path read before shows its last answer at once while it refreshes. */
 export function useData<T>(path: string | undefined) {
-  const [data, setData] = useState<T | undefined>(() => (path ? remembered<T>(path) : undefined));
+  const [answer, setAnswer] = useState<{ path: string | undefined; data: T | undefined }>(() => ({
+    path,
+    data: path ? remembered<T>(path) : undefined,
+  }));
+  const data = answer.path === path ? answer.data : path ? remembered<T>(path) : undefined;
   const [error, setError] = useState('');
   const [version, refresh] = useState(0);
   useEffect(() => {
-    setData(path ? remembered<T>(path) : undefined);
+    // A refresh retains the current answer even if the shared cache was evicted.
+    setAnswer((previous) =>
+      previous.path === path ? previous : { path, data: path ? remembered<T>(path) : undefined },
+    );
     setError('');
     if (!path) return;
     const controller = new AbortController();
@@ -25,7 +32,7 @@ export function useData<T>(path: string | undefined) {
       .then((value) => {
         if (controller.signal.aborted) return;
         remember(path, value);
-        setData(value);
+        setAnswer({ path, data: value });
       })
       .catch((error) => {
         if (!controller.signal.aborted) setError(error.message);

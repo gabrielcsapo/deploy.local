@@ -1,22 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
-import {
-  Action,
-  Banner,
-  Empty,
-  Head,
-  Icon,
-  IconButton,
-  Item,
-  Seg,
-  Skeleton,
-  Tabs,
-} from '@/components/ui';
+import { Action, Banner, Empty, Icon, Item, Seg, Skeleton } from '@/components/ui';
 import type { TaskPull } from './types';
-import type { Release } from '../../../../../shared/v2/contracts';
-import { useData, type Overview } from '../projects/data';
-import { projectPath, projectSegment, projectTabItems } from '../projects/routing';
+import { useData } from '../projects/data';
+import { projectSegment } from '../projects/routing';
 import { pullElapsed, pullHref, pullMeta } from './pull-presentation';
 import PullRequest from './pull.client';
 import './style.css';
@@ -26,52 +14,13 @@ export default function PullRequests() {
   const { pathname } = useLocation();
   const project = decodeURIComponent(pathname.split('/')[3] || '');
   const pullId = decodeURIComponent(pathname.split('/')[5] || '');
-  const base = projectPath(project);
-  const overview = useData<Overview>(`/api/v2/projects/${projectSegment(project)}/overview`);
-  const history = useData<{ releases: Release[] }>(
-    `/api/v2/projects/${projectSegment(project)}/releases`,
-  );
-  return (
-    <>
-      <Head
-        title={overview.data?.project.name ?? ''}
-        subtitle="Project"
-        actions={
-          <a className="dl-btn primary" href="/dashboard">
-            New task
-          </a>
-        }
-        menu={
-          <IconButton
-            className="dl-menu-btn"
-            icon="menu"
-            label="Open navigation"
-            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
-          />
-        }
-      />
-      <div className="dl-scroll">
-        <div className="dl-page wide dl-pulls-page">
-          <Tabs
-            value={`${base}/pulls`}
-            items={projectTabItems(base, overview.data, history.data?.releases.length ?? 0)}
-          />
-          {overview.error && (
-            <Banner
-              title={overview.error}
-              action={<Action onClick={overview.refresh}>Retry</Action>}
-            />
-          )}
-          {pullId ? (
-            <PullRequest key={`${project}/${pullId}`} project={project} id={pullId} />
-          ) : (
-            <PullList key={project} project={project} />
-          )}
-        </div>
-      </div>
-    </>
+  return pullId ? (
+    <PullRequest key={`${project}/${pullId}`} project={project} id={pullId} />
+  ) : (
+    <PullList key={project} project={project} />
   );
 }
+
 function PullList({ project }: { project: string }) {
   const [status, setStatus] = useState('open');
   const [search, setSearch] = useState('');

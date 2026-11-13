@@ -1,4 +1,5 @@
 'use client';
+import { trafficMetrics } from './measurements';
 import { ListTemplate } from '@/components/ui/v2/Templates';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-flight-router/client';
@@ -403,16 +404,22 @@ function Computer({
                             ? app.queue.depth
                               ? `${app.queue.depth.toLocaleString()} queued`
                               : 'Queue empty'
-                            : 'Queue unavailable'}
+                            : 'Not measured · Queue depth was not reported'}
                         </span>
                       </>
-                    ) : app.http ? (
+                    ) : app.kind === 'web' ? (
                       <>
-                        <span>{app.http.reqPerMin} req/min</span>
-                        <span className="dl-meta">p95 {Math.round(app.http.p95ms)} ms</span>
+                        <span>
+                          {trafficMetrics(app).rate.value}
+                          {typeof trafficMetrics(app).rate.value === 'number' ? ' req/min' : ''}
+                        </span>
+                        <span className="dl-meta">
+                          {trafficMetrics(app).rate.note ||
+                            `p95 ${trafficMetrics(app).latency.value}`}
+                        </span>
                       </>
                     ) : (
-                      <span className="dl-meta">Unavailable</span>
+                      <span className="dl-meta">Not measured · {app.summary}</span>
                     )}
                   </div>
                 </td>
@@ -711,7 +718,7 @@ export function AppDetail({
                 end={
                   app.jobs
                     ? `Usually under ${Math.max(1, Math.ceil(app.jobs.baselineFailRate * 100))}%`
-                    : 'Unavailable'
+                    : 'Not measured'
                 }
               />
               <Item
@@ -719,7 +726,7 @@ export function AppDetail({
                 description={
                   app.queue
                     ? `${app.queue.depth.toLocaleString()} waiting · oldest ${Math.ceil(app.queue.oldestSec / 60)} min`
-                    : 'Queue measurements unavailable'
+                    : 'Not measured · Queue depth was not reported'
                 }
                 lead={
                   <Icon
@@ -732,9 +739,9 @@ export function AppDetail({
           ) : (
             <Item
               title="HTTP check"
-              description={app.summary}
+              description={trafficMetrics(app).latency.note || app.summary}
               lead={<Icon name="pulse" />}
-              end={app.http ? `p95 ${Math.round(app.http.p95ms)} ms` : 'Unavailable'}
+              end={`p95 ${trafficMetrics(app).latency.value}`}
             />
           )}
           <Item

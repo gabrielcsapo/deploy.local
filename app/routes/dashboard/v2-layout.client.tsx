@@ -105,7 +105,11 @@ export function V2Sidebar({
           </Nav>
           <Nav
             href="/dashboard/projects"
-            active={pathname.startsWith('/dashboard/projects')}
+            active={
+              pathname.startsWith('/dashboard/projects') ||
+              pathname === '/dashboard/discover' ||
+              pathname.startsWith('/dashboard/discover/')
+            }
             lead={<Icon name="folder" />}
           >
             Projects

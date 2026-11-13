@@ -133,7 +133,9 @@ test('missing browser metrics and prefetch visits are not called Good or zero pe
   };
   const html = render({ data });
   assert.match(html, /Page experience/);
-  assert.match(html, /Unavailable/);
+  assert.match(html, /Not measured/);
+  assert.match(html, /Browser did not report/);
+  assert.doesNotMatch(html, /Unavailable/);
   assert.doesNotMatch(html, />Good<|Already prefetched|0%|Nothing to measure yet/);
 });
 test('a current release with no comparison is not declared steady', () => {

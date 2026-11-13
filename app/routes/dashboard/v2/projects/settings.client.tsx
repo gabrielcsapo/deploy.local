@@ -21,6 +21,7 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { request, useData, type Overview } from './data';
 import { useSearchParams } from 'react-flight-router/client';
+import { useCoordinatorName } from '../data/hooks';
 import { formatTime } from '../data/time';
 import { projectPath, projectSegment } from './routing';
 import { NoRepository } from './repository-connect.client';
@@ -33,13 +34,15 @@ export function ProjectConfiguration({
   project: Project;
   overview: Overview;
 }) {
+  const coordinator = useCoordinatorName();
+  const single = project.apps.length === 1;
   const path = `/api/v2/projects/${projectSegment(project.id)}`;
   const appNames = project.apps.map((app) => app.name);
   const removalDescription =
     appNames.length === 0
       ? 'Removes the project. There are no apps to stop or addresses to free.'
       : appNames.length === 1
-        ? 'Stops the app and frees its addresses.'
+        ? `Stops ${appNames[0]} and frees its address.`
         : 'Stops the apps and frees their addresses.';
   const removalConsequence =
     appNames.length === 0
@@ -152,14 +155,17 @@ export function ProjectConfiguration({
             </a>
           }
         >
-          Your running apps keep their current values.
+          {single
+            ? 'Your running app keeps its current values.'
+            : 'Your running apps keep their current values.'}
         </Banner>
       )}
       <section className="dl-section">
         <h2 className="dl-section-title">Variables and secrets</h2>
         <p className="dl-section-sub">
-          Shared by the project's apps; limit one to a single app when only it needs it. Secret
-          values are never returned.
+          {single
+            ? `Secrets are encrypted on ${coordinator}, and agents never see their values.`
+            : "Shared by the project's apps; limit one to a single app when only it needs it. Secret values are never returned."}
         </p>
         {!settings.data && !settings.error ? (
           <Skeleton rows={4} />
@@ -201,7 +207,7 @@ export function ProjectConfiguration({
                     {row.type === 'secret'
                       ? `•••••••• · secret · set ${formatTime(row.updatedAt)}`
                       : String(row.value)}{' '}
-                    · {row.app || 'all apps'}
+                    {!single && <>· {row.app || 'all apps'}</>}
                   </>
                 }
                 end={
@@ -222,7 +228,9 @@ export function ProjectConfiguration({
       <section className="dl-section">
         <h2 className="dl-section-title">Releases</h2>
         <p className="dl-section-sub">
-          One release covers every app in the project, and its migrations.
+          {single
+            ? 'A release covers the app and its migrations.'
+            : 'One release covers every app in the project, and its migrations.'}
         </p>
         <Group>
           <Setting

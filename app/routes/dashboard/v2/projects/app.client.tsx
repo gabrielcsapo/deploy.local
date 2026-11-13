@@ -20,8 +20,10 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { request, useData, type Overview } from './data';
 import { projectPath, projectSegment } from './routing';
+import { useCoordinatorName } from '../data/hooks';
 import { useLive } from '../live/data';
 import { AppDetail } from '../live/page.client';
+import { trafficMetrics, memoryMetric } from '../live/measurements';
 import { releaseLabel } from '../live/presentation';
 export function Health({ app }: { app?: LiveApp }) {
   return (
@@ -115,12 +117,14 @@ function AppHealthOverview({ project, app }: AppProps) {
     </>
   );
 }
-function AppSettings({ project, app, overview }: AppProps) {
+export function AppSettings({ project, app, overview }: Omit<AppProps, 'releases'>) {
+  const coordinator = useCoordinatorName();
   const live = useData<LiveAppResponse>(`/api/v2/live/${projectSegment(app.name)}`);
   const [memory, setMemory] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [savedLimit, setSavedLimit] = useState<string>();
   const health = live.data?.app;
   const runtime = overview.apps.find((entry) => entry.id === app.id);
   async function change() {
@@ -132,6 +136,7 @@ function AppSettings({ project, app, overview }: AppProps) {
         body: JSON.stringify({ memoryLimit: memory }),
       });
       setSaved(true);
+      setSavedLimit(memory);
       live.refresh();
     } catch (reason) {
       setError((reason as Error).message);
@@ -141,16 +146,18 @@ function AppSettings({ project, app, overview }: AppProps) {
   }
   return (
     <>
-      <Banner
-        title="Variables, secrets, releases and logs belong to the project"
-        action={
-          <a className="dl-btn quiet" href={`${projectPath(project.id)}/settings`}>
-            Project settings
-          </a>
-        }
-      >
-        The project's apps share them.
-      </Banner>
+      {project.apps.length > 1 && (
+        <Banner
+          title="Variables, secrets, releases and logs belong to the project"
+          action={
+            <a className="dl-btn quiet" href={`${projectPath(project.id)}/settings`}>
+              Project settings
+            </a>
+          }
+        >
+          The project's apps share them.
+        </Banner>
+      )}
       <section className="dl-section">
         <h2 className="dl-section-title">Address</h2>
         <Group>
@@ -158,7 +165,9 @@ function AppSettings({ project, app, overview }: AppProps) {
             label="Domains"
             description="Addresses and health checks are declared in deploy.yaml"
           >
-            {health?.address ? (
+            {!live.data && !live.error ? (
+              <Skeleton rows={1} />
+            ) : health?.address ? (
               <a href={health.address}>{new URL(health.address).host}</a>
             ) : app.kind === 'worker' ? (
               'No address'
@@ -172,11 +181,17 @@ function AppSettings({ project, app, overview }: AppProps) {
         <h2 className="dl-section-title">Health and resources</h2>
         <Group>
           <Setting label="Health check">
-            {health?.http ? `GET ${health.http.path}` : health?.summary || 'Unavailable'}
+            {!live.data && !live.error ? (
+              <Skeleton rows={1} />
+            ) : health?.http ? (
+              `GET ${health.http.path}`
+            ) : (
+              health?.summary || 'Health could not be loaded'
+            )}
           </Setting>
           <Setting
             label="Memory limit"
-            description={`Current limit: ${runtime?.memoryLimit || 'Unavailable'}`}
+            description={`Current limit: ${savedLimit ?? (runtime?.memoryLimit || 'No limit')}`}
           >
             <Field
               label="New memory limit"
@@ -188,19 +203,23 @@ function AppSettings({ project, app, overview }: AppProps) {
               Save
             </Action>
           </Setting>
-          <Setting label="Runs on">{runtime?.computer || 'Unavailable'}</Setting>
+          <Setting label="Runs on">
+            {runtime?.computer === 'coordinator' ? coordinator : runtime?.computer || 'Unavailable'}
+          </Setting>
         </Group>
       </section>
       {error && <Banner title={error} />}
       {saved && <Banner title="Memory limit saved" />}
-      {!project.fromDiscover && !overview.repository && !overview.repositoryError && (
-        <NoRepository project={project} />
-      )}
+      {project.apps.length > 1 &&
+        !project.fromDiscover &&
+        !overview.repository &&
+        !overview.repositoryError && <NoRepository project={project} />}
     </>
   );
 }
 
 function SingleAppOverview({ project, app, overview, releases }: AppProps) {
+  const coordinator = useCoordinatorName();
   const live = useData<LiveAppResponse>(`/api/v2/live/${projectSegment(app.name)}`);
   const [restart, setRestart] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -236,7 +255,8 @@ function SingleAppOverview({ project, app, overview, releases }: AppProps) {
           <span className="dl-meta">
             {health?.address && <a href={health.address}>{new URL(health.address).host}</a>}
             {health?.release && ` · ${health.release}`}{' '}
-            {runtime?.computer && ` · on ${runtime.computer}`}
+            {runtime?.computer &&
+              ` · on ${runtime.computer === 'coordinator' ? coordinator : runtime.computer}`}
           </span>
         </div>
         <span className="dl-end">
@@ -251,47 +271,36 @@ function SingleAppOverview({ project, app, overview, releases }: AppProps) {
       {health?.state === 'warning' || health?.state === 'failing' ? (
         <Banner title={health.summary} />
       ) : null}
-      {!health && !live.error ? (
-        <Skeleton rows={2} />
+      {!health ? (
+        !live.error && <Skeleton rows={2} />
       ) : (
         <div className="dl-stats">
-          <div className="dl-stat">
-            <span className="dl-meta">
-              {app.kind === 'worker' ? 'Jobs per minute' : 'Requests per minute'}
-            </span>
-            <span className="dl-v">
-              {health?.http?.reqPerMin ?? health?.jobs?.perMin ?? 'Unavailable'}
-            </span>
-          </div>
-          <div className="dl-stat">
-            <span className="dl-meta">
-              {app.kind === 'worker' ? 'Job failures' : 'p95 latency'}
-            </span>
-            <span className="dl-v">
-              {health?.http
-                ? `${health.http.p95ms} ms`
-                : health?.jobs
-                  ? `${Math.round(health.jobs.failRate * 100)}%`
-                  : 'Unavailable'}
-            </span>
-          </div>
-          {app.kind === 'worker' && (
-            <div className="dl-stat">
-              <span className="dl-meta">Queue</span>
-              <span className="dl-v">{health?.queue?.depth ?? 'Unavailable'}</span>
+          {[
+            { label: 'Requests per minute', ...trafficMetrics(health).rate },
+            { label: 'p95 latency', ...trafficMetrics(health).latency },
+            { label: 'Memory', ...memoryMetric(health) },
+          ].map((metric) => (
+            <div className="dl-stat" key={metric.label}>
+              <span className="dl-meta">{metric.label}</span>
+              <span className="dl-v">{metric.value}</span>
+              {metric.note && <span className="dl-meta">{metric.note}</span>}
             </div>
-          )}
+          ))}
         </div>
       )}
       <div className="dl-cols">
         <section className="dl-section">
           <h2 className="dl-section-title">Runtime</h2>
           <Group>
-            <Setting label="Computer">{runtime?.computer || 'Unavailable'}</Setting>
+            <Setting label="Computer">
+              {runtime?.computer === 'coordinator'
+                ? coordinator
+                : runtime?.computer || 'Unavailable'}
+            </Setting>
             <Setting label="Health check">
               {health?.http ? `GET ${health.http.path}` : health?.summary || 'Unavailable'}
             </Setting>
-            <Setting label="Memory limit">{runtime?.memoryLimit || 'Unavailable'}</Setting>
+            <Setting label="Memory limit">{runtime?.memoryLimit || 'No limit'}</Setting>
           </Group>
         </section>
         <ReleaseList project={project} releases={releases} />

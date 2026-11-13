@@ -88,7 +88,7 @@ export function ProjectCode({ overview }: { overview: Overview }) {
     return `${page}?${query}`;
   };
   const query = `ref=${encodeURIComponent(ref)}`;
-  const info = useData<{ refs: { name: string; oid: string }[] }>(base);
+  const info = useData<{ refs?: { name: string; oid: string }[] }>(base);
   const tree = useData<{
     commit: string;
     commitCount: number;
@@ -124,8 +124,8 @@ export function ProjectCode({ overview }: { overview: Overview }) {
       ? `${base}/history?ref=${pinned}&path=${encodeURIComponent(file || path)}&limit=100`
       : undefined,
   );
-  const branches = info.data?.refs.filter((entry) => entry.name.startsWith('refs/heads/'));
-  const tags = info.data?.refs.filter((entry) => entry.name.startsWith('refs/tags/'));
+  const branches = info.data?.refs?.filter((entry) => entry.name.startsWith('refs/heads/'));
+  const tags = info.data?.refs?.filter((entry) => entry.name.startsWith('refs/tags/'));
   const latest = file ? blob.data?.latestCommit : tree.data?.latestCommit;
   const lines = sourceLines(blob.data?.content ?? '');
   const [raw, setRaw] = useState('');
