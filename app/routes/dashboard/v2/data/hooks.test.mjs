@@ -117,6 +117,14 @@ test('parts of a page share a read in flight, and a refresh after a change start
     // delivered in the same turn share that second request.
     const refreshes = [read(true), read(true)];
     assert.equal(pending.length, 2);
+    const tolerant = h.exports.sharedRead(
+      '/api/v2/live',
+      new AbortController().signal,
+      true,
+      false,
+      request,
+    );
+    assert.equal(pending.length, 2, 'optional and required readers share a request');
     const late = read(false);
     assert.equal(pending.length, 2, 'a poll joins the newest read');
     pending[0].resolve('before');
@@ -126,8 +134,8 @@ test('parts of a page share a read in flight, and a refresh after a change start
       ['before', 'before'],
     );
     assert.deepEqual(
-      (await Promise.all([...refreshes, late])).map((v) => v.name),
-      ['after', 'after', 'after'],
+      (await Promise.all([...refreshes, late, tolerant])).map((v) => v.name),
+      ['after', 'after', 'after', 'after'],
     );
   } finally {
     h.dispose();

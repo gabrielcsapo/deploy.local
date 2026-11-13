@@ -164,12 +164,13 @@ export function sharedRead<T>(
     });
   }
   browserResources();
-  const key = `${resourceIdentity ?? ''}\n${optional ? '?' : ''}${path}`;
+  // One request serves callers that tolerate a missing resource and callers that do not.
+  const key = `${resourceIdentity ?? ''}\n${path}`;
   let read = reads.get(key);
   if (!read || (afterChange && read.turn !== turn)) {
     const controller = new AbortController();
     const started: SharedRead = {
-      promise: readResource<T>(request, path, controller.signal, optional),
+      promise: readResource<T>(request, path, controller.signal, true),
       turn,
       waiting: 0,
       stop: () => controller.abort(),
@@ -194,7 +195,8 @@ export function sharedRead<T>(
     joined.promise.then(
       (data) => {
         signal.removeEventListener('abort', leave);
-        resolve(data as T | null);
+        if (data === null && !optional) reject(new Error('Unavailable'));
+        else resolve(data as T | null);
       },
       (error) => {
         signal.removeEventListener('abort', leave);
