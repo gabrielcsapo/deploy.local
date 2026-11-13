@@ -137,6 +137,7 @@ export const remembered = <T,>(path: string, seed?: DataSeed): T | undefined => 
 export const remember = (path: string, data: unknown) =>
   browserResources()?.set(resourceKey(path), { data, at: Date.now() });
 
+export const EVENT_REFRESH_SPACING_MS = 5000;
 export function useResource<T>(
   path: string,
   optional = false,
@@ -170,7 +171,13 @@ export function useResource<T>(
     });
     let controller: AbortController;
     let timer: ReturnType<typeof setTimeout>;
+    // Health checks and work progress arrive every few seconds on a busy server. They refresh a
+    // seeded resource at most this often; releases, rollbacks, inbox and agent changes are immediate.
+    let last = freshSeed(seed, path) ? seed!.at : 0;
+    let spaced = false;
     const refresh = async () => {
+      last = Date.now();
+      spaced = false;
       controller = new AbortController();
       const signal = controller.signal;
       try {
@@ -189,6 +196,15 @@ export function useResource<T>(
       clearTimeout(timer);
       void refresh();
     };
+    const soon = () => {
+      if (spaced) return;
+      const wait = last + EVENT_REFRESH_SPACING_MS - Date.now();
+      if (wait <= 0) return changed();
+      spaced = true;
+      controller?.abort();
+      clearTimeout(timer);
+      timer = setTimeout(() => void refresh(), wait);
+    };
     const reset = () => {
       setState({ path, seed: undefined, data: null, loading: true, error: false });
       changed();
@@ -200,15 +216,16 @@ export function useResource<T>(
     const offEvents = seed
       ? eventFeed.subscribe({
           async snapshot(_signal, boundary) {
-            if (
-              !first ||
-              (boundary !== undefined && seed.cursor !== undefined && boundary > seed.cursor)
-            )
-              changed();
+            // A reconnect may have missed anything. The first catch-up is seconds old at most.
+            if (!first) changed();
+            else if (boundary !== undefined && seed.cursor !== undefined && boundary > seed.cursor)
+              soon();
             first = false;
           },
           events(events) {
-            if (events.length) changed();
+            if (events.some((event) => event.type !== 'health' && event.type !== 'conversation'))
+              changed();
+            else if (events.length) soon();
           },
           error() {},
         })

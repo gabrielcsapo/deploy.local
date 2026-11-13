@@ -165,6 +165,20 @@ export function createEventFeed(request: typeof fetch) {
     position = read('latest', controller.signal);
     void run(controller.signal, position);
   }
+  // Subscribers that join while a latest read is in flight share it. An older position only
+  // replays more: each subscriber takes its snapshot after the read settles.
+  let joining: Promise<V2EventsResponse> | undefined;
+  function latestForJoin() {
+    if (!joining && controller) {
+      const pending = read('latest', controller.signal);
+      joining = pending;
+      const clear = () => {
+        if (joining === pending) joining = undefined;
+      };
+      pending.then(clear, clear);
+    }
+    return joining;
+  }
   function activate(sub: Subscriber, latest?: Promise<V2EventsResponse>) {
     const active: Active = {
       controller: new AbortController(),
@@ -175,7 +189,11 @@ export function createEventFeed(request: typeof fetch) {
       retryMs: INITIAL_RETRY_MS,
     };
     subscribers.set(sub, active);
-    void initialize(sub, active, latest ?? read('latest', active.controller.signal));
+    void initialize(
+      sub,
+      active,
+      latest ?? latestForJoin() ?? read('latest', active.controller.signal),
+    );
   }
   function deactivate(active: Active) {
     active.controller.abort();

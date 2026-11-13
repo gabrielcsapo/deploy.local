@@ -309,3 +309,36 @@ test('reusing subscriber handlers still creates independent subscriptions and de
   off2();
   await settle();
 });
+
+test('subscribers joining together share one latest read', async () => {
+  const backend = server();
+  const feed = createEventFeed(backend.request);
+  const offs = [feed.subscribe({ snapshot: async () => {}, events: () => {}, error: assert.fail })];
+  await settle();
+  let reads = 0;
+  const boundary = deferred<Response>();
+  backend.setLatest(() => {
+    reads += 1;
+    return boundary.promise;
+  });
+  const snapshots: (number | undefined)[] = [];
+  for (let i = 0; i < 5; i++)
+    offs.push(
+      feed.subscribe({
+        snapshot: async (_signal, position) => {
+          snapshots.push(position);
+        },
+        events: () => {},
+        error: assert.fail,
+      }),
+    );
+  await settle();
+  assert.equal(reads, 1);
+  boundary.resolve(json(7));
+  await settle();
+  assert.deepEqual(snapshots, [7, 7, 7, 7, 7]);
+  offs.push(feed.subscribe({ snapshot: async () => {}, events: () => {}, error: assert.fail }));
+  await settle();
+  assert.equal(reads, 2, 'a later join reads the position again');
+  for (const off of offs) off();
+});

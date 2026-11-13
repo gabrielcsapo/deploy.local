@@ -48,6 +48,13 @@ test('seeded resources skip the initial read, refresh on events and isolate brow
     h.effects();
     await subscriber.snapshot(new AbortController().signal, 8);
     assert.deepEqual(requests, []);
+    subscriber.events([{ type: 'health' }, { type: 'conversation' }]);
+    await settle();
+    assert.deepEqual(
+      requests,
+      [],
+      'health and progress events wait out the spacing on a fresh seed',
+    );
     subscriber.events([{ type: 'release' }]);
     await settle();
     assert.equal(read().data.name, 'live');
