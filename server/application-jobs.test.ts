@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { planApplicationExecution } from './application-execution.ts';
+import { planApplicationExecution, type ActualComponentInstance } from './application-execution.ts';
 import { jobExecutionKey, planApplicationJobs } from './application-jobs.ts';
-import type { ActualComponentInstance } from './application-reconciler.ts';
 import { compileApplicationManifest } from './application-spec.ts';
 
 const spec = compileApplicationManifest({

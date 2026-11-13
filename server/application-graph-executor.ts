@@ -6,11 +6,11 @@ import { resolve, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   componentHealthTimeoutMs,
+  type ActualComponentInstance,
   type ComponentExecutionPlan,
   type StableComponentService,
 } from './application-execution.ts';
 import { planApplicationJobs } from './application-jobs.ts';
-import type { ActualComponentInstance } from './application-reconciler.ts';
 import type { ResolvedApplicationGraphRuntime } from './application-runtime.ts';
 import type { ApplicationSpec } from './application-spec.ts';
 import {

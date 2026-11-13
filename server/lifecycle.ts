@@ -1,7 +1,6 @@
 import { wanderReservation } from './wander-adoption-fence.ts';
 import { legacyUpdateProtected, legacyUpdateLocked } from './legacy-docker-update.ts';
 import { legacyUpdateService } from './legacy-update-service.ts';
-import { apiStopContainer } from './docker-api.ts';
 import {
   getAllDeployments,
   updateDeploymentStatus,
@@ -12,14 +11,12 @@ import {
 } from './store.ts';
 import {
   getAllContainerStatuses,
-  stopContainer,
   restartContainer,
   recreateContainer,
   sweepOrphanedPrevContainers,
 } from './docker.ts';
 import { getVolumeDir } from './volumes.ts';
 import { emit } from './events.ts';
-import { stopAllProxies } from './tcp-proxy.ts';
 import { resolveApplicationGraphRuntime, resolveDeploymentRuntime } from './application-runtime.ts';
 import { ApplicationGraphExecutor } from './application-graph-executor.ts';
 import { applicationWriterSiteId } from './application-authority.ts';
@@ -328,52 +325,6 @@ export async function startAllContainers() {
   } else {
     console.log('No containers needed to be started');
   }
-}
-
-/**
- * Stop all running containers
- * Called when deploy.local shuts down
- */
-export async function stopAllContainers() {
-  console.log('Stopping all containers...');
-  stopAllProxies();
-  const deployments = getAllDeployments();
-  let stopped = 0;
-
-  // Resolve all statuses with a single docker ps, then stop sequentially —
-  // shutdown is one-shot and ordering doesn't matter.
-  const statusMap = await getAllContainerStatuses();
-
-  for (const deployment of deployments) {
-    try {
-      if (legacyUpdateProtected(deployment.name)) {
-        if (!legacyUpdateLocked(deployment.name) && deployment.containerId)
-          await apiStopContainer(deployment.containerId);
-        continue;
-      }
-      if (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') continue;
-      if (isGraphDeployment(deployment)) {
-        await new ApplicationGraphExecutor().stop({
-          applicationId: deployment.appId || deployment.name,
-          siteId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
-        });
-        updateDeploymentStatus(deployment.name, 'stopped');
-        stopped++;
-        continue;
-      }
-      const status = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
-      if (status === 'running') {
-        console.log(`  Stopping ${deployment.name}...`);
-        await stopContainer(deployment.name);
-        updateDeploymentStatus(deployment.name, 'stopped');
-        stopped++;
-      }
-    } catch (err) {
-      console.error(`  Error stopping ${deployment.name}:`, err);
-    }
-  }
-
-  console.log(`All containers stopped (${stopped} total)`);
 }
 
 function isGraphDeployment(deployment: {

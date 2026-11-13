@@ -14,11 +14,13 @@ identities are maintained by `server/local-site.ts`. The historical `fleets`, `s
 `application_aliases` rows still supply IDs required by existing application and recovery records.
 They do not make a second site available.
 
-`server/home-coordinator.ts` continues to refuse portable installations or orphaned replica data.
-Export and migration of those installations remains an owner operation; retirement does not delete
-their data or silently reinterpret them as Home.
+The owner approved removing the portable-site runtime and its data inventory on 2026-11-13.
+No portable-site inventory, export, or migration is required before retirement. The existing
+`server/home-coordinator.ts` guard still refuses portable installations or orphaned replica data;
+removing that inventory gate is a later step in [the one-server plan](one-server.md), not a new
+owner prerequisite. Ordinary application storage and Home recovery remain supported.
 
-Database tables and columns have not been altered. Historical application manifests and signed
+Remaining portable schema cleanup follows forward migrations in that plan. Historical application manifests and signed
 Catalog documents can still contain inert portability/reconciliation fields: changing their
 canonical representation would change stored revision digests and signed release identities.
 Recovery snapshots retain their existing inventory format and validation so older Home bundles

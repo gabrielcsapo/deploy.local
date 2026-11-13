@@ -6,7 +6,10 @@ Updated: 2026-10-15 (America/New_York)
 
 This branch implements a shared project/task harness, repository collaboration, and mesh CI/CD pilot.
 It does not finish the full [project workspace plan](project-workspace.md) or retire live Groffee.
-Portable-site entry points and packaging have been removed; shared legacy schema/module cleanup remains.
+The portable-site runtime, entry points, and packaging have been removed; shared legacy schema/module cleanup remains.
+The owner approved removing its data inventory on 2026-11-13. No portable-site data inventory is
+required. This decision supersedes the earlier inventory prerequisite; dated evidence below remains
+history. See [the one-server plan](one-server.md) for the remaining cleanup sequence.
 No live repositories, deployment data, Git remotes, or production services were migrated/restarted.
 
 ## Current acceptance priorities (October 15, evening)
@@ -154,14 +157,11 @@ Groffee repository/LFS/issue/PR/review/user/credential/pipeline inventory, durab
 verified backups, rehearsed rollback, and cutover remain unfinished. No Groffee service can yet be
 retired. LFS support and asset storage/retention are not implemented by this pilot.
 
-Portable-site runtime remains reachable from `server/api.ts`, the deployment store and multisite
-modules, dedicated `server/suitcase-*-main.ts` entries, `scripts/build-server-extras.mjs`,
-`docker/suitcase`, `bin/deploy.js`, dashboard Sites, and dedicated documentation. Shared deployment,
-volume authority, recovery, and ordinary node behavior depend on these concepts. Projects no
-longer start the dashboard's Suitcase access-proof UI effect, but that is a bounded UI decoupling,
-not runtime retirement. This pilot did not inventory live paired sites or assume absent targets
-were empty; removing those runtime/data paths without that evidence would violate the plan's
-migration boundary. Milestone 0a remains incomplete.
+The portable-site runtime is removed. The remaining schema, Home identity, application, and recovery
+dependencies are tracked in [the one-server plan](one-server.md). No portable-site data inventory
+is required under the owner’s 2026-11-13 decision. Ordinary node enrollment, application storage,
+and Home recovery remain supported; their shared code is retained while those dependencies are
+separated. The October 15 retirement evidence below records the earlier boundary.
 
 ## Remaining acceptance work
 
@@ -180,7 +180,7 @@ migration boundary. Milestone 0a remains incomplete.
 - Versioned generated Swift/TypeScript bindings and shared replay fixtures; performance traces,
   long-history pagination/virtualization and input/scrolling measurements.
 - Application context and repository integration with the existing `deploy.yaml` deployment flow, native/game output acceptance,
-  Groffee migration, complete Suitcase retirement, and a week of daily-use pilot evidence.
+  Groffee migration, remaining portable schema/recovery cleanup under the one-server plan, and a week of daily-use pilot evidence.
 
 ## Host execution and remaining blocking work
 

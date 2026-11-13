@@ -17,6 +17,33 @@ import {
   type VolumeAttachmentCapabilities,
 } from './volume-attachments.ts';
 
+export type ComponentInstanceStatus =
+  | 'starting'
+  | 'ready'
+  | 'unready'
+  | 'failed'
+  | 'draining'
+  | 'stopped';
+
+export interface ActualInstanceEndpoint {
+  id: string;
+  serviceId: string;
+  host: string;
+  port: number;
+}
+
+export interface ActualComponentInstance {
+  id: string;
+  component: string;
+  slot: string;
+  releaseDigest: string;
+  configurationDigest: string;
+  status: ComponentInstanceStatus;
+  endpoints: readonly ActualInstanceEndpoint[];
+  drainDeadline?: number | null;
+  inFlight?: number;
+}
+
 export type ComponentExecutableSource =
   | { kind: 'image'; reference: string }
   | {
