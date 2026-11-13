@@ -18,7 +18,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "node scripts/flight-router.mjs && node scripts/test.mjs",
-    "typecheck": "node scripts/flight-router.mjs && tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "audit:visual": "node scripts/visual-audit.mjs",
     "audit:visual:install": "playwright install chromium",
     "db:generate": "drizzle-kit generate",
