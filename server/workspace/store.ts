@@ -1,4 +1,5 @@
-import { openWorkspaceDatabase } from './database-open.ts';
+import { migrateJobOutput } from './job-output.ts';
+import { openWorkspaceDatabase, withWorkspaceDatabaseGate } from './database-open.ts';
 import { externalizeCheckpoint, materializeCheckpoint } from './checkpoint-storage.ts';
 export { checkpointInfo } from './checkpoint-metadata.ts';
 import { mkdirSync } from 'node:fs';
@@ -11,56 +12,102 @@ export const db = openWorkspaceDatabase(resolve(root, 'workspace.db'), {
   busyTimeoutMs: 5000,
   wal: true,
 });
-db.exec(
-  `CREATE TABLE IF NOT EXISTS records(kind TEXT,id TEXT,owner TEXT,data TEXT,PRIMARY KEY(kind,id,owner)); CREATE INDEX IF NOT EXISTS record_kind ON records(kind,owner); CREATE TABLE IF NOT EXISTS events(cursor INTEGER PRIMARY KEY AUTOINCREMENT,owner TEXT,taskId TEXT,runId TEXT,type TEXT,payload TEXT,createdAt TEXT); CREATE TABLE IF NOT EXISTS operations(owner TEXT,id TEXT,result TEXT,PRIMARY KEY(owner,id)); CREATE TABLE IF NOT EXISTS worker(id TEXT PRIMARY KEY,pid INTEGER,heartbeat TEXT);`,
-);
-if ((db.pragma('table_info(records)') as any[]).filter((c) => c.pk).length < 3)
-  db.transaction(() => {
-    db.exec(
-      'ALTER TABLE records RENAME TO records_v0; CREATE TABLE records(kind TEXT,id TEXT,owner TEXT,data TEXT,PRIMARY KEY(kind,id,owner)); INSERT INTO records SELECT * FROM records_v0; DROP TABLE records_v0; CREATE INDEX record_kind ON records(kind,owner)',
-    );
-  })();
-// Keep task activity and reconnect reads bounded even after unrelated histories grow.
-db.exec(
-  'CREATE INDEX IF NOT EXISTS event_owner_cursor ON events(owner,cursor); CREATE INDEX IF NOT EXISTS event_task_cursor ON events(owner,taskId,cursor)',
-);
-// Only the record kinds these lookups read, so the indexes stay small and quick to build.
-db.exec(`CREATE INDEX IF NOT EXISTS record_run_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pipeline-run';
+withWorkspaceDatabaseGate(resolve(root, 'workspace.db'), () => {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS records(kind TEXT,id TEXT,owner TEXT,data TEXT,PRIMARY KEY(kind,id,owner)); CREATE INDEX IF NOT EXISTS record_kind ON records(kind,owner); CREATE TABLE IF NOT EXISTS events(cursor INTEGER PRIMARY KEY AUTOINCREMENT,owner TEXT,taskId TEXT,runId TEXT,type TEXT,payload TEXT,createdAt TEXT); CREATE TABLE IF NOT EXISTS operations(owner TEXT,id TEXT,result TEXT,PRIMARY KEY(owner,id)); CREATE TABLE IF NOT EXISTS worker(id TEXT PRIMARY KEY,pid INTEGER,heartbeat TEXT);`,
+  );
+  if ((db.pragma('table_info(records)') as any[]).filter((c) => c.pk).length < 3)
+    db.transaction(() => {
+      db.exec(
+        'ALTER TABLE records RENAME TO records_v0; CREATE TABLE records(kind TEXT,id TEXT,owner TEXT,data TEXT,PRIMARY KEY(kind,id,owner)); INSERT INTO records SELECT * FROM records_v0; DROP TABLE records_v0; CREATE INDEX record_kind ON records(kind,owner)',
+      );
+    })();
+  // Keep task activity and reconnect reads bounded even after unrelated histories grow.
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS event_owner_cursor ON events(owner,cursor); CREATE INDEX IF NOT EXISTS event_task_cursor ON events(owner,taskId,cursor)',
+  );
+  // Only the record kinds these lookups read, so the indexes stay small and quick to build.
+  db.exec(`CREATE INDEX IF NOT EXISTS record_run_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pipeline-run';
 CREATE INDEX IF NOT EXISTS record_trigger_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pipeline-trigger';
 CREATE INDEX IF NOT EXISTS record_pull_project ON records(owner,json_extract(data,'$.projectId')) WHERE kind='pull-request';
 CREATE INDEX IF NOT EXISTS record_checkpoint_task ON records(owner,json_extract(data,'$.taskId')) WHERE kind='checkpoint';
-CREATE INDEX IF NOT EXISTS record_job_pipeline ON records(owner,json_extract(data,'$.pipelineId')) WHERE kind='job';`);
+CREATE INDEX IF NOT EXISTS record_job_pipeline ON records(owner,json_extract(data,'$.pipelineId')) WHERE kind='job';
+CREATE INDEX IF NOT EXISTS record_job_status ON records(owner,json_extract(data,'$.status')) WHERE kind='job';`);
+  migrateJobOutput(db);
+});
 export const now = () => new Date().toISOString();
 export const id = () => randomUUID();
 export function save(kind: string, owner: string, row: any) {
-  db.prepare(
-    'INSERT INTO records VALUES(?,?,?,?) ON CONFLICT(kind,id,owner) DO UPDATE SET data=excluded.data',
-  ).run(
-    kind,
-    row.id,
-    owner,
-    JSON.stringify(kind === 'checkpoint' ? externalizeCheckpoint(root, row) : row),
-  );
+  const write = () => {
+    let stored = kind === 'checkpoint' ? externalizeCheckpoint(root, row) : row;
+    if (kind === 'job') {
+      if (Object.hasOwn(row, 'output')) {
+        db.prepare(`INSERT INTO job_output(owner,id,output) VALUES(?,?,?)
+          ON CONFLICT(owner,id) DO UPDATE SET output=excluded.output`).run(
+          owner,
+          row.id,
+          String(row.output ?? ''),
+        );
+      } else {
+        // A legacy writer may have replaced the metadata since it was listed.
+        // Preserve that newer inline output before overwriting the row.
+        db.prepare(`INSERT INTO job_output(owner,id,output)
+          SELECT owner,id,COALESCE(json_extract(data,'$.output'),'') FROM records
+          WHERE kind='job' AND owner=? AND id=? AND json_type(data,'$.output') IS NOT NULL
+          ON CONFLICT(owner,id) DO UPDATE SET output=excluded.output`).run(owner, row.id);
+      }
+      const { output: _, ...metadata } = row;
+      stored = metadata;
+    }
+    db.prepare(
+      'INSERT INTO records VALUES(?,?,?,?) ON CONFLICT(kind,id,owner) DO UPDATE SET data=excluded.data',
+    ).run(kind, row.id, owner, JSON.stringify(stored));
+  };
+  if (kind === 'job') db.transaction(write).immediate();
+  else write();
   return row;
 }
 export function remove(kind: string, owner: string, recordId: string) {
   db.prepare('DELETE FROM records WHERE kind=? AND owner=? AND id=?').run(kind, owner, recordId);
 }
+/** Job lists contain metadata only; get() and jobOutput() opt in to the log. */
 export function list(kind: string, owner: string): any[] {
-  return (
-    db
-      .prepare('SELECT data FROM records WHERE kind=? AND owner=? ORDER BY rowid')
-      .all(kind, owner) as any[]
-  ).map((r) => JSON.parse(r.data));
+  // Strip legacy inline output too, without ever consulting job_output.
+  const rows = db
+    .prepare(`SELECT ${kind === 'job' ? "json_remove(data,'$.output')" : 'data'} AS data
+    FROM records WHERE kind=? AND owner=? ORDER BY rowid`)
+    .all(kind, owner) as { data: string }[];
+  return rows.map((row) => JSON.parse(row.data));
 }
+const jobOutputQuery = `CASE WHEN json_type(r.data,'$.output') IS NOT NULL
+    THEN json_extract(r.data,'$.output') ELSE o.output END AS output
+  FROM records r LEFT JOIN job_output o ON o.owner=r.owner AND o.id=r.id
+  WHERE r.kind='job' AND r.owner=? AND r.id=?`;
+
 export function get(kind: string, owner: string, recordId: string): any {
-  const r = db
-    .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
-    .get(kind, owner, recordId) as any;
+  // Read metadata and output in one SQLite snapshot, including legacy inline writes.
+  const r = (
+    kind === 'job'
+      ? db.prepare(`SELECT r.data, ${jobOutputQuery}`).get(owner, recordId)
+      : db
+          .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
+          .get(kind, owner, recordId)
+  ) as { data: string; output?: string | null } | undefined;
   if (!r) throw Object.assign(new Error('Not found'), { status: 404 });
   const row = JSON.parse(r.data);
+  if (kind === 'job') return { ...row, output: r.output ?? '' };
   return kind === 'checkpoint' ? materializeCheckpoint(root, row) : row;
 }
+/** Hydrate only jobs whose output is actually consumed, after filtering metadata.
+ * Inline output from a legacy writer always wins, including an explicit empty string.
+ */
+export function jobOutput(owner: string, recordId: string): string {
+  const row = db.prepare(`SELECT ${jobOutputQuery}`).get(owner, recordId) as
+    | { output: string | null }
+    | undefined;
+  return row?.output ?? '';
+}
+
 const checkpointFields = [
   'id',
   'taskId',

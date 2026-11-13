@@ -14,6 +14,7 @@ import {
   db,
   get,
   list,
+  jobOutput,
   save,
   remove,
   event,
@@ -239,6 +240,7 @@ function assertArtifactSupport(owner: string, worker: any, requirements: any) {
     );
 }
 export function describeJob(owner: string, job: any) {
+  if (!Object.hasOwn(job, 'output')) job = { ...job, output: jobOutput(owner, job.id) };
   if (job.status !== 'queued' || job.workerId) return job;
   const eligible = computers(owner).filter((worker) => eligibleForJob(worker, job.requirements));
   return {
@@ -275,7 +277,7 @@ function jobsWithStatus(owner: string, status: string): any[] {
   return (
     db
       .prepare(
-        "SELECT data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.status')=? ORDER BY rowid",
+        "SELECT json_remove(data,'$.output') AS data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.status')=? ORDER BY rowid",
       )
       .all(owner, status) as { data: string }[]
   ).map((row) => JSON.parse(row.data));

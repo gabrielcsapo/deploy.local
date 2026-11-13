@@ -200,7 +200,7 @@ export function pipelineRead(owner: string, projectId: string, pipelineId?: stri
     jobs: (
       db
         .prepare(
-          "SELECT data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.pipelineId')=? ORDER BY rowid",
+          "SELECT json_remove(data,'$.output') AS data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.pipelineId')=? ORDER BY rowid",
         )
         .all(owner, pipelineId) as any[]
     ).map((row) => {
@@ -219,9 +219,11 @@ export function pipelineRead(owner: string, projectId: string, pipelineId?: stri
   };
 }
 export function pipelineCancel(owner: string, projectId: string, pipelineId: string) {
-  pipelineRead(owner, projectId, pipelineId);
+  get('project', owner, projectId);
   // Act on the stored job outcome; a publishing release is owned by the controller.
   const pipeline = get('pipeline-run', owner, pipelineId);
+  if (pipeline.projectId !== projectId)
+    throw Object.assign(new Error('Not found'), { status: 404 });
   if (
     settled.includes(pipeline.status) &&
     !(
@@ -233,7 +235,7 @@ export function pipelineCancel(owner: string, projectId: string, pipelineId: str
     return presentPipelineRun(pipeline);
   const jobs = db
     .prepare(
-      "SELECT data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.pipelineId')=? AND json_extract(data,'$.status') IN ('waiting','queued','running')",
+      "SELECT json_remove(data,'$.output') AS data FROM records WHERE kind='job' AND owner=? AND json_extract(data,'$.pipelineId')=? AND json_extract(data,'$.status') IN ('waiting','queued','running')",
     )
     .all(owner, pipelineId) as { data: string }[];
   for (const row of jobs) {

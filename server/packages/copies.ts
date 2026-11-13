@@ -130,12 +130,11 @@ export async function cleanupCopies(clock = Date.now()) {
     .prepare("SELECT DISTINCT release_id FROM package_pins WHERE reason='job'")
     .all() as { release_id: string }[]) {
     const job = workspaceDb
-      .prepare("SELECT data FROM records WHERE kind='job' AND id=?")
+      .prepare(
+        "SELECT json_extract(data,'$.status') AS status FROM records WHERE kind='job' AND id=?",
+      )
       .get(row.release_id) as any;
-    if (
-      !job ||
-      ['succeeded', 'failed', 'cancelled', 'timed_out'].includes(JSON.parse(job.data).status)
-    )
+    if (!job || ['succeeded', 'failed', 'cancelled', 'timed_out'].includes(job.status))
       finishJobPins(row.release_id);
     await yieldThread();
   }

@@ -4,7 +4,14 @@ import { ensureDesignCheckBoards } from './design.ts';
 import { mergingPackages } from '../packages/pipeline-read.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ConversationEvent } from '../../shared/v2/contracts.ts';
-import { cursor, events, get, list, listCheckpointMetadata } from '../workspace/store.ts';
+import {
+  cursor,
+  events,
+  get,
+  list,
+  jobOutput,
+  listCheckpointMetadata,
+} from '../workspace/store.ts';
 import { gitText } from '../workspace/repository-git.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
 import { mapConversationEvent } from './events.ts';
@@ -46,8 +53,10 @@ export function taskSnapshot(owner: string, id: string) {
   const checkpoints = listCheckpointMetadata(owner, id);
   checkpoints.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   const checkpoint = checkpoints.at(-1);
+  const jobs = list('job', owner).filter((job) => job.taskId === id);
+  const jobIds = new Set(jobs.map((job) => job.id));
   const recorded = new Map(
-    [...list('check', owner), ...list('job', owner)]
+    [...list('check', owner), ...jobs]
       .filter((check) => check.taskId === id)
       .map((check) => [check.id, check]),
   );
@@ -72,7 +81,9 @@ export function taskSnapshot(owner: string, id: string) {
             ? {
                 ...latest,
                 name: detail.name,
-                output: scrubCheckText(String(detail.output || '')).slice(-64000),
+                output: scrubCheckText(
+                  jobIds.has(detail.id) ? jobOutput(owner, detail.id) : String(detail.output || ''),
+                ).slice(-64000),
                 startedAt: detail.startedAt,
                 finishedAt: detail.finishedAt || detail.completedAt,
               }
