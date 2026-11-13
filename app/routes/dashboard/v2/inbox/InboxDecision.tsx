@@ -68,7 +68,7 @@ function Decision({ item }: { item: InboxItem }) {
   }
   const closed = item.state !== 'waiting';
   const name = item.fromName || agentName(item.from);
-  if (item.id.startsWith('design:') && !closed)
+  if (item.id.startsWith('design:') && (!closed || item.answer?.actionId === 'approve'))
     return (
       <DesignCard
         projectId={item.projectId ?? item.id.split(':')[1]}

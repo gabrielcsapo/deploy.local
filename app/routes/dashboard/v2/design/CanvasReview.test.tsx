@@ -236,3 +236,37 @@ test('the existing right panel owns the layer change list and hides Propose thro
   assert.match(html, /Gap 8 → 12/);
   assert.doesNotMatch(html, />Propose<|dl-rv-rail|dl-rv-dock/);
 });
+
+test('landed approval offers the board’s split Build action until a build is recorded', () => {
+  const approved: DesignReview = {
+    ...data,
+    proposerTaskId: 'proposer-task',
+    item: {
+      ...data.item,
+      state: 'answered',
+      answer: { actionId: 'approve', at: '2026-11-12T12:00:00Z', by: 'owner', on: 'web' },
+    },
+    landing: { at: '2026-11-12T12:00:30Z', state: 'landed', commit: '4f05991abcdef' },
+  };
+  const html = bar(approved);
+  assert.match(html, /Approved · on main as 4f05991 · not built yet/);
+  assert.match(html, />Build<\/button>/);
+  assert.match(html, /aria-label="Where to build"/);
+  assert.match(html, /role="menuitemradio" aria-checked="true"/);
+  assert.match(html, /In Designer’s task/);
+  assert.match(html, /Carries on the conversation that proposed it/);
+  assert.match(html, /In a new task/);
+  assert.match(html, /Starts a task that builds this design/);
+  assert.doesNotMatch(html, /Ask for changes|Approve design<\/button>|>Done<|>Undo</);
+  assert.doesNotMatch(bar({ ...approved, proposerTaskId: null }), /Where to build/);
+  assert.doesNotMatch(
+    bar({ ...approved, landing: { ...approved.landing!, state: 'pending' } }),
+    />Build</,
+  );
+  const building = bar({
+    ...approved,
+    landing: { ...approved.landing!, build: { at: '', taskId: 'build-task', name: 'Builder' } },
+  });
+  assert.match(building, /href="\/dashboard\/tasks\/build-task">Builder is building it<\/a>/);
+  assert.doesNotMatch(building, />Build<|Where to build|not built yet/);
+});

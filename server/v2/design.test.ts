@@ -1,4 +1,4 @@
-import test, { after } from 'node:test';
+import test, { after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,6 +6,12 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { Readable } from 'node:stream';
+if (process.env.DEPLOY_TEST_NO_BROWSER === '1') {
+  const { chromium } = await import('playwright');
+  mock.method(chromium, 'launch', () => {
+    throw new Error('Browser execution disabled for this test run');
+  });
+}
 const root = mkdtempSync(join(tmpdir(), 'v2-design-'));
 process.env.DEPLOY_DATA_DIR = root;
 const store = await import('../store.ts');
@@ -2280,7 +2286,7 @@ test('a group can be seen together and anchored area notes accept a dragged widt
   assert.equal((await f.call('/review/pins', { ...body, offset: { x: 2, y: 0 } })).status, 400);
 });
 
-test('approved designs show build reports and only linked open tasks without reports', async () => {
+test('approved designs show build reports and only explicitly requested open builds', async () => {
   const f = await reviewFixture('review-built');
   const item = await f.propose();
   const { get } = await import('../workspace/store.ts');
@@ -2298,8 +2304,12 @@ test('approved designs show build reports and only linked open tasks without rep
     ...get('v2-inbox-native', 'alice', item.id),
     context: { ...row.context, taskId },
   });
-  // A person proposed this one, so no agent is named.
-  assert.match((await readApproved())[0].detail, /· being built$/);
+  assert.deepEqual(await readApproved(), [], 'a linked proposer alone is not a build');
+  save('design-review-landing', 'alice', {
+    ...get('design-review-landing', 'alice', item.id),
+    build: { taskId, at: new Date().toISOString() },
+  });
+  assert.match((await readApproved())[0].detail, /Build it is building it$/);
   await assert.rejects(
     () => designTool({ owner: 'alice', taskId }, { action: 'built', state: 'differs' }),
     /differences count/,
@@ -2325,51 +2335,60 @@ test('approved designs show build reports and only linked open tasks without rep
   save('design-review-built', 'alice', { ...built, state: 'kept' });
   assert.equal((await readApproved())[0].detail, 'Built · matches the design');
   save('design-review-built', 'alice', { ...built, state: 'waiting' });
-  assert.match((await readApproved())[0].detail, /being built$/);
+  assert.match((await readApproved())[0].detail, /Build it is building it$/);
 });
 
-test('an approved design is built on a computer that is online, not left waiting for none', async () => {
-  // SER on 2026-11-10: six builds sat queued for a worker named "local" that nothing runs as.
-  const f = await reviewFixture('review-build-computer');
-  const item = await f.propose();
-  const { get, save } = await import('../workspace/store.ts');
-  const { answerInboxAsync } = await import('./inbox.ts');
-  const { landDesignApprovals } = await import('./design.ts');
-  save('worker', 'alice', { id: 'ser', name: 'SER', heartbeat: new Date().toISOString() });
-  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
-  await landDesignApprovals();
-  const landing = get('design-review-landing', 'alice', item.id);
-  assert.equal(landing.build.started, true);
-  assert.equal(get('task', 'alice', landing.build.taskId).workerId, 'ser');
-});
-test('an approved design starts its build once it is on main, and only once', async () => {
+test('approval and boot never build; an explicit ask starts one build and links its task', async () => {
   const f = await reviewFixture('review-build-loop');
   const item = await f.propose();
   const { get, list } = await import('../workspace/store.ts');
   const { answerInboxAsync } = await import('./inbox.ts');
   const { landDesignApprovals, designBuildBrief } = await import('./design.ts');
+  for (const worker of list('worker', 'alice'))
+    save('worker', 'alice', { ...worker, heartbeat: '2000-01-01T00:00:00Z' });
+  save('worker', 'alice', {
+    id: 'build-worker',
+    name: 'Build computer',
+    heartbeat: new Date().toISOString(),
+  });
   const builds = () =>
     list('task', 'alice').filter((task: any) => String(task.title).startsWith('Build: '));
   const before = builds().length;
-  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
+  assert.equal((await f.call('/review/build', { item: item.id, place: 'new' })).status, 409);
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web', delay: true });
+  assert.equal((await f.call('/review/build', { item: item.id, place: 'new' })).status, 409);
+  await landDesignApprovals(Date.now() + 31000);
   await landDesignApprovals();
   const landing = get('design-review-landing', 'alice', item.id);
   assert.equal(landing.state, 'landed');
-  assert.ok(landing.build, 'the landing records what followed it');
-  if (landing.build.failed) {
-    // No computer takes tasks in this fixture: the review says why instead of retrying forever.
-    assert.equal(builds().length, before);
-  } else {
-    assert.equal(landing.build.started, true);
-    assert.equal(builds().length, before + 1);
-    const task = get('task', 'alice', landing.build.taskId);
-    assert.equal(task.title, `Build: ${item.title}`);
-    // The review now leads to its builder, so "built" reports and To review can find it.
-    assert.equal(get('v2-inbox-native', 'alice', item.id).context.taskId, task.id);
-  }
+  assert.equal(landing.build, undefined);
+  assert.equal(builds().length, before);
+  assert.ok((await f.read(item)).boards.every((board: any) => board.seen));
+  // Existing landings from the previous release must never be resumed on boot.
+  save('design-review-landing', 'alice', { ...landing, buildDue: true });
   await landDesignApprovals();
-  assert.equal(builds().length, before + (landing.build.failed ? 0 : 1));
-  assert.deepEqual(get('design-review-landing', 'alice', item.id).build, landing.build);
+  assert.equal(builds().length, before);
+  assert.equal(get('design-review-landing', 'alice', item.id).build, undefined);
+  assert.equal((await f.call('/review/build', { item: item.id, place: 'proposer' })).status, 409);
+  const response = await f.call('/review/build', { item: item.id, place: 'new' });
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  const { build } = await response.json();
+  assert.equal(build.started, true);
+  assert.equal(builds().length, before + 1);
+  const task = get('task', 'alice', build.taskId);
+  assert.equal(task.workerId, 'build-worker');
+  assert.equal(task.title, `Build: ${item.title}`);
+  assert.equal(task.baseRevision, landing.commit);
+  const row = get('v2-inbox-native', 'alice', item.id);
+  assert.equal(row.item.taskId, task.id);
+  assert.equal(row.context.taskId, task.id);
+  assert.equal(row.context.proposerTaskId, null);
+  assert.equal((await f.read(item)).proposerTaskId, null);
+  const again = await f.call('/review/build', { item: item.id, place: 'proposer' });
+  assert.deepEqual((await again.json()).build, build);
+  await landDesignApprovals();
+  assert.equal(builds().length, before + 1);
+  assert.deepEqual(get('design-review-landing', 'alice', item.id).build, build);
 
   const brief = designBuildBrief({
     title: 'A way back',
@@ -2383,6 +2402,95 @@ test('an approved design starts its build once it is on main, and only once', as
   assert.match(brief, /- design\/boards\/Project\.html/);
   assert.match(brief, /action "built"/);
 });
+
+test('build errors leave no build and can be retried; proposer follow-ups are queued exactly once', async () => {
+  const f = await reviewFixture('review-build-request');
+  const item = await f.propose();
+  const { get, list } = await import('../workspace/store.ts');
+  const { answerInboxAsync } = await import('./inbox.ts');
+  const taskId = 'build-proposer';
+  const row = get('v2-inbox-native', 'alice', item.id);
+  save('task', 'alice', {
+    id: taskId,
+    title: 'Designer task',
+    projectId: f.project.id,
+    status: 'running',
+    workerId: 'build-worker',
+  });
+  save('run', 'alice', { id: 'build-proposer-run', taskId, status: 'running' });
+  save('queued-message', 'alice', {
+    id: taskId,
+    taskId,
+    status: 'queued',
+    content: 'Keep this earlier request.',
+  });
+  save('v2-inbox-native', 'alice', {
+    ...row,
+    item: { ...row.item, taskId },
+    context: { ...row.context, taskId, proposerTaskId: taskId },
+  });
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
+  const ask = () => f.call('/review/build', { item: item.id, place: 'proposer' });
+  for (const worker of list('worker', 'alice'))
+    save('worker', 'alice', { ...worker, heartbeat: '2000-01-01T00:00:00Z' });
+  const unavailable = await ask();
+  assert.equal(unavailable.status, 409);
+  assert.match((await unavailable.json()).error, /No computer/);
+  assert.equal(get('design-review-landing', 'alice', item.id).build, undefined);
+  assert.equal(get('queued-message', 'alice', taskId).content, 'Keep this earlier request.');
+  save('worker', 'alice', {
+    id: 'other-build-worker',
+    name: 'Other computer',
+    heartbeat: new Date().toISOString(),
+  });
+  const offline = await ask();
+  assert.equal(offline.status, 409);
+  assert.match((await offline.json()).error, /proposer’s computer is not online/);
+  assert.equal(get('design-review-landing', 'alice', item.id).build, undefined);
+
+  save('worker', 'alice', {
+    id: 'build-worker',
+    name: 'Build computer',
+    heartbeat: new Date().toISOString(),
+  });
+  assert.equal((await f.call('/review/build', { item: item.id, place: 'invalid' })).status, 400);
+  const responses = await Promise.all([ask(), ask()]);
+  const first = (await responses[0].json()).build;
+  assert.equal(responses[0].status, 200);
+  assert.deepEqual((await responses[1].json()).build, first);
+  assert.equal(first.taskId, taskId);
+  assert.equal(first.started, false);
+  const content = get('queued-message', 'alice', taskId).content;
+  assert.match(content, /^Keep this earlier request\./);
+  assert.equal((content.match(/Build exactly what was approved/g) ?? []).length, 1);
+  assert.equal(get('v2-inbox-native', 'alice', item.id).item.taskId, taskId);
+  const foreign = await fetch(`${origin}/api/v2/projects/${f.project.id}/design/review/build`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-owner': 'bob' },
+    body: JSON.stringify({ item: item.id, place: 'new' }),
+  });
+  assert.equal(foreign.status, 404);
+});
+
+for (const status of ['cancelled', 'archived'])
+  test(`${status} proposers can only build in a new task`, async () => {
+    const f = await reviewFixture(`review-build-${status}`);
+    const item = await f.propose();
+    const { get } = await import('../workspace/store.ts');
+    const { answerInboxAsync } = await import('./inbox.ts');
+    const row = get('v2-inbox-native', 'alice', item.id);
+    const taskId = `proposer-${status}`;
+    save('task', 'alice', { id: taskId, status, projectId: f.project.id });
+    save('v2-inbox-native', 'alice', {
+      ...row,
+      context: { ...row.context, taskId, proposerTaskId: taskId },
+    });
+    await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
+    assert.equal((await f.read(item)).proposerTaskId, null);
+    assert.equal((await f.call('/review/build', { item: item.id, place: 'proposer' })).status, 409);
+    assert.equal(get('design-review-landing', 'alice', item.id).build, undefined);
+    assert.equal((await f.call('/review/build', { item: item.id, place: 'new' })).status, 200);
+  });
 
 async function mergeFixture(name: string, overlap: boolean, malformed = false) {
   const f = await reviewFixture(name);

@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Action, Dialog, Seg, Skeleton } from '@/components/ui';
+import { Action, Dialog, Icon, Seg, Skeleton } from '@/components/ui';
 import type {
   DesignReview,
   DesignReviewPreview,
@@ -10,6 +10,7 @@ import { useAgentName, useInbox } from '../data/hooks';
 import { authenticatedFetch, request, useData } from '../projects/data';
 import { approvalRecord, buildLine, resolutionProgress, reviewHref } from './review-model';
 import { reviewFrames, seenFrame, type ReviewSide } from './canvas-review-model';
+import { BuildDesign } from './BuildDesign';
 import { DesignBuildDecision } from '../inbox/DesignBuildDecision';
 
 export function useCanvasReview(project: string, item: string | null) {
@@ -50,8 +51,7 @@ export function useCanvasReview(project: string, item: string | null) {
     void load();
     return invalidate;
   }, [load, invalidate]);
-  const pending =
-    data?.landing?.state === 'pending' || Boolean(data?.landing?.buildDue && !data.landing.build);
+  const pending = data?.landing?.state === 'pending';
   useEffect(() => {
     if (!item) return;
     const timer = window.setInterval(
@@ -272,11 +272,28 @@ export function CanvasReviewBar({
       <div ref={bar} className="dl-design-waiting-banner dz-review-bar">
         <span className="dz-review-heading">
           <strong>{data?.title ?? 'Loading the review…'}</strong>
-          {data && (
+          {data && !approved && (
             <span>
               {' '}
               · from {data.proposer.name} · {frames.filter((board) => board.seen).length} of{' '}
               {frames.length} approved
+            </span>
+          )}
+          {data && approved && (
+            <span>
+              {' '}
+              · <Icon name="check" size={14} className="text-success align-middle" />{' '}
+              {pending
+                ? `Approved · on main in ${record?.seconds} s`
+                : `Approved · on main${data.landing?.commit ? ` as ${data.landing.commit.slice(0, 7)}` : ''} · `}
+              {!pending &&
+                (building?.taskId ? (
+                  <a href={`/dashboard/tasks/${encodeURIComponent(building.taskId)}`}>
+                    {building.text}
+                  </a>
+                ) : (
+                  building?.text
+                ))}
             </span>
           )}
         </span>
@@ -309,27 +326,20 @@ export function CanvasReviewBar({
           </>
         ) : (
           <>
-            <span className="dl-meta">
-              {approved
-                ? pending
-                  ? `Approved · on main in ${record?.seconds} s`
-                  : 'Approved · on main'
-                : data.item.answer?.actionId === 'changes'
+            {!approved && (
+              <span className="dl-meta">
+                {data.item.answer?.actionId === 'changes'
                   ? `Sent to ${data.proposer.name}`
                   : 'Asked to update'}
-            </span>
+              </span>
+            )}
+            {approved && (
+              <BuildDesign key={data.id} review={data} api={api} refresh={() => void load()} />
+            )}
             {pending && (
               <Action disabled={busy} onClick={() => void undo()}>
                 Undo
               </Action>
-            )}
-            {building?.taskId && (
-              <a
-                className="dl-btn quiet"
-                href={`/dashboard/tasks/${encodeURIComponent(building.taskId)}`}
-              >
-                Open the task
-              </a>
             )}
             {build && <Action onClick={() => setDialog('build')}>Built design differs</Action>}
             {!approved && data.item.taskId && (
@@ -340,7 +350,7 @@ export function CanvasReviewBar({
                 Open the task
               </a>
             )}
-            {!pending && (
+            {!pending && !approved && (
               <a
                 className="dl-btn quiet"
                 href={next ? reviewHref(next.id) : '/dashboard/design?view=review'}

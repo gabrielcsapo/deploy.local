@@ -195,7 +195,7 @@ const events = [
     at: ago(1),
     agent: proposer.id,
     paragraphs: [
-      'I redrew Welcome with the input above the quick actions and a gutter at every width, and added the narrow version. Nothing is built yet; approve the design and I start on the code.',
+      'I redrew Welcome with the input above the quick actions and a gutter at every width, and added the narrow version. Nothing is built yet; approval puts the design on main, then you can ask for a build.',
     ],
   },
   { kind: 'decision', id: 'decision', at: ago(1), inboxItemId: chat.item.id },

@@ -9,6 +9,8 @@ import {
   counted,
   approvalRecord,
   buildLine,
+  buildPlace,
+  canBuildDesign,
 } from './review-model.ts';
 
 test('review counts use singular only for one pin, change or screen', () => {
@@ -115,22 +117,20 @@ test('an approved review says who decided and what happens next, without inventi
     null,
   );
 
-  assert.equal(
-    buildLine({ item, proposer: you, landing: pending }).text,
-    'A task starts building this once it is on main.',
-  );
-  assert.equal(
-    buildLine({ item, proposer: designer, landing: pending }).text,
-    'Designer starts building once this is on main.',
-  );
+  assert.equal(buildLine({ item, proposer: you, landing: pending }).text, 'not built yet');
+  assert.equal(buildLine({ item, proposer: designer, landing: pending }).text, 'not built yet');
   const landed = { at, state: 'landed' as const, commit: 'c' };
   assert.deepEqual(
     buildLine({ item, proposer: you, landing: { ...landed, build: { at, taskId: 't1' } } }),
-    { text: 'A task is building it.', taskId: 't1' },
+    { text: 'A task is building it', taskId: 't1' },
   );
   assert.deepEqual(
-    buildLine({ item, proposer: designer, landing: { ...landed, build: { at, taskId: 't2' } } }),
-    { text: 'Designer is building it.', taskId: 't2' },
+    buildLine({
+      item,
+      proposer: designer,
+      landing: { ...landed, build: { at, taskId: 't2', name: 'Builder' } },
+    }),
+    { text: 'Builder is building it', taskId: 't2' },
   );
   assert.equal(
     buildLine({
@@ -138,12 +138,9 @@ test('an approved review says who decided and what happens next, without inventi
       proposer: you,
       landing: { ...landed, build: { at, failed: 'No computer takes tasks' } },
     }).text,
-    'Nothing builds this yet: No computer takes tasks',
+    'not built yet',
   );
-  assert.equal(
-    buildLine({ item, proposer: you, landing: landed }).text,
-    'Nothing builds this yet.',
-  );
+  assert.equal(buildLine({ item, proposer: you, landing: landed }).text, 'not built yet');
 });
 
 test('Continue waits only for same-part choices, counts automatic merges, and Undo blocks again', () => {
@@ -178,5 +175,23 @@ test('review links target the canvas and preserve encoded proposal identity', as
   assert.equal(
     reviewCounts({ screens: 2, changed: 1, new: 1, removed: 0 }),
     '2 screens · 1 changed · 1 new · 0 removed',
+  );
+});
+
+test('Build waits for landing and remembers a valid destination without inventing a proposer', () => {
+  assert.equal(buildPlace('task', null), 'proposer');
+  assert.equal(buildPlace('task', 'new'), 'new');
+  assert.equal(buildPlace(null, 'proposer'), 'new');
+  const item = { taskId: 'task', answer: { actionId: 'approve' } } as never;
+  assert.equal(
+    buildLine({ item, proposer: { id: 'a', name: 'Designer', avatar: null } }).text,
+    'not built yet',
+  );
+  assert.equal(canBuildDesign({ item }), false);
+  assert.equal(canBuildDesign({ item, landing: { state: 'pending', at: '' } }), false);
+  assert.equal(canBuildDesign({ item, landing: { state: 'landed', at: '' } }), true);
+  assert.equal(
+    canBuildDesign({ item, landing: { state: 'landed', at: '', build: { at: '', taskId: 'b' } } }),
+    false,
   );
 });

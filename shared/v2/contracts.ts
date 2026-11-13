@@ -476,6 +476,8 @@ export type DesignReviewSummary = {
 export type DesignReview = DesignReviewSummary & {
   item: InboxItem;
   task: string | null;
+  /** Available original proposer task; absent for a person or a cancelled/archived task. */
+  proposerTaskId?: string | null;
   before: string;
   after: string;
   main: string;
@@ -487,10 +489,15 @@ export type DesignReview = DesignReviewSummary & {
     at: string;
     state: 'pending' | 'landed' | 'conflict';
     commit?: string;
-    /** Set when a build follows this landing; absent on approvals from before builds did. */
-    buildDue?: boolean;
-    /** What followed the landing: the task told to build it, or why none could be. */
-    build?: { at: string; taskId?: string; started?: boolean; failed?: string; skipped?: boolean };
+    /** Explicitly requested build; legacy records may contain a failed or skipped attempt. */
+    build?: {
+      name?: string;
+      at: string;
+      taskId?: string;
+      started?: boolean;
+      failed?: string;
+      skipped?: boolean;
+    };
   };
   boards: DesignReviewScreen[];
   groups: { id: string | null; title: string | null; boards: string[] }[];

@@ -1,6 +1,8 @@
 'use client';
-import { Skeleton } from '@/components/ui';
-import { useState } from 'react';
+import { Action, Skeleton } from '@/components/ui';
+import { useEffect, useRef, useState } from 'react';
+import { BuildDesign } from './BuildDesign';
+import { approvalRecord, buildLine } from './review-model';
 import { ReviewRedirect } from './ReviewRedirect';
 import { alsoChanged, reviewCrop, reviewHref, counted } from './review-model';
 import { previewKey, useReviewPreviews, type Preview } from './ReviewPreviews';
@@ -129,6 +131,20 @@ function DesignCardPreview({
   const review = useData<DesignReview>(
     item ? `${design.api}/review?item=${encodeURIComponent(item.id)}` : undefined,
   );
+  const refreshReview = useRef(review.refresh);
+  refreshReview.current = review.refresh;
+  useEffect(() => {
+    if (item.answer?.actionId !== 'approve') return;
+    refreshReview.current();
+    const timer = window.setInterval(
+      () => refreshReview.current(),
+      review.data?.landing?.state === 'pending' ? 1000 : 15000,
+    );
+    return () => window.clearInterval(timer);
+  }, [item.id, item.answer?.actionId, review.data?.landing?.state]);
+  const approved = item.answer?.actionId === 'approve';
+  const building = review.data ? buildLine(review.data) : null;
+  const record = review.data ? approvalRecord(review.data, Date.now(), () => '') : null;
   const screens = review.data ? canvasOrder(review.data) : noScreens;
   const shown = screens[0];
   const images = useReviewPreviews(design.api, item?.id ?? '', shown ? [shown] : noScreens);
@@ -167,7 +183,45 @@ function DesignCardPreview({
         )}
       </div>
       {more && <p className="dzr-card-more">{more}</p>}
+      {approved && !review.data && <p className="dzr-card-more">Approved</p>}
+      {review.error && (
+        <p className="dzr-card-more" role="alert">
+          {review.error} <Action onClick={review.refresh}>Retry</Action>
+        </p>
+      )}
+      {approved && review.data && (
+        <p className="dzr-card-more">
+          Approved ·{' '}
+          {review.data?.landing?.state === 'pending' ? (
+            `on main in ${record?.seconds ?? 30} s`
+          ) : (
+            <>
+              on main
+              {review.data?.landing?.commit
+                ? ` as ${review.data.landing.commit.slice(0, 7)}`
+                : ''}{' '}
+              ·{' '}
+              {building?.taskId ? (
+                <a href={`/dashboard/tasks/${encodeURIComponent(building.taskId)}`}>
+                  {building.text}
+                </a>
+              ) : (
+                'not built yet'
+              )}
+            </>
+          )}
+        </p>
+      )}
       <footer className="dzr-card-foot">
+        {approved && review.data && (
+          <BuildDesign
+            key={item.id}
+            review={review.data}
+            api={design.api}
+            refresh={review.refresh}
+            inChat
+          />
+        )}
         <a className="dl-btn primary" href={reviewHref(item.id)}>
           Review
         </a>

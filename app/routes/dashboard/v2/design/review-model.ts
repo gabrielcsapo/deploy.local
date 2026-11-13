@@ -77,27 +77,12 @@ export function buildLine(review: Pick<DesignReview, 'landing' | 'proposer' | 'i
   taskId?: string;
 } {
   const build = review.landing?.build;
-  const agent = review.proposer.id === null ? null : review.proposer.name;
-  if (review.landing?.state === 'pending')
-    return {
-      text: agent
-        ? `${agent} starts building once this is on main.`
-        : 'A task starts building this once it is on main.',
-    };
   if (build?.taskId)
     return {
-      text: agent ? `${agent} is building it.` : 'A task is building it.',
+      text: `${build.name ?? 'A task'} is building it`,
       taskId: build.taskId,
     };
-  if (build?.failed) return { text: `Nothing builds this yet: ${build.failed}` };
-  if (review.landing?.buildDue && !build)
-    return { text: agent ? `${agent} is starting on it.` : 'A task is starting on it.' };
-  if (review.item.taskId)
-    return {
-      text: agent ? `${agent} is building it.` : 'A task is building it.',
-      taskId: review.item.taskId,
-    };
-  return { text: 'Nothing builds this yet.' };
+  return { text: 'not built yet' };
 }
 
 /** Automatic merges count as resolved; only overlapping parts need an answer. */
@@ -110,4 +95,16 @@ export function resolutionProgress(resolutions: NonNullable<DesignReview['resolu
     canContinue: resolved === total,
     label: `${resolved} of ${total} resolved`,
   };
+}
+
+/** A remembered choice only applies when this design has a task to continue. */
+export function buildPlace(proposerTaskId: string | null | undefined, saved: string | null) {
+  return proposerTaskId && saved !== 'new' ? 'proposer' : 'new';
+}
+export function canBuildDesign(review: Pick<DesignReview, 'item' | 'landing'>) {
+  return (
+    review.item.answer?.actionId === 'approve' &&
+    review.landing?.state === 'landed' &&
+    !review.landing.build
+  );
 }

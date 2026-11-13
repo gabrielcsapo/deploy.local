@@ -87,17 +87,17 @@ test('design decisions use one preview card and keep answered history and other 
       state: 'answered',
       answer: { actionId: 'approve', by: 'Gabriel', on: 'web', at: item.createdAt },
     };
-    assert.match(render(answered), /dl-approval answered/);
-    assert.match(render(answered), /Approve design/);
-    assert.match(render(answered), /you answered .* on the web/);
+    assert.match(render(answered), /aria-label="Design change"/);
+    assert.match(render(answered), /Approved/);
+    assert.doesNotMatch(render(answered), /starts building|is building it/);
     assert.equal(fallback(answered, events), '');
     const older = history(answered, [
       { ...events[0], at: '2020-01-01T12:00:00Z' },
       { kind: 'reply', id: 'reply', agent: 'agent', at: item.createdAt, paragraphs: ['Updated'] },
     ]);
     assert.match(older, /<details class="dl-chat-history">/);
-    assert.match(older, /dl-approval answered/);
-    assert.ok(older.indexOf('dl-approval answered') > older.indexOf('</details>'));
+    assert.match(older, /aria-label="Design change"/);
+    assert.ok(older.indexOf('aria-label="Design change"') > older.indexOf('</details>'));
     const question = {
       ...item,
       id: 'question:q',
