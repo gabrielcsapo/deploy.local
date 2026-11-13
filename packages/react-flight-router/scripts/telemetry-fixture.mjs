@@ -32,7 +32,7 @@ if (process.argv.includes('--example')) {
 } else {
   write(
     'app/routes.ts',
-    `export const routes = [{id:'root', component:()=>import('./root'), children:[{id:'home',index:true,component:()=>import('./home')},{id:'photo',path:'photos/:id',component:()=>import('./photo')},{id:'suspense',path:'suspense',component:()=>import('./suspense')}]}];`,
+    `export const routes = [{id:'root', component:()=>import('./root'), children:[{id:'home',index:true,component:()=>import('./home')},{id:'photo',path:'photos/:id',component:()=>import('./photo')},{id:'suspense',path:'suspense',component:()=>import('./suspense')},{id:'old',path:'old/:id',redirect:({params,url})=>'/photos/'+params.id+url.search},{id:'links',path:'links',component:()=>import('./links')},{id:'counter',path:'counter',component:()=>import('./counter')}]}];`,
   );
   write(
     'app/root.tsx',
@@ -43,6 +43,15 @@ if (process.argv.includes('--example')) {
     `import { Link } from 'react-flight-router/client'; export default function Home(){return <main><h1>Fixture home</h1><Link to='/photos/hit?secret=redacted' prefetch='render'>Hit</Link><Link to='/photos/inflight?secret=redacted' prefetch='intent'>Inflight</Link><Link to='/photos/miss?secret=redacted'>Miss</Link></main>}`,
   );
   write('app/photo.tsx', `export default function Photo(){return <h1>Committed photo</h1>}`);
+  write(
+    'app/links.tsx',
+    `import { Link } from 'react-flight-router/client'; export default function Links(){return <main><h1>Links</h1><Link to='/old/7?from=links#part'>Old photo</Link></main>}`,
+  );
+  // A route whose component is a client module, with no server wrapper.
+  write(
+    'app/counter.tsx',
+    `'use client'; import { useState } from 'react'; export default function Counter({ params, searchParams }){const [count,setCount]=useState(0);return <main><h1>Counter</h1><p id='props'>{JSON.stringify({ params, searchParams })}</p><button onClick={()=>setCount(count+1)}>Clicked {count}</button></main>}`,
+  );
   write(
     'app/suspense.tsx',
     `import { Suspense } from 'react'; async function Slow(){await new Promise(resolve=>setTimeout(resolve,500));return <div id='resolved'>Resolved boundary</div>} export default function Page(){return <main><h1>Shell</h1><Suspense fallback={<p id='fallback'>Waiting</p>}><Slow/></Suspense></main>}`,
