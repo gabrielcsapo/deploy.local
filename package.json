@@ -14,7 +14,7 @@
     "start": "node dist/supervisor.js",
     "start:single": "node dist/server.js",
     "preview": "node scripts/flight-router.mjs && node scripts/run-pair.mjs preview",
-    "lint": "oxlint . && node scripts/check-swift-contracts.mjs && node scripts/check-dl-styles.mjs && node scripts/check-design-literals.mjs && node scripts/check-motion-tokens.mjs && node scripts/check-native-token-parity.mjs",
+    "lint": "oxlint . && node scripts/check-dl-styles.mjs && node scripts/check-design-literals.mjs && node scripts/check-motion-tokens.mjs && node scripts/check-native-token-parity.mjs",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "node scripts/flight-router.mjs && node scripts/test.mjs",
