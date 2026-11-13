@@ -1,4 +1,5 @@
 'use client';
+import { ListTemplate, DetailTemplate } from '@/components/ui/v2/Templates';
 import { useState, type ReactNode } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import {
@@ -9,9 +10,7 @@ import {
   Field,
   Glyph,
   Group,
-  Head,
   Icon,
-  IconButton,
   Item,
   Setting,
   Skeleton,
@@ -753,108 +752,99 @@ export default function Computers() {
   const ownUpdate = updates ? selfUpdateView(selfUpdate.status) : null;
   const computer = data?.computers.find((c) => c.id === key);
   const detail = !!key && !['models', 'add'].includes(key);
+  const PageTemplate = detail ? DetailTemplate : ListTemplate;
   const selected = key === 'models' ? `${base}/models` : key === 'add' ? `${base}/add` : base;
   return (
     <>
-      <Head
+      <PageTemplate
         title={key === 'models' ? 'Models' : detail ? computer?.name || 'Computer' : 'Computers'}
         subtitle={detail ? 'Computer' : undefined}
-        menu={
-          <IconButton
-            icon="menu"
-            label="Show sidebar"
-            className="dl-menu-btn"
-            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+        ruled={false}
+        className="computers-page"
+      >
+        {!detail && (
+          <Tabs
+            value={selected}
+            items={[
+              { label: 'Computers', href: base, count: data?.computers.length },
+              { label: 'Models', href: `${base}/models` },
+              { label: 'Add a computer', href: `${base}/add` },
+            ]}
           />
-        }
-      />
-      <div className="dl-scroll">
-        <div className="dl-page computers-page">
-          {!detail && (
-            <Tabs
-              value={selected}
-              items={[
-                { label: 'Computers', href: base, count: data?.computers.length },
-                { label: 'Models', href: `${base}/models` },
-                { label: 'Add a computer', href: `${base}/add` },
-              ]}
-            />
-          )}
-          {error && (
-            <Banner kind="danger" title={error} action={<Action onClick={refresh}>Retry</Action>} />
-          )}
-          {key === 'models' ? (
-            <Models />
-          ) : ownUpdate && !detail ? (
-            <SelfUpdatePanel view={ownUpdate} offline={selfUpdate.offline} />
-          ) : !data ? (
-            <Skeleton rows={3} />
-          ) : detail ? (
-            computer ? (
-              <Detail computer={computer} refresh={refresh} />
-            ) : (
-              <Empty
-                title="Computer not found"
-
-                actions={
-                  <a className="dl-btn" href={base}>
-                    Computers
-                  </a>
-                }
-              />
-            )
+        )}
+        {error && (
+          <Banner kind="danger" title={error} action={<Action onClick={refresh}>Retry</Action>} />
+        )}
+        {key === 'models' ? (
+          <Models />
+        ) : ownUpdate && !detail ? (
+          <SelfUpdatePanel view={ownUpdate} offline={selfUpdate.offline} />
+        ) : !data ? (
+          <Skeleton rows={3} />
+        ) : detail ? (
+          computer ? (
+            <Detail computer={computer} refresh={refresh} />
           ) : (
-            <>
-              <div className="dl-page-head">
-                <div className="dl-t">
-                  <h1 className="dl-title">Computers</h1>
-                  <span className="dl-meta">
-                    {data.computers.filter((c) => c.online).length} online ·{' '}
-                    {
-                      data.computers.filter((c) =>
-                        c.doing.some((d) => d.kind === 'task' || d.kind === 'job'),
-                      ).length
-                    }{' '}
-                    of {data.computers.length} busy
-                  </span>
-                </div>
-                <span className="dl-end">
-                  {!updates && (
-                    <a className="dl-btn quiet" href={`${base}?updates=1`}>
-                      deploy.local updates
-                    </a>
-                  )}
-                  <Action variant="primary" onClick={() => setAdding(true)}>
-                    Add a computer
-                  </Action>
+            <Empty
+              title="Computer not found"
+
+              actions={
+                <a className="dl-btn" href={base}>
+                  Computers
+                </a>
+              }
+            />
+          )
+        ) : (
+          <>
+            <div className="dl-page-head">
+              <div className="dl-t">
+                <h1 className="dl-title">Computers</h1>
+                <span className="dl-meta">
+                  {data.computers.filter((c) => c.online).length} online ·{' '}
+                  {
+                    data.computers.filter((c) =>
+                      c.doing.some((d) => d.kind === 'task' || d.kind === 'job'),
+                    ).length
+                  }{' '}
+                  of {data.computers.length} busy
                 </span>
               </div>
-              {updates ? (
-                <Updates computers={data.computers} />
-              ) : (
-                <>
-                  {data.computers.length ? (
-                    <ComputerList computers={data.computers} />
-                  ) : (
-                    <Empty title="No computers yet" />
-                  )}
-                  <div className="dl-notice">
-                    <Icon name="computer" />
-                    <span>
-                      A task says what it needs, such as Xcode for an iPhone app, and deploy.local
-                      asks each computer whether it has it. The task goes to a free one that does
-                      and is signed in to the model it needs. If none is online, the task waits and
-                      says which computer it is waiting for. Which model does what is set once, on
-                      Models.
-                    </span>
-                    <a href={`${base}/models`}>Models</a>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+              <span className="dl-end">
+                {!updates && (
+                  <a className="dl-btn quiet" href={`${base}?updates=1`}>
+                    deploy.local updates
+                  </a>
+                )}
+                <Action variant="primary" onClick={() => setAdding(true)}>
+                  Add a computer
+                </Action>
+              </span>
+            </div>
+            {updates ? (
+              <Updates computers={data.computers} />
+            ) : (
+              <>
+                {data.computers.length ? (
+                  <ComputerList computers={data.computers} />
+                ) : (
+                  <Empty title="No computers yet" />
+                )}
+                <div className="dl-notice">
+                  <Icon name="computer" />
+                  <span>
+                    A task says what it needs, such as Xcode for an iPhone app, and deploy.local
+                    asks each computer whether it has it. The task goes to a free one that does and
+                    is signed in to the model it needs. If none is online, the task waits and says
+                    which computer it is waiting for. Which model does what is set once, on Models.
+                  </span>
+                  <a href={`${base}/models`}>Models</a>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </PageTemplate>
       {(adding || key === 'add') && (
         <AddComputer
           onClose={() => {

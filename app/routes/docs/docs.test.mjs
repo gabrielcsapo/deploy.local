@@ -1,3 +1,4 @@
+import { routes } from '../../routes.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { after, before, test } from 'node:test';
@@ -64,7 +65,14 @@ test('every nav item has a registered page and every docs route renders', () => 
 
 test('rendered links resolve to docs pages, real headings or existing application routes', () => {
   const rendered = new Map(fixture.paths.map((path) => [path, fixture.render(path)]));
-  const routeSource = readFileSync('app/routes.ts', 'utf8');
+  const routeIds = new Set();
+  const collectRoutes = (entries) => {
+    for (const entry of entries) {
+      routeIds.add(entry.id);
+      if (entry.children) collectRoutes(entry.children);
+    }
+  };
+  collectRoutes(routes);
   const knownOutside = new Set([
     '/',
     '/changelog',
@@ -119,7 +127,7 @@ test('rendered links resolve to docs pages, real headings or existing applicatio
                       .replace(/^\/dashboard\//, 'v2-')
                       .replace(/^\//, '')
                       .replaceAll('/', '-');
-          assert.ok(routeSource.includes(`id: '${id}'`), `application route missing: ${href}`);
+          assert.ok(routeIds.has(id), `application route missing: ${href}`);
         }
       }
     }

@@ -1,4 +1,5 @@
 'use client';
+import { ListTemplate } from '@/components/ui/v2/Templates';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import {
@@ -7,9 +8,7 @@ import {
   Empty,
   Glyph,
   Group,
-  Head,
   Icon,
-  IconButton,
   Item,
   Skeleton,
   Status,
@@ -852,7 +851,7 @@ export default function LivePage() {
   }, [appId, detail]);
   return (
     <>
-      <Head
+      <ListTemplate
         title={
           appId ? (
             <nav className="live-crumbs" aria-label="Breadcrumb">
@@ -866,46 +865,33 @@ export default function LivePage() {
             'Live'
           )
         }
-        menu={
-          <IconButton
-            icon="menu"
-            label="Show sidebar"
-            className="dl-menu-btn"
-            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
-          />
-        }
-      />
-      <div className="dl-scroll">
-        <div className={`dl-page live-page ${appId ? 'live-detail' : ''}`}>
-          {error && (
-            <Banner
-              title={error}
-              action={
-                <Action variant="secondary" onClick={retry}>
-                  Retry
-                </Action>
-              }
-            >
-              {live
-                ? 'Showing the last received health.'
-                : 'Health is unavailable until the connection returns.'}
-            </Banner>
-          )}
-          {!live || (appId && !detail) ? (
-            !error && (
-              <Skeleton
-                rows={5}
-                label="Loading Live"
-                slowLabel="Live is taking longer than usual"
-              />
-            )
-          ) : appId ? (
-            <Skeleton rows={5} label="Opening app" />
-          ) : (
-            <Overview live={live} items={items} names={names} refresh={retry} />
-          )}
-        </div>
-      </div>
+        ruled={false}
+        className={`live-page ${appId ? 'live-detail' : ''}`}
+      >
+        {error && (
+          <Banner
+            title={error}
+            action={
+              <Action variant="secondary" onClick={retry}>
+                Retry
+              </Action>
+            }
+          >
+            {live
+              ? 'Showing the last received health.'
+              : 'Health is unavailable until the connection returns.'}
+          </Banner>
+        )}
+        {!live || (appId && !detail) ? (
+          !error && (
+            <Skeleton rows={5} label="Loading Live" slowLabel="Live is taking longer than usual" />
+          )
+        ) : appId ? (
+          <Skeleton rows={5} label="Opening app" />
+        ) : (
+          <Overview live={live} items={items} names={names} refresh={retry} />
+        )}
+      </ListTemplate>
     </>
   );
 }

@@ -1,6 +1,25 @@
+import {
+  homeRoutes,
+  startRoutes,
+  discoverRoutes,
+  blueprintRoutes,
+} from './routes/dashboard/v2/start/routes.ts';
+import { designRoutes } from './routes/dashboard/v2/design/routes.ts';
+import { inboxRoutes } from './routes/dashboard/v2/inbox/routes.ts';
+import { liveRoutes } from './routes/dashboard/v2/live/routes.ts';
+import { tasksRoutes, pullRoutes } from './routes/dashboard/v2/tasks/routes.ts';
+import {
+  projectsRoutes,
+  projectSectionRoutes,
+  projectLogSettingsRoutes,
+} from './routes/dashboard/v2/projects/routes.ts';
+import { releasesRoutes } from './routes/dashboard/v2/releases/routes.ts';
+import { computersRoutes } from './routes/dashboard/v2/computers/routes.ts';
+import { agentsRoutes } from './routes/dashboard/v2/agents/routes.ts';
+import { settingsRoutes } from './routes/dashboard/v2/settings/routes.ts';
+import { packagesRoutes } from './routes/dashboard/v2/packages/routes.ts';
 import type { RouteConfig } from 'react-flight-router/router';
 import { declaredRedirect } from './routes/dashboard/v2-redirects.ts';
-import { packagesRoutes } from './routes/dashboard/v2/packages/routes.ts';
 
 export const routes: RouteConfig[] = [
   {
@@ -182,252 +201,33 @@ export const routes: RouteConfig[] = [
         path: 'dashboard',
         component: () => import('./routes/dashboard/v2/start/layout.js'),
         children: [
-          {
-            id: 'dashboard-index',
-            index: true,
-            component: () => import('./routes/dashboard/v2/start/home.js'),
-          },
+          ...homeRoutes,
           {
             id: 'dashboard-design-system',
             path: 'design-system',
             component: () => import('./routes/dashboard/design-system.js'),
           },
-          {
-            id: 'v2-design',
-            path: 'design',
-            component: () => import('./routes/dashboard/v2/design/page.js'),
-          },
-          {
-            id: 'v2-inbox',
-            path: 'inbox',
-            component: () => import('./routes/dashboard/v2/inbox/page.js'),
-          },
-          {
-            id: 'v2-live',
-            path: 'live',
-            component: () => import('./routes/dashboard/v2/live/page.js'),
-          },
-          {
-            id: 'v2-live-app',
-            path: 'live/:app',
-            component: () => import('./routes/dashboard/v2/live/page.js'),
-          },
-          {
-            id: 'v2-tasks-id',
-            path: 'tasks/:id',
-            component: () => import('./routes/dashboard/v2/tasks/page.js'),
-          },
-          {
-            id: 'v2-tasks-id-changes',
-            path: 'tasks/:id/changes',
-            component: () => import('./routes/dashboard/v2/tasks/page.js'),
-          },
-          {
-            id: 'v2-tasks-id-checks',
-            path: 'tasks/:id/checks',
-            component: () => import('./routes/dashboard/v2/tasks/page.js'),
-          },
-          {
-            id: 'v2-tasks-id-design',
-            path: 'tasks/:id/design',
-            component: () => import('./routes/dashboard/v2/tasks/page.js'),
-          },
-          {
-            id: 'v2-projects',
-            path: 'projects',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p',
-            path: 'projects/:p',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-code',
-            path: 'projects/:p/code',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-pulls',
-            path: 'projects/:p/pulls',
-            component: () => import('./routes/dashboard/v2/tasks/pulls.js'),
-          },
-          {
-            id: 'v2-projects-p-pulls-id',
-            path: 'projects/:p/pulls/:id',
-            component: () => import('./routes/dashboard/v2/tasks/pulls.js'),
-          },
-          {
-            id: 'v2-projects-p-issues',
-            path: 'projects/:p/issues',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-apps-app',
-            path: 'projects/:p/apps/:app',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-apps-app-settings',
-            path: 'projects/:p/apps/:app/settings',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-requests',
-            path: 'projects/:p/requests',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-performance',
-            path: 'projects/:p/performance',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-apps-app-performance',
-            path: 'projects/:p/apps/:app/performance',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-request',
-            path: 'projects/:p/requests/:id',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-apps-app-requests',
-            path: 'projects/:p/apps/:app/requests',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-apps-app-request',
-            path: 'projects/:p/apps/:app/requests/:id',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-project-pipelines',
-            path: 'projects/:p/pipelines',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-releases',
-            path: 'projects/:p/releases',
-            component: () => import('./routes/dashboard/v2/releases/page.js'),
-          },
-          {
-            id: 'v2-projects-p-releases-id',
-            path: 'projects/:p/releases/:id',
-            component: () => import('./routes/dashboard/v2/releases/page.js'),
-          },
-          {
-            id: 'v2-projects-p-logs',
-            path: 'projects/:p/logs',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-projects-p-settings',
-            path: 'projects/:p/settings',
-            component: () => import('./routes/dashboard/v2/projects/page.js'),
-          },
-          {
-            id: 'v2-computers',
-            path: 'computers',
-            component: () => import('./routes/dashboard/v2/computers/page.js'),
-          },
-          {
-            id: 'v2-computers-models',
-            path: 'computers/models',
-            component: () => import('./routes/dashboard/v2/computers/page.js'),
-          },
-          {
-            id: 'v2-computers-add',
-            path: 'computers/add',
-            component: () => import('./routes/dashboard/v2/computers/page.js'),
-          },
-          {
-            id: 'v2-computers-id',
-            path: 'computers/:id',
-            component: () => import('./routes/dashboard/v2/computers/page.js'),
-          },
-          {
-            id: 'v2-agents-new',
-            path: 'agents/new',
-            component: () => import('./routes/dashboard/v2/agents/page.js'),
-          },
-          {
-            id: 'v2-agents',
-            path: 'agents',
-            component: () => import('./routes/dashboard/v2/agents/page.js'),
-          },
-          {
-            id: 'v2-agents-agent',
-            path: 'agents/:agent',
-            component: () => import('./routes/dashboard/v2/agents/page.js'),
-          },
-          {
-            id: 'v2-agents-item-history',
-            path: 'agents/:agent/items/:item/history',
-            component: () => import('./routes/dashboard/v2/agents/page.js'),
-          },
-          {
-            id: 'v2-agents-agent-tune',
-            path: 'agents/:agent/tune',
-            component: () => import('./routes/dashboard/v2/agents/page.js'),
-          },
-          {
-            id: 'v2-start',
-            path: 'start',
-            component: () => import('./routes/dashboard/v2/start/page.js'),
-          },
-          {
-            id: 'v2-start-project',
-            path: 'start/project',
-            component: () => import('./routes/dashboard/v2/start/page.js'),
-          },
-          {
-            id: 'v2-start-apps',
-            path: 'start/apps',
-            component: () => import('./routes/dashboard/v2/start/page.js'),
-          },
-          {
-            id: 'v2-settings-account',
-            path: 'settings/account',
-            component: () => import('./routes/dashboard/v2/start/account.js'),
-          },
-          {
-            id: 'v2-devices',
-            path: 'settings/devices',
-            component: () => import('./routes/dashboard/v2/start/account.js'),
-          },
+          ...designRoutes,
+          ...inboxRoutes,
+          ...liveRoutes,
+          ...tasksRoutes,
+          ...projectsRoutes,
+          ...pullRoutes,
+          ...projectSectionRoutes,
+          ...releasesRoutes,
+          ...projectLogSettingsRoutes,
+          ...computersRoutes,
+          ...agentsRoutes,
+          ...startRoutes,
           ...packagesRoutes,
-          {
-            id: 'v2-settings',
-            path: 'settings',
-            component: () => import('./routes/dashboard/v2/settings/page.js'),
-          },
-          {
-            id: 'v2-settings-approvals',
-            path: 'settings/approvals',
-            component: () => import('./routes/dashboard/v2/settings/page.js'),
-          },
-          {
-            id: 'v2-settings-backups',
-            path: 'settings/backups',
-            component: () => import('./routes/dashboard/v2/settings/backups/page.js'),
-          },
-          {
-            id: 'v2-discover',
-            path: 'discover',
-            component: () => import('./routes/dashboard/v2/start/page.js'),
-          },
+          ...settingsRoutes,
+          ...discoverRoutes,
           {
             id: 'v2-discover-import',
             path: 'discover/import',
             component: () => import('./routes/dashboard/v2-placeholder.js'),
           },
-          {
-            id: 'v2-discover-blueprint',
-            path: 'discover/:blueprint',
-            component: () => import('./routes/dashboard/v2/start/page.js'),
-          },
+          ...blueprintRoutes,
           {
             id: 'legacy-repositories',
             path: 'repositories',

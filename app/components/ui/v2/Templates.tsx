@@ -40,7 +40,7 @@ export function ListTemplate({
   className = '',
   children,
 }: {
-  title: string;
+  title: ReactNode;
   subtitle?: ReactNode;
   /** What the list is for, under the page title. */
   description?: ReactNode;
@@ -94,7 +94,7 @@ export function DetailTemplate({
   className = '',
   children,
 }: {
-  title: string;
+  title: ReactNode;
   subtitle?: ReactNode;
   /** The list this belongs to; the header starts with a breadcrumb back to it. */
   parent?: { label: string; href: string };

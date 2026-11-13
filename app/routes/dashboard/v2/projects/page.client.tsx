@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState, type ReactNode } from 'react';
+import { ListTemplate, DetailTemplate } from '@/components/ui/v2/Templates';
+import { useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
@@ -7,9 +8,7 @@ import {
   Empty,
   Glyph,
   Group,
-  Head,
   Icon,
-  IconButton,
   Item,
   Skeleton,
   Status,
@@ -38,38 +37,6 @@ import type { TaskPull } from '../tasks/types';
 import { parsePatch } from '../tasks/api';
 import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
 
-function Header({
-  title,
-  subtitle,
-  newTask = false,
-}: {
-  title: ReactNode;
-  subtitle?: string;
-  /** A project with no code yet asks what to build in place, so it has no header button. */
-  newTask?: boolean;
-}) {
-  return (
-    <Head
-      title={title}
-      subtitle={subtitle}
-      menu={
-        <IconButton
-          icon="menu"
-          label="Show sidebar"
-          className="dl-menu-btn"
-          onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
-        />
-      }
-      actions={
-        newTask ? (
-          <a className="dl-btn primary" href="/dashboard">
-            New task
-          </a>
-        ) : undefined
-      }
-    />
-  );
-}
 export default function Projects() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -78,26 +45,23 @@ export default function Projects() {
   if (parts[1] === 'settings')
     return (
       <>
-        <Header title="Settings" />
-        <div className="dl-scroll">
-          <div className="dl-page v2-project-page">
-            <Group>
-              <Item
-                title="Account"
-                description="Manage your sign-in"
-                href="/dashboard/settings?tab=account"
-              />
-              <Item
-                title="Agents and approvals"
-                description="Choose what agents can do"
-                href="/dashboard/settings/approvals"
-              />
-              <Item title="Backups" href="/dashboard/settings/backups" />
-              <Item title="Computers and models" href="/dashboard/computers" />
-            </Group>
-            <Account />
-          </div>
-        </div>
+        <ListTemplate title="Settings" ruled={false} className="v2-project-page">
+          <Group>
+            <Item
+              title="Account"
+              description="Manage your sign-in"
+              href="/dashboard/settings?tab=account"
+            />
+            <Item
+              title="Agents and approvals"
+              description="Choose what agents can do"
+              href="/dashboard/settings/approvals"
+            />
+            <Item title="Backups" href="/dashboard/settings/backups" />
+            <Item title="Computers and models" href="/dashboard/computers" />
+          </Group>
+          <Account />
+        </ListTemplate>
       </>
     );
   return parts[2] ? (
@@ -141,88 +105,83 @@ function ProjectList() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Header title="Projects" />
-      <div className="dl-scroll">
-        <div className="dl-page v2-project-page">
-          <div className="dl-page-head">
-            <div className="dl-t">
-              <h1 className="dl-title">Projects</h1>
-              <span className="dl-meta">
-                Active projects grow. Maintained projects get fixes and updates. Done projects rest.
-              </span>
-            </div>
-            <span className="dl-end">
-              <a className="dl-btn secondary" href="/dashboard/discover">
-                Discover apps
-              </a>
-              <Action variant="primary" onClick={() => setOpen(true)}>
-                New project
-              </Action>
+      <ListTemplate title="Projects" ruled={false} className="v2-project-page">
+        <div className="dl-page-head">
+          <div className="dl-t">
+            <h1 className="dl-title">Projects</h1>
+            <span className="dl-meta">
+              Active projects grow. Maintained projects get fixes and updates. Done projects rest.
             </span>
           </div>
-          {projects.error && (
-            <Banner
-              title={projects.error}
-              action={<Action onClick={projects.refresh}>Retry</Action>}
-            />
-          )}
-          {!projects.data && !projects.error && <Skeleton rows={4} />}
-          {projects.data?.projects.length === 0 && (
-            <Empty title="No projects yet">Create a project from a repository.</Empty>
-          )}
-          {(['active', 'maintained', 'done'] as const).map((stage) => {
-            const rows =
-              projects.data?.projects.filter((project) => (project.stage || 'active') === stage) ||
-              [];
-            if (!rows.length) return null;
-            const label = { active: 'Active', maintained: 'Maintained', done: 'Done' }[stage];
-            return (
-              <section className="dl-section" key={stage}>
-                <h2 className="dl-section-title">{label}</h2>
-                <Group>
-                  {rows.map((project) => {
-                    const runtime = projectRuntime(project, live.data ?? undefined, coordinator);
-                    return (
-                      <Item
-                        key={project.id}
-                        title={`${project.name} · ${label}`}
-                        description={
-                          stage === 'done'
-                            ? undefined
-                            : project.fromDiscover
-                              ? 'App from Discover'
-                              : project.id.startsWith('app:')
-                                ? 'No repository · shipped from a folder'
-                                : project.apps.length > 1
-                                  ? `${project.apps.length} apps`
-                                  : project.apps.length
-                                    ? '1 app'
-                                    : 'Repository only · no app'
-                        }
-                        end={
-                          stage !== 'done' && (
-                            <span className="v2-project-runtime">
-                              {'kind' in runtime ? (
-                                <Status kind={runtime.kind}>{runtime.label}</Status>
-                              ) : (
-                                <span className="dl-meta">{runtime.label}</span>
-                              )}
-                              {'where' in runtime && (
-                                <span className="dl-meta">{runtime.where}</span>
-                              )}
-                            </span>
-                          )
-                        }
-                        href={projectPath(project.id)}
-                      />
-                    );
-                  })}
-                </Group>
-              </section>
-            );
-          })}
+          <span className="dl-end">
+            <a className="dl-btn secondary" href="/dashboard/discover">
+              Discover apps
+            </a>
+            <Action variant="primary" onClick={() => setOpen(true)}>
+              New project
+            </Action>
+          </span>
         </div>
-      </div>
+        {projects.error && (
+          <Banner
+            title={projects.error}
+            action={<Action onClick={projects.refresh}>Retry</Action>}
+          />
+        )}
+        {!projects.data && !projects.error && <Skeleton rows={4} />}
+        {projects.data?.projects.length === 0 && (
+          <Empty title="No projects yet">Create a project from a repository.</Empty>
+        )}
+        {(['active', 'maintained', 'done'] as const).map((stage) => {
+          const rows =
+            projects.data?.projects.filter((project) => (project.stage || 'active') === stage) ||
+            [];
+          if (!rows.length) return null;
+          const label = { active: 'Active', maintained: 'Maintained', done: 'Done' }[stage];
+          return (
+            <section className="dl-section" key={stage}>
+              <h2 className="dl-section-title">{label}</h2>
+              <Group>
+                {rows.map((project) => {
+                  const runtime = projectRuntime(project, live.data ?? undefined, coordinator);
+                  return (
+                    <Item
+                      key={project.id}
+                      title={`${project.name} · ${label}`}
+                      description={
+                        stage === 'done'
+                          ? undefined
+                          : project.fromDiscover
+                            ? 'App from Discover'
+                            : project.id.startsWith('app:')
+                              ? 'No repository · shipped from a folder'
+                              : project.apps.length > 1
+                                ? `${project.apps.length} apps`
+                                : project.apps.length
+                                  ? '1 app'
+                                  : 'Repository only · no app'
+                      }
+                      end={
+                        stage !== 'done' && (
+                          <span className="v2-project-runtime">
+                            {'kind' in runtime ? (
+                              <Status kind={runtime.kind}>{runtime.label}</Status>
+                            ) : (
+                              <span className="dl-meta">{runtime.label}</span>
+                            )}
+                            {'where' in runtime && <span className="dl-meta">{runtime.where}</span>}
+                          </span>
+                        )
+                      }
+                      href={projectPath(project.id)}
+                    />
+                  );
+                })}
+              </Group>
+            </section>
+          );
+        })}
+      </ListTemplate>
       <NewProjectDialog
         open={open}
         onClose={() => setOpen(false)}
@@ -373,7 +332,7 @@ function ProjectPage({
             }[section] ?? 'Overview');
   return (
     <>
-      <Header
+      <DetailTemplate
         title={
           (showRequests && requestId && (
             <nav className="v2-crumbs" aria-label="Breadcrumb">
@@ -417,244 +376,246 @@ function ProjectPage({
               ? `${selectedApp.kind === 'worker' ? 'Worker' : 'Web app'} in ${project?.name}`
               : 'Project'
         }
-        newTask={!starting && !selectedApp}
-      />
-      <div className="dl-scroll">
-        <div
-          className={`dl-page ${showRequests || showPerformance ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
-        >
-          {overview.error && (
-            <Banner
-              title={overview.error}
-              action={<Action onClick={overview.refresh}>Retry</Action>}
-            />
-          )}
-          {!data && !overview.error && <Skeleton rows={4} />}
-          {project && data && showRequests && requestId ? (
-            <AppRequest
-              app={requestsApp!.name}
-              detail={requestDetail}
-              base={requestsBase}
-              logs={`${base}/logs?app=${encodeURIComponent(requestsApp!.name)}`}
-            />
-          ) : (
-            project &&
-            data && (
-              <>
-                <Tabs
-                  value={tabs.find((tab) => tab.label === activeLabel)?.href ?? base}
-                  items={tabs}
+        actions={
+          !starting && !selectedApp ? (
+            <a className="dl-btn primary" href="/dashboard">
+              New task
+            </a>
+          ) : undefined
+        }
+        className={`${showRequests || showPerformance ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
+      >
+        {overview.error && (
+          <Banner
+            title={overview.error}
+            action={<Action onClick={overview.refresh}>Retry</Action>}
+          />
+        )}
+        {!data && !overview.error && <Skeleton rows={4} />}
+        {project && data && showRequests && requestId ? (
+          <AppRequest
+            app={requestsApp!.name}
+            detail={requestDetail}
+            base={requestsBase}
+            logs={`${base}/logs?app=${encodeURIComponent(requestsApp!.name)}`}
+          />
+        ) : (
+          project &&
+          data && (
+            <>
+              <Tabs
+                value={tabs.find((tab) => tab.label === activeLabel)?.href ?? base}
+                items={tabs}
+              />
+              {history.error && (
+                <Banner
+                  title="Release history is unavailable"
+                  action={<Action onClick={history.refresh}>Retry</Action>}
                 />
-                {history.error && (
-                  <Banner
-                    title="Release history is unavailable"
-                    action={<Action onClick={history.refresh}>Retry</Action>}
-                  />
-                )}
-                {section === 'pipelines' && data.repository?.deployment?.pipeline ? (
-                  <ProjectPipelines projectId={project.id} />
-                ) : section === 'code' ? (
-                  data.repository?.empty ? (
-                    <ProjectPushCode project={project} overview={data} />
-                  ) : (
-                    <ProjectCode overview={data} />
-                  )
-                ) : section === 'issues' ? (
-                  <ProjectIssues overview={data} refresh={overview.refresh} />
-                ) : section === 'settings' ? (
-                  <ProjectConfiguration project={project} overview={data} />
-                ) : section === 'logs' ? (
-                  <ProjectLogs project={project} selected={params.get('app') || ''} />
-                ) : showRequests ? (
-                  <AppRequests app={requestsApp!.name} address={liveAddress} base={requestsBase} />
-                ) : showPerformance ? (
-                  <AppPerformance
-                    app={performanceApp!.name}
-                    address={liveAddress}
-                    base={performanceBase}
-                  />
-                ) : selectedApp ? (
+              )}
+              {section === 'pipelines' && data.repository?.deployment?.pipeline ? (
+                <ProjectPipelines projectId={project.id} />
+              ) : section === 'code' ? (
+                data.repository?.empty ? (
+                  <ProjectPushCode project={project} overview={data} />
+                ) : (
+                  <ProjectCode overview={data} />
+                )
+              ) : section === 'issues' ? (
+                <ProjectIssues overview={data} refresh={overview.refresh} />
+              ) : section === 'settings' ? (
+                <ProjectConfiguration project={project} overview={data} />
+              ) : section === 'logs' ? (
+                <ProjectLogs project={project} selected={params.get('app') || ''} />
+              ) : showRequests ? (
+                <AppRequests app={requestsApp!.name} address={liveAddress} base={requestsBase} />
+              ) : showPerformance ? (
+                <AppPerformance
+                  app={performanceApp!.name}
+                  address={liveAddress}
+                  base={performanceBase}
+                />
+              ) : selectedApp ? (
+                <AppOverview
+                  project={project}
+                  app={selectedApp}
+                  overview={data}
+                  releases={releases}
+                  single={single}
+                  settings={appSettings}
+                />
+              ) : section === 'apps' ? (
+                <Empty title="App not found">This app does not belong to this project.</Empty>
+              ) : appList ? (
+                <>
+                  <Group title="Apps">
+                    {project.apps.map((app) => (
+                      <Item
+                        key={app.id}
+                        title={app.name}
+                        description={app.kind === 'worker' ? 'Worker' : 'Web app'}
+                        href={`${base}/apps/${projectSegment(app.name)}`}
+                      />
+                    ))}
+                  </Group>
+                  {data.repository && (
+                    <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                  )}
+                </>
+              ) : starting ? (
+                <ProjectStart
+                  project={project}
+                  overview={data}
+                  addApp={available.data?.apps.length ? () => setAdd(true) : undefined}
+                />
+              ) : single ? (
+                <>
                   <AppOverview
                     project={project}
-                    app={selectedApp}
+                    app={project.apps[0]}
                     overview={data}
                     releases={releases}
-                    single={single}
-                    settings={appSettings}
+                    single
                   />
-                ) : section === 'apps' ? (
-                  <Empty title="App not found">This app does not belong to this project.</Empty>
-                ) : appList ? (
-                  <>
-                    <Group title="Apps">
-                      {project.apps.map((app) => (
-                        <Item
-                          key={app.id}
-                          title={app.name}
-                          description={app.kind === 'worker' ? 'Worker' : 'Web app'}
-                          href={`${base}/apps/${projectSegment(app.name)}`}
-                        />
-                      ))}
-                    </Group>
-                    {data.repository && (
-                      <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
-                    )}
-                  </>
-                ) : starting ? (
-                  <ProjectStart
-                    project={project}
-                    overview={data}
-                    addApp={available.data?.apps.length ? () => setAdd(true) : undefined}
-                  />
-                ) : single ? (
-                  <>
-                    <AppOverview
-                      project={project}
-                      app={project.apps[0]}
-                      overview={data}
-                      releases={releases}
-                      single
-                    />
-                    {!project.fromDiscover && !data.repository && !data.repositoryError && (
-                      <NoRepository project={project} />
-                    )}
-                    {!data.pulls.length && !data.issues.length && (
-                      <p className="dl-meta">
-                        Pull requests and issues get their own tabs once there are some. Add a
-                        second app and an Apps tab appears.
-                      </p>
-                    )}
-                    {data.repository && (
-                      <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="dl-stats">
-                      <div className="dl-stat">
-                        <span className="dl-meta">Open work</span>
-                        <span className="dl-v">
-                          {data.tasks.filter((task) => task.status !== 'completed').length}
-                        </span>
-                        <div className="dl-meta">
-                          {running} running ·{' '}
-                          {inbox.loading ? (
-                            <Skeleton rows={1} label="Loading decisions" />
-                          ) : inbox.error ? (
-                            'Decisions unavailable'
-                          ) : (
-                            `${waiting.length} waiting on you`
-                          )}
-                        </div>
-                      </div>
-                      <div className="dl-stat">
-                        <span className="dl-meta">Pull requests</span>
-                        <span className="dl-v">
-                          {data.pulls.filter((pull) => pull.state === 'open').length}
-                        </span>
-                        <span className="dl-meta">
-                          {readyPull
-                            ? `#${readyPull.number} ready to merge`
-                            : pulls.error
-                              ? 'Review status unavailable'
-                              : 'None ready to merge'}
-                        </span>
-                      </div>
-                      <div className="dl-stat">
-                        <span className="dl-meta">Shipped this week</span>
-                        <span className="dl-v">
-                          {
-                            releases.filter(
-                              (release) =>
-                                ['live', 'superseded'].includes(release.state) &&
-                                Date.parse(release.steps[0]?.startedAt || '') >
-                                  Date.now() - 7 * 86400000,
-                            ).length
-                          }
-                        </span>
-                        <span className="dl-meta">
-                          {latest ? `Last ${formatTime(latest)}` : 'No releases yet'}
-                        </span>
-                      </div>
-                    </div>
-                    {runningApps.length > 0 && (
-                      <section className="dl-section">
-                        <h2 className="dl-section-title">Running</h2>
-                        <p className="dl-section-sub">
-                          {runningSubtitle(
-                            runningApps.map(({ app }) => app),
-                            repositoryName(data.repository?.source),
-                          )}
-                        </p>
-                        <Group>
-                          {runningApps.map(({ app, computer }) => (
-                            <Item
-                              key={app.appId}
-                              title={app.name}
-                              lead={
-                                <Glyph kind="plain">
-                                  <svg
-                                    width="12"
-                                    height="12"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.75"
-                                    aria-hidden="true"
-                                  >
-                                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                                  </svg>
-                                </Glyph>
-                              }
-                              description={`${app.kind === 'worker' ? 'Worker' : 'Web app'} · ${appAddress(app)} · ${computer}`}
-                              end={<Health app={app} />}
-                              href={appPath(app)}
-                            >
-                              <span className="dl-c dl-mono dl-hide-narrow">
-                                {releaseLabel(app.release, app.source)}
-                              </span>
-                            </Item>
-                          ))}
-                        </Group>
-                      </section>
-                    )}
-                    <div className="dl-cols">
-                      <section className="dl-section">
-                        <h2 className="dl-section-title">Work</h2>
-                        {waiting.length > 0 && (
-                          <p className="dl-section-sub">
-                            {waiting.length} {waiting.length === 1 ? 'decision' : 'decisions'} for
-                            this project {waiting.length === 1 ? 'is' : 'are'} in{' '}
-                            <a href="/dashboard/inbox">Waiting on you</a>.
-                          </p>
+                  {!project.fromDiscover && !data.repository && !data.repositoryError && (
+                    <NoRepository project={project} />
+                  )}
+                  {!data.pulls.length && !data.issues.length && (
+                    <p className="dl-meta">
+                      Pull requests and issues get their own tabs once there are some. Add a second
+                      app and an Apps tab appears.
+                    </p>
+                  )}
+                  {data.repository && (
+                    <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="dl-stats">
+                    <div className="dl-stat">
+                      <span className="dl-meta">Open work</span>
+                      <span className="dl-v">
+                        {data.tasks.filter((task) => task.status !== 'completed').length}
+                      </span>
+                      <div className="dl-meta">
+                        {running} running ·{' '}
+                        {inbox.loading ? (
+                          <Skeleton rows={1} label="Loading decisions" />
+                        ) : inbox.error ? (
+                          'Decisions unavailable'
+                        ) : (
+                          `${waiting.length} waiting on you`
                         )}
-                        <Group>
-                          {data.tasks.map((task) => (
-                            <WorkRow key={task.id} task={task} runs={workspace.data?.runs || []} />
-                          ))}
-                          {!data.tasks.length && (
-                            <Item
-                              title="No work yet"
-                              description="Start a new task for this project."
-                            />
-                          )}
-                        </Group>
-                      </section>
-                      <ReleaseList project={project} releases={releases} />
+                      </div>
                     </div>
-                    {project.apps.length < 2 && data.repository && (
-                      <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
-                    )}
-                  </>
-                )}
-              </>
-            )
-          )}
-        </div>
-      </div>
+                    <div className="dl-stat">
+                      <span className="dl-meta">Pull requests</span>
+                      <span className="dl-v">
+                        {data.pulls.filter((pull) => pull.state === 'open').length}
+                      </span>
+                      <span className="dl-meta">
+                        {readyPull
+                          ? `#${readyPull.number} ready to merge`
+                          : pulls.error
+                            ? 'Review status unavailable'
+                            : 'None ready to merge'}
+                      </span>
+                    </div>
+                    <div className="dl-stat">
+                      <span className="dl-meta">Shipped this week</span>
+                      <span className="dl-v">
+                        {
+                          releases.filter(
+                            (release) =>
+                              ['live', 'superseded'].includes(release.state) &&
+                              Date.parse(release.steps[0]?.startedAt || '') >
+                                Date.now() - 7 * 86400000,
+                          ).length
+                        }
+                      </span>
+                      <span className="dl-meta">
+                        {latest ? `Last ${formatTime(latest)}` : 'No releases yet'}
+                      </span>
+                    </div>
+                  </div>
+                  {runningApps.length > 0 && (
+                    <section className="dl-section">
+                      <h2 className="dl-section-title">Running</h2>
+                      <p className="dl-section-sub">
+                        {runningSubtitle(
+                          runningApps.map(({ app }) => app),
+                          repositoryName(data.repository?.source),
+                        )}
+                      </p>
+                      <Group>
+                        {runningApps.map(({ app, computer }) => (
+                          <Item
+                            key={app.appId}
+                            title={app.name}
+                            lead={
+                              <Glyph kind="plain">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  aria-hidden="true"
+                                >
+                                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                                </svg>
+                              </Glyph>
+                            }
+                            description={`${app.kind === 'worker' ? 'Worker' : 'Web app'} · ${appAddress(app)} · ${computer}`}
+                            end={<Health app={app} />}
+                            href={appPath(app)}
+                          >
+                            <span className="dl-c dl-mono dl-hide-narrow">
+                              {releaseLabel(app.release, app.source)}
+                            </span>
+                          </Item>
+                        ))}
+                      </Group>
+                    </section>
+                  )}
+                  <div className="dl-cols">
+                    <section className="dl-section">
+                      <h2 className="dl-section-title">Work</h2>
+                      {waiting.length > 0 && (
+                        <p className="dl-section-sub">
+                          {waiting.length} {waiting.length === 1 ? 'decision' : 'decisions'} for
+                          this project {waiting.length === 1 ? 'is' : 'are'} in{' '}
+                          <a href="/dashboard/inbox">Waiting on you</a>.
+                        </p>
+                      )}
+                      <Group>
+                        {data.tasks.map((task) => (
+                          <WorkRow key={task.id} task={task} runs={workspace.data?.runs || []} />
+                        ))}
+                        {!data.tasks.length && (
+                          <Item
+                            title="No work yet"
+                            description="Start a new task for this project."
+                          />
+                        )}
+                      </Group>
+                    </section>
+                    <ReleaseList project={project} releases={releases} />
+                  </div>
+                  {project.apps.length < 2 && data.repository && (
+                    <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                  )}
+                </>
+              )}
+            </>
+          )
+        )}
+      </DetailTemplate>
       {add && project && (
         <AddExistingAppDialog
           project={project}
