@@ -93,3 +93,18 @@ test('Docker queries remain short while builds, foreground jobs, and copies get 
     DATA_COMMAND_TIMEOUT_MS,
   );
 });
+
+test('settles waits for a poll in flight and gives up when it never ends', async () => {
+  // A worker asked to update mid-poll waits for the poll, instead of declining as "busy".
+  const { settles } = await import('./bounded-command.mjs');
+  let clock = 0;
+  const options = { now: () => clock, sleep: async (ms) => void (clock += ms), stepMs: 100 };
+  let polling = true;
+  setTimeout(() => (polling = false), 0);
+  let checks = 0;
+  assert.equal(await settles(() => (++checks > 3 ? !(polling = false) : !polling), options), true);
+  clock = 0;
+  assert.equal(await settles(() => false, { ...options, timeoutMs: 1000 }), false);
+  assert.equal(clock, 1000);
+  assert.equal(await settles(() => true, options), true);
+});
