@@ -8,6 +8,7 @@ import {
   rmSync,
   readdirSync,
   copyFileSync,
+  cpSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -74,6 +75,11 @@ class FakeNode implements AgentGraphDocker {
         .join('\n');
     }
     if (args[0] === 'create') {
+      // Verify removes its copy of the data when it ends, so keep what each container was given.
+      for (const arg of args) {
+        const copy = arg.match(/^type=bind,src=(.*\/project-releases\/([^/]+)\/data)[/,]/);
+        if (copy) cpSync(copy[1], join(root, 'seen', copy[2]), { recursive: true });
+      }
       const name = args[args.indexOf('--name') + 1];
       const app = args
         .find((arg) => arg.startsWith('deploy-sh.app='))!
@@ -333,6 +339,12 @@ test('two fake computers stage copies, verify the whole project, switch and roll
   await f.runtime.prepare(first);
   await f.runtime.verify(first);
   assert(f.names.every((name) => !readDeploymentRecord(name)!.containerId));
+  // Verify's copy of the app's data is gone once Verify passes; only the receipt and source stay.
+  for (const node of f.computers.keys()) {
+    const releases = join(root, node, 'project-releases');
+    for (const release of readdirSync(releases))
+      assert.deepEqual(readdirSync(join(releases, release)).sort(), ['receipt.json', 'source']);
+  }
   await f.runtime.activate(first);
   await f.runtime.migrate(first);
   await f.runtime.watch(first, 0);
@@ -687,13 +699,15 @@ ${resources.map((name) => `  ${name}: {type: volume${empty.includes(name) ? ', v
       const app = f.names[index];
       const releaseId = (plan.runtime as { id: string }).id;
       const key = createHash('sha256').update(`${releaseId}:${app}`).digest('hex').slice(0, 20);
-      const copy = join(root, node, 'project-releases', key, 'data');
+      // The copy is gone after Verify; `seen` is what its containers were given.
+      const copy = join(root, 'seen', key);
       const volumes = join(root, node, 'volumes', app);
       for (const name of resources) {
-        const target = join(copy, folder(name));
-        assert.deepEqual(readdirSync(target), !backup && empty.includes(name) ? [] : ['value']);
+        const target = join(root, node, 'project-releases', key, 'data', folder(name));
+        const given = join(copy, folder(name));
+        assert.deepEqual(readdirSync(given), !backup && empty.includes(name) ? [] : ['value']);
         if (backup || !empty.includes(name))
-          assert.equal(readFileSync(join(target, 'value'), 'utf8'), name);
+          assert.equal(readFileSync(join(given, 'value'), 'utf8'), name);
         assert.equal(readFileSync(join(volumes, folder(name), 'value'), 'utf8'), name);
         assert.ok(
           computer.calls.some(

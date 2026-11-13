@@ -195,8 +195,11 @@ async function executeReleaseNode(
     ]);
     return result.stdout.trim().split('\n').filter(Boolean);
   }
+  // The copied data goes with the containers that ran on it. Nothing reads it after Verify, and
+  // a kept copy pins every block the live app has since rewritten, once per release.
   async function removeCopy() {
     for (const name of await containers(temporaryName)) await command(['rm', '-f', name]);
+    await rm(copy, { recursive: true, force: true });
     // Every release verifies under a new name, so a network left behind is never reused and
     // Docker runs out of address pools after enough releases.
     const networks = await command([
@@ -243,7 +246,6 @@ async function executeReleaseNode(
   const record = receipt!;
   if (payload.phase === 'verify' && record.phase === 'prepared') {
     await removeCopy();
-    await rm(copy, { recursive: true, force: true });
     await mkdir(volumes, { recursive: true });
     record.verifyEmptyResources = [];
     if (payload.backupId && payload.backupReleaseId) {
