@@ -247,42 +247,60 @@ const ciRoutes = [
           if (!auth) return;
           const r = ownerCiRelease(ownerCiRoute[1], auth.username);
           res.setHeader('Cache-Control', 'no-store');
-          if (method === 'GET' && !ownerCiRoute[2]) return json(res, ciReceipt(r));
-          if (method !== 'POST' || !ownerCiRoute[2]) return error(res, 'Route not found', 404);
-          if (['healthy', 'cancelled'].includes(r.status)) return json(res, ciReceipt(r));
-          assertCiOwnerStopped(r);
-          if (
-            getDeployAdmissionState().activeDeployments.includes(r.application) ||
-            (r.boot_id === ciBootId && !['accepted', 'failed'].includes(r.status))
-          )
-            ciError('Current process owns release; wait for completion');
-          const runtime = await verifiedCiRuntime(r.application, auth.username, true);
-          return await withCiMutation(r.id, async () => {
-            if (ownerCiRoute[2] === 'cancel') {
-              if (
-                !['accepted', 'failed'].includes(r.status) ||
-                runtime.sourceDigest !== r.baseline_source
-              )
-                ciError('Only an unstarted release can be cancelled');
-              return json(
-                res,
-                ciReceipt(resolveOwnerCiRelease(r, auth.username, 'cancelled', runtime)),
-              );
-            }
-            const healthy =
-              runtime.containerId !== r.baseline_container &&
-              runtime.sourceDigest === r.source_digest;
-            if (!healthy && runtime.containerId !== r.baseline_container)
-              ciError('Interrupted runtime requires owner investigation');
-            const result = resolveOwnerCiRelease(
-              r,
-              auth.username,
-              healthy ? 'healthy' : 'accepted',
-              runtime,
-            );
-            if (!healthy) updateDeploymentStatus(r.application, 'running');
-            return json(res, ciReceipt(result));
-          });
+          return await dispatch(
+            [
+              ciRoute({
+                method: 'GET',
+                path: '/api/ci/owner/releases/:id([a-f0-9-]+)',
+                handler: () => json(res, ciReceipt(r)),
+              }),
+              ciRoute({
+                method: 'POST',
+                path: '/api/ci/owner/releases/:id([a-f0-9-]+)/:action(recover|cancel)',
+                handler: async () => {
+                  if (['healthy', 'cancelled'].includes(r.status)) return json(res, ciReceipt(r));
+                  assertCiOwnerStopped(r);
+                  if (
+                    getDeployAdmissionState().activeDeployments.includes(r.application) ||
+                    (r.boot_id === ciBootId && !['accepted', 'failed'].includes(r.status))
+                  )
+                    ciError('Current process owns release; wait for completion');
+                  const runtime = await verifiedCiRuntime(r.application, auth.username, true);
+                  return await withCiMutation(r.id, async () => {
+                    if (ownerCiRoute[2] === 'cancel') {
+                      if (
+                        !['accepted', 'failed'].includes(r.status) ||
+                        runtime.sourceDigest !== r.baseline_source
+                      )
+                        ciError('Only an unstarted release can be cancelled');
+                      return json(
+                        res,
+                        ciReceipt(resolveOwnerCiRelease(r, auth.username, 'cancelled', runtime)),
+                      );
+                    }
+                    const healthy =
+                      runtime.containerId !== r.baseline_container &&
+                      runtime.sourceDigest === r.source_digest;
+                    if (!healthy && runtime.containerId !== r.baseline_container)
+                      ciError('Interrupted runtime requires owner investigation');
+                    const result = resolveOwnerCiRelease(
+                      r,
+                      auth.username,
+                      healthy ? 'healthy' : 'accepted',
+                      runtime,
+                    );
+                    if (!healthy) updateDeploymentStatus(r.application, 'running');
+                    return json(res, ciReceipt(result));
+                  });
+                },
+              }),
+            ],
+            {
+              path: () => path,
+              method: () => method,
+              notFound: () => error(res, 'Route not found', 404),
+            },
+          )(req, res, ctx);
         } catch (err: unknown) {
           console.error(err);
           error(
@@ -309,19 +327,35 @@ const ciRoutes = [
           const auth = requireAuth(req, res);
           if (!auth) return;
           res.setHeader('Cache-Control', 'no-store');
-          if (method === 'POST' && !ciCredentialRoute[1]) {
-            const body = JSON.parse((await readBody(req)).toString());
-            return json(
-              res,
-              issueCiCredential(auth.username, body.application, body.ttlSeconds),
-              201,
-            );
-          }
-          if (method === 'DELETE' && ciCredentialRoute[1]) {
-            revokeCiCredential(ciCredentialRoute[1], auth.username);
-            return json(res, { revoked: true });
-          }
-          return error(res, 'Route not found', 404);
+          return await dispatch(
+            [
+              ciRoute({
+                method: 'POST',
+                path: '/api/ci/credentials',
+                handler: async () => {
+                  const body = JSON.parse((await readBody(req)).toString());
+                  return json(
+                    res,
+                    issueCiCredential(auth.username, body.application, body.ttlSeconds),
+                    201,
+                  );
+                },
+              }),
+              ciRoute({
+                method: 'DELETE',
+                path: '/api/ci/credentials/:id([a-f0-9-]+)',
+                handler: () => {
+                  revokeCiCredential(ciCredentialRoute[1], auth.username);
+                  return json(res, { revoked: true });
+                },
+              }),
+            ],
+            {
+              path: () => path,
+              method: () => method,
+              notFound: () => error(res, 'Route not found', 404),
+            },
+          )(req, res, ctx);
         } catch (err: unknown) {
           console.error(err);
           error(
@@ -357,31 +391,67 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
       const ciRoute = path.match(/^\/api\/ci\/releases(?:\/(head|[a-f0-9-]+)(?:\/(upload))?)?$/);
 
       let ciUpload: CiRelease | undefined;
+      const uploadRoute = routes<undefined>();
 
+      // Admission may set ciUpload without answering; false continues into multipart handling.
       if (ciRoute) {
         const credential = authenticateCi(req.headers['x-deploy-ci-token']);
         res.setHeader('Cache-Control', 'no-store');
-        if (method === 'GET' && ciRoute[1] === 'head') return json(res, ciHead(credential));
-        if (method === 'POST' && !ciRoute[1]) {
-          const body = JSON.parse((await readBody(req)).toString());
-          const prior = existingCiIntent(credential, body);
-          if (prior) return json(res, ciReceipt(prior), 202);
-          ciTarget(credential.application, credential.username);
-          const runtime = await verifiedCiRuntime(credential.application, credential.username);
-          return json(res, ciReceipt(reserveCiRelease(credential, body, runtime)), 202);
-        }
-        if (ciRoute[1] && ciRoute[1] !== 'head') {
-          if (method === 'GET' && !ciRoute[2])
-            return json(res, ciReceipt(ciRelease(ciRoute[1], credential)));
-          if (method === 'POST' && ciRoute[2] === 'upload')
-            ciUpload = ciRelease(ciRoute[1], credential);
-          else return error(res, 'Route not found', 404);
-        }
+        if (
+          await dispatch(
+            [
+              ...['/api/ci/releases/head', '/api/ci/releases/head/upload'].map((pattern) =>
+                uploadRoute({
+                  method: 'GET',
+                  path: pattern,
+                  handler: () => json(res, ciHead(credential)),
+                }),
+              ),
+              uploadRoute({
+                method: 'POST',
+                path: '/api/ci/releases',
+                handler: async () => {
+                  const body = JSON.parse((await readBody(req)).toString());
+                  const prior = existingCiIntent(credential, body);
+                  if (prior) return json(res, ciReceipt(prior), 202);
+                  ciTarget(credential.application, credential.username);
+                  const runtime = await verifiedCiRuntime(
+                    credential.application,
+                    credential.username,
+                  );
+                  return json(res, ciReceipt(reserveCiRelease(credential, body, runtime)), 202);
+                },
+              }),
+              uploadRoute({
+                method: 'GET',
+                path: '/api/ci/releases/:id([a-f0-9-]+)',
+                handler: () => json(res, ciReceipt(ciRelease(ciRoute[1], credential))),
+              }),
+              uploadRoute({
+                method: 'POST',
+                path: '/api/ci/releases/:id([a-f0-9-]+)/upload',
+                handler: () => {
+                  ciUpload = ciRelease(ciRoute[1], credential);
+                  return false;
+                },
+              }),
+              uploadRoute({
+                method: '*',
+                path: '/api/ci/releases/:rest*',
+                handler: () => {
+                  if (ciUpload || !ciRoute[1] || ciRoute[1] === 'head') return false;
+                  return error(res, 'Route not found', 404);
+                },
+              }),
+            ],
+            { path: () => path, method: () => method },
+          )(req, res, undefined)
+        )
+          return;
       }
 
       const adoptionUpload = path === '/api/deployments/wander/managed-adoption/upload';
-
-      if ((path === '/api/upload' || ciUpload || adoptionUpload) && method === 'POST') {
+      const multipartUpload = async () => {
         return await withCiMutation(ciUpload?.id, async () => {
           const agentUpload = path === '/api/upload' ? consumeAgentUpload(req) : undefined;
           const auth = agentUpload
@@ -974,12 +1044,13 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                     for (const expiredArtifact of retainedArtifacts.slice(
                       SOURCE_ARTIFACT_RETENTION,
                     )) {
-                      await rm(resolve(artifactDir, expiredArtifact), { force: true }).catch(
-                        (cleanupError) =>
-                          console.warn(
-                            `Unable to prune retained source artifact for ${name}:`,
-                            cleanupError,
-                          ),
+                      await rm(resolve(artifactDir, expiredArtifact), {
+                        force: true,
+                      }).catch((cleanupError) =>
+                        console.warn(
+                          `Unable to prune retained source artifact for ${name}:`,
+                          cleanupError,
+                        ),
                       );
                     }
                   },
@@ -1561,7 +1632,10 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
               uploadEvent({
                 type: 'build:complete',
                 deploymentName: name,
-                data: { success: finishedJob.status === 'complete', duration: buildDuration },
+                data: {
+                  success: finishedJob.status === 'complete',
+                  duration: buildDuration,
+                },
               });
 
               if (finishedJob.status === 'failed') {
@@ -1849,7 +1923,9 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
             // Build output goes straight to an append-only file. The old flow
             // accumulated the whole log in a string and rewrote the entire DB
             // column every 2s — O(n²) writes for chatty builds.
-            const buildLogStream = createWriteStream(buildLogFilePath(buildLogId), { flags: 'a' });
+            const buildLogStream = createWriteStream(buildLogFilePath(buildLogId), {
+              flags: 'a',
+            });
             const buildStartedMs = Date.now();
             let buildResult: Awaited<ReturnType<typeof buildImage>> | null = null;
             try {
@@ -2248,8 +2324,28 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
           }
           return;
         });
-      }
-      return false;
+      };
+      return await dispatch(
+        [
+          ...[
+            '/api/upload',
+            '/api/ci/releases/:id([a-f0-9-]+)/upload',
+            '/api/deployments/wander/managed-adoption/upload',
+          ].map((uploadPath) =>
+            uploadRoute({
+              method: 'POST',
+              path: uploadPath,
+              handler: async () => {
+                if (uploadPath === '/api/ci/releases/:id([a-f0-9-]+)/upload' && !ciUpload)
+                  return false;
+
+                return multipartUpload();
+              },
+            }),
+          ),
+        ],
+        { path: () => path, method: () => method },
+      )(req, res, undefined);
     } catch (err: unknown) {
       console.error(err);
       error(
