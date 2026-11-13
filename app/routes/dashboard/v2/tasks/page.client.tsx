@@ -245,7 +245,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                     aria-controls="task-actions"
                     onClick={() => setMore(!more)}
                   >
-                    ⋯
+                    <Icon name="more" />
                   </button>
                   {more && (
                     <div className="dl-task-menu" id="task-actions">

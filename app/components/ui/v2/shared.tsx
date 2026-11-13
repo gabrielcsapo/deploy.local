@@ -118,7 +118,15 @@ export function Icon({
       aria-hidden="true"
       className={className}
     >
-      <path d={paths[name]} />
+      {name === 'more' ? (
+        <>
+          <circle cx="5" cy="12" r="1" />
+          <circle cx="12" cy="12" r="1" />
+          <circle cx="19" cy="12" r="1" />
+        </>
+      ) : (
+        <path d={paths[name]} />
+      )}
     </svg>
   );
 }
