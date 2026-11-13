@@ -138,6 +138,71 @@ export const remember = (path: string, data: unknown) =>
   browserResources()?.set(resourceKey(path), { data, at: Date.now() });
 
 export const EVENT_REFRESH_SPACING_MS = 5000;
+
+/**
+ * Several parts of a page read the same resource. A poll or first read joins a read of that
+ * path already in flight. A refresh after a change must not: the read in flight may have been
+ * answered before the change. It joins only a read started in the same turn of the event loop,
+ * which is how one event reaches every part.
+ */
+type SharedRead = { promise: Promise<unknown>; turn: number; waiting: number; stop(): void };
+const reads = new Map<string, SharedRead>();
+let turn = 0;
+let turnEnds = false;
+export function sharedRead<T>(
+  path: string,
+  signal: AbortSignal,
+  optional: boolean,
+  afterChange: boolean,
+  request: typeof fetch = authenticatedFetch,
+): Promise<T | null> {
+  if (!turnEnds) {
+    turnEnds = true;
+    queueMicrotask(() => {
+      turn += 1;
+      turnEnds = false;
+    });
+  }
+  browserResources();
+  const key = `${resourceIdentity ?? ''}\n${optional ? '?' : ''}${path}`;
+  let read = reads.get(key);
+  if (!read || (afterChange && read.turn !== turn)) {
+    const controller = new AbortController();
+    const started: SharedRead = {
+      promise: readResource<T>(request, path, controller.signal, optional),
+      turn,
+      waiting: 0,
+      stop: () => controller.abort(),
+    };
+    const done = () => {
+      if (reads.get(key) === started) reads.delete(key);
+    };
+    started.promise.then(done, done);
+    reads.set(key, started);
+    read = started;
+  }
+  const joined = read;
+  joined.waiting += 1;
+  return new Promise<T | null>((resolve, reject) => {
+    const leave = () => {
+      reject(signal.reason);
+      // The request stops only when nobody is waiting for it.
+      if (--joined.waiting === 0) joined.stop();
+    };
+    if (signal.aborted) return leave();
+    signal.addEventListener('abort', leave, { once: true });
+    joined.promise.then(
+      (data) => {
+        signal.removeEventListener('abort', leave);
+        resolve(data as T | null);
+      },
+      (error) => {
+        signal.removeEventListener('abort', leave);
+        reject(error);
+      },
+    );
+  });
+}
 export function useResource<T>(
   path: string,
   optional = false,
@@ -175,13 +240,13 @@ export function useResource<T>(
     // seeded resource at most this often; releases, rollbacks, inbox and agent changes are immediate.
     let last = freshSeed(seed, path) ? seed!.at : 0;
     let spaced = false;
-    const refresh = async () => {
+    const refresh = async (afterChange = false) => {
       last = Date.now();
       spaced = false;
       controller = new AbortController();
       const signal = controller.signal;
       try {
-        const data = await readResource<T>(authenticatedFetch, path, signal, optional);
+        const data = await sharedRead<T>(path, signal, optional, afterChange);
         if (!signal.aborted) {
           remember(path, data);
           setState({ path, seed, data, loading: false, error: false });
@@ -194,7 +259,7 @@ export function useResource<T>(
     const changed = () => {
       controller?.abort();
       clearTimeout(timer);
-      void refresh();
+      void refresh(true);
     };
     const soon = () => {
       if (spaced) return;
@@ -203,7 +268,7 @@ export function useResource<T>(
       spaced = true;
       controller?.abort();
       clearTimeout(timer);
-      timer = setTimeout(() => void refresh(), wait);
+      timer = setTimeout(() => void refresh(true), wait);
     };
     const reset = () => {
       setState({ path, seed: undefined, data: null, loading: true, error: false });

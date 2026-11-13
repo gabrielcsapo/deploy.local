@@ -35,6 +35,7 @@ test('seeded resources skip the initial read, refresh on events and isolate brow
       AbortController,
       setTimeout,
       clearTimeout,
+      queueMicrotask,
       fetch: async (key) => {
         requests.push(key);
         return { ok: true, json: async () => ({ name: 'live' }) };
@@ -65,6 +66,69 @@ test('seeded resources skip the initial read, refresh on events and isolate brow
     assert.equal(h.exports.remembered(path).name, 'live');
     auth = { username: 'bob', token: 'two' };
     assert.equal(h.exports.remembered(path), undefined, 'another session cannot reuse Alice data');
+  } finally {
+    h.dispose();
+  }
+});
+
+test('parts of a page share a read in flight, and a refresh after a change starts its own', async () => {
+  const h = await componentHarness(
+    'app/routes/dashboard/v2/data/hooks.tsx',
+    {
+      './seeds': {
+        useDataSeed: () => undefined,
+        freshSeed: () => false,
+        resourceKey: (key) => key,
+      },
+      '../../detail/shared': { getAuth: () => ({ username: 'alice', token: 'one' }) },
+      './event-feed': { createEventFeed: () => ({ subscribe: () => () => {}, reset() {} }) },
+      './inbox-store': { createInboxStore: () => ({}) },
+      '../inbox/presentation': { agentName: (name) => name },
+    },
+    {
+      window: { addEventListener() {}, removeEventListener() {} },
+      Headers,
+      AbortController,
+      setTimeout,
+      clearTimeout,
+      queueMicrotask,
+      fetch: async () => assert.fail('the test supplies its own request'),
+    },
+  );
+  try {
+    const pending = [];
+    const request = (path, init) =>
+      new Promise((resolve, reject) => {
+        pending.push({
+          path,
+          resolve: (name) => resolve({ ok: true, json: async () => ({ name }) }),
+        });
+        init.signal.addEventListener('abort', () => reject(init.signal.reason));
+      });
+    const read = (afterChange, signal = new AbortController().signal) =>
+      h.exports.sharedRead('/api/v2/live', signal, false, afterChange, request);
+    const leaving = new AbortController();
+    const polls = [read(false), read(false), read(false, leaving.signal)];
+    assert.equal(pending.length, 1, 'three polls, one request');
+    leaving.abort();
+    await assert.rejects(polls[2]);
+    await settle();
+    // The read in flight may predate the change, so the refresh asks again; refreshes
+    // delivered in the same turn share that second request.
+    const refreshes = [read(true), read(true)];
+    assert.equal(pending.length, 2);
+    const late = read(false);
+    assert.equal(pending.length, 2, 'a poll joins the newest read');
+    pending[0].resolve('before');
+    pending[1].resolve('after');
+    assert.deepEqual(
+      (await Promise.all(polls.slice(0, 2))).map((v) => v.name),
+      ['before', 'before'],
+    );
+    assert.deepEqual(
+      (await Promise.all([...refreshes, late])).map((v) => v.name),
+      ['after', 'after', 'after'],
+    );
   } finally {
     h.dispose();
   }
