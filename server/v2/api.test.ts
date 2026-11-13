@@ -11,6 +11,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-v2-api-'));
 process.env.DEPLOY_DATA_DIR = root;
+const { STATE_REFRESH_INTERVAL_MS } = await import('./state-refresh.ts');
 const { db, save, get, list, event, cursor, now } = await import('../workspace/store.ts');
 const { registerUser } = await import('../store.ts');
 const { questionTool, answerQuestion } = await import('../workspace/questions.ts');
@@ -444,35 +445,35 @@ test('long-poll observes legacy mutations and expiry without a v2 writer', async
     c = control(expiring);
   save('interactive-request', expiring.owner, { ...c, expiresAt: Date.now() + 100 });
   syncInbox(expiring.owner);
+  // Expiry has no event of its own: it shows at the next state refresh, within the cadence.
   const expired = await waitForV2Events(
     expiring.owner,
     cursor(expiring.owner),
-    1000,
+    STATE_REFRESH_INTERVAL_MS + 1000,
     new AbortController().signal,
   );
   assert.ok(expired.events.some((e) => e.type === 'inbox' && e.item.state === 'expired'));
 });
 
-test('concurrent waiters share periodic refreshes but every wait refreshes on its first pass', async (t) => {
+test('waiters share one state refresh per cadence, and a new wait reads it instead of refreshing', async (t) => {
   const s = fixture();
   await waitForV2Events(s.owner, cursor(s.owner), 0, new AbortController().signal);
   // With no inbox items or live apps, each syncInbox refresh opens exactly one transaction.
   const transactions = t.mock.method(db, 'transaction');
-  const waiterCount = 4;
+  const started = Date.now();
   const responses = await Promise.all(
-    Array.from({ length: waiterCount }, () =>
+    Array.from({ length: 4 }, () =>
       waitForV2Events(s.owner, cursor(s.owner), 1100, new AbortController().signal),
     ),
   );
   assert.ok(responses.every((response) => response.events.length === 0));
-  const refreshCount = transactions.mock.callCount();
-  assert.ok(refreshCount >= waiterCount + 1, `expected periodic refreshes, got ${refreshCount}`);
-  assert.ok(refreshCount <= waiterCount + 3, `too many refreshes: ${refreshCount}`);
-
-  for (let i = 1; i <= 2; i++) {
+  // Inside the cadence, four waiters and their first passes recomputed nothing.
+  assert.equal(transactions.mock.callCount(), 0);
+  await delay(Math.max(0, STATE_REFRESH_INTERVAL_MS - (Date.now() - started)) + 50);
+  // Once it has passed, the next wait refreshes once, and the one after reads that result.
+  for (let i = 0; i < 2; i++)
     await waitForV2Events(s.owner, cursor(s.owner), 0, new AbortController().signal);
-    assert.equal(transactions.mock.callCount(), refreshCount + i);
-  }
+  assert.equal(transactions.mock.callCount(), 1);
 });
 
 test('plain events wake a waiter before the next state refresh', async () => {
@@ -482,8 +483,8 @@ test('plain events wake a waiter before the next state refresh', async () => {
   const sentAt = Date.now();
   event(s.owner, s.taskId, s.runId, 'message', { role: 'user', content: 'Wake now' });
   const response = await pending;
-  // Sent 100 ms in, so waiting for the refresh at 500 ms would take about 400 ms.
-  assert.ok(Date.now() - sentAt < 350, 'event delivery must not wait for the 500 ms refresh');
+  // Sent 100 ms in; waiting for the next state refresh would take far longer than this.
+  assert.ok(Date.now() - sentAt < 350, 'event delivery must not wait for the next state refresh');
   assert.ok(response.events.some((e) => e.type === 'conversation' && e.event.kind === 'you'));
 });
 
