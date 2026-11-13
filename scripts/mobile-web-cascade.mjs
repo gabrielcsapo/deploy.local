@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const postcss = createRequire(require.resolve('vite/package.json'))('postcss');
@@ -131,7 +131,13 @@ const cache = new Map();
 function parse(file) {
   if (cache.has(file)) return cache.get(file);
   const rules = [];
-  postcss.parse(readFileSync(resolve(rootPath, file), 'utf8')).walkRules((rule) => {
+  const root = postcss.parse(readFileSync(resolve(rootPath, file), 'utf8'));
+  // A sheet's @import comes first in the cascade, as in the browser.
+  root.walkAtRules('import', (atRule) => {
+    const target = atRule.params.match(/^['"](\.[^'"]+)['"]/)?.[1];
+    if (target) rules.push(...parse(join(dirname(file), target)));
+  });
+  root.walkRules((rule) => {
     const parents = [];
     for (let parent = rule.parent; parent; parent = parent.parent)
       if (parent.type === 'atrule') parents.push(parent);
