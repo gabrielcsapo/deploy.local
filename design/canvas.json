@@ -2910,6 +2910,66 @@
       "h": 900,
       "title": "Design review on the canvas — approved and on main, built when you ask",
       "expand": "fill"
+    },
+    "TemplateList.html": {
+      "x": 1000,
+      "y": 5520,
+      "w": 1440,
+      "h": 900,
+      "title": "Template · List: Projects is the reference",
+      "expand": "fill"
+    },
+    "TemplateDetail.html": {
+      "x": 2520,
+      "y": 5520,
+      "w": 1440,
+      "h": 900,
+      "title": "Template · Detail: a project is the reference",
+      "expand": "fill"
+    },
+    "TemplateConversation.html": {
+      "x": 4040,
+      "y": 5520,
+      "w": 1440,
+      "h": 900,
+      "title": "Template · Conversation: a task is the reference",
+      "expand": "fill"
+    },
+    "TemplateSettings.html": {
+      "x": 5560,
+      "y": 5520,
+      "w": 1440,
+      "h": 900,
+      "title": "Template · Settings: Settings is the reference",
+      "expand": "fill"
+    },
+    "TemplateListPhone.html": {
+      "x": 1000,
+      "y": 6620,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Template · List"
+    },
+    "TemplateDetailPhone.html": {
+      "x": 1490,
+      "y": 6620,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Template · Detail"
+    },
+    "TemplateConversationPhone.html": {
+      "x": 1980,
+      "y": 6620,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Template · Conversation"
+    },
+    "TemplateSettingsPhone.html": {
+      "x": 2470,
+      "y": 6620,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Template · Settings"
     }
   },
   "order": [
@@ -3299,7 +3359,15 @@
     "AppLogsErrorPhone.html",
     "AppSettingsPhone.html",
     "DesignReviewCanvas.html",
-    "DesignReviewCanvasApproved.html"
+    "DesignReviewCanvasApproved.html",
+    "TemplateList.html",
+    "TemplateDetail.html",
+    "TemplateConversation.html",
+    "TemplateSettings.html",
+    "TemplateListPhone.html",
+    "TemplateDetailPhone.html",
+    "TemplateConversationPhone.html",
+    "TemplateSettingsPhone.html"
   ],
   "notes": {
     "intro": {
@@ -4719,6 +4787,13 @@
       "x": 11244,
       "y": 56580,
       "text": "Approving a design does not start a build\n\nApproving puts the design on main and stops there. No task starts on its own.\n\nThe canvas stays on the review, now approved: every changed frame ticked, and the bar reads Approved · on main as <commit> · not built yet. Ask for changes and Approve design give way to one button: Build.\n\n• Build does the usual thing: it carries on in the task that proposed the design, so that conversation builds it. The approval also shows in that chat, where saying “build it” or pressing Build does the same.\n• The arrow beside it chooses where: In <proposer>’s task, or In a new task. The choice is remembered for the next design. A design a person proposed has no task to carry on in, so Build starts a new task and there is no arrow.\n• Nothing is timed. Build is there today or next week.\n\nOnce a task is building it the bar names who and links the task in place of “not built yet”, and the buttons go. The design check on that task works as before (design-build-check): the app is compared with the approved boards before it can merge.\n\nThis replaces “When the design lands on main its build starts” in design-build-check. iPhone: the approved page says Not built yet; building is started from web or the chat."
+    },
+    "page-templates": {
+      "fill": "purple",
+      "w": 420,
+      "x": 500,
+      "y": 5520,
+      "text": "Page templates. A new feature picks one of four templates instead of drawing a layout: List (Projects), Detail (a project), Conversation (a task) and Settings (Settings), each on web and iPhone. They are components in the library (Assets › Page templates), placed as instances like the Sidebar, with settings for the words that change.\n• Existing boards already follow them: List — Projects, Compute, AgentsEmpty, ProjectPhone, ComputePhone. Detail — Project, App, AgentSettings, ProjectDetailPhone, AppSettingsPhone. Conversation — Task, AgentPage, Home, TaskPhone, AgentPhone. Settings — Settings, SettingsAgents, ProjectSettings, SettingsPhone, SettingsApprovalsPhone.\n• Those boards keep their own markup for now. Moving them onto the instances is a later step, one board at a time, once these are approved.\n• In the app, each template becomes one page component; a feature supplies its rows and actions."
     }
   },
   "starts": {}

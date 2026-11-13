@@ -877,6 +877,614 @@
       "description": "Contact sheet with real screen proportions, seen state and pin counts; a single-screen viewer with comparison, changed-area outlines and a pin tray. Loading disables decisions. Stale proposals offer Close and Ask to update only.",
       "props": [],
       "html": "<div class=\"dl-list dl-review\"><div class=\"dl-review-grid\"><a class=\"dl-review-tile\" href=\"DesignReviewViewer.html\"><figure><div class=\"dl-review-skeleton\" aria-hidden=\"true\"></div><figcaption>Agent details<span class=\"dl-review-tile-meta\"><span class=\"dl-review-seen\">✓ Seen</span><span>2 pins</span></span></figcaption></figure></a></div><footer class=\"dl-review-footer\"><span class=\"dl-meta\">You’ve looked at 4 of 22</span><button class=\"dl-btn primary\">Ask for 3 changes</button><button class=\"dl-btn secondary\">Approve design</button></footer></div>"
+    },
+    {
+      "id": "template-list",
+      "name": "Template · List",
+      "description": "A page that lists one kind of thing, like Projects or Computers: the header, the page title with what the list is for and its actions, then groups of summary rows that each open a detail. Boards that are this template: Projects, Compute, AgentsEmpty.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Projects"
+        },
+        {
+          "id": "description",
+          "label": "What the list is for",
+          "default": "Active projects grow. Maintained projects get fixes and updates. Done projects rest."
+        },
+        {
+          "id": "secondary",
+          "label": "Second action",
+          "default": "Discover apps"
+        },
+        {
+          "id": "primary",
+          "label": "Primary action",
+          "default": "New project"
+        },
+        {
+          "id": "section",
+          "label": "Group",
+          "default": "Active"
+        },
+        {
+          "id": "row-1",
+          "label": "Row 1",
+          "default": "home-gym · Active"
+        },
+        {
+          "id": "row-1-detail",
+          "label": "Row 1 detail",
+          "default": "1 proposal · 1 PR open · last change 3 days ago"
+        },
+        {
+          "id": "row-1-state",
+          "label": "Row 1 state",
+          "default": "Failing",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-1-status",
+          "label": "Row 1 status",
+          "default": "1 failing"
+        },
+        {
+          "id": "row-2",
+          "label": "Row 2",
+          "default": "tally · Active"
+        },
+        {
+          "id": "row-2-detail",
+          "label": "Row 2 detail",
+          "default": "2 proposals · 1 PR open · last change 3 days ago"
+        },
+        {
+          "id": "row-2-state",
+          "label": "Row 2 state",
+          "default": "Not running",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-2-status",
+          "label": "Row 2 status",
+          "default": "Not running"
+        },
+        {
+          "id": "row-3",
+          "label": "Row 3",
+          "default": "deploy.local · Active"
+        },
+        {
+          "id": "row-3-detail",
+          "label": "Row 3 detail",
+          "default": "No proposals · 2 PRs open · last change 6 hours ago"
+        },
+        {
+          "id": "row-3-state",
+          "label": "Row 3 state",
+          "default": "Healthy",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-3-status",
+          "label": "Row 3 status",
+          "default": "Healthy"
+        }
+      ],
+      "html": "<main class=\"dl-main\"><header class=\"dl-head ruled\"><button type=\"button\" class=\"dl-icon-btn dl-menu-btn\" aria-label=\"Show sidebar\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg></button><span class=\"dl-t\">{{title}}</span><span class=\"dl-end\"></span></header><div class=\"dl-scroll\"><div class=\"dl-page\"><div class=\"dl-page-head\"><div class=\"dl-t\"><h1 class=\"dl-title\">{{title}}</h1><span class=\"dl-meta\">{{description}}</span></div><span class=\"dl-end\"><a href=\"#\" class=\"dl-btn secondary\">{{secondary}}</a><a href=\"#\" class=\"dl-btn primary\">{{primary}}</a></span></div><section class=\"dl-section\"><h2 class=\"dl-section-title\">{{section}}</h2><div class=\"dl-group\"><a href=\"#\" class=\"dl-item\"><span class=\"dl-t\"><span>{{row-1}}</span><span>{{row-1-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-1-state}}\"><span class=\"dl-dot\"></span>{{row-1-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a><a href=\"#\" class=\"dl-item\"><span class=\"dl-t\"><span>{{row-2}}</span><span>{{row-2-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-2-state}}\"><span class=\"dl-dot\"></span>{{row-2-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a><a href=\"#\" class=\"dl-item\"><span class=\"dl-t\"><span>{{row-3}}</span><span>{{row-3-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-3-state}}\"><span class=\"dl-dot\"></span>{{row-3-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a></div></section></div></div></main>",
+      "group": "Page templates"
+    },
+    {
+      "id": "template-detail",
+      "name": "Template · Detail",
+      "description": "One thing from a list, like a project or an app: a breadcrumb back to its list, one primary action, its sections as tabs, then sections of rows. Boards that are this template: Project, App, AgentSettings.",
+      "props": [
+        {
+          "id": "parent",
+          "label": "List it belongs to",
+          "default": "Projects"
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "home-gym"
+        },
+        {
+          "id": "primary",
+          "label": "Primary action",
+          "default": "New task"
+        },
+        {
+          "id": "tab-1",
+          "label": "First tab (shown)",
+          "default": "Overview"
+        },
+        {
+          "id": "tab-2",
+          "label": "Second tab",
+          "default": "Code"
+        },
+        {
+          "id": "tab-3",
+          "label": "Third tab",
+          "default": "Pull requests"
+        },
+        {
+          "id": "tab-4",
+          "label": "Fourth tab",
+          "default": "Apps"
+        },
+        {
+          "id": "section",
+          "label": "Section",
+          "default": "Running"
+        },
+        {
+          "id": "section-note",
+          "label": "Section note",
+          "default": "Release 9c3e1fa on main. Open an app for its health, releases, logs and settings."
+        },
+        {
+          "id": "row-1",
+          "label": "Row 1",
+          "default": "web"
+        },
+        {
+          "id": "row-1-detail",
+          "label": "Row 1 detail",
+          "default": "Web · SER"
+        },
+        {
+          "id": "row-1-state",
+          "label": "Row 1 state",
+          "default": "Healthy",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-1-status",
+          "label": "Row 1 status",
+          "default": "Healthy"
+        },
+        {
+          "id": "row-2",
+          "label": "Row 2",
+          "default": "sync-worker"
+        },
+        {
+          "id": "row-2-detail",
+          "label": "Row 2 detail",
+          "default": "38% of jobs error since 1:58 PM"
+        },
+        {
+          "id": "row-2-state",
+          "label": "Row 2 state",
+          "default": "Failing",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-2-status",
+          "label": "Row 2 status",
+          "default": "Failing"
+        }
+      ],
+      "html": "<main class=\"dl-main\"><header class=\"dl-head\"><button type=\"button\" class=\"dl-icon-btn dl-menu-btn\" aria-label=\"Show sidebar\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg></button><nav class=\"dl-crumbs\" aria-label=\"Breadcrumb\" style=\"display:flex;align-items:center;gap:4px;min-width:0\"><a href=\"#\" class=\"dl-t\" style=\"flex:none;color:var(--muted);font-weight:400\">{{parent}}</a><span style=\"display:inline-flex;color:var(--muted);flex:none\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"/></svg></span><span class=\"dl-t\" aria-current=\"page\">{{title}}</span></nav><span class=\"dl-end\"><a href=\"#\" class=\"dl-btn primary\">{{primary}}</a></span></header><div class=\"dl-scroll\"><div class=\"dl-page\" style=\"padding-top:8px\"><nav class=\"dl-tabs\" aria-label=\"Sections\"><a href=\"#\" class=\"on\" aria-current=\"page\">{{tab-1}}</a><a href=\"#\">{{tab-2}}</a><a href=\"#\">{{tab-3}}</a><a href=\"#\">{{tab-4}}</a></nav><section class=\"dl-section\"><h2 class=\"dl-section-title\">{{section}}</h2><p class=\"dl-section-sub\">{{section-note}}</p><div class=\"dl-group\"><a href=\"#\" class=\"dl-item\"><span class=\"dl-t\"><span>{{row-1}}</span><span>{{row-1-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-1-state}}\"><span class=\"dl-dot\"></span>{{row-1-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a><a href=\"#\" class=\"dl-item\"><span class=\"dl-t\"><span>{{row-2}}</span><span>{{row-2-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-2-state}}\"><span class=\"dl-dot\"></span>{{row-2-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a></div></section></div></div></main>",
+      "group": "Page templates"
+    },
+    {
+      "id": "template-conversation",
+      "name": "Template · Conversation",
+      "description": "Talking with an agent about one piece of work, like a task: the title and its one decision in the header, views as tabs, the thread in the 768 px column, and the composer at the foot. Boards that are this template: Task, AgentPage, Home.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Format the last-updated time as HH:MM:SS"
+        },
+        {
+          "id": "primary",
+          "label": "Decision",
+          "default": "Merge and release"
+        },
+        {
+          "id": "ask",
+          "label": "Your message",
+          "default": "In Tally, format the last-updated time under the count as HH:MM:SS in 24-hour time"
+        },
+        {
+          "id": "worked",
+          "label": "Work log",
+          "default": "Worked for 6m"
+        },
+        {
+          "id": "reply",
+          "label": "Reply",
+          "default": "The time under the count now reads 14:07:32: hours, minutes and seconds, padded, in 24-hour time. Midnight reads 00:00:00, and a test covers it."
+        }
+      ],
+      "html": "<main class=\"dl-main\"><header class=\"dl-head ruled\"><button type=\"button\" class=\"dl-icon-btn dl-menu-btn\" aria-label=\"Show sidebar\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg></button><span class=\"dl-t\">{{title}}</span><span class=\"dl-end\"><button type=\"button\" class=\"dl-icon-btn\" aria-label=\"More\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"5\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/></svg></button><button type=\"button\" class=\"dl-btn primary\">{{primary}}</button></span></header><div class=\"dl-scroll\"><div class=\"dl-col\"><nav class=\"dl-tabs\" aria-label=\"Task\" style=\"margin-top:8px\"><a href=\"#\" class=\"on\" aria-current=\"page\">Chat</a><a href=\"#\">Changes<span class=\"dl-n\">3</span></a><a href=\"#\">Checks<span class=\"dl-n\">3</span></a></nav><div class=\"dl-thread\"><div class=\"dl-you\">{{ask}}</div><div class=\"dl-turn\"><div class=\"dl-worklog\"><span class=\"dl-worklog-toggle\">{{worked}}<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"/></svg></span></div><div class=\"dl-reply\"><p>{{reply}}</p></div></div></div></div></div><div class=\"dl-dock\"><form class=\"dl-composer\"><input type=\"text\" placeholder=\"Ask, build, or follow up…\" aria-label=\"Message\"><div class=\"dl-composer-bar\"><span class=\"dl-chip\">SER</span><span class=\"dl-grow\"></span><button type=\"button\" class=\"dl-send\" aria-label=\"Send\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg></button></div></form></div></main>",
+      "group": "Page templates"
+    },
+    {
+      "id": "template-settings",
+      "name": "Template · Settings",
+      "description": "Settings for one place: the sections listed on the left, and labelled groups of setting rows, each with its name, what it does and its control. Explanations go below a group. Boards that are this template: Settings, SettingsAgents, ProjectSettings.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Settings"
+        },
+        {
+          "id": "nav-1",
+          "label": "First section (shown)",
+          "default": "General"
+        },
+        {
+          "id": "nav-2",
+          "label": "Second section",
+          "default": "Account and SSH keys"
+        },
+        {
+          "id": "nav-3",
+          "label": "Third section",
+          "default": "Agents and approvals"
+        },
+        {
+          "id": "nav-4",
+          "label": "Fourth section",
+          "default": "Notifications"
+        },
+        {
+          "id": "section",
+          "label": "Group",
+          "default": "Appearance"
+        },
+        {
+          "id": "setting-1",
+          "label": "First setting",
+          "default": "Theme"
+        },
+        {
+          "id": "setting-1-detail",
+          "label": "What it does",
+          "default": "Light, Dark or System"
+        },
+        {
+          "id": "setting-1-value",
+          "label": "Value",
+          "default": "System"
+        },
+        {
+          "id": "setting-2",
+          "label": "Second setting",
+          "default": "Text size"
+        },
+        {
+          "id": "setting-2-detail",
+          "label": "What it does",
+          "default": "In conversations"
+        },
+        {
+          "id": "setting-2-value",
+          "label": "Value",
+          "default": "Default"
+        }
+      ],
+      "html": "<main class=\"dl-main\"><header class=\"dl-head\"><button type=\"button\" class=\"dl-icon-btn dl-menu-btn\" aria-label=\"Show sidebar\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h16M4 17h16\"/></svg></button><span class=\"dl-t\">{{title}}</span><span class=\"dl-end\"></span></header><div class=\"dl-scroll\"><div class=\"dl-page\" style=\"flex-direction:row;flex-wrap:wrap;gap:32px;align-items:flex-start\"><nav aria-label=\"Sections\" style=\"flex:0 1 200px;display:flex;flex-direction:column\"><a href=\"#\" class=\"dl-nav on\" aria-current=\"page\"><span class=\"dl-t\">{{nav-1}}</span></a><a href=\"#\" class=\"dl-nav\"><span class=\"dl-t\">{{nav-2}}</span></a><a href=\"#\" class=\"dl-nav\"><span class=\"dl-t\">{{nav-3}}</span></a><a href=\"#\" class=\"dl-nav\"><span class=\"dl-t\">{{nav-4}}</span></a></nav><section class=\"dl-section\" style=\"flex:1 1 480px;min-width:0\"><h2 class=\"dl-section-title\">{{section}}</h2><div class=\"dl-group\"><div class=\"dl-setting\"><span class=\"dl-t\"><span>{{setting-1}}</span><span>{{setting-1-detail}}</span></span><span class=\"dl-v\">{{setting-1-value}}<svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></span></div><div class=\"dl-setting\"><span class=\"dl-t\"><span>{{setting-2}}</span><span>{{setting-2-detail}}</span></span><span class=\"dl-v\">{{setting-2-value}}<svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></span></div></div></section></div></div></main>",
+      "group": "Page templates"
+    },
+    {
+      "id": "template-list-phone",
+      "name": "Template · List, iPhone",
+      "description": "The List template on iPhone: a large title, the add button top right, a labelled group of summary rows that each open a detail, and the tab bar. Boards that are this template: ProjectPhone, ComputePhone.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Projects"
+        },
+        {
+          "id": "primary",
+          "label": "Add button label",
+          "default": "New project"
+        },
+        {
+          "id": "section",
+          "label": "Group",
+          "default": "Active"
+        },
+        {
+          "id": "row-1",
+          "label": "Row 1",
+          "default": "home-gym"
+        },
+        {
+          "id": "row-1-detail",
+          "label": "Row 1 detail",
+          "default": "1 of 2 apps failing · 9c3e1fa"
+        },
+        {
+          "id": "row-1-state",
+          "label": "Row 1 state",
+          "default": "Failing",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-1-status",
+          "label": "Row 1 status",
+          "default": "1 failing"
+        },
+        {
+          "id": "row-2",
+          "label": "Row 2",
+          "default": "tally"
+        },
+        {
+          "id": "row-2-detail",
+          "label": "Row 2 detail",
+          "default": "Stopped 3 days ago"
+        },
+        {
+          "id": "row-2-state",
+          "label": "Row 2 state",
+          "default": "Not running",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-2-status",
+          "label": "Row 2 status",
+          "default": "Not running"
+        },
+        {
+          "id": "row-3",
+          "label": "Row 3",
+          "default": "deploy.local"
+        },
+        {
+          "id": "row-3-detail",
+          "label": "Row 3 detail",
+          "default": "2 pull requests · app healthy"
+        },
+        {
+          "id": "row-3-state",
+          "label": "Row 3 state",
+          "default": "Healthy",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-3-status",
+          "label": "Row 3 status",
+          "default": "Healthy"
+        },
+        {
+          "id": "note",
+          "label": "Note below the group",
+          "default": "Active projects grow. Maintained projects get fixes and updates. Done projects rest."
+        }
+      ],
+      "html": "<div class=\"dl-phone dl-list\"><header class=\"dl-ph-top\"><span style=\"width:44px\"></span><span class=\"dl-t\"></span><button type=\"button\" class=\"dl-ph-btn\" aria-label=\"{{primary}}\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button></header><div class=\"dl-ph-large\">{{title}}</div><div class=\"dl-ph-body\"><div class=\"dl-ph-label\">{{section}}</div><div class=\"dl-ph-group\"><a href=\"#\" class=\"dl-ph-row\"><span class=\"dl-t\"><span>{{row-1}}</span><span>{{row-1-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-1-state}}\"><span class=\"dl-dot\"></span>{{row-1-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a><a href=\"#\" class=\"dl-ph-row\"><span class=\"dl-t\"><span>{{row-2}}</span><span>{{row-2-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-2-state}}\"><span class=\"dl-dot\"></span>{{row-2-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a><a href=\"#\" class=\"dl-ph-row\"><span class=\"dl-t\"><span>{{row-3}}</span><span>{{row-3-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-3-state}}\"><span class=\"dl-dot\"></span>{{row-3-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a></div><p class=\"dl-ph-note\">{{note}}</p></div><nav class=\"dl-tabbar\" aria-label=\"Places\"><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z\"/></svg>Work</a><a href=\"#\" class=\"on\" aria-current=\"page\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Projects</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12h4l3-7 4 14 3-7h4\"/></svg>Live</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 20h8M12 16v4\"/></svg>Computers</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0\"/><circle cx=\"16\" cy=\"6\" r=\"2\"/><circle cx=\"10\" cy=\"12\" r=\"2\"/><circle cx=\"18\" cy=\"18\" r=\"2\"/></svg>Settings</a></nav></div>",
+      "group": "Page templates"
+    },
+    {
+      "id": "template-detail-phone",
+      "name": "Template · Detail, iPhone",
+      "description": "The Detail template on iPhone: back to the list, the title in the bar, then groups of rows that open each part. Boards that are this template: ProjectDetailPhone, AppSettingsPhone.",
+      "props": [
+        {
+          "id": "parent",
+          "label": "Back to",
+          "default": "Projects"
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "home-gym"
+        },
+        {
+          "id": "section",
+          "label": "Group",
+          "default": "Apps"
+        },
+        {
+          "id": "row-1",
+          "label": "Row 1",
+          "default": "web"
+        },
+        {
+          "id": "row-1-detail",
+          "label": "Row 1 detail",
+          "default": "Web · SER"
+        },
+        {
+          "id": "row-1-state",
+          "label": "Row 1 state",
+          "default": "Healthy",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-1-status",
+          "label": "Row 1 status",
+          "default": "Healthy"
+        },
+        {
+          "id": "row-2",
+          "label": "Row 2",
+          "default": "sync-worker"
+        },
+        {
+          "id": "row-2-detail",
+          "label": "Row 2 detail",
+          "default": "38% of jobs error since 1:58 PM"
+        },
+        {
+          "id": "row-2-state",
+          "label": "Row 2 state",
+          "default": "Failing",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-2-status",
+          "label": "Row 2 status",
+          "default": "Failing"
+        },
+        {
+          "id": "section-2",
+          "label": "Second group",
+          "default": "Tasks"
+        },
+        {
+          "id": "row-3",
+          "label": "Row 3",
+          "default": "Fix the sync worker"
+        },
+        {
+          "id": "row-3-detail",
+          "label": "Row 3 detail",
+          "default": "Working on bazzite · Codex"
+        },
+        {
+          "id": "row-3-state",
+          "label": "Row 3 state",
+          "default": "Running",
+          "options": {
+            "Healthy": "",
+            "Failing": "failed",
+            "Not running": "inactive",
+            "Running": "active"
+          }
+        },
+        {
+          "id": "row-3-status",
+          "label": "Row 3 status",
+          "default": "Running"
+        }
+      ],
+      "html": "<div class=\"dl-phone\"><header class=\"dl-ph-top\"><a href=\"#\" class=\"dl-ph-btn\" aria-label=\"Back to {{parent}}\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 6l-6 6 6 6\"/></svg></a><span class=\"dl-t\">{{title}}</span><span style=\"width:44px\"></span></header><div class=\"dl-ph-body\"><div class=\"dl-ph-label\">{{section}}</div><div class=\"dl-ph-group\"><a href=\"#\" class=\"dl-ph-row\"><span class=\"dl-t\"><span>{{row-1}}</span><span>{{row-1-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-1-state}}\"><span class=\"dl-dot\"></span>{{row-1-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a><a href=\"#\" class=\"dl-ph-row\"><span class=\"dl-t\"><span>{{row-2}}</span><span>{{row-2-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-2-state}}\"><span class=\"dl-dot\"></span>{{row-2-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a></div><div class=\"dl-ph-label\">{{section-2}}</div><div class=\"dl-ph-group\"><a href=\"#\" class=\"dl-ph-row\"><span class=\"dl-t\"><span>{{row-3}}</span><span>{{row-3-detail}}</span></span><span class=\"dl-c\"><span class=\"dl-status {{row-3-state}}\"><span class=\"dl-dot\"></span>{{row-3-status}}</span></span><svg class=\"dl-chev\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"m9 5 7 7-7 7\"/></svg></a></div></div><nav class=\"dl-tabbar\" aria-label=\"Places\"><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z\"/></svg>Work</a><a href=\"#\" class=\"on\" aria-current=\"page\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Projects</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12h4l3-7 4 14 3-7h4\"/></svg>Live</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 20h8M12 16v4\"/></svg>Computers</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0\"/><circle cx=\"16\" cy=\"6\" r=\"2\"/><circle cx=\"10\" cy=\"12\" r=\"2\"/><circle cx=\"18\" cy=\"18\" r=\"2\"/></svg>Settings</a></nav></div>",
+      "group": "Page templates"
+    },
+    {
+      "id": "template-conversation-phone",
+      "name": "Template · Conversation, iPhone",
+      "description": "The Conversation template on iPhone: back, the title and More in the bar, views as a segmented control, the thread, and the phone composer at the foot. Boards that are this template: TaskPhone, AgentPhone.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Format the last-updated time as HH:MM:SS"
+        },
+        {
+          "id": "ask",
+          "label": "Your message",
+          "default": "In Tally, format the last-updated time under the count as HH:MM:SS in 24-hour time"
+        },
+        {
+          "id": "worked",
+          "label": "Work log",
+          "default": "Worked for 6m"
+        },
+        {
+          "id": "reply",
+          "label": "Reply",
+          "default": "The time under the count now reads 14:07:32: hours, minutes and seconds, padded, in 24-hour time. Midnight reads 00:00:00, and a test covers it."
+        },
+        {
+          "id": "placeholder",
+          "label": "Composer",
+          "default": "Ask, build, or follow up…"
+        }
+      ],
+      "html": "<div class=\"dl-phone\"><header class=\"dl-ph-top\"><a href=\"#\" class=\"dl-ph-btn\" aria-label=\"Back\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 6l-6 6 6 6\"/></svg></a><span class=\"dl-t\">{{title}}</span><button type=\"button\" class=\"dl-ph-btn\" aria-label=\"More\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"5\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/></svg></button></header><div class=\"dl-ph-body\"><div class=\"dl-seg\" style=\"display:flex;margin:0 16px\"><a class=\"on\" style=\"flex:1;justify-content:center\">Chat</a><a style=\"flex:1;justify-content:center\">Changes</a><a style=\"flex:1;justify-content:center\">Checks</a></div><div class=\"dl-ph-thread\"><div class=\"dl-you\">{{ask}}</div><div class=\"dl-worklog\"><span class=\"dl-worklog-toggle\">{{worked}}<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"/></svg></span></div><div class=\"dl-reply\"><p>{{reply}}</p></div></div></div><div class=\"dl-ph-composer\"><a href=\"#\" class=\"dl-ph-btn\" style=\"width:32px;height:32px;margin-left:-8px\" aria-label=\"Attach\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></a><span class=\"dl-grow\">{{placeholder}}</span></div></div>",
+      "group": "Page templates"
+    },
+    {
+      "id": "template-settings-phone",
+      "name": "Template · Settings, iPhone",
+      "description": "The Settings template on iPhone: a large title, labelled groups of 52 px rows with a tile, a second line and a switch or a value, explanations below each group, and the tab bar. Boards that are this template: SettingsPhone, SettingsApprovalsPhone.",
+      "props": [
+        {
+          "id": "title",
+          "label": "Title",
+          "default": "Settings"
+        },
+        {
+          "id": "section",
+          "label": "Group",
+          "default": "Notify me about"
+        },
+        {
+          "id": "setting-1",
+          "label": "First setting",
+          "default": "Decisions"
+        },
+        {
+          "id": "setting-1-detail",
+          "label": "What it does",
+          "default": "Everything in Waiting on you"
+        },
+        {
+          "id": "setting-2",
+          "label": "Second setting",
+          "default": "Failing apps"
+        },
+        {
+          "id": "setting-2-detail",
+          "label": "What it does",
+          "default": "When Live turns red"
+        }
+      ],
+      "html": "<div class=\"dl-phone\"><header class=\"dl-ph-top\"><span style=\"width:44px\"></span><span class=\"dl-t\"></span><span style=\"width:44px\"></span></header><div class=\"dl-ph-large\">{{title}}</div><div class=\"dl-ph-body\"><div class=\"dl-ph-label\">{{section}}</div><div class=\"dl-ph-group\"><div class=\"dl-ph-row\"><span class=\"dl-tile\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4\"/></svg></span><span class=\"dl-t\"><span>{{setting-1}}</span><span>{{setting-1-detail}}</span></span><span class=\"dl-c\"><button type=\"button\" class=\"dl-switch\" role=\"switch\" aria-checked=\"true\" aria-label=\"{{setting-1}}\"><span></span></button></span></div><div class=\"dl-ph-row\"><span class=\"dl-tile\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12h4l3-7 4 14 3-7h4\"/></svg></span><span class=\"dl-t\"><span>{{setting-2}}</span><span>{{setting-2-detail}}</span></span><span class=\"dl-c\"><button type=\"button\" class=\"dl-switch\" role=\"switch\" aria-checked=\"true\" aria-label=\"{{setting-2}}\"><span></span></button></span></div></div></div><nav class=\"dl-tabbar\" aria-label=\"Places\"><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z\"/></svg>Work</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Projects</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 12h4l3-7 4 14 3-7h4\"/></svg>Live</a><a href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 20h8M12 16v4\"/></svg>Computers</a><a href=\"#\" class=\"on\" aria-current=\"page\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0\"/><circle cx=\"16\" cy=\"6\" r=\"2\"/><circle cx=\"10\" cy=\"12\" r=\"2\"/><circle cx=\"18\" cy=\"18\" r=\"2\"/></svg>Settings</a></nav></div>",
+      "group": "Page templates"
     }
   ]
 }
