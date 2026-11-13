@@ -30,7 +30,11 @@ export function parseAuthCookie(req: Pick<IncomingMessage, 'headers'>): {
  * The HTTPS front does not always say how the request arrived, so the default must be Secure.
  */
 function attributes(req?: Pick<IncomingMessage, 'headers' | 'socket'>) {
-  const host = String(req?.headers.host ?? '').replace(/:\d+$/, '');
+  // The edge forwards to a loopback backend and keeps the name people used in x-forwarded-host.
+  const host = String(req?.headers['x-forwarded-host'] ?? req?.headers.host ?? '').replace(
+    /:\d+$/,
+    '',
+  );
   const loopback = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
   const https =
     !req ||

@@ -47,6 +47,13 @@ test('token adoption validates explicit credentials, sets secure HTTPS cookies a
   // Behind the HTTPS front the server sees a plain socket; only loopback may drop Secure.
   const fronted = await post('/auth/session', {}, headers, 'http://deploy.local');
   assert.match(cookie(fronted), /; Secure;/);
+  const proxied = await post(
+    '/auth/session',
+    {},
+    { ...headers, 'x-forwarded-host': 'deploy.local' },
+    'http://127.0.0.1:3000',
+  );
+  assert.match(cookie(proxied), /; Secure;/);
   const bad = await post('/auth/session', {}, { ...headers, 'x-deploy-token': 'wrong' });
   assert.equal(bad.status, 401);
   assert.match(cookie(bad), /Max-Age=0/);
