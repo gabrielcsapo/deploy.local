@@ -44,6 +44,9 @@ test('token adoption validates explicit credentials, sets secure HTTPS cookies a
   assert.match(cookie(response), /; Secure;/);
   const http = await post('/auth/session', {}, headers, 'http://localhost');
   assert.doesNotMatch(cookie(http), /; Secure;/);
+  // Behind the HTTPS front the server sees a plain socket; only loopback may drop Secure.
+  const fronted = await post('/auth/session', {}, headers, 'http://deploy.local');
+  assert.match(cookie(fronted), /; Secure;/);
   const bad = await post('/auth/session', {}, { ...headers, 'x-deploy-token': 'wrong' });
   assert.equal(bad.status, 401);
   assert.match(cookie(bad), /Max-Age=0/);

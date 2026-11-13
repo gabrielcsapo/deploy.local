@@ -14,7 +14,7 @@ export function routeFetch(
         url: parsed.pathname + parsed.search,
         method: init.method || 'GET',
         socket: { remoteAddress: '127.0.0.1', encrypted: parsed.protocol === 'https:' },
-        headers: Object.fromEntries(new Headers(init.headers)),
+        headers: { host: parsed.host, ...Object.fromEntries(new Headers(init.headers)) },
       },
     );
     const chunks: Buffer[] = [];
