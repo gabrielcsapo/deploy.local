@@ -4,8 +4,8 @@ import { workerRoleEnabled } from './computer-role-policy.ts';
 import { db, event, get, list, now, revise, save } from './store.ts';
 
 const holding = ['starting', 'running', 'unknown'];
-export function workerLoad(owner: string, workerId: string) {
-  const runs = list('run', owner).filter((r) => r.workerId === workerId);
+export function workerLoad(owner: string, workerId: string, allRuns?: any[]) {
+  const runs = (allRuns ?? list('run', owner)).filter((r) => r.workerId === workerId);
   return {
     activeTaskCount: new Set(runs.filter((r) => holding.includes(r.status)).map((r) => r.taskId))
       .size,
@@ -87,7 +87,11 @@ export function runQueue(owner: string, run: any) {
   };
 }
 
-export function taskQueue(owner: string, task: any) {
+/**
+ * A task with its queue position. A caller presenting many tasks passes the runs and pull
+ * requests it already read, so they are not read again for every task.
+ */
+export function taskQueue(owner: string, task: any, loaded: { runs?: any[]; pulls?: any[] } = {}) {
   task = {
     ...task,
     ...(task.baseUpdate
@@ -97,14 +101,16 @@ export function taskQueue(owner: string, task: any) {
             needsPublication:
               task.baseUpdate.status === 'succeeded' &&
               !!task.pendingMergeCommit &&
-              list('pull-request', owner).some(
+              (loaded.pulls ?? list('pull-request', owner)).some(
                 (p) => p.status === 'open' && p.taskIds?.includes(task.id),
               ),
           },
         }
       : {}),
   };
-  const run = list('run', owner).find((r) => r.taskId === task.id && r.status === 'queued');
+  const run = (loaded.runs ?? list('run', owner)).find(
+    (r) => r.taskId === task.id && r.status === 'queued',
+  );
   return run
     ? { ...task, status: 'queued', queue: runQueue(owner, run) }
     : { ...task, queue: null };
