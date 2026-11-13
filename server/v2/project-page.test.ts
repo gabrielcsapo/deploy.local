@@ -6,6 +6,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
+import { registerHooks } from 'node:module';
+// Client pages import stylesheets, which only the bundler understands.
+registerHooks({
+  load: (url, context, next) =>
+    url.endsWith('.css')
+      ? { format: 'module', source: '', shortCircuit: true }
+      : next(url, context),
+});
 const root = mkdtempSync(join(tmpdir(), 'server-first-'));
 process.env.DEPLOY_DATA_DIR = root;
 const store = await import('../store.ts');

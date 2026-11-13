@@ -1,5 +1,3 @@
-import { parseAuthCookie, clearAuthCookie } from './server/auth-cookie.ts';
-import { authenticate } from './server/store.ts';
 import { flightLogLine, logFlightRouterError } from './server/flight-router-error.ts';
 // The built server: dist/server.js, which `pnpm start` runs through dist/supervisor.js. Everything is
 // bootServer's; this file adds only the built web app.
@@ -37,15 +35,8 @@ async function createFlightClient(): Promise<ClientHandler> {
   }
   // Converts the request, strips HTTP/2 pseudo-headers and hop-by-hop headers,
   // writes at the client's pace and stops the render when the client leaves.
-  // Identity-bearing HTML must never enter a shared cache. Revoked browser
-  // sessions also discard their cookie when requesting a document or RSC payload.
-  const listener = flightApp.nodeListener;
-  return (req, res) => {
-    const cookie = parseAuthCookie(req);
-    if (cookie.token && !authenticate(cookie.username, cookie.token))
-      res.setHeader('Set-Cookie', clearAuthCookie(req));
-    return listener(req, res);
-  };
+  // Identity-bearing HTML is served `private, no-store`; boot.ts clears a revoked sign-in cookie.
+  return flightApp.nodeListener;
 }
 
 void bootServer({

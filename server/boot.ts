@@ -29,7 +29,9 @@ import {
   logRequest,
   getAllDeployments,
   getSqlite,
+  authenticate,
 } from './store.ts';
+import { clearRevokedCookie } from './auth-cookie.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
 import { serveInstallScript, serveWindowsInstallScript, serveCliRequest } from './cli-download.ts';
 import { isDesktopDownloadPath, serveDesktopRequest } from './desktop-download.ts';
@@ -117,6 +119,7 @@ async function start(options: BootOptions) {
 
   async function serveClient(req: IncomingMessage, res: ServerResponse) {
     if (await handleWebRedirect(req, res)) return;
+    clearRevokedCookie(req, res, authenticate);
     await client(req, res);
   }
 

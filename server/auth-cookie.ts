@@ -29,7 +29,7 @@ export function parseAuthCookie(req: Pick<IncomingMessage, 'headers'>): {
 function attributes(req?: Pick<IncomingMessage, 'headers' | 'socket'>) {
   const secure =
     !req ||
-    ('encrypted' in req.socket && req.socket.encrypted) ||
+    (!!req.socket && 'encrypted' in req.socket && req.socket.encrypted) ||
     req.headers['x-forwarded-proto'] === 'https';
   return `Path=/; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
 }
@@ -38,4 +38,15 @@ export function buildAuthCookie(username: string, token: string, req?: IncomingM
 }
 export function clearAuthCookie(req?: IncomingMessage) {
   return `${AUTH_COOKIE}=; ${attributes(req)}; Max-Age=0`;
+}
+
+/** A browser whose sign-in was revoked drops its cookie on the next page or payload request. */
+export function clearRevokedCookie(
+  req: IncomingMessage,
+  res: { setHeader(name: string, value: string): unknown },
+  valid: (username?: string, token?: string) => unknown,
+) {
+  const cookie = parseAuthCookie(req);
+  if (cookie.token && !valid(cookie.username, cookie.token))
+    res.setHeader('Set-Cookie', clearAuthCookie(req));
 }

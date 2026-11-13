@@ -95,7 +95,7 @@ export function error(res: ServerResponse, message: string, status = 400) {
 //   - X-Deploy-Username / X-Deploy-Token headers — used by the CLI and by
 //     existing client-side `'use server'` calls that pass auth explicitly.
 export { AUTH_COOKIE, parseAuthCookie } from '../auth-cookie.ts';
-import { parseAuthCookie, clearAuthCookie, buildAuthCookie } from '../auth-cookie.ts';
+import { parseAuthCookie, clearAuthCookie } from '../auth-cookie.ts';
 
 function getAuth(req: IncomingMessage) {
   const username = (req.headers['x-deploy-username'] as string | undefined) ?? undefined;
@@ -114,9 +114,6 @@ export function requireAuth(
     error(res, 'Unauthorized', 401);
     return null;
   }
-  const cookie = parseAuthCookie(req);
-  if (req.headers['x-deploy-token'] && (cookie.username !== username || cookie.token !== token))
-    res.setHeader('Set-Cookie', buildAuthCookie(username!, token!, req));
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     const app = new URL(req.url || '/', 'https://localhost').pathname.match(
       /^\/api\/(?:deployments|components)\/([^/]+)/,
