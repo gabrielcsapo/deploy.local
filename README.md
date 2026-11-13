@@ -1,8 +1,9 @@
 # deploy.local
 
 Projects, durable coding tasks, and applications on hardware you control. The project workspace
-adds a shared browser/native harness alongside the existing deployment engine. Portable-site
-runtime remains in this revision while its retirement and data inventory are unfinished.
+adds a shared browser/native harness alongside the existing deployment engine. The portable-site
+runtime is removed. The owner approved removing its remaining data inventory on 2026-11-13;
+no portable-site data inventory is required.
 
 ## Project workspace pilot
 
@@ -591,8 +592,10 @@ workflow and troubleshooting guide.
 
 Computers enroll as execution nodes. Projects, issues, pull requests, conversations, and pipeline
 history stay on the coordinator. A disconnected computer does not become an independent coordinator.
-Portable sites and cross-site reconciliation are retired. Upgrades stop if portable-site records
-still need export and migration; existing application data is never discarded automatically.
+The portable-site runtime and cross-site reconciliation are removed. No portable-site data inventory
+or export is required for retirement, per the owner’s 2026-11-13 decision. Ordinary computer
+enrollment, application storage, and Home recovery remain supported. Remaining schema and upgrade
+guard cleanup is tracked in [the one-server plan](docs/plans/one-server.md).
 
 ## Supported project types
 

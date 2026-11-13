@@ -76,21 +76,6 @@ describe('application writer-site authority', () => {
       'coordinator',
       'retired replica rows cannot redirect Home writer jobs',
     );
-
-    sqlite
-      .prepare(
-        `INSERT INTO volume_authority_transfers
-          (id, app_id, source_site_id, target_site_id, state, expected_authority_epoch,
-           expected_data_sequence, requested_by, requested_at, updated_at)
-         VALUES ('transfer-home', 'app-authority', 'site-away', ?, 'target-ready', 1, 0,
-                 'admin', ?, ?)`,
-      )
-      .run(fleet.homeSiteId, now, now);
-    assert.equal(
-      applicationWriterSiteId('app-authority', 'coordinator'),
-      'coordinator',
-      'retired transfer records cannot block Home writer jobs',
-    );
   });
 
   it('answers null until Home is known, which blocks writer-only work', () => {

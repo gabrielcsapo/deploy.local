@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { ApplicationExecutionPlan } from './application-execution.ts';
+import type { ActualComponentInstance, ApplicationExecutionPlan } from './application-execution.ts';
 import type { ApplicationSpec } from './application-spec.ts';
-import type { ActualComponentInstance } from './application-reconciler.ts';
 import type { RuntimeAdmissionFinding } from './component-profiles.ts';
 
 export type JobExecutionStatus = 'pending' | 'running' | 'succeeded' | 'failed';

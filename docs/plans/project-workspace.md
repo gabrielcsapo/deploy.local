@@ -382,11 +382,14 @@ Use one authoritative home coordinator. Computers enroll as execution nodes; the
 independent coordinators when disconnected. Keep machine enrollment, health, job dispatch, local
 workspaces, application placement, routing, logs, and ordinary backup/restore.
 
-Remove the portable-site product: Suitcase target packaging/bootstrap, site pairing, docked/away/
+The portable-site runtime is removed. The owner approved removing its data inventory on 2026-11-13;
+no portable-site inventory, export, or migration is required. Remaining schema and recovery cleanup
+follows [the one-server plan](one-server.md). Dated acceptance evidence remains history.
+
+The retired portable-site product included Suitcase target packaging/bootstrap, site pairing, docked/away/
 rejoining modes, offline administration, ready-offline gates, application replica selection,
 cross-site release exchange, semantic database/file reconciliation, and cross-site authority
-transfer. Remove their UI, CLI/API entry points, background loops, configuration, and product docs
-as the corresponding runtime paths are retired. Retain shared primitives only where a remaining
+transfer. Its runtime entry points and packaging have been removed. Retain shared primitives only where a remaining
 workflow uses them; do not delete code solely because its name contains fleet, site, or recovery.
 
 Temporary network loss still matters. Already-running applications continue on their computers,
@@ -399,13 +402,10 @@ Retirement sequence:
 
 1. Trace dependencies from startup, routes, schemas, CLI, schedulers, storage, and tests. Identify
    shared deployment and recovery code that needs decoupling before removal.
-2. Inventory any actual paired sites, replicas, pending exchanges, and data held only on portable
-   targets. If none exist, record that finding and use the direct removal path. If they exist,
-   reconcile/export the required data and choose its surviving home before shutting down targets.
-   Preserve a verified backup and a rollback path; do not silently delete conflicting copies.
-3. Move the active topology to one coordinator plus ordinary nodes. Stop portable-site writes and
-   background exchange, retire pairing credentials, and remove the feature surfaces. An unavailable
-   target cannot be presumed empty or safely migrated.
+2. Apply the owner’s 2026-11-13 retirement decision: no portable-site data inventory, export, or
+   migration is required. Preserve ordinary application storage and Home recovery.
+3. Keep the topology at one coordinator plus ordinary nodes. Portable-site runtime entry points,
+   background exchange, and packaging are removed.
 4. Remove dedicated runtime modules, packaging, and tests; migrate active schema references to the
    simpler model. Keep any legacy migration reader isolated from normal runtime, with an explicit
    removal condition. Historical migration files are not active product features.
@@ -413,9 +413,9 @@ Retirement sequence:
    reconnect behavior. Update architecture documentation and mark the old Suitcase plan historical.
 
 Exit: a fresh install exposes no Suitcase/site feature, an existing single-home install upgrades
-without disturbing its applications, migrated portable data is accounted for, and no portable-site
-background loop runs. Current progress is recorded in `workspace-implementation.md`: active entry points and packaging
-have been removed, while shared legacy schema/module cleanup remains. Live services have not changed.
+without disturbing its applications, and no portable-site background loop runs. No portable-site
+data inventory is an acceptance gate. Current progress is recorded in `workspace-implementation.md`:
+active entry points and packaging have been removed, while shared legacy schema/module cleanup remains.
 
 ## Current implementation and reuse
 
@@ -566,9 +566,9 @@ First map Groffee's existing workspace, Git, identity, and review modules to dep
 the porting sequence and schema/identity mapping. Prove create/import, clone, and push against a
 disposable repository hosted by deploy.local using its own authentication. Record storage and LFS
 requirements and the eventual migration path for existing Groffee data.
-Map Suitcase retirement dependencies and determine whether any live portable-site data needs
-migration. Select a bounded removal slice that simplifies the coordinator before new project
-execution is added; do not make unrelated cleanup a prerequisite for the first pilot.
+The portable-site runtime is removed. Track remaining shared schema and recovery dependencies
+under the one-server plan; no portable-site data inventory is required. Do not make unrelated
+cleanup a prerequisite for the first pilot.
 Inventory the actual computers and installed tools; choose one everyday project and one game or
 native project. Test login and a small read-only run through the candidate agent interfaces. Evaluate
 an embeddable common runtime and one additional model endpoint. Record real startup latency,
@@ -580,13 +580,14 @@ existing dirty changes are handled. Any live migration remains a separately plan
 
 ### 0a Simplify the home topology
 
-Execute the Suitcase retirement sequence above with the migration path established in milestone 0.
+Finish the remaining portable schema and recovery cleanup under the one-server plan. No
+portable-site inventory or migration is required under the owner’s 2026-11-13 decision.
 Decouple shared node/deployment behavior before removing dedicated portable-site paths. Preserve
 existing application operation and ordinary recovery throughout the cutover.
 
 Exit: one home authority and enrolled computers remain; portable-site runtime and surfaces are
-removed, and the retirement acceptance checks pass. A delayed data migration must be visible as
-unfinished retirement, not described as completed by merely hiding navigation.
+removed, and the retirement acceptance checks pass. Shared schema and recovery cleanup remains
+separate from the completed runtime removal.
 
 ### 1 One project and a durable task on a second computer
 
@@ -709,7 +710,6 @@ existing workflow on similar tasks. More connected machines is not itself a succ
   responsiveness requirements or needs targeted AppKit/UIKit components.
 - Which Groffee modules to port first and which existing issue/PR/pipeline workflows must be
   preserved before its live installation can be retired.
-- Whether any existing Suitcase target holds unique data and must be migrated before retirement.
 - First everyday and game/native pilot projects, plus the additional model to try.
 - Whether the first workflows need uncommitted-input snapshots or non-Git project support.
 - Browser/computer implementation: embedded versus external browser surfaces, target-session
