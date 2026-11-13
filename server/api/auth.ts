@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { requireAdmin, error, json, requireAuth, AUTH_COOKIE } from './shared.ts';
 import { readBody, RequestBodyTooLargeError } from '../http.ts';
 import { registerUser, loginUser, logoutUser, getUser, changePassword } from '../store.ts';
@@ -17,15 +18,14 @@ function clearAuthCookie(): string {
   return `${AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0`;
 }
 
-export async function authRoutes(ctx: ApiRouteContext): Promise<boolean> {
-  const { req, res, path, method, url } = ctx;
-  // Keep the original return boundary: returned promises bypass the catch,
-  // while thrown errors and rejected awaits use the existing API error response.
-  const result = await (async () => {
-    try {
-      // ── Auth routes ───────────────────────────────────────────────────────
-
-      if (path === '/api/register' && method === 'POST') {
+const route = routes<ApiRouteContext>();
+const table = [
+  route({
+    method: 'POST',
+    path: '/api/register',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         // First ownership is established only by the local installer's setup code.
         const admin = requireAdmin(req, res);
         if (!admin) return;
@@ -39,9 +39,24 @@ export async function authRoutes(ctx: ApiRouteContext): Promise<boolean> {
         // (server components can read it via getRequest()).
         res.setHeader('Set-Cookie', buildAuthCookie(body.username as string, result.token));
         return json(res, { token: result.token }, 201);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/login' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/login',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const body = JSON.parse((await readBody(req)).toString());
         if (!body.username || !body.password) {
           return error(res, 'Username and password required');
@@ -50,24 +65,69 @@ export async function authRoutes(ctx: ApiRouteContext): Promise<boolean> {
         if ('error' in result) return error(res, result.error!, result.status!);
         res.setHeader('Set-Cookie', buildAuthCookie(body.username as string, result.token));
         return json(res, { token: result.token });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/logout' && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/logout',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
         logoutUser(auth.username, auth.token);
         res.setHeader('Set-Cookie', clearAuthCookie());
         return json(res, { message: 'Logged out' });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/user' && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/user',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const user = getUser(auth.username);
         return json(res, user);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/user/password' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/user/password',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const body = JSON.parse((await readBody(req)).toString());
@@ -77,9 +137,24 @@ export async function authRoutes(ctx: ApiRouteContext): Promise<boolean> {
         const result = changePassword(auth.username, body.currentPassword, body.newPassword);
         if ('error' in result) return error(res, result.error!, result.status!);
         return json(res, { message: 'Password changed' });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path.startsWith('/api/operations/') && (method === 'GET' || method === 'POST')) {
+    },
+  }),
+  route({
+    method: ['GET', 'POST'],
+    path: '/api/operations/:rest(.*)',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path, method, url } = ctx;
+      try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         let body: unknown;
@@ -92,24 +167,26 @@ export async function authRoutes(ctx: ApiRouteContext): Promise<boolean> {
           }
         }
         const result = await handleOperationsRequest({
-          method,
+          method: method as 'GET' | 'POST',
           pathname: path.slice('/api'.length) + url.search,
           body,
           actor: { username: auth.username, role: 'admin' },
         });
         return json(res, result.body, result.status);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-      return false;
-    } catch (err: unknown) {
-      console.error(err);
-      error(
-        res,
-        (err as Error).message || 'Internal server error',
-        err instanceof RequestBodyTooLargeError
-          ? 413
-          : (err as Error & { status?: number }).status || 500,
-      );
-    }
-  })();
-  return result !== false;
+    },
+  }),
+];
+
+export async function authRoutes(ctx: ApiRouteContext): Promise<boolean> {
+  return dispatch(table, { path: () => ctx.path, method: () => ctx.method })(ctx.req, ctx.res, ctx);
 }

@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { agentBuildInstallConfig } from '../packages/builds.ts';
 import { readBody, RequestBodyTooLargeError } from '../http.ts';
 import {
@@ -95,20 +96,34 @@ function remoteAddress(req: IncomingMessage): string | undefined {
   return req.socket.remoteAddress?.replace(/^::ffff:/, '');
 }
 
-export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
-  const { req, res, path, method } = ctx;
-  // Keep the original return boundary: returned promises bypass the catch,
-  // while thrown errors and rejected awaits use the existing API error response.
-  const result = await (async () => {
-    try {
-      // ── Fleet enrollment and node administration ───────────────────────
-
-      if (path === '/api/agent/telemetry/v1/server' && method === 'POST') {
+const route = routes<ApiRouteContext>();
+const table = [
+  route({
+    method: 'POST',
+    path: '/api/agent/telemetry/v1/server',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         await handleRemoteTelemetry(req, res);
         return;
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/agent/enroll' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/enroll',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const body = JSON.parse((await readBody(req)).toString());
         if (!body.code) return error(res, 'Enrollment code required');
         const result = redeemNodeEnrollment({
@@ -131,20 +146,65 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
             ? enrollWorker(enrollmentOwner, { workerId: `node-worker-${result.nodeId}` })
             : {};
         return json(res, { ...credential, ...worker }, 201);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/agent/events' && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/agent/events',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         return deploymentNotifications.stream(req, res, authenticateNode, deployRoleEnabled);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/agent/status' && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/agent/status',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
         return json(res, { roles: getAgentRoles(nodeId!) });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/agent/supervisor-swap' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/supervisor-swap',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
@@ -152,9 +212,24 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
         return json(res, {
           reserved: typeof body.target === 'string' && reserveSupervisorSwap(nodeId!, body.target),
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/agent/heartbeat' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/heartbeat',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
@@ -183,9 +258,24 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           reconcileNodeRuntimePorts(nodeId!, body.capabilities.apps);
         }
         return json(res, { ok: true, node });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/agent/jobs/claim' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/jobs/claim',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
@@ -225,9 +315,24 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           telemetryToken,
           artifactUrl: job.artifactPath ? `/api/agent/jobs/${job.id}/artifact` : null,
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/agent/exec/claim' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/exec/claim',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
@@ -238,29 +343,55 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           return;
         }
         return json(res, session);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const agentExecPollMatch = path.match(/^\/api\/agent\/exec\/([^/]+)\/poll$/);
-
-      if (agentExecPollMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/exec/:part1/poll',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
-        const control = pollAgentExecSession(agentExecPollMatch[1], nodeId!);
+        const control = pollAgentExecSession(params.part1, nodeId!);
         if (!control) return error(res, 'Terminal session not found', 404);
         return json(res, control);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const agentExecOutputMatch = path.match(/^\/api\/agent\/exec\/([^/]+)\/output$/);
-
-      if (agentExecOutputMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/exec/:part1/output',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
         const body = JSON.parse((await readBody(req)).toString() || '{}');
         if (
           !writeAgentExecOutput(
-            agentExecOutputMatch[1],
+            params.part1,
             nodeId!,
             typeof body.output === 'string' ? body.output : '',
           )
@@ -268,40 +399,80 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           return error(res, 'Terminal session not found', 404);
         }
         return json(res, { ok: true });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const agentExecExitMatch = path.match(/^\/api\/agent\/exec\/([^/]+)\/exit$/);
-
-      if (agentExecExitMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/exec/:part1/exit',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
         const body = JSON.parse((await readBody(req)).toString() || '{}');
-        closeAgentExecSession(agentExecExitMatch[1], nodeId!, {
+        closeAgentExecSession(params.part1, nodeId!, {
           code: Number.isInteger(body.code) ? body.code : null,
           error: typeof body.error === 'string' ? body.error : undefined,
         });
         return json(res, { ok: true });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const packagesMatch = path.match(/^\/api\/agent\/jobs\/([^/]+)\/packages$/);
-      if (packagesMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/jobs/:part1/packages',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
-        const config = await agentBuildInstallConfig(nodeId!, packagesMatch[1]);
+        const config = await agentBuildInstallConfig(nodeId!, params.part1);
         if (!config) return error(res, 'Build assignment not available', 403);
         res.setHeader('Cache-Control', 'no-store');
         return json(res, config);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const agentJobArtifactMatch = path.match(/^\/api\/agent\/jobs\/([^/]+)\/artifact$/);
-
-      if (agentJobArtifactMatch && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/agent/jobs/:part1/artifact',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
-        const job = getAgentJob(agentJobArtifactMatch[1]);
+        const job = getAgentJob(params.part1);
         if (!job || job.nodeId !== nodeId || !job.artifactPath || !existsSync(job.artifactPath)) {
           return error(res, 'Artifact not found', 404);
         }
@@ -401,33 +572,46 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
         }
         artifactStream.pipe(res);
         return;
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const agentJobCompleteMatch = path.match(/^\/api\/agent\/jobs\/([^/]+)\/complete$/);
-
-      if (agentJobCompleteMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/jobs/:part1/complete',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
         const body = JSON.parse((await readBody(req)).toString());
         try {
-          if (getAgentJob(agentJobCompleteMatch[1])?.type === 'self-update') {
+          if (getAgentJob(params.part1)?.type === 'self-update') {
             if (body.success === true)
               return error(res, 'A post-restart version report is required', 409);
             rejectComputerUpdateJob(
-              agentJobCompleteMatch[1],
+              params.part1,
               nodeId!,
               String(body.error || 'Update could not start'),
             );
             return json(res, { ok: true });
           }
-          completeAgentJob(agentJobCompleteMatch[1], nodeId!, {
+          completeAgentJob(params.part1, nodeId!, {
             success: body.success === true,
             result: body.result && typeof body.result === 'object' ? body.result : undefined,
             error: typeof body.error === 'string' ? body.error : undefined,
           });
           updateAgentActivity(
-            agentJobCompleteMatch[1],
+            params.part1,
             { stage: body.success === true ? 'complete' : 'failed' },
             body.success === true
               ? 'Job completed'
@@ -437,15 +621,28 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
         } catch (err) {
           return error(res, (err as Error).message, 404);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const agentJobProgressMatch = path.match(/^\/api\/agent\/jobs\/([^/]+)\/progress$/);
-
-      if (agentJobProgressMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/agent/jobs/:part1/progress',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
-        const job = getAgentJob(agentJobProgressMatch[1]);
+        const job = getAgentJob(params.part1);
         if (!job || job.nodeId !== nodeId) return error(res, 'Job not found', 404);
         const body = JSON.parse((await readBody(req)).toString() || '{}');
         if (job.type === 'project-release' && body.parts !== undefined) {
@@ -503,15 +700,28 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           });
         }
         return json(res, { ok: true });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const agentJobBackupMatch = path.match(/^\/api\/agent\/jobs\/([^/]+)\/backup$/);
-
-      if (agentJobBackupMatch && method === 'PUT') {
+    },
+  }),
+  route({
+    method: 'PUT',
+    path: '/api/agent/jobs/:part1/backup',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
-        const job = getAgentJob(agentJobBackupMatch[1]);
+        const job = getAgentJob(params.part1);
         if (!job || job.nodeId !== nodeId || job.type !== 'backup') {
           return error(res, 'Backup job not found', 404);
         }
@@ -574,9 +784,24 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           await rm(temporaryPath, { force: true }).catch(() => {});
           return error(res, `Backup upload failed: ${(err as Error).message}`, 500);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/nodes' && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/nodes',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         const fleet = getFleetPlacementState();
@@ -643,17 +868,45 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
             }
           }),
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/computers' && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/computers',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         return json(res, { computers: allComputerRoles(auth.username) });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const rolesMatch = path.match(/^\/api\/computers\/([^/]+)\/roles$/);
-
-      if (rolesMatch && method === 'PATCH') {
+    },
+  }),
+  route({
+    method: 'PATCH',
+    path: '/api/computers/:part1/roles',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         try {
@@ -661,16 +914,31 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
             res,
             patchComputerRoles(
               auth.username,
-              decodeURIComponent(rolesMatch[1]),
+              decodeURIComponent(params.part1),
               JSON.parse((await readBody(req)).toString()),
             ),
           );
         } catch (err) {
           return error(res, (err as Error).message, (err as any).status || 400);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/nodes/enrollment' && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/nodes/enrollment',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         const body = JSON.parse((await readBody(req)).toString());
@@ -687,9 +955,24 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
         } catch (err) {
           return error(res, (err as Error).message);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (path === '/api/nodes/default' && method === 'PUT') {
+    },
+  }),
+  route({
+    method: 'PUT',
+    path: '/api/nodes/default',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         const body = JSON.parse((await readBody(req)).toString());
@@ -698,31 +981,46 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
         } catch (err) {
           return error(res, (err as Error).message);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const nodeMatch = path.match(/^\/api\/nodes\/([^/]+)$/);
-
-      if (nodeMatch && method === 'DELETE') {
+    },
+  }),
+  route({
+    method: 'DELETE',
+    path: '/api/nodes/:part1',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         try {
-          revokeNode(decodeURIComponent(nodeMatch[1]));
+          revokeNode(decodeURIComponent(params.part1));
           return json(res, { message: 'Node access revoked' });
         } catch (err) {
           return error(res, (err as Error).message);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-      return false;
-    } catch (err: unknown) {
-      console.error(err);
-      error(
-        res,
-        (err as Error).message || 'Internal server error',
-        err instanceof RequestBodyTooLargeError
-          ? 413
-          : (err as Error & { status?: number }).status || 500,
-      );
-    }
-  })();
-  return result !== false;
+    },
+  }),
+];
+
+export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
+  return dispatch(table, { path: () => ctx.path, method: () => ctx.method })(ctx.req, ctx.res, ctx);
 }

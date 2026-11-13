@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import {
   requireAuth,
   error,
@@ -39,47 +40,70 @@ import { getVolumeDir } from '../volumes.ts';
 import { RequestBodyTooLargeError } from '../http.ts';
 import { type ApiRouteContext } from './context.ts';
 
-export async function containersRoutes(ctx: ApiRouteContext): Promise<boolean> {
-  const { req, res, path, method } = ctx;
-  // Keep the original return boundary: returned promises bypass the catch,
-  // while thrown errors and rejected awaits use the existing API error response.
-  const result = await (async () => {
-    try {
-      // ── Container inspect / stats / restart / history ──────────────────
-
-      const inspectMatch = path.match(/^\/api\/deployments\/([^/]+)\/inspect$/);
-
-      if (inspectMatch && method === 'GET') {
+const route = routes<ApiRouteContext>();
+const table = [
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/inspect',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = inspectMatch[1];
+        const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         const info = await getContainerInspectAsync(name);
         if (!info) return error(res, 'Container not found', 404);
         info.started = d.containerStartedAt ?? null;
         return json(res, info);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const statsMatch = path.match(/^\/api\/deployments\/([^/]+)\/stats$/);
-
-      if (statsMatch && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/stats',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = statsMatch[1];
+        const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         const stats = await getContainerStats(name);
         if (!stats) return error(res, 'Container not running', 404);
         return json(res, stats);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const restartMatch = path.match(/^\/api\/deployments\/([^/]+)\/restart$/);
-
-      if (restartMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/restart',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = restartMatch[1];
+        const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         const activeRevision = d.activeSpecDigest
@@ -138,14 +162,27 @@ export async function containersRoutes(ctx: ApiRouteContext): Promise<boolean> {
           data: { status: 'running', username: auth.username, source: 'restart' },
         });
         return json(res, { message: `Restarted ${name}` });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const recreateMatch = path.match(/^\/api\/deployments\/([^/]+)\/recreate$/);
-
-      if (recreateMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/recreate',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = recreateMatch[1].toLowerCase();
+        const name = params.part1.toLowerCase();
         const initialDeployment = getDeployment(name);
         if (!initialDeployment || initialDeployment.username !== auth.username) {
           return error(res, 'Not found', 404);
@@ -352,29 +389,44 @@ export async function containersRoutes(ctx: ApiRouteContext): Promise<boolean> {
         } finally {
           lease.release();
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const historyMatch = path.match(/^\/api\/deployments\/([^/]+)\/history$/);
-
-      if (historyMatch && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/history',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = historyMatch[1];
+        const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         return json(res, getDeployHistory(name));
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-      return false;
-    } catch (err: unknown) {
-      console.error(err);
-      error(
-        res,
-        (err as Error).message || 'Internal server error',
-        err instanceof RequestBodyTooLargeError
-          ? 413
-          : (err as Error & { status?: number }).status || 500,
-      );
-    }
-  })();
-  return result !== false;
+    },
+  }),
+];
+
+export async function containersRoutes(ctx: ApiRouteContext): Promise<boolean> {
+  return dispatch(table, { path: () => ctx.path, method: () => ctx.method })(ctx.req, ctx.res, ctx);
 }

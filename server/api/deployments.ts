@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { randomUUID } from 'node:crypto';
 import { stopApp } from '../v2/project-removal.ts';
 import {
@@ -241,16 +242,14 @@ function submitRetainedArtifact(
   });
 }
 
-export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> {
-  const { req, res, path, method, url, makeLegacyUpdate, makeWanderAdoption, wanderPreflight } =
-    ctx;
-  // Keep the original return boundary: returned promises bypass the catch,
-  // while thrown errors and rejected awaits use the existing API error response.
-  const result = await (async () => {
-    try {
-      // ── Deployment management ───────────────────────────────────────────
-
-      if (path === '/api/deployments' && method === 'GET') {
+const route = routes<ApiRouteContext>();
+const table = [
+  route({
+    method: 'GET',
+    path: '/api/deployments',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const allDeps = getDeployments(auth.username);
@@ -260,85 +259,145 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           status: resolveStatusBatched(d, statusMap),
         }));
         return json(res, deps);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const adoptionMatch = path.match(
-        /^\/api\/deployments\/wander\/managed-adoption(?:\/(preflight|recover|cancel))?$/,
-      );
-
-      if (adoptionMatch) {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        const service = makeWanderAdoption(auth.username);
-        if (method === 'GET' && !adoptionMatch[1]) return json(res, service.status());
-        if (method === 'GET' && adoptionMatch[1] === 'preflight')
-          return json(res, await wanderPreflight(auth.username));
-        if (method === 'POST' && ['recover', 'cancel'].includes(adoptionMatch[1])) {
-          const body = JSON.parse((await readBody(req)).toString());
-          if (
-            body.confirmDowntime !== true ||
-            typeof body.operationId !== 'string' ||
-            Object.keys(body).some((k) => !['confirmDowntime', 'operationId'].includes(k))
-          )
-            return error(res, 'Exact operation and downtime acknowledgement required', 400);
-          return json(res, await service.recover(body.operationId, adoptionMatch[1] === 'cancel'));
-        }
-        return error(res, 'Adoption route not found', 404);
-      }
-
-      const legacyMatch = path.match(
-        /^\/api\/deployments\/(groffee)\/legacy-update(?:\/(recover|rollback))?$/,
-      );
-
-      if (legacyMatch) {
+    },
+  }),
+  ...[
+    '/api/deployments/wander/managed-adoption',
+    '/api/deployments/wander/managed-adoption/:action(preflight|recover|cancel)',
+  ].map((path) =>
+    route({
+      method: '*',
+      path,
+      handler: async ({ context: ctx }) => {
+        const { req, res, path, method, makeWanderAdoption, wanderPreflight } = ctx;
         try {
+          const adoptionMatch = path.match(
+            /^\/api\/deployments\/wander\/managed-adoption(?:\/(preflight|recover|cancel))?$/,
+          );
+          if (!adoptionMatch) return false;
+
           const auth = requireAuth(req, res);
           if (!auth) return;
-          const service = makeLegacyUpdate(legacyMatch[1], auth.username);
-          if (method === 'GET' && !legacyMatch[2]) {
-            const deployment = getDeployment('groffee')!;
-            if (!service.status().locked) await service.preflight();
-            return json(res, {
-              ...service.status(),
-              containerId: deployment.containerId,
-              desiredDigest: deployment.desiredSpecDigest || 'none',
-            });
-          }
-          if (method !== 'POST' || !legacyMatch[2])
-            return error(res, 'Legacy route not found', 404);
-          const body = JSON.parse((await readBody(req)).toString());
-          if (
-            body.confirmDowntime !== true ||
-            (legacyMatch[2] === 'rollback' && body.confirmDataLoss !== true)
-          )
-            return error(
+          const service = makeWanderAdoption(auth.username);
+          if (method === 'GET' && !adoptionMatch[1]) return json(res, service.status());
+          if (method === 'GET' && adoptionMatch[1] === 'preflight')
+            return json(res, await wanderPreflight(auth.username));
+          if (method === 'POST' && ['recover', 'cancel'].includes(adoptionMatch[1])) {
+            const body = JSON.parse((await readBody(req)).toString());
+            if (
+              body.confirmDowntime !== true ||
+              typeof body.operationId !== 'string' ||
+              Object.keys(body).some((k) => !['confirmDowntime', 'operationId'].includes(k))
+            )
+              return error(res, 'Exact operation and downtime acknowledgement required', 400);
+            return json(
               res,
-              'Explicit downtime and rollback data-loss acknowledgement required',
-              409,
+              await service.recover(body.operationId, adoptionMatch[1] === 'cancel'),
             );
-          const lease = await acquireDeploySlot('groffee', auth.username);
-          try {
-            return json(res, await service.recover(legacyMatch[2] === 'rollback'));
-          } finally {
-            lease.release();
           }
-        } catch (legacyError) {
-          const typed = legacyError as Error & { status?: number };
-          return error(
+          return error(res, 'Adoption route not found', 404);
+        } catch (err: unknown) {
+          console.error(err);
+          error(
             res,
-            typed.message,
-            legacyError instanceof RequestBodyTooLargeError
+            (err as Error).message || 'Internal server error',
+            err instanceof RequestBodyTooLargeError
               ? 413
-              : [403, 404, 409].includes(typed.status || 0)
-                ? typed.status
-                : legacyError instanceof SyntaxError
-                  ? 400
-                  : 500,
+              : (err as Error & { status?: number }).status || 500,
           );
         }
-      }
+      },
+    }),
+  ),
+  ...[
+    '/api/deployments/groffee/legacy-update',
+    '/api/deployments/groffee/legacy-update/:action(recover|rollback)',
+  ].map((path) =>
+    route({
+      method: '*',
+      path,
+      handler: async ({ context: ctx }) => {
+        const { req, res, path, method, makeLegacyUpdate } = ctx;
+        try {
+          const legacyMatch = path.match(
+            /^\/api\/deployments\/(groffee)\/legacy-update(?:\/(recover|rollback))?$/,
+          );
+          if (!legacyMatch) return false;
 
-      if (path === '/api/deploy-admission' && method === 'GET') {
+          try {
+            const auth = requireAuth(req, res);
+            if (!auth) return;
+            const service = makeLegacyUpdate(legacyMatch[1], auth.username);
+            if (method === 'GET' && !legacyMatch[2]) {
+              const deployment = getDeployment('groffee')!;
+              if (!service.status().locked) await service.preflight();
+              return json(res, {
+                ...service.status(),
+                containerId: deployment.containerId,
+                desiredDigest: deployment.desiredSpecDigest || 'none',
+              });
+            }
+            if (method !== 'POST' || !legacyMatch[2])
+              return error(res, 'Legacy route not found', 404);
+            const body = JSON.parse((await readBody(req)).toString());
+            if (
+              body.confirmDowntime !== true ||
+              (legacyMatch[2] === 'rollback' && body.confirmDataLoss !== true)
+            )
+              return error(
+                res,
+                'Explicit downtime and rollback data-loss acknowledgement required',
+                409,
+              );
+            const lease = await acquireDeploySlot('groffee', auth.username);
+            try {
+              return json(res, await service.recover(legacyMatch[2] === 'rollback'));
+            } finally {
+              lease.release();
+            }
+          } catch (legacyError) {
+            const typed = legacyError as Error & { status?: number };
+            return error(
+              res,
+              typed.message,
+              legacyError instanceof RequestBodyTooLargeError
+                ? 413
+                : [403, 404, 409].includes(typed.status || 0)
+                  ? typed.status
+                  : legacyError instanceof SyntaxError
+                    ? 400
+                    : 500,
+            );
+          }
+        } catch (err: unknown) {
+          console.error(err);
+          error(
+            res,
+            (err as Error).message || 'Internal server error',
+            err instanceof RequestBodyTooLargeError
+              ? 413
+              : (err as Error & { status?: number }).status || 500,
+          );
+        }
+      },
+    }),
+  ),
+  route({
+    method: 'GET',
+    path: '/api/deploy-admission',
+    handler: async ({ context: ctx }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const placement = getFleetPlacementState();
@@ -349,11 +408,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           nodes: placement.nodes.filter((node) => deployRoleEnabled(node.id)),
           setupUrl: '/dashboard/nodes',
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deploy-admission/:part1',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const admissionCancelMatch = path.match(/^\/api\/deploy-admission\/([^/]+)$/);
+        if (!admissionCancelMatch) return false;
 
-      const admissionCancelMatch = path.match(/^\/api\/deploy-admission\/([^/]+)$/);
-
-      if (admissionCancelMatch && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = admissionCancelMatch[1].toLowerCase();
@@ -370,9 +445,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           migrationActive,
           dashboardUrl: `/dashboard/${encodeURIComponent(name)}/build`,
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'DELETE',
+    path: '/api/deploy-admission/:part1',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const admissionCancelMatch = path.match(/^\/api\/deploy-admission\/([^/]+)$/);
+        if (!admissionCancelMatch) return false;
 
-      if (admissionCancelMatch && method === 'DELETE') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = admissionCancelMatch[1].toLowerCase();
@@ -380,11 +473,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           return error(res, 'Queued deploy not found', 404);
         }
         return json(res, { message: `Cancelled queued deploy for ${name}` });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: ['GET', 'PUT'],
+    path: '/api/deployments/:part1/application-spec',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path, method } = ctx;
+      try {
+        const applicationSpecMatch = path.match(/^\/api\/deployments\/([^/]+)\/application-spec$/);
+        if (!applicationSpecMatch) return false;
 
-      const applicationSpecMatch = path.match(/^\/api\/deployments\/([^/]+)\/application-spec$/);
-
-      if (applicationSpecMatch && (method === 'GET' || method === 'PUT')) {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = applicationSpecMatch[1].toLowerCase();
@@ -557,13 +666,29 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               }))
             : [],
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/application-rebase',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const applicationRebaseMatch = path.match(
+          /^\/api\/deployments\/([^/]+)\/application-rebase$/,
+        );
+        if (!applicationRebaseMatch) return false;
 
-      const applicationRebaseMatch = path.match(
-        /^\/api\/deployments\/([^/]+)\/application-rebase$/,
-      );
-
-      if (applicationRebaseMatch && method === 'POST') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = applicationRebaseMatch[1].toLowerCase();
@@ -631,15 +756,29 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         } catch (rebaseError) {
           return error(res, (rebaseError as Error).message, 400);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/application-runtime',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path, url } = ctx;
+      try {
+        const applicationRuntimeMatch = path.match(
+          /^\/api\/deployments\/([^/]+)\/application-runtime$/,
+        );
+        if (!applicationRuntimeMatch) return false;
 
-      const applicationPlanMatch = path.match(/^\/api\/deployments\/([^/]+)\/application-plan$/);
-
-      const applicationRuntimeMatch = path.match(
-        /^\/api\/deployments\/([^/]+)\/application-runtime$/,
-      );
-
-      if (applicationRuntimeMatch && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = applicationRuntimeMatch[1].toLowerCase();
@@ -702,9 +841,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               ? getApplicationGraphState(name, deployment.appId || name, siteId)
               : null,
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/application-plan',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const applicationPlanMatch = path.match(/^\/api\/deployments\/([^/]+)\/application-plan$/);
+        if (!applicationPlanMatch) return false;
 
-      if (applicationPlanMatch && method === 'POST') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = applicationPlanMatch[1].toLowerCase();
@@ -741,11 +898,29 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         } catch (err) {
           return error(res, (err as Error).message, 400);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/application-apply',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const applicationApplyMatch = path.match(
+          /^\/api\/deployments\/([^/]+)\/application-apply$/,
+        );
+        if (!applicationApplyMatch) return false;
 
-      const applicationApplyMatch = path.match(/^\/api\/deployments\/([^/]+)\/application-apply$/);
-
-      if (applicationApplyMatch && method === 'POST') {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         const name = applicationApplyMatch[1].toLowerCase();
@@ -1047,11 +1222,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         } finally {
           lease.release();
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/deploy.yaml',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const deployYamlMatch = path.match(/^\/api\/deployments\/([^/]+)\/deploy\.yaml$/);
+        if (!deployYamlMatch) return false;
 
-      const deployYamlMatch = path.match(/^\/api\/deployments\/([^/]+)\/deploy\.yaml$/);
-
-      if (deployYamlMatch && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = deployYamlMatch[1].toLowerCase();
@@ -1074,198 +1265,235 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         });
         res.end(manifest);
         return;
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const applicationConfigurationMatch = path.match(
-        /^\/api\/deployments\/([^/]+)\/configuration(?:\/([^/]+))?$/,
-      );
-
-      if (applicationConfigurationMatch && (method === 'GET' || method === 'PUT')) {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        const name = applicationConfigurationMatch[1].toLowerCase();
-        const deployment = getDeployment(name);
-        if (!deployment || deployment.username !== auth.username) {
-          return error(res, 'Not found', 404);
-        }
-        const revisionTarget = url.searchParams.get('revision') || 'desired';
-        if (revisionTarget !== 'desired' && revisionTarget !== 'active') {
-          return error(res, 'Configuration revision must be "desired" or "active"', 400);
-        }
-        const selectedDigest =
-          revisionTarget === 'active'
-            ? deployment.activeSpecDigest
-            : deployment.desiredSpecDigest || deployment.activeSpecDigest;
-        const revision = selectedDigest ? getApplicationSpecRevision(name, selectedDigest) : null;
-        if (!revision) return error(res, 'Application manifest not found', 404);
-        const spec = parseStoredApplicationSpec(revision.normalizedSpec);
-        const requestedSiteId = url.searchParams.get('siteId') || undefined;
-        const siteId =
-          requestedSiteId ||
-          (revisionTarget === 'active'
-            ? deployment.activeNodeId
-            : deployment.desiredNodeId || deployment.activeNodeId) ||
-          'coordinator';
-        const site = getNode(siteId);
-        if (!site || site.revokedAt) return error(res, 'Site not found', 404);
-
-        if (method === 'PUT') {
-          const key = applicationConfigurationMatch[2];
-          if (!key) return error(res, 'Configuration key required', 400);
-          const body = JSON.parse((await readBody(req)).toString() || '{}');
+    },
+  }),
+  ...['/api/deployments/:name/configuration', '/api/deployments/:name/configuration/:key'].map(
+    (path) =>
+      route({
+        method: ['GET', 'PUT'],
+        path,
+        handler: async ({ context: ctx }) => {
+          const { req, res, path, method, url } = ctx;
           try {
-            const declaration = spec.configuration[key];
-            if (body.siteId !== undefined && String(body.siteId) !== siteId) {
-              return error(res, 'Configuration site does not match the requested site', 400);
+            const applicationConfigurationMatch = path.match(
+              /^\/api\/deployments\/([^/]+)\/configuration(?:\/([^/]+))?$/,
+            );
+            if (!applicationConfigurationMatch) return false;
+
+            const auth = requireAuth(req, res);
+            if (!auth) return;
+            const name = applicationConfigurationMatch[1].toLowerCase();
+            const deployment = getDeployment(name);
+            if (!deployment || deployment.username !== auth.username) {
+              return error(res, 'Not found', 404);
             }
-            const revisionNumber = setDeclaredConfigurationValue({
-              deploymentName: name,
-              specDigest: revision.digest,
-              declarations: spec.configuration,
-              key,
-              value: body.value,
-              updatedBy: auth.username,
-              siteId: declaration?.scope === 'site' ? siteId : undefined,
-            });
-            const projectedReplicas = 0;
+            const revisionTarget = url.searchParams.get('revision') || 'desired';
+            if (revisionTarget !== 'desired' && revisionTarget !== 'active') {
+              return error(res, 'Configuration revision must be "desired" or "active"', 400);
+            }
+            const selectedDigest =
+              revisionTarget === 'active'
+                ? deployment.activeSpecDigest
+                : deployment.desiredSpecDigest || deployment.activeSpecDigest;
+            const revision = selectedDigest
+              ? getApplicationSpecRevision(name, selectedDigest)
+              : null;
+            if (!revision) return error(res, 'Application manifest not found', 404);
+            const spec = parseStoredApplicationSpec(revision.normalizedSpec);
+            const requestedSiteId = url.searchParams.get('siteId') || undefined;
+            const siteId =
+              requestedSiteId ||
+              (revisionTarget === 'active'
+                ? deployment.activeNodeId
+                : deployment.desiredNodeId || deployment.activeNodeId) ||
+              'coordinator';
+            const site = getNode(siteId);
+            if (!site || site.revokedAt) return error(res, 'Site not found', 404);
+
+            if (method === 'PUT') {
+              const key = applicationConfigurationMatch[2];
+              if (!key) return error(res, 'Configuration key required', 400);
+              const body = JSON.parse((await readBody(req)).toString() || '{}');
+              try {
+                const declaration = spec.configuration[key];
+                if (body.siteId !== undefined && String(body.siteId) !== siteId) {
+                  return error(res, 'Configuration site does not match the requested site', 400);
+                }
+                const revisionNumber = setDeclaredConfigurationValue({
+                  deploymentName: name,
+                  specDigest: revision.digest,
+                  declarations: spec.configuration,
+                  key,
+                  value: body.value,
+                  updatedBy: auth.username,
+                  siteId: declaration?.scope === 'site' ? siteId : undefined,
+                });
+                const projectedReplicas = 0;
+                const resolved = resolveApplicationConfiguration({
+                  deploymentName: name,
+                  specDigest: revision.digest,
+                  declarations: spec.configuration,
+                  siteId,
+                });
+                const activeConfiguration = revision.digest === deployment.activeSpecDigest;
+                let runtimeReconciled = false;
+                let reconcileQueued = projectedReplicas > 0;
+                if (
+                  activeConfiguration &&
+                  !resolved.ready &&
+                  (deployment.status === 'running' ||
+                    deployment.status === CONFIGURATION_REQUIRED_STATUS)
+                ) {
+                  updateDeploymentStatus(name, CONFIGURATION_REQUIRED_STATUS);
+                } else if (
+                  activeConfiguration &&
+                  resolved.ready &&
+                  deployment.directory &&
+                  (deployment.status === 'running' ||
+                    deployment.status === CONFIGURATION_REQUIRED_STATUS)
+                ) {
+                  const localSiteId = localGraphSiteFor(deployment);
+                  if (localSiteId === siteId) {
+                    const runtime = buildApplicationGraphRuntime({
+                      applicationId: deployment.appId || name,
+                      specDigest: revision.digest,
+                      spec,
+                      configuration: resolved,
+                      siteId,
+                    });
+                    if (!runtime.ready) {
+                      return json(
+                        res,
+                        {
+                          error: 'Application graph admission failed after configuration update',
+                          findings: runtime.execution.findings,
+                        },
+                        422,
+                      );
+                    }
+                    const previousStatus = deployment.status || CONFIGURATION_REQUIRED_STATUS;
+                    updateDeploymentStatus(name, 'reconfiguring');
+                    try {
+                      await new ApplicationGraphExecutor().converge({
+                        deploymentName: name,
+                        applicationId: deployment.appId || name,
+                        siteId,
+                        nodeId: siteId,
+                        projectDirectory: deployment.directory,
+                        runtime,
+                        writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
+                        memoryLimit: deployment.memoryLimit || '4g',
+                        cpuLimit: deployment.cpuLimit || undefined,
+                      });
+                      updateDeploymentConfigurationDigest(name, resolved.digest);
+                      updateDeploymentStatus(name, 'running');
+                      addDeployEvent(name, {
+                        action: 'configuration-reconcile',
+                        username: auth.username,
+                        source: 'ui',
+                      });
+                      runtimeReconciled = true;
+                      reconcileQueued = false;
+                    } catch (reconcileError) {
+                      updateDeploymentStatus(name, previousStatus);
+                      throw reconcileError;
+                    }
+                  }
+                }
+                return json(res, {
+                  key,
+                  revision: revisionNumber,
+                  ready: resolved.ready,
+                  missing: resolved.missing,
+                  configurationDigest: resolved.digest,
+                  revisionTarget,
+                  specDigest: revision.digest,
+                  restartRequired:
+                    activeConfiguration && deployment.status === 'running' && !runtimeReconciled,
+                  activationRequired: !activeConfiguration,
+                  runtimeReconciled,
+                  reconcileQueued,
+                });
+              } catch (err) {
+                return error(res, (err as Error).message, 400);
+              }
+            }
+
+            const applicationValues = new Map(
+              getApplicationConfigurationValues(name, revision.digest).map((value) => [
+                value.key,
+                value,
+              ]),
+            );
+            const siteValues = new Map(
+              getApplicationConfigurationValues(name, revision.digest, siteId).map((value) => [
+                value.key,
+                value,
+              ]),
+            );
             const resolved = resolveApplicationConfiguration({
               deploymentName: name,
               specDigest: revision.digest,
               declarations: spec.configuration,
               siteId,
             });
-            const activeConfiguration = revision.digest === deployment.activeSpecDigest;
-            let runtimeReconciled = false;
-            let reconcileQueued = projectedReplicas > 0;
-            if (
-              activeConfiguration &&
-              !resolved.ready &&
-              (deployment.status === 'running' ||
-                deployment.status === CONFIGURATION_REQUIRED_STATUS)
-            ) {
-              updateDeploymentStatus(name, CONFIGURATION_REQUIRED_STATUS);
-            } else if (
-              activeConfiguration &&
-              resolved.ready &&
-              deployment.directory &&
-              (deployment.status === 'running' ||
-                deployment.status === CONFIGURATION_REQUIRED_STATUS)
-            ) {
-              const localSiteId = localGraphSiteFor(deployment);
-              if (localSiteId === siteId) {
-                const runtime = buildApplicationGraphRuntime({
-                  applicationId: deployment.appId || name,
-                  specDigest: revision.digest,
-                  spec,
-                  configuration: resolved,
-                  siteId,
-                });
-                if (!runtime.ready) {
-                  return json(
-                    res,
-                    {
-                      error: 'Application graph admission failed after configuration update',
-                      findings: runtime.execution.findings,
-                    },
-                    422,
-                  );
-                }
-                const previousStatus = deployment.status || CONFIGURATION_REQUIRED_STATUS;
-                updateDeploymentStatus(name, 'reconfiguring');
-                try {
-                  await new ApplicationGraphExecutor().converge({
-                    deploymentName: name,
-                    applicationId: deployment.appId || name,
-                    siteId,
-                    nodeId: siteId,
-                    projectDirectory: deployment.directory,
-                    runtime,
-                    writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
-                    memoryLimit: deployment.memoryLimit || '4g',
-                    cpuLimit: deployment.cpuLimit || undefined,
-                  });
-                  updateDeploymentConfigurationDigest(name, resolved.digest);
-                  updateDeploymentStatus(name, 'running');
-                  addDeployEvent(name, {
-                    action: 'configuration-reconcile',
-                    username: auth.username,
-                    source: 'ui',
-                  });
-                  runtimeReconciled = true;
-                  reconcileQueued = false;
-                } catch (reconcileError) {
-                  updateDeploymentStatus(name, previousStatus);
-                  throw reconcileError;
-                }
-              }
-            }
             return json(res, {
-              key,
-              revision: revisionNumber,
+              siteId,
+              revisionTarget,
+              specDigest: revision.digest,
+              activeDigest: deployment.activeSpecDigest,
+              desiredDigest: deployment.desiredSpecDigest,
               ready: resolved.ready,
               missing: resolved.missing,
               configurationDigest: resolved.digest,
-              revisionTarget,
-              specDigest: revision.digest,
-              restartRequired:
-                activeConfiguration && deployment.status === 'running' && !runtimeReconciled,
-              activationRequired: !activeConfiguration,
-              runtimeReconciled,
-              reconcileQueued,
+              declarations: Object.fromEntries(
+                Object.entries(spec.configuration).map(([key, declaration]) => {
+                  const stored =
+                    declaration.scope === 'site' ? siteValues.get(key) : applicationValues.get(key);
+                  return [
+                    key,
+                    {
+                      ...declaration,
+                      configured: Boolean(stored) || declaration.default !== undefined,
+                      revision: stored?.revision || 0,
+                      updatedAt: stored?.updatedAt || null,
+                    },
+                  ];
+                }),
+              ),
             });
-          } catch (err) {
-            return error(res, (err as Error).message, 400);
+          } catch (err: unknown) {
+            console.error(err);
+            error(
+              res,
+              (err as Error).message || 'Internal server error',
+              err instanceof RequestBodyTooLargeError
+                ? 413
+                : (err as Error & { status?: number }).status || 500,
+            );
           }
-        }
+        },
+      }),
+  ),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/node',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const deploymentNodeMatch = path.match(/^\/api\/deployments\/([^/]+)\/node$/);
+        if (!deploymentNodeMatch) return false;
 
-        const applicationValues = new Map(
-          getApplicationConfigurationValues(name, revision.digest).map((value) => [
-            value.key,
-            value,
-          ]),
-        );
-        const siteValues = new Map(
-          getApplicationConfigurationValues(name, revision.digest, siteId).map((value) => [
-            value.key,
-            value,
-          ]),
-        );
-        const resolved = resolveApplicationConfiguration({
-          deploymentName: name,
-          specDigest: revision.digest,
-          declarations: spec.configuration,
-          siteId,
-        });
-        return json(res, {
-          siteId,
-          revisionTarget,
-          specDigest: revision.digest,
-          activeDigest: deployment.activeSpecDigest,
-          desiredDigest: deployment.desiredSpecDigest,
-          ready: resolved.ready,
-          missing: resolved.missing,
-          configurationDigest: resolved.digest,
-          declarations: Object.fromEntries(
-            Object.entries(spec.configuration).map(([key, declaration]) => {
-              const stored =
-                declaration.scope === 'site' ? siteValues.get(key) : applicationValues.get(key);
-              return [
-                key,
-                {
-                  ...declaration,
-                  configured: Boolean(stored) || declaration.default !== undefined,
-                  revision: stored?.revision || 0,
-                  updatedAt: stored?.updatedAt || null,
-                },
-              ];
-            }),
-          ),
-        });
-      }
-
-      const deploymentNodeMatch = path.match(/^\/api\/deployments\/([^/]+)\/node$/);
-
-      if (deploymentNodeMatch && method === 'POST') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = deploymentNodeMatch[1].toLowerCase();
@@ -1309,9 +1537,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         } catch (err) {
           return error(res, (err as Error).message, 500);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'PUT',
+    path: '/api/deployments/:part1/node',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const deploymentNodeMatch = path.match(/^\/api\/deployments\/([^/]+)\/node$/);
+        if (!deploymentNodeMatch) return false;
 
-      if (deploymentNodeMatch && method === 'PUT') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = deploymentNodeMatch[1].toLowerCase();
@@ -1331,113 +1577,208 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         } catch (err) {
           return error(res, (err as Error).message);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      const componentActionMatch = path.match(
-        /^\/api\/deployments\/([^/]+)\/components\/([^/]+)\/(restart|scale)$/,
-      );
-
-      const instanceReplaceMatch = path.match(
-        /^\/api\/deployments\/([^/]+)\/components\/([^/]+)\/instances\/([^/]+)\/replace$/,
-      );
-
-      if (
-        (componentActionMatch || instanceReplaceMatch) &&
-        (method === 'POST' || method === 'PUT')
-      ) {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        const match = componentActionMatch || instanceReplaceMatch!;
-        const name = match[1].toLowerCase();
-        const component = decodeURIComponent(match[2]);
-        const deployment = getDeployment(name);
-        if (!deployment) return error(res, 'Not found', 404);
-        const siteId = localGraphSiteFor(deployment);
+    },
+  }),
+  ...[
+    '/api/deployments/:name/components/:component/:action(restart|scale)',
+    '/api/deployments/:name/components/:component/instances/:instance/replace',
+  ].map((path) =>
+    route({
+      method: ['POST', 'PUT'],
+      path,
+      handler: async ({ context: ctx }) => {
+        const { req, res, path, method } = ctx;
         try {
-          const executor = new ApplicationGraphExecutor();
-          if (componentActionMatch?.[3] === 'scale') {
-            if (method !== 'PUT') return error(res, 'Scale requires PUT', 405);
-            const body = JSON.parse((await readBody(req)).toString() || '{}') as {
-              instances?: unknown;
-              expectedParentDigest?: unknown;
-              confirmDestructive?: unknown;
-              scope?: unknown;
-              useDefault?: unknown;
-              siteId?: unknown;
-            };
-            const scope = body.scope === undefined ? 'default' : String(body.scope);
-            if (scope !== 'default' && scope !== 'site') {
-              return error(res, 'scope must be "default" or "site"', 400);
-            }
-            const useDefault = body.useDefault === true;
-            if (scope === 'default' && useDefault) {
-              return error(res, 'useDefault is valid only for a site-scoped count', 400);
-            }
-            const instances = useDefault ? null : Number(body.instances);
-            if (
-              instances !== null &&
-              (!Number.isSafeInteger(instances) || instances < 1 || instances > 128)
-            ) {
-              return error(res, 'instances must be an integer from 1 through 128', 400);
-            }
-            const parentDigest = deployment.desiredSpecDigest || deployment.activeSpecDigest;
-            if (body.expectedParentDigest !== parentDigest) {
-              return json(
-                res,
-                { error: 'Application revision changed', expectedParentDigest: parentDigest },
-                409,
-              );
-            }
-            const parentRevision = parentDigest
-              ? getApplicationSpecRevision(name, parentDigest)
-              : null;
-            if (!parentRevision) return error(res, 'Desired application graph is missing', 409);
-            const current = parseStoredApplicationSpec(parentRevision.normalizedSpec);
-            if (!current.components[component]) {
-              return error(res, `Unknown application component ${component}`, 404);
-            }
-            const currentComponent = current.components[component]!;
-            const applicationId = deployment.appId || registerApplicationIdentity(name);
-            if (scope === 'site') {
-              const targetSiteId = body.siteId === undefined ? siteId : String(body.siteId).trim();
-              if (!targetSiteId) return error(res, 'siteId is required for a site count', 400);
+          const componentActionMatch = path.match(
+            /^\/api\/deployments\/([^/]+)\/components\/([^/]+)\/(restart|scale)$/,
+          );
+          const instanceReplaceMatch = path.match(
+            /^\/api\/deployments\/([^/]+)\/components\/([^/]+)\/instances\/([^/]+)\/replace$/,
+          );
+          if (!(componentActionMatch || instanceReplaceMatch)) return false;
 
-              if (!currentComponent.siteOverrides.allowed) {
-                return error(
-                  res,
-                  `Component ${component} does not allow site-specific instance counts`,
-                  409,
-                );
+          const auth = requireAdmin(req, res);
+          if (!auth) return;
+          const match = componentActionMatch || instanceReplaceMatch!;
+          const name = match[1].toLowerCase();
+          const component = decodeURIComponent(match[2]);
+          const deployment = getDeployment(name);
+          if (!deployment) return error(res, 'Not found', 404);
+          const siteId = localGraphSiteFor(deployment);
+          try {
+            const executor = new ApplicationGraphExecutor();
+            if (componentActionMatch?.[3] === 'scale') {
+              if (method !== 'PUT') return error(res, 'Scale requires PUT', 405);
+              const body = JSON.parse((await readBody(req)).toString() || '{}') as {
+                instances?: unknown;
+                expectedParentDigest?: unknown;
+                confirmDestructive?: unknown;
+                scope?: unknown;
+                useDefault?: unknown;
+                siteId?: unknown;
+              };
+              const scope = body.scope === undefined ? 'default' : String(body.scope);
+              if (scope !== 'default' && scope !== 'site') {
+                return error(res, 'scope must be "default" or "site"', 400);
               }
+              const useDefault = body.useDefault === true;
+              if (scope === 'default' && useDefault) {
+                return error(res, 'useDefault is valid only for a site-scoped count', 400);
+              }
+              const instances = useDefault ? null : Number(body.instances);
               if (
                 instances !== null &&
-                (instances < currentComponent.siteOverrides.minimum ||
-                  instances > currentComponent.siteOverrides.maximum)
+                (!Number.isSafeInteger(instances) || instances < 1 || instances > 128)
               ) {
-                return error(
-                  res,
-                  `instances must be between ${currentComponent.siteOverrides.minimum} and ${currentComponent.siteOverrides.maximum} for component ${component}`,
-                  400,
-                );
+                return error(res, 'instances must be an integer from 1 through 128', 400);
               }
-              const overrides = getComponentSiteOverrides(applicationId, targetSiteId);
-              const effectiveInstances = instances ?? currentComponent.instances;
-
-              const admittedOverrides = { ...overrides, [component]: effectiveInstances };
-              const admission = planApplicationExecution(applicationId, current, {
-                targetSiteId,
-                siteInstanceOverrides: admittedOverrides,
-                placementTarget: resolvePlacementTarget(targetSiteId),
-              });
-              if (admission.blocked) {
+              const parentDigest = deployment.desiredSpecDigest || deployment.activeSpecDigest;
+              if (body.expectedParentDigest !== parentDigest) {
                 return json(
                   res,
-                  { error: 'Site-specific count is blocked', findings: admission.findings },
+                  { error: 'Application revision changed', expectedParentDigest: parentDigest },
                   409,
                 );
               }
+              const parentRevision = parentDigest
+                ? getApplicationSpecRevision(name, parentDigest)
+                : null;
+              if (!parentRevision) return error(res, 'Desired application graph is missing', 409);
+              const current = parseStoredApplicationSpec(parentRevision.normalizedSpec);
+              if (!current.components[component]) {
+                return error(res, `Unknown application component ${component}`, 404);
+              }
+              const currentComponent = current.components[component]!;
+              const applicationId = deployment.appId || registerApplicationIdentity(name);
+              if (scope === 'site') {
+                const targetSiteId =
+                  body.siteId === undefined ? siteId : String(body.siteId).trim();
+                if (!targetSiteId) return error(res, 'siteId is required for a site count', 400);
 
-              if (!siteId || targetSiteId !== siteId) {
+                if (!currentComponent.siteOverrides.allowed) {
+                  return error(
+                    res,
+                    `Component ${component} does not allow site-specific instance counts`,
+                    409,
+                  );
+                }
+                if (
+                  instances !== null &&
+                  (instances < currentComponent.siteOverrides.minimum ||
+                    instances > currentComponent.siteOverrides.maximum)
+                ) {
+                  return error(
+                    res,
+                    `instances must be between ${currentComponent.siteOverrides.minimum} and ${currentComponent.siteOverrides.maximum} for component ${component}`,
+                    400,
+                  );
+                }
+                const overrides = getComponentSiteOverrides(applicationId, targetSiteId);
+                const effectiveInstances = instances ?? currentComponent.instances;
+
+                const admittedOverrides = { ...overrides, [component]: effectiveInstances };
+                const admission = planApplicationExecution(applicationId, current, {
+                  targetSiteId,
+                  siteInstanceOverrides: admittedOverrides,
+                  placementTarget: resolvePlacementTarget(targetSiteId),
+                });
+                if (admission.blocked) {
+                  return json(
+                    res,
+                    { error: 'Site-specific count is blocked', findings: admission.findings },
+                    409,
+                  );
+                }
+
+                if (!siteId || targetSiteId !== siteId) {
+                  return error(
+                    res,
+                    'Component operations require the target-local site control surface',
+                    409,
+                  );
+                }
+                if (!deployment.directory) {
+                  return error(res, 'Application graph source directory is missing', 409);
+                }
+                const configuration = resolveApplicationConfiguration({
+                  deploymentName: name,
+                  specDigest: parentDigest!,
+                  declarations: current.configuration,
+                  siteId: targetSiteId,
+                });
+                if (!configuration.ready) {
+                  return error(
+                    res,
+                    `Required application configuration is missing: ${configuration.missing.join(', ')}`,
+                    428,
+                  );
+                }
+
+                setComponentSiteOverride({
+                  appId: applicationId,
+                  deploymentName: name,
+                  siteId: targetSiteId,
+                  componentKey: component,
+                  instances,
+                  updatedBy: auth.username,
+                });
+                const runtime = buildApplicationGraphRuntime({
+                  applicationId,
+                  specDigest: parentDigest!,
+                  spec: current,
+                  configuration,
+                  siteId: targetSiteId,
+                });
+                const result = await executor.converge({
+                  deploymentName: name,
+                  applicationId,
+                  siteId: targetSiteId,
+                  nodeId: targetSiteId,
+                  projectDirectory: deployment.directory,
+                  runtime,
+                  writerSiteId: applicationWriterSiteId(applicationId, targetSiteId),
+                  memoryLimit: deployment.memoryLimit || '4g',
+                  cpuLimit: deployment.cpuLimit || undefined,
+                });
+                saveDeployment({
+                  name,
+                  type: deployment.type || undefined,
+                  username: deployment.username,
+                  port: result.primaryPort ?? undefined,
+                  containerId: result.primaryContainerId ?? undefined,
+                  containerName: result.primaryContainerName ?? undefined,
+                  directory: deployment.directory,
+                  desiredNodeId: deployment.desiredNodeId,
+                  activeNodeId: deployment.activeNodeId,
+                  createdAt: deployment.createdAt || undefined,
+                });
+                updateDeploymentStatus(name, 'running');
+                addDeployEvent(name, {
+                  action: `scale:${component}:${effectiveInstances}:site:${targetSiteId}`,
+                  username: auth.username,
+                  source: 'ui',
+                });
+                return json(res, {
+                  component,
+                  instances: effectiveInstances,
+                  defaultInstances: currentComponent.instances,
+                  siteId: targetSiteId,
+                  siteOverride: instances,
+                  specDigest: parentDigest,
+                  activeSpecDigest: deployment.activeSpecDigest,
+                });
+              }
+              if (!siteId) {
                 return error(
                   res,
                   'Component operations require the target-local site control surface',
@@ -1447,11 +1788,39 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               if (!deployment.directory) {
                 return error(res, 'Application graph source directory is missing', 409);
               }
+              const proposed = structuredClone(current);
+              proposed.components[component]!.instances = instances!;
+              const candidate = compileDeployYaml(renderDeployYaml(proposed), 'component scale');
+              const plan = planApplicationChange(current, candidate.spec, { source: 'ui' });
+              if (plan.blocked) return json(res, { error: 'Scale plan is blocked', plan }, 409);
+              if (plan.destructive && body.confirmDestructive !== true) {
+                return json(res, { error: 'Scale-down requires confirmation', plan }, 409);
+              }
+
+              saveDesiredApplicationSpec({
+                digest: candidate.digest,
+                deploymentName: name,
+                parentDigest,
+                apiVersion: candidate.spec.apiVersion,
+                source: 'ui',
+                manifestFormat: 'deploy.yaml',
+                normalizedSpec: candidate.canonicalJson,
+                originalSource: renderDeployYaml(candidate.spec),
+                createdBy: auth.username,
+              });
+              carryForwardCompatibleConfiguration({
+                deploymentName: name,
+                fromSpec: current,
+                fromDigest: parentDigest!,
+                toSpec: candidate.spec,
+                toDigest: candidate.digest,
+                updatedBy: auth.username,
+              });
               const configuration = resolveApplicationConfiguration({
                 deploymentName: name,
-                specDigest: parentDigest!,
-                declarations: current.configuration,
-                siteId: targetSiteId,
+                specDigest: candidate.digest,
+                declarations: candidate.spec.configuration,
+                siteId,
               });
               if (!configuration.ready) {
                 return error(
@@ -1460,33 +1829,26 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
                   428,
                 );
               }
-
-              setComponentSiteOverride({
-                appId: applicationId,
-                deploymentName: name,
-                siteId: targetSiteId,
-                componentKey: component,
-                instances,
-                updatedBy: auth.username,
-              });
               const runtime = buildApplicationGraphRuntime({
                 applicationId,
-                specDigest: parentDigest!,
-                spec: current,
+                specDigest: candidate.digest,
+                spec: candidate.spec,
                 configuration,
-                siteId: targetSiteId,
+                siteId,
               });
               const result = await executor.converge({
                 deploymentName: name,
                 applicationId,
-                siteId: targetSiteId,
-                nodeId: targetSiteId,
+                siteId,
+                nodeId: siteId,
                 projectDirectory: deployment.directory,
                 runtime,
-                writerSiteId: applicationWriterSiteId(applicationId, targetSiteId),
+                writerSiteId: applicationWriterSiteId(applicationId, siteId),
                 memoryLimit: deployment.memoryLimit || '4g',
                 cpuLimit: deployment.cpuLimit || undefined,
               });
+              activateDesiredApplicationSpec(name, candidate.digest, configuration.digest);
+
               saveDeployment({
                 name,
                 type: deployment.type || undefined,
@@ -1501,20 +1863,19 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               });
               updateDeploymentStatus(name, 'running');
               addDeployEvent(name, {
-                action: `scale:${component}:${effectiveInstances}:site:${targetSiteId}`,
+                action: `scale:${component}:${instances}`,
                 username: auth.username,
                 source: 'ui',
               });
               return json(res, {
                 component,
-                instances: effectiveInstances,
-                defaultInstances: currentComponent.instances,
-                siteId: targetSiteId,
-                siteOverride: instances,
-                specDigest: parentDigest,
-                activeSpecDigest: deployment.activeSpecDigest,
+                instances,
+                specDigest: candidate.digest,
+                activeSpecDigest: candidate.digest,
               });
             }
+
+            if (method !== 'POST') return error(res, 'Component operation requires POST', 405);
             if (!siteId) {
               return error(
                 res,
@@ -1525,67 +1886,28 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
             if (!deployment.directory) {
               return error(res, 'Application graph source directory is missing', 409);
             }
-            const proposed = structuredClone(current);
-            proposed.components[component]!.instances = instances!;
-            const candidate = compileDeployYaml(renderDeployYaml(proposed), 'component scale');
-            const plan = planApplicationChange(current, candidate.spec, { source: 'ui' });
-            if (plan.blocked) return json(res, { error: 'Scale plan is blocked', plan }, 409);
-            if (plan.destructive && body.confirmDestructive !== true) {
-              return json(res, { error: 'Scale-down requires confirmation', plan }, 409);
-            }
-
-            saveDesiredApplicationSpec({
-              digest: candidate.digest,
-              deploymentName: name,
-              parentDigest,
-              apiVersion: candidate.spec.apiVersion,
-              source: 'ui',
-              manifestFormat: 'deploy.yaml',
-              normalizedSpec: candidate.canonicalJson,
-              originalSource: renderDeployYaml(candidate.spec),
-              createdBy: auth.username,
-            });
-            carryForwardCompatibleConfiguration({
-              deploymentName: name,
-              fromSpec: current,
-              fromDigest: parentDigest!,
-              toSpec: candidate.spec,
-              toDigest: candidate.digest,
-              updatedBy: auth.username,
-            });
-            const configuration = resolveApplicationConfiguration({
-              deploymentName: name,
-              specDigest: candidate.digest,
-              declarations: candidate.spec.configuration,
-              siteId,
-            });
-            if (!configuration.ready) {
+            const runtime = resolveApplicationGraphRuntime(deployment);
+            if (!runtime.ready) {
               return error(
                 res,
-                `Required application configuration is missing: ${configuration.missing.join(', ')}`,
+                `Required application configuration is missing: ${runtime.missing.join(', ')}`,
                 428,
               );
             }
-            const runtime = buildApplicationGraphRuntime({
-              applicationId,
-              specDigest: candidate.digest,
-              spec: candidate.spec,
-              configuration,
-              siteId,
-            });
-            const result = await executor.converge({
+            const context = {
               deploymentName: name,
-              applicationId,
+              applicationId: deployment.appId || name,
               siteId,
               nodeId: siteId,
               projectDirectory: deployment.directory,
               runtime,
-              writerSiteId: applicationWriterSiteId(applicationId, siteId),
+              writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
               memoryLimit: deployment.memoryLimit || '4g',
               cpuLimit: deployment.cpuLimit || undefined,
-            });
-            activateDesiredApplicationSpec(name, candidate.digest, configuration.digest);
-
+            };
+            const result = instanceReplaceMatch
+              ? await executor.replaceInstance(context, decodeURIComponent(instanceReplaceMatch[3]))
+              : await executor.restartComponent(context, component);
             saveDeployment({
               name,
               type: deployment.type || undefined,
@@ -1598,91 +1920,49 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
               activeNodeId: deployment.activeNodeId,
               createdAt: deployment.createdAt || undefined,
             });
-            updateDeploymentStatus(name, 'running');
             addDeployEvent(name, {
-              action: `scale:${component}:${instances}`,
+              action: instanceReplaceMatch
+                ? `replace:${component}:${decodeURIComponent(instanceReplaceMatch[3])}`
+                : `restart:${component}`,
               username: auth.username,
               source: 'ui',
             });
+            updateDeploymentStatus(name, 'running');
             return json(res, {
               component,
-              instances,
-              specDigest: candidate.digest,
-              activeSpecDigest: candidate.digest,
+              instanceId: instanceReplaceMatch
+                ? decodeURIComponent(instanceReplaceMatch[3])
+                : undefined,
+              instances: result.instances.length,
+              activeSpecDigest: deployment.activeSpecDigest,
             });
+          } catch (componentError) {
+            return error(res, (componentError as Error).message, 400);
           }
-
-          if (method !== 'POST') return error(res, 'Component operation requires POST', 405);
-          if (!siteId) {
-            return error(
-              res,
-              'Component operations require the target-local site control surface',
-              409,
-            );
-          }
-          if (!deployment.directory) {
-            return error(res, 'Application graph source directory is missing', 409);
-          }
-          const runtime = resolveApplicationGraphRuntime(deployment);
-          if (!runtime.ready) {
-            return error(
-              res,
-              `Required application configuration is missing: ${runtime.missing.join(', ')}`,
-              428,
-            );
-          }
-          const context = {
-            deploymentName: name,
-            applicationId: deployment.appId || name,
-            siteId,
-            nodeId: siteId,
-            projectDirectory: deployment.directory,
-            runtime,
-            writerSiteId: applicationWriterSiteId(deployment.appId || name, siteId),
-            memoryLimit: deployment.memoryLimit || '4g',
-            cpuLimit: deployment.cpuLimit || undefined,
-          };
-          const result = instanceReplaceMatch
-            ? await executor.replaceInstance(context, decodeURIComponent(instanceReplaceMatch[3]))
-            : await executor.restartComponent(context, component);
-          saveDeployment({
-            name,
-            type: deployment.type || undefined,
-            username: deployment.username,
-            port: result.primaryPort ?? undefined,
-            containerId: result.primaryContainerId ?? undefined,
-            containerName: result.primaryContainerName ?? undefined,
-            directory: deployment.directory,
-            desiredNodeId: deployment.desiredNodeId,
-            activeNodeId: deployment.activeNodeId,
-            createdAt: deployment.createdAt || undefined,
-          });
-          addDeployEvent(name, {
-            action: instanceReplaceMatch
-              ? `replace:${component}:${decodeURIComponent(instanceReplaceMatch[3])}`
-              : `restart:${component}`,
-            username: auth.username,
-            source: 'ui',
-          });
-          updateDeploymentStatus(name, 'running');
-          return json(res, {
-            component,
-            instanceId: instanceReplaceMatch
-              ? decodeURIComponent(instanceReplaceMatch[3])
-              : undefined,
-            instances: result.instances.length,
-            activeSpecDigest: deployment.activeSpecDigest,
-          });
-        } catch (componentError) {
-          return error(res, (componentError as Error).message, 400);
+        } catch (err: unknown) {
+          console.error(err);
+          error(
+            res,
+            (err as Error).message || 'Internal server error',
+            err instanceof RequestBodyTooLargeError
+              ? 413
+              : (err as Error & { status?: number }).status || 500,
+          );
         }
-      }
+      },
+    }),
+  ),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/components/:part2/operations/:part3',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const profileOperationMatch = path.match(
+          /^\/api\/deployments\/([^/]+)\/components\/([^/]+)\/operations\/([^/]+)$/,
+        );
+        if (!profileOperationMatch) return false;
 
-      const profileOperationMatch = path.match(
-        /^\/api\/deployments\/([^/]+)\/components\/([^/]+)\/operations\/([^/]+)$/,
-      );
-
-      if (profileOperationMatch && method === 'POST') {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         const name = profileOperationMatch[1].toLowerCase();
@@ -1890,13 +2170,29 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         } catch (profileError) {
           return error(res, (profileError as Error).message, 400);
         }
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/migration-progress',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const migrationProgressMatch = path.match(
+          /^\/api\/deployments\/([^/]+)\/migration-progress$/,
+        );
+        if (!migrationProgressMatch) return false;
 
-      const migrationProgressMatch = path.match(
-        /^\/api\/deployments\/([^/]+)\/migration-progress$/,
-      );
-
-      if (migrationProgressMatch && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = migrationProgressMatch[1].toLowerCase();
@@ -1907,20 +2203,54 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           active: Boolean(deployment.status && MIGRATION_STATES.has(deployment.status)),
           progress: migrationProgressByDeployment.get(name) || null,
         });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const deploymentMatch = path.match(/^\/api\/deployments\/([^/]+)$/);
+        if (!deploymentMatch) return false;
 
-      const deploymentMatch = path.match(/^\/api\/deployments\/([^/]+)$/);
-
-      if (deploymentMatch && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const d = getDeployment(deploymentMatch[1]);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         const status = await resolveStatusAsync(d);
         return json(res, { ...d, status });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'DELETE',
+    path: '/api/deployments/:part1',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const deploymentMatch = path.match(/^\/api\/deployments\/([^/]+)$/);
+        if (!deploymentMatch) return false;
 
-      if (deploymentMatch && method === 'DELETE') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = deploymentMatch[1];
@@ -1962,9 +2292,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
           data: { username: auth.username },
         });
         return json(res, { message: `Deleted ${name}` });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'PATCH',
+    path: '/api/deployments/:part1',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path } = ctx;
+      try {
+        const deploymentMatch = path.match(/^\/api\/deployments\/([^/]+)$/);
+        if (!deploymentMatch) return false;
 
-      if (deploymentMatch && method === 'PATCH') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = deploymentMatch[1];
@@ -2159,11 +2507,27 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         }
 
         return json(res, { message: 'Settings updated' });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/logs',
+    handler: async ({ context: ctx }) => {
+      const { req, res, path, url } = ctx;
+      try {
+        const logsMatch = path.match(/^\/api\/deployments\/([^/]+)\/logs$/);
+        if (!logsMatch) return false;
 
-      const logsMatch = path.match(/^\/api\/deployments\/([^/]+)\/logs$/);
-
-      if (logsMatch && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const name = logsMatch[1];
@@ -2217,18 +2581,19 @@ export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> 
         proc.on('close', () => res.end());
         req.on('close', () => proc.kill());
         return;
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-      return false;
-    } catch (err: unknown) {
-      console.error(err);
-      error(
-        res,
-        (err as Error).message || 'Internal server error',
-        err instanceof RequestBodyTooLargeError
-          ? 413
-          : (err as Error & { status?: number }).status || 500,
-      );
-    }
-  })();
-  return result !== false;
+    },
+  }),
+];
+export async function deploymentsRoutes(ctx: ApiRouteContext): Promise<boolean> {
+  return dispatch(table, { path: () => ctx.path, method: () => ctx.method })(ctx.req, ctx.res, ctx);
 }

@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { requireAuth, error, dispatchAgentCommand, json } from './shared.ts';
 import {
   getDeployment,
@@ -19,21 +20,17 @@ import { existsSync } from 'node:fs';
 import { restartContainer } from '../docker.ts';
 import { type ApiRouteContext } from './context.ts';
 
-export async function backupsRoutes(ctx: ApiRouteContext): Promise<boolean> {
-  const { req, res, path, method } = ctx;
-  // Keep the original return boundary: returned promises bypass the catch,
-  // while thrown errors and rejected awaits use the existing API error response.
-  const result = await (async () => {
-    try {
-      // ── Backup management ──────────────────────────────────────────────
-
-      // Create backup or list backups
-      const backupsMatch = path.match(/^\/api\/deployments\/([^/]+)\/backups$/);
-
-      if (backupsMatch && method === 'POST') {
+const route = routes<ApiRouteContext>();
+const table = [
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/backups',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = backupsMatch[1];
+        const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
 
@@ -71,12 +68,27 @@ export async function backupsRoutes(ctx: ApiRouteContext): Promise<boolean> {
 
         addDeployEvent(name, { action: 'backup', username: auth.username, source: 'ui' });
         return json(res, result, 201);
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      if (backupsMatch && method === 'GET') {
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/deployments/:part1/backups',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = backupsMatch[1];
+        const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
 
@@ -89,16 +101,28 @@ export async function backupsRoutes(ctx: ApiRouteContext): Promise<boolean> {
               : await getVolumeSize(name);
 
         return json(res, { backups: dbBackups, volumeSize });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      // Restore backup
-      const restoreMatch = path.match(/^\/api\/deployments\/([^/]+)\/backups\/([^/]+)\/restore$/);
-
-      if (restoreMatch && method === 'POST') {
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/deployments/:part1/backups/:part2/restore',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = restoreMatch[1];
-        const filename = decodeURIComponent(restoreMatch[2]);
+        const name = params.part1;
+        const filename = decodeURIComponent(params.part2);
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         if (basename(filename) !== filename) return error(res, 'Invalid backup filename', 400);
@@ -115,16 +139,28 @@ export async function backupsRoutes(ctx: ApiRouteContext): Promise<boolean> {
 
         addDeployEvent(name, { action: 'restore', username: auth.username, source: 'ui' });
         return json(res, { message: 'Backup restored and container restarted' });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-
-      // Delete backup
-      const deleteBackupMatch = path.match(/^\/api\/deployments\/([^/]+)\/backups\/([^/]+)$/);
-
-      if (deleteBackupMatch && method === 'DELETE') {
+    },
+  }),
+  route({
+    method: 'DELETE',
+    path: '/api/deployments/:part1/backups/:part2',
+    handler: async ({ context: ctx, params }) => {
+      const { req, res } = ctx;
+      try {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const name = deleteBackupMatch[1];
-        const filename = decodeURIComponent(deleteBackupMatch[2]);
+        const name = params.part1;
+        const filename = decodeURIComponent(params.part2);
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
 
@@ -132,18 +168,20 @@ export async function backupsRoutes(ctx: ApiRouteContext): Promise<boolean> {
         deleteBackupRecord(name, filename);
 
         return json(res, { message: 'Backup deleted' });
+      } catch (err: unknown) {
+        console.error(err);
+        error(
+          res,
+          (err as Error).message || 'Internal server error',
+          err instanceof RequestBodyTooLargeError
+            ? 413
+            : (err as Error & { status?: number }).status || 500,
+        );
       }
-      return false;
-    } catch (err: unknown) {
-      console.error(err);
-      error(
-        res,
-        (err as Error).message || 'Internal server error',
-        err instanceof RequestBodyTooLargeError
-          ? 413
-          : (err as Error & { status?: number }).status || 500,
-      );
-    }
-  })();
-  return result !== false;
+    },
+  }),
+];
+
+export async function backupsRoutes(ctx: ApiRouteContext): Promise<boolean> {
+  return dispatch(table, { path: () => ctx.path, method: () => ctx.method })(ctx.req, ctx.res, ctx);
 }

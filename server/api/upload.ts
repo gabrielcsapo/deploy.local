@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import {
   requireAuth,
   json,
@@ -225,81 +226,133 @@ async function verifiedCiRuntime(application: string, username: string, allowFai
   return { containerId: info.Id, imageDigest: info.Image, sourceDigest: d.sourceArtifactDigest };
 }
 
+const ciRoute = routes<ApiRouteContext>();
+const ciRoutes = [
+  ...[
+    '/api/ci/owner/releases/:id([a-f0-9-]+)',
+    '/api/ci/owner/releases/:id([a-f0-9-]+)/:action(recover|cancel)',
+  ].map((path) =>
+    ciRoute({
+      method: '*',
+      path,
+      handler: async ({ context: ctx }) => {
+        const { req, res, path, method } = ctx;
+        try {
+          const ownerCiRoute = path.match(
+            /^\/api\/ci\/owner\/releases\/([a-f0-9-]+)(?:\/(recover|cancel))?$/,
+          );
+          if (!ownerCiRoute) return false;
+
+          const auth = requireAuth(req, res);
+          if (!auth) return;
+          const r = ownerCiRelease(ownerCiRoute[1], auth.username);
+          res.setHeader('Cache-Control', 'no-store');
+          if (method === 'GET' && !ownerCiRoute[2]) return json(res, ciReceipt(r));
+          if (method !== 'POST' || !ownerCiRoute[2]) return error(res, 'Route not found', 404);
+          if (['healthy', 'cancelled'].includes(r.status)) return json(res, ciReceipt(r));
+          assertCiOwnerStopped(r);
+          if (
+            getDeployAdmissionState().activeDeployments.includes(r.application) ||
+            (r.boot_id === ciBootId && !['accepted', 'failed'].includes(r.status))
+          )
+            ciError('Current process owns release; wait for completion');
+          const runtime = await verifiedCiRuntime(r.application, auth.username, true);
+          return await withCiMutation(r.id, async () => {
+            if (ownerCiRoute[2] === 'cancel') {
+              if (
+                !['accepted', 'failed'].includes(r.status) ||
+                runtime.sourceDigest !== r.baseline_source
+              )
+                ciError('Only an unstarted release can be cancelled');
+              return json(
+                res,
+                ciReceipt(resolveOwnerCiRelease(r, auth.username, 'cancelled', runtime)),
+              );
+            }
+            const healthy =
+              runtime.containerId !== r.baseline_container &&
+              runtime.sourceDigest === r.source_digest;
+            if (!healthy && runtime.containerId !== r.baseline_container)
+              ciError('Interrupted runtime requires owner investigation');
+            const result = resolveOwnerCiRelease(
+              r,
+              auth.username,
+              healthy ? 'healthy' : 'accepted',
+              runtime,
+            );
+            if (!healthy) updateDeploymentStatus(r.application, 'running');
+            return json(res, ciReceipt(result));
+          });
+        } catch (err: unknown) {
+          console.error(err);
+          error(
+            res,
+            (err as Error).message || 'Internal server error',
+            err instanceof RequestBodyTooLargeError
+              ? 413
+              : (err as Error & { status?: number }).status || 500,
+          );
+        }
+      },
+    }),
+  ),
+  ...['/api/ci/credentials', '/api/ci/credentials/:id([a-f0-9-]+)'].map((path) =>
+    ciRoute({
+      method: '*',
+      path,
+      handler: async ({ context: ctx }) => {
+        const { req, res, path, method } = ctx;
+        try {
+          const ciCredentialRoute = path.match(/^\/api\/ci\/credentials(?:\/([a-f0-9-]+))?$/);
+          if (!ciCredentialRoute) return false;
+
+          const auth = requireAuth(req, res);
+          if (!auth) return;
+          res.setHeader('Cache-Control', 'no-store');
+          if (method === 'POST' && !ciCredentialRoute[1]) {
+            const body = JSON.parse((await readBody(req)).toString());
+            return json(
+              res,
+              issueCiCredential(auth.username, body.application, body.ttlSeconds),
+              201,
+            );
+          }
+          if (method === 'DELETE' && ciCredentialRoute[1]) {
+            revokeCiCredential(ciCredentialRoute[1], auth.username);
+            return json(res, { revoked: true });
+          }
+          return error(res, 'Route not found', 404);
+        } catch (err: unknown) {
+          console.error(err);
+          error(
+            res,
+            (err as Error).message || 'Internal server error',
+            err instanceof RequestBodyTooLargeError
+              ? 413
+              : (err as Error & { status?: number }).status || 500,
+          );
+        }
+      },
+    }),
+  ),
+];
+
 export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
+  if (
+    await dispatch(ciRoutes, { path: () => ctx.path, method: () => ctx.method })(
+      ctx.req,
+      ctx.res,
+      ctx,
+    )
+  )
+    return true;
+
   const { req, res, path, method, makeLegacyUpdate, makeWanderAdoption } = ctx;
   // Keep the original return boundary: returned promises bypass the catch,
   // while thrown errors and rejected awaits use the existing API error response.
   const result = await (async () => {
     try {
       // ── Upload / Deploy ─────────────────────────────────────────────────
-
-      const ownerCiRoute = path.match(
-        /^\/api\/ci\/owner\/releases\/([a-f0-9-]+)(?:\/(recover|cancel))?$/,
-      );
-
-      if (ownerCiRoute) {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        const r = ownerCiRelease(ownerCiRoute[1], auth.username);
-        res.setHeader('Cache-Control', 'no-store');
-        if (method === 'GET' && !ownerCiRoute[2]) return json(res, ciReceipt(r));
-        if (method !== 'POST' || !ownerCiRoute[2]) return error(res, 'Route not found', 404);
-        if (['healthy', 'cancelled'].includes(r.status)) return json(res, ciReceipt(r));
-        assertCiOwnerStopped(r);
-        if (
-          getDeployAdmissionState().activeDeployments.includes(r.application) ||
-          (r.boot_id === ciBootId && !['accepted', 'failed'].includes(r.status))
-        )
-          ciError('Current process owns release; wait for completion');
-        const runtime = await verifiedCiRuntime(r.application, auth.username, true);
-        return await withCiMutation(r.id, async () => {
-          if (ownerCiRoute[2] === 'cancel') {
-            if (
-              !['accepted', 'failed'].includes(r.status) ||
-              runtime.sourceDigest !== r.baseline_source
-            )
-              ciError('Only an unstarted release can be cancelled');
-            return json(
-              res,
-              ciReceipt(resolveOwnerCiRelease(r, auth.username, 'cancelled', runtime)),
-            );
-          }
-          const healthy =
-            runtime.containerId !== r.baseline_container &&
-            runtime.sourceDigest === r.source_digest;
-          if (!healthy && runtime.containerId !== r.baseline_container)
-            ciError('Interrupted runtime requires owner investigation');
-          const result = resolveOwnerCiRelease(
-            r,
-            auth.username,
-            healthy ? 'healthy' : 'accepted',
-            runtime,
-          );
-          if (!healthy) updateDeploymentStatus(r.application, 'running');
-          return json(res, ciReceipt(result));
-        });
-      }
-
-      const ciCredentialRoute = path.match(/^\/api\/ci\/credentials(?:\/([a-f0-9-]+))?$/);
-
-      if (ciCredentialRoute) {
-        const auth = requireAuth(req, res);
-        if (!auth) return;
-        res.setHeader('Cache-Control', 'no-store');
-        if (method === 'POST' && !ciCredentialRoute[1]) {
-          const body = JSON.parse((await readBody(req)).toString());
-          return json(
-            res,
-            issueCiCredential(auth.username, body.application, body.ttlSeconds),
-            201,
-          );
-        }
-        if (method === 'DELETE' && ciCredentialRoute[1]) {
-          revokeCiCredential(ciCredentialRoute[1], auth.username);
-          return json(res, { revoked: true });
-        }
-        return error(res, 'Route not found', 404);
-      }
 
       const ciRoute = path.match(/^\/api\/ci\/releases(?:\/(head|[a-f0-9-]+)(?:\/(upload))?)?$/);
 
