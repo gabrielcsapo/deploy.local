@@ -25,7 +25,6 @@ import {
   applicationSpecTransitions,
   applicationAliases,
   appReplicas,
-  dataSyncPolicies,
 } from '../schema.ts';
 import { eq, inArray } from 'drizzle-orm';
 import { notifyRouteChanged } from '../ipc.ts';
@@ -263,7 +262,6 @@ export function deleteDeployment(
     if (appId) {
       tx.delete(applicationAliases).where(eq(applicationAliases.appId, appId)).run();
       tx.delete(appReplicas).where(eq(appReplicas.appId, appId)).run();
-      tx.delete(dataSyncPolicies).where(eq(dataSyncPolicies.appId, appId)).run();
     }
     tx.delete(deployments).where(eq(deployments.name, name)).run();
   });
