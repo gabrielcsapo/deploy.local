@@ -1,6 +1,7 @@
 'use client';
 import { useEffect } from 'react';
-import { useRouter } from 'react-flight-router/client';
+import { adoptSession } from './adopt-session.ts';
+import { prefetchRSC, clearPrefetchCache, useRouter } from 'react-flight-router/client';
 
 type Click = Pick<
   MouseEvent,
@@ -30,6 +31,14 @@ export function inAppPath(anchor: Anchor, event: Click, origin: string) {
 export function useInAppLinks() {
   const { navigate } = useRouter();
   useEffect(() => {
+    void adoptSession();
+    const identityChanged = (event: StorageEvent) => {
+      if (event.key === 'deploy-sh-auth' || event.key === null) {
+        clearPrefetchCache();
+        void adoptSession();
+      }
+    };
+    window.addEventListener('storage', identityChanged);
     const click = (event: MouseEvent) => {
       const anchor = (event.target as Element | null)?.closest?.('a[href]');
       if (!(anchor instanceof HTMLAnchorElement)) return;
@@ -39,10 +48,41 @@ export function useInAppLinks() {
       // A jump within this page is the browser's to make.
       if (to.startsWith(here + '#')) return;
       event.preventDefault();
-      if (to !== here) navigate(to);
+      if (to !== here)
+        void adoptSession().then(() =>
+          navigate(
+            to,
+            /^\/dashboard\/projects(?:\/|\?|$)/.test(to) ? { retainContent: true } : undefined,
+          ),
+        );
     };
     // After the page's own handlers, so a link that handles its click itself keeps doing so.
+    let timer: ReturnType<typeof setTimeout>;
+    const intent = (event: Event) => {
+      const anchor = (event.target as Element | null)?.closest?.(
+        '.v2-project-page a.dl-item[href]',
+      );
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      const url = new URL(anchor.href);
+      if (url.origin !== window.location.origin || !url.pathname.startsWith('/dashboard/projects/'))
+        return;
+      clearTimeout(timer);
+      const prefetch = () => void adoptSession().then(() => prefetchRSC(url.pathname + url.search));
+      if (event.type === 'focusin') prefetch();
+      else timer = setTimeout(prefetch, 80);
+    };
+    const cancel = () => clearTimeout(timer);
     document.addEventListener('click', click);
-    return () => document.removeEventListener('click', click);
+    document.addEventListener('pointerover', intent);
+    document.addEventListener('pointerout', cancel);
+    document.addEventListener('focusin', intent);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('storage', identityChanged);
+      document.removeEventListener('click', click);
+      document.removeEventListener('pointerover', intent);
+      document.removeEventListener('pointerout', cancel);
+      document.removeEventListener('focusin', intent);
+    };
   }, [navigate]);
 }

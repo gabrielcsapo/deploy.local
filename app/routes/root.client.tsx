@@ -1,6 +1,7 @@
 'use client';
 
-import { useNavigation } from 'react-flight-router/client';
+import { LoadingState } from '../components/LoadingState';
+import { useLocation, useNavigation } from 'react-flight-router/client';
 
 export function GlobalNavigationLoadingBar() {
   const { state } = useNavigation();
@@ -14,5 +15,13 @@ export function GlobalNavigationLoadingBar() {
         style={{ background: 'var(--gradient-brand)' }}
       />
     </div>
+  );
+}
+
+/** Project server reads stream without inserting a page skeleton into the document. */
+export function RootFallback({ seededProjects }: { seededProjects: boolean }) {
+  const { pathname } = useLocation();
+  return seededProjects && /^\/dashboard\/projects(?:\/|$)/.test(pathname) ? null : (
+    <LoadingState />
   );
 }

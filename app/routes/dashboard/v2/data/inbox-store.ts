@@ -1,3 +1,4 @@
+import type { DataSeed } from './seeds';
 import type { InboxItem } from '../../../../../shared/v2/contracts.ts';
 import type { InboxResponse } from '../../../../../shared/v2/api.ts';
 
@@ -10,8 +11,16 @@ const initial: InboxSnapshot = { items: [], loading: true, error: null };
 export function createInboxStore(
   request: typeof fetch,
   feed: EventFeed = createEventFeed(request),
+  seed?: DataSeed,
 ) {
-  let snapshot = initial;
+  const seeded = ['waiting', 'answered'].map(
+    (state) => seed?.data[`/api/v2/inbox?state=${state}`] as InboxResponse | undefined,
+  );
+  const serverSnapshot = seeded.every(Boolean)
+    ? { items: seeded.flatMap((p) => p!.items), loading: false, error: null }
+    : initial;
+  let snapshot = serverSnapshot;
+  let first = true;
   const versions = new Map<string, number>();
   const boundaries = new Map<string, number>();
   const listeners = new Set<() => void>();
@@ -82,7 +91,20 @@ export function createInboxStore(
     if (!response.ok) throw new Error('Inbox unavailable');
     return response.json();
   }
-  async function refresh(signal: AbortSignal) {
+  async function refresh(signal: AbortSignal, boundary?: number) {
+    if (
+      first &&
+      seed &&
+      Date.now() - seed.at < 10000 &&
+      seeded.every(Boolean) &&
+      (boundary ?? 0) <= (seed.cursor ?? -1)
+    ) {
+      first = false;
+      for (const [index, state] of ['waiting', 'answered'].entries())
+        boundaries.set(state, seeded[index]!.cursor ?? 0);
+      return;
+    }
+    first = false;
     const pages = await Promise.all(
       ['waiting', 'answered'].map((state) =>
         read<InboxResponse>(`/api/v2/inbox?state=${state}`, signal),
@@ -141,7 +163,7 @@ export function createInboxStore(
   }
   return {
     getSnapshot: () => snapshot,
-    getServerSnapshot: () => initial,
+    getServerSnapshot: () => serverSnapshot,
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (listeners.size === 1) start();

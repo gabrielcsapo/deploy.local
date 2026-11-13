@@ -7,6 +7,8 @@ test('known project counts survive refresh, failed reads and remounts; other pro
   const pending = [];
   const stubs = {
     '../data/hooks': {
+      onAuthReset: () => () => {},
+      eventFeed: { subscribe: () => () => {} },
       remembered: (path) => cache.get(path),
       remember: (path, value) => cache.set(path, value),
       authenticatedFetch: (path, init) =>
@@ -40,5 +42,57 @@ test('known project counts survive refresh, failed reads and remounts; other pro
   h.effects();
   assert.equal(read('/api/v2/projects/other/overview').data, undefined);
   assert.equal(pending[0].init.signal.aborted, true);
+  h.dispose();
+});
+
+test('a server seed skips the first request and refreshes after an event, including a subscription gap', async () => {
+  const path = '/api/v2/projects/p/overview';
+  const seed = { owner: 'owner', at: Date.now(), cursor: 10, data: { [path]: { name: 'server' } } };
+  let subscriber;
+  const requests = [];
+  const cache = new Map();
+  const h = await componentHarness(
+    'app/routes/dashboard/v2/projects/data.ts',
+    {
+      '../data/seeds': {
+        useDataSeed: () => seed,
+        freshSeed: (value, key) => value?.data[key] !== undefined,
+      },
+      '../data/hooks': {
+        remembered: (key, value) => cache.get(key) ?? value?.data[key],
+        remember: (key, value) => cache.set(key, value),
+        onAuthReset: () => () => {},
+        eventFeed: {
+          subscribe(value) {
+            subscriber = value;
+            return () => {};
+          },
+        },
+        authenticatedFetch: async (key) => {
+          requests.push(key);
+          return { ok: true, json: async () => ({ name: 'updated' }) };
+        },
+      },
+    },
+    { AbortController },
+  );
+  const read = () => h.render(() => h.exports.useData(path));
+  assert.equal(read().data.name, 'server');
+  h.effects();
+  await subscriber.snapshot(new AbortController().signal, 10);
+  await settle();
+  assert.deepEqual(requests, []);
+  subscriber.events([{ type: 'release' }]);
+  read();
+  h.effects();
+  await settle();
+  assert.equal(read().data.name, 'updated');
+  assert.deepEqual(requests, [path]);
+  // A reconnect still requests a fresh snapshot.
+  await subscriber.snapshot(new AbortController().signal, 11);
+  read();
+  h.effects();
+  await settle();
+  assert.equal(requests.length, 2);
   h.dispose();
 });

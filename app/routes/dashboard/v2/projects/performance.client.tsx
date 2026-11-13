@@ -1,9 +1,10 @@
 'use client';
+import { useProjectFormatting } from './formatting.ts';
 import { useRouter, useSearchParams } from 'react-flight-router/client';
 import { Action, Banner, Group, Icon, Item, Seg, Setting, Skeleton } from '@/components/ui';
 import { useData } from './data';
 import { projectSegment } from './routing';
-import { formatCount, formatWhen } from './requests';
+import { formatCount } from './requests';
 import {
   barPosition,
   errorLocation,
@@ -22,7 +23,6 @@ import {
   releaseVerdict,
   serverPhases,
   serverSegments,
-  seenAgo,
   timing,
   waterfallScale,
   type PageExperience,
@@ -328,6 +328,7 @@ function PageExperiences({ data }: { data: PerformanceData }) {
   );
 }
 function ErrorDetail({ error, from, to }: { error: PerformanceError; from: number; to: number }) {
+  const { formatWhen } = useProjectFormatting();
   const where = errorLocation(error.where);
   const occurrences = errorOccurrences(error, from, to);
   return (
@@ -373,6 +374,7 @@ function ErrorDetail({ error, from, to }: { error: PerformanceError; from: numbe
   );
 }
 function Releases({ releases }: { releases: PerformanceData['releases'] }) {
+  const { formatWhen } = useProjectFormatting();
   if (!releases.length) return null;
   return (
     <section className="dl-section">
@@ -450,6 +452,7 @@ export function PerformanceView({
   refresh: () => void;
   onRange: (range: PerformanceRange) => void;
 }) {
+  const { seenAgo } = useProjectFormatting();
   const selected = data?.errors.find((entry) => entry.fingerprint === errorId);
   const state = data ? performanceState(data) : undefined;
   const scale = data ? waterfallScale(data.routes) : 1;

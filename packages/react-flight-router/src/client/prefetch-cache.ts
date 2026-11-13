@@ -24,6 +24,7 @@ interface PrefetchEntry {
 const prefetchCache = new Map<string, PrefetchEntry>();
 
 // In-flight prefetch promises to avoid duplicate requests.
+let generation = 0;
 const inflightPrefetches = new Map<string, Promise<void>>();
 
 function cacheKey(to: string): string {
@@ -36,6 +37,13 @@ function dropEntry(key: string, entry: PrefetchEntry): void {
   prefetchCache.delete(key);
   // Release the unread body so the browser can free the connection/buffer.
   entry.response.body?.cancel().catch(() => {});
+}
+
+/** Drop credentials-sensitive speculative responses when the host changes identity. */
+export function clearPrefetchCache(): void {
+  generation++;
+  for (const [key, entry] of prefetchCache) dropEntry(key, entry);
+  inflightPrefetches.clear();
 }
 
 /**
@@ -51,10 +59,15 @@ export function prefetchRSC(to: string): void {
   }
   if (inflightPrefetches.has(key)) return;
 
+  const startedGeneration = generation;
   const promise = fetch(`${RSC_ENDPOINT}?url=${encodeURIComponent(key)}`, {
     priority: 'low' as RequestPriority,
   })
     .then((response) => {
+      if (startedGeneration !== generation) {
+        response.body?.cancel().catch(() => {});
+        return;
+      }
       if (response.ok && response.body) {
         // Evict oldest entries to stay under the cap (Map preserves
         // insertion order, so the first key is the oldest).
@@ -70,7 +83,7 @@ export function prefetchRSC(to: string): void {
       // Prefetch failure is non-critical
     })
     .finally(() => {
-      inflightPrefetches.delete(key);
+      if (inflightPrefetches.get(key) === promise) inflightPrefetches.delete(key);
     });
 
   inflightPrefetches.set(key, promise);

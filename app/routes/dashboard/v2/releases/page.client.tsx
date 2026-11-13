@@ -20,6 +20,8 @@ import type {
   Rollback,
   RollbackDataLoss,
 } from '../../../../../shared/v2/contracts';
+import { useDataSeed, freshSeed } from '../data/seeds';
+import { remembered } from '../data/hooks';
 import { authenticatedFetch, eventFeed } from '../data/hooks';
 import './releases.css';
 import { projectPath } from '../projects/routing';
@@ -149,9 +151,21 @@ export default function Releases() {
   const segments = pathname.split('/').filter(Boolean).map(decodeURIComponent);
   const projectKey = segments[2],
     releaseId = segments[4];
-  const [project, setProject] = useState<Project>();
-  const [releases, setReleases] = useState<Release[]>();
-  const [rollbacks, setRollbacks] = useState<Rollback[]>([]);
+  const seed = useDataSeed();
+  const seededProjects = remembered<{ projects: Project[] }>('/api/v2/projects', seed)?.projects;
+  const seededProject = seededProjects?.find((p) => p.id === projectKey || p.name === projectKey);
+  const seedPath = `/api/v2/projects/${encodeURIComponent(projectKey)}`;
+  const seededReleases = remembered<{ releases: Release[] }>(
+    `${seedPath}/releases`,
+    seed,
+  )?.releases;
+  const seededRollbacks = remembered<{ rollbacks: Rollback[] }>(
+    `${seedPath}/rollbacks`,
+    seed,
+  )?.rollbacks;
+  const [project, setProject] = useState<Project | undefined>(seededProject);
+  const [releases, setReleases] = useState<Release[] | undefined>(seededReleases);
+  const [rollbacks, setRollbacks] = useState<Rollback[]>(seededRollbacks ?? []);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const [dialog, setDialog] = useState(false);
@@ -165,9 +179,11 @@ export default function Releases() {
   const appQuery = selectedApp ? `?app=${encodeURIComponent(selectedApp.name)}` : '';
   const apiProject = `/projects/${encodeURIComponent(projectKey)}`;
   useEffect(() => {
-    let loaded = false;
-    setReleases(undefined);
-    setProject(undefined);
+    let loaded = !!seededReleases;
+    let skipSnapshot =
+      retry === 0 &&
+      freshSeed(seed, `${seedPath}/releases`) &&
+      freshSeed(seed, `${seedPath}/rollbacks`);
     setError('');
     setDialog(false);
     async function sync(signal: AbortSignal) {
@@ -194,7 +210,13 @@ export default function Releases() {
       }
     }
     return eventFeed.subscribe({
-      snapshot: sync,
+      snapshot: async (signal, boundary) => {
+        if (skipSnapshot && (boundary ?? 0) <= (seed?.cursor ?? -1)) {
+          skipSnapshot = false;
+          return true;
+        }
+        return sync(signal);
+      },
       async events(events, signal) {
         if (events.some((event) => event.type === 'release' || event.type === 'rollback'))
           if (!(await sync(signal))) throw new Error('Snapshot unavailable');
@@ -212,7 +234,7 @@ export default function Releases() {
         setDialog(false);
       },
     });
-  }, [projectKey, apiProject, retry]);
+  }, [projectKey, apiProject, retry, seed, seedPath, seededReleases]);
   const selected =
     releases?.find((release) => release.id === releaseId) ||
     (!releaseId ? releases?.[0] : undefined);

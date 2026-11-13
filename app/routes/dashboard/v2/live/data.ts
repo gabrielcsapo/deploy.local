@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { InboxItem, LiveAppResponse, LiveResponse } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, eventFeed, remember, remembered } from '../data/hooks';
+import { useDataSeed, freshSeed } from '../data/seeds';
 
 export async function liveRequest<T>(
   path: string,
@@ -26,22 +27,44 @@ export async function liveRequest<T>(
 }
 
 export function useLive(appId?: string) {
+  const seed = useDataSeed();
   const detailKey = appId && `/api/v2/live/${encodeURIComponent(appId)}`;
-  const [live, setLive] = useState(() => remembered<LiveResponse>('/api/v2/live'));
+  const initialLive = () => remembered<LiveResponse>('/api/v2/live', seed);
+  const initialDetail = () =>
+    detailKey ? remembered<LiveAppResponse>(detailKey, seed) : undefined;
+  const initialItems = () =>
+    remembered<{ items: InboxItem[] }>('/api/v2/inbox?state=waiting', seed)?.items ?? [];
+  const [loadedSeed, setLoadedSeed] = useState(seed);
+  const [live, setLive] = useState(initialLive);
   const [detail, setDetail] = useState(() =>
-    detailKey ? remembered<LiveAppResponse>(detailKey) : undefined,
+    detailKey ? remembered<LiveAppResponse>(detailKey, seed) : undefined,
   );
-  const [items, setItems] = useState<InboxItem[]>([]);
-  const [error, setError] = useState('');
+  const [items, setItems] = useState<InboxItem[]>(() => (seed ? initialItems() : []));
+  const [error, setError] = useState(
+    () => seed?.errors?.[detailKey || '/api/v2/live'] ?? seed?.errors?.['/api/v2/live'] ?? '',
+  );
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let controller = new AbortController();
     let loading: Promise<boolean> | undefined;
     let stopped = false;
-    let loaded = false;
+    let loaded =
+      !!seed &&
+      !!remembered<LiveResponse>('/api/v2/live', seed) &&
+      (!detailKey || !!remembered<LiveAppResponse>(detailKey, seed));
+    let skipSnapshot =
+      attempt === 0 &&
+      freshSeed(seed, '/api/v2/live') &&
+      freshSeed(seed, '/api/v2/inbox?state=waiting') &&
+      (!detailKey || freshSeed(seed, detailKey));
     // What Live showed last stays on screen while it refreshes.
-    setLive(remembered<LiveResponse>('/api/v2/live'));
-    setDetail(detailKey ? remembered<LiveAppResponse>(detailKey) : undefined);
+    setLoadedSeed(seed);
+    setLive(remembered<LiveResponse>('/api/v2/live', seed));
+    setDetail(detailKey ? remembered<LiveAppResponse>(detailKey, seed) : undefined);
+    if (seed)
+      setItems(
+        remembered<{ items: InboxItem[] }>('/api/v2/inbox?state=waiting', seed)?.items ?? [],
+      );
     async function refresh(signal = controller.signal): Promise<boolean> {
       // An event may arrive during a periodic read. Finish that read, then take another
       // snapshot; merely sharing its promise could miss the event that triggered us.
@@ -81,7 +104,16 @@ export function useLive(appId?: string) {
       }
     }
     const unsubscribe = eventFeed.subscribe({
-      snapshot: refresh,
+      async snapshot(signal, boundary) {
+        const skip = skipSnapshot;
+        skipSnapshot = false;
+        if (
+          skip &&
+          !(boundary !== undefined && seed?.cursor !== undefined && boundary > seed.cursor)
+        )
+          return;
+        await refresh(signal);
+      },
       async events(events, signal) {
         if (events.some((event) => ['health', 'inbox', 'release', 'rollback'].includes(event.type)))
           if (!(await refresh(signal))) throw new Error('Snapshot unavailable');
@@ -109,6 +141,12 @@ export function useLive(appId?: string) {
       clearInterval(timer);
       unsubscribe();
     };
-  }, [appId, detailKey, attempt]);
-  return { live, detail, items, error, retry: () => setAttempt((value) => value + 1) };
+  }, [appId, detailKey, attempt, seed]);
+  return {
+    live: loadedSeed === seed ? live : initialLive(),
+    detail: loadedSeed === seed ? detail : initialDetail(),
+    items: loadedSeed === seed ? items : initialItems(),
+    error,
+    retry: () => setAttempt((value) => value + 1),
+  };
 }

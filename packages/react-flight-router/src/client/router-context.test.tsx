@@ -561,3 +561,88 @@ describe('navigation telemetry', () => {
     );
   });
 });
+
+describe('retaining revealed content', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+  it('keeps the previous page and pending target through both fetch and streamed suspension', async () => {
+    const { render, screen } = await import('@testing-library/react');
+    const { Suspense } = await import('react');
+    vi.stubGlobal('location', { origin: 'http://localhost', pathname: '/current', search: '' });
+    vi.stubGlobal('history', { state: { key: 'test' }, replaceState: vi.fn(), pushState: vi.fn() });
+    let respond!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            respond = resolve;
+          }),
+      ),
+    );
+    let ready = false;
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      release = () => {
+        ready = true;
+        resolve();
+      };
+    });
+    function Destination() {
+      if (!ready) throw waiting;
+      return createElement('p', null, 'Destination');
+    }
+    let router!: ReturnType<typeof useRouter>;
+    function View() {
+      router = useRouter();
+      return createElement(
+        'div',
+        null,
+        createElement('output', null, router.pendingUrl ?? 'idle'),
+        createElement(
+          Suspense,
+          { fallback: createElement('p', null, 'Fallback') },
+          router.segments['root/page'],
+        ),
+      );
+    }
+    render(
+      createElement(RouterProvider, {
+        initialUrl: '/current',
+        initialParams: {},
+        initialSegments: { 'root/page': createElement('p', null, 'Previous page') },
+        initialBoundaryComponents: { root: { loading: 'Fallback' } },
+        createFromReadableStream: async () => ({
+          segments: { 'root/page': createElement(Destination) },
+          params: {},
+        }),
+        callServer: noop,
+        children: createElement(View),
+      }),
+    );
+    let navigation: unknown;
+    await act(async () => {
+      navigation = router.navigate('/next', { retainContent: true });
+    });
+    expect(screen.getByText('Previous page')).toBeTruthy();
+    expect(screen.getByText('/next')).toBeTruthy();
+    expect(screen.queryByText('Fallback')).toBeNull();
+    await act(async () => {
+      respond(new Response('{}'));
+      await navigation;
+    });
+    expect(screen.getByText('Previous page')).toBeTruthy();
+    expect(screen.getByText('/next')).toBeTruthy();
+    expect(screen.queryByText('Fallback')).toBeNull();
+    await act(async () => {
+      release();
+      await waiting;
+    });
+    expect(screen.getByText('Destination')).toBeTruthy();
+    expect(screen.queryByText('Previous page')).toBeNull();
+    expect(router.pendingUrl).toBeNull();
+  });
+});

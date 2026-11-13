@@ -1,4 +1,5 @@
 'use client';
+import { useProjectFormatting } from './formatting.ts';
 import { useEffect, useState, type PointerEvent } from 'react';
 import { useRouter, useSearchParams } from 'react-flight-router/client';
 import {
@@ -17,18 +18,12 @@ import {
 import { useData } from './data';
 import { projectSegment } from './routing';
 import {
-  chartTicks,
   chartBucket,
   chartKeyBucket,
-  chartReadout,
   errorRateLine,
-  errorsLine,
   formatBytes,
   formatCount,
   formatDuration,
-  formatRequestTime,
-  formatRowTime,
-  peakWhen,
   pathLine,
   rangeWords,
   requestRanges,
@@ -53,6 +48,7 @@ function StatusCode({ status, children }: { status: number; children?: string })
 }
 
 function Chart({ summary }: { summary: RequestSummary }) {
+  const { chartReadout, chartTicks, peakWhen } = useProjectFormatting();
   const points = summary.series.points;
   const [bucket, setBucket] = useState<number | null>(null);
   const selectedPoint = bucket === null ? undefined : points[bucket];
@@ -164,6 +160,7 @@ export function AppRequests({
   address?: string;
   base: string;
 }) {
+  const { errorsLine, formatRowTime } = useProjectFormatting();
   const [params] = useSearchParams();
   const { navigate } = useRouter();
   const range = (
@@ -401,6 +398,7 @@ export function AppRequest({
   base: string;
   logs: string;
 }) {
+  const { formatRequestTime } = useProjectFormatting();
   if (detail.error)
     return (
       <Banner

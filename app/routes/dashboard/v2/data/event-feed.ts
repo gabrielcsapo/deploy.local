@@ -6,7 +6,7 @@ const INITIAL_RETRY_MS = 250;
 const MAX_RETRY_MS = 1000;
 
 type Subscriber = {
-  snapshot(signal: AbortSignal): Promise<boolean | void>;
+  snapshot(signal: AbortSignal, boundary?: number): Promise<boolean | void>;
   events(events: V2Event[], signal: AbortSignal): void | Promise<void>;
   error(reason: unknown, phase: 'connection' | 'snapshot' | 'events'): void;
   reset?(): void;
@@ -68,7 +68,8 @@ export function createEventFeed(request: typeof fetch) {
         if (active.snapshot) {
           phase = 'snapshot';
           active.snapshot = false;
-          if ((await sub.snapshot(signal)) === false) throw new Error('Snapshot unavailable');
+          if ((await sub.snapshot(signal, active.boundary)) === false)
+            throw new Error('Snapshot unavailable');
           signal.throwIfAborted();
         } else {
           phase = 'events';

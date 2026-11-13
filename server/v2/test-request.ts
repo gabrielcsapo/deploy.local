@@ -13,7 +13,8 @@ export function routeFetch(
       {
         url: parsed.pathname + parsed.search,
         method: init.method || 'GET',
-        headers: Object.fromEntries(new Headers(init.headers)),
+        socket: { remoteAddress: '127.0.0.1', encrypted: parsed.protocol === 'https:' },
+        headers: { host: parsed.host, ...Object.fromEntries(new Headers(init.headers)) },
       },
     );
     const chunks: Buffer[] = [];
@@ -28,10 +29,17 @@ export function routeFetch(
         },
       }),
       {
+        setHeader(name: string, value: string) {
+          headers[name.toLowerCase()] = value;
+          return response;
+        },
+        getHeader(name: string) {
+          return headers[name.toLowerCase()];
+        },
         writeHead(code: number, values: Record<string, string> = {}) {
           sent = true;
           status = code;
-          headers = values;
+          for (const [name, value] of Object.entries(values)) headers[name.toLowerCase()] = value;
           return response;
         },
       },

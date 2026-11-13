@@ -1,4 +1,5 @@
 'use client';
+import { useProjectFormatting } from './formatting.ts';
 import { useEffect, useRef, useState } from 'react';
 import {
   Action,
@@ -12,7 +13,7 @@ import {
   Term,
 } from '@/components/ui';
 import { request, useData } from './data';
-import { formatTime } from '../data/time';
+
 import './pipelines.css';
 const elapsed = (start?: string, end?: string) => {
   if (!start || !end) return '';
@@ -31,6 +32,7 @@ const failureSummary = (entry: any) =>
       ? 'publish failed'
       : 'release failed';
 export function ProjectPipelines({ projectId }: { projectId: string }) {
+  const { formatTime } = useProjectFormatting();
   const path = `/api/workspace/projects/${encodeURIComponent(projectId)}/pipelines`;
   const runs = useData<any>(path);
   const runSelector = useRef<HTMLButtonElement>(null);

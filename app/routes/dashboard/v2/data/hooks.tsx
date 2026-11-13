@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { useDataSeed, freshSeed, resourceKey, type DataSeed } from './seeds';
 import { getAuth } from '../../detail/shared';
 import { createEventFeed } from './event-feed';
 import { createInboxStore } from './inbox-store';
@@ -55,7 +56,9 @@ export function CoordinatorNameProvider({
   return <CoordinatorName.Provider value={name}>{children}</CoordinatorName.Provider>;
 }
 export function useCoordinatorName() {
-  return useContext(CoordinatorName);
+  const seed = useDataSeed();
+  const name = useContext(CoordinatorName);
+  return seed?.coordinatorName ?? name;
 }
 
 export const authenticatedFetch: typeof fetch = (input, init) => {
@@ -87,7 +90,8 @@ export function onAuthReset(listener: () => void) {
 
 const InboxContext = createContext<ReturnType<typeof createInboxStore> | null>(null);
 export function InboxProvider({ children }: { children: ReactNode }) {
-  const [store] = useState(() => createInboxStore(authenticatedFetch, eventFeed));
+  const seed = useDataSeed();
+  const [store] = useState(() => createInboxStore(authenticatedFetch, eventFeed, seed));
   return <InboxContext.Provider value={store}>{children}</InboxContext.Provider>;
 }
 export function useInbox() {
@@ -105,7 +109,17 @@ export function useInbox() {
  * The last answer for each path, so a page that mounts again (switching tabs, going back) shows
  * what it had at once and refreshes behind it instead of blanking to a loading state.
  */
-const resources = new Map<string, unknown>();
+const resources = new Map<string, { data: unknown; at: number }>();
+let resourceIdentity: string | undefined;
+function browserResources() {
+  if (typeof window === 'undefined') return undefined;
+  const identity = JSON.stringify(getAuth());
+  if (identity !== resourceIdentity) {
+    resources.clear();
+    resourceIdentity = identity;
+  }
+  return resources;
+}
 if (typeof window !== 'undefined')
   window.addEventListener('storage', (event) => {
     if (event.key !== 'deploy-sh-auth' && event.key !== null) return;
@@ -113,17 +127,47 @@ if (typeof window !== 'undefined')
     eventFeed.reset();
     for (const reset of authResetListeners) reset();
   });
-export const remembered = <T,>(path: string) => resources.get(path) as T | undefined;
-export const remember = (path: string, data: unknown) => resources.set(path, data);
+export const remembered = <T,>(path: string, seed?: DataSeed): T | undefined => {
+  path = resourceKey(path);
+  const cached = browserResources()?.get(path);
+  if (seed && Object.hasOwn(seed.data, path) && (!cached || cached.at <= seed.at))
+    return seed.data[path] as T;
+  return cached?.data as T | undefined;
+};
+export const remember = (path: string, data: unknown) =>
+  browserResources()?.set(resourceKey(path), { data, at: Date.now() });
 
-export function useResource<T>(path: string, optional = false) {
-  const [state, setState] = useState<{ data: T | null; loading: boolean; error: boolean }>(() => {
-    const data = remembered<T | null>(path);
-    return { data: data ?? null, loading: data === undefined, error: false };
-  });
+export function useResource<T>(
+  path: string,
+  optional = false,
+): { data: T | null; loading: boolean; error: boolean } {
+  const seed = useDataSeed();
+  const initial = (): {
+    path: string;
+    seed: DataSeed | undefined;
+    data: T | null;
+    loading: boolean;
+    error: boolean;
+  } => {
+    const data = remembered<T | null>(path, seed);
+    return {
+      path,
+      seed,
+      data: data ?? null,
+      loading: data === undefined && !seed?.errors?.[resourceKey(path)],
+      error: !!seed?.errors?.[resourceKey(path)],
+    };
+  };
+  const [state, setState] = useState(initial);
   useEffect(() => {
-    const data = remembered<T | null>(path);
-    setState({ data: data ?? null, loading: data === undefined, error: false });
+    const data = remembered<T | null>(path, seed);
+    setState({
+      path,
+      seed,
+      data: data ?? null,
+      loading: data === undefined && !seed?.errors?.[resourceKey(path)],
+      error: !!seed?.errors?.[resourceKey(path)],
+    });
     let controller: AbortController;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
@@ -133,33 +177,51 @@ export function useResource<T>(path: string, optional = false) {
         const data = await readResource<T>(authenticatedFetch, path, signal, optional);
         if (!signal.aborted) {
           remember(path, data);
-          setState({ data, loading: false, error: false });
+          setState({ path, seed, data, loading: false, error: false });
         }
       } catch {
-        if (!signal.aborted) setState({ data: null, loading: false, error: true });
+        if (!signal.aborted) setState((previous) => ({ ...previous, loading: false, error: true }));
       }
       if (!signal.aborted) timer = setTimeout(() => void refresh(), 10000);
     };
-    const reset = () => {
-      controller?.abort();
-      clearTimeout(timer);
-      setState({ data: null, loading: true, error: false });
-      void refresh();
-    };
-    void refresh();
     const changed = () => {
       controller?.abort();
       clearTimeout(timer);
       void refresh();
     };
+    const reset = () => {
+      setState({ path, seed: undefined, data: null, loading: true, error: false });
+      changed();
+    };
+    if (freshSeed(seed, path))
+      timer = setTimeout(() => void refresh(), Math.max(0, 10000 - (Date.now() - seed!.at)));
+    else void refresh();
+    let first = true;
+    const offEvents = seed
+      ? eventFeed.subscribe({
+          async snapshot(_signal, boundary) {
+            if (
+              !first ||
+              (boundary !== undefined && seed.cursor !== undefined && boundary > seed.cursor)
+            )
+              changed();
+            first = false;
+          },
+          events(events) {
+            if (events.length) changed();
+          },
+          error() {},
+        })
+      : undefined;
     window.addEventListener('deploy:agents-changed', changed);
     const offReset = onAuthReset(reset);
     return () => {
       controller?.abort();
       clearTimeout(timer);
       offReset();
+      offEvents?.();
       window.removeEventListener('deploy:agents-changed', changed);
     };
-  }, [path, optional]);
-  return state;
+  }, [path, optional, seed]);
+  return state.path === path && state.seed === seed ? state : initial();
 }

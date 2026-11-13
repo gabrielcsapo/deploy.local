@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  startTransition,
   createContext,
   createElement,
   useContext,
@@ -29,6 +30,8 @@ const suspenseSentinelElement = createElement(SuspenseSentinel);
 export interface NavigateOptions {
   /** Use replaceState instead of pushState */
   replace?: boolean;
+  /** Keep revealed content while the destination suspends, committing it in a transition. */
+  retainContent?: boolean;
   /**
    * Keep the current scroll position instead of resetting to the top of the
    * page. Use it for URL changes that don't replace what the user is reading —
@@ -374,7 +377,7 @@ export function RouterProvider({
       // with suspense sentinels. This triggers Suspense fallbacks before
       // the server responds, giving instant visual feedback.
       const currentBoundaries = boundaryComponentsRef.current;
-      if (Object.keys(currentBoundaries).length > 0) {
+      if (!options?.retainContent && Object.keys(currentBoundaries).length > 0) {
         setSegments((prev) => {
           const next = { ...prev };
           for (const key of Object.keys(prev)) {
@@ -454,12 +457,13 @@ export function RouterProvider({
             payload.redirect.declared && targetUrl.hash && !payload.redirect.url.includes('#')
               ? payload.redirect.url + targetUrl.hash
               : payload.redirect.url;
-          navigate(destination, { replace: true }, navigation);
+          navigate(destination, { ...options, replace: true }, navigation);
           return;
         }
 
+        let nextStyles: Awaited<ReturnType<typeof prepareStylesheets>> | undefined;
         if (payload.cssFiles) {
-          const nextStyles = await prepareStylesheets(
+          nextStyles = await prepareStylesheets(
             payload.cssFiles,
             payload.cssOrder ?? cssOrder ?? [],
           );
@@ -467,45 +471,50 @@ export function RouterProvider({
             nextStyles.dispose();
             return;
           }
-          setStyles(nextStyles);
         }
 
-        if (payload.segmentKeys) {
-          // Partial update: merge new segments with existing, remove stale keys
-          setSegments((prev) => {
-            const next: Record<string, ReactNode> = {};
-            for (const key of payload.segmentKeys) {
-              next[key] = payload.segments[key] ?? prev[key];
-            }
-            return next;
-          });
-        } else {
-          // Full update: replace all segments
-          setSegments(payload.segments);
-        }
+        const commit = () => {
+          if (navId !== navigationIdRef.current) return;
+          if (nextStyles) setStyles(nextStyles);
+          if (payload.segmentKeys) {
+            // Partial update: merge new segments with existing, remove stale keys
+            setSegments((prev) => {
+              const next: Record<string, ReactNode> = {};
+              for (const key of payload.segmentKeys) {
+                next[key] = payload.segments[key] ?? prev[key];
+              }
+              return next;
+            });
+          } else {
+            // Full update: replace all segments
+            setSegments(payload.segments);
+          }
 
-        // Merge boundary components from full renders
-        if (payload.boundaryComponents) {
-          setBoundaryComponents((prev) => ({
-            ...prev,
-            ...payload.boundaryComponents,
-          }));
-        }
+          // Merge boundary components from full renders
+          if (payload.boundaryComponents) {
+            setBoundaryComponents((prev) => ({
+              ...prev,
+              ...payload.boundaryComponents,
+            }));
+          }
 
-        if (navigation && payload.route)
-          pendingTelemetry.current = { url: to, route: payload.route, navigation, prefetch };
-        setUrl(to);
-        // Sync the ref immediately — it normally updates during render, but a
-        // navigation that starts before React flushes (e.g. a popstate right
-        // after a redirect-follow applied) would read the stale url and send
-        // the wrong X-RSC-Previous-URL. The server would then diff the target
-        // against itself, return an empty partial payload, and the merge
-        // would drop the segments this navigation just applied.
-        urlRef.current = to;
-        setParams(payload.params ?? {});
-        setPendingUrl(null);
+          if (navigation && payload.route)
+            pendingTelemetry.current = { url: to, route: payload.route, navigation, prefetch };
+          setUrl(to);
+          // Sync the ref immediately — it normally updates during render, but a
+          // navigation that starts before React flushes (e.g. a popstate right
+          // after a redirect-follow applied) would read the stale url and send
+          // the wrong X-RSC-Previous-URL. The server would then diff the target
+          // against itself, return an empty partial payload, and the merge
+          // would drop the segments this navigation just applied.
+          urlRef.current = to;
+          setParams(payload.params ?? {});
+          setPendingUrl(null);
 
-        // If the target URL has a hash fragment, scroll to that element
+          // If the target URL has a hash fragment, scroll to that element
+        };
+        if (options?.retainContent) startTransition(commit);
+        else commit();
         if (targetUrl.hash) {
           requestAnimationFrame(() => {
             const element = document.getElementById(targetUrl.hash.slice(1));

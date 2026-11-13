@@ -3,9 +3,15 @@ export function formatTime(
   value: string | number | Date | undefined,
   style: 'relative' | 'elapsed' | 'clock' | 'day' | 'list' = 'relative',
   now: Date = new Date(),
+  timeZone?: string,
 ) {
   if (value === undefined) return 'Unavailable';
-  const date = new Date(value);
+  let date = new Date(value);
+  const elapsedMs = now.getTime() - date.getTime();
+  if (timeZone) {
+    date = new Date(date.toLocaleString('en-US', { timeZone }));
+    now = new Date(now.toLocaleString('en-US', { timeZone }));
+  }
   if (!Number.isFinite(date.getTime())) return 'Unavailable';
   if (style === 'clock')
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -15,7 +21,7 @@ export function formatTime(
   const sameDay = date.toDateString() === now.toDateString();
   const previousDay = date.toDateString() === yesterday.toDateString();
   if (style === 'list') {
-    if (now.getTime() - date.getTime() < 60000) return 'now';
+    if (elapsedMs < 60000) return 'now';
     if (sameDay)
       return `${date.getHours() % 12 || 12}:${String(date.getMinutes()).padStart(2, '0')}`;
     if (previousDay) return 'Yesterday';
@@ -37,7 +43,7 @@ export function formatTime(
       ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {}),
     });
   }
-  const seconds = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
+  const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
   if (style === 'relative' && seconds < 60) return 'Just now';
   if (style === 'relative' && previousDay) return 'Yesterday';
   const amount =

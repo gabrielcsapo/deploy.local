@@ -1,6 +1,7 @@
 'use client';
+import { useDataSeed } from './v2/data/seeds';
 import { reviewHref } from './v2/design/review-model';
-import { formatTime } from './v2/data/time';
+import { useProjectFormatting } from './v2/projects/formatting.ts';
 import {
   Suspense,
   useCallback,
@@ -21,7 +22,6 @@ import {
   useResource,
 } from './v2/data/hooks';
 import {
-  dayLabel,
   taskState,
   type WorkspaceState,
   type SidebarAgent,
@@ -66,6 +66,8 @@ export function V2Sidebar({
     'open' | 'onOpenChange' | 'popoverId' | 'returnFocusRef'
   >;
 }) {
+  const { formatTime } = useProjectFormatting();
+  const dayLabel = (value: string) => formatTime(value, 'day');
   const { inbox, workspace, live, user, computers } = data;
   const agents = data.agents.data?.agents ?? [];
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
@@ -361,6 +363,7 @@ function PageLoading() {
 }
 
 function V2Shell() {
+  const seed = useDataSeed();
   const data = useSidebarData();
   const { pathname } = useLocation();
   const [navigation, setNavigation] = useState({ collapsed: false, updateOpen: false });
@@ -488,7 +491,9 @@ function V2Shell() {
         <CoordinatorNameProvider nodes={data.computers.data?.nodes}>
           <AgentNamesProvider agents={data.agents.data?.agents}>
             {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
-            <Suspense fallback={<PageLoading />}>
+            <Suspense
+              fallback={seed && pathname.startsWith('/dashboard/projects') ? null : <PageLoading />}
+            >
               <Outlet />
             </Suspense>
           </AgentNamesProvider>

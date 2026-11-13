@@ -10,6 +10,7 @@ async function createFlightClient(): Promise<ClientHandler> {
   try {
     flightApp = await createFlightServer({
       buildDir: './dist',
+      cacheControl: { html: 'private, no-store, no-transform' },
       // The app has no server actions, so the router starts no worker threads.
       // Bound the synchronous render phase. Without this, a stuck server
       // component (e.g. awaiting an unreachable upstream) pins the request
@@ -34,9 +35,7 @@ async function createFlightClient(): Promise<ClientHandler> {
   }
   // Converts the request, strips HTTP/2 pseudo-headers and hop-by-hop headers,
   // writes at the client's pace and stops the render when the client leaves.
-  // The router's default Cache-Control makes the HTML document revalidate on
-  // every load (`no-cache`), so a page left open across a release never asks
-  // for hashed chunks that were deleted.
+  // Identity-bearing HTML is served `private, no-store`; boot.ts clears a revoked sign-in cookie.
   return flightApp.nodeListener;
 }
 

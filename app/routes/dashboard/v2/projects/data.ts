@@ -1,5 +1,6 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { authenticatedFetch, remember, remembered } from '../data/hooks';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { authenticatedFetch, remember, remembered, onAuthReset, eventFeed } from '../data/hooks';
+import { useDataSeed, freshSeed, resourceKey } from '../data/seeds';
 import type { Project } from '../../../../../shared/v2/contracts';
 export { authenticatedFetch };
 export async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
@@ -13,32 +14,75 @@ export async function request<T = any>(path: string, init: RequestInit = {}): Pr
 }
 /** Data for a path; a path read before shows its last answer at once while it refreshes. */
 export function useData<T>(path: string | undefined) {
-  const [answer, setAnswer] = useState<{ path: string | undefined; data: T | undefined }>(() => ({
+  const seed = useDataSeed();
+  const lastVersion = useRef(0);
+  const [answer, setAnswer] = useState<{
+    path: string | undefined;
+    data: T | undefined;
+    seed: typeof seed;
+  }>(() => ({
     path,
-    data: path ? remembered<T>(path) : undefined,
+    seed,
+    data: path ? remembered<T>(path, seed) : undefined,
   }));
-  const data = answer.path === path ? answer.data : path ? remembered<T>(path) : undefined;
-  const [error, setError] = useState('');
+  const data =
+    answer.path === path && answer.seed === seed
+      ? answer.data
+      : path
+        ? remembered<T>(path, seed)
+        : undefined;
+  const seededError = path ? (seed?.errors?.[resourceKey(path)] ?? '') : '';
+  const [error, setError] = useState(seededError);
   const [version, refresh] = useState(0);
   useEffect(() => {
+    const forced = version !== lastVersion.current;
+    lastVersion.current = version;
     // A refresh retains the current answer even if the shared cache was evicted.
     setAnswer((previous) =>
-      previous.path === path ? previous : { path, data: path ? remembered<T>(path) : undefined },
+      previous.path === path && previous.seed === seed
+        ? previous
+        : { path, seed, data: path ? remembered<T>(path, seed) : undefined },
     );
-    setError('');
-    if (!path) return;
+    setError(!forced ? seededError : '');
+    if (!path || (!forced && freshSeed(seed, path))) return;
     const controller = new AbortController();
     request<T>(path, { signal: controller.signal })
       .then((value) => {
         if (controller.signal.aborted) return;
         remember(path, value);
-        setAnswer({ path, data: value });
+        setAnswer({ path, seed, data: value });
       })
       .catch((error) => {
         if (!controller.signal.aborted) setError(error.message);
       });
     return () => controller.abort();
-  }, [path, version]);
+  }, [path, version, seed, seededError]);
+  useEffect(
+    () =>
+      onAuthReset(() => {
+        setAnswer({ path, seed: undefined, data: undefined });
+        refresh((n) => n + 1);
+      }),
+    [path],
+  );
+  useEffect(() => {
+    if (!seed || !path) return;
+    let first = true;
+    return eventFeed.subscribe({
+      async snapshot(_signal, boundary) {
+        if (
+          !first ||
+          (boundary !== undefined && seed.cursor !== undefined && boundary > seed.cursor)
+        )
+          refresh((n) => n + 1);
+        first = false;
+      },
+      events(events) {
+        if (events.length) refresh((n) => n + 1);
+      },
+      error() {},
+    });
+  }, [seed, path]);
   return { data, error, refresh: () => refresh((n) => n + 1) };
 }
 export type Work = {
@@ -86,9 +130,10 @@ export function useBrowserHost() {
   return origin ? new URL(origin).host : '';
 }
 export function useBrowserOrigin() {
+  const seed = useDataSeed();
   return useSyncExternalStore(
     subscribeToNothing,
     () => window.location.origin,
-    () => '',
+    () => seed?.origin ?? '',
   );
 }

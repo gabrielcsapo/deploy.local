@@ -118,15 +118,20 @@ export function formatRate(rate: number) {
   return `${Math.round(percent)}%`;
 }
 
-const clock = (at: number, seconds = false) =>
+const clock = (at: number, seconds = false, timeZone?: string) =>
   new Date(at).toLocaleTimeString('en-US', {
+    timeZone,
     hour: 'numeric',
     minute: '2-digit',
     ...(seconds ? { second: '2-digit' } : {}),
   });
-const dayOf = (at: number, now: number) => {
-  const date = new Date(at);
-  const today = new Date(now);
+const dayOf = (at: number, now: number, timeZone?: string) => {
+  const date = timeZone
+    ? new Date(new Date(at).toLocaleString('en-US', { timeZone }))
+    : new Date(at);
+  const today = timeZone
+    ? new Date(new Date(now).toLocaleString('en-US', { timeZone }))
+    : new Date(now);
   if (date.toDateString() === today.toDateString()) return 'today';
   const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) return 'yesterday';
@@ -134,48 +139,57 @@ const dayOf = (at: number, now: number) => {
 };
 
 /** "1:58 PM", "yesterday at 1:58 PM", "Nov 2 at 1:58 PM". */
-export function formatWhen(at: number, now = Date.now(), seconds = false) {
-  const day = dayOf(at, now);
-  return day === 'today' ? clock(at, seconds) : `${day} at ${clock(at, seconds)}`;
+export function formatWhen(at: number, now = Date.now(), seconds = false, timeZone?: string) {
+  const day = dayOf(at, now, timeZone);
+  return day === 'today'
+    ? clock(at, seconds, timeZone)
+    : `${day} at ${clock(at, seconds, timeZone)}`;
 }
 
 /** "at 7:12 PM" today, "yesterday at 7:12 PM" before. */
-export function peakWhen(at: number, now = Date.now()) {
-  const when = formatWhen(at, now);
-  return dayOf(at, now) === 'today' ? `at ${when}` : when;
+export function peakWhen(at: number, now = Date.now(), timeZone?: string) {
+  const when = formatWhen(at, now, false, timeZone);
+  return dayOf(at, now, timeZone) === 'today' ? `at ${when}` : when;
 }
 
 /** A row's time in the list: the clock today, the day before it otherwise. */
-export function formatRowTime(at: number, now = Date.now()) {
-  const day = dayOf(at, now);
+export function formatRowTime(at: number, now = Date.now(), timeZone?: string) {
+  const day = dayOf(at, now, timeZone);
   return day === 'today'
-    ? clock(at, true)
-    : `${day[0].toUpperCase()}${day.slice(1)}, ${clock(at, true)}`;
+    ? clock(at, true, timeZone)
+    : `${day[0].toUpperCase()}${day.slice(1)}, ${clock(at, true, timeZone)}`;
 }
 
 /** "2:31:07 PM", where the breadcrumb names one request. */
-export function formatRequestClock(at: number) {
-  return clock(at, true);
+export function formatRequestClock(at: number, timeZone?: string) {
+  return clock(at, true, timeZone);
 }
 
 /** "Today at 2:31:07 PM" for one request's heading. */
-export function formatRequestTime(at: number, now = Date.now()) {
-  const day = dayOf(at, now);
-  return `${day[0].toUpperCase()}${day.slice(1)} at ${clock(at, true)}`;
+export function formatRequestTime(at: number, now = Date.now(), timeZone?: string) {
+  const day = dayOf(at, now, timeZone);
+  return `${day[0].toUpperCase()}${day.slice(1)} at ${clock(at, true, timeZone)}`;
 }
 
 /** Five labels under the chart, oldest first, ending at Now. */
-export function chartTicks(from: number, to: number, range: RequestRange, now = Date.now()) {
+export function chartTicks(
+  from: number,
+  to: number,
+  range: RequestRange,
+  now = Date.now(),
+  timeZone?: string,
+) {
   return Array.from({ length: 5 }, (_, index) => {
     const at = from + ((to - from) * index) / 4;
     if (index === 4) return 'Now';
     if (range === '7d' || range === '30d')
-      return new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return new Date(at).toLocaleDateString('en-US', { timeZone, month: 'short', day: 'numeric' });
     const hour = new Date(at).toLocaleTimeString('en-US', {
+      timeZone,
       hour: 'numeric',
       ...(range === '1h' ? { minute: '2-digit' } : {}),
     });
-    const day = dayOf(at, now);
+    const day = dayOf(at, now, timeZone);
     return index === 0 && day !== 'today' ? `${hour} ${day}` : hour;
   });
 }
@@ -202,19 +216,23 @@ export function chartKeyBucket(key: string, current: number | null, count: numbe
   }
 }
 
-export function chartReadout(point: RequestSummary['series']['points'][number], now = Date.now()) {
+export function chartReadout(
+  point: RequestSummary['series']['points'][number],
+  now = Date.now(),
+  timeZone?: string,
+) {
   const requests = Math.round(point.perMinute);
   const errors = Math.round(point.serverErrorsPerMinute);
-  return `${formatWhen(point.at, now)} · ${formatCount(requests)} request${requests === 1 ? '' : 's'} a minute · ${formatCount(errors)} server error${errors === 1 ? '' : 's'}`;
+  return `${formatWhen(point.at, now, false, timeZone)} · ${formatCount(requests)} request${requests === 1 ? '' : 's'} a minute · ${formatCount(errors)} server error${errors === 1 ? '' : 's'}`;
 }
 
 /** What the chart says under its title. */
-export function errorsLine(summary: RequestSummary, now = Date.now()) {
+export function errorsLine(summary: RequestSummary, now = Date.now(), timeZone?: string) {
   const first = summary.firstServerError;
   if (!first) return `No server errors in ${rangeWords(summary.range)}.`;
   if (first.release)
-    return `Server errors start at ${formatWhen(first.at, now)}, the ${first.release} release.`;
-  return `First server error at ${formatWhen(first.at, now)}.`;
+    return `Server errors start at ${formatWhen(first.at, now, false, timeZone)}, the ${first.release} release.`;
+  return `First server error at ${formatWhen(first.at, now, false, timeZone)}.`;
 }
 
 export function errorRateLine(summary: RequestSummary) {

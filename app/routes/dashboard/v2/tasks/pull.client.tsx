@@ -1,15 +1,17 @@
 'use client';
+import { useProjectFormatting } from '../projects/formatting.ts';
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Action, Banner, Diff, Group, Icon, Item, Skeleton } from '@/components/ui';
 import { useData } from '../projects/data';
 import { projectPath, projectSegment } from '../projects/routing';
-import { repositoryTime, type RepositoryCommit } from '../projects/code';
+import { type RepositoryCommit } from '../projects/code';
 import { parsePatch } from './api';
 import type { TaskDiff, TaskPull } from './types';
 
 export default function PullRequest({ project, id }: { project: string; id: string }) {
+  const { repositoryTime } = useProjectFormatting();
   const base = `/api/workspace/projects/${projectSegment(project)}/pulls/${projectSegment(id)}`;
   const detail = useData<{ record: TaskPull }>(base);
   const changes = useData<TaskDiff & { commits: RepositoryCommit[]; commitCount: number }>(
