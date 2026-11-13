@@ -85,7 +85,7 @@ export async function releasesApi(
     // records as they are; only changes wait, so nothing starts on top of a recovering release.
     if (req.method !== 'GET') await recoverProjectReleases();
     if (path === '/projects' && req.method === 'GET')
-      return send({ projects: await projectsForOwner(owner) });
+      return send({ projects: await projectsForOwner(owner, true) });
     if (path === '/approvals') {
       if (req.method === 'GET') return send({ rules: approvalRules(owner) });
       if (req.method === 'PUT')
@@ -107,14 +107,20 @@ export async function releasesApi(
     }
     if (releaseRoute && req.method === 'GET') {
       const project = url.searchParams.get('project');
-      const projectId = project ? (await resolveProject(owner, project)).id : undefined;
+      const projectId = project
+        ? (await resolveProject(owner, project, req.method === 'GET')).id
+        : undefined;
       const release = releaseById(owner, decodeURIComponent(releaseRoute[1]), projectId);
       if (releaseRoute[2] === 'output')
         return send({ output: await releaseBuildOutput(owner, release.id) });
       return send({ release });
     }
     if (projectRoute) {
-      const project = await resolveProject(owner, decodeURIComponent(projectRoute[1]));
+      const project = await resolveProject(
+        owner,
+        decodeURIComponent(projectRoute[1]),
+        req.method === 'GET',
+      );
       if (req.method === 'GET' && projectRoute[2] === 'releases')
         return send({ releases: projectReleases(owner, project.id) });
       if (req.method === 'GET' && projectRoute[2] === 'rollbacks')

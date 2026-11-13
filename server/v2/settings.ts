@@ -262,7 +262,7 @@ export async function settingsApi(
     /^\/api\/v2\/projects\/([^/]+)\/(overview|settings|apps|secrets\/([^/]+))$/,
   );
   if (!match) return false;
-  const project = await resolveProject(owner, decodeURIComponent(match[1]));
+  const project = await resolveProject(owner, decodeURIComponent(match[1]), req.method === 'GET');
   let result: unknown;
   if (match[2] === 'overview' && req.method === 'GET') {
     const workspaceProject = list('project', owner).find((entry) => entry.id === project.id);
@@ -270,7 +270,7 @@ export async function settingsApi(
     let repositoryError = false;
     if (workspaceProject)
       try {
-        repository = await repositoryInfo(owner, project.id);
+        repository = await repositoryInfo(owner, project.id, true);
       } catch {
         repositoryError = true;
       }

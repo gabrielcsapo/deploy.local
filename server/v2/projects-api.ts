@@ -11,7 +11,7 @@ export const projectsRoutes = [
     method: 'GET',
     path: '/api/v2/projects/unlinked-apps',
     handler: async ({ res, context: owner }) =>
-      sendJson(res, { apps: await unlinkedProjectApps(owner) }),
+      sendJson(res, { apps: await unlinkedProjectApps(owner, true) }),
   }),
   route({
     method: 'POST',

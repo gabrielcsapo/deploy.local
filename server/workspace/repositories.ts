@@ -1,3 +1,5 @@
+import { immutable } from '../materialized.ts';
+import { repositoryRefs, commitText } from './repository-views.ts';
 import { sshServerInfo } from './ssh-host.ts';
 import { isAbsolute, resolve } from 'node:path';
 import { db, root, id, now, get, save, event, list } from './store.ts';
@@ -355,43 +357,27 @@ export function repositoryClonePath(owner: string, project: { id: string; name: 
     : `/api/workspace/git/${project.id}/${repositoryFolderName(project.name)}.git`;
 }
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
-const applicationCache = new Map<
-  string,
-  { path: string; refs: string; application: Promise<string | null> }
->();
-/** Link seeding needs only the manifest on main, not clone URLs, HEAD, or worker metadata. */
-export async function repositoryApplication(owner: string, projectId: string) {
+/** Link seeding needs only the manifest on main, not clone URLs or worker metadata. */
+export async function repositoryApplication(
+  owner: string,
+  projectId: string,
+  presentation = false,
+) {
   const project = get('project', owner, projectId);
   if ((project.repositoryStatus || 'ready') !== 'ready') return null;
-  // Let Git resolve loose/packed refs and worktrees; main is the deployment branch,
-  // even when HEAD or the project's defaultBranch points elsewhere.
-  const refs = await gitText(project.repositoryPath, [
-    'for-each-ref',
-    '--format=%(refname)%00%(objectname)',
-    'refs/heads/main',
-  ]);
-  const key = JSON.stringify([owner, projectId]);
-  const cached = applicationCache.get(key);
-  if (cached && cached.path === project.repositoryPath && cached.refs === refs)
-    return cached.application;
-  const entry = {
-    path: project.repositoryPath,
-    refs,
-    application: repositoryDeployment(project.repositoryPath, refs).then((deployment) => {
-      // A failed Git read can be transient; don't retain it until the next commit.
-      if (deployment.error && applicationCache.get(key) === entry) applicationCache.delete(key);
-      return deployment.application || null;
-    }),
-  };
-  applicationCache.set(key, entry);
-  try {
-    return await entry.application;
-  } catch (error) {
-    if (applicationCache.get(key) === entry) applicationCache.delete(key);
-    throw error;
-  }
+  const refs =
+    presentation && !db.inTransaction
+      ? (await repositoryRefs.read(project.repositoryPath)).text
+      : await gitText(project.repositoryPath, [
+          'for-each-ref',
+          '--format=%(refname)%00%(objectname)',
+          'refs/heads/main',
+        ]);
+  return (
+    (await repositoryDeployment(project.repositoryPath, refs, presentation)).application || null
+  );
 }
-export async function repositoryInfo(owner: string, projectId: string) {
+export async function repositoryInfo(owner: string, projectId: string, presentation = false) {
   const project = get('project', owner, projectId);
   const service = db.prepare('SELECT heartbeat FROM worker WHERE id=?').get('repositories') as any;
   const base = {
@@ -406,26 +392,39 @@ export async function repositoryInfo(owner: string, projectId: string) {
     serviceOnline: !!service && Date.now() - Date.parse(service.heartbeat) < 10000,
   };
   if (base.status !== 'ready') return base;
-  const [head, tree, refs] = await Promise.all([
-    gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD']),
-    gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD^{tree}']),
-    gitText(project.repositoryPath, [
-      'for-each-ref',
-      '--format=%(refname)%00%(objectname)',
-      'refs/heads',
-      'refs/tags',
-      'refs/remotes/upstream',
-    ]),
-  ]);
+  const snapshot =
+    presentation && !db.inTransaction ? await repositoryRefs.read(project.repositoryPath) : null;
+  const [head, tree, refs] = snapshot
+    ? [
+        snapshot.head || (await gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD'])),
+        await commitText(project.repositoryPath, [
+          'rev-parse',
+          '--verify',
+          `${snapshot.head}^{tree}`,
+        ]),
+        snapshot.text,
+      ]
+    : await Promise.all([
+        gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD']),
+        gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD^{tree}']),
+        gitText(project.repositoryPath, [
+          'for-each-ref',
+          '--format=%(refname)%00%(objectname)',
+          'refs/heads',
+          'refs/tags',
+          'refs/remotes/upstream',
+        ]),
+      ]);
   return {
     ...base,
     head,
     // A new hosted repository starts with one empty commit; it is empty until code arrives.
     empty: tree === EMPTY_TREE,
     sync: project.sync ?? null,
-    deployment: await repositoryDeployment(project.repositoryPath, refs),
+    deployment: await repositoryDeployment(project.repositoryPath, refs, presentation),
     defaultBranch:
       project.defaultBranch ||
+      snapshot?.symbolicHead ||
       (await gitText(project.repositoryPath, ['symbolic-ref', '--short', 'HEAD'])),
     refs: refs
       .split('\n')
@@ -439,10 +438,7 @@ export async function repositoryInfo(owner: string, projectId: string) {
 
 // Capabilities follow the committed main branch, not a worker checkout, HEAD,
 // an upstream tracking branch, or a proposed configuration in a pull request.
-export async function repositoryDeployment(
-  repositoryPath: string,
-  refs: string,
-): Promise<{
+type RepositoryDeployment = {
   configured: boolean;
   branch: string;
   commit?: string;
@@ -450,18 +446,39 @@ export async function repositoryDeployment(
   pipeline?: boolean;
   application?: string | null;
   error?: string;
-}> {
+};
+const deploymentView = immutable(async (key: string): Promise<RepositoryDeployment> => {
+  const [repositoryPath, main] = JSON.parse(key);
+  const result = await readRepositoryDeployment(repositoryPath, main, true);
+  if (result.error) deploymentView.invalidate(key);
+  return result;
+});
+export async function repositoryDeployment(
+  repositoryPath: string,
+  refs: string,
+  presentation = false,
+): Promise<RepositoryDeployment> {
   const main = refs
     .split('\n')
     .find((line) => line.startsWith('refs/heads/main\0'))
     ?.split('\0')[1];
   if (!main) return { configured: false, branch: 'main' };
-  const entry = await gitText(repositoryPath, ['ls-tree', main, '--', 'deploy.yaml']);
+  if (presentation && !db.inTransaction)
+    return deploymentView.read(JSON.stringify([resolve(repositoryPath), main]));
+  return readRepositoryDeployment(repositoryPath, main, false);
+}
+async function readRepositoryDeployment(
+  repositoryPath: string,
+  main: string,
+  presentation: boolean,
+): Promise<RepositoryDeployment> {
+  const read = presentation ? commitText : gitText;
+  const entry = await read(repositoryPath, ['ls-tree', main, '--', 'deploy.yaml']);
   if (!/^100(?:644|755) blob /.test(entry))
     return { configured: false, branch: 'main', commit: main };
   const base = { configured: true, branch: 'main', commit: main, path: 'deploy.yaml' };
   try {
-    const manifest = await gitText(repositoryPath, ['show', `${main}:deploy.yaml`], {
+    const manifest = await read(repositoryPath, ['show', `${main}:deploy.yaml`], {
       limit: 256 * 1024,
     });
     const { spec } = compileDeployYaml(manifest);

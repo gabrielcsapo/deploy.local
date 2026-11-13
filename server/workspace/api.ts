@@ -343,7 +343,7 @@ export async function workspaceApi(
         if (!application) throw new Error('Application required');
         const projects = [];
         for (const project of list('project', owner)) {
-          const repository = await repositoryInfo(owner, project.id);
+          const repository = await repositoryInfo(owner, project.id, true);
           if ('deployment' in repository && repository.deployment.application === application)
             projects.push({ id: project.id, name: project.name });
         }
@@ -356,7 +356,7 @@ export async function workspaceApi(
         return send(
           repositoryRoute[2]
             ? await repositoryRead(owner, repositoryRoute[1], repositoryRoute[2], url.searchParams)
-            : await repositoryInfo(owner, repositoryRoute[1]),
+            : await repositoryInfo(owner, repositoryRoute[1], true),
         );
       if (path === '/state') {
         const pulls = list('pull-request', owner);

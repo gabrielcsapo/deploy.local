@@ -1,3 +1,4 @@
+import { observeGitWrite } from './git-changes.ts';
 import {
   execFile,
   spawn,
@@ -36,6 +37,7 @@ export function repositoryGit(
     onProcess?: (pid: number | null) => void;
   } = {},
 ): Promise<Buffer> {
+  const changed = observeGitWrite(cwd, args);
   return new Promise((resolve, reject) => {
     const child = spawn(
       'git',
@@ -108,6 +110,7 @@ export function repositoryGit(
       failure ||= error;
     });
     child.once('close', (code) => {
+      changed();
       clearTimeout(timer);
       try {
         options.onProcess?.(null);
@@ -166,7 +169,12 @@ function gitArguments(cwd: string, args: string[], options: GitOptions) {
   ];
 }
 export function gitResultSync(cwd: string, args: string[], options: GitOptions = {}) {
-  return spawnSync('git', gitArguments(cwd, args, options), { ...options, encoding: 'utf8' });
+  const changed = observeGitWrite(cwd, args);
+  try {
+    return spawnSync('git', gitArguments(cwd, args, options), { ...options, encoding: 'utf8' });
+  } finally {
+    changed();
+  }
 }
 export function gitStringSync(cwd: string, args: string[], options: GitOptions = {}) {
   const result = gitResultSync(cwd, args, options);
@@ -179,6 +187,7 @@ export function gitStringSync(cwd: string, args: string[], options: GitOptions =
 }
 /** Same contract as gitStringSync, including its error text, for callers that can yield. */
 export function gitString(cwd: string, args: string[], options: GitOptions = {}) {
+  const changed = observeGitWrite(cwd, args);
   return new Promise<string>((resolve, reject) => {
     const child = execFile(
       'git',
@@ -190,6 +199,7 @@ export function gitString(cwd: string, args: string[], options: GitOptions = {})
         maxBuffer: options.maxBuffer ?? 1024 * 1024,
       },
       (error, stdout, stderr) => {
+        changed();
         if (error) return reject(new Error(stderr || options.fallback || 'Git failed'));
         resolve(
           options.trim === 'none'
@@ -206,6 +216,7 @@ export function gitString(cwd: string, args: string[], options: GitOptions = {})
 }
 /** Same small-read contract as gitSync, for callers that can yield. */
 export async function gitRead(cwd: string, args: string[]): Promise<string | null> {
+  const changed = observeGitWrite(cwd, args);
   return new Promise((resolve) => {
     execFile(
       'git',
@@ -216,7 +227,10 @@ export async function gitRead(cwd: string, args: string[]): Promise<string | nul
         maxBuffer: repositoryReadOptions.maxBuffer,
         timeout: repositoryReadOptions.timeout,
       },
-      (error, stdout) => resolve(error ? null : stdout.trimEnd()),
+      (error, stdout) => {
+        changed();
+        resolve(error ? null : stdout.trimEnd());
+      },
     );
   });
 }

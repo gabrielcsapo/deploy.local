@@ -1,3 +1,5 @@
+import { repositoryChanged } from '../git-changes.ts';
+import { materialized } from '../materialized.ts';
 import { sendJson } from '../http.ts';
 import { CopyWarmer } from '../packages/copies.ts';
 import { npmRegistry } from '../packages/npm.ts';
@@ -59,6 +61,13 @@ const readJson = <T>(path: string): T | undefined => {
   }
 };
 const unitName = (id: string) => `deploy-self-update-${id.slice(0, 8)}`;
+// Whether an updater service exited can lag three seconds; progress in current.json stays live.
+export const UPDATE_SERVICE_CADENCE_MS = 3_000;
+const updateServices = materialized(unitActive, {
+  cadenceMs: UPDATE_SERVICE_CADENCE_MS,
+  cadenceFromStart: true,
+});
+
 async function unitActive(id: string) {
   return (await processResult('systemctl', ['is-active', '--quiet', unitName(id)])).status === 0;
 }
@@ -98,7 +107,7 @@ export function estimate(history: SelfUpdateRun[] = []) {
 type Context =
   | { reason: string }
   | { config: ReleaseConfig; running: string; repository: { name: string; path: string } };
-async function context(owner: string): Promise<Context> {
+async function context(owner: string, presentation = false): Promise<Context> {
   if (!isAdmin(owner)) return { reason: 'Only an administrator can update deploy.local.' };
   const config = readReleaseConfig();
   if (!config) return { reason: 'This computer was not set up with deploy-update.' };
@@ -110,6 +119,7 @@ async function context(owner: string): Promise<Context> {
       path: project.repositoryPath,
     })),
     running,
+    presentation,
   );
   if (!repository)
     return {
@@ -124,18 +134,21 @@ function withoutPlan(run?: SelfUpdateRun & { plan?: unknown }): SelfUpdateRun | 
   const { plan: _plan, ...rest } = run;
   return rest;
 }
-export async function selfUpdateStatus(owner: string): Promise<SelfUpdateStatus> {
-  const found = await context(owner);
+export async function selfUpdateStatus(
+  owner: string,
+  presentation = true,
+): Promise<SelfUpdateStatus> {
+  const found = await context(owner, presentation);
   if ('reason' in found) return { supported: false, reason: found.reason };
   const { config, running, repository } = found;
   const directory = stateDirectory(config);
   const computer = getComputers(owner).find((c) => c.roles.includes('coordinator'))?.name || 'SER';
-  const changes = await changesSince(repository.path, running);
+  const changes = await changesSince(repository.path, running, presentation);
   const run = withoutPlan(readJson<SelfUpdateRun>(stateFile(config)));
   const checkedAt = Date.now();
   const active =
     run?.state === 'running' && checkedAt - Date.parse(run.startedAt) >= STARTUP_GRACE_MS
-      ? await unitActive(run.id)
+      ? await (presentation ? updateServices.read(run.id) : unitActive(run.id))
       : true;
   return {
     supported: true,
@@ -198,7 +211,7 @@ async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdate
   const found = await context(owner);
   if ('reason' in found) fail(found.reason, 409);
   const { config, running, repository } = found;
-  const status = await selfUpdateStatus(owner);
+  const status = await selfUpdateStatus(owner, false);
   if (!status.supported) fail(status.reason, 409);
   if (status.run?.state === 'running') fail('An update is already running.', 409);
   if (typeof to !== 'string' || to !== status.main)
@@ -273,6 +286,8 @@ async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdate
     writeFileSync(`${file}.tmp`, JSON.stringify(run, null, 2), { mode: 0o644 });
     chownSync(`${file}.tmp`, uid, gid);
     renameSync(`${file}.tmp`, file);
+    repositoryChanged(repository.path);
+    updateServices.invalidate();
     // A transient unit of its own: restarting deploy-server.service must not stop the updater.
     const result = await processResult(
       'systemd-run',
@@ -304,6 +319,7 @@ async function performSelfUpdate(owner: string, to: unknown): Promise<SelfUpdate
         }),
       );
     }
+    updateServices.invalidate();
     return selfUpdateStatus(owner);
   } catch (error) {
     await rm(packageConfig, { force: true });

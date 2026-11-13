@@ -1,3 +1,11 @@
+import {
+  commitBytes,
+  commitText,
+  repositoryRefs,
+  repositoryView,
+  presentationCommit,
+  optionalCommitText,
+} from '../workspace/repository-views.ts';
 import { mergeBoard, type BoardChoice } from '../design/board-merge.ts';
 import { hasTools } from '../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
@@ -89,6 +97,9 @@ import {
 const gitSlots = keyedSlots(32);
 const gitRead = (repo: string, args: string[]) => gitSlots(repo, () => readGitOutput(repo, args));
 const reviewGit = (repo: string, args: string[]) => gitSlots(repo, () => tryGitText(repo, args));
+// A cadence view must not extend another view's cached failure by a second cadence.
+const reviewCommitRead = (repo: string, args: string[]) =>
+  commitText(repo, args, { limit: 4 * 1024 * 1024 }).catch(() => null);
 const pickerSlots = keyedSlots(8);
 
 const fileTypes: Record<string, string> = {
@@ -126,14 +137,24 @@ function validRef(ref: string) {
 }
 
 /** The commit a request means: `task` (the branch that task commits to), `ref`, or main. */
-async function resolveCommit(owner: string, projectId: string, repo: string, url: URL) {
+async function resolveCommit(
+  owner: string,
+  projectId: string,
+  repo: string,
+  url: URL,
+  presentation = false,
+) {
   const taskId = url.searchParams.get('task');
   let ref = url.searchParams.get('ref') || 'HEAD';
   if (taskId) {
     const task = get('task', owner, taskId);
     if (task.projectId !== projectId) fail('That task belongs to another project', 404);
     const branch = `refs/heads/${currentTaskBranch(task)}`;
-    ref = (await gitRead(repo, ['rev-parse', '--verify', '--quiet', branch]))
+    ref = (
+      presentation
+        ? await presentationCommit(repo, branch).catch(() => null)
+        : await gitRead(repo, ['rev-parse', '--verify', '--quiet', branch])
+    )
       ? branch
       : task.baseRevision;
   }
@@ -141,19 +162,28 @@ async function resolveCommit(owner: string, projectId: string, repo: string, url
   // A full commit id names itself: review images ask for one per screen, and a cached render
   // then needs no Git at all. Reading at a commit the repository lacks still fails below.
   if (commitPattern.test(ref)) return { ref, commit: ref };
-  const commit = await gitRead(repo, [
-    'rev-parse',
-    '--verify',
-    '--quiet',
-    '--end-of-options',
-    `${ref}^{commit}`,
-  ]);
+  const commit = presentation
+    ? await presentationCommit(repo, ref).catch(() => null)
+    : await gitRead(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        '--end-of-options',
+        `${ref}^{commit}`,
+      ]);
   if (!commit) fail(`No commit named ${ref} in this project`, 404);
   return { ref, commit };
 }
 
-async function readFile(repo: string, commit: string, path: string, limit = 2 * 1024 * 1024) {
+async function readFile(
+  repo: string,
+  commit: string,
+  path: string,
+  limit = 2 * 1024 * 1024,
+  presentation = false,
+) {
   try {
+    if (presentation) return await commitBytes(repo, ['show', `${commit}:${path}`], { limit });
     return await gitSlots(repo, () =>
       repositoryGit(repo, ['show', `${commit}:${path}`], { limit }),
     );
@@ -328,7 +358,14 @@ async function mergeLines(repo: string, path: string, base: string, target: stri
   }
 }
 /** A file's whole text at a commit, last newline kept. */
-async function showFile(repo: string, commit: string, path: string) {
+async function showFile(repo: string, commit: string, path: string, presentation = false) {
+  if (presentation)
+    return commitText(
+      repo,
+      ['show', `${commit}:${path}`],
+      { limit: 16 * 1024 * 1024 },
+      false,
+    ).catch(() => '');
   try {
     return (
       await gitSlots(repo, () =>
@@ -340,8 +377,16 @@ async function showFile(repo: string, commit: string, path: string) {
   }
 }
 
-async function readCanvas(repo: string, commit: string): Promise<Canvas | null> {
-  const bytes = await readFile(repo, commit, 'design/canvas.json');
+async function readCanvas(
+  repo: string,
+  commit: string,
+  presentation = false,
+): Promise<Canvas | null> {
+  const bytes = presentation
+    ? await optionalCommitText(repo, ['show', `${commit}:design/canvas.json`], {
+        limit: 2 * 1024 * 1024,
+      })
+    : await readFile(repo, commit, 'design/canvas.json');
   if (!bytes) return null;
   try {
     const canvas = JSON.parse(bytes.toString()) as Canvas;
@@ -369,6 +414,27 @@ async function designBranches(repo: string) {
       );
       return { name, commit, updatedAt, by, edits };
     }),
+  );
+}
+
+async function presentedDesignBranches(repo: string) {
+  const snapshot = await repositoryRefs.read(repo);
+  const main = await presentationCommit(repo, snapshot.symbolicHead || 'main').catch(() => null);
+  if (!main) return designBranches(repo);
+  const branches = snapshot.refs
+    .filter((ref) => ref.name.startsWith('refs/heads/design/'))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .slice(0, 40);
+  return Promise.all(
+    branches.map(async (ref) => ({
+      name: ref.shortName,
+      commit: ref.oid,
+      updatedAt: ref.updatedAt,
+      by: ref.by,
+      edits: Number(
+        (await optionalCommitText(repo, ['rev-list', '--count', `${main}..${ref.oid}`])) ?? 0,
+      ),
+    })),
   );
 }
 
@@ -694,7 +760,7 @@ const reviewBoardPaths = (context: any) =>
 
 /** Compare proposal edits with main by screen, not by main's commit ID. No repository writes.
  * An inbox decision rechecks this with withRepositoryWrites held, immediately before merging. */
-export async function reviewMain(repo: string, context: any) {
+export async function reviewMain(repo: string, context: any, presentation = false) {
   const main = await gitRead(repo, [
     'rev-parse',
     '--verify',
@@ -702,7 +768,7 @@ export async function reviewMain(repo: string, context: any) {
     `refs/heads/${context.main}^{commit}`,
   ]);
   if (!main) fail('Main could not be checked. Try again.', 409);
-  const diff = await gitRead(repo, [
+  const diff = await (presentation ? reviewCommitRead : gitRead)(repo, [
     'diff',
     '--name-only',
     '--no-renames',
@@ -721,7 +787,9 @@ export async function reviewMain(repo: string, context: any) {
   };
   for (const path of overlapping) {
     const [base, target, from] = await Promise.all(
-      [context.base, main, context.commit].map((commit) => showFile(repo, commit, path)),
+      [context.base, main, context.commit].map((commit) =>
+        showFile(repo, commit, path, presentation),
+      ),
     );
     if (target === from || base === from) continue;
     const file = conflictName(path);
@@ -811,11 +879,14 @@ export async function reviewMain(repo: string, context: any) {
 
 /** Discard observed obsolete answers durably, without overwriting a choice saved while
  * this read was in flight. A later reset of main must not resurrect an old answer. */
-function discardObsoleteChoices(owner: string, row: any, main: string) {
-  const obsolete = Object.entries(row.context.choices ?? {}).filter(([, value]) => {
+function obsoleteChoices(row: any, main: string) {
+  return Object.entries(row.context.choices ?? {}).filter(([, value]) => {
     const choice = value as { main: string; proposal: string };
     return choice.main !== main || choice.proposal !== row.context.commit;
   });
+}
+function discardObsoleteChoices(owner: string, row: any, main: string) {
+  const obsolete = obsoleteChoices(row, main);
   if (!obsolete.length) return;
   const current = get('v2-inbox-native', owner, row.id);
   const choices = { ...current.context.choices };
@@ -879,19 +950,38 @@ function reviewPins(owner: string, context: any): DesignReviewPin[] {
  * A cheap summary: no Chromium or screenshot work on the landing page. `status` is main as the
  * caller already read it, so one review never compares against two different mains.
  */
+// Displayed main/conflict evidence can lag external ref writes by at most two seconds.
+// Decisions still call reviewMain directly; a new saved context gets a new key.
+const reviewSummaryEvidence = repositoryView(async (key: string) => {
+  const [repo, context] = JSON.parse(key);
+  return Promise.all([
+    reviewMain(repo, context, true),
+    reviewTree(repo, context.base, true),
+    reviewTree(repo, context.commit, true),
+  ] as const);
+});
+
 async function reviewSummary(
   owner: string,
   project: any,
   row: any,
   status?: Awaited<ReturnType<typeof reviewMain>>,
+  presentation = false,
 ): Promise<DesignReviewSummary> {
   const { context } = row;
   const repo = project.repositoryPath;
-  const [current, baseTree, fromTree] = await Promise.all([
-    status ?? reviewMain(repo, context),
-    reviewTree(repo, context.base),
-    reviewTree(repo, context.commit),
-  ]);
+  let [current, baseTree, fromTree] =
+    presentation && !status
+      ? await reviewSummaryEvidence.read(JSON.stringify([repo, context]))
+      : await Promise.all([
+          status ?? reviewMain(repo, context),
+          reviewTree(repo, context.base),
+          reviewTree(repo, context.commit),
+        ]);
+  // Removing obsolete saved choices is a write, even though it happens during a GET.
+  // Recheck directly before that side effect; only display-only evidence can use the view.
+  if (presentation && obsoleteChoices(row, current.main).length)
+    current = await reviewMain(repo, context);
   discardObsoleteChoices(owner, row, current.main);
   return summaryOf(
     owner,
@@ -931,9 +1021,16 @@ function summaryOf(
   };
 }
 
-async function reviewTree(repo: string, commit: string) {
+async function reviewTree(repo: string, commit: string, presentation = false) {
   const tree = new Map<string, string>();
-  const text = await reviewGit(repo, ['ls-tree', '-r', '-z', commit, '--', 'design/']);
+  const text = await (presentation ? reviewCommitRead : reviewGit)(repo, [
+    'ls-tree',
+    '-r',
+    '-z',
+    commit,
+    '--',
+    'design/',
+  ]);
   for (const entry of (text ?? '').split('\0')) {
     const tab = entry.indexOf('\t');
     if (tab < 0) continue;
@@ -2413,7 +2510,13 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const proposals: DesignReviewSummary[] = [];
     for (const row of rows)
       proposals.push(
-        await reviewSummary(owner, requireRepository(owner, row.context.projectId), row),
+        await reviewSummary(
+          owner,
+          requireRepository(owner, row.context.projectId),
+          row,
+          undefined,
+          true,
+        ),
       );
     proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const approved = list('v2-inbox-native', owner)
@@ -2468,7 +2571,11 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
               (
                 await readCanvas(
                   row.repositoryPath,
-                  `refs/heads/${await mainBranch(row.repositoryPath)}`,
+                  await presentationCommit(
+                    row.repositoryPath,
+                    `refs/heads/${(await repositoryRefs.read(row.repositoryPath)).symbolicHead || 'main'}`,
+                  ),
+                  true,
                 )
               )?.boards ?? {},
             ).length;
@@ -2494,14 +2601,14 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   const sub = route[2] ?? '';
 
   if (sub === '' && req.method === 'GET') {
-    const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
-    const canvas = await readCanvas(repo, commit);
+    const { ref, commit } = await resolveCommit(owner, project.id, repo, url, true);
+    const canvas = await readCanvas(repo, commit, true);
     const open = comments(owner, project.id).filter((comment) => !comment.resolved);
     return sendJson(res, {
       ref,
       commit,
       canvas,
-      branches: await designBranches(repo),
+      branches: await presentedDesignBranches(repo),
       openComments: open.length,
     });
   }
@@ -2514,7 +2621,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     if (!commitPattern.test(commit) || path.split('/').includes('..')) fail('Not found', 404);
     const type = fileTypes[path.split('.').pop()!];
     if (!type) fail('Not found', 404);
-    const bytes = await readFile(repo, commit, `design/${path}`);
+    const bytes = await readFile(repo, commit, `design/${path}`, 2 * 1024 * 1024, true);
     if (!bytes) fail('Not found', 404);
     res.writeHead(200, {
       'Content-Type': type,

@@ -12,17 +12,17 @@ const store = await import('../store.ts');
 const workspace = await import('../workspace/store.ts');
 const { projectsForOwner } = await import('./projects.ts');
 const { repositoryInfo } = await import('../workspace/repositories.ts');
+const { gitStringSync } = await import('../git.ts');
 after(() => {
   store._resetDb();
   workspace.db.close();
   rmSync(root, { recursive: true, force: true });
 });
 
-test('list reads only main on repeat, discovers new manifests, and writes only missing/changed owners', async (t) => {
+test('project presentation reuses views, discovers own commits, and writes only missing/changed owners', async (t) => {
   const repo = join(root, 'repo');
   mkdirSync(repo);
-  const git = (...args: string[]) =>
-    childProcess.execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe' });
+  const git = (...args: string[]) => gitStringSync(repo, args);
   const commit = () => {
     git('add', '.');
     git(
@@ -55,48 +55,54 @@ test('list reads only main on repeat, discovers new manifests, and writes only m
   const database = store.getSqlite()!;
   const transactions = t.mock.method(database, 'transaction');
   const spawn = t.mock.method(childProcess, 'spawn');
+  const exec = t.mock.method(childProcess, 'execFile');
   syncBuiltinESMExports();
   t.after(() => {
     spawn.mock.restore();
+    exec.mock.restore();
     syncBuiltinESMExports();
   });
-  const reads = () => spawn.mock.calls.map((call) => call.arguments[1] as string[]);
+  const reads = () =>
+    [...spawn.mock.calls, ...exec.mock.calls].map((call) => call.arguments[1] as string[]);
+  const resetReads = () => {
+    spawn.mock.resetCalls();
+    exec.mock.resetCalls();
+  };
 
-  await projectsForOwner('owner');
-  assert.equal(reads().length, 2); // main + ls-tree, no manifest yet
+  await projectsForOwner('owner', true);
+  assert.equal(reads().length, 3); // refs + symbolic HEAD + ls-tree, no manifest yet
   assert.equal(transactions.mock.callCount(), 1);
-  spawn.mock.resetCalls();
+  resetReads();
   transactions.mock.resetCalls();
-  await projectsForOwner('owner');
-  assert.equal(reads().length, 1);
-  assert.ok(reads()[0].includes('for-each-ref'));
+  await projectsForOwner('owner', true);
+  assert.equal(reads().length, 0);
   assert.equal(transactions.mock.callCount(), 0);
 
   // A manifest arriving after a previous read is discovered, including when the
   // deployment itself arrives later than the manifest/cache entry.
   manifest('web');
-  spawn.mock.resetCalls();
-  await projectsForOwner('owner');
-  assert.equal(reads().length, 3); // main + ls-tree + show
+  resetReads();
+  await projectsForOwner('owner', true);
+  assert.equal(reads().length, 4); // refs + symbolic HEAD + ls-tree + show
   assert.equal(transactions.mock.callCount(), 0);
   store.saveDeployment({ name: 'web', username: 'owner' });
-  spawn.mock.resetCalls();
+  resetReads();
   assert.deepEqual(
-    (await projectsForOwner('owner')).find((p) => p.id === 'repo')?.apps.map((a) => a.id),
+    (await projectsForOwner('owner', true)).find((p) => p.id === 'repo')?.apps.map((a) => a.id),
     ['web'],
   );
-  assert.equal(reads().length, 1);
+  assert.equal(reads().length, 0);
   assert.equal(transactions.mock.callCount(), 1);
 
   // Explicit membership remains authoritative even as the manifest names it.
   store.saveDeployment({ name: 'explicit', username: 'owner' });
-  await projectsForOwner('owner');
+  await projectsForOwner('owner', true);
   database
     .prepare('UPDATE project_applications SET project_id=? WHERE application=?')
     .run('chosen', 'explicit');
   manifest('explicit');
   transactions.mock.resetCalls();
-  const projects = await projectsForOwner('owner');
+  const projects = await projectsForOwner('owner', true);
   assert.deepEqual(
     projects.find((p) => p.id === 'repo')?.apps.map((a) => a.id),
     ['web'],
@@ -111,15 +117,15 @@ test('list reads only main on repeat, discovers new manifests, and writes only m
   git('pack-refs', '--all', '--prune');
   git('checkout', '-b', 'other');
   manifest('unrelated');
-  spawn.mock.resetCalls();
-  await projectsForOwner('owner');
-  assert.equal(reads().length, 1);
+  resetReads();
+  await projectsForOwner('owner', true);
+  assert.equal(reads().length, 2); // refs + symbolic HEAD; main manifest stays immutable
   assert.equal(transactions.mock.callCount(), 0);
 
   database
     .prepare('UPDATE project_applications SET owner=? WHERE application=?')
     .run('old-owner', 'web');
-  await projectsForOwner('owner');
+  await projectsForOwner('owner', true);
   assert.equal(transactions.mock.callCount(), 1);
   assert.equal(
     (
@@ -130,10 +136,14 @@ test('list reads only main on repeat, discovers new manifests, and writes only m
     'owner',
   );
 
-  spawn.mock.resetCalls();
+  resetReads();
   await repositoryInfo('owner', 'repo');
   assert.equal(reads().length, 5); // HEAD, tree, refs, ls-tree, show
+  await repositoryInfo('owner', 'repo', true);
+  resetReads();
+  await repositoryInfo('owner', 'repo', true);
+  assert.equal(reads().length, 0);
   t.diagnostic(
-    'repositoryInfo: 5 Git subprocesses; warm projects list: 1; warm write transactions: 0',
+    'direct repositoryInfo: 5 Git subprocesses; warm presentation reads: 0; warm write transactions: 0',
   );
 });

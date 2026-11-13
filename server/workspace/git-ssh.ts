@@ -1,3 +1,4 @@
+import { repositoryChanged } from '../git-changes.ts';
 import { spawn } from 'node:child_process';
 import { createServer, type Socket } from 'node:net';
 import ssh2, { type Connection, type ServerChannel } from 'ssh2';
@@ -183,6 +184,7 @@ export function createGitSshTransport(privateKey: Buffer) {
         child.stderr.pipe(channel.stderr, { end: false });
         child.once('error', () => fail(channel, 'Git unavailable'));
         child.once('close', (code) => {
+          if (push) repositoryChanged(project.repositoryPath);
           clearTimeout(timeout);
           socket.removeListener('close', kill);
           completed = true;

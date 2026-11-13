@@ -123,8 +123,8 @@ function persistRestore(owner: string, record: RestoreRecord) {
   save('v2-backup-restore', owner, receipt);
 }
 
-export async function backupSources(owner: string): Promise<Source[]> {
-  const projects = await projectsForOwner(owner);
+export async function backupSources(owner: string, presentation = false): Promise<Source[]> {
+  const projects = await projectsForOwner(owner, presentation);
   const sources: Source[] = [];
   const current = currentProjectReleases(owner);
   const seen = new Set<string>();
@@ -632,7 +632,7 @@ export class BackupService {
   async listing(owner: string): Promise<BackupsResponse> {
     const settings = getBackupSettings();
     return {
-      backups: (await this.sources(owner)).map((source) => source.point),
+      backups: (await this.sources(owner, true)).map((source) => source.point),
       restores: await Promise.all(
         list('v2-backup-restore', owner).map(async (row) => {
           const record = this.record(owner, row.backupId, row.id);
