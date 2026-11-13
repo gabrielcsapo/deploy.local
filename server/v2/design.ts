@@ -36,6 +36,8 @@ import {
 } from '../workspace/repository-git.ts';
 import { db, event, get, id, list, now, remove, save } from '../workspace/store.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
+import { computers } from '../workspace/coordination.ts';
+import { assertWorkerRole } from '../workspace/computer-role-policy.ts';
 import { onlineTaskWorker } from './task-computer.ts';
 import { readJson, sendJson } from './attachments.ts';
 import { createInboxItem, registerInboxSource, syncInbox } from './inbox.ts';
@@ -1178,7 +1180,7 @@ export async function designReview(
       const resolution = status.resolutions.find((entry) => entry.file === screen.file);
       return {
         ...screen,
-        seen: wasSeen,
+        seen: item.answer?.actionId === 'approve' || wasSeen,
         conflict: status.conflicts.includes(screen.file),
         resolution,
         main: resolution ? status.main : undefined,
@@ -1222,7 +1224,8 @@ export async function designReview(
     updatedWithMainAt: mainTime,
     round: context.round ?? 1,
     previousItemId: context.previousItemId ?? null,
-    landing: list('design-review-landing', owner).find((entry) => entry.id === row.id),
+    landing: reviewLanding(owner, row.id),
+    proposerTaskId: buildProposerTask(owner, row)?.id ?? null,
     boards,
     changes: groupReviewChanges(
       boards.map((board) => ({
@@ -1479,6 +1482,7 @@ function recordProposal(
     summary,
     changeWords,
     proposer,
+    proposerTaskId: proposal.taskId ?? null,
     previousItemId: previous?.id ?? null,
     previousCommit: previous?.context.commit ?? null,
     round: (previous?.context.round ?? 0) + 1,
@@ -1581,14 +1585,13 @@ function decideDesign(
       updatedAt: now(),
     });
     queuePushTrigger(owner, project.id, `refs/heads/${context.main}`, commit);
-    // Landed without the undo window: record it so the build starts the same way.
+    // Landing records approval only. Building requires a separate owner request.
     if (!list('design-review-landing', owner).some((entry) => entry.id === item.id))
       save('design-review-landing', owner, {
         id: item.id,
         at: now(),
         state: 'landed',
         commit,
-        buildDue: true,
       });
     return;
   }
@@ -1694,62 +1697,102 @@ export function designBuildBrief(input: {
     .join('\n\n');
 }
 
-/**
- * Close the loop on an approval: tell the task that proposed the design to build it, or start a
- * task when a person proposed it from the Design page. Runs after the landing transaction, and
- * again on boot for any landing that has no build yet, so a crash between the two loses nothing.
- */
 /** A task nobody picked a computer for goes to one that is online and takes tasks. */
 function serverTaskComputer(owner: string) {
   const workerId = onlineTaskWorker(owner);
   return workerId ? { workerId } : {};
 }
 
-function startDesignBuild(owner: string, landing: any) {
-  const row = list('v2-inbox-native', owner).find((entry) => entry.id === landing.id);
-  const done = (build: Record<string, unknown>) =>
-    save('design-review-landing', owner, { ...landing, build: { ...build, at: now() } });
-  // An approval undone or replaced since: nothing to build.
-  if (!row || row.item.answer?.actionId !== 'approve') return done({ skipped: true });
-  const context = row.context;
-  const project = list('project', owner).find((entry) => entry.id === context.projectId);
-  if (!project) return done({ skipped: true });
-  const content = designBuildBrief({
-    title: row.item.title,
-    summary: context.summary,
-    commit: landing.commit ?? context.commit,
-    main: context.main ?? 'main',
-    paths: context.paths ?? [],
-  });
-  const proposerTask = context.taskId
-    ? list('task', owner).find((entry) => entry.id === context.taskId)
-    : null;
-  try {
-    if (proposerTask && !['cancelled', 'archived'].includes(proposerTask.status)) {
-      const queued = queuedMessage(owner, proposerTask.id);
-      if (queued?.status === 'queued') {
-        save('queued-message', owner, { ...queued, content: `${queued.content}\n\n${content}` });
-        event(owner, proposerTask.id, null, 'message.queued', { status: 'queued' });
-      } else queueMessage(owner, proposerTask.id, { content });
-      return done({ taskId: proposerTask.id, started: false });
-    }
-    const task = queueTask(owner, {
-      projectId: project.id,
-      title: `Build: ${row.item.title}`,
-      ref: landing.commit ?? context.main ?? 'HEAD',
-      prompt: content,
-      ...serverTaskComputer(owner),
-    });
-    // Link the review to its builder: "built" reports and To review find it through the task.
-    const item = { ...row.item, taskId: task.id };
-    save('v2-inbox-native', owner, { ...row, item, context: { ...context, taskId: task.id } });
-    event(owner, project.id, null, 'v2.inbox', { item });
-    return done({ taskId: task.id, started: true });
-  } catch (error) {
-    // No computer takes tasks, or the task could not take a message: say so on the review
-    // instead of retrying every second. Start a task from the review to try again.
-    return done({ failed: (error as Error).message });
-  }
+/** Keep the original proposer separate from the task later assigned to build. */
+function buildProposerTask(owner: string, row: any) {
+  const taskId =
+    row.context.proposerTaskId !== undefined ? row.context.proposerTaskId : row.context.taskId;
+  return list('task', owner).find(
+    (task) => task.id === taskId && !['cancelled', 'archived'].includes(task.status),
+  );
+}
+
+function reviewLanding(owner: string, itemId: string) {
+  const landing = list('design-review-landing', owner).find((entry) => entry.id === itemId);
+  if (!landing?.build?.taskId) return landing;
+  return {
+    ...landing,
+    build: { ...landing.build, name: proposalProposer(owner, landing.build.taskId).name },
+  };
+}
+
+/** Only an explicit owner request starts a build; landing and boot never call this. */
+export function requestDesignBuild(
+  owner: string,
+  projectId: string,
+  itemId: string,
+  place: unknown,
+) {
+  return db
+    .transaction(() => {
+      const row = reviewRow(owner, projectId, itemId);
+      const landing = list('design-review-landing', owner).find((entry) => entry.id === itemId);
+      if (row.item.answer?.actionId !== 'approve' || landing?.state !== 'landed' || !landing.commit)
+        fail('The approved design must be on main before building', 409);
+      if (landing.build) return landing.build;
+      if (place !== 'proposer' && place !== 'new') fail('Choose the proposer’s task or a new task');
+      const context = row.context;
+      const proposerTask = buildProposerTask(owner, row);
+      if (place === 'proposer' && !proposerTask)
+        fail('This design can only build in a new task', 409);
+      const workerId = onlineTaskWorker(owner);
+      if (!workerId) fail('No computer is online and taking tasks', 409);
+      const content = designBuildBrief({
+        title: row.item.title,
+        summary: context.summary,
+        commit: landing.commit,
+        main: context.main ?? 'main',
+        paths: context.paths ?? [],
+      });
+      let taskId: string;
+      if (place === 'proposer') {
+        taskId = proposerTask!.id;
+        const proposerWorker = proposerTask!.workerId || 'local';
+        if (
+          !computers(owner).some(
+            (worker) => worker.id === proposerWorker && worker.status === 'online',
+          )
+        )
+          fail('The proposer’s computer is not online. Choose a new task or bring it online.', 409);
+        assertWorkerRole(owner, proposerWorker, 'tasks');
+        const queued = queuedMessage(owner, taskId);
+        if (queued?.status === 'queued') {
+          save('queued-message', owner, { ...queued, content: `${queued.content}\n\n${content}` });
+          event(owner, taskId, null, 'message.queued', { status: 'queued' });
+        } else queueMessage(owner, taskId, { content });
+      } else {
+        taskId = queueTask(owner, {
+          projectId,
+          title: `Build: ${row.item.title}`,
+          ref: landing.commit,
+          prompt: content,
+          workerId,
+        }).id;
+      }
+      const build = { taskId, started: place === 'new', at: now() };
+      save('design-review-landing', owner, { ...landing, build });
+      const item = { ...row.item, taskId };
+      save('v2-inbox-native', owner, {
+        ...row,
+        item,
+        context: {
+          ...context,
+          proposerTaskId:
+            context.proposerTaskId !== undefined
+              ? context.proposerTaskId
+              : (context.taskId ?? null),
+          taskId,
+        },
+      });
+      event(owner, projectId, null, 'v2.inbox', { item });
+      return build;
+    })
+    .immediate();
 }
 
 /** Persisted jobs are scanned on boot and each second; no in-memory timer owns a decision. */
@@ -1759,11 +1802,6 @@ export async function landDesignApprovals(clock = Date.now()) {
     .all() as { owner: string; data: string }[];
   for (const saved of jobs) {
     const job = JSON.parse(saved.data);
-    // Only approvals landed since builds follow them; older ones are left as they were.
-    if (job.state === 'landed' && job.buildDue && !job.build) {
-      startDesignBuild(saved.owner, job);
-      continue;
-    }
     if (job.state !== 'pending' || Date.parse(job.at) > clock) continue;
     const owner = saved.owner;
     const row = get('v2-inbox-native', owner, job.id);
@@ -1797,7 +1835,6 @@ export async function landDesignApprovals(clock = Date.now()) {
             ...current,
             state: 'landed',
             commit: prepared.commit,
-            buildDue: true,
           });
           event(owner, project.id, null, 'v2.inbox', { item: row.item });
         }).immediate();
@@ -2394,7 +2431,8 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         const built = list('design-review-built', owner).find(
           (entry) => entry.id === row.id && entry.state !== 'waiting',
         );
-        const task = list('task', owner).find((entry) => entry.id === row.context.taskId);
+        const landing = reviewLanding(owner, row.id);
+        const task = list('task', owner).find((entry) => entry.id === landing?.build?.taskId);
         const project = get('project', owner, row.context.projectId);
         const building =
           task && !['done', 'completed', 'cancelled', 'archived'].includes(task.status);
@@ -2408,8 +2446,8 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
               ? ['matches', 'kept'].includes(built.state)
                 ? 'Built · matches the design'
                 : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
-              : row.context.proposer?.id
-                ? `${project.name ?? project.id} · ${row.context.proposer.name} is building it`
+              : landing?.build?.name
+                ? `${project.name ?? project.id} · ${landing.build.name} is building it`
                 : `${project.name ?? project.id} · being built`,
           },
         ];
@@ -3120,6 +3158,11 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         });
     }).immediate();
     return sendJson(res, { seen: true });
+  }
+
+  if (sub === '/review/build' && req.method === 'POST') {
+    const body = await readJson(req);
+    return sendJson(res, { build: requestDesignBuild(owner, project.id, body?.item, body?.place) });
   }
 
   if (sub === '/review/undo' && req.method === 'POST') {

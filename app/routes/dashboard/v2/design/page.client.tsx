@@ -24,7 +24,7 @@ import {
   type Tool,
   type View,
 } from './Canvas';
-import { CommentsPanel, useComments } from './Comments';
+import { CommentsPanel, useComments, type Comment } from './Comments';
 import {
   bounds,
   fit,
@@ -55,6 +55,16 @@ import { PickSheet } from './Pickers';
 import './style.css';
 import { ToReview } from './ToReview';
 import { reviewHref } from './review-model';
+import { CanvasReviewBar, useCanvasReview } from './CanvasReview';
+import {
+  reviewProject,
+  reviewBranch,
+  reviewFrames,
+  reviewCanvas,
+  reviewKey,
+  reviewFeedback,
+  stepFrame,
+} from './canvas-review-model';
 
 const noTokens: Tokens = { colors: [], textStyles: [] };
 
@@ -69,11 +79,13 @@ function remember(values: Record<string, string | null>) {
 
 export default function DesignPage() {
   const [params, setParams] = useSearchParams();
-  const canvasProject =
-    params.get('view') === 'canvas' ||
-    params.has('board') ||
-    params.has('ref') ||
-    params.has('task')
+  const reviewId = params.get('review');
+  const canvasProject = reviewId
+    ? reviewProject(reviewId)
+    : params.get('view') === 'canvas' ||
+        params.has('board') ||
+        params.has('ref') ||
+        params.has('task')
       ? params.get('project')
       : null;
   const openProject = useCallback(
@@ -83,7 +95,7 @@ export default function DesignPage() {
     [setParams],
   );
   return canvasProject ? (
-    <DesignCanvasPage key={canvasProject} initialProject={canvasProject} />
+    <DesignCanvasPage key={`${canvasProject}:${reviewId ?? ''}`} initialProject={canvasProject} />
   ) : (
     <ToReview
       projectId={params.get('project') ?? undefined}
@@ -103,12 +115,27 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const projects = useData<{ projects: Project[] }>('/api/v2/projects');
   const [projectId, setProjectId] = useState(initialProject);
   const project = projects.data?.projects.find((item) => item.id === projectId);
-  const [ref, setRef] = useState(params.get('ref') ?? 'HEAD');
+  const reviewId = params.get('review');
+  const review = useCanvasReview(projectId, reviewId);
+  const [ref, setRef] = useState(reviewId ? reviewBranch(reviewId) : (params.get('ref') ?? 'HEAD'));
+  const reviewData = review.data;
+  const reviewBoards = useMemo(() => (reviewData ? reviewFrames(reviewData) : []), [reviewData]);
+  const reviewByFile = useMemo(
+    () => new Map(reviewBoards.map((board) => [board.file, board])),
+    [reviewBoards],
+  );
+  const readRef = reviewData && reviewData.item.state !== 'waiting' ? reviewData.after : ref;
   // The design loads from the id in the address, alongside the project list rather than after it.
-  const designPath = projectId
-    ? `/api/v2/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(ref)}`
-    : undefined;
+  const designPath =
+    projectId && (!reviewId || reviewData)
+      ? `/api/v2/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(readRef)}`
+      : undefined;
   const design = useData<Design>(designPath);
+  const beforeDesign = useData<Design>(
+    reviewData
+      ? `/api/v2/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(reviewData.before)}`
+      : undefined,
+  );
   useEffect(() => {
     if (!project || !design.data?.canvas || !Object.keys(design.data.canvas.boards).length) return;
     try {
@@ -118,7 +145,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     }
   }, [owner, project, design.data?.canvas]);
   // An agent's design branch, shown over yours: Mine, Overlay (its version, changes outlined), Agent's.
-  const [taskId, setTaskId] = useState(params.get('task') ?? '');
+  const [taskId, setTaskId] = useState(reviewId ? '' : (params.get('task') ?? ''));
   const [mode, setMode] = useState<OverlayMode>('overlay');
   const [poll, setPoll] = useState(0);
   const projectApi = projectId ? `/api/v2/projects/${encodeURIComponent(projectId)}/design` : '';
@@ -152,14 +179,16 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [markEdits, setMarkEdits] = useState<Record<string, Partial<Note> | null>>({});
   useEffect(() => setMarkEdits({}), [shown?.commit]);
   const canvas = useMemo(() => {
-    const saved = shown?.canvas ?? null;
+    const saved = reviewId
+      ? reviewCanvas(shown?.canvas ?? null, beforeDesign.data?.canvas ?? null, reviewBoards)
+      : (shown?.canvas ?? null);
     if (!saved || !Object.keys(markEdits).length) return saved;
     const notes = { ...saved.notes };
     for (const [id, patch] of Object.entries(markEdits))
       if (patch === null) delete notes[id];
       else if (notes[id]) notes[id] = { ...notes[id], ...patch };
     return { ...saved, notes };
-  }, [shown, markEdits]);
+  }, [shown, markEdits, reviewId, beforeDesign.data, reviewBoards]);
   // Your own edits make new commits, but the boards on screen already show them, so the canvas
   // keeps the commit it opened and loads only the boards you edited from their latest commit.
   const ownCommits = useRef(new Set<string>());
@@ -290,7 +319,18 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     () => (tokensData.data ? readTokens(tokensData.data) : noTokens),
     [tokensData.data],
   );
-  const changes = useChanges(projectId, ref, design.data?.commit);
+  const branchChanges = useChanges(reviewId ? undefined : projectId, ref, design.data?.commit);
+  const changes = useMemo(
+    () =>
+      reviewId
+        ? reviewBoards.map((board) => ({
+            status: board.status,
+            path: `design/boards/${board.file}`,
+            layers: undefined,
+          }))
+        : branchChanges,
+    [reviewId, reviewBoards, branchChanges],
+  );
   const changed = useMemo(
     () =>
       new Set(
@@ -337,9 +377,25 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     const key = `${frameCommit}:${section.id}`;
     if (fitted.current === key) return;
     fitted.current = key;
-    const named = selection && canvas.boards[selection.board] ? [selection.board] : section.boards;
+    const named =
+      selection && canvas.boards[selection.board]
+        ? [selection.board]
+        : reviewBoards[0]
+          ? [reviewBoards[0].file]
+          : section.boards;
     requestAnimationFrame(() => fitTo(named));
-  }, [canvas, section, frameCommit, selection, fitTo]);
+  }, [canvas, section, frameCommit, selection, fitTo, reviewBoards]);
+
+  const fittedNote = useRef('');
+  useEffect(() => {
+    if (!reviewData || reviewData.boards.length || !canvas || fittedNote.current === reviewData.id)
+      return;
+    const note = canvas.notes?.[reviewData.notes[0]?.id];
+    if (note) {
+      fittedNote.current = reviewData.id;
+      setView({ z: 1, x: 48 - note.x, y: 72 - note.y });
+    }
+  }, [reviewData?.id, canvas, reviewData]);
 
   // A pen mark on the canvas, selected instead of a board or a layer.
   const [mark, setMarkId] = useState<string | null>(null);
@@ -396,7 +452,12 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   };
   // Edits apply to the board on screen at once, then commit one after another to the design
   // branch; the first edit on main starts a branch, so main only changes through review.
-  const editable = Boolean(project && design.data && !(overlay && mode !== 'mine'));
+  const editable = Boolean(
+    project &&
+    design.data &&
+    !(overlay && mode !== 'mine') &&
+    (!reviewId || (reviewData?.item.state === 'waiting' && review.side === 'after')),
+  );
   const head = useRef<{ ref: string; commit: string } | null>(null);
   useEffect(() => {
     if (design.data) head.current = { ref, commit: design.data.commit };
@@ -691,6 +752,95 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [shape, setShape] = useState<'rectangle' | 'ellipse' | 'line'>('rectangle');
   const [shapeMenu, setShapeMenu] = useState(false);
 
+  const [activeReviewFile, setActiveReviewFile] = useState<string>();
+  useEffect(() => {
+    if (selection && reviewByFile.has(selection.board)) setActiveReviewFile(selection.board);
+  }, [selection, reviewByFile]);
+  const activeReviewIndex = Math.max(
+    0,
+    reviewBoards.findIndex((board) => board.file === activeReviewFile),
+  );
+  const focusReviewFrame = useCallback(
+    (file: string) => {
+      const page = sections.find((entry) => entry.boards.includes(file));
+      if (page) {
+        setSectionId(page.id);
+        remember({ page: page.id });
+      }
+      select({ board: file, layer: null });
+      requestAnimationFrame(() => fitTo([file]));
+    },
+    [sections, select, fitTo],
+  );
+  const stepReview = (delta: number) => {
+    const next = stepFrame(reviewBoards, activeReviewFile, delta);
+    if (next) focusReviewFrame(next);
+  };
+  useEffect(() => {
+    if (!reviewId) return;
+    const key = (event: KeyboardEvent) => {
+      const editing = Boolean(
+        (event.target as HTMLElement)?.closest?.(
+          'input:not([type="checkbox"]):not([type="radio"]),textarea,select,[contenteditable],[role="dialog"],dialog,[role="slider"]',
+        ),
+      );
+      // Native Space activates a focused checkbox/button; arrows still navigate frames.
+      if (
+        event.key === ' ' &&
+        (event.target as HTMLElement)?.closest?.(
+          'button,a,input[type="checkbox"],input[type="radio"]',
+        )
+      )
+        return;
+      const action = reviewKey(event, editing);
+      if (!action) return;
+      event.preventDefault();
+      if (action === 'approve') {
+        const board = reviewBoards[activeReviewIndex];
+        if (board && (!selection || selection.board === board.file))
+          void review.approveFrame(board.file);
+      } else stepReview(action === 'previous' ? -1 : 1);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+    // Keep the handler in sync with the current frame and approval state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    reviewId,
+    reviewBoards,
+    activeReviewIndex,
+    activeReviewFile,
+    selection,
+    focusReviewFrame,
+    review.approveFrame,
+  ]);
+  const reviewNavigation = (
+    <>
+      <button
+        className="dz-tool"
+        type="button"
+        aria-label="Previous changed frame"
+        disabled={!reviewBoards.length || activeReviewIndex === 0}
+        onClick={() => stepReview(-1)}
+      >
+        ‹
+      </button>
+      <span className="dz-review-step">
+        {reviewBoards.length ? activeReviewIndex + 1 : 0} of {reviewBoards.length}
+      </span>
+      <button
+        className="dz-tool"
+        type="button"
+        aria-label="Next changed frame"
+        disabled={!reviewBoards.length || activeReviewIndex === reviewBoards.length - 1}
+        onClick={() => stepReview(1)}
+      >
+        ›
+      </button>
+      <i className="dz-sep" />
+    </>
+  );
+
   const chooseSection = (id: string) => {
     setSectionId(id);
     remember({ page: id, board: null, layer: null });
@@ -699,6 +849,12 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     if (next) requestAnimationFrame(() => fitTo(next.boards));
   };
   const chooseRef = (next: string) => {
+    if (reviewId) {
+      window.location.assign(
+        `/dashboard/design?project=${encodeURIComponent(projectId)}&view=canvas&ref=${encodeURIComponent(next)}`,
+      );
+      return;
+    }
     setRef(next);
 
     remember({ ref: next === 'HEAD' ? null : next });
@@ -807,7 +963,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   ];
 
   const propose =
-    ref.startsWith('design/') && changes.length && project
+    !reviewId && ref.startsWith('design/') && changes.length && project
       ? {
           state: (proposing ? 'busy' : inReview ? 'in-review' : 'ready') as
             | 'ready'
@@ -1035,6 +1191,12 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
         projects={projects.data?.projects ?? []}
         project={project}
         onProject={(id) => {
+          if (reviewId) {
+            window.location.assign(
+              `/dashboard/design?project=${encodeURIComponent(id)}&view=canvas`,
+            );
+            return;
+          }
           setProjectId(id);
           try {
             localStorage.setItem(`deploy.design.lastProject.${owner}`, id);
@@ -1081,32 +1243,55 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
         }
       />
       <div className="dz-stage">
-        {(proposals.data?.proposals.filter((entry) => entry.state === 'waiting').length ?? 0) >
-          0 && (
-          <div className="dl-design-waiting-banner">
-            <span>
-              {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length} design
-              {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
-                ? ''
-                : 's'}{' '}
-              waiting on you
-              {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
-                ? ` · ${proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.title}`
-                : ''}
-            </span>
-            <a
-              href={
-                proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
-                  ? reviewHref(
-                      proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.id,
-                    )
-                  : `/dashboard/design?project=${encodeURIComponent(projectId)}&view=review`
-              }
-            >
-              Review
-            </a>
-          </div>
+        {reviewId && (
+          <CanvasReviewBar
+            review={review}
+            suggestions={
+              reviewData ? reviewFeedback(reviewData, comments, ref, design.data?.commit) : ''
+            }
+            beforeDecision={async (action) => {
+              await queue.current;
+              if (!reviewData) return '';
+              if (action !== 'changes') return '';
+              const latest = await request<{ comments: Comment[] }>(`${projectApi}/comments`);
+              return reviewFeedback(
+                reviewData,
+                latest.comments,
+                head.current?.ref ?? ref,
+                head.current?.commit ?? design.data?.commit,
+              );
+            }}
+          />
         )}
+        {!reviewId &&
+          (proposals.data?.proposals.filter((entry) => entry.state === 'waiting').length ?? 0) >
+            0 && (
+            <div className="dl-design-waiting-banner">
+              <span>
+                {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length}{' '}
+                design
+                {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
+                  ? ''
+                  : 's'}{' '}
+                waiting on you
+                {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
+                  ? ` · ${proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.title}`
+                  : ''}
+              </span>
+              <a
+                href={
+                  proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length ===
+                  1
+                    ? reviewHref(
+                        proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.id,
+                      )
+                    : `/dashboard/design?project=${encodeURIComponent(projectId)}&view=review`
+                }
+              >
+                Review
+              </a>
+            </div>
+          )}
         {empty ? (
           <Empty title="No projects yet">
             Add a project with a design/ folder to see its boards here.
@@ -1133,6 +1318,20 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
             agentBoards={agentBoards}
             agentLayers={agentLayers}
             inReview={inReviewBoards}
+            review={
+              reviewId
+                ? {
+                    api: review.api,
+                    item: reviewId,
+                    boards: reviewByFile,
+                    side: review.side,
+                    approve: review.approveFrame,
+                    busy: review.busy,
+                    waiting: reviewData?.item.state === 'waiting',
+                  }
+                : undefined
+            }
+            onFollow={reviewId ? focusReviewFrame : undefined}
             agents={agents}
             boardSrc={boardSrc}
             onEditText={
@@ -1221,6 +1420,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
           />
         )}
         <div className="dz-toolbar" role="toolbar" aria-label="Tools">
+          {reviewId && reviewNavigation}
           {tools.map((item, index) => (
             <span key={item.id} className="dz-tool-wrap">
               {index === 6 && <i className="dz-sep" />}
@@ -1313,6 +1513,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
           {!selection && <span className="dz-phone-hint">Pinch to zoom · double-tap a board</span>}
         </div>
         <div className="dz-phone-tools" role="toolbar" aria-label="Tools">
+          {reviewId && reviewNavigation}
           {(
             [
               ['move', 'move', 'Move'],
@@ -1378,13 +1579,25 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
           }));
         }}
         changes={changes}
-        select={select}
+        select={
+          reviewId
+            ? (next) => {
+                if (next) {
+                  focusReviewFrame(next.board);
+                  if (next.layer) select(next);
+                } else select(null);
+              }
+            : select
+        }
         owner={owner}
         tab={tab}
         setTab={setTab}
         commentCount={comments.filter((comment) => !comment.resolved).length}
         onAsk={() => setAsking(true)}
         propose={propose}
+        review={reviewData}
+        reviewing={Boolean(reviewId)}
+        reviewSide={review.side}
         agents={agents}
         onComment={() => {
           setTab('comments');
@@ -1423,7 +1636,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
           project ? (
             <CommentsPanel
               projectId={project.id}
-              commit={shown?.commit}
+              commit={reviewData?.after ?? shown?.commit}
               selection={selection}
               select={select}
               comments={comments}
@@ -1459,6 +1672,12 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
         projects={projects.data?.projects ?? []}
         project={project}
         onProject={(id) => {
+          if (reviewId) {
+            window.location.assign(
+              `/dashboard/design?project=${encodeURIComponent(id)}&view=canvas`,
+            );
+            return;
+          }
           setProjectId(id);
           try {
             localStorage.setItem(`deploy.design.lastProject.${owner}`, id);

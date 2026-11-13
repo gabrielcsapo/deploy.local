@@ -208,7 +208,6 @@ async function seed(state: string, noCapture = false) {
     state: 'landed',
     commit: main,
     at: approved.toISOString(),
-    buildDue: true,
     build: { taskId, at: approved.toISOString() },
   });
   if (state === 'TaskNeedsComputer') {

@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { InboxProvider, remember } from '../data/hooks';
+import type { DesignReview } from '../../../../../shared/v2/contracts';
 import { DesignCard, cardRegion } from './Review';
-import * as model from './review-model';
 
 test('chat card keeps Review and Open in Design together', () => {
   const design = {
@@ -23,6 +24,7 @@ test('chat card keeps Review and Open in Design together', () => {
     createElement(DesignCard, { projectId: 'p', taskId: 't', design }),
   );
   assert.match(html, /Review<\/a><a class="dl-btn quiet"/);
+  assert.match(html, /href="\/dashboard\/design\?review=design%3Ap%3Ab%3Ac"/);
 });
 
 test('chat crops keep the approved zoom even when a changed wrapper spans the screen', () => {
@@ -36,15 +38,6 @@ test('chat crops keep the approved zoom even when a changed wrapper spans the sc
   assert.equal(region.w, 1440 * 0.52);
   assert.ok(region.x >= 0 && region.y >= 0);
   assert.ok(region.x + region.w <= preview.width && region.y + region.h <= preview.height);
-});
-
-test('sent changes retain their notice in later review rounds', () => {
-  assert.equal(model.changesNotice(2, 3, false, { actionId: 'changes' }), 'sent');
-  assert.equal(model.changesNotice(1, 3, true), 'draft');
-  assert.equal(model.changesNotice(2, 3, true), null);
-  assert.equal(model.changesNotice(1, 3, false, { actionId: 'approve' }), null);
-  assert.equal(model.changesNotice(1, 3, false, { actionId: 'update' }), null);
-  assert.equal(model.changesNotice(1, 0, false, { actionId: 'changes' }), null);
 });
 
 test('chat card uses the approved four-screen glyph', () => {
@@ -65,4 +58,51 @@ test('chat card uses the approved four-screen glyph', () => {
     createElement(DesignCard, { projectId: 'p', taskId: 't', design }),
   );
   assert.equal((html.match(/<rect /g) ?? []).length, 4);
+});
+
+test('approved proposal card offers Build only after landing, then links the recorded builder', () => {
+  const item = {
+    id: 'design:chat:branch:commit',
+    title: 'Welcome',
+    state: 'answered',
+    answer: { actionId: 'approve', at: '2026-11-12T12:00:00Z', by: 'owner', on: 'web' },
+  } as DesignReview['item'];
+  const api = '/api/chat-approved';
+  const review = {
+    id: item.id,
+    item,
+    boards: [],
+    groups: [],
+    proposerTaskId: 'proposer',
+    proposer: { id: 'designer', name: 'Designer', avatar: null },
+    landing: { at: '2026-11-12T12:00:30Z', state: 'landed', commit: '4f05991abcdef' },
+  } as unknown as DesignReview;
+  const render = (data: DesignReview) => {
+    remember(`${api}/review?item=${encodeURIComponent(item.id)}`, data);
+    return renderToStaticMarkup(
+      createElement(
+        InboxProvider,
+        null,
+        createElement(DesignCard, {
+          projectId: 'chat',
+          taskId: 'proposer',
+          design: { api, proposal: item },
+        }),
+      ),
+    );
+  };
+  const ready = render(review);
+  assert.match(ready, /Approved · on main as 4f05991 · not built yet/);
+  assert.match(ready, />Build<\/button>/);
+  assert.doesNotMatch(ready, /Where to build|starts building|is building it/);
+  assert.doesNotMatch(
+    render({ ...review, landing: { ...review.landing!, state: 'pending' } }),
+    />Build</,
+  );
+  const building = render({
+    ...review,
+    landing: { ...review.landing!, build: { at: '', taskId: 'builder', name: 'Designer' } },
+  });
+  assert.doesNotMatch(building, />Build</);
+  assert.match(building, /href="\/dashboard\/tasks\/builder">Designer is building it<\/a>/);
 });

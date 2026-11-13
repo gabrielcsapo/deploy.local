@@ -1,4 +1,4 @@
-import { DesignItemReview } from '../../../app/routes/dashboard/v2/design/ItemReview';
+import { ReviewRedirect } from '../../../app/routes/dashboard/v2/design/ReviewRedirect';
 import { useInbox } from '../../../app/routes/dashboard/v2/data/hooks';
 import { createRoot } from 'react-dom/client';
 import { V2Layout } from '../../../app/routes/dashboard/v2-layout.client';
@@ -16,7 +16,7 @@ function EmbeddedReview() {
     <div
       style={{ width: '100%', maxWidth: 700, height: 'calc(100dvh - 104px)', margin: '52px auto' }}
     >
-      {item && <DesignItemReview item={item} embedded />}
+      {item && <ReviewRedirect item={item.id} />}
     </div>
   );
 }

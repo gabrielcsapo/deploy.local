@@ -10,7 +10,8 @@ const { get, save, list, now } = await import('../workspace/store.ts');
 const { createProject, createTask } = await import('../workspace/test-repository.ts');
 const { git } = await import('../workspace/service.ts');
 const { askTools, recordToolAnswers } = await import('../workspace/tool-probes.ts');
-const { designBuildBrief, designTool, landDesignApprovals } = await import('./design.ts');
+const { designBuildBrief, designTool, landDesignApprovals, requestDesignBuild } =
+  await import('./design.ts');
 
 function fixture(width: number | null, meta = '', proposer = false) {
   const owner = randomUUID();
@@ -43,13 +44,15 @@ function fixture(width: number | null, meta = '', proposer = false) {
   const project = createProject(owner, { name: 'Phone design', sourcePath: source });
   const task = proposer ? createTask(owner, { projectId: project.id, title: 'Proposer' }) : null;
   const id = randomUUID();
-  const landing = { id, state: 'landed', commit, buildDue: true };
+  const landing = { id, state: 'landed', commit };
+  save('worker', owner, { id: 'local', name: 'Test computer', heartbeat: now() });
   save('design-review-landing', owner, landing);
   save('v2-inbox-native', owner, {
     id,
     item: {
       id,
       title: 'Approved screen',
+      actions: [{ id: 'approve' }, { id: 'update' }],
       state: 'answered',
       from: { name: 'Owner' },
       answer: { actionId: 'approve', at: now() },
@@ -66,7 +69,7 @@ function fixture(width: number | null, meta = '', proposer = false) {
   return { owner, project, landing, proposer: task };
 }
 
-test('design builds start normally at every board size and reuse their proposer', async () => {
+test('requested design builds start at every board size and reuse their proposer', async () => {
   for (const proposer of [false, true]) {
     for (const [width, meta] of [
       [390, ''],
@@ -75,7 +78,13 @@ test('design builds start normally at every board size and reuse their proposer'
     ] as const) {
       const f = fixture(width, meta, proposer);
       await landDesignApprovals();
-      const build = get('design-review-landing', f.owner, f.landing.id).build;
+      assert.equal(get('design-review-landing', f.owner, f.landing.id).build, undefined);
+      const build = requestDesignBuild(
+        f.owner,
+        f.project.id,
+        f.landing.id,
+        proposer ? 'proposer' : 'new',
+      );
       assert.equal(build.started, !proposer, JSON.stringify(build));
       const task = get('task', f.owner, build.taskId);
       assert.equal(task.needs, undefined);
@@ -99,7 +108,7 @@ test('the build brief asks the agent to declare its programs as its first step',
 test('matches requires this reporting computer to confirm every stated program; differs stays accepted', async () => {
   const f = fixture(390);
   await landDesignApprovals();
-  const taskId = get('design-review-landing', f.owner, f.landing.id).build.taskId;
+  const taskId = requestDesignBuild(f.owner, f.project.id, f.landing.id, 'new').taskId;
   const needs = ['custom-compiler', 'asset-tool'];
   save('task', f.owner, {
     ...get('task', f.owner, taskId),

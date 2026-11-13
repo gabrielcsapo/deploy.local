@@ -1,4 +1,5 @@
 'use client';
+import { reviewHref } from './v2/design/review-model';
 import { formatTime } from './v2/data/time';
 import {
   Suspense,
@@ -225,7 +226,11 @@ export function V2Sidebar({
       {waiting.map((item) => (
         <Nav
           key={item.id}
-          href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}
+          href={
+            item.id.startsWith('design:')
+              ? reviewHref(item.id)
+              : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`
+          }
           lead={<Icon name="attention" className="dl-attn" size={14} />}
           end={formatTime(item.createdAt, 'list')}
         >

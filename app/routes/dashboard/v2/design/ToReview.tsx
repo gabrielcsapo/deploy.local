@@ -6,7 +6,7 @@ import type { DesignApproved, DesignReviewSummary } from '../../../../../shared/
 import { useInbox } from '../data/hooks';
 import { useData } from '../projects/data';
 import { getAuth } from '../../detail/shared';
-import { ago } from './ItemReview';
+import { ago } from './review-model';
 import { conflictCount, initialDesignProject, reviewCounts, reviewHref } from './review-model';
 import './review.css';
 export type DesignProject = {

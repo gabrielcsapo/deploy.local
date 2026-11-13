@@ -15,7 +15,8 @@ import {
 } from '@/components/ui';
 import { useAgentName, useInbox } from '../data/hooks';
 import { dayLabel } from '../data/sidebar';
-import { DesignItemReview } from '../design/ItemReview';
+import { reviewHref } from '../design/review-model';
+import { ReviewRedirect } from '../design/ReviewRedirect';
 import { answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
 
 export default function Inbox() {
@@ -50,9 +51,6 @@ export default function Inbox() {
       document.getElementById(`decision-${selected}`)?.scrollIntoView({ block: 'center' });
   }, [selected, inbox.loading]);
   // A design item opens as its review: what changed, Before and After, then the decision.
-  const design = selected?.startsWith('design:')
-    ? inbox.items.find((item) => item.id === selected)
-    : undefined;
   const question =
     !answered && selected
       ? inbox.items.find((item) => item.id === selected && item.kind === 'question')
@@ -60,7 +58,7 @@ export default function Inbox() {
   const build = selected
     ? inbox.items.find((item) => item.id === selected && item.designCheck)
     : undefined;
-  if (design) return <DesignItemReview key={design.id} item={design} />;
+  if (selected?.startsWith('design:')) return <ReviewRedirect item={selected} />;
   return (
     <>
       <Head
@@ -136,7 +134,11 @@ export default function Inbox() {
                                 title={item.title}
                                 description={`${item.fromName || agentName(item.from)} asked · ${answerDetails(item)}`}
                                 lead={<SavedAgentAvatar id={item.from} />}
-                                href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}
+                                href={
+                                  item.id.startsWith('design:')
+                                    ? reviewHref(item.id)
+                                    : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`
+                                }
                               >
                                 <Outcome item={item} />
                                 <span className="dl-tag">{answerLabel(item)}</span>
