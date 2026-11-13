@@ -21,6 +21,7 @@ import { checkAttempts } from '../../shared/check-attempts.ts';
 import { projectsForOwner } from './projects.ts';
 import { getDeployments } from '../store.ts';
 import { pullFiles } from './pull-files.ts';
+import { dispatch, routes } from '../routes.ts';
 
 /** Read stored evidence only: this snapshot never starts a runner or touches a repository. */
 export function taskSnapshot(owner: string, id: string) {
@@ -153,10 +154,24 @@ export function taskSnapshot(owner: string, id: string) {
   };
 }
 
+const route = routes<string>();
+
+export const tasksRoutes = [
+  route({
+    method: 'GET',
+    path: '/api/v2/tasks/:task',
+    handler: ({ res, params, context }) => taskSnapshotRoute(res, context, params.task),
+  }),
+];
+
+const tasksDispatch = dispatch(tasksRoutes);
+
 export async function tasksApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const match = new URL(req.url!, 'http://localhost').pathname.match(/^\/api\/v2\/tasks\/([^/]+)$/);
-  if (!match || req.method !== 'GET') return false;
-  const taskId = decodeURIComponent(match[1]);
+  return tasksDispatch(req, res, owner);
+}
+
+async function taskSnapshotRoute(res: ServerResponse, owner: string, task: string) {
+  const taskId = decodeURIComponent(task);
   const approved = approvedTaskDesign(owner, taskId);
   if (approved)
     await ensureDesignCheckBoards(

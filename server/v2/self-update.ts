@@ -45,6 +45,7 @@ export {
   readReleaseConfig,
   runningRevision,
 } from './self-update-host.ts';
+import { dispatch, routes } from '../routes.ts';
 const DEFAULT_ESTIMATE_MS = 6 * 60_000;
 const STARTUP_GRACE_MS = 20_000;
 
@@ -329,30 +330,56 @@ export async function selfUpdateLog(owner: string) {
   return { text: buffer.toString('utf8') };
 }
 
+const route = routes<string>();
+
+const methodNotAllowed = ({ res }: { res: ServerResponse }) =>
+  sendJson(res, { error: 'Method not allowed' }, 405);
+
+export const selfUpdateRoutes = [
+  route({
+    method: 'GET',
+    path: '/self-update/log',
+    handler: async ({ res, context: owner }) => sendJson(res, await selfUpdateLog(owner)),
+  }),
+  route({
+    method: 'GET',
+    path: '/self-update',
+    handler: async ({ res, context: owner }) => sendJson(res, await selfUpdateStatus(owner)),
+  }),
+  route({
+    method: 'POST',
+    path: '/self-update',
+    handler: async ({ req, res, context: owner }) => startSelfUpdateRoute(req, res, owner),
+  }),
+  route({ method: '*', path: '/self-update/log', handler: methodNotAllowed }),
+  route({ method: '*', path: '/self-update', handler: methodNotAllowed }),
+];
+
+// These paths are matched without their /api/v2 prefix, as they always were.
+const selfUpdateDispatch = dispatch(selfUpdateRoutes, {
+  path: (url) => url.pathname.slice('/api/v2'.length),
+});
+
 export async function selfUpdateApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
-  if (path !== '/self-update' && path !== '/self-update/log') return false;
-  const send = (value: unknown, status = 200) => sendJson(res, value, status);
-  if (path === '/self-update/log' && req.method === 'GET') return send(await selfUpdateLog(owner));
-  if (path === '/self-update' && req.method === 'GET') return send(await selfUpdateStatus(owner));
-  if (path === '/self-update' && req.method === 'POST') {
-    const chunks: Buffer[] = [];
-    let bytes = 0;
-    for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-      bytes += chunk.length;
-      if (bytes > 4096) {
-        req.resume();
-        fail('Request too large', 413);
-      }
-      chunks.push(Buffer.from(chunk));
+  return selfUpdateDispatch(req, res, owner);
+}
+
+async function startSelfUpdateRoute(req: IncomingMessage, res: ServerResponse, owner: string) {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+    bytes += chunk.length;
+    if (bytes > 4096) {
+      req.resume();
+      fail('Request too large', 413);
     }
-    let input: { to?: unknown } = {};
-    try {
-      input = JSON.parse(Buffer.concat(chunks).toString() || '{}');
-    } catch {
-      fail('Invalid JSON');
-    }
-    return send(await startSelfUpdate(owner, input.to), 202);
+    chunks.push(Buffer.from(chunk));
   }
-  return send({ error: 'Method not allowed' }, 405);
+  let input: { to?: unknown } = {};
+  try {
+    input = JSON.parse(Buffer.concat(chunks).toString() || '{}');
+  } catch {
+    fail('Invalid JSON');
+  }
+  return sendJson(res, await startSelfUpdate(owner, input.to), 202);
 }

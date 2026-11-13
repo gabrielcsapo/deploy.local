@@ -4,6 +4,7 @@ import { getArtifact, putArtifactBytes } from '../content-store.ts';
 import { get, id, list, now, save } from '../workspace/store.ts';
 import { readBytes, sendJson } from './attachments.ts';
 import { fail } from '../errors.ts';
+import { dispatch, routes } from '../routes.ts';
 
 // Files dropped into a pull request's description. Any file is accepted; how it is served and
 // shown depends on what its bytes are, never on the name or type the client claims alone.
@@ -184,13 +185,40 @@ function serve(req: IncomingMessage, res: ServerResponse, row: any) {
   createReadStream(artifact.localPath).pipe(res);
   return true;
 }
+const route = routes<string>();
+
+// The pull request is checked before the method, so a wrong method on someone else's pull is a 404.
+export const pullFilesRoutes = [
+  route({
+    method: '*',
+    path: '/api/v2/pulls/:pull/files',
+    handler: ({ req, res, params, context }) =>
+      pullFilesRoute(req, res, context, params.pull, undefined),
+  }),
+  route({
+    method: '*',
+    path: '/api/v2/pulls/:pull/files/:file([a-f0-9-]+)',
+    handler: ({ req, res, params, context }) =>
+      pullFilesRoute(req, res, context, params.pull, params.file),
+  }),
+];
+
+const pullFilesDispatch = dispatch(pullFilesRoutes);
+
 export async function pullFilesApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const path = new URL(req.url!, 'http://localhost').pathname;
-  const route = path.match(/^\/api\/v2\/pulls\/([^/]+)\/files(?:\/([a-f0-9-]+))?$/);
-  if (!route) return false;
-  const pullId = decodeURIComponent(route[1]);
+  return pullFilesDispatch(req, res, owner);
+}
+
+async function pullFilesRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  owner: string,
+  pull: string,
+  file: string | undefined,
+) {
+  const pullId = decodeURIComponent(pull);
   get('pull-request', owner, pullId);
-  if (!route[2]) {
+  if (!file) {
     if (req.method === 'GET') return sendJson(res, { files: pullFiles(owner, pullId) });
     if (req.method === 'POST') {
       const claimed = String(req.headers['content-type'] || '')
@@ -208,7 +236,7 @@ export async function pullFilesApi(req: IncomingMessage, res: ServerResponse, ow
     fail('Method not allowed', 405);
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') fail('Method not allowed', 405);
-  const row = get('v2-pull-file', owner, route[2]);
+  const row = get('v2-pull-file', owner, file);
   if (row.pullId !== pullId) fail('Not found', 404);
   return serve(req, res, row);
 }

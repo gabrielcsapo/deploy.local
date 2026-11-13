@@ -1,0 +1,14 @@
+{
+  "exceptions": [],
+  "excludedClasses": [],
+  "held": [
+    {
+      "selector": ".dl-btn:disabled",
+      "reason": "The design system draws a disabled button as a plain bordered button with muted text. The app also fades every disabled control to 50% (components.css), so taking this rule would show a disabled button lighter than any board draws it, on Add a computer and New agent. The owner chose to keep the app look (2026-11-13); the board is to be changed to match."
+    },
+    {
+      "selector": ".dl-btn[aria-disabled=\"true\"]",
+      "reason": "The design system draws a disabled button as a plain bordered button with muted text. The app also fades every disabled control to 50% (components.css), so taking this rule would show a disabled button lighter than any board draws it, on Add a computer and New agent. The owner chose to keep the app look (2026-11-13); the board is to be changed to match."
+    }
+  ]
+}
