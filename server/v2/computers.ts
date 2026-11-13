@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { sendJson } from '../http.ts';
 import { revokeComputerPackageKey } from '../packages/keys.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -413,33 +414,94 @@ export async function computersApi(req: IncomingMessage, res: ServerResponse, ow
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
   if (path !== '/updates' && path !== '/computers' && !path.startsWith('/computers/')) return false;
   const send = (value: unknown, status = 200) => sendJson(res, value, status);
-  if (path === '/updates' && req.method === 'GET')
-    return send(await getUpdates(owner, getComputers(owner)));
-  if (path === '/updates' && req.method === 'PUT') {
-    setAutomaticUpdates(owner, (await body(req)).automatic);
-    return send(await getUpdates(owner, getComputers(owner)));
-  }
-  if (path === '/computers' && req.method === 'GET')
-    return send({ computers: getComputers(owner) });
-  if (path === '/computers/models') {
-    if (req.method === 'GET') return send(getModels(owner));
-    if (req.method === 'PUT') return send(setModelDefaults(owner, (await body(req)).defaults));
-  }
-  if (path === '/computers/enrollment' && req.method === 'POST') {
-    admin(owner);
-    const input = await body(req);
-    if (typeof input.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,99}$/.test(input.name))
-      fail('Enter a computer name (letters, numbers, spaces, dots or dashes)');
-    return send(createNodeEnrollment(input.name, owner), 201);
-  }
-  const match = path.match(/^\/computers\/([^/]+)(\/removal)?$/);
-  if (match) {
-    const id = decodeURIComponent(match[1]);
-    if (req.method === 'GET')
-      return send(match[2] ? removalPlan(owner, id) : { computer: computerFor(owner, id) });
-    if (!match[2] && req.method === 'PATCH')
-      return send({ computer: setComputerRoles(owner, id, (await body(req)).roles) });
-    if (!match[2] && req.method === 'DELETE') return send(removeComputer(owner, id));
-  }
-  return send({ error: 'Method not allowed' }, 405);
+  const route = routes<undefined>();
+  return dispatch(
+    [
+      route({
+        method: 'GET',
+        path: '/updates',
+        handler: async () => send(await getUpdates(owner, getComputers(owner))),
+      }),
+      route({
+        method: 'PUT',
+        path: '/updates',
+        handler: async () => {
+          setAutomaticUpdates(owner, (await body(req)).automatic);
+          return send(await getUpdates(owner, getComputers(owner)));
+        },
+      }),
+      route({
+        method: 'GET',
+        path: '/computers',
+        handler: () => send({ computers: getComputers(owner) }),
+      }),
+      route({ method: 'GET', path: '/computers/models', handler: () => send(getModels(owner)) }),
+      route({
+        method: 'PUT',
+        path: '/computers/models',
+        handler: async () => send(setModelDefaults(owner, (await body(req)).defaults)),
+      }),
+      route({
+        method: 'POST',
+        path: '/computers/enrollment',
+        handler: async () => {
+          admin(owner);
+          const input = await body(req);
+          if (
+            typeof input.name !== 'string' ||
+            !/^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,99}$/.test(input.name)
+          )
+            fail('Enter a computer name (letters, numbers, spaces, dots or dashes)');
+          return send(createNodeEnrollment(input.name, owner), 201);
+        },
+      }),
+      // The old matcher decoded any matching id even for an unsupported method.
+      route({
+        method: '*',
+        path: '/computers/:id',
+        handler: async ({ params }) => {
+          const id = decodeURIComponent(params.id);
+          return dispatch(
+            [
+              route({
+                method: 'GET',
+                path: '/computers/:id',
+                handler: () => send({ computer: computerFor(owner, id) }),
+              }),
+              route({
+                method: 'PATCH',
+                path: '/computers/:id',
+                handler: async () =>
+                  send({ computer: setComputerRoles(owner, id, (await body(req)).roles) }),
+              }),
+              route({
+                method: 'DELETE',
+                path: '/computers/:id',
+                handler: () => send(removeComputer(owner, id)),
+              }),
+            ],
+            { path: () => path },
+          )(req, res, undefined);
+        },
+      }),
+      route({
+        method: '*',
+        path: '/computers/:id/removal',
+        handler: async ({ params }) => {
+          const id = decodeURIComponent(params.id);
+          return dispatch(
+            [
+              route({
+                method: 'GET',
+                path: '/computers/:id/removal',
+                handler: () => send(removalPlan(owner, id)),
+              }),
+            ],
+            { path: () => path },
+          )(req, res, undefined);
+        },
+      }),
+    ],
+    { path: () => path, notFound: () => send({ error: 'Method not allowed' }, 405) },
+  )(req, res, undefined);
 }

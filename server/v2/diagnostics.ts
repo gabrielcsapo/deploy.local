@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { Session } from 'node:inspector/promises';
 import { performance } from 'node:perf_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -167,19 +168,25 @@ export async function profileSelf(seconds: number) {
   }
 }
 
-export async function diagnosticsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const url = new URL(req.url!, 'http://localhost');
-  if (url.pathname !== '/api/v2/diagnostics/profile') return false;
-  if (req.method !== 'POST') {
-    sendJson(res, { error: 'Method not allowed' }, 405);
-    return true;
-  }
-  if (!isAdmin(owner)) fail('Only an administrator can profile the server', 403);
-  const seconds = Number(url.searchParams.get('seconds') ?? 30);
-  if (!Number.isFinite(seconds) || seconds < 1 || seconds > 120)
-    fail('seconds must be between 1 and 120');
-  const { profile, summary } = await profileSelf(seconds);
-  // The whole profile opens in a profiler's flame chart; the summary is what to read first.
-  sendJson(res, url.searchParams.get('raw') === '1' ? { summary, profile } : { summary });
-  return true;
-}
+const diagnosticRoute = routes<string>();
+export const diagnosticsApi = dispatch([
+  diagnosticRoute({
+    method: 'POST',
+    path: '/api/v2/diagnostics/profile',
+    handler: async ({ res, url, context: owner }) => {
+      if (!isAdmin(owner)) fail('Only an administrator can profile the server', 403);
+      const seconds = Number(url.searchParams.get('seconds') ?? 30);
+      if (!Number.isFinite(seconds) || seconds < 1 || seconds > 120)
+        fail('seconds must be between 1 and 120');
+      const { profile, summary } = await profileSelf(seconds);
+      // The whole profile opens in a profiler's flame chart; the summary is what to read first.
+      sendJson(res, url.searchParams.get('raw') === '1' ? { summary, profile } : { summary });
+      return true;
+    },
+  }),
+  diagnosticRoute({
+    method: '*',
+    path: '/api/v2/diagnostics/profile',
+    handler: ({ res }) => sendJson(res, { error: 'Method not allowed' }, 405),
+  }),
+]);

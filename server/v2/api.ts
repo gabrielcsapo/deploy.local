@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { projectsApi } from './projects-api.ts';
 import { performanceApi } from './performance.ts';
 import { sendJson } from '../http.ts';
@@ -61,61 +62,89 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Agent and worker credentials cannot access client commands' }, 403);
     for (const api of signedIn) if (await api(req, res, auth.username)) return;
-    const url = new URL(req.url!, 'http://localhost');
-    const path = url.pathname.slice('/api/v2'.length);
-    if (req.method === 'GET' && path === '/inbox') {
-      const state = url.searchParams.get('state') ?? 'waiting';
-      if (!['waiting', 'answered'].includes(state)) fail('State must be waiting or answered');
-      // Pair each list with the exact event position of its SQLite snapshot. The two
-      // lists may be read at different times; clients retain both boundaries.
-      return send(
-        db
-          .transaction(() => ({
-            items: syncInbox(auth.username).filter((item) => item.state === state),
-            cursor: latestCursor(auth.username),
-          }))
-          .immediate(),
-      );
-    }
-    if (req.method === 'GET' && path === '/events') {
-      // A client that has just loaded a snapshot starts at the newest event instead of replaying history.
-      if (url.searchParams.get('after') === 'latest')
-        return send({ events: [], cursor: latestCursor(auth.username), supportsWait: true });
-      const after = Number(url.searchParams.get('after') ?? 0);
-      const waitMs = Number(url.searchParams.get('waitMs') ?? 0);
-      if (!Number.isSafeInteger(after) || after < 0 || !Number.isSafeInteger(waitMs) || waitMs < 0)
-        fail('after and waitMs must be non-negative safe integers');
-      const controller = new AbortController();
-      const abort = () => controller.abort();
-      res.on('close', abort);
-      try {
-        return send(await waitForV2Events(auth.username, after, waitMs, controller.signal));
-      } finally {
-        res.off('close', abort);
-      }
-    }
-    const answer = path.match(/^\/inbox\/([^/]+)\/answer$/);
-    if (req.method === 'POST' && answer) {
-      const chunks: Buffer[] = [];
-      let bytes = 0;
-      for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-        bytes += chunk.length;
-        if (bytes > 32_768) {
-          req.resume();
-          fail('Answer body too large', 413);
-        }
-        chunks.push(Buffer.from(chunk));
-      }
-      let body;
-      try {
-        body = JSON.parse(Buffer.concat(chunks).toString());
-      } catch {
-        fail('Invalid JSON');
-      }
-      return send({
-        item: await answerInboxAsync(auth.username, decodeURIComponent(answer[1]), body),
-      });
-    }
+    const route = routes<undefined>();
+    if (
+      await dispatch(
+        [
+          route({
+            method: 'GET',
+            path: '/inbox',
+            handler: ({ url }) => {
+              const state = url.searchParams.get('state') ?? 'waiting';
+              if (!['waiting', 'answered'].includes(state))
+                fail('State must be waiting or answered');
+              // Pair each list with the exact event position of its SQLite snapshot. The two
+              // lists may be read at different times; clients retain both boundaries.
+              return send(
+                db
+                  .transaction(() => ({
+                    items: syncInbox(auth.username).filter((item) => item.state === state),
+                    cursor: latestCursor(auth.username),
+                  }))
+                  .immediate(),
+              );
+            },
+          }),
+          route({
+            method: 'GET',
+            path: '/events',
+            handler: async ({ url }) => {
+              // A client that has just loaded a snapshot starts at the newest event instead of replaying history.
+              if (url.searchParams.get('after') === 'latest')
+                return send({
+                  events: [],
+                  cursor: latestCursor(auth.username),
+                  supportsWait: true,
+                });
+              const after = Number(url.searchParams.get('after') ?? 0);
+              const waitMs = Number(url.searchParams.get('waitMs') ?? 0);
+              if (
+                !Number.isSafeInteger(after) ||
+                after < 0 ||
+                !Number.isSafeInteger(waitMs) ||
+                waitMs < 0
+              )
+                fail('after and waitMs must be non-negative safe integers');
+              const controller = new AbortController();
+              const abort = () => controller.abort();
+              res.on('close', abort);
+              try {
+                return send(await waitForV2Events(auth.username, after, waitMs, controller.signal));
+              } finally {
+                res.off('close', abort);
+              }
+            },
+          }),
+          route({
+            method: 'POST',
+            path: '/inbox/:id/answer',
+            handler: async ({ params }) => {
+              const chunks: Buffer[] = [];
+              let bytes = 0;
+              for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+                bytes += chunk.length;
+                if (bytes > 32_768) {
+                  req.resume();
+                  fail('Answer body too large', 413);
+                }
+                chunks.push(Buffer.from(chunk));
+              }
+              let body;
+              try {
+                body = JSON.parse(Buffer.concat(chunks).toString());
+              } catch {
+                fail('Invalid JSON');
+              }
+              return send({
+                item: await answerInboxAsync(auth.username, decodeURIComponent(params.id), body),
+              });
+            },
+          }),
+        ],
+        { path: (url) => url.pathname.slice('/api/v2'.length) },
+      )(req, res, undefined)
+    )
+      return;
     return send({ error: 'Not found' }, 404);
   } catch (error: any) {
     return send(

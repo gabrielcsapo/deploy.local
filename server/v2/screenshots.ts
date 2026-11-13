@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Markup, Screenshot } from '../../shared/v2/contracts.ts';
@@ -260,29 +261,42 @@ export async function screenshotsApi(
     )
   )
     return false;
-  const workerRoute = path.match(/^\/api\/v2\/screenshots\/worker\/(poll|complete|attachments)$/);
-  if (workerRoute && req.method === 'POST') {
-    const worker = workerAuthentication(req);
-    if (!worker) fail('Worker authentication required', 401);
-    const body = await readJson(req, 42 * 1024 * 1024);
-    if (workerRoute[1] === 'attachments') {
-      const run = get('run', worker.owner, body.runId);
-      if (
-        run.workerId !== worker.workerId ||
-        !['queued', 'starting', 'running'].includes(run.status)
-      )
-        fail('Run is not assigned to this worker', 403);
-      return sendJson(res, {
-        attachments: await Promise.all(
-          (run.attachments || []).map(async (a: any) => {
-            const r = await attachmentBytes(worker.owner, a.ref);
-            return { ...a, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
-          }),
-        ),
-      });
-    }
-    return sendJson(res, screenshotWorker(worker.owner, worker.workerId, workerRoute[1], body));
-  }
+  const route = routes<undefined>();
+  // Workers reach only these POST routes before the client credential check.
+  if (
+    await dispatch([
+      route({
+        method: 'POST',
+        path: '/api/v2/screenshots/worker/:action(poll|complete|attachments)',
+        handler: async ({ params }) => {
+          const worker = workerAuthentication(req);
+          if (!worker) fail('Worker authentication required', 401);
+          const body = await readJson(req, 42 * 1024 * 1024);
+          if (params.action === 'attachments') {
+            const run = get('run', worker.owner, body.runId);
+            if (
+              run.workerId !== worker.workerId ||
+              !['queued', 'starting', 'running'].includes(run.status)
+            )
+              fail('Run is not assigned to this worker', 403);
+            return sendJson(res, {
+              attachments: await Promise.all(
+                (run.attachments || []).map(async (a: any) => {
+                  const r = await attachmentBytes(worker.owner, a.ref);
+                  return { ...a, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
+                }),
+              ),
+            });
+          }
+          return sendJson(
+            res,
+            screenshotWorker(worker.owner, worker.workerId, params.action, body),
+          );
+        },
+      }),
+    ])(req, res, undefined)
+  )
+    return true;
   if (
     req.headers['x-deploy-agent-token'] ||
     req.headers['x-deploy-worker-token'] ||
@@ -297,64 +311,95 @@ export async function screenshotsApi(
   if (task) {
     const taskId = decodeURIComponent(task[1]);
     get('task', owner, taskId);
-    if (req.method === 'GET')
-      return sendJson(res, {
-        screenshots: list('screenshot', owner).filter((s) => s.taskId === taskId),
-      });
-    if (req.method === 'POST') {
-      const body = await readJson(req);
-      const request = queueScreenshots(owner, taskId, body);
-      if (typeof body.text === 'string' && body.text.trim() && body.text.length <= 12000) {
-        const message = {
-          id: id(),
-          taskId,
-          role: 'user',
-          content: body.text.trim(),
-          createdAt: now(),
-          attachments: [],
-        };
-        save('message', owner, message);
-        event(owner, taskId, null, 'message', message);
-      }
-      while (!res.destroyed && Date.now() < request.expiresAt) {
-        const current = get('screenshot-request', owner, request.id);
-        if (current.status === 'complete')
-          return sendJson(res, { screenshots: current.screenshots });
-        if (current.status === 'failed') fail(current.error, 502);
-        await delay(200);
-      }
-      save('screenshot-request', owner, {
-        ...get('screenshot-request', owner, request.id),
-        status: 'expired',
-      });
-      if (!res.destroyed)
-        fail(
-          'The task’s computer did not finish the screenshots. Check that it is online and try again.',
-          504,
-        );
+    if (
+      await dispatch([
+        route({
+          method: 'GET',
+          path: '/api/v2/tasks/:task/screenshots',
+          handler: () =>
+            sendJson(res, {
+              screenshots: list('screenshot', owner).filter((s) => s.taskId === taskId),
+            }),
+        }),
+        route({
+          method: 'POST',
+          path: '/api/v2/tasks/:task/screenshots',
+          handler: async () => {
+            const body = await readJson(req);
+            const request = queueScreenshots(owner, taskId, body);
+            if (typeof body.text === 'string' && body.text.trim() && body.text.length <= 12000) {
+              const message = {
+                id: id(),
+                taskId,
+                role: 'user',
+                content: body.text.trim(),
+                createdAt: now(),
+                attachments: [],
+              };
+              save('message', owner, message);
+              event(owner, taskId, null, 'message', message);
+            }
+            while (!res.destroyed && Date.now() < request.expiresAt) {
+              const current = get('screenshot-request', owner, request.id);
+              if (current.status === 'complete')
+                return sendJson(res, { screenshots: current.screenshots });
+              if (current.status === 'failed') fail(current.error, 502);
+              await delay(200);
+            }
+            save('screenshot-request', owner, {
+              ...get('screenshot-request', owner, request.id),
+              status: 'expired',
+            });
+            if (!res.destroyed)
+              fail(
+                'The task’s computer did not finish the screenshots. Check that it is online and try again.',
+                504,
+              );
+            return true;
+          },
+        }),
+      ])(req, res, undefined)
+    )
       return true;
-    }
   }
-  const shot = path.match(/^\/api\/v2\/screenshots\/([^/]+)$/);
-  if (shot && req.method === 'GET')
-    return sendJson(res, { screenshot: get('screenshot', owner, decodeURIComponent(shot[1])) });
-  if (shot && req.method === 'PATCH')
-    return sendJson(res, {
-      screenshot: patchScreenshot(
-        owner,
-        decodeURIComponent(shot[1]),
-        await readJson(req, 1024 * 1024),
-      ),
-    });
-  const agent = path.match(/^\/api\/v2\/composer\/agents\/([^/]+)\/messages$/);
-  if (agent && req.method === 'POST')
-    return sendJson(
-      res,
-      await sendAgentMessage(owner, decodeURIComponent(agent[1]), await readJson(req)),
-    );
-  if (path === '/api/v2/composer/messages' && req.method === 'POST') {
-    const body = await readJson(req);
-    return sendJson(res, sendTaskMessage(owner, body.taskId, body), 201);
-  }
-  return sendJson(res, { error: 'Not found' }, 404);
+  return dispatch(
+    [
+      route({
+        method: 'GET',
+        path: '/api/v2/screenshots/:id',
+        handler: ({ params }) =>
+          sendJson(res, { screenshot: get('screenshot', owner, decodeURIComponent(params.id)) }),
+      }),
+      route({
+        method: 'PATCH',
+        path: '/api/v2/screenshots/:id',
+        handler: async ({ params }) =>
+          sendJson(res, {
+            screenshot: patchScreenshot(
+              owner,
+              decodeURIComponent(params.id),
+              await readJson(req, 1024 * 1024),
+            ),
+          }),
+      }),
+      route({
+        method: 'POST',
+        path: '/api/v2/composer/agents/:agent/messages',
+        handler: async ({ params }) =>
+          sendJson(
+            res,
+            await sendAgentMessage(owner, decodeURIComponent(params.agent), await readJson(req)),
+          ),
+      }),
+      route({
+        method: 'POST',
+        path: '/api/v2/composer/messages',
+        handler: async () => {
+          const body = await readJson(req);
+          return sendJson(res, sendTaskMessage(owner, body.taskId, body), 201);
+        },
+      }),
+    ],
+    { notFound: () => sendJson(res, { error: 'Not found' }, 404) },
+  )(req, res, undefined);
 }

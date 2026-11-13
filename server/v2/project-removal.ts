@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { cp, mkdir, rm } from 'node:fs/promises';
@@ -494,11 +495,12 @@ export async function purgeRemovedProjects(owner: string, time = Date.now()) {
     );
   }
 }
-export async function projectRemovalApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const path = new URL(req.url!, 'http://localhost').pathname;
-  if (req.method === 'GET' && path.startsWith('/api/v2/projects/removed')) {
-    await purgeRemovedProjects(owner);
-    if (path === '/api/v2/projects/removed') {
+const removalRoute = routes<string>();
+const removedProjectsApi = dispatch([
+  removalRoute({
+    method: 'GET',
+    path: '/api/v2/projects/removed',
+    handler: ({ res, context: owner }) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(
         JSON.stringify({
@@ -512,45 +514,60 @@ export async function projectRemovalApi(req: IncomingMessage, res: ServerRespons
         }),
       );
       return true;
-    }
-    const download = path.match(/^\/api\/v2\/projects\/removed\/([^/]+)\/backup$/);
-    if (!download) return false;
-    const receipt = list('v2-removed-project', owner).find((row) => row.id === download[1]);
-    if (!receipt) fail('Retained backups not found', 404);
-    const child = spawn(
-      'tar',
-      ['-czf', '-', '-C', deployDataPath('removed-projects', receipt.archiveId), '.'],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-    res.writeHead(200, {
-      'Content-Type': 'application/gzip',
-      'Content-Disposition': `attachment; filename="project-backups-${receipt.archiveId}.tar.gz"`,
-      'Cache-Control': 'no-store',
-    });
-    child.stdout.pipe(res, { end: false });
-    child.stderr.resume();
-    child.on('error', () => res.destroy());
-    child.on('close', (code) => {
-      if (code === 0) res.end();
-      else res.destroy();
-    });
-    res.on('close', () => {
-      if (child.exitCode === null) child.kill();
-    });
-    return true;
-  }
-  const match = path.match(/^\/api\/v2\/projects\/([^/]+)$/);
-  if (!match || req.method !== 'DELETE') return false;
-  const key = decodeURIComponent(match[1]);
-  const pending = list('v2-project-removal', owner).find(
-    (row) => row.id === key || row.project.name === key,
-  );
-  const project = pending?.project || (await resolveProject(owner, key));
-  const result = await removeProject(owner, project, (await readProjectBody(req)).confirm);
-  await purgeRemovedProjects(owner);
-  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(result));
-  return true;
+    },
+  }),
+  removalRoute({
+    method: 'GET',
+    path: '/api/v2/projects/removed/:id/backup',
+    handler: ({ res, params, context: owner }) => {
+      const receipt = list('v2-removed-project', owner).find((row) => row.id === params.id);
+      if (!receipt) fail('Retained backups not found', 404);
+      const child = spawn(
+        'tar',
+        ['-czf', '-', '-C', deployDataPath('removed-projects', receipt.archiveId), '.'],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+      );
+      res.writeHead(200, {
+        'Content-Type': 'application/gzip',
+        'Content-Disposition': `attachment; filename="project-backups-${receipt.archiveId}.tar.gz"`,
+        'Cache-Control': 'no-store',
+      });
+      child.stdout.pipe(res, { end: false });
+      child.stderr.resume();
+      child.on('error', () => res.destroy());
+      child.on('close', (code) => {
+        if (code === 0) res.end();
+        else res.destroy();
+      });
+      res.on('close', () => {
+        if (child.exitCode === null) child.kill();
+      });
+      return true;
+    },
+  }),
+  removalRoute({
+    method: 'DELETE',
+    path: '/api/v2/projects/:project',
+    handler: async ({ req, res, params, context: owner }) => {
+      const key = decodeURIComponent(params.project);
+      const pending = list('v2-project-removal', owner).find(
+        (row) => row.id === key || row.project.name === key,
+      );
+      const project = pending?.project || (await resolveProject(owner, key));
+      const result = await removeProject(owner, project, (await readProjectBody(req)).confirm);
+      await purgeRemovedProjects(owner);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(result));
+      return true;
+    },
+  }),
+]);
+export async function projectRemovalApi(req: IncomingMessage, res: ServerResponse, owner: string) {
+  const path = new URL(req.url!, 'http://localhost').pathname;
+  // This prefix deliberately also covers unmatched GETs (including removedXYZ).
+  if (req.method === 'GET' && path.startsWith('/api/v2/projects/removed'))
+    await purgeRemovedProjects(owner);
+  return removedProjectsApi(req, res, owner);
 }
 
 // Expire retained copies even when nobody removes another project.

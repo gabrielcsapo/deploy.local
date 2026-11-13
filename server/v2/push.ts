@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { sendJson } from '../http.ts';
 import {
   notificationPreferences,
@@ -315,36 +316,53 @@ export async function pushApi(
     if (!auth) return true;
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       fail('Only signed-in users can register devices', 403);
-    if (path === '/api/v2/notifications' && req.method === 'GET') {
-      send(notificationPreferences(auth.username));
-      return true;
-    }
-    if (
-      !(path === '/api/v2/notifications' ? ['PATCH'] : ['POST', 'DELETE']).includes(
-        req.method ?? '',
-      )
-    ) {
-      send({ error: 'Method not allowed' }, 405);
-      return true;
-    }
-    let bytes = 0;
-    const chunks: Buffer[] = [];
-    for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-      bytes += chunk.length;
-      if (bytes > 4096) {
-        req.resume();
-        fail('Device body too large', 413);
+    const route = routes<undefined>();
+    const input = async () => {
+      let bytes = 0;
+      const chunks: Buffer[] = [];
+      for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+        bytes += chunk.length;
+        if (bytes > 4096) {
+          req.resume();
+          fail('Device body too large', 413);
+        }
+        chunks.push(Buffer.from(chunk));
       }
-      chunks.push(Buffer.from(chunk));
-    }
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    if (path === '/api/v2/notifications') send(putNotificationPreferences(auth.username, body));
-    else if (req.method === 'POST')
-      send(registerDevice(auth.username, body, pairedDeviceForRequest(auth.username, req)));
-    else {
-      removeDevice(auth.username, body.token);
-      send({ removed: true });
-    }
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      return body;
+    };
+    await dispatch(
+      [
+        route({
+          method: 'GET',
+          path: '/api/v2/notifications',
+          handler: () => send(notificationPreferences(auth.username)),
+        }),
+        route({
+          method: 'PATCH',
+          path: '/api/v2/notifications',
+          input,
+          handler: ({ input }) => send(putNotificationPreferences(auth.username, input)),
+        }),
+        route({
+          method: 'POST',
+          path: '/api/v2/devices',
+          input,
+          handler: ({ input }) =>
+            send(registerDevice(auth.username, input, pairedDeviceForRequest(auth.username, req))),
+        }),
+        route({
+          method: 'DELETE',
+          path: '/api/v2/devices',
+          input,
+          handler: ({ input }) => {
+            removeDevice(auth.username, input.token);
+            send({ removed: true });
+          },
+        }),
+      ],
+      { notFound: () => send({ error: 'Method not allowed' }, 405) },
+    )(req, res, undefined);
   } catch (error: any) {
     send({ error: error.message }, error.status ?? 400);
   }

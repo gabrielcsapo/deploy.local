@@ -105,6 +105,8 @@ export interface DispatchOptions<C> {
   scope?: string | RegExp | ((path: string) => boolean);
   /** The path routes match against. Defaults to the URL's pathname. */
   path?: (url: URL, req: IncomingMessage) => string;
+  /** The method routes match against. Defaults to the request's own. */
+  method?: (req: IncomingMessage) => string | undefined;
   /**
    * Runs once a request is in scope, before any route. Returning true means it answered the
    * request itself (a credential check, say) and no route runs.
@@ -131,6 +133,7 @@ export function dispatch<C>(table: readonly Route<C>[], options: DispatchOptions
     const url = new URL(req.url!, 'http://localhost');
     const path = options.path ? options.path(url, req) : url.pathname;
     if (!inScope(path)) return false;
+    const method = options.method ? options.method(req) : req.method;
     if (
       options.before &&
       (await options.before({ req, res, url, path, params: {}, input: undefined, context })) ===
@@ -138,7 +141,7 @@ export function dispatch<C>(table: readonly Route<C>[], options: DispatchOptions
     )
       return true;
     for (const route of table) {
-      if (!allows(route.method, req.method)) continue;
+      if (!allows(route.method, method)) continue;
       const params = route.match(path);
       if (!params) continue;
       const handled = await route.run({ req, res, url, path, params, input: undefined, context });

@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { mergeBoard, type BoardChoice } from '../design/board-merge.ts';
 import { hasTools } from '../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
@@ -2401,91 +2402,109 @@ export async function designTool(
 }
 
 export async function designApi(req: IncomingMessage, res: ServerResponse, owner: string) {
+  const designRoute = routes<undefined>();
   const url = new URL(req.url!, 'http://localhost');
-  if (url.pathname === '/api/v2/design/reviews' && req.method === 'GET') {
-    const projectId = url.searchParams.get('project');
-    const rows = list('v2-inbox-native', owner).filter(
-      (row) =>
-        row.context?.source === 'design' &&
-        row.item.state === 'waiting' &&
-        (!projectId || row.context.projectId === projectId),
-    );
-    const proposals: DesignReviewSummary[] = [];
-    for (const row of rows)
-      proposals.push(
-        await reviewSummary(owner, requireRepository(owner, row.context.projectId), row),
-      );
-    proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const approved = list('v2-inbox-native', owner)
-      .filter(
-        (row) =>
-          row.context?.source === 'design' &&
-          row.item.answer?.actionId === 'approve' &&
-          (!projectId || row.context.projectId === projectId) &&
-          !list('design-review-landing', owner).some(
-            (landing) => landing.id === row.id && landing.state !== 'landed',
-          ),
-      )
-      .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))
-      .flatMap((row) => {
-        const built = list('design-review-built', owner).find(
-          (entry) => entry.id === row.id && entry.state !== 'waiting',
-        );
-        const landing = reviewLanding(owner, row.id);
-        const task = list('task', owner).find((entry) => entry.id === landing?.build?.taskId);
-        const project = get('project', owner, row.context.projectId);
-        const building =
-          task && !['done', 'completed', 'cancelled', 'archived'].includes(task.status);
-        if (!built && !building) return [];
-        return [
-          {
-            id: row.id,
-            title: row.item.title,
-            project: project.name ?? project.id,
-            detail: built
-              ? ['matches', 'kept'].includes(built.state)
-                ? 'Built · matches the design'
-                : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
-              : landing?.build?.name
-                ? `${project.name ?? project.id} · ${landing.build.name} is building it`
-                : `${project.name ?? project.id} · being built`,
+  if (
+    await dispatch(
+      [
+        designRoute({
+          method: 'GET',
+          path: '/api/v2/design/reviews',
+          handler: async () => {
+            const projectId = url.searchParams.get('project');
+            const rows = list('v2-inbox-native', owner).filter(
+              (row) =>
+                row.context?.source === 'design' &&
+                row.item.state === 'waiting' &&
+                (!projectId || row.context.projectId === projectId),
+            );
+            const proposals: DesignReviewSummary[] = [];
+            for (const row of rows)
+              proposals.push(
+                await reviewSummary(owner, requireRepository(owner, row.context.projectId), row),
+              );
+            proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+            const approved = list('v2-inbox-native', owner)
+              .filter(
+                (row) =>
+                  row.context?.source === 'design' &&
+                  row.item.answer?.actionId === 'approve' &&
+                  (!projectId || row.context.projectId === projectId) &&
+                  !list('design-review-landing', owner).some(
+                    (landing) => landing.id === row.id && landing.state !== 'landed',
+                  ),
+              )
+              .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))
+              .flatMap((row) => {
+                const built = list('design-review-built', owner).find(
+                  (entry) => entry.id === row.id && entry.state !== 'waiting',
+                );
+                const landing = reviewLanding(owner, row.id);
+                const task = list('task', owner).find(
+                  (entry) => entry.id === landing?.build?.taskId,
+                );
+                const project = get('project', owner, row.context.projectId);
+                const building =
+                  task && !['done', 'completed', 'cancelled', 'archived'].includes(task.status);
+                if (!built && !building) return [];
+                return [
+                  {
+                    id: row.id,
+                    title: row.item.title,
+                    project: project.name ?? project.id,
+                    detail: built
+                      ? ['matches', 'kept'].includes(built.state)
+                        ? 'Built · matches the design'
+                        : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
+                      : landing?.build?.name
+                        ? `${project.name ?? project.id} · ${landing.build.name} is building it`
+                        : `${project.name ?? project.id} · being built`,
+                  },
+                ];
+              })
+              .slice(0, 5);
+            return sendJson(res, { proposals, approved });
           },
-        ];
-      })
-      .slice(0, 5);
-    return sendJson(res, { proposals, approved });
-  }
-  // Every project and how many boards its design has on main, for the project picker.
-  if (url.pathname === '/api/v2/design/projects' && req.method === 'GET') {
-    const projects = list('project', owner).filter((row: any) => row.repositoryPath);
-    const designs = await Promise.all(
-      projects.map((row: any) =>
-        // Each project is its own repository, so the Git limit per repository does not bound this.
-        pickerSlots('picker', async () => {
-          let boards = 0;
-          try {
-            boards = Object.keys(
-              (
-                await readCanvas(
-                  row.repositoryPath,
-                  `refs/heads/${await mainBranch(row.repositoryPath)}`,
-                )
-              )?.boards ?? {},
-            ).length;
-          } catch {
-            // A canvas that is not valid JSON counts as no design.
-          }
-          return {
-            id: row.id,
-            name: row.name ?? row.id,
-            description: row.description ?? null,
-            boards,
-          };
         }),
-      ),
-    );
-    return sendJson(res, { projects: designs });
-  }
+        designRoute({
+          method: 'GET',
+          path: '/api/v2/design/projects',
+          handler: async () => {
+            const projects = list('project', owner).filter((row: any) => row.repositoryPath);
+            const designs = await Promise.all(
+              projects.map((row: any) =>
+                // Each project is its own repository, so the Git limit per repository does not bound this.
+                pickerSlots('picker', async () => {
+                  let boards = 0;
+                  try {
+                    boards = Object.keys(
+                      (
+                        await readCanvas(
+                          row.repositoryPath,
+                          `refs/heads/${await mainBranch(row.repositoryPath)}`,
+                        )
+                      )?.boards ?? {},
+                    ).length;
+                  } catch {
+                    // A canvas that is not valid JSON counts as no design.
+                  }
+                  return {
+                    id: row.id,
+                    name: row.name ?? row.id,
+                    description: row.description ?? null,
+                    boards,
+                  };
+                }),
+              ),
+            );
+            return sendJson(res, { projects: designs });
+          },
+        }),
+      ],
+      { path: () => url.pathname },
+    )(req, res, undefined)
+  )
+    return true;
   const route = url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/design(\/.*)?$/);
   if (!route) return false;
   const projectId = decodeURIComponent(route[1]);
@@ -2493,18 +2512,30 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   const repo = project.repositoryPath as string;
   const sub = route[2] ?? '';
 
-  if (sub === '' && req.method === 'GET') {
-    const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
-    const canvas = await readCanvas(repo, commit);
-    const open = comments(owner, project.id).filter((comment) => !comment.resolved);
-    return sendJson(res, {
-      ref,
-      commit,
-      canvas,
-      branches: await designBranches(repo),
-      openComments: open.length,
-    });
-  }
+  if (
+    await dispatch(
+      [
+        designRoute({
+          method: 'GET',
+          path: '',
+          handler: async () => {
+            const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
+            const canvas = await readCanvas(repo, commit);
+            const open = comments(owner, project.id).filter((comment) => !comment.resolved);
+            return sendJson(res, {
+              ref,
+              commit,
+              canvas,
+              branches: await designBranches(repo),
+              openComments: open.length,
+            });
+          },
+        }),
+      ],
+      { path: () => sub },
+    )(req, res, undefined)
+  )
+    return true;
 
   // Board files are served at a commit, so relative links (../ds/…) resolve to the same commit.
   const file = sub.match(/^\/files\/([0-9a-f]+)\/((?:boards|ds)\/[A-Za-z0-9_./-]+)$/);
@@ -2527,23 +2558,35 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     return true;
   }
 
-  if (sub === '/branches' && req.method === 'POST') {
-    const body = await readJson(req);
-    const from = String(body?.from || 'HEAD');
-    if (!validRef(from)) fail('Invalid ref');
-    const branch = await withRepositoryWrites(repo, async () => {
-      const commit = await gitRead(repo, [
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        '--end-of-options',
-        `${from}^{commit}`,
-      ]);
-      if (!commit) fail(`No commit named ${from} in this project`, 404);
-      return createBranch(repo, String(body?.name ?? ''), commit!);
-    });
-    return sendJson(res, { branch }, 201);
-  }
+  if (
+    await dispatch(
+      [
+        designRoute({
+          method: 'POST',
+          path: '/branches',
+          handler: async () => {
+            const body = await readJson(req);
+            const from = String(body?.from || 'HEAD');
+            if (!validRef(from)) fail('Invalid ref');
+            const branch = await withRepositoryWrites(repo, async () => {
+              const commit = await gitRead(repo, [
+                'rev-parse',
+                '--verify',
+                '--quiet',
+                '--end-of-options',
+                `${from}^{commit}`,
+              ]);
+              if (!commit) fail(`No commit named ${from} in this project`, 404);
+              return createBranch(repo, String(body?.name ?? ''), commit!);
+            });
+            return sendJson(res, { branch }, 201);
+          },
+        }),
+      ],
+      { path: () => sub },
+    )(req, res, undefined)
+  )
+    return true;
 
   if (sub === '/comments') {
     if (req.method === 'GET')
@@ -2594,616 +2637,723 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
   // What a branch or a task changed in design/, against main (or `base`).
   // Every link between boards at a commit, for Prototype's lines and Play: which layer of which
   // board opens which board. Sidebar links are marked; nearly every board repeats them.
-  if (sub === '/links' && req.method === 'GET') {
-    const { commit } = await resolveCommit(owner, project.id, repo, url);
-    const key = `${repo}:${commit}`;
-    let links = linkCache.get(key);
-    if (!links) {
-      const canvas = await readCanvas(repo, commit);
-      const files = Object.keys(canvas?.boards ?? {});
-      const found = await Promise.all(
-        files.map(async (file) => {
-          const html = await readFile(repo, commit, `design/boards/${file}`);
-          return html ? boardLinks(html.toString()).map((link) => ({ from: file, ...link })) : [];
-        }),
-      );
-      links = found.flat();
-      linkCache.set(key, links);
-      if (linkCache.size > 20) linkCache.delete(linkCache.keys().next().value!);
-    }
-    return sendJson(res, { commit, links });
-  }
-
-  if (sub === '/changes' && req.method === 'GET') {
-    const { commit } = await resolveCommit(owner, project.id, repo, url);
-    const base = url.searchParams.get('base') || 'HEAD';
-    if (!validRef(base)) fail('Invalid base');
-    const baseCommit = await gitRead(repo, [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      '--end-of-options',
-      `${base}^{commit}`,
-    ]);
-    if (!baseCommit) fail(`No commit named ${base} in this project`, 404);
-    const mergeBase = (await gitRead(repo, ['merge-base', baseCommit, commit])) || baseCommit;
-    const out = await gitRead(repo, [
-      'diff',
-      '--name-status',
-      '--no-renames',
-      mergeBase,
-      commit,
-      '--',
-      'design/',
-    ]);
-    const files = await Promise.all(
-      (out ? out.split('\n') : []).map(async (line) => {
-        const [code, path] = line.split('\t');
-        const status = code === 'A' ? 'added' : code === 'D' ? 'removed' : 'changed';
-        // A changed board also says what changed in it, layer by layer.
-        if (status !== 'changed' || !/^design\/boards\/[^/]+\.html$/.test(path))
-          return { status, path };
-        const [before, after] = await Promise.all([
-          readFile(repo, mergeBase, path),
-          readFile(repo, commit, path),
-        ]);
-        return {
-          status,
-          path,
-          layers: before && after ? layerChanges(before.toString(), after.toString()) : [],
-        };
-      }),
-    );
-    return sendJson(res, { base: mergeBase, commit, files });
-  }
-
-  if (sub === '/render' && req.method === 'GET') {
-    const { commit } = await resolveCommit(owner, project.id, repo, url);
-    const board = String(url.searchParams.get('board') ?? '');
-    if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
-    const width = Number(url.searchParams.get('width') ?? 1440);
-    if (!Number.isInteger(width) || width < 320 || width > 2560) fail('Width must be 320 to 2560');
-    const height = url.searchParams.has('height')
-      ? Number(url.searchParams.get('height'))
-      : undefined;
-    if (height !== undefined && (!Number.isInteger(height) || height < 64 || height > 20000))
-      fail('Height must be 64 to 20000');
-    const png = await renderBoard(repo, commit, board, width, height, previewScale(url));
-    res.writeHead(200, {
-      'Content-Type': 'image/png',
-      'Content-Length': png.length,
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'private, max-age=31536000, immutable',
-    });
-    res.end(png);
-    return true;
-  }
-
-  if (sub === '/ask' && req.method === 'POST') {
-    const body = await readJson(req);
-    const board = String(body?.board ?? '');
-    const layer = body?.layer == null ? null : String(body.layer);
-    const text = String(body?.text ?? '').trim();
-    // Asking about a design-system component changes the component, and so every instance.
-    if (body?.component != null) {
-      const componentId = String(body.component);
-      if (!text || text.length > 8000)
-        fail('Say what you want changed, in at most 8000 characters');
-      const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
-      const library = parseLibrary((await readFile(repo, commit, libraryPath))?.toString());
-      const component = library?.components.find((item) => item.id === componentId);
-      if (!component) fail(`The design system has no component ${componentId}`, 404);
-      const used = (await componentUsage(repo, commit))[componentId] ?? [];
-      const task = queueTask(owner, {
-        projectId: project.id,
-        title: `Design: ${component!.name} component`,
-        ref: commit,
-        workerId: body?.workerId,
-        model: body?.model,
-        prompt: componentPrompt({ component: component!, used, text, ref, commit }),
-      });
-      save('task', owner, {
-        ...get('task', owner, task.id),
-        design: {
-          board: used[0] ?? '',
-          layer: null,
-          component: componentId,
-          ref,
-          commit,
-          text,
-          askedAt: now(),
-        },
-      });
-      return sendJson(
-        res,
-        { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
-        201,
-      );
-    }
-    if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
-    if (layer !== null && !layerPattern.test(layer)) fail('Invalid layer');
-    if (!text || text.length > 8000) fail('Say what you want changed, in at most 8000 characters');
-    const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
-    const html = await readFile(repo, commit, `design/boards/${board}`);
-    if (!html) fail(`design/boards/${board} is missing at this commit`, 404);
-    const snippet = layer ? layerSnippet(html.toString(), layer) : null;
-    if (layer && !snippet) fail(`${board} has no layer ${layer}`, 404);
-    const openComments = comments(owner, project.id, board)
-      .filter((row) => !row.resolved && (!layer || row.layer === layer))
-      .map((row) => row.text);
-    const name = board.replace(/\.html$/, '');
-    const task = queueTask(owner, {
-      projectId: project.id,
-      title: `Design: ${name}${layer ? ` › ${layer}` : ''}`,
-      ref: commit,
-      workerId: body?.workerId,
-      model: body?.model,
-      prompt: askPrompt({ board, layer, text, ref, commit, snippet, openComments }),
-    });
-    save('task', owner, {
-      ...get('task', owner, task.id),
-      design: { board, layer, ref, commit, text, askedAt: now() },
-    });
-    return sendJson(
-      res,
-      { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
-      201,
-    );
-  }
-
-  // Assets: the design system's components and where each is used, at a ref.
-  if (sub === '/components' && req.method === 'GET') {
-    const ref = url.searchParams.get('ref') || 'HEAD';
-    if (!validRef(ref)) fail('Invalid ref');
-    const commit = await gitRead(repo, [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      '--end-of-options',
-      `${ref}^{commit}`,
-    ]);
-    if (!commit) fail(`No commit named ${ref} in this project`, 404);
-    const library = parseLibrary((await readFile(repo, commit!, libraryPath))?.toString());
-    return sendJson(res, {
-      commit,
-      library,
-      usage: library ? await componentUsage(repo, commit!) : {},
-    });
-  }
-
-  // Direct edits from the properties panel and the canvas, committed to a design branch.
-  if (sub === '/edit' && req.method === 'POST') {
-    const body = await readJson(req);
-    const board = String(body?.board ?? '');
-    if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
-    const edits = body?.edits;
-    if (!Array.isArray(edits) || !edits.length || edits.length > 50) fail('Send 1 to 50 edits');
-    const result = await withRepositoryWrites(repo, async () => {
-      const { branch, head } = await editBranch(repo, body, board.replace(/\.html$/, ''));
-      const html = await readFile(repo, head, `design/boards/${board}`);
-      if (!html) fail(`design/boards/${board} is missing on ${branch}`, 404);
-      const main = await gitRead(repo, [
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        `refs/heads/${await mainBranch(repo)}^{commit}`,
-      ]);
-      const base = main ? await readFile(repo, main, `design/boards/${board}`) : null;
-      const library = edits.some((edit: any) => edit.op === 'insert' && edit.component)
-        ? parseLibrary((await readFile(repo, head, libraryPath))?.toString())
-        : undefined;
-      let next: string;
-      try {
-        next = applyEdits(html.toString(), edits, base?.toString(), library ?? undefined);
-      } catch (error) {
-        fail((error as Error).message);
-      }
-      if (next === html.toString()) return { branch, commit: head, layers: [] as string[] };
-      const before = new Set(layerIds(html.toString()));
-      const layers = layerIds(next).filter((layer) => !before.has(layer));
-      const kinds = [
-        ...new Set(
-          edits.map((edit: any) =>
-            edit.op === 'style'
-              ? edit.prop
-              : edit.op === 'insert'
-                ? (edit.shape?.kind ?? edit.component?.id)
-                : edit.op,
-          ),
-        ),
-      ];
-      const commit = await copyPaths(repo, {
-        target: head,
-        from: head,
-        paths: [],
-        branch,
-        message: `Edit ${board.replace(/\.html$/, '')}: ${kinds.slice(0, 4).join(', ')}`,
-        by: owner,
-        writes: [{ path: `design/boards/${board}`, content: next }],
-      });
-      return { branch, commit, layers };
-    });
-    return sendJson(res, result);
-  }
-
-  // The canvas itself: new boards from the frame tool, and sticky notes.
-  if (sub === '/canvas' && req.method === 'POST') {
-    const body = await readJson(req);
-    const result = await withRepositoryWrites(repo, async () => {
-      const op = body?.op;
-      const { branch, head } = await editBranch(repo, body, op === 'board' ? 'new board' : 'notes');
-      const canvas = await readCanvas(repo, head);
-      if (!canvas) fail('This design has no canvas.json', 404);
-      const notes = (canvas!.notes ??= {}) as Record<string, any>;
-      const at = (value: unknown) => {
-        const n = Number(value);
-        if (!Number.isFinite(n) || Math.abs(n) > 1e7) fail('A position is out of bounds');
-        return Math.round(n);
-      };
-      const writes: { path: string; content: string }[] = [];
-      let made: string;
-      if (op === 'note') {
-        const text = String(body.text ?? '').slice(0, 4000);
-        if (body.id) {
-          if (!notes[body.id]) fail(`No note named ${body.id}`, 404);
-          notes[body.id] = {
-            ...notes[body.id],
-            text,
-            ...(body.x !== undefined ? { x: at(body.x), y: at(body.y) } : {}),
-          };
-          made = body.id;
-        } else {
-          made = `note-${randomUUID().slice(0, 8)}`;
-          notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
-        }
-      } else if (op === 'mark') {
-        // A pen mark on the canvas: drawn from its points, then changed a property at a time.
-        const number = (value: unknown, low: number, high: number, name: string) => {
-          const n = Number(value);
-          if (!Number.isFinite(n) || n < low || n > high) fail(`${name} must be ${low} to ${high}`);
-          return Math.round(n * 10) / 10;
-        };
-        if (body.id) {
-          const mark = notes[body.id];
-          if (mark?.kind !== 'mark') fail(`No mark named ${body.id}`, 404);
-          if (body.x !== undefined) mark.x = at(body.x);
-          if (body.y !== undefined) mark.y = at(body.y);
-          if (body.w !== undefined) mark.w = number(body.w, 1, 20000, 'W');
-          if (body.h !== undefined) mark.h = number(body.h, 1, 20000, 'H');
-          if (body.rotate !== undefined) mark.rotate = number(body.rotate, -360, 360, 'Rotation');
-          if (body.width !== undefined) mark.width = number(body.width, 0.5, 40, 'Stroke width');
-          if (body.opacity !== undefined) mark.opacity = number(body.opacity, 0, 1, 'Opacity');
-          if (body.stroke !== undefined) {
-            if (!markColors.includes(String(body.stroke))) fail('Pick a stroke colour token');
-            mark.stroke = String(body.stroke);
-          }
-          if (body.arrow !== undefined) mark.arrow = Boolean(body.arrow);
-          if (body.hidden !== undefined) mark.hidden = Boolean(body.hidden);
-          made = body.id;
-        } else {
-          const points = body.points;
-          if (!Array.isArray(points) || points.length < 2 || points.length > 2000)
-            fail('A mark needs 2 to 2000 points');
-          const xy = (points as unknown[]).map((point) => {
-            if (!Array.isArray(point)) fail('A point is [x, y]');
-            return [at((point as number[])[0]), at((point as number[])[1])];
-          });
-          const left = Math.min(...xy.map(([x]) => x));
-          const top = Math.min(...xy.map(([, y]) => y));
-          const pw = Math.max(1, Math.max(...xy.map(([x]) => x)) - left);
-          const ph = Math.max(1, Math.max(...xy.map(([, y]) => y)) - top);
-          const path = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x - left} ${y - top}`).join(' ');
-          made = `mark-${randomUUID().slice(0, 8)}`;
-          notes[made] = {
-            kind: 'mark',
-            x: left,
-            y: top,
-            w: pw,
-            h: ph,
-            pw,
-            ph,
-            path,
-            stroke: markColors.includes(String(body.stroke)) ? String(body.stroke) : 'danger',
-            width: body.width !== undefined ? number(body.width, 0.5, 40, 'Stroke width') : 2.5,
-          };
-        }
-      } else if (op === 'start') {
-        // Where Play starts on a page; null goes back to the page's first board.
-        const page = String(body.page ?? '');
-        if (!/^section-[a-z0-9-]{1,60}$/.test(page)) fail('Name a page');
-        const starts = ((canvas as any).starts ??= {}) as Record<string, string>;
-        if (body.board === null) delete starts[page];
-        else {
-          if (!canvas!.boards[String(body.board)]) fail(`No board named ${body.board}`, 404);
-          starts[page] = String(body.board);
-        }
-        made = page;
-      } else if (op === 'remove-note') {
-        if (!notes[body.id] || String(body.id).startsWith('section-')) fail('No such note', 404);
-        delete notes[body.id];
-        made = body.id;
-      } else if (op === 'board') {
-        const phone = body.kind === 'phone';
-        const [w, h] = phone ? [390, 844] : [1440, 900];
-        let n = 1;
-        while (canvas!.boards[`Board${n}.html`]) n++;
-        made = `Board${n}.html`;
-        canvas!.boards[made] = { x: at(body.x), y: at(body.y), w, h, title: `Board ${n}` };
-        if (Array.isArray((canvas as any).order)) (canvas as any).order.push(made);
-        writes.push({ path: `design/boards/${made}`, content: blankBoard(`Board ${n}`, w, h) });
-      } else fail('Unknown canvas edit');
-      writes.push({ path: 'design/canvas.json', content: `${JSON.stringify(canvas, null, 2)}\n` });
-      const commit = await copyPaths(repo, {
-        target: head,
-        from: head,
-        paths: [],
-        branch,
-        message:
-          op === 'board'
-            ? `Add ${made!.replace(/\.html$/, '')}`
-            : op === 'mark'
-              ? body.id
-                ? 'Edit a mark on the canvas'
-                : 'Draw a mark on the canvas'
-              : 'Edit canvas notes',
-        by: owner,
-        writes,
-      });
-      return { branch, commit, made: made! };
-    });
-    return sendJson(res, result);
-  }
-
-  // The design tasks of this project, newest first, for the overlay and the menu.
-  if (sub === '/asks' && req.method === 'GET') {
-    const asks = list('task', owner)
-      .filter((task: any) => task.projectId === project.id && task.design)
-      .sort((a: any, b: any) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-      .slice(0, 20)
-      .map((task: any) => ({
-        id: task.id,
-        title: task.title,
-        status: task.status,
-        branch: currentTaskBranch(task),
-        ...task.design,
-      }));
-    return sendJson(res, { asks });
-  }
-
-  // Accept an agent's design changes: copy its version of the chosen design files onto a design
-  // branch. Accepting while viewing main starts a new design branch, so main only changes through review.
-  if (sub === '/accept' && req.method === 'POST') {
-    const body = await readJson(req);
-    const task = get('task', owner, String(body?.task ?? ''));
-    if (task.projectId !== project.id || !task.design)
-      fail('That is not a design task of this project', 404);
-    const agentRef = `refs/heads/${currentTaskBranch(task)}`;
-    const result = await withRepositoryWrites(repo, async () => {
-      const agent = await gitRead(repo, [
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        `${agentRef}^{commit}`,
-      ]);
-      if (!agent) fail('The agent has not committed any design changes yet', 409);
-      let into = String(body?.into || 'HEAD');
-      if (!validRef(into)) fail('Invalid branch');
-      if (!into.startsWith('design/')) {
-        const from = await gitRead(repo, [
-          'rev-parse',
-          '--verify',
-          '--quiet',
-          '--end-of-options',
-          `${into}^{commit}`,
-        ]);
-        if (!from) fail(`No commit named ${into} in this project`, 404);
-        into = (await createBranch(repo, task.title.replace(/^Design:\s*/, ''), from!)).name;
-      }
-      const target = await gitRead(repo, [
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        `refs/heads/${into}^{commit}`,
-      ]);
-      if (!target) fail(`No design branch named ${into}`, 404);
-      const base = task.design.commit as string;
-      const changed = (
-        (await gitRead(repo, [
-          'diff',
-          '--name-only',
-          '--no-renames',
-          base,
-          agent!,
-          '--',
-          'design/',
-        ])) ?? ''
-      )
-        .split('\n')
-        .filter(Boolean);
-      const paths: string[] = Array.isArray(body?.paths) ? body.paths.map(String) : changed;
-      if (!paths.length) fail('Choose at least one change to accept');
-      if (paths.some((path) => !changed.includes(path)))
-        fail('Only the agent’s design changes can be accepted');
-      const commit = await copyPaths(repo, {
-        target: target!,
-        from: agent!,
-        paths,
-        branch: into,
-        message: `Accept ${paths.length === 1 ? paths[0].replace(/^design\//, '') : `${paths.length} design changes`} from ${task.title}`,
-        by: owner,
-      });
-      return { branch: into, commit, accepted: paths };
-    });
-    return sendJson(res, result);
-  }
-
-  // Ask for approval of a design branch or a design task, in Waiting on you.
-  if (sub === '/propose' && req.method === 'POST') {
-    const body = await readJson(req);
-    const item = await proposeDesign(owner, project, {
-      ref: body?.ref,
-      task: body?.task,
-      title: body?.title,
-      summary: body?.summary,
-      changeWords: body?.changeWords,
-    });
-    setImmediate(() => void warmReview(owner, project, repo, item.id));
-    return sendJson(res, { item }, 201);
-  }
-
-  // Agents working on this design right now.
-  if (sub === '/presence' && req.method === 'GET')
-    return sendJson(res, { agents: livePresence(owner, project.id) });
-
-  if (sub === '/review' && req.method === 'GET') {
-    const row = reviewRow(owner, project.id, url.searchParams.get('item'));
-    const review = await designReview(
-      owner,
-      project,
-      row,
-      url.searchParams.get('evidence') === 'all',
-    );
-    if (url.searchParams.get('previews') === 'all') {
-      for (const board of review.boards) {
-        board.previews = {};
-        for (const width of board.widths)
-          board.previews[width] = await reviewPreview(repo, project.id, board, width);
-      }
-    }
-    return sendJson(res, review);
-  }
-
-  if (sub === '/review/preview' && req.method === 'GET') {
-    const row = reviewRow(owner, project.id, url.searchParams.get('item'));
-    const boards = await loadReviewScreens(owner, project, row);
-    const board = boards.find((entry) => entry.file === url.searchParams.get('board'));
-    const width = Number(url.searchParams.get('width'));
-    if (!board || !board.widths.includes(width)) fail('Name a screen and one of its widths');
-    const comparison =
-      url.searchParams.get('comparison') === 'main' ? await reviewMain(repo, row.context) : null;
-    const resolution = comparison?.resolutions.find((entry) => entry.file === board!.file);
-    return sendJson(
-      res,
-      await reviewPreview(
-        repo,
-        project.id,
-        comparison
-          ? {
-              ...board!,
-              before: comparison.main,
-              added: resolution?.mainExists === false,
-              removed: resolution?.proposalExists === false,
+  if (
+    await dispatch(
+      [
+        designRoute({
+          method: 'GET',
+          path: '/links',
+          handler: async () => {
+            const { commit } = await resolveCommit(owner, project.id, repo, url);
+            const key = `${repo}:${commit}`;
+            let links = linkCache.get(key);
+            if (!links) {
+              const canvas = await readCanvas(repo, commit);
+              const files = Object.keys(canvas?.boards ?? {});
+              const found = await Promise.all(
+                files.map(async (file) => {
+                  const html = await readFile(repo, commit, `design/boards/${file}`);
+                  return html
+                    ? boardLinks(html.toString()).map((link) => ({ from: file, ...link }))
+                    : [];
+                }),
+              );
+              links = found.flat();
+              linkCache.set(key, links);
+              if (linkCache.size > 20) linkCache.delete(linkCache.keys().next().value!);
             }
-          : board!,
-        width,
-        undefined,
-        previewScale(url),
-      ),
-    );
-  }
-
-  if (sub === '/review/choice' && req.method === 'POST') {
-    const body = await readJson(req);
-    await withRepositoryWrites(repo, async () => {
-      const row = reviewRow(owner, project.id, body?.item);
-      if (row.item.state !== 'waiting') fail('This review has already been answered', 409);
-      const status = await reviewMain(repo, row.context);
-      if (body.main !== status.main || body.proposal !== row.context.commit)
-        fail('The design changed. Refresh the review and choose again.', 409);
-      if (![null, 'main', 'proposal'].includes(body.choice)) fail('Choose main or this proposal');
-      if (
-        !status.resolutions.some((entry) => entry.file === body.file && entry.kind === 'same-part')
-      )
-        fail('That screen needs no choice', 409);
-      const choices = Object.fromEntries(
-        Object.entries(row.context.choices ?? {}).filter(([, value]) => {
-          const saved = value as { main: string; proposal: string };
-          return saved.main === status.main && saved.proposal === row.context.commit;
+            return sendJson(res, { commit, links });
+          },
         }),
-      );
-      if (body.choice === null) delete choices[body.file];
-      else
-        choices[body.file] = {
-          choice: body.choice,
-          version: id(),
-          main: status.main,
-          proposal: row.context.commit,
-        };
-      save('v2-inbox-native', owner, { ...row, context: { ...row.context, choices } });
-    });
-    return sendJson(res, { ok: true });
-  }
-
-  if (sub === '/review/seen' && req.method === 'POST') {
-    const body = await readJson(req);
-    const row = reviewRow(owner, project.id, body?.item);
-    const review = await designReview(owner, project, row);
-    const files = body?.boards ?? [body?.board];
-    if (
-      !Array.isArray(files) ||
-      !files.length ||
-      files.length > review.boards.length ||
-      files.some((file) => !review.boards.some((board) => board.file === file)) ||
-      body?.revision !== review.after
-    )
-      fail('Name screens at this proposal revision', 409);
-    db.transaction(() => {
-      for (const file of new Set(files))
-        save('design-review-seen', owner, {
-          id: `${row.id}:${file}`,
-          itemId: row.id,
-          board: file,
-          revision: review.after,
-          seenAt: now(),
-        });
-    }).immediate();
-    return sendJson(res, { seen: true });
-  }
-
-  if (sub === '/review/build' && req.method === 'POST') {
-    const body = await readJson(req);
-    return sendJson(res, { build: requestDesignBuild(owner, project.id, body?.item, body?.place) });
-  }
-
-  if (sub === '/review/undo' && req.method === 'POST') {
-    const body = await readJson(req);
-    const result = await withRepositoryWrites(repo, async () => {
-      const row = reviewRow(owner, project.id, body?.item);
-      const landing = list('design-review-landing', owner).find((entry) => entry.id === row.id);
-      if (!landing || landing.state !== 'pending' || Date.parse(landing.at) <= Date.now())
-        fail('This approval can no longer be undone', 409);
-      return restoreDesignWaiting(owner, row);
-    });
-    return sendJson(res, { item: result });
-  }
+        designRoute({
+          method: 'GET',
+          path: '/changes',
+          handler: async () => {
+            const { commit } = await resolveCommit(owner, project.id, repo, url);
+            const base = url.searchParams.get('base') || 'HEAD';
+            if (!validRef(base)) fail('Invalid base');
+            const baseCommit = await gitRead(repo, [
+              'rev-parse',
+              '--verify',
+              '--quiet',
+              '--end-of-options',
+              `${base}^{commit}`,
+            ]);
+            if (!baseCommit) fail(`No commit named ${base} in this project`, 404);
+            const mergeBase =
+              (await gitRead(repo, ['merge-base', baseCommit, commit])) || baseCommit;
+            const out = await gitRead(repo, [
+              'diff',
+              '--name-status',
+              '--no-renames',
+              mergeBase,
+              commit,
+              '--',
+              'design/',
+            ]);
+            const files = await Promise.all(
+              (out ? out.split('\n') : []).map(async (line) => {
+                const [code, path] = line.split('\t');
+                const status = code === 'A' ? 'added' : code === 'D' ? 'removed' : 'changed';
+                // A changed board also says what changed in it, layer by layer.
+                if (status !== 'changed' || !/^design\/boards\/[^/]+\.html$/.test(path))
+                  return { status, path };
+                const [before, after] = await Promise.all([
+                  readFile(repo, mergeBase, path),
+                  readFile(repo, commit, path),
+                ]);
+                return {
+                  status,
+                  path,
+                  layers: before && after ? layerChanges(before.toString(), after.toString()) : [],
+                };
+              }),
+            );
+            return sendJson(res, { base: mergeBase, commit, files });
+          },
+        }),
+        designRoute({
+          method: 'GET',
+          path: '/render',
+          handler: async () => {
+            const { commit } = await resolveCommit(owner, project.id, repo, url);
+            const board = String(url.searchParams.get('board') ?? '');
+            if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+            const width = Number(url.searchParams.get('width') ?? 1440);
+            if (!Number.isInteger(width) || width < 320 || width > 2560)
+              fail('Width must be 320 to 2560');
+            const height = url.searchParams.has('height')
+              ? Number(url.searchParams.get('height'))
+              : undefined;
+            if (
+              height !== undefined &&
+              (!Number.isInteger(height) || height < 64 || height > 20000)
+            )
+              fail('Height must be 64 to 20000');
+            const png = await renderBoard(repo, commit, board, width, height, previewScale(url));
+            res.writeHead(200, {
+              'Content-Type': 'image/png',
+              'Content-Length': png.length,
+              'X-Content-Type-Options': 'nosniff',
+              'Cache-Control': 'private, max-age=31536000, immutable',
+            });
+            res.end(png);
+            return true;
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/ask',
+          handler: async () => {
+            const body = await readJson(req);
+            const board = String(body?.board ?? '');
+            const layer = body?.layer == null ? null : String(body.layer);
+            const text = String(body?.text ?? '').trim();
+            // Asking about a design-system component changes the component, and so every instance.
+            if (body?.component != null) {
+              const componentId = String(body.component);
+              if (!text || text.length > 8000)
+                fail('Say what you want changed, in at most 8000 characters');
+              const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
+              const library = parseLibrary((await readFile(repo, commit, libraryPath))?.toString());
+              const component = library?.components.find((item) => item.id === componentId);
+              if (!component) fail(`The design system has no component ${componentId}`, 404);
+              const used = (await componentUsage(repo, commit))[componentId] ?? [];
+              const task = queueTask(owner, {
+                projectId: project.id,
+                title: `Design: ${component!.name} component`,
+                ref: commit,
+                workerId: body?.workerId,
+                model: body?.model,
+                prompt: componentPrompt({ component: component!, used, text, ref, commit }),
+              });
+              save('task', owner, {
+                ...get('task', owner, task.id),
+                design: {
+                  board: used[0] ?? '',
+                  layer: null,
+                  component: componentId,
+                  ref,
+                  commit,
+                  text,
+                  askedAt: now(),
+                },
+              });
+              return sendJson(
+                res,
+                { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
+                201,
+              );
+            }
+            if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+            if (layer !== null && !layerPattern.test(layer)) fail('Invalid layer');
+            if (!text || text.length > 8000)
+              fail('Say what you want changed, in at most 8000 characters');
+            const { ref, commit } = await resolveCommit(owner, project.id, repo, url);
+            const html = await readFile(repo, commit, `design/boards/${board}`);
+            if (!html) fail(`design/boards/${board} is missing at this commit`, 404);
+            const snippet = layer ? layerSnippet(html.toString(), layer) : null;
+            if (layer && !snippet) fail(`${board} has no layer ${layer}`, 404);
+            const openComments = comments(owner, project.id, board)
+              .filter((row) => !row.resolved && (!layer || row.layer === layer))
+              .map((row) => row.text);
+            const name = board.replace(/\.html$/, '');
+            const task = queueTask(owner, {
+              projectId: project.id,
+              title: `Design: ${name}${layer ? ` › ${layer}` : ''}`,
+              ref: commit,
+              workerId: body?.workerId,
+              model: body?.model,
+              prompt: askPrompt({ board, layer, text, ref, commit, snippet, openComments }),
+            });
+            save('task', owner, {
+              ...get('task', owner, task.id),
+              design: { board, layer, ref, commit, text, askedAt: now() },
+            });
+            return sendJson(
+              res,
+              { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
+              201,
+            );
+          },
+        }),
+        designRoute({
+          method: 'GET',
+          path: '/components',
+          handler: async () => {
+            const ref = url.searchParams.get('ref') || 'HEAD';
+            if (!validRef(ref)) fail('Invalid ref');
+            const commit = await gitRead(repo, [
+              'rev-parse',
+              '--verify',
+              '--quiet',
+              '--end-of-options',
+              `${ref}^{commit}`,
+            ]);
+            if (!commit) fail(`No commit named ${ref} in this project`, 404);
+            const library = parseLibrary((await readFile(repo, commit!, libraryPath))?.toString());
+            return sendJson(res, {
+              commit,
+              library,
+              usage: library ? await componentUsage(repo, commit!) : {},
+            });
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/edit',
+          handler: async () => {
+            const body = await readJson(req);
+            const board = String(body?.board ?? '');
+            if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+            const edits = body?.edits;
+            if (!Array.isArray(edits) || !edits.length || edits.length > 50)
+              fail('Send 1 to 50 edits');
+            const result = await withRepositoryWrites(repo, async () => {
+              const { branch, head } = await editBranch(repo, body, board.replace(/\.html$/, ''));
+              const html = await readFile(repo, head, `design/boards/${board}`);
+              if (!html) fail(`design/boards/${board} is missing on ${branch}`, 404);
+              const main = await gitRead(repo, [
+                'rev-parse',
+                '--verify',
+                '--quiet',
+                `refs/heads/${await mainBranch(repo)}^{commit}`,
+              ]);
+              const base = main ? await readFile(repo, main, `design/boards/${board}`) : null;
+              const library = edits.some((edit: any) => edit.op === 'insert' && edit.component)
+                ? parseLibrary((await readFile(repo, head, libraryPath))?.toString())
+                : undefined;
+              let next: string;
+              try {
+                next = applyEdits(html.toString(), edits, base?.toString(), library ?? undefined);
+              } catch (error) {
+                fail((error as Error).message);
+              }
+              if (next === html.toString()) return { branch, commit: head, layers: [] as string[] };
+              const before = new Set(layerIds(html.toString()));
+              const layers = layerIds(next).filter((layer) => !before.has(layer));
+              const kinds = [
+                ...new Set(
+                  edits.map((edit: any) =>
+                    edit.op === 'style'
+                      ? edit.prop
+                      : edit.op === 'insert'
+                        ? (edit.shape?.kind ?? edit.component?.id)
+                        : edit.op,
+                  ),
+                ),
+              ];
+              const commit = await copyPaths(repo, {
+                target: head,
+                from: head,
+                paths: [],
+                branch,
+                message: `Edit ${board.replace(/\.html$/, '')}: ${kinds.slice(0, 4).join(', ')}`,
+                by: owner,
+                writes: [{ path: `design/boards/${board}`, content: next }],
+              });
+              return { branch, commit, layers };
+            });
+            return sendJson(res, result);
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/canvas',
+          handler: async () => {
+            const body = await readJson(req);
+            const result = await withRepositoryWrites(repo, async () => {
+              const op = body?.op;
+              const { branch, head } = await editBranch(
+                repo,
+                body,
+                op === 'board' ? 'new board' : 'notes',
+              );
+              const canvas = await readCanvas(repo, head);
+              if (!canvas) fail('This design has no canvas.json', 404);
+              const notes = (canvas!.notes ??= {}) as Record<string, any>;
+              const at = (value: unknown) => {
+                const n = Number(value);
+                if (!Number.isFinite(n) || Math.abs(n) > 1e7) fail('A position is out of bounds');
+                return Math.round(n);
+              };
+              const writes: { path: string; content: string }[] = [];
+              let made: string;
+              if (op === 'note') {
+                const text = String(body.text ?? '').slice(0, 4000);
+                if (body.id) {
+                  if (!notes[body.id]) fail(`No note named ${body.id}`, 404);
+                  notes[body.id] = {
+                    ...notes[body.id],
+                    text,
+                    ...(body.x !== undefined ? { x: at(body.x), y: at(body.y) } : {}),
+                  };
+                  made = body.id;
+                } else {
+                  made = `note-${randomUUID().slice(0, 8)}`;
+                  notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
+                }
+              } else if (op === 'mark') {
+                // A pen mark on the canvas: drawn from its points, then changed a property at a time.
+                const number = (value: unknown, low: number, high: number, name: string) => {
+                  const n = Number(value);
+                  if (!Number.isFinite(n) || n < low || n > high)
+                    fail(`${name} must be ${low} to ${high}`);
+                  return Math.round(n * 10) / 10;
+                };
+                if (body.id) {
+                  const mark = notes[body.id];
+                  if (mark?.kind !== 'mark') fail(`No mark named ${body.id}`, 404);
+                  if (body.x !== undefined) mark.x = at(body.x);
+                  if (body.y !== undefined) mark.y = at(body.y);
+                  if (body.w !== undefined) mark.w = number(body.w, 1, 20000, 'W');
+                  if (body.h !== undefined) mark.h = number(body.h, 1, 20000, 'H');
+                  if (body.rotate !== undefined)
+                    mark.rotate = number(body.rotate, -360, 360, 'Rotation');
+                  if (body.width !== undefined)
+                    mark.width = number(body.width, 0.5, 40, 'Stroke width');
+                  if (body.opacity !== undefined)
+                    mark.opacity = number(body.opacity, 0, 1, 'Opacity');
+                  if (body.stroke !== undefined) {
+                    if (!markColors.includes(String(body.stroke)))
+                      fail('Pick a stroke colour token');
+                    mark.stroke = String(body.stroke);
+                  }
+                  if (body.arrow !== undefined) mark.arrow = Boolean(body.arrow);
+                  if (body.hidden !== undefined) mark.hidden = Boolean(body.hidden);
+                  made = body.id;
+                } else {
+                  const points = body.points;
+                  if (!Array.isArray(points) || points.length < 2 || points.length > 2000)
+                    fail('A mark needs 2 to 2000 points');
+                  const xy = (points as unknown[]).map((point) => {
+                    if (!Array.isArray(point)) fail('A point is [x, y]');
+                    return [at((point as number[])[0]), at((point as number[])[1])];
+                  });
+                  const left = Math.min(...xy.map(([x]) => x));
+                  const top = Math.min(...xy.map(([, y]) => y));
+                  const pw = Math.max(1, Math.max(...xy.map(([x]) => x)) - left);
+                  const ph = Math.max(1, Math.max(...xy.map(([, y]) => y)) - top);
+                  const path = xy
+                    .map(([x, y], i) => `${i ? 'L' : 'M'}${x - left} ${y - top}`)
+                    .join(' ');
+                  made = `mark-${randomUUID().slice(0, 8)}`;
+                  notes[made] = {
+                    kind: 'mark',
+                    x: left,
+                    y: top,
+                    w: pw,
+                    h: ph,
+                    pw,
+                    ph,
+                    path,
+                    stroke: markColors.includes(String(body.stroke))
+                      ? String(body.stroke)
+                      : 'danger',
+                    width:
+                      body.width !== undefined ? number(body.width, 0.5, 40, 'Stroke width') : 2.5,
+                  };
+                }
+              } else if (op === 'start') {
+                // Where Play starts on a page; null goes back to the page's first board.
+                const page = String(body.page ?? '');
+                if (!/^section-[a-z0-9-]{1,60}$/.test(page)) fail('Name a page');
+                const starts = ((canvas as any).starts ??= {}) as Record<string, string>;
+                if (body.board === null) delete starts[page];
+                else {
+                  if (!canvas!.boards[String(body.board)])
+                    fail(`No board named ${body.board}`, 404);
+                  starts[page] = String(body.board);
+                }
+                made = page;
+              } else if (op === 'remove-note') {
+                if (!notes[body.id] || String(body.id).startsWith('section-'))
+                  fail('No such note', 404);
+                delete notes[body.id];
+                made = body.id;
+              } else if (op === 'board') {
+                const phone = body.kind === 'phone';
+                const [w, h] = phone ? [390, 844] : [1440, 900];
+                let n = 1;
+                while (canvas!.boards[`Board${n}.html`]) n++;
+                made = `Board${n}.html`;
+                canvas!.boards[made] = { x: at(body.x), y: at(body.y), w, h, title: `Board ${n}` };
+                if (Array.isArray((canvas as any).order)) (canvas as any).order.push(made);
+                writes.push({
+                  path: `design/boards/${made}`,
+                  content: blankBoard(`Board ${n}`, w, h),
+                });
+              } else fail('Unknown canvas edit');
+              writes.push({
+                path: 'design/canvas.json',
+                content: `${JSON.stringify(canvas, null, 2)}\n`,
+              });
+              const commit = await copyPaths(repo, {
+                target: head,
+                from: head,
+                paths: [],
+                branch,
+                message:
+                  op === 'board'
+                    ? `Add ${made!.replace(/\.html$/, '')}`
+                    : op === 'mark'
+                      ? body.id
+                        ? 'Edit a mark on the canvas'
+                        : 'Draw a mark on the canvas'
+                      : 'Edit canvas notes',
+                by: owner,
+                writes,
+              });
+              return { branch, commit, made: made! };
+            });
+            return sendJson(res, result);
+          },
+        }),
+        designRoute({
+          method: 'GET',
+          path: '/asks',
+          handler: async () => {
+            const asks = list('task', owner)
+              .filter((task: any) => task.projectId === project.id && task.design)
+              .sort((a: any, b: any) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+              .slice(0, 20)
+              .map((task: any) => ({
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                branch: currentTaskBranch(task),
+                ...task.design,
+              }));
+            return sendJson(res, { asks });
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/accept',
+          handler: async () => {
+            const body = await readJson(req);
+            const task = get('task', owner, String(body?.task ?? ''));
+            if (task.projectId !== project.id || !task.design)
+              fail('That is not a design task of this project', 404);
+            const agentRef = `refs/heads/${currentTaskBranch(task)}`;
+            const result = await withRepositoryWrites(repo, async () => {
+              const agent = await gitRead(repo, [
+                'rev-parse',
+                '--verify',
+                '--quiet',
+                `${agentRef}^{commit}`,
+              ]);
+              if (!agent) fail('The agent has not committed any design changes yet', 409);
+              let into = String(body?.into || 'HEAD');
+              if (!validRef(into)) fail('Invalid branch');
+              if (!into.startsWith('design/')) {
+                const from = await gitRead(repo, [
+                  'rev-parse',
+                  '--verify',
+                  '--quiet',
+                  '--end-of-options',
+                  `${into}^{commit}`,
+                ]);
+                if (!from) fail(`No commit named ${into} in this project`, 404);
+                into = (await createBranch(repo, task.title.replace(/^Design:\s*/, ''), from!))
+                  .name;
+              }
+              const target = await gitRead(repo, [
+                'rev-parse',
+                '--verify',
+                '--quiet',
+                `refs/heads/${into}^{commit}`,
+              ]);
+              if (!target) fail(`No design branch named ${into}`, 404);
+              const base = task.design.commit as string;
+              const changed = (
+                (await gitRead(repo, [
+                  'diff',
+                  '--name-only',
+                  '--no-renames',
+                  base,
+                  agent!,
+                  '--',
+                  'design/',
+                ])) ?? ''
+              )
+                .split('\n')
+                .filter(Boolean);
+              const paths: string[] = Array.isArray(body?.paths) ? body.paths.map(String) : changed;
+              if (!paths.length) fail('Choose at least one change to accept');
+              if (paths.some((path) => !changed.includes(path)))
+                fail('Only the agent’s design changes can be accepted');
+              const commit = await copyPaths(repo, {
+                target: target!,
+                from: agent!,
+                paths,
+                branch: into,
+                message: `Accept ${paths.length === 1 ? paths[0].replace(/^design\//, '') : `${paths.length} design changes`} from ${task.title}`,
+                by: owner,
+              });
+              return { branch: into, commit, accepted: paths };
+            });
+            return sendJson(res, result);
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/propose',
+          handler: async () => {
+            const body = await readJson(req);
+            const item = await proposeDesign(owner, project, {
+              ref: body?.ref,
+              task: body?.task,
+              title: body?.title,
+              summary: body?.summary,
+              changeWords: body?.changeWords,
+            });
+            setImmediate(() => void warmReview(owner, project, repo, item.id));
+            return sendJson(res, { item }, 201);
+          },
+        }),
+        designRoute({
+          method: 'GET',
+          path: '/presence',
+          handler: async () => {
+            return sendJson(res, { agents: livePresence(owner, project.id) });
+          },
+        }),
+        designRoute({
+          method: 'GET',
+          path: '/review',
+          handler: async () => {
+            const row = reviewRow(owner, project.id, url.searchParams.get('item'));
+            const review = await designReview(
+              owner,
+              project,
+              row,
+              url.searchParams.get('evidence') === 'all',
+            );
+            if (url.searchParams.get('previews') === 'all') {
+              for (const board of review.boards) {
+                board.previews = {};
+                for (const width of board.widths)
+                  board.previews[width] = await reviewPreview(repo, project.id, board, width);
+              }
+            }
+            return sendJson(res, review);
+          },
+        }),
+        designRoute({
+          method: 'GET',
+          path: '/review/preview',
+          handler: async () => {
+            const row = reviewRow(owner, project.id, url.searchParams.get('item'));
+            const boards = await loadReviewScreens(owner, project, row);
+            const board = boards.find((entry) => entry.file === url.searchParams.get('board'));
+            const width = Number(url.searchParams.get('width'));
+            if (!board || !board.widths.includes(width))
+              fail('Name a screen and one of its widths');
+            const comparison =
+              url.searchParams.get('comparison') === 'main'
+                ? await reviewMain(repo, row.context)
+                : null;
+            const resolution = comparison?.resolutions.find((entry) => entry.file === board!.file);
+            return sendJson(
+              res,
+              await reviewPreview(
+                repo,
+                project.id,
+                comparison
+                  ? {
+                      ...board!,
+                      before: comparison.main,
+                      added: resolution?.mainExists === false,
+                      removed: resolution?.proposalExists === false,
+                    }
+                  : board!,
+                width,
+                undefined,
+                previewScale(url),
+              ),
+            );
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/review/choice',
+          handler: async () => {
+            const body = await readJson(req);
+            await withRepositoryWrites(repo, async () => {
+              const row = reviewRow(owner, project.id, body?.item);
+              if (row.item.state !== 'waiting') fail('This review has already been answered', 409);
+              const status = await reviewMain(repo, row.context);
+              if (body.main !== status.main || body.proposal !== row.context.commit)
+                fail('The design changed. Refresh the review and choose again.', 409);
+              if (![null, 'main', 'proposal'].includes(body.choice))
+                fail('Choose main or this proposal');
+              if (
+                !status.resolutions.some(
+                  (entry) => entry.file === body.file && entry.kind === 'same-part',
+                )
+              )
+                fail('That screen needs no choice', 409);
+              const choices = Object.fromEntries(
+                Object.entries(row.context.choices ?? {}).filter(([, value]) => {
+                  const saved = value as { main: string; proposal: string };
+                  return saved.main === status.main && saved.proposal === row.context.commit;
+                }),
+              );
+              if (body.choice === null) delete choices[body.file];
+              else
+                choices[body.file] = {
+                  choice: body.choice,
+                  version: id(),
+                  main: status.main,
+                  proposal: row.context.commit,
+                };
+              save('v2-inbox-native', owner, { ...row, context: { ...row.context, choices } });
+            });
+            return sendJson(res, { ok: true });
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/review/seen',
+          handler: async () => {
+            const body = await readJson(req);
+            const row = reviewRow(owner, project.id, body?.item);
+            const review = await designReview(owner, project, row);
+            const files = body?.boards ?? [body?.board];
+            if (
+              !Array.isArray(files) ||
+              !files.length ||
+              files.length > review.boards.length ||
+              files.some((file) => !review.boards.some((board) => board.file === file)) ||
+              body?.revision !== review.after
+            )
+              fail('Name screens at this proposal revision', 409);
+            db.transaction(() => {
+              for (const file of new Set(files))
+                save('design-review-seen', owner, {
+                  id: `${row.id}:${file}`,
+                  itemId: row.id,
+                  board: file,
+                  revision: review.after,
+                  seenAt: now(),
+                });
+            }).immediate();
+            return sendJson(res, { seen: true });
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/review/build',
+          handler: async () => {
+            const body = await readJson(req);
+            return sendJson(res, {
+              build: requestDesignBuild(owner, project.id, body?.item, body?.place),
+            });
+          },
+        }),
+        designRoute({
+          method: 'POST',
+          path: '/review/undo',
+          handler: async () => {
+            const body = await readJson(req);
+            const result = await withRepositoryWrites(repo, async () => {
+              const row = reviewRow(owner, project.id, body?.item);
+              const landing = list('design-review-landing', owner).find(
+                (entry) => entry.id === row.id,
+              );
+              if (!landing || landing.state !== 'pending' || Date.parse(landing.at) <= Date.now())
+                fail('This approval can no longer be undone', 409);
+              return restoreDesignWaiting(owner, row);
+            });
+            return sendJson(res, { item: result });
+          },
+        }),
+      ],
+      { path: () => sub },
+    )(req, res, undefined)
+  )
+    return true;
 
   if (sub === '/review/pins' && ['POST', 'PATCH', 'DELETE'].includes(req.method!)) {
     const body = await readJson(req, req.method === 'POST' ? 1024 * 1024 : 128 * 1024);
     return sendJson(res, await mutateReviewPin(owner, project, req.method!, body));
   }
 
-  if (sub === '/proposals' && req.method === 'GET') {
-    const prefix = `design:${project.id}:`;
-    // Each request also names the boards it would change, so the canvas can mark them In review.
-    // The canvas polls this every 10 s and it lists every proposal ever made, so it reads no git:
-    // counts and conflicts, which do, come from /api/v2/design/reviews for what still waits.
-    const contexts = new Map(
-      list('v2-inbox-native', owner)
-        .filter((row: any) => row.id.startsWith(prefix))
-        .map((row: any) => [row.id, row.context]),
-    );
-    const items = syncInbox(owner)
-      .filter((item) => item.id.startsWith(prefix))
-      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-      .map((item) => ({
-        ...item,
-        branch: contexts.get(item.id)?.branch ?? null,
-        boards: ((contexts.get(item.id)?.paths ?? []) as string[])
-          .filter((path) => path.startsWith('design/boards/'))
-          .map((path) => path.slice('design/boards/'.length)),
-      }));
-    return sendJson(res, { proposals: items });
-  }
+  if (
+    await dispatch(
+      [
+        designRoute({
+          method: 'GET',
+          path: '/proposals',
+          handler: async () => {
+            const prefix = `design:${project.id}:`;
+            // Each request also names the boards it would change, so the canvas can mark them In review.
+            // The canvas polls this every 10 s and it lists every proposal ever made, so it reads no git:
+            // counts and conflicts, which do, come from /api/v2/design/reviews for what still waits.
+            const contexts = new Map(
+              list('v2-inbox-native', owner)
+                .filter((row: any) => row.id.startsWith(prefix))
+                .map((row: any) => [row.id, row.context]),
+            );
+            const items = syncInbox(owner)
+              .filter((item) => item.id.startsWith(prefix))
+              .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+              .map((item) => ({
+                ...item,
+                branch: contexts.get(item.id)?.branch ?? null,
+                boards: ((contexts.get(item.id)?.paths ?? []) as string[])
+                  .filter((path) => path.startsWith('design/boards/'))
+                  .map((path) => path.slice('design/boards/'.length)),
+              }));
+            return sendJson(res, { proposals: items });
+          },
+        }),
+      ],
+      { path: () => sub },
+    )(req, res, undefined)
+  )
+    return true;
 
   fail('Not found', 404);
 }

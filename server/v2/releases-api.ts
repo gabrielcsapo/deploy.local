@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { releaseBuildOutput } from './release-build-log.ts';
 import { sendJson } from '../http.ts';
 import { readJson } from '../http.ts';
@@ -84,66 +85,116 @@ export async function releasesApi(
     // Recovery can wait on a computer for minutes after a restart. Reads show the saved
     // records as they are; only changes wait, so nothing starts on top of a recovering release.
     if (req.method !== 'GET') await recoverProjectReleases();
-    if (path === '/projects' && req.method === 'GET')
-      return send({ projects: await projectsForOwner(owner) });
-    if (path === '/approvals') {
-      if (req.method === 'GET') return send({ rules: approvalRules(owner) });
-      if (req.method === 'PUT')
-        return send({
-          rules: putApprovalRules(
-            owner,
-            (
-              await readJson(req, 65536, {
-                tooLarge: 'Request body too large',
-                preserveReadErrors: true,
-              })
-            ).rules,
-          ),
-        });
-    }
-    if (uploadRoute && req.method === 'GET') {
-      const record = list('v2-upload-release', owner).find((entry) => entry.id === uploadRoute[1]);
-      return send({ release: record ? releaseById(owner, record.releaseId) : null });
-    }
-    if (releaseRoute && req.method === 'GET') {
-      const project = url.searchParams.get('project');
-      const projectId = project ? (await resolveProject(owner, project)).id : undefined;
-      const release = releaseById(owner, decodeURIComponent(releaseRoute[1]), projectId);
-      if (releaseRoute[2] === 'output')
-        return send({ output: await releaseBuildOutput(owner, release.id) });
-      return send({ release });
-    }
-    if (projectRoute) {
-      const project = await resolveProject(owner, decodeURIComponent(projectRoute[1]));
-      if (req.method === 'GET' && projectRoute[2] === 'releases')
-        return send({ releases: projectReleases(owner, project.id) });
-      if (req.method === 'GET' && projectRoute[2] === 'rollbacks')
-        return send({ rollbacks: projectRollbacks(owner, project.id) });
-      if (req.method === 'POST' && projectRoute[2] === 'releases/plan')
-        return send({ plan: releaseChoices(owner, project) });
-      if (req.method === 'POST' && projectRoute[2] === 'releases') {
-        const body = await readJson(req, 65536, {
-          tooLarge: 'Request body too large',
-          preserveReadErrors: true,
-        });
-        if (body.choices !== undefined)
-          body.choices = validateReleaseChoices(owner, project, body.choices);
-        return send({ release: projectReleaseService.ship(owner, project, body) }, 202);
-      }
-      if (req.method === 'POST' && projectRoute[2] === 'rollback')
-        return send(
-          projectReleaseService.rollback(
-            owner,
-            project,
-            await readJson(req, 65536, {
-              tooLarge: 'Request body too large',
-              preserveReadErrors: true,
+    const route = routes<undefined>();
+    return await dispatch(
+      [
+        route({
+          method: 'GET',
+          path: '/projects',
+          handler: async () => send({ projects: await projectsForOwner(owner) }),
+        }),
+        route({
+          method: 'GET',
+          path: '/approvals',
+          handler: () => send({ rules: approvalRules(owner) }),
+        }),
+        route({
+          method: 'PUT',
+          path: '/approvals',
+          handler: async () =>
+            send({
+              rules: putApprovalRules(
+                owner,
+                (
+                  await readJson(req, 65536, {
+                    tooLarge: 'Request body too large',
+                    preserveReadErrors: true,
+                  })
+                ).rules,
+              ),
             }),
-          ),
-          202,
-        );
-    }
-    return send({ error: 'Method not allowed' }, 405);
+        }),
+        route({
+          method: 'GET',
+          path: '/releases/uploads/:id([0-9]+)',
+          handler: ({ params }) => {
+            const record = list('v2-upload-release', owner).find((entry) => entry.id === params.id);
+            return send({ release: record ? releaseById(owner, record.releaseId) : null });
+          },
+        }),
+        route({
+          method: 'GET',
+          path: '/releases/:rest*',
+          handler: async () => {
+            if (!releaseRoute) return false;
+            const project = url.searchParams.get('project');
+            const projectId = project ? (await resolveProject(owner, project)).id : undefined;
+            const release = releaseById(owner, decodeURIComponent(releaseRoute[1]), projectId);
+            if (releaseRoute[2] === 'output')
+              return send({ output: await releaseBuildOutput(owner, release.id) });
+            return send({ release });
+          },
+        }),
+        route({
+          method: '*',
+          path: '/projects/:rest*',
+          handler: async () => {
+            if (!projectRoute) return false;
+            const project = await resolveProject(owner, decodeURIComponent(projectRoute[1]));
+            return dispatch(
+              [
+                route({
+                  method: 'GET',
+                  path: '/projects/:project/releases',
+                  handler: () => send({ releases: projectReleases(owner, project.id) }),
+                }),
+                route({
+                  method: 'GET',
+                  path: '/projects/:project/rollbacks',
+                  handler: () => send({ rollbacks: projectRollbacks(owner, project.id) }),
+                }),
+                route({
+                  method: 'POST',
+                  path: '/projects/:project/releases/plan',
+                  handler: () => send({ plan: releaseChoices(owner, project) }),
+                }),
+                route({
+                  method: 'POST',
+                  path: '/projects/:project/releases',
+                  handler: async () => {
+                    const body = await readJson(req, 65536, {
+                      tooLarge: 'Request body too large',
+                      preserveReadErrors: true,
+                    });
+                    if (body.choices !== undefined)
+                      body.choices = validateReleaseChoices(owner, project, body.choices);
+                    return send({ release: projectReleaseService.ship(owner, project, body) }, 202);
+                  },
+                }),
+                route({
+                  method: 'POST',
+                  path: '/projects/:project/rollback',
+                  handler: async () =>
+                    send(
+                      projectReleaseService.rollback(
+                        owner,
+                        project,
+                        await readJson(req, 65536, {
+                          tooLarge: 'Request body too large',
+                          preserveReadErrors: true,
+                        }),
+                      ),
+                      202,
+                    ),
+                }),
+              ],
+              { path: () => path },
+            )(req, res, undefined);
+          },
+        }),
+      ],
+      { path: () => path, notFound: () => send({ error: 'Method not allowed' }, 405) },
+    )(req, res, undefined);
   } catch (error: any) {
     return send(
       { error: error.message, ...(error.dataLoss ? { dataLoss: error.dataLoss } : {}) },

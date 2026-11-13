@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { stateRefresh } from './state-refresh.ts';
 import { projectsForOwner } from './projects.ts';
 import { isDeepStrictEqual } from 'node:util';
@@ -411,89 +412,107 @@ export async function liveApi(
     sendJson(res, value, status, { guard: true });
   };
   try {
-    if (path === '/api/v2/health/report') {
-      if (req.method !== 'POST') {
-        send({ error: 'Method not allowed' }, 405);
-        return true;
-      }
-      const chunks: Buffer[] = [];
-      let size = 0;
-      for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-        size += chunk.length;
-        if (size > 8192) {
-          req.resume();
-          fail('Report too large', 413);
-        }
-        chunks.push(Buffer.from(chunk));
-      }
-      const body = validateReport(JSON.parse(Buffer.concat(chunks).toString()));
-      const app = getDeployment(body.appId);
-      const bearer = req.headers.authorization?.replace(/^Bearer /, '');
-      let owner: string;
-      if (bearer) {
-        const credential = authenticateCi(bearer);
-        if (credential.application !== body.appId) fail('Token belongs to another app', 403);
-        owner = credential.username;
-      } else if (req.headers['x-deploy-node-id'] || req.headers['x-deploy-node-secret']) {
-        const nodeId = req.headers['x-deploy-node-id'];
-        const secret = req.headers['x-deploy-node-secret'];
-        if (
-          typeof nodeId !== 'string' ||
-          typeof secret !== 'string' ||
-          !authenticateNode(nodeId, secret)
-        )
-          fail('Invalid computer credential', 401);
-        if (!app || (app.activeNodeId || 'coordinator') !== nodeId)
-          fail('App is not running on this computer', 403);
-        owner = app.username;
-      } else {
-        const auth = requireAuth(req, res);
-        if (!auth) return true;
-        if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
-          fail('Invalid app credential', 403);
-        owner = auth.username;
-      }
-      send({ app: await acceptWorkerReport(owner, body) });
+    const route = routes<undefined>();
+    if (
+      await dispatch([
+        route({
+          method: 'POST',
+          path: '/api/v2/health/report',
+          handler: async () => {
+            const chunks: Buffer[] = [];
+            let size = 0;
+            for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+              size += chunk.length;
+              if (size > 8192) {
+                req.resume();
+                fail('Report too large', 413);
+              }
+              chunks.push(Buffer.from(chunk));
+            }
+            const body = validateReport(JSON.parse(Buffer.concat(chunks).toString()));
+            const app = getDeployment(body.appId);
+            const bearer = req.headers.authorization?.replace(/^Bearer /, '');
+            let owner: string;
+            if (bearer) {
+              const credential = authenticateCi(bearer);
+              if (credential.application !== body.appId) fail('Token belongs to another app', 403);
+              owner = credential.username;
+            } else if (req.headers['x-deploy-node-id'] || req.headers['x-deploy-node-secret']) {
+              const nodeId = req.headers['x-deploy-node-id'];
+              const secret = req.headers['x-deploy-node-secret'];
+              if (
+                typeof nodeId !== 'string' ||
+                typeof secret !== 'string' ||
+                !authenticateNode(nodeId, secret)
+              )
+                fail('Invalid computer credential', 401);
+              if (!app || (app.activeNodeId || 'coordinator') !== nodeId)
+                fail('App is not running on this computer', 403);
+              owner = app.username;
+            } else {
+              const auth = requireAuth(req, res);
+              if (!auth) return true;
+              if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
+                fail('Invalid app credential', 403);
+              owner = auth.username;
+            }
+            send({ app: await acceptWorkerReport(owner, body) });
+            return true;
+          },
+        }),
+        route({
+          method: '*',
+          path: '/api/v2/health/report',
+          handler: () => send({ error: 'Method not allowed' }, 405),
+        }),
+      ])(req, res, undefined)
+    )
       return true;
-    }
     const auth = requireAuth(req, res);
     if (!auth) return true;
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       fail('Agent and worker credentials cannot access client commands', 403);
-    if (req.method !== 'GET') {
-      send({ error: 'Method not allowed' }, 405);
-      return true;
-    }
-    const live = await getLive(auth.username);
-    if (path === '/api/v2/live') send(live);
-    else {
-      const appId = decodeURIComponent(path.slice('/api/v2/live/'.length));
-      const app = live.computers.flatMap((c) => c.apps).find((a) => a.appId === appId);
-      if (!app) fail('App not found', 404);
-      const report = list('v2-worker-health', auth.username).find((r) => r.id === appId);
-      const now = Date.now();
-      const response: LiveAppResponse = {
-        app,
-        ...(app.release && app.project
-          ? { release: releaseById(auth.username, app.release, app.project) }
-          : {}),
-        history:
-          app.kind === 'worker'
-            ? (report?.state.samples ?? [])
-                .filter((sample: any) => now - sample.at <= 3600_000)
-                .map((sample: any) => ({
-                  at: new Date(sample.at).toISOString(),
-                  ...(sample.jobs ? { failRate: sample.failures / sample.jobs } : {}),
-                }))
-            : getRequestSeries(appId, now - 3600_000, now)
-                .series.filter((sample) => sample.count > 0)
-                .map((sample) => ({
-                  at: new Date(sample.bucket).toISOString(),
-                  p95ms: sample.p95,
-                })),
-      };
-      send(response);
-    }
+    // The scope above intentionally includes an empty or multi-segment Live suffix.
+    const readLive = async () => {
+      const live = await getLive(auth.username);
+      if (path === '/api/v2/live') send(live);
+      else {
+        const appId = decodeURIComponent(path.slice('/api/v2/live/'.length));
+        const app = live.computers.flatMap((c) => c.apps).find((a) => a.appId === appId);
+        if (!app) fail('App not found', 404);
+        const report = list('v2-worker-health', auth.username).find((r) => r.id === appId);
+        const now = Date.now();
+        const response: LiveAppResponse = {
+          app,
+          ...(app.release && app.project
+            ? { release: releaseById(auth.username, app.release, app.project) }
+            : {}),
+          history:
+            app.kind === 'worker'
+              ? (report?.state.samples ?? [])
+                  .filter((sample: any) => now - sample.at <= 3600_000)
+                  .map((sample: any) => ({
+                    at: new Date(sample.at).toISOString(),
+                    ...(sample.jobs ? { failRate: sample.failures / sample.jobs } : {}),
+                  }))
+              : getRequestSeries(appId, now - 3600_000, now)
+                  .series.filter((sample) => sample.count > 0)
+                  .map((sample) => ({
+                    at: new Date(sample.bucket).toISOString(),
+                    p95ms: sample.p95,
+                  })),
+        };
+        send(response);
+      }
+    };
+    await dispatch(
+      [
+        route({ method: 'GET', path: '/api/v2/live', handler: readLive }),
+        route({ method: 'GET', path: '/api/v2/live/', handler: readLive }),
+        route({ method: 'GET', path: '/api/v2/live/:app*', handler: readLive }),
+      ],
+      { notFound: () => send({ error: 'Method not allowed' }, 405) },
+    )(req, res, undefined);
   } catch (error: any) {
     send({ error: error.message }, error.status ?? 400);
   }

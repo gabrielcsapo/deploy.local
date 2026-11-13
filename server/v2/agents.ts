@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { sendJson } from '../http.ts';
 import { readJson } from '../http.ts';
 import { agentControl, putAgentControl } from './phone-preferences.ts';
@@ -582,138 +583,166 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
     const itemId = decodeURIComponent(itemMatch[2]);
     const item = agent.looksAfter?.find((i) => i.id === itemId);
     if (!item) fail('Looks after item not found', 404);
-    let result: unknown;
-    if (req.method === 'POST' && itemMatch[3] === '/confirm') {
-      result = { agent: confirmAgentItem(owner, agent.id, itemId) };
-    } else if (req.method === 'POST' && itemMatch[3] === '/run') {
-      if (!item.confirmedAt) fail('Confirm this item before running it.', 409);
-      result = { task: startAgentRun(owner, agent, 'manual', item) };
-    } else if (req.method === 'GET' && itemMatch[3] === '/runs') {
-      result = {
-        runs: agentRuns(owner, agent.id, itemId)
-          .reverse()
-          .map((task) => ({
-            id: task.id,
-            title: task.title,
-            at: task.createdAt,
-            itemId,
-            status:
-              list('run', owner).findLast((run) => run.taskId === task.id)?.status ?? task.status,
-          })),
-      };
-    } else {
-      fail('Method not allowed', 405);
-    }
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(result));
-    return true;
+    const route = routes<undefined>();
+    const sendItem = (result: unknown) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(result));
+    };
+    return dispatch(
+      [
+        route({
+          method: 'POST',
+          path: '/agents/:agent/items/:item/confirm',
+          handler: () => sendItem({ agent: confirmAgentItem(owner, agent.id, itemId) }),
+        }),
+        route({
+          method: 'POST',
+          path: '/agents/:agent/items/:item/run',
+          handler: () => {
+            if (!item.confirmedAt) fail('Confirm this item before running it.', 409);
+            return sendItem({ task: startAgentRun(owner, agent, 'manual', item) });
+          },
+        }),
+        route({
+          method: 'GET',
+          path: '/agents/:agent/items/:item/runs',
+          handler: () => {
+            return sendItem({
+              runs: agentRuns(owner, agent.id, itemId)
+                .reverse()
+                .map((task) => ({
+                  id: task.id,
+                  title: task.title,
+                  at: task.createdAt,
+                  itemId,
+                  status:
+                    list('run', owner).findLast((run) => run.taskId === task.id)?.status ??
+                    task.status,
+                })),
+            });
+          },
+        }),
+      ],
+      { path: () => path, notFound: () => fail('Method not allowed', 405) },
+    )(req, res, undefined);
   }
   const match = path.match(/^\/agents\/([^/]+)(\/(?:conversation|control|run))?$/);
   if (path !== '/agents' && path !== '/approvals' && !match) return false;
   const send = (value: unknown, status = 200) => sendJson(res, value, status);
-  if (path === '/approvals') {
-    if (req.method === 'GET')
-      return send({ rules: rulesForOwner(owner), suggestions: approvalSuggestions(owner) });
-    if (req.method === 'PUT')
-      return send({
-        rules: putRules(
-          owner,
-          (
-            await readJson(req, 32768, {
-              tooLarge: 'Request body too large',
-              preserveReadErrors: true,
-            })
-          ).rules,
-        ),
-        suggestions: approvalSuggestions(owner),
-      });
-    return send({ error: 'Method not allowed' }, 405);
-  }
-  if (req.method === 'GET' && path === '/agents')
-    return send({ agents: agentsForOwner(owner), timezone: coordinatorTimezone() });
-  if (req.method === 'POST' && path === '/agents/draft')
-    return send({
-      draft: await draftAgent(
-        owner,
-        await readJson(req, 32768, {
-          tooLarge: 'Request body too large',
-          preserveReadErrors: true,
-        }),
-      ),
-    });
-  if (req.method === 'POST' && path === '/agents')
-    return send(
-      {
-        agent: createAgent(
-          owner,
-          await readJson(req, 32768, {
-            tooLarge: 'Request body too large',
-            preserveReadErrors: true,
+  const route = routes<undefined>();
+  const read = () =>
+    readJson(req, 32768, { tooLarge: 'Request body too large', preserveReadErrors: true });
+  return dispatch(
+    [
+      route({
+        method: 'GET',
+        path: '/approvals',
+        handler: () =>
+          send({ rules: rulesForOwner(owner), suggestions: approvalSuggestions(owner) }),
+      }),
+      route({
+        method: 'PUT',
+        path: '/approvals',
+        handler: async () =>
+          send({
+            rules: putRules(owner, (await read()).rules),
+            suggestions: approvalSuggestions(owner),
           }),
-        ),
-      },
-      201,
-    );
-  if (match) {
-    const agentId = decodeURIComponent(match[1]);
-    const agent = agentForOwner(owner, agentId);
-    if (match[2] === '/run') {
-      if (req.method !== 'POST') return send({ error: 'Method not allowed' }, 405);
-      // Pressing Run now is your own start, so the "Start a task" rule does not apply.
-      return send({ task: startAgentRun(owner, agent, 'manual') }, 201);
-    }
-    if (match[2] === '/control') {
-      if (req.method === 'GET') return send(agentControl(owner, agentId));
-      if (req.method === 'PATCH')
-        return send(
-          putAgentControl(
-            owner,
-            agentId,
-            await readJson(req, 32768, {
-              tooLarge: 'Request body too large',
-              preserveReadErrors: true,
-            }),
-          ),
-        );
-      return send({ error: 'Method not allowed' }, 405);
-    }
-    if (match[2]) {
-      if (req.method === 'GET')
-        return send({
-          events: agentConversation(owner, agentId),
-          tracking: agentTracking(owner, agentId),
-        });
-      if (req.method === 'POST') {
-        if (agentControl(owner, agentId).paused)
-          fail('This agent is paused. Resume it before sending a message.', 409);
-        const content = text(
-          (
-            await readJson(req, 32768, {
-              tooLarge: 'Request body too large',
-              preserveReadErrors: true,
-            })
-          )?.text,
-          'Message',
-          12000,
-        );
-        const { sendAgentMessage } = await import('./attachments.ts');
-        return send(await sendAgentMessage(owner, agentId, { text: content }));
-      }
-    } else if (req.method === 'PATCH')
-      return send({
-        agent: patchAgent(
-          owner,
-          agentId,
-          await readJson(req, 32768, {
-            tooLarge: 'Request body too large',
-            preserveReadErrors: true,
-          }),
-        ),
-      });
-    if (req.method === 'DELETE') {
-      deleteAgent(owner, agent.id);
-      return send({ deleted: agent.id });
-    }
-  }
-  return send({ error: 'Method not allowed' }, 405);
+      }),
+      route({
+        method: '*',
+        path: '/approvals',
+        handler: () => send({ error: 'Method not allowed' }, 405),
+      }),
+      route({
+        method: 'GET',
+        path: '/agents',
+        handler: () => send({ agents: agentsForOwner(owner), timezone: coordinatorTimezone() }),
+      }),
+      route({
+        method: 'POST',
+        path: '/agents/draft',
+        handler: async () => send({ draft: await draftAgent(owner, await read()) }),
+      }),
+      route({
+        method: 'POST',
+        path: '/agents',
+        handler: async () => send({ agent: createAgent(owner, await read()) }, 201),
+      }),
+      route({
+        method: '*',
+        path: '/agents/:rest*',
+        handler: async () => {
+          // Match and resolve before selecting the method, including unknown ids and DELETE conversation.
+          if (!match) return false;
+          const agentId = decodeURIComponent(match[1]);
+          const agent = agentForOwner(owner, agentId);
+          return dispatch(
+            [
+              route({
+                method: 'POST',
+                path: '/agents/:agent/run',
+                handler: () => send({ task: startAgentRun(owner, agent, 'manual') }, 201),
+              }),
+              route({
+                method: '*',
+                path: '/agents/:agent/run',
+                handler: () => send({ error: 'Method not allowed' }, 405),
+              }),
+              route({
+                method: 'GET',
+                path: '/agents/:agent/control',
+                handler: () => send(agentControl(owner, agentId)),
+              }),
+              route({
+                method: 'PATCH',
+                path: '/agents/:agent/control',
+                handler: async () => send(putAgentControl(owner, agentId, await read())),
+              }),
+              route({
+                method: '*',
+                path: '/agents/:agent/control',
+                handler: () => send({ error: 'Method not allowed' }, 405),
+              }),
+              route({
+                method: 'GET',
+                path: '/agents/:agent/conversation',
+                handler: () =>
+                  send({
+                    events: agentConversation(owner, agentId),
+                    tracking: agentTracking(owner, agentId),
+                  }),
+              }),
+              route({
+                method: 'POST',
+                path: '/agents/:agent/conversation',
+                handler: async () => {
+                  if (agentControl(owner, agentId).paused)
+                    fail('This agent is paused. Resume it before sending a message.', 409);
+                  const content = text((await read())?.text, 'Message', 12000);
+                  const { sendAgentMessage } = await import('./attachments.ts');
+                  return send(await sendAgentMessage(owner, agentId, { text: content }));
+                },
+              }),
+              route({
+                method: 'PATCH',
+                path: '/agents/:agent',
+                handler: async () => send({ agent: patchAgent(owner, agentId, await read()) }),
+              }),
+              route({
+                method: 'DELETE',
+                path: '/agents/:rest*',
+                handler: () => {
+                  deleteAgent(owner, agent.id);
+                  return send({ deleted: agent.id });
+                },
+              }),
+            ],
+            { path: () => path },
+          )(req, res, undefined);
+        },
+      }),
+    ],
+    { path: () => path, notFound: () => send({ error: 'Method not allowed' }, 405) },
+  )(req, res, undefined);
 }

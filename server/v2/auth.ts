@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import { sendJson } from '../http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authDb, preferences, updatePreferences } from './auth-store.ts';
@@ -40,20 +41,38 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
   const send = (data: unknown, status = 200) => sendJson(res, data, status);
   if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
     fail('Sign in as a person to manage accounts.', 403);
-  if (req.method === 'GET' && path === '/auth/trust') return send({ trusted: true });
-  if (req.method === 'GET' && path === '/setup')
-    return send({ ...serverIdentity(), needsSetup: !hasOwner() });
-  if (req.method === 'GET' && path === '/apps-home')
-    return send({
-      apps: appsAtHome(),
-      server: serverIdentity().name,
-      computers: homeComputers(),
-    });
-  if (req.method === 'GET' && path === '/auth/methods')
-    return send({
-      passkey: !!authDb().prepare('SELECT 1 FROM v2_passkeys LIMIT 1').get(),
-      server: serverIdentity().name,
-    });
+  // This feature stays before sign-in; each stage owns its credential boundary.
+  const route = routes<undefined>();
+  const options = { path: () => path };
+  if (
+    await dispatch(
+      [
+        route({ method: 'GET', path: '/auth/trust', handler: () => send({ trusted: true }) }),
+        route({
+          method: 'GET',
+          path: '/setup',
+          handler: () => send({ ...serverIdentity(), needsSetup: !hasOwner() }),
+        }),
+        route({
+          method: 'GET',
+          path: '/apps-home',
+          handler: () =>
+            send({ apps: appsAtHome(), server: serverIdentity().name, computers: homeComputers() }),
+        }),
+        route({
+          method: 'GET',
+          path: '/auth/methods',
+          handler: () =>
+            send({
+              passkey: !!authDb().prepare('SELECT 1 FROM v2_passkeys LIMIT 1').get(),
+              server: serverIdentity().name,
+            }),
+        }),
+      ],
+      options,
+    )(req, res, undefined)
+  )
+    return true;
   let body: any = {};
   if (req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE') {
     limitAuth(req);
@@ -80,47 +99,103 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
     }
     if (!body || typeof body !== 'object' || Array.isArray(body)) fail('Send a JSON object.');
   }
-  if (req.method === 'POST') {
-    if (path === '/setup') {
-      const result = setupAccount(body);
-      res.setHeader('Set-Cookie', cookie(result.username, result.token));
-      return send(result, 201);
-    }
-    if (path === '/auth/passkey/login/options') return send(await loginOptions());
-    if (path === '/auth/passkey/login/verify') {
-      const result = await loginVerify(body.challengeId, body.response);
-      res.setHeader('Set-Cookie', cookie(result.username, result.token));
-      return send({ username: result.username, token: result.token });
-    }
-    if (path === '/auth/cli/start') return send(cliLoginStart());
-    if (path === '/auth/cli/poll') return send(cliPoll(body.deviceCode));
-    if (path === '/devices/exchange') return send(exchangeDevice(body.token, body.name), 201);
-  }
+  if (
+    await dispatch(
+      [
+        route({
+          method: 'POST',
+          path: '/setup',
+          handler: () => {
+            const result = setupAccount(body);
+            res.setHeader('Set-Cookie', cookie(result.username, result.token));
+            return send(result, 201);
+          },
+        }),
+        route({
+          method: 'POST',
+          path: '/auth/passkey/login/options',
+          handler: async () => send(await loginOptions()),
+        }),
+        route({
+          method: 'POST',
+          path: '/auth/passkey/login/verify',
+          handler: async () => {
+            const result = await loginVerify(body.challengeId, body.response);
+            res.setHeader('Set-Cookie', cookie(result.username, result.token));
+            return send({ username: result.username, token: result.token });
+          },
+        }),
+        route({ method: 'POST', path: '/auth/cli/start', handler: () => send(cliLoginStart()) }),
+        route({
+          method: 'POST',
+          path: '/auth/cli/poll',
+          handler: () => send(cliPoll(body.deviceCode)),
+        }),
+        route({
+          method: 'POST',
+          path: '/devices/exchange',
+          handler: () => send(exchangeDevice(body.token, body.name), 201),
+        }),
+      ],
+      options,
+    )(req, res, undefined)
+  )
+    return true;
   const auth = requireAuth(req, res);
   if (!auth) return true;
   const owner = auth.username;
-  if (req.method === 'GET' && path === '/setup/recovery') return send(await recoveryProgress());
-  if (req.method === 'GET' && path === '/auth/account')
-    return send({ username: owner, ...preferences(owner), hasPasskey: passkeys(owner).length > 0 });
-  if (req.method === 'POST' && path === '/auth/account') {
-    const update: Partial<ReturnType<typeof preferences>> = {};
-    for (const key of ['passkeyOffered', 'firstTaskSeen', 'welcomed'] as const)
-      if (body[key] === true) update[key] = true;
-    return send(updatePreferences(owner, update));
-  }
-  if (req.method === 'POST' && path === '/auth/passkey/register/options')
-    return send(await registrationOptions(owner));
-  if (req.method === 'POST' && path === '/auth/passkey/register/verify')
-    return send(await registrationVerify(owner, body.challengeId, body.response));
-  if (req.method === 'POST' && path === '/auth/cli/approve') {
-    if (typeof body.approved !== 'boolean') fail('Choose Approve or Deny.');
-    return send(cliApprove(owner, body.code, body.approved));
-  }
-  if (req.method === 'GET' && path === '/devices') return send({ devices: devices(owner) });
-  if (req.method === 'POST' && path === '/devices/pair') return send(pairDevice(owner));
-  if (req.method === 'DELETE' && /^\/devices\/[^/]+$/.test(path)) {
-    removeDevice(owner, decodeURIComponent(path.split('/')[2]));
-    return send({ removed: true });
-  }
-  return send({ error: 'Not found' }, 404);
+  return dispatch(
+    [
+      route({
+        method: 'GET',
+        path: '/setup/recovery',
+        handler: async () => send(await recoveryProgress()),
+      }),
+      route({
+        method: 'GET',
+        path: '/auth/account',
+        handler: () =>
+          send({ username: owner, ...preferences(owner), hasPasskey: passkeys(owner).length > 0 }),
+      }),
+      route({
+        method: 'POST',
+        path: '/auth/account',
+        handler: () => {
+          const update: Partial<ReturnType<typeof preferences>> = {};
+          for (const key of ['passkeyOffered', 'firstTaskSeen', 'welcomed'] as const)
+            if (body[key] === true) update[key] = true;
+          return send(updatePreferences(owner, update));
+        },
+      }),
+      route({
+        method: 'POST',
+        path: '/auth/passkey/register/options',
+        handler: async () => send(await registrationOptions(owner)),
+      }),
+      route({
+        method: 'POST',
+        path: '/auth/passkey/register/verify',
+        handler: async () => send(await registrationVerify(owner, body.challengeId, body.response)),
+      }),
+      route({
+        method: 'POST',
+        path: '/auth/cli/approve',
+        handler: () => {
+          if (typeof body.approved !== 'boolean') fail('Choose Approve or Deny.');
+          return send(cliApprove(owner, body.code, body.approved));
+        },
+      }),
+      route({ method: 'GET', path: '/devices', handler: () => send({ devices: devices(owner) }) }),
+      route({ method: 'POST', path: '/devices/pair', handler: () => send(pairDevice(owner)) }),
+      route({
+        method: 'DELETE',
+        path: '/devices/:id',
+        handler: ({ params }) => {
+          removeDevice(owner, decodeURIComponent(params.id));
+          return send({ removed: true });
+        },
+      }),
+    ],
+    { ...options, notFound: () => send({ error: 'Not found' }, 404) },
+  )(req, res, undefined);
 }
