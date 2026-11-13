@@ -155,7 +155,9 @@ export async function resolveProject(owner: string, key: string): Promise<Projec
 
 export async function addProjectApplication(owner: string, key: string, application: string) {
   const project = await resolveProject(owner, key);
-  db.transaction(() => moveProjectApplication(owner, project, application))();
+  // Take the write lock up front: this reads before it writes, and a write by another process
+  // in between would fail the upgrade with “database is locked” instead of waiting.
+  db.transaction(() => moveProjectApplication(owner, project, application)).immediate();
   return resolveProject(owner, project.id);
 }
 
@@ -181,88 +183,92 @@ function moveProjectApplication(owner: string, project: Project, application: st
     fail('A release is changing this project; try again after it finishes', 409);
   if (!list('project', owner).some((row) => row.id === project.id))
     fail('Add a repository to this project first', 409);
-  database.transaction(() => {
-    const current = database
-      .prepare('SELECT project_id FROM project_applications WHERE owner=? AND application=?')
-      .get(owner, application) as { project_id: string } | undefined;
-    if (current && current.project_id !== `app:${application}`)
-      fail('App already belongs to another project', 409);
-    // A standalone project's defaults become app overrides when it joins a
-    // repository, so its values cannot unexpectedly change the other apps.
-    if (current && current.project_id !== project.id) {
-      const rows = database
-        .prepare('SELECT * FROM project_configuration WHERE owner=? AND project_id=? ORDER BY app')
-        .all(owner, current.project_id) as Array<{
-        app: string;
-        key: string;
-        value_type: string;
-        value: string;
-        deleted: number;
-        updated_at: string;
-        updated_by: string;
-      }>;
-      for (const row of rows) {
-        const value =
-          row.value_type === 'secret' && !row.deleted
-            ? encryptSecret(
-                decryptSecret(
-                  row.value,
-                  loadOrCreateSecretKey(),
-                  projectSecretAddress(owner, current.project_id, row.app, row.key),
-                ),
-                loadOrCreateSecretKey(),
-                projectSecretAddress(owner, project.id, application, row.key),
-              )
-            : row.value;
-        database
+  database
+    .transaction(() => {
+      const current = database
+        .prepare('SELECT project_id FROM project_applications WHERE owner=? AND application=?')
+        .get(owner, application) as { project_id: string } | undefined;
+      if (current && current.project_id !== `app:${application}`)
+        fail('App already belongs to another project', 409);
+      // A standalone project's defaults become app overrides when it joins a
+      // repository, so its values cannot unexpectedly change the other apps.
+      if (current && current.project_id !== project.id) {
+        const rows = database
           .prepare(
-            `INSERT INTO project_configuration(owner,project_id,app,key,value_type,value,deleted,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,project_id,app,key) DO UPDATE SET value_type=excluded.value_type,value=excluded.value,deleted=excluded.deleted,updated_at=excluded.updated_at,updated_by=excluded.updated_by`,
+            'SELECT * FROM project_configuration WHERE owner=? AND project_id=? ORDER BY app',
           )
-          .run(
-            owner,
-            project.id,
-            application,
-            row.key,
-            row.value_type,
-            value,
-            row.deleted,
-            row.updated_at,
-            row.updated_by,
-          );
-      }
-      // These are every other coordinator table with a project_id. Package pins have
-      // no owner column; app names are globally unique and membership was owner-checked above.
-      database
-        .prepare('UPDATE packages SET project_id=? WHERE project_id=? AND created_by=?')
-        .run(project.id, current.project_id, owner);
-      database
-        .prepare(`INSERT OR IGNORE INTO package_pins
-        SELECT ecosystem,key,?,release_id,reason FROM package_pins WHERE project_id=?`)
-        .run(project.id, current.project_id);
-      database.prepare('DELETE FROM package_pins WHERE project_id=?').run(current.project_id);
-      database
-        .prepare(`INSERT OR IGNORE INTO package_project_copies
-        SELECT username,?,commit_id,checked_at FROM package_project_copies WHERE username=? AND project_id=?`)
-        .run(project.id, owner, current.project_id);
-      database
-        .prepare(`INSERT OR IGNORE INTO package_project_requirements
-        SELECT username,?,key,name,version FROM package_project_requirements WHERE username=? AND project_id=?`)
-        .run(project.id, owner, current.project_id);
-      for (const table of ['package_project_copies', 'package_project_requirements'])
+          .all(owner, current.project_id) as Array<{
+          app: string;
+          key: string;
+          value_type: string;
+          value: string;
+          deleted: number;
+          updated_at: string;
+          updated_by: string;
+        }>;
+        for (const row of rows) {
+          const value =
+            row.value_type === 'secret' && !row.deleted
+              ? encryptSecret(
+                  decryptSecret(
+                    row.value,
+                    loadOrCreateSecretKey(),
+                    projectSecretAddress(owner, current.project_id, row.app, row.key),
+                  ),
+                  loadOrCreateSecretKey(),
+                  projectSecretAddress(owner, project.id, application, row.key),
+                )
+              : row.value;
+          database
+            .prepare(
+              `INSERT INTO project_configuration(owner,project_id,app,key,value_type,value,deleted,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,project_id,app,key) DO UPDATE SET value_type=excluded.value_type,value=excluded.value,deleted=excluded.deleted,updated_at=excluded.updated_at,updated_by=excluded.updated_by`,
+            )
+            .run(
+              owner,
+              project.id,
+              application,
+              row.key,
+              row.value_type,
+              value,
+              row.deleted,
+              row.updated_at,
+              row.updated_by,
+            );
+        }
+        // These are every other coordinator table with a project_id. Package pins have
+        // no owner column; app names are globally unique and membership was owner-checked above.
         database
-          .prepare(`DELETE FROM ${table} WHERE username=? AND project_id=?`)
+          .prepare('UPDATE packages SET project_id=? WHERE project_id=? AND created_by=?')
+          .run(project.id, current.project_id, owner);
+        database
+          .prepare(`INSERT OR IGNORE INTO package_pins
+        SELECT ecosystem,key,?,release_id,reason FROM package_pins WHERE project_id=?`)
+          .run(project.id, current.project_id);
+        database.prepare('DELETE FROM package_pins WHERE project_id=?').run(current.project_id);
+        database
+          .prepare(`INSERT OR IGNORE INTO package_project_copies
+        SELECT username,?,commit_id,checked_at FROM package_project_copies WHERE username=? AND project_id=?`)
+          .run(project.id, owner, current.project_id);
+        database
+          .prepare(`INSERT OR IGNORE INTO package_project_requirements
+        SELECT username,?,key,name,version FROM package_project_requirements WHERE username=? AND project_id=?`)
+          .run(project.id, owner, current.project_id);
+        for (const table of ['package_project_copies', 'package_project_requirements'])
+          database
+            .prepare(`DELETE FROM ${table} WHERE username=? AND project_id=?`)
+            .run(owner, current.project_id);
+        moveProjectHistory(owner, current.project_id, project.id);
+        database
+          .prepare('DELETE FROM project_configuration WHERE owner=? AND project_id=?')
           .run(owner, current.project_id);
-      moveProjectHistory(owner, current.project_id, project.id);
+      }
       database
-        .prepare('DELETE FROM project_configuration WHERE owner=? AND project_id=?')
-        .run(owner, current.project_id);
-    }
-    database
-      .prepare(
-        'INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?) ON CONFLICT(application) DO UPDATE SET project_id=excluded.project_id',
-      )
-      .run(application, owner, project.id);
-  })();
+        .prepare(
+          'INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?) ON CONFLICT(application) DO UPDATE SET project_id=excluded.project_id',
+        )
+        .run(application, owner, project.id);
+    })
+    .immediate();
 }
 
 /** Rewrite structured project references, never app ids, messages or historical event payloads. */
