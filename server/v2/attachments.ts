@@ -1,5 +1,5 @@
-import { readBytes, readJson, sendJson } from '../http.ts';
-export { readBytes, readJson, sendJson } from '../http.ts';
+import { readBytes, readJson, sendJson } from '../kernel/http.ts';
+export { readBytes, readJson, sendJson } from '../kernel/http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import type { Attachment, ConversationEvent } from '../../shared/v2/contracts.ts';
@@ -7,7 +7,7 @@ import { getArtifact, putArtifactBytes } from '../content-store.ts';
 import { db, get, id, list, save } from '../workspace/store.ts';
 import { repositoryRead } from '../workspace/repositories.ts';
 import { getModels } from './computers.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 export const uploadLimit = 10 * 1024 * 1024;
 export function validateFile(bytes: Buffer, type: string) {

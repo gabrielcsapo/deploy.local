@@ -17,7 +17,7 @@ import { setTcpProxyHooks, stopAllProxies } from '../tcp-proxy.ts';
 import type { EdgeHandlers } from '../ipc.ts';
 import { purgeDeploymentCache } from './response-cache.ts';
 import { registerAppPageSource, type HotPathDeps, type RequestLogEntry } from './proxy.ts';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 
 export interface EdgeRuntimeOptions {
   dbFile: string;

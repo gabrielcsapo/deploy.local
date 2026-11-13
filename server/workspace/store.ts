@@ -1,11 +1,11 @@
 import { migrateJobOutput } from './job-output.ts';
-import { openWorkspaceDatabase, withWorkspaceDatabaseGate } from './database-open.ts';
+import { openWorkspaceDatabase, withWorkspaceDatabaseGate } from '../kernel/db/database-open.ts';
 import { externalizeCheckpoint, materializeCheckpoint } from './checkpoint-storage.ts';
 export { checkpointInfo } from './checkpoint-metadata.ts';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { deployDataDirectory } from '../data-directory.ts';
+import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 export const root = resolve(deployDataDirectory(), 'workspace');
 mkdirSync(root, { recursive: true });
 export const db = openWorkspaceDatabase(resolve(root, 'workspace.db'), {

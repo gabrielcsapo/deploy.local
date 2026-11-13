@@ -1,8 +1,8 @@
 import { finalizeReleases } from './telemetry.ts';
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 import { Worker } from 'node:worker_threads';
 import { trackCiWorker } from './ci-fence.ts';
-import { packageWorkerFile } from './packages/worker-file.ts';
+import { packageWorkerFile } from './kernel/files/worker-file.ts';
 import { getRequestsSqlite, requestsDbFile, resetRequestsDb } from './requests-db.ts';
 import { compactLegacyRequests, ensureImportSource } from './requests-migration.ts';
 

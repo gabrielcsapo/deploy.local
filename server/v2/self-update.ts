@@ -1,6 +1,6 @@
 import { repositoryChanged } from '../git-changes.ts';
-import { materialized } from '../materialized.ts';
-import { sendJson } from '../http.ts';
+import { materialized } from '../kernel/materialized.ts';
+import { sendJson } from '../kernel/http.ts';
 import { CopyWarmer } from '../packages/copies.ts';
 import { npmRegistry } from '../packages/npm.ts';
 import { computerInstallConfig } from '../packages/builds.ts';
@@ -10,7 +10,7 @@ import {
   readdir,
   rm,
 } from 'node:fs/promises';
-import { processResult } from '../process.ts';
+import { processResult } from '../kernel/process.ts';
 import { randomUUID } from 'node:crypto';
 import {
   chownSync,
@@ -38,7 +38,7 @@ import {
   runningRevision,
   type ReleaseConfig,
 } from './self-update-host.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { getComputers } from './computers.ts';
 
 export {
@@ -47,7 +47,7 @@ export {
   readReleaseConfig,
   runningRevision,
 } from './self-update-host.ts';
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 const DEFAULT_ESTIMATE_MS = 6 * 60_000;
 const STARTUP_GRACE_MS = 20_000;
 

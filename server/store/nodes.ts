@@ -1,4 +1,4 @@
-import { materialized } from '../materialized.ts';
+import { materialized } from '../kernel/materialized.ts';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { nodes, computerRolePreferences, nodeEnrollments, deployments } from '../schema.ts';
 import { getDb, getSqlite, refreshDeploymentInCache } from './connection.ts';

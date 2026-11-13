@@ -1,4 +1,4 @@
-import { openDatabase, type Database } from '../sqlite.ts';
+import { openDatabase, type Database } from '../kernel/db/sqlite.ts';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { AddressApp, AppAvailability } from './app-pages.ts';

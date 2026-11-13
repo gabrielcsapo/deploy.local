@@ -1,6 +1,6 @@
 import { v2Api } from '../v2/api.ts';
 import { requireAuth, error } from './shared.ts';
-import { RequestBodyTooLargeError } from '../http.ts';
+import { RequestBodyTooLargeError } from '../kernel/http.ts';
 import { type ApiRouteContext } from './context.ts';
 
 export async function v2Routes(ctx: ApiRouteContext): Promise<boolean> {

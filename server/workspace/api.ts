@@ -1,7 +1,7 @@
 import { readWorkspaceState } from './read-state.ts';
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { createRepositoryProject } from '../v2/projects.ts';
-import { plainPath, sendJson } from '../http.ts';
+import { plainPath, sendJson } from '../kernel/http.ts';
 import type { TaskDetail, Message } from '../../shared/v2/contracts.ts';
 import { updateBase, baseUpdateWorker } from './update-base.ts';
 import { taskQueue, moveQueuedRun } from './run-queue.ts';

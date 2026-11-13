@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Project } from '../../shared/v2/contracts.ts';
-import { deployDataDirectory } from '../data-directory.ts';
+import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 import { isAdmin, readDeploymentRecord } from '../store.ts';
 import { save } from '../workspace/store.ts';
 import { CoordinatorReleaseRuntime } from './releases-runtime.ts';

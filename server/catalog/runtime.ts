@@ -9,7 +9,7 @@ import {
 import { planApplicationExecution } from '../application-execution.ts';
 import { resolvePlacementTarget } from '../application-placement-target.ts';
 import { buildApplicationGraphRuntime } from '../application-runtime.ts';
-import { deployDataDirectory, deployDataPath } from '../data-directory.ts';
+import { deployDataDirectory, deployDataPath } from '../kernel/files/data-directory.ts';
 
 import { DurableGraphRuntimeStore } from '../graph-runtime-store.ts';
 

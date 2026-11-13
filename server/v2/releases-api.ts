@@ -1,7 +1,7 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { releaseBuildOutput } from './release-build-log.ts';
-import { sendJson } from '../http.ts';
-import { readJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
+import { readJson } from '../kernel/http.ts';
 import { list } from '../workspace/store.ts';
 import type { AppHealth } from '../../shared/v2/contracts.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';

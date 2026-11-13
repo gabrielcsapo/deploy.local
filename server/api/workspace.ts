@@ -1,9 +1,9 @@
-import { dispatch, routes, type RouteRequest } from '../routes.ts';
+import { dispatch, routes, type RouteRequest } from '../kernel/routes.ts';
 import { coordinationApi } from '../workspace/coordination-api.ts';
 import { workerAuthentication } from '../workspace/credentials.ts';
 import { workspaceApi } from '../workspace/api.ts';
 import { requireAuth, error } from './shared.ts';
-import { RequestBodyTooLargeError } from '../http.ts';
+import { RequestBodyTooLargeError } from '../kernel/http.ts';
 import { type ApiRouteContext } from './context.ts';
 
 const route = routes<ApiRouteContext>();

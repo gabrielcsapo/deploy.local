@@ -1,2 +1,9 @@
 // Compatibility path for repository and worker callers.
-export { default, gitEnvironment, repositoryGit, gitSync, gitText, gitRead } from '../git.ts';
+export {
+  default,
+  gitEnvironment,
+  repositoryGit,
+  gitSync,
+  gitText,
+  gitRead,
+} from '../kernel/git.ts';

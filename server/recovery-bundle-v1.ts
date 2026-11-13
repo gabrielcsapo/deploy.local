@@ -1,6 +1,6 @@
 // Format v1 compatibility only. Never pass the live database here: these queries read the
 // database extracted from a historical bundle. Preserve its canonical inventory verbatim.
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 
 const LEGACY_INVENTORY_TABLES = [
   'deployments',

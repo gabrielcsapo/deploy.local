@@ -1,5 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { openDatabase } from './sqlite.ts';
+import { openDatabase } from './kernel/db/sqlite.ts';
 import { openRequestsDb } from './requests-db.ts';
 import { copyRequestBatch, legacyHighId } from './requests-migration.ts';
 

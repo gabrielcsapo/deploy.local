@@ -1,6 +1,6 @@
-import { dispatch, routes, type RouteRequest } from '../routes.ts';
+import { dispatch, routes, type RouteRequest } from '../kernel/routes.ts';
 import { requireAdmin, error, json } from './shared.ts';
-import { readBody, RequestBodyTooLargeError } from '../http.ts';
+import { readBody, RequestBodyTooLargeError } from '../kernel/http.ts';
 import {
   handleCatalogRequest,
   loadValidationCatalog,

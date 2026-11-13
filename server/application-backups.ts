@@ -11,7 +11,7 @@ import {
   resolveApplicationGraphRuntime,
   type ResolvedApplicationGraphRuntime,
 } from './application-runtime.ts';
-import { deployDataDirectory } from './data-directory.ts';
+import { deployDataDirectory } from './kernel/files/data-directory.ts';
 import { getApplicationSpecRevision } from './store.ts';
 import {
   createBackup as createLegacyBackup,

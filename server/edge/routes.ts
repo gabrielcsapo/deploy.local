@@ -8,7 +8,7 @@
  * mirrors rows into an in-memory Map for O(1) hot-path lookups.
  */
 
-import { openDatabase, type Database } from '../sqlite.ts';
+import { openDatabase, type Database } from '../kernel/db/sqlite.ts';
 import type { IncomingMessage } from 'node:http';
 import { registerHost, unregisterHost } from '../mdns.ts';
 import { startProxies, stopProxies, type ExtraPortMapping } from '../tcp-proxy.ts';

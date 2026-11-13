@@ -1,5 +1,5 @@
 import { requireTaskTools } from './task-workspace.ts';
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import { updateBase } from './update-base.ts';
 import { applicationTool } from './application-deployment.ts';
 import { createRepository } from './repository-creation.ts';

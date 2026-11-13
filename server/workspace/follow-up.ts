@@ -1,4 +1,4 @@
-import { gitResultSync } from '../git.ts';
+import { gitResultSync } from '../kernel/git.ts';
 import { createHash } from 'node:crypto';
 import { refreshCommitBaseline } from './commit-baseline.ts';
 import { gitEnvironment, gitText } from './repository-git.ts';

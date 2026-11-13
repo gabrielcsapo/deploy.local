@@ -13,7 +13,7 @@ import {
 import { getNodes, getAgentJob, readDeploymentRecord } from '../store.ts';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { deployDataDirectory } from '../data-directory.ts';
+import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 import { COORDINATOR_UNAVAILABLE } from './self-release-runtime.ts';
 import { currentProjectReleases } from './releases.ts';
 import {

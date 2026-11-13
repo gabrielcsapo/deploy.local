@@ -21,7 +21,7 @@ import { checkAttempts } from '../../shared/check-attempts.ts';
 import { projectsForOwner } from './projects.ts';
 import { getDeployments } from '../store.ts';
 import { pullFiles } from './pull-files.ts';
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 
 /** Read stored evidence only: this snapshot never starts a runner or touches a repository. */
 export function taskSnapshot(owner: string, id: string) {

@@ -1,4 +1,4 @@
-import { gitResultSync } from '../git.ts';
+import { gitResultSync } from '../kernel/git.ts';
 import { publishedTaskChecks } from './workspace-checks.ts';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';

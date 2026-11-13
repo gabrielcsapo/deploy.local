@@ -8,7 +8,7 @@ import { smallBody } from './body.ts';
 import { db, fail, nameOf, packageByName, versions, type Package } from './store.ts';
 import { deprecate, send } from './npm.ts';
 import { usedBy } from './projects.ts';
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 
 interface PackagesContext {
   username: string;

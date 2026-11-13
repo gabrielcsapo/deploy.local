@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Markup, Screenshot } from '../../shared/v2/contracts.ts';
@@ -7,7 +7,7 @@ import { workerAuthentication } from '../workspace/credentials.ts';
 import { workerRole } from '../workspace/computer-roles.ts';
 import { startRun } from '../workspace/service.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import {
   sendAgentMessage,
   attachmentsApi,

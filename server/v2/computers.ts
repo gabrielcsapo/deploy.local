@@ -1,5 +1,5 @@
-import { dispatch, routes } from '../routes.ts';
-import { sendJson } from '../http.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
+import { sendJson } from '../kernel/http.ts';
 import { revokeComputerPackageKey } from '../packages/keys.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
@@ -19,7 +19,7 @@ import {
 } from '../store.ts';
 import { computers as workspaceComputers } from '../workspace/coordination.ts';
 import { db, list, save } from '../workspace/store.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { setAutomaticUpdates } from './fleet-updates.ts';
 import { getUpdates } from './updates.ts';
 

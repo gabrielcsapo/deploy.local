@@ -9,7 +9,7 @@ import { getDeployments, getApplicationSpecRevision, getSqlite } from '../store.
 import { db, list, save, remove, command, commandReplay } from '../workspace/store.ts';
 import { queueProject, repositoryApplication } from '../workspace/repositories.ts';
 import { parseStoredApplicationSpec } from '../application-spec.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 export type ProjectApplication = { id: string; name: string; kind: 'web' | 'worker' };
 

@@ -1,4 +1,4 @@
-import type { Database } from '../sqlite.ts';
+import type { Database } from '../kernel/db/sqlite.ts';
 
 // Old releases can write inline output again. This normally empty index makes the
 // startup repair proportional to those writes, without scanning all job history.

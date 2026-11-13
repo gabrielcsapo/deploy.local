@@ -3,7 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { projectReleaseService } from './releases-api.ts';
 import { projectsForOwner } from './projects.ts';
 import { releaseById } from './releases.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 /** Upload retains its existing source/CI admission; runtime work belongs to the whole project. */
 export async function shipUploadedProject(

@@ -2,7 +2,7 @@ import type { Project } from '../../shared/v2/contracts.ts';
 import { getComputers } from './computers.ts';
 import { readDeploymentRecord } from '../store.ts';
 import { readDeploymentDefinition } from '../deploy-config.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 export type ShipChoices = {
   apps: {

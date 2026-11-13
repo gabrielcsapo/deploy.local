@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 const SITE_ID_PATTERN = /^[a-z][a-z0-9_-]{2,127}$/;
 

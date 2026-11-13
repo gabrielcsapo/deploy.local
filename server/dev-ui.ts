@@ -5,7 +5,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 const DEV_UI_MARKER = deployDataPath('dev-ui.json');
 const devUiAgent = new Agent({ keepAlive: true, maxSockets: 32 });

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { userInfo, hostname } from 'node:os';
 import { createHash } from 'node:crypto';
 import { loadOrCreateSecretKey, encryptSecret, decryptSecret } from '../secrets.ts';
-import { deployDataDirectory } from '../data-directory.ts';
+import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 import { enrollWorker } from './credentials.ts';
 import { db, list, save, now } from './store.ts';
 

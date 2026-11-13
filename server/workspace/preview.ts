@@ -1,4 +1,4 @@
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import { spawn } from 'node:child_process';
 import { coordinationApi } from './coordination-api.ts';
 import { workerAuthentication } from './credentials.ts';

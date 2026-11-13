@@ -17,7 +17,7 @@
 import { createServer, connect, type Server, type Socket } from 'node:net';
 import { unlinkSync } from 'node:fs';
 import type { DeployEvent } from './events.ts';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 export type ControlToEdge =
   | { t: 'hello'; pid: number; v: 1; events?: boolean }

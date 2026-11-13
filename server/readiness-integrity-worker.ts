@@ -1,5 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { openDatabase } from './sqlite.ts';
+import { openDatabase } from './kernel/db/sqlite.ts';
 import type { IntegrityCheck, IntegrityDatabases } from './readiness-integrity.ts';
 
 function check(file: string): IntegrityCheck {

@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import {
   commitBytes,
   commitText,
@@ -16,12 +16,12 @@ import {
   validReviewAnchor,
   type ReviewEvidence,
 } from '../../shared/v2/design-review.ts';
-import { gitString, tryGitText } from '../git.ts';
+import { gitString, tryGitText } from '../kernel/git.ts';
 import { mkdtemp, readFile as readDiskFile, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { homeOf, readReleaseConfig } from './self-update-host.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -50,7 +50,7 @@ import { assertWorkerRole } from '../workspace/computer-role-policy.ts';
 import { onlineTaskWorker } from './task-computer.ts';
 import { readJson, sendJson } from './attachments.ts';
 import { createInboxItem, registerInboxSource, syncInbox } from './inbox.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
 import { queueMessage, queuedMessage } from '../workspace/queued-message.ts';
 import {

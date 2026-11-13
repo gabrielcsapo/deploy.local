@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 import { getSqlite } from './store.ts';
 
 const DIGEST_PATTERN = /^sha256:([a-f0-9]{64})$/;

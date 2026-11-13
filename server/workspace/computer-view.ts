@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { materialized } from '../materialized.ts';
+import { materialized } from '../kernel/materialized.ts';
 import { onNodeChange } from '../store/nodes.ts';
 import { db, onRecordChange } from './store.ts';
 

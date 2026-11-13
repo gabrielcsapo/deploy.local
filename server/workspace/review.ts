@@ -1,4 +1,4 @@
-import { gitResultSync, gitStringSync } from '../git.ts';
+import { gitResultSync, gitStringSync } from '../kernel/git.ts';
 import { createHash } from 'node:crypto';
 import { lstatSync } from 'node:fs';
 import { resolve, basename } from 'node:path';

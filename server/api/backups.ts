@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { requireAuth, error, dispatchAgentCommand, json } from './shared.ts';
 import {
   getDeployment,
@@ -8,7 +8,7 @@ import {
   recordContainerStart,
   deleteBackupRecord,
 } from '../store.ts';
-import { readBody, RequestBodyTooLargeError } from '../http.ts';
+import { readBody, RequestBodyTooLargeError } from '../kernel/http.ts';
 import {
   createCoordinatorApplicationBackup,
   isCoordinatorApplicationGraph,

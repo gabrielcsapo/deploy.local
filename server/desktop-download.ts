@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 export interface DesktopBuildManifest {
   version: string;

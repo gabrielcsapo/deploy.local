@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { cp, mkdir, rm } from 'node:fs/promises';
@@ -35,13 +35,13 @@ import {
 import { DockerCliGraphAdapter } from '../graph-docker-adapter.ts';
 import { getBackupDir, deleteVolumes } from '../volumes.ts';
 import { parseStoredApplicationSpec } from '../application-spec.ts';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 
 import { assertNoApplicationMutations, beginApplicationMutation } from './releases-fence.ts';
 import { assertProjectWritable } from './project-policy.ts';
 import { resolveProject } from './projects.ts';
 import { readProjectBody } from './settings.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 async function ignoreMissing(remove: () => Promise<unknown>) {
   try {

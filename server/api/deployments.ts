@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { randomUUID } from 'node:crypto';
 import { stopApp } from '../v2/project-removal.ts';
 import {
@@ -56,7 +56,7 @@ import {
   streamContainerLogs,
   getContainerStatusAsync,
 } from '../docker.ts';
-import { readBody, RequestBodyTooLargeError } from '../http.ts';
+import { readBody, RequestBodyTooLargeError } from '../kernel/http.ts';
 import {
   acquireDeploySlot,
   getDeployAdmissionState,

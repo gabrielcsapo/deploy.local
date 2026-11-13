@@ -1,5 +1,5 @@
-import { dispatch, routes } from '../routes.ts';
-import { sendJson } from '../http.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
+import { sendJson } from '../kernel/http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authDb, preferences, updatePreferences } from './auth-store.ts';
 import {
@@ -19,7 +19,7 @@ import {
 } from './auth-passkey.ts';
 import { cliLoginStart, cliApprove, cliPoll } from './auth-cli.ts';
 import { devices, pairDevice, exchangeDevice, removeDevice } from './devices.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
 import { buildAuthCookie, clearAuthCookie, parseAuthCookie } from '../auth-cookie.ts';

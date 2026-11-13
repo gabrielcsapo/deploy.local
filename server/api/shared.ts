@@ -1,6 +1,6 @@
 import { emit } from '../events.ts';
 import { type ServerResponse, type IncomingMessage } from 'node:http';
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 
 import {
   authenticate,

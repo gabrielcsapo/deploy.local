@@ -1,5 +1,5 @@
 import { list, save } from '../workspace/store.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 export type NotificationPreferences = {
   decisions: boolean;

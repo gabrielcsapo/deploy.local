@@ -1,4 +1,4 @@
-import { openDatabase } from '../sqlite.ts';
+import { openDatabase } from '../kernel/db/sqlite.ts';
 import { execFileSync } from 'node:child_process';
 import {
   existsSync,
@@ -9,7 +9,7 @@ import {
   fsyncSync,
   closeSync,
 } from 'node:fs';
-import { withWorkspaceDatabaseGate } from './database-open.ts';
+import { withWorkspaceDatabaseGate } from '../kernel/db/database-open.ts';
 
 /** Fail closed if open-file inspection is unavailable or incomplete. Stop the service first. */
 function assertDatabaseClosed(file: string) {

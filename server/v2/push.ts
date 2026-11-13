@@ -1,5 +1,5 @@
-import { dispatch, routes } from '../routes.ts';
-import { sendJson } from '../http.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
+import { sendJson } from '../kernel/http.ts';
 import {
   notificationPreferences,
   putNotificationPreferences,
@@ -13,7 +13,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AppHealth, InboxItem } from '../../shared/v2/contracts.ts';
 import { cursor, db, events, list, save } from '../workspace/store.ts';
 import { syncInbox } from './inbox.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { getLive } from './live.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;

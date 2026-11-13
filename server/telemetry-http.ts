@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 import { getRequestsSqlite } from './requests-db.ts';
 import { deploymentForToken, ingestBrowser, ingestServer } from './telemetry.ts';
 

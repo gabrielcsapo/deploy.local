@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { computerPackageKey } from './keys.ts';
 import { getDeployment, getSqlite, getAgentJob, deployRoleEnabled } from '../store.ts';
 import { packageHooks } from '../workspace/package-hooks.ts';

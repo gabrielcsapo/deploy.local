@@ -1,9 +1,9 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { Session } from 'node:inspector/promises';
 import { performance } from 'node:perf_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { sendJson } from '../http.ts';
-import { fail } from '../errors.ts';
+import { sendJson } from '../kernel/http.ts';
+import { fail } from '../kernel/errors.ts';
 import { isAdmin } from '../store.ts';
 
 /**

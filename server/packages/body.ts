@@ -1,4 +1,4 @@
-import { packageWorkerFile } from './worker-file.ts';
+import { packageWorkerFile } from '../kernel/files/worker-file.ts';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';

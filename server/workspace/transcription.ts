@@ -1,4 +1,4 @@
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 const limit = 12 * 1024 * 1024;
 const active = new Set<string>();

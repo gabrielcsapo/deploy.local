@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import {
   requireAuth,
   json,
@@ -69,7 +69,7 @@ import {
   updateDeploymentSettings,
   saveRuntimeLogs,
 } from '../store.ts';
-import { readBody, RequestBodyTooLargeError } from '../http.ts';
+import { readBody, RequestBodyTooLargeError } from '../kernel/http.ts';
 import {
   consumeAgentUpload,
   assertRepositoryOwner,

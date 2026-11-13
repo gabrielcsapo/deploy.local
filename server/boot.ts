@@ -42,7 +42,7 @@ import { initEdgeRuntime, getDefaultDbFile } from './edge/runtime.ts';
 import { startEdgeIpcServer, connectEdgeIpc, getEdgeSockPath } from './ipc.ts';
 import { emit } from './events.ts';
 import { startApplicationGraphSupervisor } from './application-graph-supervisor.ts';
-import { deployDataDirectory } from './data-directory.ts';
+import { deployDataDirectory } from './kernel/files/data-directory.ts';
 import { loadOrCreateSecretKey } from './secrets.ts';
 
 /** Serves the pages and assets of the web app: every request the API does not claim. */

@@ -31,7 +31,7 @@ import {
   fetchStatsOnce,
   onContainerLifecycleEvent,
 } from './docker-api.ts';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 const execFileAsync = promisify(execFile);
 

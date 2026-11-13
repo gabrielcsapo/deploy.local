@@ -1,4 +1,4 @@
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 import { lstatSync } from 'node:fs';
 import { basename, join } from 'node:path';
 

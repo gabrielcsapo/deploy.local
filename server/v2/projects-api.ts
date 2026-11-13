@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import { readProjectBody } from './settings.ts';
 import { addProjectRepository, createRepositoryProject, unlinkedProjectApps } from './projects.ts';
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 
 const route = routes<string>();
 

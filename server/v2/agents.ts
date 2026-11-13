@@ -1,6 +1,6 @@
-import { dispatch, routes } from '../routes.ts';
-import { sendJson } from '../http.ts';
-import { readJson } from '../http.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
+import { sendJson } from '../kernel/http.ts';
+import { readJson } from '../kernel/http.ts';
 import { agentControl, putAgentControl } from './phone-preferences.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
@@ -16,7 +16,7 @@ import type {
 import { db, id, list, now, remove, save, events } from '../workspace/store.ts';
 import { providerConnections } from '../workspace/provider-connections.ts';
 import { syncInbox } from './inbox.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 import { mapConversationEvent } from './events.ts';
 import {

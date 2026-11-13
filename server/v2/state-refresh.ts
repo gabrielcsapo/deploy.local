@@ -1,4 +1,4 @@
-import { materialized } from '../materialized.ts';
+import { materialized } from '../kernel/materialized.ts';
 
 // Time-based inbox expiry and live health without an event may wait up to two seconds
 // for another refresh (getLive retains its own existing health collection cadence).

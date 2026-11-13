@@ -1,4 +1,4 @@
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const DAY = 86_400_000;
