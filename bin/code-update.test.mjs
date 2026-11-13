@@ -153,7 +153,8 @@ test('an interrupted code update restores its pointer before any child is starte
     await running;
     rmSync(agentDir, { recursive: true, force: true });
   });
-  await waitFor(() => existsSync(marker));
+  // The marker appears before its contents are written; wait for the whole of it.
+  await waitFor(() => existsSync(marker) && readFileSync(marker, 'utf8').trim().endsWith('}'));
   assert.deepEqual(JSON.parse(readFileSync(marker)), old);
   assert.equal(workerUpdateReceipt(root).state, 'failed');
   assert.equal(existsSync(join(agentDir, 'code/new')), false);
