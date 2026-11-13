@@ -156,6 +156,43 @@ test('rollback reports show failure, retain the old version and do not retry; tu
   assert.equal(store.getRecentAgentJobs(queued)[0].status, 'failed');
 });
 
+test('a computer that was busy is asked again later; a real failure is not', () => {
+  // The iMac on 2026-11-12: a terminal was open on it, it declined its update, and nothing asked
+  // again until the next coordinator release.
+  fleet.setAutomaticUpdates('owner', true);
+  const id = node('busy');
+  fleet.produceComputerUpdates('owner', manifest);
+  const first = store.claimAgentJob(id)!;
+  fleet.reportComputerUpdate(
+    id,
+    {
+      ...JSON.parse(first.payload),
+      jobId: first.id,
+      state: 'failed',
+      version: 'old',
+      error: 'A terminal is still active; the installed build was kept.',
+    },
+    'old',
+  );
+  const deferred = fleet.updateAttempts().find((row) => row.nodeId === id);
+  assert.equal(deferred.state, 'deferred');
+  assert.equal(updateReservation(id), undefined);
+  // Not before its time.
+  fleet.produceComputerUpdates('owner', manifest);
+  assert.equal(store.claimAgentJob(id), null);
+  save('v2-update-attempt', 'system', { ...deferred, retryAt: Date.now() - 1 });
+  fleet.produceComputerUpdates('owner', manifest);
+  const second = store.claimAgentJob(id)!;
+  assert.notEqual(second.id, first.id);
+  assert.notEqual(JSON.parse(second.payload).nonce, JSON.parse(first.payload).nonce);
+  fleet.reportComputerUpdate(
+    id,
+    { ...JSON.parse(second.payload), jobId: second.id, state: 'complete', version: 'new' },
+    'new',
+  );
+  assert.equal(fleet.updateAttempts().find((row) => row.nodeId === id).state, 'complete');
+});
+
 test('a repeated startup report finishes recovery across the two durable databases', () => {
   fleet.setAutomaticUpdates('owner', true);
   const id = node('report interrupted');

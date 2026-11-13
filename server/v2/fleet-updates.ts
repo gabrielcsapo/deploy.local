@@ -49,6 +49,11 @@ export function fleetTarget(
   }
   return selfUpdateTarget(manifest);
 }
+/** A computer said it was busy, not that the update failed. */
+const UPDATE_BUSY = /terminal is still active|waiting for idle jobs/i;
+/** Asked again every five minutes for a day. */
+export const UPDATE_RETRY_MS = 5 * 60_000;
+const UPDATE_TRIES = 288;
 export function produceComputerUpdates(owner: string, manifest = readCliManifest()) {
   if (!automaticUpdates()) return;
   const target = fleetTarget(owner, manifest);
@@ -97,6 +102,20 @@ export function produceComputerUpdates(owner: string, manifest = readCliManifest
     };
     save('v2-update-attempt', 'system', attempt);
   }
+  // A computer that was busy when asked (a terminal open on it, say) is asked again, with a
+  // new job, until it takes the update or a day has passed.
+  for (const attempt of updateAttempts().filter((row) => row.state === 'deferred')) {
+    if (attempt.targetVersion !== target.version || attempt.retryAt > Date.now()) continue;
+    const node = getNodes().find((row) => row.id === attempt.nodeId);
+    if (!node?.online || node.revokedAt || node.agentVersion === target.version) continue;
+    save('v2-update-attempt', 'system', {
+      ...attempt,
+      jobId: `update_${randomUUID()}`,
+      nonce: randomUUID(),
+      state: 'queued',
+      error: undefined,
+    });
+  }
   for (const attempt of updateAttempts().filter((row) => row.state === 'queued')) {
     if (attempt.targetVersion !== target.version) continue;
     enqueueAgentJob({
@@ -137,13 +156,20 @@ export function reportComputerUpdate(nodeId: string, report: any, version?: stri
           ? String(report.error || 'Update failed; previous build restored.').slice(0, 500)
           : undefined,
     });
+    const error =
+      report.state === 'failed'
+        ? String(report.error || 'Update failed; previous build restored.').slice(0, 500)
+        : undefined;
+    const tries = (payload.tries ?? 0) + 1;
+    // Nothing was changed on a computer that declined because it was busy, so this is not a
+    // failed update. Workers before this change only send the sentence, so it is matched here.
+    const busy = report.state === 'failed' && UPDATE_BUSY.test(error!) && tries < UPDATE_TRIES;
     save('v2-update-attempt', 'system', {
       ...payload,
-      state: report.state,
-      error:
-        report.state === 'failed'
-          ? String(report.error || 'Update failed; previous build restored.').slice(0, 500)
-          : undefined,
+      state: busy ? 'deferred' : report.state,
+      tries,
+      ...(busy ? { retryAt: Date.now() + UPDATE_RETRY_MS } : {}),
+      error,
     });
     releaseComputerUpdate(nodeId, job.id);
   });

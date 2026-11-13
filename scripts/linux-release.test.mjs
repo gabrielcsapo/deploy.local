@@ -26,6 +26,7 @@ import {
   supportsReadiness,
   activationPlan,
   releaseCommand,
+  refreshInstalledTool,
 } from './linux-release.mjs';
 
 function fixture(t) {
@@ -559,4 +560,30 @@ test('release command frames its request and rejects failed or wrong identity re
     if (response?.release === '/next') assert.deepEqual(await pending, response);
     else await assert.rejects(pending);
   }
+});
+
+test("after a release is serving, the installed updater becomes that release's copy", (t) => {
+  // SER on 2026-11-12 was still activating with the copy installed on 16 October.
+  const root = mkdtempSync(join(tmpdir(), 'deploy-update-tool-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const release = join(root, 'release');
+  mkdirSync(join(release, 'scripts'), { recursive: true });
+  writeFileSync(join(release, 'scripts/linux-release.mjs'), 'new updater');
+  const installed = join(root, 'installed.mjs');
+  writeFileSync(installed, 'old updater');
+  // Run from anywhere else (a checkout, a test): the installed copy is left alone.
+  assert.equal(
+    refreshInstalledTool(release, {
+      installed,
+      running: join(release, 'scripts/linux-release.mjs'),
+    }),
+    false,
+  );
+  assert.equal(readFileSync(installed, 'utf8'), 'old updater');
+  assert.equal(refreshInstalledTool(release, { installed, running: installed }), true);
+  assert.equal(readFileSync(installed, 'utf8'), 'new updater');
+  assert.equal(refreshInstalledTool(release, { installed, running: installed }), false);
+  // A release without the script, or a copy that cannot be written, never fails activation.
+  rmSync(join(release, 'scripts/linux-release.mjs'));
+  assert.equal(refreshInstalledTool(release, { installed, running: installed }), false);
 });

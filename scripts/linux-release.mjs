@@ -327,8 +327,33 @@ async function activate(path) {
       healthy: (target, options) => waitForHealthy(config, target, previousPid, options),
     });
     console.log(`Serving ${release}\nRevision ${revision(release)}`);
+    if (refreshInstalledTool(release)) console.log('Updated deploy-update to this release.');
   } finally {
     rmSync(lock, { recursive: true });
+  }
+}
+
+/**
+ * The installed copy of this script was written once at setup and then never changed: on
+ * 2026-11-12 SER was still activating with the copy from 16 October, so a change to activation
+ * had never run. After a release is serving, the installed copy becomes that release's copy.
+ * The file belongs to the deploy account, so this needs no administrator. It runs only from the
+ * installed copy itself, and a failure here never fails the activation that just succeeded.
+ */
+export function refreshInstalledTool(
+  release,
+  { installed = toolPath, running = fileURLToPath(import.meta.url) } = {},
+) {
+  try {
+    if (realpathSync(running) !== realpathSync(installed)) return false;
+    const next = readFileSync(join(release, 'scripts/linux-release.mjs'));
+    if (next.equals(readFileSync(installed))) return false;
+    // In place: the folder is root's, the file is the deploy account's.
+    writeFileSync(installed, next);
+    return true;
+  } catch (error) {
+    console.error(`deploy-update could not update itself: ${error.message || error}`);
+    return false;
   }
 }
 
