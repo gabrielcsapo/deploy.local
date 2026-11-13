@@ -1,0 +1,41 @@
+/* Page templates (Templates.tsx): the parts the approved boards draw with inline styles. */
+.dl-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+.dl-crumbs .dl-crumb {
+  flex: none;
+  color: var(--ds-muted);
+  font-weight: 400;
+}
+.dl-crumbs .dl-crumb-sep {
+  display: inline-flex;
+  flex: none;
+  color: var(--ds-muted);
+}
+.dl-page.dl-page-tabbed {
+  padding-top: var(--ds-space-2);
+}
+.dl-page.dl-page-settings {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--ds-space-8);
+  align-items: flex-start;
+}
+.dl-settings-nav {
+  flex: 0 1 200px;
+  display: flex;
+  flex-direction: column;
+}
+.dl-settings-content {
+  flex: 1 1 480px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-6);
+}
+.dl-col > .dl-tabs:first-child {
+  margin-top: var(--ds-space-2);
+}
