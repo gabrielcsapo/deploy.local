@@ -1,3 +1,4 @@
+import { dispatch, routes } from '../routes.ts';
 import {
   projectReleasePolicy,
   putProjectReleasePolicy,
@@ -263,83 +264,131 @@ export async function settingsApi(
   );
   if (!match) return false;
   const project = await resolveProject(owner, decodeURIComponent(match[1]), req.method === 'GET');
+  const makeRoute = routes<undefined>();
+  const route: typeof makeRoute = (spec) =>
+    makeRoute({
+      ...spec,
+      handler: async (request) => {
+        result = await spec.handler(request);
+      },
+    });
+  // Resolve the project before selecting a method, including unsupported methods.
   let result: unknown;
-  if (match[2] === 'overview' && req.method === 'GET') {
-    const workspaceProject = list('project', owner).find((entry) => entry.id === project.id);
-    let repository = null;
-    let repositoryError = false;
-    if (workspaceProject)
-      try {
-        repository = await repositoryInfo(owner, project.id, true);
-      } catch {
-        repositoryError = true;
-      }
-    result = {
-      project,
-      repository,
-      repositoryError,
-      tasks: list('task', owner)
-        .filter((entry) => entry.projectId === project.id)
-        .map(({ id, title, status, createdAt, updatedAt }) => ({
-          id,
-          title,
-          status,
-          createdAt,
-          updatedAt,
-        })),
-      issues: list('issue', owner)
-        .filter((entry) => entry.projectId === project.id)
-        .map(({ id, title, state, status, taskId, createdAt }) => ({
-          id,
-          title,
-          state: state || status || 'open',
-          taskId,
-          createdAt,
-        })),
-      pulls: list('pull-request', owner)
-        .filter((entry) => entry.projectId === project.id)
-        .map(({ id, title, state, status, taskId }) => ({
-          id,
-          title,
-          state: state || status || 'open',
-          taskId,
-        })),
-      apps: project.apps.map((app) => {
-        const record = getDeployment(app.name)!;
-        const nodeId = record.activeNodeId || record.desiredNodeId || 'coordinator';
-        return {
-          ...app,
-          // The computer's name, as every other page shows it, not its internal ID.
-          computer: getNodes().find((node) => node.id === nodeId)?.name || nodeId,
-          memoryLimit: record.memoryLimit,
-        };
+  await dispatch(
+    [
+      route({
+        method: 'GET',
+        path: '/api/v2/projects/:project/overview',
+        handler: async () => {
+          const workspaceProject = list('project', owner).find((entry) => entry.id === project.id);
+          let repository = null;
+          let repositoryError = false;
+          if (workspaceProject)
+            try {
+              repository = await repositoryInfo(owner, project.id, true);
+            } catch {
+              repositoryError = true;
+            }
+          return {
+            project,
+            repository,
+            repositoryError,
+            tasks: list('task', owner)
+              .filter((entry) => entry.projectId === project.id)
+              .map(({ id, title, status, createdAt, updatedAt }) => ({
+                id,
+                title,
+                status,
+                createdAt,
+                updatedAt,
+              })),
+            issues: list('issue', owner)
+              .filter((entry) => entry.projectId === project.id)
+              .map(({ id, title, state, status, taskId, createdAt }) => ({
+                id,
+                title,
+                state: state || status || 'open',
+                taskId,
+                createdAt,
+              })),
+            pulls: list('pull-request', owner)
+              .filter((entry) => entry.projectId === project.id)
+              .map(({ id, title, state, status, taskId }) => ({
+                id,
+                title,
+                state: state || status || 'open',
+                taskId,
+              })),
+            apps: project.apps.map((app) => {
+              const record = getDeployment(app.name)!;
+              const nodeId = record.activeNodeId || record.desiredNodeId || 'coordinator';
+              return {
+                ...app,
+                // The computer's name, as every other page shows it, not its internal ID.
+                computer: getNodes().find((node) => node.id === nodeId)?.name || nodeId,
+                memoryLimit: record.memoryLimit,
+              };
+            }),
+          };
+        },
       }),
-    };
-  } else if (match[2] === 'settings' && req.method === 'GET')
-    result = readProjectSettings(owner, project);
-  else if (match[2] === 'settings' && req.method === 'PATCH') {
-    putProjectReleasePolicy(owner, project, await readProjectBody(req));
-    result = readProjectSettings(owner, project);
-  } else if (match[2] === 'settings' && req.method === 'PUT')
-    result = putProjectSettings(owner, project, await readProjectBody(req));
-  else if (match[2] === 'apps' && req.method === 'POST')
-    result = {
-      project: await addProjectApplication(owner, project.id, (await readProjectBody(req)).app),
-    };
-  else if (match[3] && (req.method === 'PUT' || req.method === 'DELETE'))
-    result = putProjectSecret(
-      owner,
-      project,
-      decodeURIComponent(match[3]),
-      req.method === 'DELETE'
-        ? { app: url.searchParams.get('app') || undefined }
-        : {
-            ...(await readProjectBody(req)),
-            ...(url.searchParams.has('app') ? { app: url.searchParams.get('app') } : {}),
-          },
-      req.method === 'DELETE',
-    );
-  else fail('Method not allowed', 405);
+      route({
+        method: 'GET',
+        path: '/api/v2/projects/:project/settings',
+        handler: () => readProjectSettings(owner, project),
+      }),
+      route({
+        method: 'PATCH',
+        path: '/api/v2/projects/:project/settings',
+        handler: async () => {
+          putProjectReleasePolicy(owner, project, await readProjectBody(req));
+          return readProjectSettings(owner, project);
+        },
+      }),
+      route({
+        method: 'PUT',
+        path: '/api/v2/projects/:project/settings',
+        handler: async () => putProjectSettings(owner, project, await readProjectBody(req)),
+      }),
+      route({
+        method: 'POST',
+        path: '/api/v2/projects/:project/apps',
+        handler: async () => ({
+          project: await addProjectApplication(owner, project.id, (await readProjectBody(req)).app),
+        }),
+      }),
+      route({
+        method: 'PUT',
+        path: '/api/v2/projects/:project/secrets/:key',
+        handler: async ({ params }) =>
+          putProjectSecret(
+            owner,
+            project,
+            decodeURIComponent(params.key),
+            {
+              ...(await readProjectBody(req)),
+              ...(url.searchParams.has('app') ? { app: url.searchParams.get('app') } : {}),
+            },
+            false,
+          ),
+      }),
+      route({
+        method: 'DELETE',
+        path: '/api/v2/projects/:project/secrets/:key',
+        handler: ({ params }) =>
+          putProjectSecret(
+            owner,
+            project,
+            decodeURIComponent(params.key),
+            { app: url.searchParams.get('app') || undefined },
+            true,
+          ),
+      }),
+    ],
+    {
+      notFound: () => fail('Method not allowed', 405),
+    },
+  )(req, res, undefined);
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(result));
   return true;
