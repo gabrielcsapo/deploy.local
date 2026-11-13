@@ -129,43 +129,6 @@ export const sites = sqliteTable(
   }),
 );
 
-export const sitePairingCodes = sqliteTable(
-  'site_pairing_codes',
-  {
-    id: text('id').primaryKey(),
-    fleetId: text('fleet_id').notNull(),
-    name: text('name').notNull(),
-    codeHash: text('code_hash').notNull(),
-    defaultDataPolicy: text('default_data_policy').notNull(),
-    accessMode: text('access_mode').notNull(),
-    securityProfile: text('security_profile').notNull(),
-    createdBy: text('created_by').notNull(),
-    createdAt: text('created_at').notNull(),
-    expiresAt: integer('expires_at').notNull(),
-    usedAt: text('used_at'),
-  },
-  (table) => ({
-    codeIdx: index('idx_site_pairing_codes_hash').on(table.codeHash),
-    expiryIdx: index('idx_site_pairing_codes_expiry').on(table.expiresAt),
-  }),
-);
-
-export const siteUsers = sqliteTable(
-  'site_users',
-  {
-    siteId: text('site_id').notNull(),
-    username: text('username').notNull(),
-    role: text('role').notNull(),
-    passwordVerifier: text('password_verifier').notNull(),
-    revision: integer('revision').notNull(),
-    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.siteId, table.username] }),
-  }),
-);
-
 export const applicationAliases = sqliteTable(
   'application_aliases',
   {
@@ -196,32 +159,6 @@ export const dataSyncPolicies = sqliteTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.appId, table.siteId] }),
-  }),
-);
-
-export const readinessCertificates = sqliteTable(
-  'readiness_certificates',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    siteId: text('site_id').notNull(),
-    specDigest: text('spec_digest').notNull(),
-    checkpointId: text('checkpoint_id'),
-    capabilityDigest: text('capability_digest').notNull(),
-    analyzerVersion: text('analyzer_version').notNull(),
-    runtimeReady: integer('runtime_ready', { mode: 'boolean' }).notNull(),
-    buildReady: integer('build_ready', { mode: 'boolean' }).notNull(),
-    dataReady: integer('data_ready', { mode: 'boolean' }).notNull(),
-    accessReady: integer('access_ready', { mode: 'boolean' }).notNull(),
-    blockers: text('blockers').notNull().default('[]'),
-    evidence: text('evidence').notNull().default('[]'),
-    issuedAt: text('issued_at').notNull(),
-    expiresAt: text('expires_at'),
-    invalidatedAt: text('invalidated_at'),
-    invalidationReason: text('invalidation_reason'),
-  },
-  (table) => ({
-    appSiteIdx: index('idx_readiness_certificates_app_site').on(table.appId, table.siteId),
   }),
 );
 
@@ -256,23 +193,6 @@ export const appReplicas = sqliteTable(
   }),
 );
 
-export const dataReconciliationProfiles = sqliteTable('data_reconciliation_profiles', {
-  id: text('id').primaryKey(),
-  appId: text('app_id').notNull(),
-  version: text('version').notNull(),
-  analyzerVersion: text('analyzer_version').notNull(),
-  schemaFingerprint: text('schema_fingerprint'),
-  sqliteFiles: text('sqlite_files').notNull().default('[]'),
-  eligibleTables: text('eligible_tables').notNull().default('[]'),
-  excludedTables: text('excluded_tables').notNull().default('[]'),
-  uploadPaths: text('upload_paths').notNull().default('[]'),
-  opaquePaths: text('opaque_paths').notNull().default('[]'),
-  conflictPolicy: text('conflict_policy').notNull().default('collect'),
-  compatibilityDigest: text('compatibility_digest').notNull(),
-  findings: text('findings').notNull().default('[]'),
-  createdAt: text('created_at').notNull(),
-});
-
 export const dataCheckpoints = sqliteTable(
   'data_checkpoints',
   {
@@ -295,29 +215,6 @@ export const dataCheckpoints = sqliteTable(
   }),
 );
 
-export const dataChangesets = sqliteTable(
-  'data_changesets',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    originSiteId: text('origin_site_id').notNull(),
-    baseCheckpointId: text('base_checkpoint_id').notNull(),
-    branchManifestDigest: text('branch_manifest_digest').notNull(),
-    schemaFingerprint: text('schema_fingerprint'),
-    databaseArtifactDigest: text('database_artifact_digest'),
-    fileDeltaArtifactDigest: text('file_delta_artifact_digest'),
-    authenticatedDigest: text('authenticated_digest').notNull(),
-    status: text('status').notNull().default('pending'),
-    conflictReport: text('conflict_report'),
-    resultingCheckpointId: text('resulting_checkpoint_id'),
-    createdAt: text('created_at').notNull(),
-    verifiedAt: text('verified_at'),
-  },
-  (table) => ({
-    appStatusIdx: index('idx_data_changesets_app_status').on(table.appId, table.status),
-  }),
-);
-
 export const dataConflicts = sqliteTable(
   'data_conflicts',
   {
@@ -337,22 +234,6 @@ export const dataConflicts = sqliteTable(
   },
   (table) => ({
     appStatusIdx: index('idx_data_conflicts_app_status').on(table.appId, table.status),
-  }),
-);
-
-export const blobReferences = sqliteTable(
-  'blob_references',
-  {
-    appId: text('app_id').notNull(),
-    logicalPath: text('logical_path').notNull(),
-    checkpointId: text('checkpoint_id').notNull(),
-    digest: text('digest'),
-    metadata: text('metadata').notNull().default('{}'),
-    marker: text('marker').notNull().default('present'),
-    conflictState: text('conflict_state'),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.appId, table.logicalPath, table.checkpointId] }),
   }),
 );
 
@@ -403,43 +284,6 @@ export const siteSyncCursors = sqliteTable(
   }),
 );
 
-/**
- * Low-volume, site-authored operational records exchanged independently from
- * the signed semantic command log. Multiple immutable revisions may share a
- * logical key; readers select the greatest origin sequence so a still-running
- * build or request bucket can be refreshed without mutating acknowledged data.
- */
-export const fleetTelemetryRecords = sqliteTable(
-  'fleet_telemetry_records',
-  {
-    id: text('id').primaryKey(),
-    fleetId: text('fleet_id').notNull(),
-    originSiteId: text('origin_site_id').notNull(),
-    originSequence: integer('origin_sequence').notNull(),
-    kind: text('kind').notNull(),
-    appId: text('app_id'),
-    deploymentName: text('deployment_name').notNull(),
-    logicalKey: text('logical_key').notNull(),
-    observedAt: text('observed_at').notNull(),
-    payload: text('payload').notNull(),
-    artifactDigests: text('artifact_digests').notNull().default('[]'),
-    createdAt: text('created_at').notNull(),
-  },
-  (table) => ({
-    originSequenceIdx: uniqueIndex('idx_fleet_telemetry_origin_sequence').on(
-      table.originSiteId,
-      table.originSequence,
-    ),
-    logicalIdx: index('idx_fleet_telemetry_logical').on(
-      table.originSiteId,
-      table.kind,
-      table.logicalKey,
-      table.originSequence,
-    ),
-    appIdx: index('idx_fleet_telemetry_app').on(table.deploymentName, table.kind, table.observedAt),
-  }),
-);
-
 export const artifacts = sqliteTable('artifacts', {
   digest: text('digest').primaryKey(),
   type: text('type').notNull(),
@@ -454,40 +298,6 @@ export const artifacts = sqliteTable('artifacts', {
   createdAt: text('created_at').notNull(),
   lastAccessAt: text('last_access_at').notNull(),
 });
-
-export const artifactTransfers = sqliteTable('artifact_transfers', {
-  id: text('id').primaryKey(),
-  sourceSiteId: text('source_site_id').notNull(),
-  destinationSiteId: text('destination_site_id').notNull(),
-  digest: text('digest').notNull(),
-  expectedSize: integer('expected_size').notNull(),
-  verifiedOffset: integer('verified_offset').notNull().default(0),
-  status: text('status').notNull().default('pending'),
-  attempts: integer('attempts').notNull().default(0),
-  temporaryPath: text('temporary_path'),
-  error: text('error'),
-  updatedAt: text('updated_at').notNull(),
-});
-
-export const appMaterialization = sqliteTable(
-  'app_materialization',
-  {
-    appId: text('app_id').notNull(),
-    siteId: text('site_id').notNull(),
-    capability: text('capability').notNull(),
-    desiredDigest: text('desired_digest'),
-    availableDigest: text('available_digest'),
-    desiredGeneration: integer('desired_generation'),
-    availableGeneration: integer('available_generation'),
-    state: text('state').notNull(),
-    blockers: text('blockers').notNull().default('[]'),
-    evidence: text('evidence').notNull().default('[]'),
-    verifiedAt: text('verified_at'),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.appId, table.siteId, table.capability] }),
-  }),
-);
 
 export const releaseCandidates = sqliteTable(
   'release_candidates',
@@ -515,108 +325,6 @@ export const releaseCandidates = sqliteTable(
     appStateIdx: index('idx_release_candidates_app_state').on(table.appId, table.state),
   }),
 );
-
-export const volumeSnapshots = sqliteTable(
-  'volume_snapshots',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    authoritySiteId: text('authority_site_id').notNull(),
-    authorityEpoch: integer('authority_epoch').notNull(),
-    dataSequence: integer('data_sequence').notNull(),
-    parentSnapshotId: text('parent_snapshot_id'),
-    manifestArtifactDigest: text('manifest_artifact_digest').notNull(),
-    consistencyMode: text('consistency_mode').notNull(),
-    logicalBytes: integer('logical_bytes').notNull(),
-    uniqueBytes: integer('unique_bytes').notNull(),
-    verificationStatus: text('verification_status').notNull(),
-    releaseGeneration: integer('release_generation'),
-    retentionClass: text('retention_class').notNull(),
-    latestHomeRecovery: integer('latest_home_recovery', { mode: 'boolean' })
-      .notNull()
-      .default(false),
-    createdAt: text('created_at').notNull(),
-  },
-  (table) => ({
-    appSequenceIdx: index('idx_volume_snapshots_app_sequence').on(table.appId, table.dataSequence),
-  }),
-);
-
-export const volumeAuthorityTransfers = sqliteTable(
-  'volume_authority_transfers',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    sourceSiteId: text('source_site_id').notNull(),
-    targetSiteId: text('target_site_id').notNull(),
-    state: text('state').notNull(),
-    expectedSnapshotId: text('expected_snapshot_id'),
-    expectedAuthorityEpoch: integer('expected_authority_epoch').notNull(),
-    expectedDataSequence: integer('expected_data_sequence').notNull(),
-    snapshotId: text('snapshot_id'),
-    snapshotAuthorityEpoch: integer('snapshot_authority_epoch'),
-    snapshotDataSequence: integer('snapshot_data_sequence'),
-    manifestArtifactDigest: text('manifest_artifact_digest'),
-    requestedBy: text('requested_by').notNull(),
-    requestEventId: text('request_event_id'),
-    snapshotEventId: text('snapshot_event_id'),
-    targetReadyEventId: text('target_ready_event_id'),
-    commitEventId: text('commit_event_id'),
-    terminalEventId: text('terminal_event_id'),
-    sourceResumed: integer('source_resumed', { mode: 'boolean' }).notNull().default(false),
-    attempts: integer('attempts').notNull().default(0),
-    version: integer('version').notNull().default(1),
-    error: text('error'),
-    requestedAt: text('requested_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-    completedAt: text('completed_at'),
-  },
-  (table) => ({
-    appStateIdx: index('idx_volume_authority_transfers_app_state').on(table.appId, table.state),
-    siteStateIdx: index('idx_volume_authority_transfers_site_state').on(
-      table.sourceSiteId,
-      table.targetSiteId,
-      table.state,
-    ),
-  }),
-);
-
-export const portabilityReports = sqliteTable(
-  'portability_reports',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    specDigest: text('spec_digest').notNull(),
-    siteId: text('site_id').notNull(),
-    analyzerVersion: text('analyzer_version').notNull(),
-    classification: text('classification').notNull(),
-    capabilityVector: text('capability_vector').notNull(),
-    findings: text('findings').notNull(),
-    evidence: text('evidence').notNull(),
-    profileDigest: text('profile_digest'),
-    createdAt: text('created_at').notNull(),
-    expiresAt: text('expires_at'),
-  },
-  (table) => ({
-    appSiteIdx: index('idx_portability_reports_app_site').on(table.appId, table.siteId),
-  }),
-);
-
-export const suitcaseCapacityPlans = sqliteTable('suitcase_capacity_plans', {
-  id: text('id').primaryKey(),
-  fleetId: text('fleet_id').notNull(),
-  selectedAppIds: text('selected_app_ids').notNull(),
-  assumptions: text('assumptions').notNull(),
-  minimumMemoryBytes: integer('minimum_memory_bytes').notNull(),
-  recommendedMemoryBytes: integer('recommended_memory_bytes').notNull(),
-  minimumStorageBytes: integer('minimum_storage_bytes').notNull(),
-  recommendedStorageBytes: integer('recommended_storage_bytes').notNull(),
-  contributors: text('contributors').notNull(),
-  confidence: text('confidence').notNull(),
-  unknowns: text('unknowns').notNull(),
-  measuredResult: text('measured_result'),
-  createdAt: text('created_at').notNull(),
-});
 
 export const fleetRecoveryBundles = sqliteTable('fleet_recovery_bundles', {
   id: text('id').primaryKey(),

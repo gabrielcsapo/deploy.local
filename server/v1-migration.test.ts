@@ -147,9 +147,10 @@ describe('v1 database migration', () => {
           }>
         ).map((row) => row.name),
       );
-      assert.equal(tables.has('volume_authority_transfers'), true);
+      // Retired with the portable-site runtime: the upgrade ends without them.
+      assert.equal(tables.has('volume_authority_transfers'), false);
       assert.equal(tables.has('component_profile_volume_bindings'), true);
-      assert.equal(tables.has('fleet_telemetry_records'), true);
+      assert.equal(tables.has('fleet_telemetry_records'), false);
       assert.equal(tables.has('component_site_overrides'), true);
       const columns = new Set(
         (
@@ -176,8 +177,8 @@ describe('v1 database migration', () => {
           }>
         ).map((row) => row.name),
       );
-      assert.equal(indexes.has('idx_volume_authority_transfers_one_active_app'), true);
-      assert.equal(indexes.has('idx_fleet_telemetry_origin_sequence'), true);
+      assert.equal(indexes.has('idx_volume_authority_transfers_one_active_app'), false);
+      assert.equal(indexes.has('idx_fleet_telemetry_origin_sequence'), false);
 
       const revisionColumns = new Set(
         (
