@@ -3407,7 +3407,7 @@
       "w": 440,
       "x": 7210,
       "y": 34784,
-      "text": "CLI proposal. Today bin/deploy.js is one 3,389-line file with 36 command lines and 25 global options. Proposed: six groups in the app's words, [app] as an optional positional, steps instead of log dumps, the dark theme's palette, --json everywhere and exit code 3 while something waits on you. Old commands keep working for one release."
+      "text": "CLI proposal. Today bin/deploy.js is one 3,389-line file with 35 command lines and 25 global options. Proposed: six groups in the app's words, [app] as an optional positional, steps instead of log dumps, the dark theme's palette, --json everywhere and exit code 3 while something waits on you. Old commands keep working for one release."
     },
     "build": {
       "fill": "purple",
