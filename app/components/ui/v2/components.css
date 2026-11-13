@@ -3,7 +3,6 @@
    real controls' states (buttons, disabled, focus), the modal dialog's placement, menus and
    narrow-window behaviour the boards don't draw. scripts/check-dl-styles.mjs fails when a rule
    here changes a property the design system sets. */
-@import './dl-tokens.css';
 @import './dl-components.css';
 @import './waterfall.css';
 

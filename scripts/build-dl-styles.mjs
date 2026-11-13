@@ -5,9 +5,9 @@
 //   node scripts/build-dl-styles.mjs           write the app's copy
 //   node scripts/build-dl-styles.mjs --check   fail when the app's copy is out of date
 //
-// It writes app/components/ui/v2/dl-tokens.css (the design system's token names, mapped onto the
-// app's --ds-* tokens) and app/components/ui/v2/dl-components.css (every source rule whose
-// selector uses only classes the app implements, in source order). Never edit either by hand:
+// It writes app/components/ui/v2/dl-components.css: every source rule whose selector uses only
+// classes the app implements, in source order, with the design system's token names (--paper)
+// written as the app's (--ds-canvas) and pixel type sizes as the app's type tokens. Never edit either by hand:
 // change the source, then run this. Rules only the app has stay in components.css.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -15,7 +15,6 @@ import { format } from 'oxfmt';
 import {
   GENERATED,
   SOURCE_SHEETS,
-  TOKENS,
   TOKEN_MAP,
   TYPE_MAP,
   appSelector,
@@ -33,13 +32,6 @@ const formatOptions = JSON.parse(
 export async function build(rootDirectory = root) {
   const header = (what) =>
     `/* Generated from design/ds/deploy-local by scripts/build-dl-styles.mjs: ${what}. Do not edit. */\n`;
-  const tokens =
-    header('the design system token names, on the app tokens') +
-    // Re-declared wherever a theme is set, so a themed subtree resolves its own values.
-    `:root,\n[data-ds-theme] {\n${Object.entries(TOKEN_MAP)
-      .map(([name, app]) => `  ${name}: var(${app});`)
-      .join('\n')}\n}\n`;
-
   let css = header('the dl-* component rules the app implements');
   const keyframes = new Set();
   for (const sheet of SOURCE_SHEETS) {
@@ -52,10 +44,17 @@ export async function build(rootDirectory = root) {
       }
       const selectors = rule.selectors.filter(appSelector);
       if (!selectors.length) continue;
-      const body = rule.body.replace(/font-size\s*:\s*(\d+)px/g, (all, size) => {
-        if (!TYPE_MAP[size]) throw new Error(`${sheet}: no type token for ${all}`);
-        return `font-size: var(${TYPE_MAP[size]})`;
-      });
+      const body = rule.body
+        .replace(/font-size\s*:\s*(\d+)px/g, (all, size) => {
+          if (!TYPE_MAP[size]) throw new Error(`${sheet}: no type token for ${all}`);
+          return `font-size: var(${TYPE_MAP[size]})`;
+        })
+        .replace(/var\((--[\w-]+)/g, (all, name) => {
+          // The design system's token names, written as the app's: no second set of globals.
+          if (name.startsWith('--ds-')) return all;
+          if (!TOKEN_MAP[name]) throw new Error(`${sheet}: no app token for ${name}`);
+          return `var(${TOKEN_MAP[name]}`;
+        });
       const block = `${selectors.join(',\n')} {${body}}`;
       css += rule.context ? `${rule.context} {\n${block}\n}\n` : `${block}\n`;
     }
@@ -66,7 +65,6 @@ export async function build(rootDirectory = root) {
     return result.code;
   };
   return {
-    [TOKENS]: await formatted(TOKENS, tokens),
     [GENERATED]: await formatted(GENERATED, css),
   };
 }

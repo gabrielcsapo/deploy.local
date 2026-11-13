@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The web app's dl-* styles come from the design system (design/ds/deploy-local). This check,
 // run by `pnpm lint`, fails when:
-//   - app/components/ui/v2/dl-components.css or dl-tokens.css is out of date with the source;
+//   - app/components/ui/v2/dl-components.css is out of date with the source;
 //   - a design-system token and the app token it maps to resolve differently, light or dark;
 //   - one of the app's own sheets sets a property the design system sets on the same selector,
 //     unless scripts/dl-style-drift.json lists it as an exception with its reason.

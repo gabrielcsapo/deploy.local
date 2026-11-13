@@ -8,7 +8,6 @@ export const SOURCE_SHEETS = [
   'design/ds/deploy-local/components/waterfall.css',
 ];
 export const GENERATED = 'app/components/ui/v2/dl-components.css';
-export const TOKENS = 'app/components/ui/v2/dl-tokens.css';
 /** The app's own sheets: rules the design system doesn't have (window chrome, controls' states). */
 export const APP_SHEETS = [
   'app/components/ui/v2/components.css',
@@ -161,8 +160,19 @@ export const normalizeSelector = (selector) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+/**
+ * Source selectors held back from the app for the owner to decide, with the reason in
+ * scripts/dl-style-drift.json ("held").
+ */
+export const HELD = new Set(
+  JSON.parse(readFileSync(new URL('./dl-style-drift.json', import.meta.url), 'utf8')).held.map(
+    (entry) => normalizeSelector(entry.selector),
+  ),
+);
+
 /** Whether a source selector belongs in the app: dl-* classes the app implements, and no others. */
 export function appSelector(selector) {
+  if (HELD.has(normalizeSelector(selector))) return false;
   const classes = [...selector.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((match) => match[1]);
   return (
     classes.some((name) => name.startsWith('dl-')) && classes.every((name) => APP_CLASSES.has(name))

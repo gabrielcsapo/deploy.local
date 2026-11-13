@@ -11,5 +11,15 @@
       "class": "dl-design-compare",
       "reason": "Two different things share the name: on boards it is the drawn before-and-after layout (a grid of two frames); in the app it is the interactive comparison slider (app/components/ui/v2/design-compare.css). The app keeps its own until the owner renames one of them."
     }
+  ],
+  "held": [
+    {
+      "selector": ".dl-btn:disabled",
+      "reason": "Held for the owner. The design system draws a disabled button as a plain bordered button with muted text. The app also fades every disabled control to 50% (components.css), so taking this rule would show a disabled button lighter than any board draws it, on Add a computer and New agent. Choose one: take the board rule and drop the 50% fade for buttons, or keep the app look and change the board."
+    },
+    {
+      "selector": ".dl-btn[aria-disabled=\"true\"]",
+      "reason": "Held for the owner. The design system draws a disabled button as a plain bordered button with muted text. The app also fades every disabled control to 50% (components.css), so taking this rule would show a disabled button lighter than any board draws it, on Add a computer and New agent. Choose one: take the board rule and drop the 50% fade for buttons, or keep the app look and change the board."
+    }
   ]
 }

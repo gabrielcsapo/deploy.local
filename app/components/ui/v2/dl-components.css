@@ -2,9 +2,9 @@
 .dl-app,
 .dl-phone,
 .dl-sheet {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans);
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+  font-family: var(--ds-font);
   font-size: var(--ds-type-ui);
   line-height: 20px;
   -webkit-font-smoothing: antialiased;
@@ -41,32 +41,32 @@
 .dl-meta {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-strong {
   font-weight: 500;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-soft {
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-muted {
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-link {
-  color: var(--accent);
+  color: var(--ds-accent);
 }
 .dl-add {
-  color: var(--success);
+  color: var(--ds-success);
 }
 .dl-del {
-  color: var(--danger);
+  color: var(--ds-danger);
 }
 .dl-warn {
-  color: var(--warning);
+  color: var(--ds-warning);
 }
 .dl-mono {
-  font-family: var(--font-mono);
+  font-family: var(--ds-font-mono);
   font-size: var(--ds-type-meta);
   line-height: 18px;
 }
@@ -96,8 +96,8 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  background: var(--sidebar);
-  border-right: 1px solid var(--line);
+  background: var(--ds-sidebar);
+  border-right: 1px solid var(--ds-line);
 }
 .dl-side-top {
   height: 48px;
@@ -120,8 +120,8 @@
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--on-action);
+  background: var(--ds-accent);
+  color: var(--ds-onAction);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -147,7 +147,7 @@
   padding: 16px 8px 4px;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-side-foot {
   flex: none;
@@ -155,7 +155,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px 10px 16px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ds-line);
 }
 .dl-side-foot .dl-who {
   flex: 1;
@@ -168,8 +168,8 @@
   height: 24px;
   flex: none;
   border-radius: 12px;
-  background: var(--selection);
-  color: var(--ink);
+  background: var(--ds-selected);
+  color: var(--ds-ink);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -187,19 +187,19 @@
   margin-bottom: 1px;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-nav:hover {
-  background: color-mix(in srgb, var(--line) 60%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--ds-line) 60%, transparent);
+  color: var(--ds-ink);
 }
 .dl-nav.on {
-  background: var(--selection);
-  color: var(--ink);
+  background: var(--ds-selected);
+  color: var(--ds-ink);
 }
 .dl-nav.strong {
   font-weight: 500;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-nav .dl-t {
   flex: 1;
@@ -212,20 +212,20 @@
   flex: none;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-nav .dl-lead {
   width: 16px;
   display: inline-flex;
   justify-content: center;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-main {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--paper);
+  background: var(--ds-canvas);
 }
 .dl-head {
   height: 48px;
@@ -238,7 +238,7 @@
   min-width: 0;
 }
 .dl-head.ruled {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ds-line);
 }
 .dl-head .dl-t {
   min-width: 0;
@@ -252,7 +252,7 @@
 .dl-head .dl-sub {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -312,8 +312,8 @@
   flex: 0 0 320px;
   width: 320px;
   box-sizing: border-box;
-  border-left: 1px solid var(--line);
-  background: var(--paper);
+  border-left: 1px solid var(--ds-line);
+  background: var(--ds-canvas);
   display: flex;
   flex-direction: column;
   overflow: auto;
@@ -339,7 +339,7 @@
 .dl-panel-label {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
   padding: 16px 0 6px;
 }
 .dl-panel-item {
@@ -349,7 +349,7 @@
   padding: 6px 0;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-panel-item .dl-t {
   flex: 1;
@@ -360,12 +360,12 @@
 .dl-panel-item .dl-t span:last-child {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-panel-item .dl-t span:only-child {
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-btn {
   height: 32px;
@@ -383,34 +383,34 @@
   white-space: nowrap;
   cursor: pointer;
   background: transparent;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-btn.primary {
-  background: var(--action);
-  color: var(--on-action);
+  background: var(--ds-action);
+  color: var(--ds-onAction);
 }
 .dl-btn.primary:hover {
   opacity: 0.9;
 }
 .dl-btn.secondary {
-  border-color: var(--line-strong);
-  background: var(--surface);
+  border-color: var(--ds-edge);
+  background: var(--ds-surface);
 }
 .dl-btn.secondary:hover {
-  background: color-mix(in srgb, var(--line) 50%, var(--surface));
+  background: color-mix(in srgb, var(--ds-line) 50%, var(--ds-surface));
 }
 .dl-btn.quiet {
   padding: 0 8px;
   font-weight: 400;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-btn.quiet:hover {
-  background: color-mix(in srgb, var(--line) 60%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--ds-line) 60%, transparent);
+  color: var(--ds-ink);
 }
 .dl-btn.danger {
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-  color: var(--danger);
+  background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+  color: var(--ds-danger);
 }
 .dl-icon-btn {
   width: 32px;
@@ -419,7 +419,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -427,8 +427,8 @@
 }
 .dl-icon-btn:hover,
 .dl-icon-btn.on {
-  background: color-mix(in srgb, var(--line) 70%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--ds-line) 70%, transparent);
+  color: var(--ds-ink);
 }
 .dl-icon-btn.sm {
   width: 28px;
@@ -445,15 +445,15 @@
   gap: 6px;
   padding: 0 8px;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink);
+  color: var(--ds-ink);
   white-space: nowrap;
 }
 .dl-chip svg {
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-tag {
   display: inline-flex;
@@ -462,8 +462,8 @@
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  background: var(--line);
-  color: var(--ink-soft);
+  background: var(--ds-line);
+  color: var(--ds-secondary);
   font-size: var(--ds-type-meta);
   line-height: 16px;
   white-space: nowrap;
@@ -472,7 +472,7 @@
   display: inline-flex;
   padding: 2px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--line) 60%, transparent);
+  background: color-mix(in srgb, var(--ds-line) 60%, transparent);
 }
 .dl-seg a {
   height: 28px;
@@ -483,18 +483,18 @@
   padding: 0 12px;
   border-radius: 7px;
   font-size: var(--ds-type-ui);
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
   white-space: nowrap;
 }
 .dl-seg a.on {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-shadow-sm);
 }
 .dl-tabs {
   display: flex;
   gap: 20px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ds-line);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -504,19 +504,19 @@
   align-items: center;
   gap: 6px;
   font-size: var(--ds-type-ui);
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   white-space: nowrap;
 }
 .dl-tabs a.on {
-  color: var(--ink);
+  color: var(--ds-ink);
   font-weight: 500;
-  border-bottom-color: var(--ink);
+  border-bottom-color: var(--ds-ink);
 }
 .dl-tabs .dl-n {
   font-size: var(--ds-type-meta);
-  color: var(--muted);
+  color: var(--ds-muted);
   font-weight: 400;
 }
 .dl-field {
@@ -528,10 +528,10 @@
   gap: 8px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid var(--line-strong);
-  background: var(--paper);
+  border: 1px solid var(--ds-edge);
+  background: var(--ds-canvas);
   font-size: var(--ds-type-ui);
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-field input {
   flex: 1;
@@ -542,10 +542,10 @@
   font-size: var(--ds-type-ui);
 }
 .dl-field input::placeholder {
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-field svg {
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-label {
   display: block;
@@ -559,7 +559,7 @@
   margin-top: 4px;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-textarea {
   width: 100%;
@@ -567,10 +567,10 @@
   min-height: 120px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid var(--line-strong);
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-mono);
+  border: 1px solid var(--ds-edge);
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+  font-family: var(--ds-font-mono);
   font-size: var(--ds-type-meta);
   line-height: 18px;
   resize: vertical;
@@ -583,7 +583,7 @@
   padding: 2px;
   border: 0;
   border-radius: 999px;
-  background: var(--action);
+  background: var(--ds-action);
   display: inline-flex;
   justify-content: flex-end;
 }
@@ -591,17 +591,17 @@
   width: 20px;
   height: 20px;
   border-radius: 10px;
-  background: var(--paper);
-  box-shadow: var(--shadow-sm);
+  background: var(--ds-canvas);
+  box-shadow: var(--ds-shadow-sm);
 }
 .dl-switch.off {
-  background: var(--line-strong);
+  background: var(--ds-edge);
   justify-content: flex-start;
 }
 .dl-kbd {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-glyph {
   width: 20px;
@@ -614,8 +614,8 @@
   font-size: var(--ds-type-caption);
   line-height: 1;
   font-weight: 700;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--ds-accentSoft);
+  color: var(--ds-accent);
 }
 .dl-glyph.xl {
   width: 40px;
@@ -624,24 +624,24 @@
   font-size: var(--ds-type-phoneBody);
 }
 .dl-glyph.warden {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: var(--success);
+  background: color-mix(in srgb, var(--ds-success) 14%, transparent);
+  color: var(--ds-success);
 }
 .dl-glyph.plain {
-  background: var(--selection);
-  color: var(--ink-soft);
+  background: var(--ds-selected);
+  color: var(--ds-secondary);
 }
 .dl-run {
-  color: var(--active);
+  color: var(--ds-active);
 }
 .dl-attn {
-  color: var(--warning);
+  color: var(--ds-warning);
 }
 .dl-ok {
-  color: var(--success);
+  color: var(--ds-success);
 }
 .dl-fail {
-  color: var(--danger);
+  color: var(--ds-danger);
 }
 .dl-status {
   display: inline-flex;
@@ -649,7 +649,7 @@
   gap: 6px;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
   white-space: nowrap;
 }
 .dl-dot {
@@ -657,20 +657,20 @@
   height: 6px;
   border-radius: 3px;
   flex: none;
-  background: var(--success);
+  background: var(--ds-success);
 }
 .dl-status.active .dl-dot {
-  background: var(--active);
+  background: var(--ds-active);
 }
 .dl-status.attention .dl-dot {
-  background: var(--warning);
+  background: var(--ds-warning);
 }
 .dl-status.failed .dl-dot {
-  background: var(--danger);
+  background: var(--ds-danger);
 }
 .dl-status.inactive .dl-dot {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--muted);
+  box-shadow: inset 0 0 0 1.5px var(--ds-muted);
 }
 .dl-thread {
   display: flex;
@@ -684,7 +684,7 @@
   box-sizing: border-box;
   padding: 10px 16px;
   border-radius: 18px;
-  background: var(--selection);
+  background: var(--ds-selected);
   font-size: var(--ds-type-body);
   line-height: 24px;
   white-space: pre-wrap;
@@ -692,7 +692,7 @@
 .dl-reply {
   font-size: var(--ds-type-reply);
   line-height: 26px;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-reply p {
   margin: 0 0 10px;
@@ -702,11 +702,11 @@
 }
 .dl-reply code,
 .dl-code-inline {
-  font-family: var(--font-mono);
+  font-family: var(--ds-font-mono);
   font-size: 0.87em;
   padding: 0.1em 0.35em;
   border-radius: 5px;
-  background: var(--line);
+  background: var(--ds-line);
 }
 .dl-turn {
   display: flex;
@@ -724,7 +724,7 @@
   gap: 4px;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-worklog-live {
   display: inline-flex;
@@ -732,13 +732,13 @@
   gap: 8px;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-steps {
   list-style: none;
   margin: 0 0 0 8px;
   padding: 0 0 0 12px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ds-line);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -749,7 +749,7 @@
   gap: 8px;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
   min-width: 0;
 }
 .dl-step .dl-i {
@@ -757,7 +757,7 @@
   flex: none;
   display: inline-flex;
   justify-content: center;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-step .dl-t {
   min-width: 0;
@@ -767,7 +767,7 @@
 }
 .dl-step .dl-x {
   font-size: var(--ds-type-meta);
-  color: var(--muted);
+  color: var(--ds-muted);
   flex: none;
 }
 .dl-who-line {
@@ -785,9 +785,9 @@
   box-sizing: border-box;
   padding: 16px;
   border-radius: 12px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--ds-edge);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-sm);
 }
 .dl-approval-head {
   display: flex;
@@ -796,7 +796,7 @@
 }
 .dl-approval-head > svg {
   margin-top: 3px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-approval-head .dl-t {
   flex: 1;
@@ -812,7 +812,7 @@
   margin: 4px 0 0;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-approval-actions {
   display: flex;
@@ -825,19 +825,19 @@
   margin-top: 8px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--line) 40%, transparent);
-  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--ds-line) 40%, transparent);
+  font-family: var(--ds-font-mono);
   font-size: var(--ds-type-meta);
   line-height: 18px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
   white-space: pre-wrap;
 }
 .dl-composer {
   box-sizing: border-box;
   border-radius: 18px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--ds-edge);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-sm);
   padding: 12px 12px 10px 16px;
   display: flex;
   flex-direction: column;
@@ -852,12 +852,12 @@
   resize: none;
   font-size: var(--ds-type-body);
   line-height: 24px;
-  color: var(--ink);
+  color: var(--ds-ink);
   padding: 0;
 }
 .dl-composer textarea::placeholder,
 .dl-composer input::placeholder {
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-composer-bar {
   display: flex;
@@ -879,7 +879,7 @@
   background: transparent;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-send {
   width: 32px;
@@ -887,8 +887,8 @@
   flex: none;
   border: 0;
   border-radius: 16px;
-  background: var(--action);
-  color: var(--on-action);
+  background: var(--ds-action);
+  color: var(--ds-onAction);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -904,7 +904,7 @@
   text-align: center;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
   margin-top: 8px;
 }
 .dl-greeting {
@@ -927,21 +927,21 @@
   border-radius: 8px;
   font-size: var(--ds-type-body);
   line-height: 24px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-starter:hover {
-  background: color-mix(in srgb, var(--line) 50%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--ds-line) 50%, transparent);
+  color: var(--ds-ink);
 }
 .dl-starter .dl-end {
   margin-left: auto;
   font-size: var(--ds-type-meta);
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-group {
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
   overflow: hidden;
 }
 .dl-group-head {
@@ -952,8 +952,8 @@
   font-size: var(--ds-type-meta);
   line-height: 16px;
   font-weight: 500;
-  color: var(--muted);
-  border-bottom: 1px solid var(--line);
+  color: var(--ds-muted);
+  border-bottom: 1px solid var(--ds-line);
 }
 .dl-group-head .dl-end {
   margin-left: auto;
@@ -964,14 +964,14 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ds-line);
   min-width: 0;
 }
 .dl-item:last-child {
   border-bottom: 0;
 }
 a.dl-item:hover {
-  background: color-mix(in srgb, var(--line) 35%, transparent);
+  background: color-mix(in srgb, var(--ds-line) 35%, transparent);
 }
 .dl-item .dl-t {
   flex: 1;
@@ -988,7 +988,7 @@ a.dl-item:hover {
 .dl-item .dl-t > span + span {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -997,11 +997,11 @@ a.dl-item:hover {
   flex: none;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
   white-space: nowrap;
 }
 .dl-item .dl-chev {
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-section {
   display: flex;
@@ -1017,7 +1017,7 @@ a.dl-item:hover {
   margin: 0 0 12px;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-setting {
   display: flex;
@@ -1025,7 +1025,7 @@ a.dl-item:hover {
   justify-content: space-between;
   gap: 24px;
   padding: 14px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ds-line);
 }
 .dl-setting:last-child {
   border-bottom: 0;
@@ -1041,14 +1041,14 @@ a.dl-item:hover {
 .dl-setting .dl-t > span + span {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-setting .dl-v {
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-inset {
   padding: 0 16px;
@@ -1064,8 +1064,8 @@ a.dl-item:hover {
   gap: 2px;
   padding: 14px 16px;
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
 }
 .dl-stat .dl-v {
   font-size: var(--ds-type-title);
@@ -1082,20 +1082,20 @@ a.dl-item:hover {
 .dl-bar {
   height: 6px;
   border-radius: 999px;
-  background: var(--line);
+  background: var(--ds-line);
   overflow: hidden;
 }
 .dl-bar span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--ink);
+  background: var(--ds-ink);
 }
 .dl-spark {
   display: block;
   width: 100%;
   height: 40px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-notice {
   display: flex;
@@ -1103,18 +1103,18 @@ a.dl-item:hover {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--line) 50%, transparent);
+  background: color-mix(in srgb, var(--ds-line) 50%, transparent);
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-notice .dl-end {
   margin-left: auto;
 }
 .dl-source {
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
   overflow: hidden;
 }
 .dl-source-head {
@@ -1123,10 +1123,10 @@ a.dl-item:hover {
   gap: 8px;
   height: 40px;
   padding: 0 12px 0 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ds-line);
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-source-head .dl-end {
   margin-left: auto;
@@ -1135,7 +1135,7 @@ a.dl-item:hover {
   gap: 8px;
 }
 .dl-lines {
-  font-family: var(--font-mono);
+  font-family: var(--ds-font-mono);
   font-size: var(--ds-type-meta);
   line-height: 20px;
   overflow-x: auto;
@@ -1145,27 +1145,27 @@ a.dl-item:hover {
   display: grid;
   grid-template-columns: 40px 40px minmax(max-content, 1fr);
   white-space: pre;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-line .dl-n {
-  color: var(--muted);
+  color: var(--ds-muted);
   text-align: right;
   padding-right: 10px;
   user-select: none;
 }
 .dl-line.add {
-  background: color-mix(in srgb, var(--success) 9%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--ds-success) 9%, transparent);
+  color: var(--ds-ink);
 }
 .dl-line.del {
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--ds-danger) 8%, transparent);
+  color: var(--ds-ink);
 }
 .dl-line.hunk {
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-log {
-  font-family: var(--font-mono);
+  font-family: var(--ds-font-mono);
   font-size: var(--ds-type-meta);
   line-height: 20px;
   overflow-x: auto;
@@ -1177,19 +1177,19 @@ a.dl-item:hover {
   gap: 12px;
   padding: 0 16px;
   white-space: pre;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-log-row .dl-lv {
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-log-row.warn .dl-lv {
-  color: var(--warning);
+  color: var(--ds-warning);
 }
 .dl-log-row.error {
-  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  background: color-mix(in srgb, var(--ds-danger) 6%, transparent);
 }
 .dl-log-row.error .dl-lv {
-  color: var(--danger);
+  color: var(--ds-danger);
 }
 .dl-term.wrap {
   white-space: pre-wrap;
@@ -1199,12 +1199,12 @@ a.dl-item:hover {
   margin: 0;
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--sidebar);
-  font-family: var(--font-mono);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-sidebar);
+  font-family: var(--ds-font-mono);
   font-size: var(--ds-type-meta);
   line-height: 18px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
   white-space: pre;
   overflow: auto;
 }
@@ -1220,22 +1220,22 @@ a.dl-item:hover {
   text-align: left;
   font-size: var(--ds-type-meta);
   font-weight: 500;
-  color: var(--muted);
-  border-bottom: 1px solid var(--line);
+  color: var(--ds-muted);
+  border-bottom: 1px solid var(--ds-line);
   white-space: nowrap;
 }
 .dl-table td {
   height: 40px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ds-line);
   white-space: nowrap;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-table tr:last-child td {
   border-bottom: 0;
 }
 .dl-table td.dl-name {
-  color: var(--ink);
+  color: var(--ds-ink);
   font-weight: 500;
 }
 .dl-table-wrap {
@@ -1248,7 +1248,7 @@ a.dl-item:hover {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  background: color-mix(in srgb, var(--ds-ink) 18%, transparent);
 }
 .dl-dialog {
   width: 100%;
@@ -1256,9 +1256,9 @@ a.dl-item:hover {
   box-sizing: border-box;
   padding: 20px;
   border-radius: 16px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-xl);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1284,9 +1284,9 @@ a.dl-item:hover {
   box-sizing: border-box;
   padding: 4px;
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-lg);
   display: flex;
   flex-direction: column;
 }
@@ -1294,7 +1294,7 @@ a.dl-item:hover {
   padding: 6px 10px 4px;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-menu-item {
   display: flex;
@@ -1306,12 +1306,12 @@ a.dl-item:hover {
   line-height: 20px;
 }
 .dl-menu-item.on {
-  background: color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--ds-line) 70%, transparent);
 }
 .dl-menu-item .dl-end {
   margin-left: auto;
   font-size: var(--ds-type-meta);
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-phone {
   width: 390px;
@@ -1429,8 +1429,8 @@ a.dl-item:hover {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: var(--selection);
-  color: var(--ink-soft);
+  background: var(--ds-selected);
+  color: var(--ds-secondary);
   margin-bottom: 6px;
 }
 .dl-empty h3 {
@@ -1438,14 +1438,14 @@ a.dl-item:hover {
   font-size: var(--ds-type-body);
   line-height: 24px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-empty p {
   margin: 0;
   max-width: 380px;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-empty .dl-actions {
   display: flex;
@@ -1458,7 +1458,12 @@ a.dl-item:hover {
   display: block;
   height: 10px;
   border-radius: 5px;
-  background: linear-gradient(90deg, var(--line) 0%, var(--selection) 50%, var(--line) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--ds-line) 0%,
+    var(--ds-selected) 50%,
+    var(--ds-line) 100%
+  );
   background-size: 200% 100%;
   animation: dl-shimmer 1.4s ease-in-out infinite;
 }
@@ -1487,29 +1492,29 @@ a.dl-item:hover {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
+  border: 1px solid var(--ds-edge);
+  background: var(--ds-surface);
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-banner > svg {
   flex: none;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-banner.warning {
-  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
-  border-color: color-mix(in srgb, var(--warning) 28%, transparent);
+  background: color-mix(in srgb, var(--ds-warning) 7%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--ds-warning) 28%, transparent);
 }
 .dl-banner.warning > svg {
-  color: var(--warning);
+  color: var(--ds-warning);
 }
 .dl-banner.danger {
-  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
-  border-color: color-mix(in srgb, var(--danger) 26%, transparent);
+  background: color-mix(in srgb, var(--ds-danger) 6%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--ds-danger) 26%, transparent);
 }
 .dl-banner.danger > svg {
-  color: var(--danger);
+  color: var(--ds-danger);
 }
 .dl-banner .dl-t {
   flex: 1;
@@ -1520,7 +1525,7 @@ a.dl-item:hover {
 .dl-banner .dl-t span + span {
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--ink-soft);
+  color: var(--ds-secondary);
 }
 .dl-banner .dl-end {
   margin-left: auto;
@@ -1529,13 +1534,13 @@ a.dl-item:hover {
   flex: none;
 }
 .dl-field.invalid {
-  border-color: var(--danger);
+  border-color: var(--ds-danger);
 }
 .dl-field-error {
   margin-top: 6px;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--danger);
+  color: var(--ds-danger);
 }
 .dl-field-label {
   display: block;
@@ -1557,17 +1562,17 @@ a.dl-item:hover {
   padding-left: 30px;
   font-size: var(--ds-type-meta);
   line-height: 16px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-approval-answer svg {
-  color: var(--success);
+  color: var(--ds-success);
 }
 .dl-scope {
   margin-top: 10px;
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ds-line);
   overflow: hidden;
 }
 .dl-scope > div {
@@ -1579,12 +1584,12 @@ a.dl-item:hover {
   line-height: 20px;
 }
 .dl-scope > div + div {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ds-line);
 }
 .dl-scope .dl-k {
   width: 96px;
   flex: none;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-scope .dl-seg {
   margin-left: auto;
@@ -1597,9 +1602,9 @@ a.dl-item:hover {
   box-sizing: border-box;
   padding: 0 6px 0 14px;
   border-radius: 999px;
-  background: var(--action);
-  color: var(--on-action);
-  box-shadow: var(--shadow-lg);
+  background: var(--ds-action);
+  color: var(--ds-onAction);
+  box-shadow: var(--ds-shadow-lg);
   font-size: var(--ds-type-ui);
   line-height: 20px;
   white-space: nowrap;
@@ -1608,11 +1613,11 @@ a.dl-item:hover {
   width: 8px;
   height: 8px;
   border-radius: 4px;
-  background: var(--danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--ds-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-danger) 30%, transparent);
 }
 .dl-control .dl-c {
-  color: color-mix(in srgb, var(--on-action) 65%, transparent);
+  color: color-mix(in srgb, var(--ds-onAction) 65%, transparent);
 }
 .dl-control button {
   height: 28px;
@@ -1622,15 +1627,15 @@ a.dl-item:hover {
   font: inherit;
   font-weight: 500;
   cursor: pointer;
-  background: color-mix(in srgb, var(--on-action) 14%, transparent);
-  color: var(--on-action);
+  background: color-mix(in srgb, var(--ds-onAction) 14%, transparent);
+  color: var(--ds-onAction);
 }
 .dl-control button.stop {
-  background: var(--on-action);
-  color: var(--action);
+  background: var(--ds-onAction);
+  color: var(--ds-action);
 }
 .dl-side-label a:hover {
-  color: var(--ink);
+  color: var(--ds-ink);
 }
 .dl-matrix-stack {
   display: none;
@@ -1647,16 +1652,8 @@ a.dl-item:hover {
     display: flex;
   }
 }
-.dl-btn:disabled,
-.dl-btn[aria-disabled='true'] {
-  background: var(--surface);
-  color: var(--muted);
-  border-color: var(--line);
-  box-shadow: none;
-  cursor: not-allowed;
-}
 .dl-chev {
-  color: var(--muted);
+  color: var(--ds-muted);
   flex: none;
 }
 .dl-list .dl-item {
@@ -1686,7 +1683,7 @@ a.dl-item:hover {
   margin: 8px 16px 0;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: var(--muted);
+  color: var(--ds-muted);
 }
 .dl-phone.dl-list .dl-section {
   gap: 0;
@@ -1720,7 +1717,7 @@ a.dl-item:hover {
   place-items: center;
   width: 100%;
   height: 100%;
-  min-height: var(--space-12);
+  min-height: var(--ds-space-12);
   border-radius: inherit;
 }
 .dl-skeleton-block > .dl-skel {
@@ -1731,9 +1728,9 @@ a.dl-item:hover {
 }
 .dl-skeleton-block > .dl-notice {
   position: relative;
-  margin: var(--space-3);
+  margin: var(--ds-space-3);
   white-space: normal;
-  font-family: var(--font-sans);
+  font-family: var(--ds-font);
 }
 .dl-dialog-body {
   display: flex;
@@ -1765,9 +1762,9 @@ a.dl-item:hover {
   position: relative;
   display: block;
   width: 100%;
-  height: var(--space-2);
+  height: var(--ds-space-2);
   border-radius: 0;
-  background: var(--sidebar);
+  background: var(--ds-sidebar);
   overflow: visible;
 }
 .dl-waterfall .dl-bar > span {
@@ -1776,27 +1773,27 @@ a.dl-item:hover {
   height: 100%;
   border-radius: 0;
   box-sizing: border-box;
-  background: var(--ink-soft);
+  background: var(--ds-secondary);
 }
 .dl-waterfall .dl-bar > [data-phase='match'],
 .dl-waterfall-legend [data-phase='match'] {
-  background: var(--accent);
+  background: var(--ds-accent);
 }
 .dl-waterfall .dl-bar > [data-phase='data'],
 .dl-waterfall-legend [data-phase='data'] {
-  background: var(--success);
+  background: var(--ds-success);
 }
 .dl-waterfall .dl-bar > [data-phase='render'],
 .dl-waterfall-legend [data-phase='render'] {
-  background: var(--warning);
+  background: var(--ds-warning);
 }
 .dl-waterfall .dl-bar > [data-phase='stream'],
 .dl-waterfall-legend [data-phase='stream'] {
-  background: var(--active);
+  background: var(--ds-active);
 }
 .dl-waterfall .dl-bar > [data-phase='browser'],
 .dl-waterfall-legend [data-phase='browser'] {
-  background: var(--ink-soft);
+  background: var(--ds-secondary);
 }
 .dl-waterfall .dl-bar > [data-tail] {
   opacity: 0.3;
@@ -1805,49 +1802,49 @@ a.dl-item:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--ds-space-2) var(--ds-space-4);
   margin: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--ds-space-3) var(--ds-space-4);
 }
 .dl-waterfall-legend > span {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--ds-space-1);
   white-space: nowrap;
 }
 .dl-waterfall-legend i {
   display: inline-block;
   flex: none;
-  width: var(--space-2);
-  height: var(--space-2);
+  width: var(--ds-space-2);
+  height: var(--ds-space-2);
 }
 .dl-waterfall [data-timing-part] > .dl-section-title {
   margin: 0;
-  padding: var(--space-4) var(--space-4) 0;
+  padding: var(--ds-space-4) var(--ds-space-4) 0;
 }
 .dl-waterfall [data-timing-part] + [data-timing-part] {
-  margin-block-start: var(--space-6);
+  margin-block-start: var(--ds-space-6);
 }
 .dl-waterfall .dl-bar > i {
   position: absolute;
-  inset-block: calc(-1 * var(--space-1));
-  border-inline-start: 1px solid var(--muted);
+  inset-block: calc(-1 * var(--ds-space-1));
+  border-inline-start: 1px solid var(--ds-muted);
 }
 .dl-waterfall[data-waterfall='compact'] {
-  padding-block: var(--space-2);
+  padding-block: var(--ds-space-2);
 }
 .dl-waterfall [data-axis-labels] {
   display: flex;
   justify-content: space-between;
-  min-height: var(--size-touch);
-  padding-inline: var(--space-4);
-  gap: var(--space-2);
+  min-height: var(--ds-size-touchControl);
+  padding-inline: var(--ds-space-4);
+  gap: var(--ds-space-2);
 }
 .dl-waterfall [data-timing-row] {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3) var(--ds-space-4);
   min-width: 0;
 }
 .dl-waterfall [data-duration] {
