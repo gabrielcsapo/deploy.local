@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'home-coordinator-'));
@@ -34,22 +34,39 @@ test('a single-home upgrade preserves application identity and home runtime reco
   const before = db.prepare('SELECT * FROM app_replicas').all();
   assert.equal(before.length, 1);
   ensureLocalIdentity();
-  assert.doesNotThrow(() => assertHomeCoordinator(db, {}));
+  assert.doesNotThrow(() => assertHomeCoordinator({}));
   assert.deepEqual(db.prepare('SELECT * FROM app_replicas').all(), before);
   assert.equal(
     (db.prepare('SELECT name FROM deployments').get() as { name: string }).name,
     'preserved',
   );
 });
-test('portable installation and orphaned data cannot silently upgrade', () => {
-  assert.throws(() => assertHomeCoordinator(db, { DEPLOY_SUITCASE: '1' }), /retired/);
+test('unsupported portable mode is rejected without inventory admission', () => {
+  assert.throws(() => assertHomeCoordinator({ DEPLOY_SUITCASE: '1' }), /retired/);
   const home = ensureLocalIdentity();
   db.prepare("UPDATE sites SET kind = 'suitcase' WHERE id = ?").run(home.homeSiteId);
-  assert.throws(() => assertHomeCoordinator(db, {}), /export and migration/);
+  assert.doesNotThrow(() => assertHomeCoordinator({}));
   db.prepare("UPDATE sites SET kind = 'home' WHERE id = ?").run(home.homeSiteId);
   db.pragma('foreign_keys = OFF');
   db.prepare("UPDATE app_replicas SET site_id = 'missing-site'").run();
-  assert.throws(() => assertHomeCoordinator(db, {}), /export and migration/);
+  assert.doesNotThrow(() => assertHomeCoordinator({}));
   db.prepare('UPDATE app_replicas SET site_id = ?').run(home.homeSiteId);
   db.pragma('foreign_keys = ON');
+});
+
+test('mode admission does not open a database', () => {
+  const missing = join(root, 'must-not-be-created');
+  const original = process.env.DEPLOY_DATA_DIR;
+  process.env.DEPLOY_DATA_DIR = missing;
+  try {
+    assert.doesNotThrow(() => assertHomeCoordinator({}));
+    assert.doesNotThrow(() => assertHomeCoordinator({ DEPLOY_SUITCASE: '0' }));
+    assert.throws(() => assertHomeCoordinator({ DEPLOY_SUITCASE: '1' }), {
+      message:
+        'Portable coordinators are retired. Export this target before upgrading; enroll computers as execution nodes.',
+    });
+    assert.equal(existsSync(missing), false);
+  } finally {
+    process.env.DEPLOY_DATA_DIR = original;
+  }
 });

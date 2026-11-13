@@ -27,7 +27,7 @@ test('Home identity and application aliases survive retries without creating rep
     sqlite.prepare('SELECT alias, app_id, origin_site_id FROM application_aliases').all(),
     [{ alias: 'home-app', app_id: appId, origin_site_id: home.homeSiteId }],
   );
-  for (const table of ['app_replicas', 'fleet_events', 'data_sync_policies']) {
+  for (const table of ['app_replicas']) {
     assert.equal(
       (sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count,
       0,

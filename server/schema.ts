@@ -145,23 +145,6 @@ export const applicationAliases = sqliteTable(
   }),
 );
 
-export const dataSyncPolicies = sqliteTable(
-  'data_sync_policies',
-  {
-    appId: text('app_id').notNull(),
-    siteId: text('site_id').notNull().default(''),
-    policy: text('policy').notNull(),
-    conflictPolicy: text('conflict_policy').notNull().default('collect'),
-    acknowledgedRisks: text('acknowledged_risks').notNull().default('[]'),
-    revision: integer('revision').notNull().default(1),
-    updatedBy: text('updated_by').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.appId, table.siteId] }),
-  }),
-);
-
 export const appReplicas = sqliteTable(
   'app_replicas',
   {
@@ -193,97 +176,6 @@ export const appReplicas = sqliteTable(
   }),
 );
 
-export const dataCheckpoints = sqliteTable(
-  'data_checkpoints',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    parentId: text('parent_id'),
-    originSiteId: text('origin_site_id').notNull(),
-    sequence: integer('sequence').notNull(),
-    databaseArtifactDigest: text('database_artifact_digest'),
-    filesystemArtifactDigest: text('filesystem_artifact_digest'),
-    manifestArtifactDigest: text('manifest_artifact_digest').notNull(),
-    schemaFingerprint: text('schema_fingerprint'),
-    profileVersion: text('profile_version'),
-    verificationStatus: text('verification_status').notNull(),
-    acknowledgements: text('acknowledgements').notNull().default('{}'),
-    createdAt: text('created_at').notNull(),
-  },
-  (table) => ({
-    appSequenceIdx: index('idx_data_checkpoints_app_sequence').on(table.appId, table.sequence),
-  }),
-);
-
-export const dataConflicts = sqliteTable(
-  'data_conflicts',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    changesetId: text('changeset_id'),
-    kind: text('kind').notNull(),
-    logicalAddress: text('logical_address').notNull(),
-    baseValue: text('base_value'),
-    homeValue: text('home_value'),
-    suitcaseValue: text('suitcase_value'),
-    resolution: text('resolution'),
-    status: text('status').notNull().default('open'),
-    createdAt: text('created_at').notNull(),
-    resolvedAt: text('resolved_at'),
-    resolvedBy: text('resolved_by'),
-  },
-  (table) => ({
-    appStatusIdx: index('idx_data_conflicts_app_status').on(table.appId, table.status),
-  }),
-);
-
-export const fleetEvents = sqliteTable(
-  'fleet_events',
-  {
-    id: text('id').primaryKey(),
-    fleetId: text('fleet_id').notNull(),
-    originSiteId: text('origin_site_id').notNull(),
-    originSequence: integer('origin_sequence').notNull(),
-    appId: text('app_id'),
-    authorityEpoch: integer('authority_epoch'),
-    generation: integer('generation'),
-    actor: text('actor').notNull(),
-    operation: text('operation').notNull(),
-    schemaVersion: integer('schema_version').notNull().default(1),
-    payload: text('payload').notNull(),
-    artifactDigests: text('artifact_digests').notNull().default('[]'),
-    parentEventId: text('parent_event_id'),
-    authenticatedDigest: text('authenticated_digest').notNull(),
-    createdAt: text('created_at').notNull(),
-    appliedAt: text('applied_at'),
-    rejectionReason: text('rejection_reason'),
-  },
-  (table) => ({
-    originIdx: index('idx_fleet_events_origin').on(table.originSiteId, table.originSequence),
-    appGenerationIdx: index('idx_fleet_events_app_generation').on(
-      table.appId,
-      table.authorityEpoch,
-      table.generation,
-    ),
-  }),
-);
-
-export const siteSyncCursors = sqliteTable(
-  'site_sync_cursors',
-  {
-    localSiteId: text('local_site_id').notNull(),
-    remoteSiteId: text('remote_site_id').notNull(),
-    stream: text('stream').notNull(),
-    lastAcceptedSequence: integer('last_accepted_sequence').notNull().default(0),
-    protocolVersion: integer('protocol_version').notNull().default(1),
-    lastAttemptAt: text('last_attempt_at'),
-    lastSuccessAt: text('last_success_at'),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.localSiteId, table.remoteSiteId, table.stream] }),
-  }),
-);
-
 export const artifacts = sqliteTable('artifacts', {
   digest: text('digest').primaryKey(),
   type: text('type').notNull(),
@@ -298,33 +190,6 @@ export const artifacts = sqliteTable('artifacts', {
   createdAt: text('created_at').notNull(),
   lastAccessAt: text('last_access_at').notNull(),
 });
-
-export const releaseCandidates = sqliteTable(
-  'release_candidates',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    originSiteId: text('origin_site_id').notNull(),
-    actor: text('actor').notNull(),
-    baseAuthorityEpoch: integer('base_authority_epoch').notNull(),
-    baseGeneration: integer('base_generation').notNull(),
-    specDigest: text('spec_digest'),
-    parentSpecDigest: text('parent_spec_digest'),
-    requestedAlias: text('requested_alias'),
-    sourceArtifactDigest: text('source_artifact_digest'),
-    imageArtifactDigest: text('image_artifact_digest'),
-    snapshotArtifactDigest: text('snapshot_artifact_digest'),
-    artifactDigests: text('artifact_digests').notNull().default('[]'),
-    configurationDigest: text('configuration_digest'),
-    architecture: text('architecture'),
-    state: text('state').notNull(),
-    supersededBy: text('superseded_by'),
-    createdAt: text('created_at').notNull(),
-  },
-  (table) => ({
-    appStateIdx: index('idx_release_candidates_app_state').on(table.appId, table.state),
-  }),
-);
 
 export const fleetRecoveryBundles = sqliteTable('fleet_recovery_bundles', {
   id: text('id').primaryKey(),
