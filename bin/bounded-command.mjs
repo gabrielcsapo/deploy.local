@@ -132,3 +132,21 @@ export function dockerCommandTimeout(args) {
     return JOB_CHANGE_TIMEOUT_MS;
   return JOB_QUERY_TIMEOUT_MS;
 }
+
+/** Wait until `done()` is true; false if it is still not after `timeoutMs`. */
+export async function settles(
+  done,
+  {
+    timeoutMs = 15_000,
+    stepMs = 50,
+    now = Date.now,
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  } = {},
+) {
+  const deadline = now() + timeoutMs;
+  while (!done()) {
+    if (now() >= deadline) return false;
+    await sleep(stepMs);
+  }
+  return true;
+}

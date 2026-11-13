@@ -84,6 +84,7 @@ import { basename, resolve, dirname } from 'node:path';
 import { execSync, execFileSync, spawnSync } from 'node:child_process';
 import {
   runBounded,
+  settles,
   runChecked,
   dockerCommandTimeout,
   DATA_COMMAND_TIMEOUT_MS,
@@ -2013,8 +2014,21 @@ async function processAgentJob(config, job) {
     if (job.type === 'self-update') {
       if (!process.env.DEPLOY_WORKER_CHILD || !process.send)
         throw new Error('This worker has no restart supervisor.');
-      if (activeAgentExecSessions.size || claimingAgentExecSession)
+      // The terminal poll runs twice a second, and on a slow link each request takes most of
+      // that (0.3 to 0.8 s from the iMac), so "a poll is in flight" was true nearly all the
+      // time and the iMac declined every update. Being mid-poll is not a terminal: stop new
+      // polls, let the one in flight finish, then look for a terminal that is really open.
+      admittingUpdate = true;
+      const admitted = setTimeout(() => (admittingUpdate = false), 60_000);
+      admitted.unref();
+      if (
+        !(await settles(() => !claimingAgentExecSession, { timeoutMs: 15_000 })) ||
+        activeAgentExecSessions.size
+      ) {
+        clearTimeout(admitted);
+        admittingUpdate = false;
         throw new Error('A terminal is still active; the installed build was kept.');
+      }
       if (
         job.payload.kind === 'code' &&
         !acceptsLauncher(
@@ -2193,6 +2207,7 @@ async function processAgentJob(config, job) {
 
 const activeAgentExecSessions = new Map();
 let claimingAgentExecSession = false;
+let admittingUpdate = false;
 
 async function postAgentExec(config, sessionId, action, body = {}) {
   return request(`${config.coordinatorUrl}/api/agent/exec/${sessionId}/${action}`, {
@@ -2261,7 +2276,7 @@ function runAgentExecSession(config, descriptor) {
 }
 
 async function claimAgentExecSessionFromCoordinator(config) {
-  if (claimingAgentExecSession || workerUpdatePending()) return;
+  if (claimingAgentExecSession || admittingUpdate || workerUpdatePending()) return;
   claimingAgentExecSession = true;
   try {
     const response = await fetch(`${config.coordinatorUrl}/api/agent/exec/claim`, {
