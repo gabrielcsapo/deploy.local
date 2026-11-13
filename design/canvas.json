@@ -2862,6 +2862,38 @@
       "h": 900,
       "title": "One computer that is slow right now",
       "expand": "fill"
+    },
+    "AppNoRepository.html": {
+      "x": 18720,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "An app shipped from a folder: it has no repository yet",
+      "expand": "fill"
+    },
+    "AddRepository.html": {
+      "x": 20240,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "Add a repository to an app shipped from a folder",
+      "expand": "fill"
+    },
+    "NewProjectExistingApp.html": {
+      "x": 18720,
+      "y": 7400,
+      "w": 1440,
+      "h": 900,
+      "title": "New project named after an app with no repository: it joins the app",
+      "expand": "fill"
+    },
+    "AddExistingApp.html": {
+      "x": 20240,
+      "y": 7400,
+      "w": 1440,
+      "h": 900,
+      "title": "Add an app that is already running to a repository",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3214,6 +3246,10 @@
     "ProjectEmpty.html",
     "AddRemote.html",
     "RepositorySync.html",
+    "AppNoRepository.html",
+    "AddRepository.html",
+    "NewProjectExistingApp.html",
+    "AddExistingApp.html",
     "DesignReviewDrawPhone.html",
     "DesignReviewDrawCommentPhone.html",
     "DesignReviewDrawSavedPhone.html",
@@ -4637,6 +4673,13 @@
       "x": 2020,
       "y": 17444,
       "text": "For approval. deploy.local says where time goes, and when a computer is struggling.\n• A release step lists its parts with their times: copy data, build image, send, first answer. A running step shows the part it is in and how long so far.\n• A step on another computer is stopped only when that computer reports nothing for 10 minutes, not at a fixed 20. The release says when it last heard from it.\n• A computer’s page shows how long its disk and Docker take to answer. When either is slow for several minutes the page says so in plain words, and a release running there links to it.\n• Nothing here blocks a release; it only explains a slow one. Phones get the same step wording; the phone boards are unchanged in layout."
+    },
+    "link-app-repository": {
+      "fill": "purple",
+      "w": 440,
+      "x": 21760,
+      "y": 6420,
+      "text": "An app and its repository are one project\n\nAn app shipped from a folder has no repository. Its page says so and offers Add a repository (AppNoRepository, AddRepository); the same row sits in its Settings. The repository takes the app’s name and joins the app’s project, so the Projects list never shows the name twice. Afterwards the Code tab appears with the push commands from ProjectEmpty. The CLI keeps shipping from the folder until deploy.yaml is on main.\n\nNew project with the name of an app that has no repository adds the repository to that app (NewProjectExistingApp). A name no such app uses creates a project as before.\n\nA repository with no app offers Add an app you shipped (ProjectEmpty, AddExistingApp). The dialog lists only apps with no repository, the one with the project’s name first, and replaces the dialog that asked you to type an app’s name. With no such app the link is not shown. Adding moves the app’s variables, secrets and releases into the project.\n\niPhone: later."
     }
   },
   "starts": {}
