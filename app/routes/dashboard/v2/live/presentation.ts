@@ -1,3 +1,4 @@
+import { projectPath } from '../projects/routing';
 import type { LiveApp, Release } from '../../../../../shared/v2/contracts';
 import { formatTime } from '../data/time.ts';
 
@@ -63,4 +64,12 @@ export function appHealthLabel(app: Pick<LiveApp, 'state' | 'summary'>) {
     return 'Checks unavailable';
   }
   return { healthy: 'Healthy', failing: 'Failing', stopped: 'Stopped' }[app.state];
+}
+
+/** Discover retains its origin; every other app names an addressable project. */
+export function projectOrigin(app: LiveApp, names: Record<string, string>) {
+  const id = app.project || `app:${app.name}`;
+  return app.fromDiscover
+    ? { label: 'From Discover' }
+    : { label: names[id] || app.name, href: projectPath(id) };
 }

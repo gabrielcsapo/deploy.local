@@ -1,3 +1,4 @@
+import { projectsForOwner } from './projects.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { sendJson } from '../http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -24,7 +25,6 @@ import {
   getRequestSeries,
 } from '../store.ts';
 import { db, event, list, save } from '../workspace/store.ts';
-import { repositoryInfo } from '../workspace/repositories.ts';
 import { createInboxItem } from './inbox.ts';
 import { fail } from '../errors.ts';
 import { currentProjectReleases, projectRollbacks, releaseById } from './releases.ts';
@@ -46,31 +46,12 @@ const refreshes = new Map<
   string,
   { at: number; releases: string; pending?: Promise<LiveResponse>; value?: LiveResponse }
 >();
-const projects = new Map<string, { at: number; values: Map<string, string> }>();
 async function projectNames(owner: string) {
-  const previous = projects.get(owner);
-  if (previous && Date.now() - previous.at < 60_000) return previous.values;
-  const values = new Map<string, string>();
-  for (const project of list('project', owner)) {
-    if (!project.repositoryPath) continue;
-    try {
-      const repository = await repositoryInfo(owner, project.id);
-      if ('deployment' in repository && repository.deployment.application)
-        values.set(repository.deployment.application, project.id);
-    } catch {
-      /* A missing repository is not health evidence. */
-    }
-  }
-  const links = getSqlite()!
-    .prepare('SELECT application, project_id AS projectId FROM project_applications WHERE owner=?')
-    .all(owner) as { application: string; projectId: string }[];
-  for (const link of links) {
-    values.delete(link.application);
-    if (list('project', owner).some((project) => project.id === link.projectId))
-      values.set(link.application, link.projectId);
-  }
-  projects.set(owner, { at: Date.now(), values });
-  return values;
+  return new Map(
+    (await projectsForOwner(owner)).flatMap((project) =>
+      project.apps.map((app) => [app.name, project.id] as const),
+    ),
+  );
 }
 
 function appConfiguration(deployment: NonNullable<ReturnType<typeof getDeployment>>) {
@@ -318,9 +299,7 @@ async function collectLive(owner: string): Promise<LiveResponse> {
     const app: LiveApp = {
       ...health,
       name: deployment.name,
-      ...(release || names.has(deployment.name)
-        ? { project: release?.release.projectId ?? names.get(deployment.name) }
-        : {}),
+      project: names.get(deployment.name) ?? `app:${deployment.name}`,
       ...(kind === 'web' && deployment.port ? { address: `https://${deployment.name}.local` } : {}),
       ...(release
         ? { release: release.id, releasedAt: release.releasedAt, source: release.release.source }
@@ -380,7 +359,12 @@ async function collectLive(owner: string): Promise<LiveResponse> {
 }
 
 export async function getLive(owner: string): Promise<LiveResponse> {
-  const releases = JSON.stringify(list('v2-project-current', owner));
+  const releases = JSON.stringify([
+    list('v2-project-current', owner),
+    getSqlite()!
+      .prepare('SELECT application, project_id FROM project_applications WHERE owner=?')
+      .all(owner),
+  ]);
   const cached = refreshes.get(owner);
   const previous = cached?.releases === releases ? cached : undefined;
   if (previous?.pending) return previous.pending;

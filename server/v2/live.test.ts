@@ -396,8 +396,22 @@ test('Live exposes project membership, catalog origin and immutable source metad
   assert.equal(apps.find((app: any) => app.appId === 'forma-web').release, release.id);
   assert.equal(apps.find((app: any) => app.appId === 'forma-jobs').project, 'forma-project');
   assert.equal(apps.find((app: any) => app.appId === 'photos').fromDiscover, true);
-  assert.equal(apps.find((app: any) => app.appId === 'unlinked').project, undefined);
+  assert.equal(apps.find((app: any) => app.appId === 'unlinked').project, 'app:unlinked');
   assert.equal(apps.find((app: any) => app.appId === 'unlinked').fromDiscover, undefined);
+  const { projectsForOwner, unlinkedProjectApps } = await import('./projects.ts');
+  const projects = await projectsForOwner(username);
+  assert.equal(projects.find((project) => project.id === 'app:photos')?.stage, 'maintained');
+  assert.equal(projects.find((project) => project.id === 'forma-project')?.stage, 'active');
+  assert.deepEqual(
+    (await unlinkedProjectApps(username)).map((app) => app.name),
+    ['unlinked'],
+  );
+  save('project', username, { id: 'forma-project', name: 'forma', stage: 'done' });
+  assert.equal(
+    (await projectsForOwner(username)).find((project) => project.id === 'forma-project')?.stage,
+    'done',
+  );
+
   const detail = await (
     await fetch(origin + '/live/forma-web', { headers: provenanceHeaders })
   ).json();

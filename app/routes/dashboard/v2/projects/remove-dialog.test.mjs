@@ -14,6 +14,7 @@ test('Remove project dialog Cancel uses quiet styling and closes the dialog', as
     '../data/time': { formatTime: () => '' },
     './routing': { projectSegment: (id) => id },
     './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+    './repository-connect.client': { NoRepository: 'NoRepository' },
   });
   const render = () =>
     h.render(h.exports.ProjectConfiguration, {
@@ -67,6 +68,7 @@ for (const entry of cases) {
         '../data/time': { formatTime: () => '' },
         './routing': { projectSegment: (id) => id },
         './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+        './repository-connect.client': { NoRepository: 'NoRepository' },
       });
       const project = {
         id: 'gym',
@@ -107,6 +109,7 @@ test('Remove project uses actual names and existing list formatting for more tha
     '../data/time': { formatTime: () => '' },
     './routing': { projectSegment: (id) => id },
     './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+    './repository-connect.client': { NoRepository: 'NoRepository' },
   });
   const project = {
     id: 'recipes',
@@ -140,6 +143,7 @@ test('Docker error leaves the dialog open, confirmation retained and removal ava
     '../data/time': { formatTime: () => '' },
     './routing': { projectSegment: (id) => id },
     './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+    './repository-connect.client': { NoRepository: 'NoRepository' },
   });
   const render = () =>
     h.render(h.exports.ProjectConfiguration, {

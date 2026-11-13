@@ -4,9 +4,7 @@ import { useLocation, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
   Banner,
-  Dialog,
   Empty,
-  Field,
   Glyph,
   Group,
   Head,
@@ -18,7 +16,7 @@ import {
   Tabs,
 } from '@/components/ui';
 import type { LiveResponse, Project, Release } from '../../../../../shared/v2/contracts';
-import { request, useData, type Overview, type Work } from './data';
+import { useData, type Overview, type Work } from './data';
 import { appPath, appTabItems, projectPath, projectSegment, projectTabItems } from './routing';
 import { AppOverview, Health, ReleaseList } from './app.client';
 import { ProjectCode, ProjectIssues } from './code.client';
@@ -29,20 +27,16 @@ import { AppRequest, AppRequests } from './requests.client';
 import { AppPerformance } from './performance.client';
 import { formatRequestClock, type RequestDetail } from './requests';
 import './projects.css';
+import { AddExistingAppDialog, NoRepository } from './repository-connect.client';
+import { projectRuntime } from './presentation';
 import { NewProjectDialog } from './new-project.client';
-import { ProjectStart } from './project-start.client';
+import { ProjectPushCode, ProjectStart } from './project-start.client';
 import { formatTime } from '../data/time';
-import { remembered, useInbox, useResource } from '../data/hooks';
+import { remembered, useCoordinatorName, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
 import { parsePatch } from '../tasks/api';
-import {
-  appAddress,
-  projectHealth,
-  releaseLabel,
-  repositoryName,
-  runningSubtitle,
-} from '../live/presentation';
+import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
 
 function Header({
   title,
@@ -141,6 +135,7 @@ function Account() {
   );
 }
 function ProjectList() {
+  const coordinator = useCoordinatorName();
   const projects = useData<{ projects: Project[] }>('/api/v2/projects');
   const live = useResource<LiveResponse>('/api/v2/live');
   const [open, setOpen] = useState(false);
@@ -152,7 +147,9 @@ function ProjectList() {
           <div className="dl-page-head">
             <div className="dl-t">
               <h1 className="dl-title">Projects</h1>
-              <span className="dl-meta">A repository and everything it runs.</span>
+              <span className="dl-meta">
+                Active projects grow. Maintained projects get fixes and updates. Done projects rest.
+              </span>
             </div>
             <span className="dl-end">
               <a className="dl-btn secondary" href="/dashboard/discover">
@@ -173,38 +170,57 @@ function ProjectList() {
           {projects.data?.projects.length === 0 && (
             <Empty title="No projects yet">Create a project from a repository.</Empty>
           )}
-          <Group>
-            {projects.data?.projects.map((project) => {
-              const apps = live.data?.computers
-                .flatMap((computer) => computer.apps)
-                .filter((app) => project.apps.some((entry) => entry.id === app.appId));
-              const health = projectHealth(apps ?? []);
-              return (
-                <Item
-                  key={project.id}
-                  lead={
-                    <Glyph kind="plain">
-                      <Icon name="folder" size={12} />
-                    </Glyph>
-                  }
-                  title={project.name}
-                  description={
-                    project.apps.length > 1
-                      ? `${project.apps.length} apps${apps?.[0]?.release ? ` · release ${releaseLabel(apps[0].release, apps[0].source)}` : ''}`
-                      : project.apps.length
-                        ? apps?.[0]?.address || '1 app'
-                        : 'Repository only · no app'
-                  }
-                  end={
-                    project.apps.length && health ? (
-                      <Status kind={health.kind}>{health.label}</Status>
-                    ) : undefined
-                  }
-                  href={projectPath(project.id)}
-                />
-              );
-            })}
-          </Group>
+          {(['active', 'maintained', 'done'] as const).map((stage) => {
+            const rows =
+              projects.data?.projects.filter((project) => (project.stage || 'active') === stage) ||
+              [];
+            if (!rows.length) return null;
+            const label = { active: 'Active', maintained: 'Maintained', done: 'Done' }[stage];
+            return (
+              <section className="dl-section" key={stage}>
+                <h2 className="dl-section-title">{label}</h2>
+                <Group>
+                  {rows.map((project) => {
+                    const runtime = projectRuntime(project, live.data ?? undefined, coordinator);
+                    return (
+                      <Item
+                        key={project.id}
+                        title={`${project.name} · ${label}`}
+                        description={
+                          stage === 'done'
+                            ? undefined
+                            : project.fromDiscover
+                              ? 'App from Discover'
+                              : project.id.startsWith('app:')
+                                ? 'No repository · shipped from a folder'
+                                : project.apps.length > 1
+                                  ? `${project.apps.length} apps`
+                                  : project.apps.length
+                                    ? '1 app'
+                                    : 'Repository only · no app'
+                        }
+                        end={
+                          stage !== 'done' && (
+                            <span className="v2-project-runtime">
+                              {'kind' in runtime ? (
+                                <Status kind={runtime.kind}>{runtime.label}</Status>
+                              ) : (
+                                <span className="dl-meta">{runtime.label}</span>
+                              )}
+                              {'where' in runtime && (
+                                <span className="dl-meta">{runtime.where}</span>
+                              )}
+                            </span>
+                          )
+                        }
+                        href={projectPath(project.id)}
+                      />
+                    );
+                  })}
+                </Group>
+              </section>
+            );
+          })}
         </div>
       </div>
       <NewProjectDialog
@@ -242,9 +258,7 @@ function ProjectPage({
     `/api/v2/projects/${projectSegment(projectKey)}/releases`,
   );
   const [add, setAdd] = useState(false);
-  const [appName, setAppName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const available = useData<{ apps: Project['apps'] }>('/api/v2/projects/unlinked-apps');
   const inbox = useInbox();
   const workspace = useResource<WorkspaceState>('/api/workspace/state');
   const live = useResource<LiveResponse>('/api/v2/live');
@@ -357,22 +371,6 @@ function ProjectPage({
               pipelines: 'Pipelines',
               settings: 'Settings',
             }[section] ?? 'Overview');
-  async function addApp() {
-    setBusy(true);
-    setError('');
-    try {
-      await request(`/api/v2/projects/${projectSegment(projectKey)}/apps`, {
-        method: 'POST',
-        body: JSON.stringify({ app: appName }),
-      });
-      setAdd(false);
-      overview.refresh();
-    } catch (error) {
-      setError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <>
       <Header
@@ -456,7 +454,11 @@ function ProjectPage({
                 {section === 'pipelines' && data.repository?.deployment?.pipeline ? (
                   <ProjectPipelines projectId={project.id} />
                 ) : section === 'code' ? (
-                  <ProjectCode overview={data} />
+                  data.repository?.empty ? (
+                    <ProjectPushCode project={project} overview={data} />
+                  ) : (
+                    <ProjectCode overview={data} />
+                  )
                 ) : section === 'issues' ? (
                   <ProjectIssues overview={data} refresh={overview.refresh} />
                 ) : section === 'settings' ? (
@@ -494,10 +496,16 @@ function ProjectPage({
                         />
                       ))}
                     </Group>
-                    <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                    {data.repository && (
+                      <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                    )}
                   </>
                 ) : starting ? (
-                  <ProjectStart project={project} overview={data} />
+                  <ProjectStart
+                    project={project}
+                    overview={data}
+                    addApp={available.data?.apps.length ? () => setAdd(true) : undefined}
+                  />
                 ) : single ? (
                   <>
                     <AppOverview
@@ -507,13 +515,18 @@ function ProjectPage({
                       releases={releases}
                       single
                     />
+                    {!project.fromDiscover && !data.repository && !data.repositoryError && (
+                      <NoRepository project={project} />
+                    )}
                     {!data.pulls.length && !data.issues.length && (
                       <p className="dl-meta">
                         Pull requests and issues get their own tabs once there are some. Add a
                         second app and an Apps tab appears.
                       </p>
                     )}
-                    <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                    {data.repository && (
+                      <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
+                    )}
                   </>
                 ) : (
                   <>
@@ -632,7 +645,7 @@ function ProjectPage({
                       </section>
                       <ReleaseList project={project} releases={releases} />
                     </div>
-                    {project.apps.length < 2 && (
+                    {project.apps.length < 2 && data.repository && (
                       <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
                     )}
                   </>
@@ -642,39 +655,16 @@ function ProjectPage({
           )}
         </div>
       </div>
-      <Dialog
-        open={add}
-        onClose={() => {
-          if (!busy) setAdd(false);
-        }}
-        title="Add an app to this project"
-        actions={
-          <>
-            <Action disabled={busy} onClick={() => setAdd(false)}>
-              Cancel
-            </Action>
-            <Action
-              variant="primary"
-              disabled={!appName}
-              loading={busy}
-              onClick={() => void addApp()}
-            >
-              Add app
-            </Action>
-          </>
-        }
-      >
-        <p>
-          Enter an existing app's name. Apps already in another repository project must stay with
-          that project.
-        </p>
-        <Field
-          label="App name"
-          value={appName}
-          onChange={(event) => setAppName(event.target.value)}
+      {add && project && (
+        <AddExistingAppDialog
+          project={project}
+          onClose={() => setAdd(false)}
+          onAdded={() => {
+            overview.refresh();
+            available.refresh();
+          }}
         />
-        {error && <Banner title={error} />}
-      </Dialog>
+      )}
     </>
   );
 }

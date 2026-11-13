@@ -34,6 +34,7 @@ import './style.css';
 import {
   appAddress,
   appHealthLabel,
+  projectOrigin,
   latestError,
   releaseLabel,
   repositoryName,
@@ -321,14 +322,13 @@ function RollbackAction({ item, refresh }: { item: InboxItem; refresh: () => voi
   );
 }
 function ProjectOrigin({ app, names }: { app: LiveApp; names: Record<string, string> }) {
-  return app.project && !app.project.startsWith('app:') ? (
-    <a className="dl-link" href={projectPath(app.project)}>
-      {names[app.project] ?? 'Unavailable'}
+  const origin = projectOrigin(app, names);
+  return origin.href ? (
+    <a className="dl-link" href={origin.href}>
+      {origin.label}
     </a>
-  ) : app.fromDiscover ? (
-    'From Discover'
   ) : (
-    'No project'
+    origin.label
   );
 }
 function Computer({

@@ -3,28 +3,22 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { once } from 'node:events';
+import { routeFetch } from '../v2/test-request.ts';
 import { randomUUID } from 'node:crypto';
 const directory = mkdtempSync(join(tmpdir(), 'repository-settings-'));
 process.env.DEPLOY_DATA_DIR = directory;
 const { workspaceApi } = await import('./api.ts');
 const { save, get, db, events } = await import('./store.ts');
-const server = createServer(
-  (req, res) =>
-    void workspaceApi(
-      req,
-      res,
-      req.headers['x-test-owner'] === 'bob' ? 'bob' : 'alice',
-      req.headers['x-test-worker'] ? 'worker' : undefined,
-    ),
+const fetch = routeFetch((req, res) =>
+  workspaceApi(
+    req,
+    res,
+    req.headers['x-test-owner'] === 'bob' ? 'bob' : 'alice',
+    req.headers['x-test-worker'] ? 'worker' : undefined,
+  ),
 );
-server.listen(0, '127.0.0.1');
-await once(server, 'listening');
-const origin = `http://127.0.0.1:${(server.address() as any).port}`;
-after(async () => {
-  server.close();
-  await once(server, 'close');
+const origin = 'http://127.0.0.1:5180';
+after(() => {
   db.close();
   rmSync(directory, { recursive: true, force: true });
 });

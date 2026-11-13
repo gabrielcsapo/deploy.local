@@ -1,24 +1,12 @@
 'use client';
 import './projects.css';
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { Action, Banner, Dialog, Field, Glyph, Group, Icon, Item } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import type { RepositoryPreview } from '../../../../../server/v2/start';
 import { repositoryAddress } from '../../../../../shared/repository-address';
 import { useCoordinatorName } from '../data/hooks';
-import { request } from './data';
-
-// The host never changes while a page is open, so there is nothing to subscribe to.
-const subscribeToNothing = () => () => {};
-
-/** The address bar's host, or nothing on the server, which has no window to read it from. */
-function useBrowserHost() {
-  return useSyncExternalStore(
-    subscribeToNothing,
-    () => window.location.host,
-    () => '',
-  );
-}
+import { request, useData, useBrowserHost } from './data';
 
 /**
  * New project: a name, and a remote to keep in sync if there is one. Every project is hosted on
@@ -34,6 +22,9 @@ export function NewProjectDialog({
   onCreated: (project: Project) => void | Promise<void>;
 }) {
   const coordinator = useCoordinatorName();
+  const available = useData<{ apps: Project['apps'] }>(
+    open ? '/api/v2/projects/unlinked-apps' : undefined,
+  );
   const host = useBrowserHost();
   const [name, setName] = useState('');
   const [source, setSource] = useState('');
@@ -45,6 +36,8 @@ export function NewProjectDialog({
   const folder = remote.startsWith('/');
   const called = name.trim() || 'it';
   const address = repositoryAddress(name.trim());
+  const existing = available.data?.apps.some((app) => app.name === name.trim());
+  const [operation, setOperation] = useState(() => crypto.randomUUID());
   async function inspect() {
     setInspecting(true);
     setError('');
@@ -62,15 +55,16 @@ export function NewProjectDialog({
     }
   }
   async function create() {
+    if (busy) return;
     setBusy(true);
     setError('');
     try {
-      const project = await request<Project>('/api/workspace/projects', {
+      const project = await request<Project>('/api/v2/projects', {
         method: 'POST',
         body: JSON.stringify({
           name,
           sourcePath: remote,
-          operationId: crypto.randomUUID(),
+          operationId: operation,
         }),
       });
       await onCreated(project);
@@ -89,7 +83,7 @@ export function NewProjectDialog({
       className="v2-new-project-dialog"
       actions={
         <>
-          <Action disabled={busy} onClick={onClose}>
+          <Action variant="quiet" disabled={busy} onClick={onClose}>
             Cancel
           </Action>
           <Action
@@ -98,7 +92,7 @@ export function NewProjectDialog({
             loading={busy}
             onClick={() => void create()}
           >
-            Create project
+            {existing ? `Add repository to ${name.trim()}` : 'Create project'}
           </Action>
         </>
       }
@@ -115,14 +109,21 @@ export function NewProjectDialog({
             label="Name"
             value={name}
             required
-            onChange={(event) => setName(event.target.value)}
+            disabled={busy}
+            onChange={(event) => {
+              setName(event.target.value);
+              setOperation(crypto.randomUUID());
+            }}
           />
           {address && host && (
             <p className="dl-meta v2-field-help">
-              Hosted on deploy.local at{' '}
+              {existing
+                ? `${name.trim()} is already an app here, with no repository. This adds one to it at `
+                : 'Hosted on deploy.local at '}
               <span className="dl-mono">
                 {host}/{address}.git
               </span>
+              {existing && ' instead of starting a second project.'}
             </p>
           )}
         </div>
@@ -134,16 +135,17 @@ export function NewProjectDialog({
               </>
             }
             value={source}
-            disabled={inspecting}
+            disabled={inspecting || busy}
             className="dl-mono"
             placeholder={`git@github.com:you/${address || 'app'}.git or a folder on ${coordinator}`}
             onChange={(event) => {
               setSource(event.target.value);
+              setOperation(crypto.randomUUID());
               setPreview(undefined);
             }}
           />
           <p className="dl-meta v2-field-help">
-            {!remote
+            {existing || !remote
               ? `Leave it empty to keep ${called} only on deploy.local. You can add a remote later in Settings.`
               : folder
                 ? `deploy.local hosts ${called} and fetches from this folder on ${coordinator} when you sync. Nothing runs until you create the project.`
@@ -153,7 +155,7 @@ export function NewProjectDialog({
         {remote && !preview && (
           <Action
             className="v2-new-project-inspect"
-            disabled={inspecting}
+            disabled={inspecting || busy}
             loading={inspecting}
             onClick={() => void inspect()}
           >

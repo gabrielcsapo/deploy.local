@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { createServer } from 'node:http';
+import { routeFetch } from './test-request.ts';
 import {
   projectDocumentUrl,
   projectPath,
@@ -40,27 +40,10 @@ workspace.save('project', 'owner', {
 store.saveDeployment({ name: 'web', username: 'owner' });
 store.saveDeployment({ name: 'sync', username: 'owner' });
 store.saveDeployment({ name: 'private', username: 'other' });
-const server = createServer(
-  (req, res) =>
-    void v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') })),
+const fetch = routeFetch((req, res) =>
+  v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') })),
 );
-for (let port = 5180; port <= 5199; port++) {
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const failed = (error: Error) => reject(error);
-      server.once('error', failed);
-      server.listen(port, '127.0.0.1', () => {
-        server.off('error', failed);
-        resolve();
-      });
-    });
-    break;
-  } catch (error: any) {
-    if (error.code !== 'EADDRINUSE' || port === 5199) throw error;
-  }
-}
-const address = server.address();
-const origin = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 5187}`;
+const origin = 'http://127.0.0.1:5180';
 async function api(
   path: string,
   method = 'GET',
@@ -76,8 +59,6 @@ async function api(
   return { status: response.status, body: await response.json() };
 }
 after(async () => {
-  server.closeAllConnections();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
   store._resetDb();
   workspace.db.close();
   rmSync(root, { recursive: true, force: true });
@@ -507,4 +488,248 @@ test('failed removal keeps membership, addresses and a durable retry receipt', a
   assert.equal((await resolveProject('stop-owner', project.id)).apps.length, 1);
   await removeProject('stop-owner', project, project.name, { async stopApp() {} });
   assert.equal(workspace.list('v2-project-removal', 'stop-owner').length, 0);
+});
+
+test('Add repository keeps configuration, encrypted secrets, releases, package references and old links', async () => {
+  const owner = 'joining';
+  store.saveDeployment({ name: 'pantry', username: owner, port: 5188 });
+  const old = await resolveProject(owner, 'app:pantry');
+  putProjectSettings(owner, old, {
+    values: [
+      { key: 'MODE', value: 'folder' },
+      { app: 'pantry', key: 'MODE', value: 'override' },
+    ],
+  });
+  putProjectSecret(owner, old, 'TOKEN', { value: 'keep-this-secret' });
+  workspace.save('v2-project-policy', owner, { id: old.id, keepReleases: 3 });
+  workspace.save('v2-release', owner, {
+    id: 'pantry-release',
+    project: old,
+    release: {
+      id: 'pantry-release',
+      projectId: old.id,
+      state: 'live',
+      apps: [{ appId: 'pantry', to: 'same-artifact' }],
+      source: { kind: 'ship', ref: 'main' },
+      steps: [],
+      migrations: [],
+    },
+  });
+  workspace.save('v2-project-current', owner, { id: old.id, releaseId: 'pantry-release' });
+  workspace.save('v2-rollback', owner, {
+    id: 'pantry-rollback',
+    rollback: { projectId: old.id, steps: [], from: 'old', to: 'new' },
+  });
+  workspace.save('v2-approval', owner, { id: 'pantry-rule', projectId: old.id });
+  workspace.save('v2-inbox-native', owner, { id: 'pantry-inbox', item: { projectId: old.id } });
+  const database = store.getSqlite()!;
+  database
+    .prepare('INSERT INTO package_pins VALUES(?,?,?,?,?)')
+    .run('npm', 'pkg@1', old.id, 'pantry-release', 'release');
+  database
+    .prepare('INSERT INTO package_project_copies VALUES(?,?,?,?)')
+    .run(owner, old.id, 'abc', 'today');
+  database
+    .prepare('INSERT INTO package_project_requirements VALUES(?,?,?,?,?)')
+    .run(owner, old.id, 'pkg@1', 'pkg', '1');
+  const before = store.getDeployment('pantry');
+  const headers = { 'x-test-owner': owner };
+  const body = { operationId: 'add-pantry', sourcePath: '' };
+  const added = await api('/projects/app%3Apantry/repository', 'POST', body, headers);
+  assert.equal(added.status, 202, JSON.stringify(added.body));
+  const project = added.body;
+  assert.equal(project.name, 'pantry');
+  assert.notEqual(project.id, old.id);
+  assert.deepEqual(
+    project.apps.map((app: any) => app.name),
+    ['pantry'],
+  );
+  assert.deepEqual(store.getDeployment('pantry'), before, 'the running app is not mutated');
+  assert.equal((await resolveProject(owner, old.id)).id, project.id);
+  assert.equal((await projectsForOwner(owner)).length, 1);
+  assert.equal(
+    (await api('/projects/app%3Apantry/overview', 'GET', undefined, headers)).body.project.id,
+    project.id,
+  );
+  const retry = await api('/projects/app%3Apantry/repository', 'POST', body, headers);
+  assert.equal(retry.body.id, project.id);
+  const resolved = configuration.resolveApplicationConfiguration({
+    deploymentName: 'pantry',
+    specDigest: 'sha256:pantry',
+    declarations: {
+      TOKEN: { type: 'secret', required: true, scope: 'application' },
+      MODE: { type: 'string', required: true, scope: 'application' },
+    },
+  });
+  assert.equal(resolved.values.TOKEN, 'keep-this-secret');
+  assert.equal(resolved.values.MODE, 'override');
+  assert.equal(
+    JSON.stringify(readProjectSettings(owner, project)).includes('keep-this-secret'),
+    false,
+  );
+  assert.equal(workspace.list('v2-project-policy', owner)[0].id, project.id);
+  assert.equal(workspace.list('v2-project-policy', owner)[0].keepReleases, 3);
+  const release = workspace.list('v2-release', owner)[0];
+  assert.equal(release.release.projectId, project.id);
+  assert.equal(release.project.id, project.id);
+  assert.equal(workspace.list('v2-rollback', owner)[0].rollback.projectId, project.id);
+  assert.equal(workspace.list('v2-approval', owner)[0].projectId, project.id);
+  assert.equal(workspace.list('v2-inbox-native', owner)[0].item.projectId, project.id);
+  for (const table of [
+    'project_applications',
+    'project_configuration',
+    'packages',
+    'package_pins',
+    'package_project_copies',
+    'package_project_requirements',
+  ])
+    assert.equal(
+      database.prepare(`SELECT 1 FROM ${table} WHERE project_id=?`).get(old.id),
+      undefined,
+      table,
+    );
+  assert.equal(
+    (
+      database.prepare('SELECT project_id FROM package_pins WHERE key=?').get('pkg@1') as {
+        project_id: string;
+      }
+    ).project_id,
+    project.id,
+  );
+  const { getLive } = await import('./live.ts');
+  assert.equal(
+    (await getLive(owner)).computers.flatMap((computer) => computer.apps)[0].project,
+    project.id,
+  );
+  assert.equal(
+    (await api(`/projects/${project.id}/repository`, 'POST', { operationId: 'again' }, headers))
+      .status,
+    409,
+  );
+  assert.equal(
+    (await api('/projects/app%3Apantry/repository', 'POST', { operationId: 'private' })).status,
+    404,
+  );
+});
+
+test('New project attaches a matching folder app, leaves other names alone and refuses conflicting membership', async () => {
+  const owner = 'new-project-owner';
+  const headers = { 'x-test-owner': owner };
+  store.saveDeployment({ name: 'recipes', username: owner });
+  const list = await api('/projects/unlinked-apps', 'GET', undefined, headers);
+  assert.deepEqual(
+    list.body.apps.map((app: any) => app.name),
+    ['recipes'],
+  );
+  const result = await api(
+    '/projects',
+    'POST',
+    { name: ' recipes ', operationId: 'new-recipes' },
+    headers,
+  );
+  assert.equal(result.status, 202, JSON.stringify(result.body));
+  assert.deepEqual(
+    result.body.apps.map((app: any) => app.name),
+    ['recipes'],
+  );
+  assert.equal((await projectsForOwner(owner)).length, 1);
+  assert.deepEqual((await api('/projects/unlinked-apps', 'GET', undefined, headers)).body.apps, []);
+  const other = await api(
+    '/projects',
+    'POST',
+    { name: 'other-recipe', operationId: 'new-other' },
+    headers,
+  );
+  assert.equal(other.status, 202);
+  assert.deepEqual(other.body.apps, []);
+  assert.equal(
+    (await api(`/projects/${other.body.id}/apps`, 'POST', { app: 'recipes' }, headers)).status,
+    409,
+  );
+  assert.equal(
+    (await api(`/projects/${result.body.id}/apps`, 'POST', { app: 'recipes' }, headers)).status,
+    409,
+  );
+  assert.equal(
+    (await api('/projects', 'POST', { name: 'recipes', operationId: 'duplicate' }, headers)).status,
+    400,
+  );
+});
+
+test('legacy New project API also joins matching apps and replays creation safely', async () => {
+  const { workspaceApi } = await import('../workspace/api.ts');
+  const legacy = routeFetch((req, res) => workspaceApi(req, res, 'legacy-create'));
+  store.saveDeployment({ name: 'legacy-pantry', username: 'legacy-create' });
+  const init = {
+    method: 'POST',
+    body: JSON.stringify({ name: 'legacy-pantry', operationId: 'legacy-create' }),
+  };
+  const response = await legacy(`${origin}/api/workspace/projects`, init);
+  assert.equal(response.status, 202);
+  const project = await response.json();
+  assert.equal((await resolveProject('legacy-create', project.id)).apps[0].name, 'legacy-pantry');
+  assert.equal(
+    (await (await legacy(`${origin}/api/workspace/projects`, init)).json()).id,
+    project.id,
+  );
+  assert.equal((await projectsForOwner('legacy-create')).length, 1);
+});
+
+test('joining an app preserves both current releases when the destination already runs an app', async () => {
+  const owner = 'two-releases';
+  workspace.save('project', owner, {
+    id: 'two-project',
+    name: 'two',
+    repositoryStatus: 'preparing',
+  });
+  for (const name of ['first-current', 'second-current']) {
+    store.saveDeployment({ name, username: owner });
+    const project = await resolveProject(owner, `app:${name}`);
+    workspace.save('v2-release', owner, {
+      id: name,
+      release: {
+        id: name,
+        projectId: project.id,
+        apps: [{ appId: name }],
+        steps: [],
+        state: 'live',
+      },
+    });
+    workspace.save('v2-project-current', owner, { id: project.id, releaseId: name });
+    await addProjectApplication(owner, 'two-project', name);
+  }
+  const { currentProjectReleases, projectReleases } = await import('./releases.ts');
+  assert.equal(currentProjectReleases(owner).length, 2);
+  assert.equal(projectReleases(owner, 'two-project').length, 2);
+  assert.deepEqual(
+    workspace.list('v2-project-current', owner).map((row) => row.id),
+    ['two-project'],
+  );
+});
+
+test('failed and racing repository additions leave one project and do not orphan the app', async () => {
+  const owner = 'racing';
+  store.saveDeployment({ name: 'racing-app', username: owner });
+  const headers = { 'x-test-owner': owner };
+  workspace.save('v2-project-run', owner, { id: 'app:racing-app', apps: ['racing-app'] });
+  assert.equal(
+    (
+      await api(
+        '/projects/app%3Aracing-app/repository',
+        'POST',
+        { operationId: 'blocked' },
+        headers,
+      )
+    ).status,
+    409,
+  );
+  assert.equal(workspace.list('project', owner).length, 0);
+  workspace.remove('v2-project-run', owner, 'app:racing-app');
+  const results = await Promise.all(
+    ['race-one', 'race-two'].map((operationId) =>
+      api('/projects', 'POST', { name: 'racing-app', operationId }, headers),
+    ),
+  );
+  assert.equal(results.filter((result) => result.status === 202).length, 1);
+  assert.equal((await projectsForOwner(owner)).length, 1);
 });
