@@ -32,6 +32,8 @@ import {
   authenticate,
 } from './store.ts';
 import { clearRevokedCookie } from './auth-cookie.ts';
+import { registerPageLoader } from './page-loader.ts';
+import * as pageReaders from './v2/project-page.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
 import { serveInstallScript, serveWindowsInstallScript, serveCliRequest } from './cli-download.ts';
 import { isDesktopDownloadPath, serveDesktopRequest } from './desktop-download.ts';
@@ -113,6 +115,8 @@ async function start(options: BootOptions) {
   const deploymentNames = getAllDeployments().map((d) => d.name);
   ensureCerts(deploymentNames);
 
+  // Before the web app loads: its pages read through this server, not a copy of it.
+  registerPageLoader(pageReaders);
   const client = await options.createClient();
   const handler = apiMiddleware();
   const graphSupervisor = startApplicationGraphSupervisor();

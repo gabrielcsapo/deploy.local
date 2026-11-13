@@ -1,8 +1,4 @@
-import {
-  loadDashboardResources,
-  loadShellResources,
-  canReadProjectMembership,
-} from './dashboard-page.ts';
+import { loadDashboardResources, loadShellResources } from './dashboard-page.ts';
 import { authenticate, getNodes } from '../store.ts';
 import { parseAuthCookie } from '../auth-cookie.ts';
 import { projectsForOwner, resolveProject } from './projects.ts';
@@ -108,9 +104,8 @@ async function load(request: Request): Promise<Page | undefined> {
   // replay boundary afterwards, before reading the page's stored data.
   await loadShellResources(seed, url);
   const projectsPage = !!projectPageURL(request);
-  // The existing project loader retains its reads. Other pages never start Git for membership.
-  if (projectsPage || canReadProjectMembership(owner))
-    await put('/api/v2/live', () => getLive(owner));
+  // The sidebar shows running apps and tasks on every page.
+  await put('/api/v2/live', () => getLive(owner));
   const items = syncInbox(owner);
   seed.cursor = cursor(owner);
   for (const state of ['waiting', 'answered'])
@@ -119,7 +114,10 @@ async function load(request: Request): Promise<Page | undefined> {
       cursor: seed.cursor,
     };
   if (!projectsPage) {
-    await loadDashboardResources(seed, url);
+    await Promise.all([
+      put('/api/workspace/state', () => readWorkspaceState(owner)),
+      loadDashboardResources(seed, url),
+    ]);
     return { seed, url };
   }
   const projects = await projectsForOwner(owner, true).catch(() => undefined);

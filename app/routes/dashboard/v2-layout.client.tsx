@@ -491,9 +491,7 @@ function V2Shell() {
         <CoordinatorNameProvider nodes={data.computers.data?.nodes}>
           <AgentNamesProvider agents={data.agents.data?.agents}>
             {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
-            <Suspense
-              fallback={seed && pathname.startsWith('/dashboard/projects') ? null : <PageLoading />}
-            >
+            <Suspense fallback={seed ? null : <PageLoading />}>
               <Outlet />
             </Suspense>
           </AgentNamesProvider>

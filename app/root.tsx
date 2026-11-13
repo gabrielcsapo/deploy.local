@@ -1,5 +1,5 @@
 import { getRequest } from 'react-flight-router/server';
-import { projectPageOwner, projectPageURL } from '../server/v2/project-page.ts';
+import { pageLoader } from '../server/page-loader.ts';
 import { Suspense } from 'react';
 import './styles.css';
 import designTokens from './design-tokens.json';
@@ -8,7 +8,9 @@ import { GlobalNavigationLoadingBar, RootFallback } from './routes/root.client';
 import { AppProviders } from './components/AppProviders';
 
 export default function RootLayout() {
-  const serverFirst = projectPageURL(getRequest()) && projectPageOwner(getRequest());
+  // A signed-in dashboard page arrives with its data, so it never shows the loading placeholder.
+  const serverFirst =
+    pageLoader().dashboardPageURL(getRequest()) && pageLoader().projectPageOwner(getRequest());
   return (
     <html lang="en">
       <head>

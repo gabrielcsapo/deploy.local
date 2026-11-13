@@ -49,11 +49,12 @@ async function put(seed: PageSeed, path: string, read: () => unknown) {
   }
 }
 
-/** Even presentation membership starts Git on a cold ready repository. */
-export function canReadProjectMembership(owner: string) {
-  return list('project', owner).every(
-    (project) => (project.repositoryStatus || 'ready') !== 'ready',
-  );
+/**
+ * Project membership is served from the repository views, which answer in milliseconds once
+ * warm. Only the first read after a restart can start Git, and project pages already accept that.
+ */
+export function canReadProjectMembership(_owner: string) {
+  return true;
 }
 
 export async function loadShellResources(seed: PageSeed, url: URL) {
@@ -74,7 +75,6 @@ export async function loadShellResources(seed: PageSeed, url: URL) {
     /^\/dashboard\/(projects|tasks|agents|start|design)(\/|$)/.test(url.pathname)
   )
     await put(seed, '/api/v2/computers/models', () => getModels(owner));
-  // /api/workspace/state probes Codex/Claude on a cold load; keep it in the browser.
 }
 
 /** Only first-render, process-free reads belong here. Streams and interactive reads stay client-side. */

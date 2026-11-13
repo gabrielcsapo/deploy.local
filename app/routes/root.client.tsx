@@ -21,7 +21,5 @@ export function GlobalNavigationLoadingBar() {
 /** Project server reads stream without inserting a page skeleton into the document. */
 export function RootFallback({ seededProjects }: { seededProjects: boolean }) {
   const { pathname } = useLocation();
-  return seededProjects && /^\/dashboard\/projects(?:\/|$)/.test(pathname) ? null : (
-    <LoadingState />
-  );
+  return seededProjects && /^\/dashboard(?:\/|$)/.test(pathname) ? null : <LoadingState />;
 }

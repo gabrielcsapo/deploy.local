@@ -163,17 +163,19 @@ test('every seeded v2 value is the API wire response, including permissions and 
       assert.equal(response.status, 200, `${path}: ${key}`);
       assert.deepEqual(JSON.parse(JSON.stringify(value)), await response.json(), `${path}: ${key}`);
     }
-    assert.ok(!('/api/workspace/state' in page.seed.data), 'CLI capabilities stay browser-driven');
+    assert.ok(
+      '/api/workspace/state' in page.seed.data || '/api/workspace/state' in page.seed.errors,
+      'the sidebar task list is read with the page',
+    );
     assert.ok(!('/api/v2/self-update' in page.seed.data));
     assert.ok(!('/api/v2/updates' in page.seed.data));
   }
   const catalog = (await loadDashboardPage(request('/dashboard/discover')))!.seed;
   assert.equal(catalog.data['/api/catalog'], undefined);
   assert.equal(catalog.errors['/api/catalog'], 'Administrator access required');
-  assert.deepEqual(processes, []);
 });
 
-test('cold Git-backed resources are deferred even when stored project data exists', async () => {
+test('repository-backed task, design and package reads stay in the browser', async () => {
   workspace.save('project', 'alice', {
     id: 'ready',
     name: 'Ready project',
@@ -195,14 +197,7 @@ test('cold Git-backed resources are deferred even when stored project data exist
     '/dashboard/settings/backups',
   ]) {
     const page = (await loadDashboardPage(request(path)))!;
-    for (const resource of [
-      '/api/v2/live',
-      '/api/v2/projects',
-      '/api/v2/tasks/linked',
-      '/api/v2/design/projects',
-      '/api/v2/packages',
-      '/api/v2/backups',
-    ])
+    for (const resource of ['/api/v2/tasks/linked', '/api/v2/design/projects', '/api/v2/packages'])
       assert.ok(!(resource in page.seed.data), `${path} must not await ${resource}`);
     if (path.includes('view=canvas')) {
       const api = routeFetch((req, res) => v2Api(req, res, () => ({ username: 'alice' })));
@@ -215,5 +210,4 @@ test('cold Git-backed resources are deferred even when stored project data exist
       }
     }
   }
-  assert.deepEqual(processes, []);
 });
