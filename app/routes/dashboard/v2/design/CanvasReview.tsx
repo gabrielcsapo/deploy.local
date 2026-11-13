@@ -271,7 +271,7 @@ export function CanvasReviewBar({
     <>
       <div ref={bar} className="dl-design-waiting-banner dz-review-bar">
         <span className="dz-review-heading">
-          <strong>{data?.title ?? 'Loading the review…'}</strong>
+          {data ? <strong>{data.title}</strong> : <Skeleton rows={1} label="Loading the review" />}
           {data && !approved && (
             <span>
               {' '}
