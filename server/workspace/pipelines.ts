@@ -250,50 +250,74 @@ export function pipelineCancel(owner: string, projectId: string, pipelineId: str
   });
 }
 export function reconcilePipelines() {
-  db.transaction(() => {
-    for (const row of db
-      .prepare("SELECT owner,data FROM records WHERE kind='pipeline-run'")
-      .all() as any[]) {
-      const run = JSON.parse(row.data);
-      if (terminal.includes(run.status)) continue;
-      const jobs = list('job', row.owner).filter(
-        (job) => job.pipelineId === run.id && !job.packagePublish,
-      );
-      for (const job of jobs) {
-        if (job.status !== 'waiting') continue;
-        const dependencies = jobs.filter((dependency) => job.needs.includes(dependency.name));
-        const status = run.stopRequested
-          ? 'cancelled'
-          : dependencies.some(
-                (dependency) =>
-                  !dependency.pathFiltered &&
-                  ['failed', 'cancelled', 'skipped', 'timed_out'].includes(dependency.status),
-              )
-            ? 'skipped'
-            : dependencies.every(
-                  (dependency) => dependency.status === 'succeeded' || dependency.pathFiltered,
-                )
-              ? 'queued'
-              : 'waiting';
-        if (status !== job.status) {
-          job.status = status;
-          save('job', row.owner, { ...job, updatedAt: now() });
-        }
+  // Most passes change nothing. Look first without the write lock, so a pass with nothing to do
+  // never makes the server wait for the database, and take the lock only to apply a change.
+  if (!reconcile(false)) return;
+  db.transaction(() => reconcile(true)).immediate();
+}
+/** Work out what each open run and its waiting jobs should be; with `apply`, save the changes. */
+function reconcile(apply: boolean) {
+  let changed = false;
+  // Jobs are read once per owner for the whole pass, not once per open run.
+  const jobsByOwner = new Map<string, Map<string, any[]>>();
+  const jobsOf = (owner: string, pipelineId: string) => {
+    let byRun = jobsByOwner.get(owner);
+    if (!byRun) {
+      byRun = new Map();
+      for (const job of list('job', owner)) {
+        if (!job.pipelineId || job.packagePublish) continue;
+        const jobs = byRun.get(job.pipelineId);
+        if (jobs) jobs.push(job);
+        else byRun.set(job.pipelineId, [job]);
       }
-      const status = jobs.some((job) => job.status === 'unknown')
-        ? 'unknown'
-        : jobs.every((job) => terminal.includes(job.status))
-          ? run.stopRequested
-            ? 'cancelled'
-            : jobs.every((job) => job.status === 'succeeded' || job.pathFiltered)
-              ? 'succeeded'
-              : 'failed'
-          : run.stopRequested
-            ? 'cancelling'
-            : jobs.some((job) => job.status === 'running')
-              ? 'running'
-              : 'queued';
-      if (status !== run.status)
+      jobsByOwner.set(owner, byRun);
+    }
+    return byRun.get(pipelineId) ?? [];
+  };
+  for (const row of db
+    .prepare("SELECT owner,data FROM records WHERE kind='pipeline-run'")
+    .all() as any[]) {
+    const run = JSON.parse(row.data);
+    if (terminal.includes(run.status)) continue;
+    const jobs = jobsOf(row.owner, run.id);
+    for (const job of jobs) {
+      if (job.status !== 'waiting') continue;
+      const dependencies = jobs.filter((dependency) => job.needs.includes(dependency.name));
+      const status = run.stopRequested
+        ? 'cancelled'
+        : dependencies.some(
+              (dependency) =>
+                !dependency.pathFiltered &&
+                ['failed', 'cancelled', 'skipped', 'timed_out'].includes(dependency.status),
+            )
+          ? 'skipped'
+          : dependencies.every(
+                (dependency) => dependency.status === 'succeeded' || dependency.pathFiltered,
+              )
+            ? 'queued'
+            : 'waiting';
+      if (status !== job.status) {
+        changed = true;
+        job.status = status;
+        if (apply) save('job', row.owner, { ...job, updatedAt: now() });
+      }
+    }
+    const status = jobs.some((job) => job.status === 'unknown')
+      ? 'unknown'
+      : jobs.every((job) => terminal.includes(job.status))
+        ? run.stopRequested
+          ? 'cancelled'
+          : jobs.every((job) => job.status === 'succeeded' || job.pathFiltered)
+            ? 'succeeded'
+            : 'failed'
+        : run.stopRequested
+          ? 'cancelling'
+          : jobs.some((job) => job.status === 'running')
+            ? 'running'
+            : 'queued';
+    if (status !== run.status) {
+      changed = true;
+      if (apply)
         save('pipeline-run', row.owner, {
           ...run,
           status,
@@ -304,7 +328,8 @@ export function reconcilePipelines() {
             : {}),
         });
     }
-  }).immediate();
+  }
+  return changed;
 }
 export async function scanPipelineTriggers() {
   for (const row of db
@@ -329,6 +354,26 @@ export async function scanPipelineTriggers() {
       save('pipeline-trigger-request', row.owner, { ...request, error: error.message });
     }
   }
+  // Read each owner's observed refs and open pull requests once for the pass. This used to be
+  // read again for every branch of every repository, and every branch was rewritten each second.
+  const seenRefs = new Map<string, Map<string, any>>();
+  const openPulls = new Map<string, any[]>();
+  const refsOf = (owner: string) => {
+    let refs = seenRefs.get(owner);
+    if (!refs) {
+      refs = new Map(list('pipeline-ref', owner).map((entry) => [entry.id, entry]));
+      seenRefs.set(owner, refs);
+    }
+    return refs;
+  };
+  const pullsOf = (owner: string) => {
+    let pulls = openPulls.get(owner);
+    if (!pulls) {
+      pulls = list('pull-request', owner).filter((candidate) => candidate.status === 'open');
+      openPulls.set(owner, pulls);
+    }
+    return pulls;
+  };
   for (const row of db
     .prepare("SELECT owner,data FROM records WHERE kind='project'")
     .all() as any[]) {
@@ -343,10 +388,12 @@ export async function scanPipelineTriggers() {
       for (const line of refs.split('\n').filter(Boolean)) {
         const [ref, commit] = line.split(' ');
         const observationId = project.id + ':' + ref;
-        const previous = list('pipeline-ref', row.owner).find(
-          (entry) => entry.id === observationId,
-        );
-        save('pipeline-ref', row.owner, { id: observationId, projectId: project.id, commit });
+        const previous = refsOf(row.owner).get(observationId);
+        if (previous?.commit !== commit) {
+          const observed = { id: observationId, projectId: project.id, commit };
+          save('pipeline-ref', row.owner, observed);
+          refsOf(row.owner).set(observationId, observed);
+        }
         // Establish a baseline for imports, then process branch changes. Direct push notifications
         // can enqueue the same intent; the commit/ref key deduplicates them.
         if (previous && previous.commit !== commit)
@@ -359,11 +406,9 @@ export async function scanPipelineTriggers() {
             undefined,
             previous.commit,
           );
-        for (const pull of list('pull-request', row.owner).filter(
+        for (const pull of pullsOf(row.owner).filter(
           (candidate) =>
-            candidate.projectId === project.id &&
-            candidate.status === 'open' &&
-            `refs/heads/${candidate.sourceBranch}` === ref,
+            candidate.projectId === project.id && `refs/heads/${candidate.sourceBranch}` === ref,
         ))
           await pipelineTrigger(row.owner, project, ref, commit, 'pull_request', pull.id);
       }
