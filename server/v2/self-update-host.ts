@@ -1,3 +1,4 @@
+import { presentationCommit, optionalCommitText } from '../workspace/repository-views.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SelfUpdateChange } from '../../shared/v2/contracts.ts';
@@ -33,29 +34,38 @@ export function runningRevision(config: ReleaseConfig): string | undefined {
 export async function findSourceRepository(
   repositories: { name: string; path: string }[],
   running: string,
+  presentation = false,
 ) {
   const candidates = repositories
     .filter(({ path }) => path && existsSync(path))
     .sort((a, b) => Number(b.name === 'deploy.local') - Number(a.name === 'deploy.local'));
-  for (const candidate of candidates)
+  for (const candidate of candidates) {
+    const main = presentation
+      ? await presentationCommit(candidate.path, 'refs/heads/main').catch(() => null)
+      : 'refs/heads/main';
     if (
-      (await gitRead(candidate.path, [
+      main &&
+      (await (presentation ? optionalCommitText : gitRead)(candidate.path, [
         'merge-base',
         '--is-ancestor',
         running,
-        'refs/heads/main',
+        main,
       ])) !== null
     )
       return candidate;
+  }
   return undefined;
 }
-export async function changesSince(path: string, running: string) {
-  const main = (await gitRead(path, ['rev-parse', '--verify', 'refs/heads/main^{commit}'])) || '';
+export async function changesSince(path: string, running: string, presentation = false) {
+  const main = presentation
+    ? await presentationCommit(path, 'refs/heads/main').catch(() => '')
+    : (await gitRead(path, ['rev-parse', '--verify', 'refs/heads/main^{commit}'])) || '';
+  const read = presentation && main ? optionalCommitText : gitRead;
   const ahead = Number(
-    (await gitRead(path, ['rev-list', '--first-parent', '--count', `${running}..${main}`])) || 0,
+    (await read(path, ['rev-list', '--first-parent', '--count', `${running}..${main}`])) || 0,
   );
   const changes: SelfUpdateChange[] = (
-    (await gitRead(path, [
+    (await read(path, [
       'log',
       '--first-parent',
       '-n',

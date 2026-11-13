@@ -142,3 +142,78 @@ test('uncommitted computations can consume a view but are not retained', () => {
   value = 1;
   assert.equal(view.read('a').value, 1);
 });
+
+test('immutable results are LRU bounded by count and retained bytes', async () => {
+  const { immutable } = await import('./materialized.ts');
+  let computes = 0;
+  const view = immutable(
+    (key: string) => {
+      computes++;
+      return key;
+    },
+    2,
+    {
+      maxWeight: 5,
+      weigh: (value) => Buffer.byteLength(value),
+    },
+  );
+  view.read('aa');
+  view.read('bb');
+  view.read('aa');
+  assert.equal(computes, 2);
+  view.read('cc'); // Evict bb, most recently used aa survives.
+  view.read('aa');
+  assert.equal(computes, 3);
+  view.read('bb');
+  assert.equal(computes, 4);
+  view.read('cccc'); // Four bytes displace all two-byte entries, despite count < 2.
+  view.read('bb');
+  assert.equal(computes, 6);
+  view.read('oversize');
+  view.read('oversize');
+  assert.equal(computes, 8, 'oversize values are returned but never retained');
+  view.invalidate();
+  view.read('bb');
+  assert.equal(computes, 9);
+});
+
+test('targeted invalidation removes only matching settled and pending entries', async () => {
+  const finish: ((value: number) => void)[] = [];
+  const view = materialized((_key: string) => new Promise<number>((done) => finish.push(done)), {
+    cadenceMs: 1000,
+  });
+  const a = view.read('a');
+  const b = view.read('b');
+  finish[1](2);
+  await b;
+  view.invalidateWhere((key) => key === 'a');
+  finish[0](1);
+  await a;
+  assert.equal(view.read('b'), b);
+  const freshA = view.read('a');
+  assert.notEqual(freshA, a);
+  finish[2](3);
+  assert.equal(await freshA, 3);
+});
+
+test('strict observation cadence includes time spent computing', async () => {
+  let time = 0;
+  let computes = 0;
+  const view = materialized(
+    async () => {
+      computes++;
+      time += 60;
+      return computes;
+    },
+    {
+      cadenceMs: 100,
+      cadenceFromStart: true,
+      clock: () => time,
+    },
+  );
+  assert.equal(await view.read('a'), 1);
+  time = 99;
+  assert.equal(await view.read('a'), 1);
+  time = 100;
+  assert.equal(await view.read('a'), 2);
+});

@@ -12,7 +12,7 @@ import {
   jobOutput,
   listCheckpointMetadata,
 } from '../workspace/store.ts';
-import { gitText } from '../workspace/repository-git.ts';
+import { commitText, presentationCommit } from '../workspace/repository-views.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
 import { mapConversationEvent } from './events.ts';
 import { scrubCheckText } from '../workspace/workspace-verification.ts';
@@ -182,18 +182,22 @@ async function taskSnapshotRoute(res: ServerResponse, owner: string, task: strin
   const snapshot = taskSnapshot(owner, taskId);
   if (snapshot.project) {
     try {
-      const repository = await repositoryInfo(owner, snapshot.project.id);
+      const repository = await repositoryInfo(owner, snapshot.project.id, true);
       if ('defaultBranch' in repository && snapshot.ship && !snapshot.ship.ref)
         snapshot.ship.ref = repository.defaultBranch;
       const pull = snapshot.pulls.at(-1);
       if (pull && pull.status === 'open') {
         const project = get('project', owner, snapshot.project.id);
         snapshot.packages = await mergingPackages(owner, project, pull);
-        const counts = await gitText(project.repositoryPath, [
+        const [base, head] = await Promise.all([
+          presentationCommit(project.repositoryPath, `refs/heads/${pull.targetBranch}`),
+          presentationCommit(project.repositoryPath, `refs/heads/${pull.sourceBranch}`),
+        ]);
+        const counts = await commitText(project.repositoryPath, [
           'rev-list',
           '--left-right',
           '--count',
-          `refs/heads/${pull.targetBranch}...refs/heads/${pull.sourceBranch}`,
+          `${base}...${head}`,
           '--',
         ]);
         const [behind, ahead] = counts.trim().split(/\s+/).map(Number);
@@ -205,7 +209,7 @@ async function taskSnapshotRoute(res: ServerResponse, owner: string, task: strin
   }
   if (snapshot.project) {
     try {
-      const project = (await projectsForOwner(owner)).find(
+      const project = (await projectsForOwner(owner, true)).find(
         (item) => item.id === snapshot.project!.id,
       );
       if (project?.apps.length === 1) {

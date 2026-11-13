@@ -31,13 +31,16 @@ export function groupProjects(
   return result;
 }
 
-export async function projectsForOwner(owner: string): Promise<Project[]> {
+/** GET callers opt into Git views; admission/write callers keep direct reads. Membership is live. */
+export async function projectsForOwner(owner: string, presentation = false): Promise<Project[]> {
   const projects = list('project', owner).map(({ id, name }) => ({ id, name }));
   // Only inspect manifests when their committed main revision changes.
   const links = (
     await Promise.all(
       projects.map(async (project) => {
-        const application = await repositoryApplication(owner, project.id).catch(() => null);
+        const application = await repositoryApplication(owner, project.id, presentation).catch(
+          () => null,
+        );
         return application ? [{ projectId: project.id, application }] : [];
       }),
     )
@@ -138,8 +141,12 @@ export async function projectsForOwner(owner: string): Promise<Project[]> {
   });
 }
 
-export async function resolveProject(owner: string, key: string): Promise<Project> {
-  const projects = await projectsForOwner(owner);
+export async function resolveProject(
+  owner: string,
+  key: string,
+  presentation = false,
+): Promise<Project> {
+  const projects = await projectsForOwner(owner, presentation);
   const byId = projects.find((project) => project.id === key);
   if (byId) return byId;
   const alias = list('v2-project-alias', owner).find((row) => row.id === key);
@@ -371,8 +378,8 @@ export async function addProjectRepository(owner: string, key: string, input: an
   return createRepositoryProject(owner, { ...input, name: project.name }, signature, project.id);
 }
 
-export async function unlinkedProjectApps(owner: string) {
-  return (await projectsForOwner(owner))
+export async function unlinkedProjectApps(owner: string, presentation = false) {
+  return (await projectsForOwner(owner, presentation))
     .filter((project) => project.id.startsWith('app:') && !isDiscoverApp(project.name))
     .flatMap((project) => project.apps);
 }

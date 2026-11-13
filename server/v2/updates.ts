@@ -74,11 +74,12 @@ export async function getUpdates(
     ? await findSourceRepository(
         list('project', owner).map((p) => ({ name: p.name, path: p.repositoryPath })),
         coordinatorRevision,
+        true,
       )
     : undefined;
   const coordinatorAhead =
     ownSource && coordinatorRevision
-      ? (await changesSince(ownSource.path, coordinatorRevision)).ahead
+      ? (await changesSince(ownSource.path, coordinatorRevision, true)).ahead
       : 0;
   return {
     currentVersion: computers.find((c) => c.roles.includes('coordinator'))?.version,

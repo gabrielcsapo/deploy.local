@@ -1,14 +1,11 @@
 import { posix } from 'node:path';
 import { db as workspace } from '../workspace/store.ts';
-import { gitText } from '../workspace/repository-git.ts';
+import { commitText, presentationCommit } from '../workspace/repository-views.ts';
 import { db, packageByName } from './store.ts';
 /** Only evidence for the current PR head is shown. A bumped version alone is not a promise. */
 export async function mergingPackages(owner: string, project: any, pull: any) {
   if (!pull || pull.status !== 'open' || project.owner !== owner) return [];
-  const head = await gitText(project.repositoryPath, [
-    'rev-parse',
-    `refs/heads/${pull.sourceBranch}`,
-  ]);
+  const head = await presentationCommit(project.repositoryPath, `refs/heads/${pull.sourceBranch}`);
   const row = workspace
     .prepare(
       "SELECT data FROM records WHERE kind='pipeline-run' AND owner=? AND json_extract(data,'$.pullId')=? ORDER BY rowid DESC LIMIT 1",
@@ -33,12 +30,12 @@ export async function mergingPackages(owner: string, project: any, pull: any) {
   )
     return [];
   if (spec.paths) {
-    const base = await gitText(project.repositoryPath, [
-      'merge-base',
+    const target = await presentationCommit(
+      project.repositoryPath,
       `refs/heads/${pull.targetBranch}`,
-      head,
-    ]);
-    const changed = await gitText(
+    );
+    const base = await commitText(project.repositoryPath, ['merge-base', target, head]);
+    const changed = await commitText(
       project.repositoryPath,
       ['diff', '--name-only', '--no-renames', '-z', base, head, '--'],
       { limit: 65536 },

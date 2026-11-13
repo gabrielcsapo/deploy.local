@@ -1,3 +1,4 @@
+import { repositoryChanged } from '../git-changes.ts';
 import { createGunzip } from 'node:zlib';
 import { PushResult } from './pipeline-triggers.ts';
 import { spawn } from 'node:child_process';
@@ -106,6 +107,7 @@ export function serveRepositoryGit(
   res.on('drain', () => child.stdout.resume());
   child.once('error', () => fail('Git unavailable', 503));
   child.once('close', (code) => {
+    if (push) repositoryChanged(project.repositoryPath);
     clearTimeout(timeout);
     if (completed) return;
     if (code !== 0 || !started) return fail('Git transfer failed');

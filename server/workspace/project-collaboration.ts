@@ -1,3 +1,4 @@
+import { presentationCommit } from './repository-views.ts';
 import { preferences } from '../v2/auth-store.ts';
 import { pullTaskChecks } from './workspace-checks.ts';
 import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
@@ -166,7 +167,7 @@ async function presentPull(owner: string, pull: any) {
   let head = pull.mergedCommit || pull.closedHeadCommit;
   if (pull.status === 'open') {
     try {
-      head = await resolveCommit(
+      head = await presentationCommit(
         requireRepository(owner, pull.projectId).repositoryPath,
         `refs/heads/${pull.sourceBranch}`,
       );
