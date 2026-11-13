@@ -8,7 +8,7 @@ import { queueTask } from '../workspace/task-workspace.ts';
 import { getModels } from './computers.ts';
 import { onlineTaskWorker } from './task-computer.ts';
 import { createInboxItem, registerInboxAction } from './inbox.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { agentControl } from './phone-preferences.ts';
 import { migrateAgent, nextItemAt, itemProjects } from './agent-foundation.ts';
 import { localDay } from './agent-instructions.ts';

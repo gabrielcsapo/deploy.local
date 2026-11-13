@@ -1,5 +1,5 @@
-import { processResult } from '../process.ts';
-import { gitStringSync } from '../git.ts';
+import { processResult } from '../kernel/process.ts';
+import { gitStringSync } from '../kernel/git.ts';
 import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
 import { workerLoad } from './run-queue.ts';

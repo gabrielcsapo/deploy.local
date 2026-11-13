@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { authDb, grant, readGrant, consume, digest, session } from './auth-store.ts';
 import { serverIdentity } from './setup.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 export function cliLoginStart() {
   const code = randomBytes(6).toString('hex').toUpperCase();

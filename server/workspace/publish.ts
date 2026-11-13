@@ -1,4 +1,4 @@
-import { gitResultSync } from '../git.ts';
+import { gitResultSync } from '../kernel/git.ts';
 import { publishedTaskChecks } from './workspace-checks.ts';
 import { buildCheckpointCommit } from './checkpoint-commit.ts';
 import { publishCheckpoint } from './checkpoint-publish.ts';

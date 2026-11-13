@@ -1,10 +1,10 @@
 /** All request-log connections (control plane, edge, writers, and migration). */
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { openDatabase, type Database } from './sqlite.ts';
+import { openDatabase, type Database } from './kernel/db/sqlite.ts';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { TELEMETRY_SCHEMA } from './telemetry-schema.ts';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 export const REQUEST_RETENTION_DAYS = 90;
 export const ROLLUP_RETENTION_DAYS = 396;

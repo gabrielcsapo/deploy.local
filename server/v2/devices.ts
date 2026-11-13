@@ -3,7 +3,7 @@ import { db as workspaceDb } from '../workspace/store.ts';
 import { randomUUID } from 'node:crypto';
 import { authDb, grant, consume, session } from './auth-store.ts';
 import { serverIdentity } from './setup.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 export function pairDevice(owner: string) {
   const identity = serverIdentity();

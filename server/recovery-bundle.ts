@@ -10,7 +10,7 @@ import {
   verifyCheckpointBlobs,
 } from './workspace/checkpoint-storage.ts';
 import { getRequestsSqlite } from './requests-db.ts';
-import { packageWorkerFile } from './packages/worker-file.ts';
+import { packageWorkerFile } from './kernel/files/worker-file.ts';
 import { Worker } from 'node:worker_threads';
 import {
   createCipheriv,
@@ -39,9 +39,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { openDatabase, type Database } from './sqlite.ts';
+import { openDatabase, type Database } from './kernel/db/sqlite.ts';
 import { putArtifactFile } from './content-store.ts';
-import { deployDataDirectory } from './data-directory.ts';
+import { deployDataDirectory } from './kernel/files/data-directory.ts';
 import { ensureLocalIdentity, sortableId } from './local-site.ts';
 import { decryptSecret, secretAddress } from './secrets.ts';
 import { ensureApplicationRevisionArtifacts, getSqlite } from './store.ts';

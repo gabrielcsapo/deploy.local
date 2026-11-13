@@ -1,4 +1,4 @@
-import type { Database } from '../sqlite.ts';
+import type { Database } from '../kernel/db/sqlite.ts';
 import { getSqlite } from '../store.ts';
 import { CatalogStoreConflictError, type CatalogStoreTransaction } from './store.ts';
 import type { CatalogInstallation, CatalogOperation, CatalogRecoveryPoint } from './types.ts';

@@ -1,9 +1,9 @@
 import { appMeasurements } from './measurements.ts';
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { stateRefresh } from './state-refresh.ts';
 import { projectsForOwner } from './projects.ts';
 import { isDeepStrictEqual } from 'node:util';
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import type {
@@ -29,7 +29,7 @@ import {
 } from '../store.ts';
 import { db, event, list, save } from '../workspace/store.ts';
 import { createInboxItem } from './inbox.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { currentProjectReleases, projectRollbacks, releaseById } from './releases.ts';
 import { requestWorkerRollback } from './releases-api.ts';
 import {

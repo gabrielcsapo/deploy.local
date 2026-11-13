@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { execFileSync } from 'node:child_process';
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 const CERTS_DIR = deployDataPath('certs');
 

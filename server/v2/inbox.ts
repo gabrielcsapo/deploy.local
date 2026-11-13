@@ -1,5 +1,5 @@
 import { stateRefresh } from './state-refresh.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { answerQuestion, taskQuestions } from '../workspace/questions.ts';

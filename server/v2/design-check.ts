@@ -1,5 +1,5 @@
 import type { DesignBuildReport, InboxItem, TaskDesignCheck } from '../../shared/v2/contracts.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { queueMessage, queuedMessage } from '../workspace/queued-message.ts';
 import { createInboxItem, registerInboxSource } from './inbox.ts';

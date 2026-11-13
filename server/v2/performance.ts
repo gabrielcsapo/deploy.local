@@ -2,9 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getDeployment } from '../store.ts';
 import { getRequestsSqlite } from '../requests-db.ts';
 import { readPerformance } from '../telemetry.ts';
-import { sendJson } from '../http.ts';
-import { fail } from '../errors.ts';
-import { dispatch, routes } from '../routes.ts';
+import { sendJson } from '../kernel/http.ts';
+import { fail } from '../kernel/errors.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 
 const route = routes<string>();
 

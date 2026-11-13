@@ -1,4 +1,4 @@
-import { gitResultSync, gitStringSync } from '../git.ts';
+import { gitResultSync, gitStringSync } from '../kernel/git.ts';
 import { copyFileSync, existsSync, lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

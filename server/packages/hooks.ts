@@ -1,6 +1,6 @@
 import { issuePipelinePackageToken } from './pipeline-auth.ts';
 import { readFile } from 'node:fs/promises';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { setPackageHooks } from '../workspace/package-hooks.ts';
 import { computerInstallConfig, applicationInstallConfig } from './builds.ts';
 import { finishJobPins } from './copies.ts';

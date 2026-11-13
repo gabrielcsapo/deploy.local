@@ -1,5 +1,5 @@
 import { loadOrCreateSecretKey, encryptSecret, decryptSecret } from '../secrets.ts';
-import { deployDataDirectory } from '../data-directory.ts';
+import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 import { get, list, save, now, id } from './store.ts';
 
 export const providerIds = ['codex', 'claude', 'compatible'] as const;

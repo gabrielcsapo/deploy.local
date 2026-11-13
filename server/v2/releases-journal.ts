@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { decryptSecret, encryptSecret, loadOrCreateSecretKey } from '../secrets.ts';
 
 /** Runtime journals contain configuration; use the same at-rest protection as agent jobs. */

@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import {
   projectReleasePolicy,
   putProjectReleasePolicy,
@@ -16,7 +16,7 @@ import {
   secretAddress,
   projectSecretAddress,
 } from '../secrets.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { addProjectApplication, resolveProject } from './projects.ts';
 import { logsApi } from './logs.ts';
 

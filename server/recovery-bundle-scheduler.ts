@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Cron } from 'croner';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 import { createRecoveryBundle, recoveryWork } from './recovery-bundle.ts';
 import { getSqlite } from './store.ts';
 

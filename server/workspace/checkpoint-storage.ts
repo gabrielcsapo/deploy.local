@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { Database } from '../sqlite.ts';
+import type { Database } from '../kernel/db/sqlite.ts';
 
 import { checkpointInfo } from './checkpoint-metadata.ts';
 

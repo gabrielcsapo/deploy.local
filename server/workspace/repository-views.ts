@@ -1,12 +1,12 @@
 import { resolve } from 'node:path';
-import { immutable, materialized } from '../materialized.ts';
+import { immutable, materialized } from '../kernel/materialized.ts';
 import {
   noticeRepositoryChange,
   onRepositoryChange,
   repositoryChanged,
   repositoryIdentity,
 } from '../git-changes.ts';
-import { gitRead, gitText, repositoryGit } from '../git.ts';
+import { gitRead, gitText, repositoryGit } from '../kernel/git.ts';
 import { db, get, onRecordChange } from './store.ts';
 import { keyedSlots } from './repository-lock.ts';
 

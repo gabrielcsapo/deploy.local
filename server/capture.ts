@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Readable } from 'node:stream';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 export const REQUEST_BODY_CAP = 16 * 1024;
 export const RESPONSE_BODY_CAP = 64 * 1024;

@@ -1,4 +1,4 @@
-import { immutable } from '../materialized.ts';
+import { immutable } from '../kernel/materialized.ts';
 import { repositoryRefs, commitText } from './repository-views.ts';
 import { sshServerInfo } from './ssh-host.ts';
 import { isAbsolute, resolve } from 'node:path';

@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { openDatabase } from './sqlite.ts';
+import { openDatabase } from './kernel/db/sqlite.ts';
 import { resolve } from 'node:path';
 
 const KEY_BYTES = 32;

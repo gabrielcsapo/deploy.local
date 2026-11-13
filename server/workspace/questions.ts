@@ -1,4 +1,4 @@
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { createHash } from 'node:crypto';
 import { command, db, event, get, id, list, now, save } from './store.ts';
 import { startRun } from './service.ts';

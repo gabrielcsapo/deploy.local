@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import { packageWorkerFile } from './packages/worker-file.ts';
+import { packageWorkerFile } from './kernel/files/worker-file.ts';
 
 export type IntegrityCheck =
   | 'ok'

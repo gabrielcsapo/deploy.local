@@ -17,7 +17,7 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { Worker } from 'node:worker_threads';
-import { packageWorkerFile } from './packages/worker-file.ts';
+import { packageWorkerFile } from './kernel/files/worker-file.ts';
 
 import { COMPLETE_MARKER, DESTINATION_MARKER } from '../shared/backup-copies.ts';
 

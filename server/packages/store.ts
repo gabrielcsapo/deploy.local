@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { getSqlite } from '../store.ts';
-import { deployDataDirectory } from '../data-directory.ts';
+import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 import type { ServerResponse, IncomingMessage } from 'node:http';
 
 export const MAX_FILE = 200 * 1024 * 1024;

@@ -1,7 +1,7 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { projectsApi } from './projects-api.ts';
 import { performanceApi } from './performance.ts';
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import { packagesApi } from '../packages/api.ts';
 import { projectRemovalApi } from './project-removal.ts';
 import { startApi } from './start.ts';
@@ -18,7 +18,7 @@ import { agentsApi } from './agents.ts';
 import { releasesApi } from './releases-api.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { answerInboxAsync, syncInbox } from './inbox.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { tasksApi } from './tasks.ts';
 import { liveApi } from './live.ts';
 import { requestsApi } from './requests.ts';

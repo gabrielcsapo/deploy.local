@@ -2,7 +2,7 @@ import { buildRegistryArgs } from './docker.ts';
 import { CONTAINER_LOG_LIMIT_FLAGS } from './container-log-limit.ts';
 import { registryBuildDocker } from './package-build.ts';
 import { packageHooks } from './workspace/package-hooks.ts';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 import { containerTelemetryEnvironment } from './telemetry-runtime.ts';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';

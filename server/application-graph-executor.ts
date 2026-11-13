@@ -20,7 +20,7 @@ import {
 import { resolvePlacementTarget } from './application-placement-target.ts';
 import type { ProfileLifecycleOperation } from './component-profiles.ts';
 import { getArtifact, putArtifactFile, verifyArtifact } from './content-store.ts';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 import {
   DockerCliGraphAdapter,
   graphNetworkName,

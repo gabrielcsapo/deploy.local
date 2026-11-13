@@ -34,7 +34,7 @@ import {
 } from './store.ts';
 import { pruneOldCaptures } from './capture.ts';
 import { createCoordinatorApplicationBackup } from './application-backups.ts';
-import { deployDataDirectory } from './data-directory.ts';
+import { deployDataDirectory } from './kernel/files/data-directory.ts';
 import { startRecoveryBoundaryScheduler } from './recovery-bundle-scheduler.ts';
 import {
   assertRoomForSnapshots,

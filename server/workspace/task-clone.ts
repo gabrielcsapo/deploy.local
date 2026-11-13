@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitString } from '../git.ts';
+import { gitString } from '../kernel/git.ts';
 
 /** A project with years of history and design renders takes minutes to copy over a slow link. */
 export const CLONE_TIMEOUT_MS = 15 * 60_000;

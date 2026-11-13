@@ -6,8 +6,8 @@ import { parse } from 'yaml';
 import { compileDeployYaml } from '../application-spec.ts';
 import { repositorySource } from '../workspace/repositories.ts';
 import { gitText } from '../workspace/repository-git.ts';
-import { fail } from '../errors.ts';
-import { dispatch, routes } from '../routes.ts';
+import { fail } from '../kernel/errors.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 
 export type RepositoryPreview = {
   found: { name: string; detail: string }[];

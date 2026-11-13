@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import { copyHostname } from '../edge/copies.ts';
 import { ensureCertCoversHost } from '../certs.ts';
 import { notifyCertReload } from '../ipc.ts';
@@ -40,11 +40,11 @@ import {
 } from '../store.ts';
 import { getArtifact } from '../content-store.ts';
 import { handleOperationsRequest } from '../operations-handler.ts';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { getBackupDir } from '../volumes.ts';
 import { db, get, list, now, save } from '../workspace/store.ts';
 import { projectsForOwner } from './projects.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { maintenance } from '../maintenance.ts';
 import {
   assertProjectIdle,
@@ -55,7 +55,7 @@ import {
   type ReleaseRuntime,
 } from './releases.ts';
 import { CoordinatorReleaseRuntime } from './releases-runtime.ts';
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 
 type BackupEntry = {
   name: string;

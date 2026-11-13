@@ -1,5 +1,5 @@
 import { createConnection, type Socket } from 'node:net';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 // Fleet samples and deployment notices share one best-effort connection. Only queue
 // while dialing; failures drop notices so reconnecting never replays old deploys.

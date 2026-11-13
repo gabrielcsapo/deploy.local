@@ -1,4 +1,4 @@
-import { packageWorkerFile } from './worker-file.ts';
+import { packageWorkerFile } from '../kernel/files/worker-file.ts';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { stat, mkdir, mkdtemp, rename, rm, open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';

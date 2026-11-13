@@ -1,5 +1,5 @@
-import { deployDataDirectory, deployDataPath } from '../data-directory.ts';
-import { openDatabase, type Database } from '../sqlite.ts';
+import { deployDataDirectory, deployDataPath } from '../kernel/files/data-directory.ts';
+import { openDatabase, type Database } from '../kernel/db/sqlite.ts';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import {
   existsSync,
@@ -21,7 +21,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { configureCiFence } from '../ci-fence.ts';
 import { assertReleaseMutation } from '../v2/releases-fence.ts';
 import { threadId } from 'node:worker_threads';
-import { withMigrationLock } from './migration-lock.ts';
+import { withMigrationLock } from '../kernel/db/migration-lock.ts';
 
 export const DATA_DIR = deployDataDirectory();
 
@@ -32,6 +32,10 @@ const UPLOADS_DIR = deployDataPath('uploads');
 let _sqlite: Database | null = null;
 
 let _db: ReturnType<typeof drizzle> | null = null;
+
+// Feature bootstrap stays here, outside the kernel's database-open mechanics.
+// Run in registration order after publishing _db: artifact retention re-enters getDb().
+const databaseOpenBootstraps = [backfillApplicationRevisionArtifacts];
 
 export function getDb() {
   if (_db) return _db;
@@ -66,7 +70,7 @@ export function getDb() {
   }
 
   _db = db;
-  backfillApplicationRevisionArtifacts();
+  for (const bootstrap of databaseOpenBootstraps) bootstrap();
   return _db;
 }
 
@@ -200,6 +204,8 @@ export function ensureApplicationRevisionArtifacts(): void {
   backfillApplicationRevisionArtifacts();
 }
 
+// Register the feature fences at import time, as before. Opening a kernel database alone
+// must neither install these policies nor trigger the artifact backfill above.
 configureCiFence(
   (application) => {
     const target = getSqlite()!

@@ -1,5 +1,5 @@
 import { verifyCheckpointBlobs } from './checkpoint-storage.ts';
-import { openDatabase, type Database } from '../sqlite.ts';
+import { openDatabase, type Database } from '../kernel/db/sqlite.ts';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import {

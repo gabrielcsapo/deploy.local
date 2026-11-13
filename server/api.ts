@@ -15,7 +15,7 @@ import { error, json, requireAuth } from './api/shared.ts';
 import { shortGitRoute } from './workspace/api.ts';
 import { npmRegistry } from './packages/npm.ts';
 import { certsExist, getCaCertBuffer } from './certs.ts';
-import { RequestBodyTooLargeError } from './http.ts';
+import { RequestBodyTooLargeError } from './kernel/http.ts';
 import { beginApplicationMutation } from './v2/releases-fence.ts';
 import { getDeployment, logRequest } from './store.ts';
 import { createHotPathHandler } from './edge/proxy.ts';

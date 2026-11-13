@@ -44,11 +44,11 @@ import {
   refreshDeploymentInCache,
   saveDesiredApplicationSpec,
 } from '../store.ts';
-import { deployDataPath } from '../data-directory.ts';
+import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { notifyRouteChanged } from '../ipc.ts';
 import type { ApplicationSpec } from '../application-spec.ts';
 import type { ReleaseBackup, ReleasePlan, ReleaseRuntime } from './releases.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 
 const execFileAsync = promisify(execFile);
 

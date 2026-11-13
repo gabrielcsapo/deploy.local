@@ -1,4 +1,4 @@
-import { openDatabase, type Database } from '../sqlite.ts';
+import { openDatabase, type Database } from '../kernel/db/sqlite.ts';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';

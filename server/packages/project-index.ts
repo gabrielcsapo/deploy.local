@@ -1,4 +1,4 @@
-import { packageWorkerFile } from './worker-file.ts';
+import { packageWorkerFile } from '../kernel/files/worker-file.ts';
 import { repositoryGit } from '../workspace/repository-git.ts';
 import { Worker } from 'node:worker_threads';
 import type { LockfileIndex } from './lockfiles.ts';

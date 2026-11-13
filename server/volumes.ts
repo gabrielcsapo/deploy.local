@@ -1,9 +1,9 @@
-import { execAsync } from './process.ts';
+import { execAsync } from './kernel/process.ts';
 import { assertCiMutation } from './ci-fence.ts';
 import { mkdirSync, existsSync, readdirSync, statSync, rmSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
-import { deployDataPath } from './data-directory.ts';
+import { deployDataPath } from './kernel/files/data-directory.ts';
 
 const VOLUMES_DIR = deployDataPath('volumes');
 const BACKUPS_DIR = deployDataPath('backups');

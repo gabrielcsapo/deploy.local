@@ -113,7 +113,7 @@ test('workspace opens retain incremental vacuum when WAL is requested through th
   reopened.close();
 });
 
-test('only server/sqlite.ts may import the SQLite driver outside tests', () => {
+test('only server/kernel/db/sqlite.ts may import the SQLite driver outside tests', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const violations: string[] = [];
   function visit(directory: string) {
@@ -127,7 +127,7 @@ test('only server/sqlite.ts may import the SQLite driver outside tests', () => {
       if (
         !/\.(?:[cm]?js|tsx?)$/.test(file) ||
         /\.test\./.test(file) ||
-        file === join(root, 'server/sqlite.ts') ||
+        file === join(root, 'server/kernel/db/sqlite.ts') ||
         // The updater runs from the release being replaced and stays free of imports that a
         // half-switched release could break.
         file === join(root, 'scripts/self-update.mjs')

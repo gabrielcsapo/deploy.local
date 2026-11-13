@@ -1,8 +1,8 @@
-import { processResult } from '../process.ts';
+import { processResult } from '../kernel/process.ts';
 import { existsSync, readdirSync, statfsSync } from 'node:fs';
 import { arch, cpus, platform, totalmem } from 'node:os';
 import { dirname } from 'node:path';
-import { deployDataDirectory } from '../data-directory.ts';
+import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 
 import { ensureCoordinatorNode, getNode, getNodes } from '../store.ts';
 import type { CatalogTargetResolver } from './handler.ts';

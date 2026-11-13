@@ -1,6 +1,6 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { requireAdmin, error, json, requireAuth } from './shared.ts';
-import { readBody, RequestBodyTooLargeError } from '../http.ts';
+import { readBody, RequestBodyTooLargeError } from '../kernel/http.ts';
 import { registerUser, loginUser, logoutUser, getUser, changePassword } from '../store.ts';
 
 import { handleOperationsRequest } from '../operations-handler.ts';

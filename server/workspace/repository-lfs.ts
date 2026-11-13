@@ -1,4 +1,4 @@
-import { sendJson } from '../http.ts';
+import { sendJson } from '../kernel/http.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, rename, rm, stat } from 'node:fs/promises';

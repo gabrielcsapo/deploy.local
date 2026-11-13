@@ -3,7 +3,7 @@ import { writeEdgeTelemetry } from './telemetry.ts';
 import { randomUUID } from 'node:crypto';
 import { statfsSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
 
 export interface ImportState {

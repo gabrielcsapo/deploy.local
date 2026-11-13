@@ -1,6 +1,6 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { agentBuildInstallConfig } from '../packages/builds.ts';
-import { readBody, RequestBodyTooLargeError } from '../http.ts';
+import { readBody, RequestBodyTooLargeError } from '../kernel/http.ts';
 import {
   error,
   json,

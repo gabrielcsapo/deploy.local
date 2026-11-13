@@ -1,6 +1,6 @@
 /** SER-only authorization for the computer relay. Attribution comes exclusively from the token. */
 import { createHash } from 'node:crypto';
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getRequestsSqlite } from './requests-db.ts';
 import { authenticateNode, readDeploymentRecord } from './store.ts';

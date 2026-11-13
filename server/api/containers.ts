@@ -1,4 +1,4 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import {
   requireAuth,
   error,
@@ -37,7 +37,7 @@ import { applicationWriterSiteId } from '../application-authority.ts';
 import { emit } from '../events.ts';
 import { acquireDeploySlot } from '../deploy-admission.ts';
 import { getVolumeDir } from '../volumes.ts';
-import { RequestBodyTooLargeError } from '../http.ts';
+import { RequestBodyTooLargeError } from '../kernel/http.ts';
 import { type ApiRouteContext } from './context.ts';
 
 const route = routes<ApiRouteContext>();

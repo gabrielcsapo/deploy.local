@@ -1,4 +1,4 @@
-import type { Database } from '../sqlite.ts';
+import type { Database } from '../kernel/db/sqlite.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 
 export const HEALTH_EVENT_RETENTION_MS = 60 * 60_000;

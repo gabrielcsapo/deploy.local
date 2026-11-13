@@ -1,4 +1,4 @@
-import { gitStringSync } from '../git.ts';
+import { gitStringSync } from '../kernel/git.ts';
 import { prepareAgentInstall, agentEnvironment } from './agent-packages.ts';
 import { secretOutput } from '../../shared/package-install.mjs';
 import { executeBaseUpdate, prepareBaseUpdateWorkspace } from './update-base-worker.ts';

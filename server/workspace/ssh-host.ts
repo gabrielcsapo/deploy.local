@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import ssh2 from 'ssh2';
 const { utils } = ssh2;
-import { deployDataDirectory, deployDataPath } from '../data-directory.ts';
+import { deployDataDirectory, deployDataPath } from '../kernel/files/data-directory.ts';
 import { sshFingerprint } from './ssh-keys.ts';
 
 export function configuredSshPort() {

@@ -1,6 +1,6 @@
 import { chmodSync, renameSync, rmSync } from 'node:fs';
 import { parentPort, workerData } from 'node:worker_threads';
-import { openDatabase } from './sqlite.ts';
+import { openDatabase } from './kernel/db/sqlite.ts';
 
 /**
  * Copies each live database in one backup step, which is one read transaction: every committed page,

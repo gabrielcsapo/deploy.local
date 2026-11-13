@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Database } from './sqlite.ts';
+import type { Database } from './kernel/db/sqlite.ts';
 import type { IntegrityResult } from './readiness-integrity.ts';
 import { workerBuild } from './workspace/worker-build.ts';
 

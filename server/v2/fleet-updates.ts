@@ -10,7 +10,7 @@ import {
   withUpdateAdmission,
   reserveComputerUpdate,
 } from './update-admission.ts';
-import { fail } from '../errors.ts';
+import { fail } from '../kernel/errors.ts';
 import { acceptsLauncher } from '../../bin/launcher-protocol.mjs';
 import { getSqlite } from '../store.ts';
 import { hasActiveAgentExecSessions } from '../agent-exec.ts';

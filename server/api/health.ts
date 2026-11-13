@@ -1,7 +1,7 @@
-import { dispatch, routes } from '../routes.ts';
+import { dispatch, routes } from '../kernel/routes.ts';
 import { requireAuth, error, json } from './shared.ts';
 import { getDeployment, getCurrentHealth } from '../store.ts';
-import { RequestBodyTooLargeError } from '../http.ts';
+import { RequestBodyTooLargeError } from '../kernel/http.ts';
 import { type ApiRouteContext } from './context.ts';
 
 const route = routes<ApiRouteContext>();
