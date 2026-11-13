@@ -330,6 +330,13 @@
       "when": 1794592173528,
       "tag": "0047_drop_portable_inventory_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1794592173529,
+      "tag": "0048_drop_app_replicas",
+      "breakpoints": true
     }
   ]
 }

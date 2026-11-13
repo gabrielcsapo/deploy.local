@@ -22,20 +22,9 @@ test('a single-home upgrade preserves application identity and home runtime reco
     directory: root,
   });
   const home = ensureLocalIdentity();
-  assert.equal(
-    (db.prepare('SELECT COUNT(*) AS count FROM app_replicas').get() as { count: number }).count,
-    0,
-  );
-  db.prepare(`INSERT INTO app_replicas
-    (id, app_id, site_id, runtime_status, data_mode, sync_policy, shared_lineage, readiness, created_at, updated_at)
-    SELECT 'historical', app_id, ?, 'running', 'single-site', 'automatic', 1, '{}', created_at, updated_at FROM deployments LIMIT 1`).run(
-    home.homeSiteId,
-  );
-  const before = db.prepare('SELECT * FROM app_replicas').all();
-  assert.equal(before.length, 1);
   ensureLocalIdentity();
   assert.doesNotThrow(() => assertHomeCoordinator({}));
-  assert.deepEqual(db.prepare('SELECT * FROM app_replicas').all(), before);
+  assert.deepEqual(ensureLocalIdentity(), home);
   assert.equal(
     (db.prepare('SELECT name FROM deployments').get() as { name: string }).name,
     'preserved',
@@ -47,11 +36,6 @@ test('unsupported portable mode is rejected without inventory admission', () => 
   db.prepare("UPDATE sites SET kind = 'suitcase' WHERE id = ?").run(home.homeSiteId);
   assert.doesNotThrow(() => assertHomeCoordinator({}));
   db.prepare("UPDATE sites SET kind = 'home' WHERE id = ?").run(home.homeSiteId);
-  db.pragma('foreign_keys = OFF');
-  db.prepare("UPDATE app_replicas SET site_id = 'missing-site'").run();
-  assert.doesNotThrow(() => assertHomeCoordinator({}));
-  db.prepare('UPDATE app_replicas SET site_id = ?').run(home.homeSiteId);
-  db.pragma('foreign_keys = ON');
 });
 
 test('mode admission does not open a database', () => {

@@ -4,9 +4,7 @@ import { containerTelemetryEnvironment } from './telemetry-runtime.ts';
 import { packageHooks } from './workspace/package-hooks.ts';
 import type { InstallConfig } from '../shared/package-install.mjs';
 import { preparePackageInstall, secretOutput } from '../shared/package-install.mjs';
-import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
 import { withApplicationMutation } from './ci-fence.ts';
-import { assertLegacyMutationAllowed } from './legacy-docker-update.ts';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
@@ -654,7 +652,6 @@ export async function runContainer(
     sshKeysSourceContainer?: string;
   },
 ) {
-  assertLegacyMutationAllowed(name);
   const containerName = containerNameOverride ?? `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
   const configuredNetworks = config?.docker?.networks ?? [];
@@ -900,8 +897,6 @@ export function healthCheckPort(port: number, timeoutMs = 30_000): Promise<boole
 
 export async function stopContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
-    assertWanderLegacyAllowed(name);
-    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     try {
       // Just stop the container, don't remove it (so we can restart later)
@@ -914,8 +909,6 @@ export async function stopContainer(name: string): Promise<void> {
 
 export async function startContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
-    assertWanderLegacyAllowed(name);
-    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     // Start a previously-stopped container (preserves its volumes/config).
     await apiStartContainer(containerName);
@@ -924,8 +917,6 @@ export async function startContainer(name: string): Promise<void> {
 
 export async function removeContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
-    assertWanderLegacyAllowed(name);
-    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     const containers = await listDeployContainers().catch(() => []);
     const releaseNames = containers
@@ -1364,8 +1355,6 @@ function actionToState(action: string): string | null {
 
 export async function restartContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
-    assertWanderLegacyAllowed(name);
-    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     await apiRestartContainer(containerName);
   });
@@ -1386,8 +1375,6 @@ export async function recreateContainer(
   configOverride?: DeployConfig,
 ) {
   return withApplicationMutation(name, async () => {
-    assertWanderLegacyAllowed(name);
-    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     const activeContainer = await inspectContainer(containerName);
     if (!activeContainer?.Image) {

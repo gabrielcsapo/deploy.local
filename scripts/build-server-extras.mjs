@@ -104,13 +104,6 @@ for (const [entry, name] of [
 console.log('Built dist/edge.js, dist/supervisor.js, dist/log-worker.js and workspace workers');
 
 copyFileSync(
-  resolve(root, 'server/legacy-snapshot.mjs'),
-  resolve(root, 'dist/legacy-snapshot.mjs'),
-);
-
-copyFileSync(resolve(root, 'server/wander-data.mjs'), resolve(root, 'dist/wander-data.mjs'));
-
-copyFileSync(
   resolve(root, 'server/packages/body-worker.mjs'),
   resolve(root, 'dist/package-body-worker.mjs'),
 );

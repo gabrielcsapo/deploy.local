@@ -1,4 +1,3 @@
-import { wanderReservation } from './wander-adoption-fence.ts';
 import { ApplicationGraphExecutor } from './application-graph-executor.ts';
 import { applicationWriterSiteId } from './application-authority.ts';
 import { resolveApplicationGraphRuntime } from './application-runtime.ts';
@@ -47,7 +46,6 @@ export async function reconcileLocalApplicationGraphs(
   dependencies: ApplicationGraphSupervisorDependencies = productionDependencies(),
 ): Promise<void> {
   for (const deployment of dependencies.listDeployments()) {
-    if (wanderReservation(deployment.name)) continue;
     if (!RECONCILABLE_STATUSES.has(deployment.status || '')) continue;
     if (!deployment.activeSpecDigest || !dependencies.isGraph(deployment)) continue;
     if (!dependencies.isLocal(deployment)) continue;

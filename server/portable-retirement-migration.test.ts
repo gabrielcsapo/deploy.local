@@ -30,16 +30,19 @@ const inventoryTables = [
   'site_sync_cursors',
   'release_candidates',
 ];
-const retainedTables = ['users', 'deployments', 'fleets', 'sites', 'app_replicas'];
+const retainedTables = ['users', 'deployments', 'fleets', 'sites'];
 
 for (const boundary of [
   '0046_drop_unused_portable_tables',
   '0047_drop_portable_inventory_tables',
+  '0048_drop_app_replicas',
 ]) {
   test(`portable retirement from before ${boundary} preserves retained data and matches a fresh install`, (t) => {
     const droppedTables = boundary.startsWith('0046')
-      ? [...retiredTables, ...inventoryTables]
-      : inventoryTables;
+      ? [...retiredTables, ...inventoryTables, 'app_replicas']
+      : boundary.startsWith('0047')
+        ? [...inventoryTables, 'app_replicas']
+        : ['app_replicas'];
     const root = mkdtempSync(join(tmpdir(), 'deploy-portable-retirement-'));
     const upgrade = new Database(join(root, 'upgrade.db'));
     const fresh = new Database(join(root, 'fresh.db'));

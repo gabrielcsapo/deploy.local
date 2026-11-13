@@ -55,7 +55,6 @@ import {
   supervisorSwapReceipt,
   restartUpdatedServices,
 } from './supervisor-swap.mjs';
-import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 import { printCertificateFingerprint } from './certificate-fingerprint.mjs';
 import {
@@ -2506,14 +2505,7 @@ async function cmdAgentStatus(json = false) {
 async function cmdDeploy(
   serverUrl,
   appName,
-  {
-    noCache = false,
-    revisionResolution = null,
-    confirmDestructive = false,
-    projectId,
-    legacyCodeUpdate = false,
-    confirmDowntime = false,
-  } = {},
+  { noCache = false, revisionResolution = null, confirmDestructive = false, projectId } = {},
 ) {
   const config = loadConfig();
   if (!config.token) {
@@ -2558,21 +2550,13 @@ async function cmdDeploy(
     throw new Error(`Unable to check release admission: ${message}`);
   }
 
-  let legacyPreflight;
-  if (legacyCodeUpdate) {
-    if (name !== 'groffee' || !confirmDowntime)
-      throw new Error('Legacy update requires -a groffee --confirm-downtime');
-    legacyPreflight = await request(`${serverUrl}/api/deployments/groffee/legacy-update`, {
-      headers: authHeaders(config),
-    });
-    if (legacyPreflight.supported !== true || legacyPreflight.locked)
-      throw new Error(
-        'This controller does not support an admitted legacy update, or recovery is required',
-      );
-  }
-  const repositoryAdmission = legacyCodeUpdate
-    ? {}
-    : await prepareRepositoryDeploy(serverUrl, name, config, dir, revisionResolution);
+  const repositoryAdmission = await prepareRepositoryDeploy(
+    serverUrl,
+    name,
+    config,
+    dir,
+    revisionResolution,
+  );
 
   const tarball = resolve(dir, `${name}.tar.gz`);
 
@@ -2619,10 +2603,7 @@ async function cmdDeploy(
   // versions still accept the request.
   const nameField =
     `\r\n--${boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\n${name}` +
-    `\r\n--${boundary}\r\nContent-Disposition: form-data; name="detached"\r\n\r\n${legacyCodeUpdate ? 0 : 1}` +
-    (legacyCodeUpdate
-      ? `\r\n--${boundary}\r\nContent-Disposition: form-data; name="legacyCodeUpdate"\r\n\r\n1\r\n--${boundary}\r\nContent-Disposition: form-data; name="confirmDowntime"\r\n\r\n1\r\n--${boundary}\r\nContent-Disposition: form-data; name="legacyExpectedContainerId"\r\n\r\n${legacyPreflight.containerId}\r\n--${boundary}\r\nContent-Disposition: form-data; name="legacyExpectedDesiredDigest"\r\n\r\n${legacyPreflight.desiredDigest}`
-      : '') +
+    `\r\n--${boundary}\r\nContent-Disposition: form-data; name="detached"\r\n\r\n1` +
     (repositoryAdmission.expectedParentDigest
       ? `\r\n--${boundary}\r\nContent-Disposition: form-data; name="expectedParentDigest"\r\n\r\n${repositoryAdmission.expectedParentDigest}`
       : '') +
@@ -3471,7 +3452,6 @@ deploy.local — self-hosted deployment platform
 Usage:
   deploy server              Start the deploy.local server
   deploy                     Deploy the current directory
-  deploy legacy <action>     status/update/recover/rollback -a groffee; explicit downtime acknowledgement required
   deploy publish            Scoped CI source publish (--source-commit, --expected-release, --idempotency-key, --wait)
   deploy release head|status|wait  Scoped durable release receipt
   deploy validate            Validate and summarize the local application graph
@@ -3541,7 +3521,6 @@ Options:
       --variables <json>     Component profile operation variables
       --project <id>         Associate this manual deploy with an owned hosted repository
       --confirm-destructive  Confirm destructive application graph changes
-      --confirm-data-loss    Confirm restoration of the pre-release data snapshot
       --no-cache             Build without using cached layers (deploy only).
                              Use when a previous build cached a bad layer
                              (e.g. truncated lockfile) and you need to force
@@ -3606,7 +3585,6 @@ try {
       'use-default': { type: 'boolean', default: false },
       instance: { type: 'string' },
       operation: { type: 'string' },
-      'confirm-downtime': { type: 'boolean', default: false },
       'source-archive-sha256': { type: 'string' },
       'source-commit': { type: 'string' },
       'idempotency-key': { type: 'string' },
@@ -3615,7 +3593,6 @@ try {
       wait: { type: 'boolean', default: false },
       project: { type: 'string' },
       'confirm-destructive': { type: 'boolean', default: false },
-      'confirm-data-loss': { type: 'boolean', default: false },
       result: { type: 'string' },
     },
     strict: false,
@@ -3831,9 +3808,6 @@ try {
     case 'start':
       await cmdServer(values.port);
       break;
-    case 'adopt':
-      await runWanderAdoptionCli(positionals, values, loadConfig(), request, authHeaders);
-      break;
     case 'publish':
     case 'release':
       await runCiCli(command, positionals, values);
@@ -3851,44 +3825,6 @@ try {
         projectId: values.project,
       });
       break;
-    case 'legacy': {
-      if (appName !== 'groffee') throw new Error('Legacy compatibility requires -a groffee');
-      const action = positionals[1];
-      if (action === 'update') {
-        await cmdDeploy(serverUrl, appName, {
-          legacyCodeUpdate: true,
-          confirmDowntime: values['confirm-downtime'] === true,
-          noCache: !!values['no-cache'],
-        });
-      } else {
-        if (!['status', 'recover', 'rollback'].includes(action))
-          throw new Error('Usage: deploy legacy <status|update|recover|rollback> -a groffee');
-        if (action !== 'status' && !values['confirm-downtime'])
-          throw new Error('Maintenance requires --confirm-downtime');
-        if (action === 'rollback' && !values['confirm-data-loss'])
-          throw new Error(
-            'Rollback restores the pre-release data snapshot; require --confirm-data-loss',
-          );
-        const config = loadConfig();
-        const result = await request(
-          `${serverUrl}/api/deployments/groffee/legacy-update${action === 'status' ? '' : '/' + action}`,
-          {
-            method: action === 'status' ? 'GET' : 'POST',
-            headers: { ...authHeaders(config), 'Content-Type': 'application/json' },
-            ...(action === 'status'
-              ? {}
-              : {
-                  body: JSON.stringify({
-                    confirmDowntime: true,
-                    confirmDataLoss: !!values['confirm-data-loss'],
-                  }),
-                }),
-          },
-        );
-        console.log(JSON.stringify(result, null, 2));
-      }
-      break;
-    }
     case 'packages':
       await runPackages(positionals.slice(1), values, {
         serverUrl,

@@ -163,7 +163,7 @@ function identityRows(appId: string) {
   const sqlite = store.getSqlite()!;
   const count = (table: string) =>
     (sqlite.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE app_id = ?`).get(appId) as any).n;
-  return { replicas: count('app_replicas'), aliases: count('application_aliases') };
+  return { aliases: count('application_aliases') };
 }
 
 function enrollComputer(id: string, online = true) {
@@ -287,14 +287,14 @@ test('removal covers every local site, a generated app, and containers no row kn
 test('removal clears the fleet rows of its own app and no other', async () => {
   const removed = seedGraphApp('rows-owner', 'rows-removed');
   const kept = seedGraphApp('rows-owner', 'rows-kept');
-  assert.deepEqual(identityRows(removed.appId), { replicas: 0, aliases: 1 });
-  assert.deepEqual(identityRows(kept.appId), { replicas: 0, aliases: 1 });
+  assert.deepEqual(identityRows(removed.appId), { aliases: 1 });
+  assert.deepEqual(identityRows(kept.appId), { aliases: 1 });
 
   const project = await resolveProject('rows-owner', 'app:rows-removed');
   await removeWith('rows-owner', project, dockerHolding(removed.appId, removed.containers));
 
-  assert.deepEqual(identityRows(removed.appId), { replicas: 0, aliases: 0 });
-  assert.deepEqual(identityRows(kept.appId), { replicas: 0, aliases: 1 });
+  assert.deepEqual(identityRows(removed.appId), { aliases: 0 });
+  assert.deepEqual(identityRows(kept.appId), { aliases: 1 });
 });
 
 test('a legacy app loses its containers and its data directory', async () => {
@@ -323,14 +323,14 @@ test('anything still on the machine fails removal, keeps the retry receipt, and 
   assert.ok(store.getDeployment('stuck-app'));
   assert.equal(workspace.list('v2-project-removal', 'stuck-owner').length, 1);
   assert.deepEqual(workspace.list('v2-project-removal', 'stuck-owner')[0].stopped, []);
-  assert.deepEqual(identityRows(appId), { replicas: 0, aliases: 1 });
+  assert.deepEqual(identityRows(appId), { aliases: 1 });
 
   docker.stuck.clear();
   await removeWith('stuck-owner', project, docker);
   assertEmpty(docker);
   assert.equal(store.getDeployment('stuck-app'), null);
   assert.equal(workspace.list('v2-project-removal', 'stuck-owner').length, 0);
-  assert.deepEqual(identityRows(appId), { replicas: 0, aliases: 0 });
+  assert.deepEqual(identityRows(appId), { aliases: 0 });
 });
 
 test('a volume Docker refuses to remove fails removal', async () => {
@@ -363,7 +363,7 @@ test('a remote app is removed by a confirmed worker job, without touching this m
   assert.deepEqual(job.payload, { deleteVolumes: true, applicationId: appId });
   assert.equal(docker.calls, 0);
   assert.equal(store.getDeployment('remote-app'), null);
-  assert.deepEqual(identityRows(appId), { replicas: 0, aliases: 0 });
+  assert.deepEqual(identityRows(appId), { aliases: 0 });
 });
 
 test('an app on this machine and a computer is removed from both', async () => {

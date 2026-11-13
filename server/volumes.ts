@@ -1,7 +1,5 @@
 import { execAsync } from './process.ts';
-import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
 import { assertCiMutation } from './ci-fence.ts';
-import { assertLegacyMutationAllowed, legacyUpdateProtected } from './legacy-docker-update.ts';
 import { mkdirSync, existsSync, readdirSync, statSync, rmSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
@@ -18,17 +16,6 @@ export function ensureVolumeDirs() {
 }
 
 export function getVolumeDir(deploymentName: string): string {
-  if (legacyUpdateProtected(deploymentName)) {
-    const existing = resolve(VOLUMES_DIR, deploymentName);
-    if (
-      !existsSync(existing) ||
-      !existsSync(resolve(existing, 'data')) ||
-      !existsSync(resolve(existing, 'uploads')) ||
-      !existsSync(resolve(existing, '.ssh-host-keys'))
-    )
-      throw new Error('Protected legacy data is missing; refusing empty volume creation');
-    return existing;
-  }
   ensureVolumeDirs();
   const volumeDir = resolve(VOLUMES_DIR, deploymentName);
 
@@ -56,8 +43,6 @@ export async function createBackup(
   label?: string,
   onProgress?: (progress: { processedBytes: number; totalBytes: number }) => void,
 ): Promise<{ filename: string; sizeBytes: number; timestamp: string; volumeSizeBytes: number }> {
-  assertWanderLegacyAllowed(deploymentName);
-  assertLegacyMutationAllowed(deploymentName);
   const volumeDir = getVolumeDir(deploymentName);
   const backupDir = getBackupDir(deploymentName);
   const volumeSizeBytes = await getVolumeSize(deploymentName);
@@ -119,8 +104,7 @@ export async function createBackup(
 
 export function restoreBackup(deploymentName: string, filename: string): void {
   assertCiMutation(deploymentName);
-  assertWanderLegacyAllowed(deploymentName);
-  assertLegacyMutationAllowed(deploymentName);
+
   if (basename(filename) !== filename) throw new Error('Invalid backup filename');
   const volumeDir = getVolumeDir(deploymentName);
   const backupDir = getBackupDir(deploymentName);
@@ -173,8 +157,7 @@ export function deleteBackupFile(deploymentName: string, filename: string): void
 
 export function deleteVolumes(deploymentName: string): void {
   assertCiMutation(deploymentName);
-  assertWanderLegacyAllowed(deploymentName);
-  assertLegacyMutationAllowed(deploymentName);
+
   const volumeDir = resolve(VOLUMES_DIR, deploymentName);
 
   // Only delete volumes, NOT backups (user preference)

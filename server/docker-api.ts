@@ -1,4 +1,3 @@
-import { assertWanderContainerMutation } from './wander-adoption-fence.ts';
 /**
  * Minimal Docker Engine API client over the daemon's unix socket.
  *
@@ -284,7 +283,6 @@ export async function inspectContainer(containerName: string): Promise<ApiContai
 // propagate as DockerApiError for callers that care.
 
 export async function apiStartContainer(containerName: string): Promise<void> {
-  assertWanderContainerMutation(containerName);
   await dockerRequest({
     method: 'POST',
     path: `/containers/${encodeURIComponent(containerName)}/start`,
@@ -292,7 +290,6 @@ export async function apiStartContainer(containerName: string): Promise<void> {
 }
 
 export async function apiStopContainer(containerName: string): Promise<void> {
-  assertWanderContainerMutation(containerName);
   // Engine default kill-after matches `docker stop` (10s); stopping a
   // container can legitimately take that long, so widen the HTTP timeout.
   await dockerRequest({
@@ -303,7 +300,6 @@ export async function apiStopContainer(containerName: string): Promise<void> {
 }
 
 export async function apiRestartContainer(containerName: string): Promise<void> {
-  assertWanderContainerMutation(containerName);
   await dockerRequest({
     method: 'POST',
     path: `/containers/${encodeURIComponent(containerName)}/restart`,
@@ -319,7 +315,6 @@ export async function apiRenameContainer(oldName: string, newName: string): Prom
 }
 
 export async function apiRemoveContainer(containerName: string): Promise<void> {
-  assertWanderContainerMutation(containerName);
   await dockerRequest({
     method: 'DELETE',
     path: `/containers/${encodeURIComponent(containerName)}?force=true`,

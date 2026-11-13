@@ -12,7 +12,6 @@ import {
 } from '../store.ts';
 import { assertNoCiRelease } from '../ci-releases.ts';
 import { assertCiMutation } from '../ci-fence.ts';
-import { assertWanderLegacyAllowed } from '../wander-adoption-fence.ts';
 import { createConnection } from 'node:net';
 
 // Pre-container states where Docker has no container yet
@@ -120,17 +119,7 @@ export function requireAuth(
     )?.[1];
     if (app) {
       assertNoCiRelease(decodeURIComponent(app));
-      if (
-        !new URL(req.url || '/', 'https://localhost').pathname.startsWith(
-          '/api/deployments/wander/managed-adoption',
-        )
-      )
-        assertCiMutation(decodeURIComponent(app));
-      if (
-        req.method === 'DELETE' &&
-        new URL(req.url || '/', 'https://localhost').pathname === '/api/deployments/wander'
-      )
-        assertWanderLegacyAllowed('wander');
+      assertCiMutation(decodeURIComponent(app));
     }
   }
   return { username: username!, token: token! };

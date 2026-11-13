@@ -111,14 +111,7 @@ test(
         await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
         const address = server.address();
         assert.ok(address && typeof address !== 'string');
-        const args = [
-          'legacy',
-          'status',
-          '-a',
-          'groffee',
-          '--url',
-          `https://fixture.local:${address.port}`,
-        ];
+        const args = ['recovery', 'list', '--url', `https://fixture.local:${address.port}`];
         const run = execute(process.execPath, ['--import', loader, cli, ...args], {
           env: {
             ...process.env,

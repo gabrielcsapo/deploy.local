@@ -120,15 +120,6 @@ let baseUrl = '';
 let token = '';
 const routeContext = {
   workspacePath: root,
-  makeLegacyUpdate: (() => {
-    throw new Error('unused');
-  }) as never,
-  makeWanderAdoption: (() => {
-    throw new Error('unused');
-  }) as never,
-  wanderPreflight: (() => {
-    throw new Error('unused');
-  }) as never,
 };
 
 async function handle(req: IncomingMessage, res: ServerResponse) {

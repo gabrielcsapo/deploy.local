@@ -145,37 +145,6 @@ export const applicationAliases = sqliteTable(
   }),
 );
 
-export const appReplicas = sqliteTable(
-  'app_replicas',
-  {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull(),
-    siteId: text('site_id').notNull(),
-    activeReleaseDigest: text('active_release_digest'),
-    desiredReleaseDigest: text('desired_release_digest'),
-    runtimeStatus: text('runtime_status').notNull().default('pending'),
-    dataMode: text('data_mode').notNull().default('single-site'),
-    syncPolicy: text('sync_policy').notNull().default('none'),
-    sharedLineage: integer('shared_lineage', { mode: 'boolean' }).notNull().default(false),
-    schemaFingerprint: text('schema_fingerprint'),
-    profileVersion: text('profile_version'),
-    baseCheckpointId: text('base_checkpoint_id'),
-    branchCheckpointId: text('branch_checkpoint_id'),
-    pendingChangesets: integer('pending_changesets').notNull().default(0),
-    pendingBlobs: integer('pending_blobs').notNull().default(0),
-    conflictCount: integer('conflict_count').notNull().default(0),
-    readiness: text('readiness').notNull().default('{}'),
-    lastPolicyEventId: text('last_policy_event_id'),
-    lastContactAt: integer('last_contact_at'),
-    removedAt: text('removed_at'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (table) => ({
-    appSiteIdx: uniqueIndex('idx_app_replicas_app_site').on(table.appId, table.siteId),
-  }),
-);
-
 export const artifacts = sqliteTable('artifacts', {
   digest: text('digest').primaryKey(),
   type: text('type').notNull(),

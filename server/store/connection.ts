@@ -20,7 +20,6 @@ import { notifyRouteChanged } from '../ipc.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { configureCiFence } from '../ci-fence.ts';
 import { assertReleaseMutation } from '../v2/releases-fence.ts';
-import { wanderReservation, releaseWanderWorker } from '../wander-adoption-fence.ts';
 import { threadId } from 'node:worker_threads';
 import { withMigrationLock } from './migration-lock.ts';
 
@@ -207,8 +206,6 @@ configureCiFence(
       .prepare('SELECT name FROM deployments WHERE name=? OR app_id=?')
       .get(application, application) as { name: string } | undefined;
     assertReleaseMutation(target?.name || application);
-    const adoption = target && wanderReservation(target.name);
-    if (adoption) return adoption;
     const row = getSqlite()!
       .prepare(
         "SELECT id FROM ci_releases WHERE application IN (SELECT name FROM deployments WHERE name=? OR app_id=?) AND status IN ('accepted','building','starting','interrupted','failed')",
@@ -225,10 +222,6 @@ configureCiFence(
           .prepare('SELECT name FROM deployments WHERE name=? OR app_id=?')
           .get(application, application) as { name: string } | undefined;
         if (!target) return undefined;
-        if (wanderReservation(target.name))
-          throw Object.assign(new Error('Wander adoption requires explicit owner recovery'), {
-            status: 409,
-          });
         const active = sqlite
           .prepare(
             "SELECT id FROM ci_releases WHERE application=? AND status IN ('accepted','building','starting','interrupted','failed')",
@@ -268,7 +261,6 @@ configureCiFence(
     return false;
   },
   (pid, thread) => {
-    releaseWanderWorker(pid, thread);
     const sqlite = getSqlite()!;
     sqlite
       .transaction(() => {

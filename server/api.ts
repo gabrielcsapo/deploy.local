@@ -3,8 +3,6 @@ import { startIntegrityChecks } from './readiness-integrity.ts';
 import { getSqlite } from './store/connection.ts';
 import { db as workspaceDb } from './workspace/store.ts';
 import './packages/hooks.ts';
-import { legacyUpdateService } from './legacy-update-service.ts';
-import { wanderAdoptionService, wanderAdoptionPreflight } from './wander-adoption-service.ts';
 import { assertHomeCoordinator } from './home-coordinator.ts';
 import { startDeploymentNotifications } from './deployment-notification-service.ts';
 import { recoverProjectReleases } from './v2/releases-api.ts';
@@ -25,7 +23,6 @@ import { emit } from './events.ts';
 import { type ApiRouteContext } from './api/context.ts';
 import { v2Routes } from './api/v2.ts';
 import { workspaceRoutes } from './api/workspace.ts';
-import { groffeeGuardRoutes } from './api/groffee-guard.ts';
 import { catalogRoutes } from './api/catalog.ts';
 import { authRoutes } from './api/auth.ts';
 import { fleetRoutes } from './api/fleet.ts';
@@ -62,16 +59,7 @@ const hotPath = createHotPathHandler({
 
 type NextFn = () => void;
 
-export function apiMiddleware(
-  options: {
-    legacyUpdateService?: typeof legacyUpdateService;
-    wanderAdoptionService?: typeof wanderAdoptionService;
-    wanderAdoptionPreflight?: typeof wanderAdoptionPreflight;
-  } = {},
-) {
-  const makeLegacyUpdate = options.legacyUpdateService ?? legacyUpdateService;
-  const makeWanderAdoption = options.wanderAdoptionService ?? wanderAdoptionService;
-  const wanderPreflight = options.wanderAdoptionPreflight ?? wanderAdoptionPreflight;
+export function apiMiddleware() {
   assertHomeCoordinator();
   startDeploymentNotifications();
   void recoverProjectReleases().catch((error) =>
@@ -164,13 +152,9 @@ export function apiMiddleware(
       method,
       url,
       workspacePath,
-      makeLegacyUpdate,
-      makeWanderAdoption,
-      wanderPreflight,
     };
     if (await v2Routes(ctx)) return;
     if (await workspaceRoutes(ctx)) return;
-    if (await groffeeGuardRoutes(ctx)) return;
     if (await catalogRoutes(ctx)) return;
     if (await authRoutes(ctx)) return;
     if (await fleetRoutes(ctx)) return;

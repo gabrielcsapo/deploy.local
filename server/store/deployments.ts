@@ -24,7 +24,6 @@ import {
   applicationSpecRevisions,
   applicationSpecTransitions,
   applicationAliases,
-  appReplicas,
 } from '../schema.ts';
 import { eq, inArray } from 'drizzle-orm';
 import { notifyRouteChanged } from '../ipc.ts';
@@ -261,7 +260,6 @@ export function deleteDeployment(
       .get()?.appId;
     if (appId) {
       tx.delete(applicationAliases).where(eq(applicationAliases.appId, appId)).run();
-      tx.delete(appReplicas).where(eq(appReplicas.appId, appId)).run();
     }
     tx.delete(deployments).where(eq(deployments.name, name)).run();
   });

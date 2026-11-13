@@ -18,7 +18,7 @@ after(() => {
 });
 
 describe('application writer-site authority', () => {
-  it('uses the coordinator or enrolled worker and ignores retired transfer records', () => {
+  it('uses the coordinator or enrolled worker and ignores retired site records', () => {
     const sqlite = store.getSqlite()!;
     const fleet = localSite.ensureLocalIdentity('Authority test fleet');
     const now = new Date().toISOString();
@@ -61,20 +61,11 @@ describe('application writer-site authority', () => {
                  'manual', 'existing-lan', 'isolated', '{}', ?, ?)`,
       )
       .run(fleet.id, now, now);
-    sqlite
-      .prepare(
-        `INSERT INTO app_replicas
-          (id, app_id, site_id, runtime_status, data_mode, sync_policy, shared_lineage,
-           readiness, created_at, updated_at)
-         VALUES ('replica-away', 'app-authority', 'site-away', 'running',
-                 'follows-one-site-writer', 'manual', 0, '{}', ?, ?)`,
-      )
-      .run(now, now);
     assert.equal(applicationWriterSiteId('app-authority', 'site-away'), fleet.homeSiteId);
     assert.equal(
       applicationWriterSiteId('app-authority', 'coordinator'),
       'coordinator',
-      'retired replica rows cannot redirect Home writer jobs',
+      'retired site rows cannot redirect Home writer jobs',
     );
   });
 

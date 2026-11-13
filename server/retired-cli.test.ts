@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 
-test('retired Suitcase commands use the unknown-command exit and error contract', () => {
-  for (const command of ['suitcase', 'fleet', 'unknown-retired-command']) {
+test('retired commands use the unknown-command exit and error contract', () => {
+  for (const command of ['suitcase', 'fleet', 'legacy', 'adopt', 'unknown-retired-command']) {
     const result = spawnSync(
       process.execPath,
       ['bin/deploy.js', command, '--json', '--server', 'http://127.0.0.1:1'],

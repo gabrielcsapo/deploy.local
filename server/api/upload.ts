@@ -102,15 +102,10 @@ import { createHash } from 'node:crypto';
 import { createGunzip } from 'node:zlib';
 import { assertApplicationReleaseIdle } from '../v2/releases.ts';
 import { beginApplicationMutation } from '../v2/releases-fence.ts';
-import { assertLegacyMutationAllowed } from '../legacy-docker-update.ts';
-import { assertWanderLegacyAllowed } from '../wander-adoption-fence.ts';
 import { mkdtemp, rename, rm } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { readDeploymentDefinition } from '../deploy-config.ts';
 import { putArtifactFile } from '../content-store.ts';
-import { type WanderIntent } from '../wander-adoption.ts';
-import { legacyUpdateService } from '../legacy-update-service.ts';
-import { assertNoImplicitLegacyGraphAdoption } from '../legacy-preserving-update.ts';
 import { parseRepositoryBaseDigest, parseStoredApplicationSpec } from '../application-spec.ts';
 import {
   admitRepositoryRevision,
@@ -381,7 +376,7 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
   )
     return true;
 
-  const { req, res, path, method, makeLegacyUpdate, makeWanderAdoption } = ctx;
+  const { req, res, path, method } = ctx;
   // Keep the original return boundary: returned promises bypass the catch,
   // while thrown errors and rejected awaits use the existing API error response.
   const result = await (async () => {
@@ -450,7 +445,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
           return;
       }
 
-      const adoptionUpload = path === '/api/deployments/wander/managed-adoption/upload';
       const multipartUpload = async () => {
         return await withCiMutation(ciUpload?.id, async () => {
           const agentUpload = path === '/api/upload' ? consumeAgentUpload(req) : undefined;
@@ -486,7 +480,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                   : {}),
               },
             });
-          if (adoptionUpload) makeWanderAdoption(username); // Owner/admin authorization before staging bytes.
           const failCi = () => {
             if (ciUpload) finishCiRelease(ciUpload.id, null);
           };
@@ -538,8 +531,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
           let statusBeforeUpload: string | null = null;
           let uploadLimitError: UploadArchiveError | null = null;
           let clientAborted = false;
-          let legacyResult: Record<string, unknown> | null = null;
-          let adoptionResult: Record<string, unknown> | null = null;
           let repositoryRevisionUnchanged = false;
           let repositoryRuntimeCanBeSkipped = false;
           let repositorySourceChanged = false;
@@ -598,10 +589,7 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
               );
 
               const onClose = async () => {
-                const withAdoptionOrApplicationMutation = adoptionUpload
-                  ? async (_name: string, fn: () => Promise<void>) => fn()
-                  : withApplicationMutation;
-                return await withAdoptionOrApplicationMutation(
+                return await withApplicationMutation(
                   (fields.name || '').toLowerCase(),
                   async () => {
                     // Wait for accepted bytes to flush before inspecting or removing the
@@ -699,16 +687,15 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                     }
 
                     await inspectUploadArchive(tmpFile);
-                    if (!adoptionUpload)
-                      deployLease = await acquireDeploySlot(name, username, (position) => {
-                        if (position > 0) {
-                          uploadEvent({
-                            type: 'deployment:queued',
-                            deploymentName: name,
-                            data: { position, username },
-                          });
-                        }
-                      });
+                    deployLease = await acquireDeploySlot(name, username, (position) => {
+                      if (position > 0) {
+                        uploadEvent({
+                          type: 'deployment:queued',
+                          deploymentName: name,
+                          data: { position, username },
+                        });
+                      }
+                    });
                     if (clientAborted) {
                       deployLease?.release();
                       deployLease = null;
@@ -729,10 +716,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                     }
                     if (ciUpload) assertCiUploadCurrent(ciUpload);
                     if (agentUpload) assertAgentApplication(agentUpload);
-                    if (!adoptionUpload && fields.legacyCodeUpdate !== '1') {
-                      assertLegacyMutationAllowed(name);
-                      if (!getDeployment(name)?.activeSpecDigest) assertWanderLegacyAllowed(name);
-                    }
                     const finalDeployDir = resolve(uploadsDir, name);
                     const stagingDir = await mkdtemp(resolve(uploadsDir, '.extract-'));
                     const displacedDir = resolve(
@@ -763,133 +746,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                       });
 
                       const stagedDefinition = readDeploymentDefinition(stagingDir);
-                      if (adoptionUpload) {
-                        const keys = [
-                          'applicationId',
-                          'expectedContainer',
-                          'expectedImage',
-                          'expectedRuntimeSettings',
-                          'expectedSource',
-                          'expectedParent',
-                          'sourceCommit',
-                          'sourceDigest',
-                          'sourceArchiveDigest',
-                          'requestKey',
-                          'specDigest',
-                        ] as const;
-                        if (
-                          name !== 'wander' ||
-                          fields.confirmDowntime !== '1' ||
-                          Object.keys(fields).some(
-                            (k) => !['name', 'confirmDowntime', ...keys].includes(k),
-                          ) ||
-                          keys.some((k) => !fields[k])
-                        )
-                          throw Object.assign(
-                            new Error(
-                              'Exact adoption intent and downtime acknowledgement required',
-                            ),
-                            { status: 400 },
-                          );
-                        const hash = createHash('sha256');
-                        for await (const chunk of createReadStream(tmpFile)) hash.update(chunk);
-                        if ('sha256:' + hash.digest('hex') !== fields.sourceDigest)
-                          throw new UploadArchiveError('Adoption source digest mismatch');
-                        const archiveHash = createHash('sha256');
-                        let inflated = 0;
-                        const unzip = createReadStream(tmpFile).pipe(createGunzip());
-                        for await (const chunk of unzip) {
-                          inflated += chunk.length;
-                          if (inflated > MAX_UPLOAD_ARCHIVE_BYTES) {
-                            unzip.destroy();
-                            throw new UploadArchiveError('Expanded adoption source exceeds limit');
-                          }
-                          archiveHash.update(chunk);
-                        }
-                        if ('sha256:' + archiveHash.digest('hex') !== fields.sourceArchiveDigest)
-                          throw new UploadArchiveError('Adoption archive digest mismatch');
-                        const retained = await putArtifactFile(tmpFile, {
-                          type: 'application-source',
-                          mediaType: 'application/gzip',
-                          retentionClass: 'release',
-                        });
-                        if (retained.digest !== fields.sourceDigest)
-                          throw new UploadArchiveError('Retained adoption source digest mismatch');
-                        const intent = Object.fromEntries(
-                          keys.map((k) => [k, fields[k]]),
-                        ) as unknown as WanderIntent;
-                        adoptionResult = await makeWanderAdoption(username).adopt({
-                          ...intent,
-                          sourceDirectory: stagingDir,
-                        });
-                        return;
-                      }
-                      if (fields.legacyCodeUpdate === '1') {
-                        if (name !== 'groffee' || fields.confirmDowntime !== '1')
-                          throw Object.assign(
-                            new Error(
-                              'Legacy update requires Groffee and explicit downtime acknowledgement',
-                            ),
-                            { status: 409 },
-                          );
-                        const current = getDeployment(name);
-                        if (
-                          !current ||
-                          fields.legacyExpectedContainerId !== current.containerId ||
-                          fields.legacyExpectedDesiredDigest !==
-                            (current.desiredSpecDigest || 'none')
-                        )
-                          throw Object.assign(
-                            new Error('Legacy preflight state changed; repeat preflight'),
-                            { status: 409 },
-                          );
-                        if (
-                          stagedDefinition.compiled.spec.metadata.name !== name ||
-                          Object.keys(stagedDefinition.compiled.spec.components).length !== 1 ||
-                          !stagedDefinition.compiled.spec.components.web?.build
-                        )
-                          throw new Error(
-                            'Legacy code update requires a validated single web-component Groffee manifest',
-                          );
-                        legacyUpdateService(name, username); // authorize host control before retaining source
-                        const componentBuild = stagedDefinition.compiled.spec.components.web.build!;
-                        if (
-                          componentBuild.context !== '.' ||
-                          (componentBuild.dockerfile &&
-                            componentBuild.dockerfile !== 'Dockerfile') ||
-                          componentBuild.target
-                        )
-                          throw new Error(
-                            'Legacy code update supports only the existing root Dockerfile build',
-                          );
-                        const source = await putArtifactFile(tmpFile, {
-                          type: 'application-source',
-                          mediaType: 'application/gzip',
-                          retentionClass: 'release',
-                        });
-                        const releaseRoot = resolve(uploadsDir, '..', 'legacy-releases', name);
-                        mkdirSync(releaseRoot, { recursive: true, mode: 0o700 });
-                        const releaseDirectory = resolve(releaseRoot, basename(stagingDir));
-                        await rename(stagingDir, releaseDirectory);
-                        const service = makeLegacyUpdate(
-                          name,
-                          username,
-                          releaseDirectory,
-                          source.digest,
-                          {
-                            noCache: fields.noCache === '1' || fields.noCache === 'true',
-                            projectId: repositoryProjectId,
-                          },
-                        );
-                        legacyResult = {
-                          name,
-                          legacyCodeUpdate: true,
-                          ...(await service.update()),
-                        };
-                        return;
-                      }
-                      if (fields.legacyCodeUpdate) throw new Error('Invalid legacy update mode');
-
                       if (
                         ciUpload &&
                         (stagedDefinition.format !== 'deploy.yaml' ||
@@ -900,14 +756,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
                           403,
                         );
                       if (stagedDefinition.format === 'deploy.yaml') {
-                        if (existingDeployment) {
-                          assertNoImplicitLegacyGraphAdoption({
-                            name,
-                            containerName: existingDeployment.containerName,
-                            activeSpecDigest: existingDeployment.activeSpecDigest,
-                          });
-                        }
-
                         const manifestSource = readFileSync(
                           resolve(stagingDir, 'deploy.yaml'),
                           'utf8',
@@ -1091,12 +939,6 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
             );
           }
           await rm(tmpFile, { force: true }).catch(() => {});
-
-          if (adoptionResult) return json(res, adoptionResult);
-          if (legacyResult) {
-            (deployLease as DeployLease | null)?.release();
-            return json(res, legacyResult);
-          }
 
           if (!deployDir) {
             (deployLease as DeployLease | null)?.release();
@@ -2327,11 +2169,7 @@ export async function uploadRoutes(ctx: ApiRouteContext): Promise<boolean> {
       };
       return await dispatch(
         [
-          ...[
-            '/api/upload',
-            '/api/ci/releases/:id([a-f0-9-]+)/upload',
-            '/api/deployments/wander/managed-adoption/upload',
-          ].map((uploadPath) =>
+          ...['/api/upload', '/api/ci/releases/:id([a-f0-9-]+)/upload'].map((uploadPath) =>
             uploadRoute({
               method: 'POST',
               path: uploadPath,
