@@ -6,6 +6,22 @@ export const inlineJobOutput = "kind='job' AND json_type(data,'$.output') IS NOT
 
 /** Called inside the workspace maintenance gate; all schema and data move atomically. */
 export function migrateJobOutput(db: Database) {
+  // Nearly every open finds this already done. Look first without the write lock, so a process
+  // that starts while another holds a long write transaction is not made to wait for it, or fail.
+  const made = db
+    .prepare(
+      "SELECT count(*) AS n FROM sqlite_master WHERE name IN ('job_output','record_job_inline_output','delete_job_output')",
+    )
+    .get() as { n: number };
+  if (
+    made.n === 3 &&
+    !db
+      .prepare(
+        `SELECT 1 FROM records INDEXED BY record_job_inline_output WHERE ${inlineJobOutput} LIMIT 1`,
+      )
+      .get()
+  )
+    return;
   db.transaction(() => {
     db.exec(`
       CREATE TABLE IF NOT EXISTS job_output(
