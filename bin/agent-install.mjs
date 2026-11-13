@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { switchCodeBundle } from './code-bundle.mjs';
 import {
   cpSync,
   existsSync,
@@ -92,6 +93,7 @@ export async function ensureWorkerBuild(
       paths.previous,
       identityPath,
       updateReceiptPath,
+      join(agentDir, 'code'),
     ];
     snapshots = files.map((path, i) => ({
       path,
@@ -105,6 +107,9 @@ export async function ensureWorkerBuild(
     snapshotReady = true;
 
     if (changed) {
+      // A full repair must boot the downloaded build, not an older installed code pointer.
+      // The code directory is part of this transaction and is restored on failure.
+      switchCodeBundle(agentDir, null);
       mkdirSync(dirname(paths.executable), { recursive: true });
       await download(serverUrl, paths.executable, manifest.version, paths.previous, {
         manifest,

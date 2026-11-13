@@ -141,3 +141,46 @@ it('installer --join checks the code, then joins with it from the environment', 
   assert.match(script, /grep -qF '"1\.0\.0\+abc"'/);
   assert(script.indexOf('# ── Join') > script.indexOf('mv "$STAGED" "$CLI_PATH"'));
 });
+
+it('code downloads use the same selected directory and reject mixed-release or corrupt bytes', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'served-code-'));
+  const bytes = Buffer.from('module.exports = async () => {};');
+  const manifest = {
+    version: 'new',
+    targets: {},
+    bundle: {
+      file: 'deploy.cjs',
+      version: 'new',
+      launcherProtocol: 1,
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    },
+  };
+  const response = async (version: string) => {
+    let status = 0,
+      body: any;
+    await serveCliBinary(
+      { url: `/cli/code?version=${version}`, headers: { host: 'deploy.local' } } as any,
+      {
+        writeHead(code: number) {
+          status = code;
+        },
+        end(value: unknown) {
+          body = value;
+        },
+      } as any,
+      directory,
+    );
+    return { status, body };
+  };
+  try {
+    writeFileSync(join(directory, 'build-info.json'), JSON.stringify(manifest));
+    writeFileSync(join(directory, 'deploy.cjs'), bytes);
+    assert.deepEqual(await response('new'), { status: 200, body: bytes });
+    assert.equal((await response('old')).status, 409);
+    writeFileSync(join(directory, 'deploy.cjs'), 'corrupt');
+    assert.equal((await response('new')).status, 409);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

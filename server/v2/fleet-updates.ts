@@ -8,8 +8,12 @@ import {
   selfUpdateTarget,
   updateReservation,
   withUpdateAdmission,
+  reserveComputerUpdate,
 } from './update-admission.ts';
 import { fail } from '../errors.ts';
+import { acceptsLauncher } from '../../bin/launcher-protocol.mjs';
+import { getSqlite } from '../store.ts';
+import { hasActiveAgentExecSessions } from '../agent-exec.ts';
 
 export const UPDATE_INTERVAL_MS = 10 * 60_000;
 export const UPDATE_UNAVAILABLE =
@@ -60,7 +64,12 @@ export function produceComputerUpdates(owner: string, manifest = readCliManifest
       node.agentVersion === target.version
     )
       continue;
-    const build = manifest.targets[`${node.platform}-${node.architecture}`];
+    const code =
+      manifest.bundle?.version === manifest.version &&
+      acceptsLauncher(manifest.bundle.launcherProtocol, capabilities.launcherProtocol);
+    const build = code
+      ? manifest.bundle
+      : manifest.targets[`${node.platform}-${node.architecture}`];
     if (!build || !['darwin', 'linux'].includes(node.platform || '')) continue;
     const id = `${node.id}:${target.id}`;
     if (updateAttempts().some((row) => row.id === id)) continue;
@@ -75,6 +84,13 @@ export function produceComputerUpdates(owner: string, manifest = readCliManifest
       previousVersion: node.agentVersion,
       sha256: build.sha256,
       size: build.size,
+      ...(code
+        ? {
+            kind: 'code',
+            launcherProtocol: manifest.bundle!.launcherProtocol,
+            restartSupervisor: manifest.bundle!.restartSupervisor === true,
+          }
+        : {}),
       nonce: randomUUID(),
       state: 'queued',
       createdAt: Date.now(),
@@ -164,4 +180,28 @@ export function startComputerUpdateScheduler() {
   scheduler = setInterval(tick, UPDATE_INTERVAL_MS);
   scheduler.unref();
   tick();
+}
+
+/** Use the same claim lock as updates so no task, app job or terminal can race the one-time swap. */
+export function reserveSupervisorSwap(nodeId: string, target: string) {
+  if (!target || target.length > 300 || !/^[\w.+:-]+$/.test(target)) return false;
+  return withUpdateAdmission(() => {
+    if (
+      hasActiveAgentExecSessions(nodeId) ||
+      getSqlite()!
+        .prepare("SELECT 1 FROM agent_jobs WHERE node_id=? AND status='running' LIMIT 1")
+        .get(nodeId)
+    )
+      return false;
+    return reserveComputerUpdate(nodeId, `supervisor-swap:${target}`);
+  });
+}
+export function reportSupervisorSwap(nodeId: string, report: any) {
+  if (
+    !report ||
+    typeof report.target !== 'string' ||
+    !['complete', 'failed'].includes(report.state)
+  )
+    return;
+  withUpdateAdmission(() => releaseComputerUpdate(nodeId, `supervisor-swap:${report.target}`));
 }

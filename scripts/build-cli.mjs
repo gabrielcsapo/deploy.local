@@ -26,6 +26,7 @@ import { createWriteStream } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { computeBuildInfo } from './build-info.mjs';
+import { LAUNCHER_PROTOCOL } from '../bin/launcher-protocol.mjs';
 
 // esbuild is a transitive dep (via vite). Resolve through vite so we don't
 // rely on pnpm's `.bin/esbuild` shim, which invokes `node bin/esbuild` —
@@ -148,9 +149,31 @@ export async function bundleCli(buildInfo, output = CLI_DIR) {
   });
   console.log('  Bundled bin/deploy.js → dist/cli/deploy.mjs');
 
-  // Step 2: convert to a CJS-compatible SEA bootstrap
-  let code = readFileSync(resolve(output, 'deploy.mjs'), 'utf-8');
+  const code = convertCliToCommonJS(readFileSync(resolve(output, 'deploy.mjs'), 'utf-8'));
+  writeFileSync(resolve(output, 'deploy.cjs'), code);
+  const bootstrap = await esbuild.build({
+    entryPoints: [resolve(ROOT, 'bin/launcher.mjs')],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    write: false,
+  });
+  // Both the fallback and downloaded artifact use the exact same conversion.
+  writeFileSync(
+    resolve(output, 'launcher.cjs'),
+    `
+const bootstrapModule = { exports: {} };
+((module) => { ${bootstrap.outputFiles[0].text} })(bootstrapModule);
+const bakedModule = { exports: {} };
+((module) => { ${code} })(bakedModule);
+bootstrapModule.exports.runLauncher({ build: ${JSON.stringify({ ...buildInfo, runtime: NODE_VERSION })}, baked: bakedModule.exports })
+  .catch((err) => { console.error(err.message || err); process.exit(1); });
+`,
+  );
+  console.log('  Converted ESM bundle and stable launcher to CJS');
+}
 
+export function convertCliToCommonJS(code) {
   // Strip shebang (SEA doesn't need it)
   code = code.replace(/^#!.*\n/, '');
 
@@ -172,14 +195,10 @@ export async function bundleCli(buildInfo, output = CLI_DIR) {
   // Remove any export statements from esbuild ESM output
   code = code.replace(/^export\s+\{[^}]*\};?$/gm, '');
 
-  // Wrap entire code in async IIFE to support top-level await
-  code = `;(async () => {
+  return `module.exports = async function(__filename = process.execPath, __dirname = require('node:path').dirname(__filename)) {
 ${code}
-})().catch((err) => { console.error(err.message || err); process.exit(1); });
+};
 `;
-
-  writeFileSync(resolve(output, 'deploy.cjs'), code);
-  console.log('  Converted ESM bundle to CJS wrapper');
 }
 
 function step2_generateBlob() {
@@ -198,7 +217,15 @@ function step2_generateBlob() {
       `Host node ${process.platform}-${process.arch} (${NODE_VERSION}) not cached — step3 must run first`,
     );
   }
-  run(`${hostNode} --experimental-sea-config ${SEA_CONFIG}`);
+  const config = resolve(CLI_DIR, 'sea-config.json');
+  writeFileSync(
+    config,
+    JSON.stringify({
+      ...JSON.parse(readFileSync(SEA_CONFIG, 'utf8')),
+      main: resolve(CLI_DIR, 'launcher.cjs'),
+    }),
+  );
+  run(`${hostNode} --experimental-sea-config ${config}`);
 
   if (!existsSync(resolve(CLI_DIR, 'sea-prep.blob'))) {
     throw new Error('SEA blob was not generated');
@@ -320,14 +347,18 @@ function step4_injectAndSign() {
 // Manifest the server serves at /cli/version. `deploy upgrade` compares its
 // baked-in version against this one and verifies the download against the
 // per-target digest recorded here.
-function step5_writeManifest(buildInfo) {
+export function buildCliManifest(
+  buildInfo,
+  directory = CLI_DIR,
+  { restartSupervisor = false } = {},
+) {
   console.log('\n[5/5] Writing build manifest...');
   const targets = {};
 
   for (const target of TARGETS) {
     const { os, arch } = target;
     const label = `${os}-${arch}`;
-    const binaryPath = outputBinaryPath(target);
+    const binaryPath = join(directory, `deploy-${label}${target.extension || ''}`);
     if (!existsSync(binaryPath)) continue;
     const bytes = readFileSync(binaryPath);
     targets[label] = {
@@ -336,9 +367,22 @@ function step5_writeManifest(buildInfo) {
     };
   }
 
-  const manifest = { ...buildInfo, runtime: NODE_VERSION, targets };
-  writeFileSync(resolve(CLI_DIR, 'build-info.json'), JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`  dist/cli/build-info.json (${Object.keys(targets).length} targets)`);
+  const bytes = readFileSync(join(directory, 'deploy.cjs'));
+  return {
+    ...buildInfo,
+    runtime: NODE_VERSION,
+    launcherProtocol: LAUNCHER_PROTOCOL,
+    targets,
+    bundle: {
+      file: 'deploy.cjs',
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      version: buildInfo.version,
+      launcherProtocol: LAUNCHER_PROTOCOL,
+      // This drops relays briefly. Opt in only for supervisor fixes, never routine code updates.
+      restartSupervisor,
+    },
+  };
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -359,7 +403,10 @@ async function main() {
   await step3_downloadNodeBinaries();
   step2_generateBlob();
   step4_injectAndSign();
-  step5_writeManifest(buildInfo);
+  writeFileSync(
+    resolve(CLI_DIR, 'build-info.json'),
+    JSON.stringify(buildCliManifest(buildInfo), null, 2) + '\n',
+  );
 
   console.log('\nDone! Binaries:');
   for (const target of TARGETS) {

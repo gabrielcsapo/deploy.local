@@ -1,6 +1,7 @@
 import { access, readFile, writeFile, mkdir, rename, copyFile, chmod, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { homedir, hostname } from 'node:os';
+import { homedir, hostname, release } from 'node:os';
+import { launcherCapable, swapSupervisor, waitForSupervisor } from '../../bin/supervisor-swap.mjs';
 import { dirname, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -46,6 +47,8 @@ export class AppWorker {
     uid = process.getuid?.(),
     platform = process.platform,
     arch = process.arch,
+    darwinRelease = release(),
+    waitReady = waitForSupervisor,
     name = hostname(),
     run = runBounded,
     sleep = delay,
@@ -61,6 +64,8 @@ export class AppWorker {
       uid,
       platform,
       arch,
+      darwinRelease,
+      waitReady,
       name,
       run,
       sleep,
@@ -86,7 +91,15 @@ export class AppWorker {
       join(home, '.docker/bin') +
       ':/Applications/Docker.app/Contents/Resources/bin';
     this.run = (command, args, options) =>
-      run(command, args, { ...options, env: { ...process.env, PATH: this.path } });
+      run(command, args, {
+        ...options,
+        env: {
+          ...process.env,
+          PATH: this.path,
+          DEPLOY_AGENT_CONFIG: this.configPath,
+          DEPLOY_DATA_DIR: join(this.root, 'data'),
+        },
+      });
     this.last = null;
   }
   supported() {
@@ -345,7 +358,8 @@ export class AppWorker {
         }),
         'Worker signing',
       );
-      const info = await this.buildInfo(staged);
+      const report = await this.buildInfo(staged);
+      const info = report.executable || report;
       if (info.version !== manifest.version || (manifest.commit && info.commit !== manifest.commit))
         throw new Error('The worker build does not match the coordinator release.');
       if (await exists(path)) await copyFile(path, previous);
@@ -399,7 +413,25 @@ export class AppWorker {
             changed = true;
           }
         }
-        await this.startService({ changed, rollback, originalPlist });
+        const supervisor = await this.buildInfo(this.paths.supervisor).catch(() => null);
+        const installed = await this.buildInfo(this.paths.executable);
+        if (!rollback && !launcherCapable(supervisor) && launcherCapable(installed)) {
+          const swapped = await swapSupervisor({
+            agentDir: this.root,
+            root: join(this.root, 'data'),
+            paths: this.paths,
+            platform: 'darwin',
+            darwinRelease: this.darwinRelease,
+            explicit: true,
+            readBuildInfo: (path) => this.buildInfo(path),
+            run: this.run,
+            seal: (app) => this.seal(app, { signSupervisor: false }),
+            restart: () => this.startService({ changed: true, rollback: false, originalPlist }),
+            waitReady: this.waitReady,
+          });
+          if (!['complete', 'current'].includes(swapped.state))
+            throw new Error(swapped.error || 'Worker startup check failed');
+        } else await this.startService({ changed, rollback, originalPlist });
       },
     });
   }
@@ -597,26 +629,34 @@ export class AppWorker {
     } catch {
       reachable = false;
     }
-    const state = !reachable
-      ? 'cannot-reach-coordinator'
-      : !detected.service.running
-        ? 'service-stopped'
-        : !detected.docker.answering
-          ? 'docker-not-answering'
-          : detected.nodeId && !computer?.online
-            ? 'cannot-reach-coordinator'
-            : 'running';
+    const needsRepair =
+      detected.install !== 'none' &&
+      Number(this.darwinRelease.split('.')[0]) >= 24 &&
+      !launcherCapable(await this.buildInfo(this.paths.supervisor).catch(() => null));
+    const state = needsRepair
+      ? 'needs-repair'
+      : !reachable
+        ? 'cannot-reach-coordinator'
+        : !detected.service.running
+          ? 'service-stopped'
+          : !detected.docker.answering
+            ? 'docker-not-answering'
+            : detected.nodeId && !computer?.online
+              ? 'cannot-reach-coordinator'
+              : 'running';
     if (state === 'docker-not-answering') this.dockerFailedAt ??= this.now();
     else if (detected.docker.answering) this.dockerFailedAt = undefined;
     const minutes = Math.floor((this.now() - (this.dockerFailedAt ?? this.now())) / 60000);
     const sentence =
-      state === 'running'
-        ? 'Docker is answering'
-        : state === 'docker-not-answering'
-          ? `Docker on this Mac has not answered${minutes ? ` for ${minutes} min` : ''}`
-          : state === 'service-stopped'
-            ? 'The worker on this Mac is not running'
-            : 'This Mac cannot reach the coordinator';
+      state === 'needs-repair'
+        ? 'Repair the worker'
+        : state === 'running'
+          ? 'Docker is answering'
+          : state === 'docker-not-answering'
+            ? `Docker on this Mac has not answered${minutes ? ` for ${minutes} min` : ''}`
+            : state === 'service-stopped'
+              ? 'The worker on this Mac is not running'
+              : 'This Mac cannot reach the coordinator';
     return {
       ...detected,
       state,

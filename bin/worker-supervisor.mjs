@@ -14,6 +14,14 @@ import { dirname, join } from 'node:path';
 import { installWorkerBuild } from './worker-update.mjs';
 import { superviseRelays } from './relay-supervisor.mjs';
 import { RELAY_PROTOCOL } from './relay-process.mjs';
+import {
+  atomicJson,
+  installCodeBundle,
+  readCurrentBundle,
+  readPreviousBundle,
+  switchCodeBundle,
+  pruneCodeBundles,
+} from './code-bundle.mjs';
 
 const receiptPath = (root) => join(root, 'worker-update.json');
 export function workerUpdateReceipt(root) {
@@ -45,6 +53,8 @@ export async function superviseWorker({
   // The embedded CLI enables relays using its stable supervisor executable.
   relay,
   root,
+  agentDir = dirname(root),
+  executableProtocol = globalThis.deployLauncherBuild?.launcherProtocol,
   version,
   stableMs = 30_000,
   startupMs = 60_000,
@@ -80,7 +90,14 @@ export async function superviseWorker({
   let receipt = workerUpdateReceipt(root);
   async function restore(reason, reseal = true) {
     let restored = false;
-    if (digest(executable) !== receipt.previousDigest) {
+    if ('previousBundle' in receipt) {
+      switchCodeBundle(agentDir, receipt.previousBundle);
+      if (receipt.kind === 'code') {
+        atomicJson(join(agentDir, 'code/previous.json'), receipt.previousBundleHistory || null);
+        pruneCodeBundles(agentDir);
+      }
+    }
+    if (receipt.kind !== 'code' && digest(executable) !== receipt.previousDigest) {
       if (!existsSync(previous) || digest(previous) !== receipt.previousDigest)
         throw new Error('Previous worker build is missing; automatic recovery stopped.');
       renameSync(previous, executable);
@@ -137,6 +154,9 @@ export async function superviseWorker({
         env: {
           ...process.env,
           DEPLOY_WORKER_CHILD: token,
+          DEPLOY_SUPERVISOR_LAUNCHER_PROTOCOL: String(
+            globalThis.deployLauncherBuild?.launcherProtocol || 0,
+          ),
           DEPLOY_RELAY_PROTOCOL: relays ? String(RELAY_PROTOCOL) : '',
         },
         stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
@@ -168,6 +188,13 @@ export async function superviseWorker({
           message.version === expected &&
           !ready
         ) {
+          atomicJson(join(root, 'supervisor-ready.json'), {
+            pid: process.pid,
+            version: expected,
+            launcherProtocol: globalThis.deployLauncherBuild?.launcherProtocol || 0,
+            executableVersion: globalThis.deployLauncherBuild?.version,
+            at: Date.now(),
+          });
           ready = true;
           lastHeartbeat = Date.now();
           clearTimeout(bootTimer);
@@ -180,6 +207,7 @@ export async function superviseWorker({
                 confirmedAt: Date.now(),
               };
               persist(root, receipt);
+              if (receipt.kind === 'code') pruneCodeBundles(agentDir);
               try {
                 await onUpdated(receipt);
               } catch (error) {
@@ -205,20 +233,37 @@ export async function superviseWorker({
               ...request,
               state: 'staging',
               previousVersion: expected,
-              previousDigest: digest(executable),
+              previousBundle: readCurrentBundle(agentDir),
+              ...(request.kind === 'code'
+                ? { previousBundleHistory: readPreviousBundle(agentDir) }
+                : {}),
+              ...(request.kind !== 'code' ? { previousDigest: digest(executable) } : {}),
             };
             persist(root, receipt);
             const bytes = await download(request);
             if (stopping || !child) throw new Error('Worker stopped before installation');
-            await install({
-              path: executable,
-              bytes,
-              sha256: request.sha256,
-              size: request.size,
-              version: request.targetVersion,
-              previous,
-            });
-            await afterInstall(executable);
+            if (request.kind === 'code') {
+              installCodeBundle({
+                agentDir,
+                bytes,
+                sha256: request.sha256,
+                size: request.size,
+                version: request.targetVersion,
+                launcherProtocol: request.launcherProtocol,
+                executableProtocol,
+              });
+            } else {
+              switchCodeBundle(agentDir, null);
+              await install({
+                path: executable,
+                bytes,
+                sha256: request.sha256,
+                size: request.size,
+                version: request.targetVersion,
+                previous,
+              });
+              await afterInstall(executable);
+            }
             if (stopping || child !== current)
               throw new Error('Worker stopped during installation');
             receipt.state = 'starting';

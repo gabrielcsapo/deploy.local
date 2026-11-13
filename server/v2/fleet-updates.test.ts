@@ -234,3 +234,78 @@ test('a computer can claim its update when the coordinator updated itself from m
     rmSync(host, { recursive: true, force: true });
   }
 });
+
+test('only an accepted launcher protocol gets a code job; legacy and older runtimes get executables', () => {
+  target();
+  fleet.setAutomaticUpdates('owner', true);
+  const bundle = {
+    file: 'deploy.cjs',
+    version: 'new',
+    size: 7,
+    sha256: 'b'.repeat(64),
+    launcherProtocol: 1,
+    restartSupervisor: true,
+  };
+  for (const protocol of [undefined, 0, 1, 2]) {
+    const id = node(`launcher-${protocol}`);
+    store.heartbeatNode(id, { capabilities: { selfUpdate: 1, launcherProtocol: protocol } });
+    fleet.produceComputerUpdates('owner', { ...manifest, bundle });
+    const jobs = store.getRecentAgentJobs(id);
+    assert.equal(jobs.length, 1);
+    const payload = JSON.parse(store.getAgentJob(jobs[0].id)!.payload);
+    assert.equal(payload.kind, protocol === 1 ? 'code' : undefined);
+    assert.equal(payload.size, protocol === 1 ? bundle.size : manifest.targets['linux-x64'].size);
+    assert.equal(
+      payload.sha256,
+      protocol === 1 ? bundle.sha256 : manifest.targets['linux-x64'].sha256,
+    );
+    assert.equal(payload.restartSupervisor, protocol === 1 ? true : undefined);
+  }
+});
+
+test('supervisor migration reserves idle tasks, agent jobs and terminals until its outcome is reported', () => {
+  const id = node('migration');
+  const target = 'new:abc:1';
+  store.enqueueAgentJob({
+    id: 'migration-job',
+    nodeId: id,
+    type: 'restart',
+    deploymentName: 'app',
+    payload: {},
+  });
+  store.claimAgentJob(id);
+  // A running job remains visible even if many newer jobs have been queued.
+  for (let i = 0; i < 10; i++)
+    store.enqueueAgentJob({ nodeId: id, type: 'restart', deploymentName: 'app', payload: {} });
+  assert.equal(fleet.reserveSupervisorSwap(id, target), false);
+  store.completeAgentJob('migration-job', id, { success: true });
+  createAgentExecSession(id, 'app', 80, 24);
+  const terminal = claimAgentExecSession(id)!;
+  assert.equal(fleet.reserveSupervisorSwap(id, target), false);
+  closeAgentExecSession(terminal.id, id, { code: 0 });
+  save('worker', 'owner', {
+    id: 'migration-worker',
+    instanceId: 'process',
+    name: 'migration',
+    heartbeat: new Date().toISOString(),
+  });
+  save('v2-computer-roles', 'owner', {
+    id,
+    workerIds: ['migration-worker'],
+    roles: ['run-apps', 'take-tasks'],
+  });
+  save('run', 'owner', { id: 'migration-run', workerId: 'migration-worker', status: 'running' });
+  assert.equal(fleet.reserveSupervisorSwap(id, target), false);
+  save('run', 'owner', { id: 'migration-run', workerId: 'migration-worker', status: 'succeeded' });
+  assert.equal(fleet.reserveSupervisorSwap(id, target), true);
+  assert.equal(store.claimAgentJob(id), null);
+  assert.throws(() => createAgentExecSession(id, 'app', 80, 24), /updating/);
+  assert.equal(workerRole('owner', 'migration-worker', 'take-tasks'), false);
+  fleet.reportSupervisorSwap(id, { target: 'wrong', state: 'complete' });
+  assert.ok(updateReservation(id));
+  fleet.reportSupervisorSwap(id, { target, state: 'starting' });
+  assert.ok(updateReservation(id));
+  fleet.reportSupervisorSwap(id, { target, state: 'failed' });
+  assert.equal(updateReservation(id), undefined);
+  assert.equal(workerRole('owner', 'migration-worker', 'take-tasks'), true);
+});

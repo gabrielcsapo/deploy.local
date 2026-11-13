@@ -13,6 +13,15 @@ export interface CliBuildManifest {
   dirty: boolean;
   buildTime: string;
   runtime: string;
+  launcherProtocol?: number;
+  bundle?: {
+    file: string;
+    size: number;
+    sha256: string;
+    version: string;
+    launcherProtocol: number;
+    restartSupervisor?: boolean;
+  };
   targets: Record<string, { size: number; sha256: string }>;
 }
 
@@ -102,10 +111,11 @@ export async function serveCliBinary(
   directory = cliDirectory(),
 ): Promise<void> {
   const url = new URL(req.url!, `http://${req.headers.host}`);
+  const code = url.pathname === '/cli/code';
   const os = url.searchParams.get('os');
   const arch = url.searchParams.get('arch');
 
-  if (!os || !arch) {
+  if (!code && (!os || !arch)) {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end('Missing os and arch query parameters');
     return;
@@ -113,14 +123,14 @@ export async function serveCliBinary(
 
   // os/arch land in a filesystem path — keep them to bare platform tokens so
   // no '..' or separator can walk out of dist/cli.
-  if (!/^[a-z0-9]+$/.test(os) || !/^[a-z0-9]+$/.test(arch)) {
+  if (!code && (!/^[a-z0-9]+$/.test(os!) || !/^[a-z0-9]+$/.test(arch!))) {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end('Invalid os or arch');
     return;
   }
 
   const executableExtension = os === 'win32' ? '.exe' : '';
-  const binaryPath = resolve(directory, cliBinaryFilename(os, arch));
+  const binaryPath = resolve(directory, code ? 'deploy.cjs' : cliBinaryFilename(os!, arch!));
 
   if (!existsSync(binaryPath)) {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -131,10 +141,11 @@ export async function serveCliBinary(
   try {
     const binary = await readFile(binaryPath);
     const manifest = readCliManifest(directory);
-    const target = manifest?.targets[`${os}-${arch}`];
+    const target = code ? manifest?.bundle : manifest?.targets[`${os}-${arch}`];
     if (
       !manifest ||
       !target ||
+      (code && manifest.bundle?.version !== manifest.version) ||
       (url.searchParams.has('version') && url.searchParams.get('version') !== manifest.version) ||
       binary.length !== target.size ||
       createHash('sha256').update(binary).digest('hex') !== target.sha256
@@ -145,14 +156,12 @@ export async function serveCliBinary(
     }
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="deploy${executableExtension}"`,
+      'Content-Disposition': `attachment; filename="${code ? 'deploy.cjs' : `deploy${executableExtension}`}"`,
       'Content-Length': binary.length,
       ...(manifest
         ? {
             'X-Deploy-Cli-Version': manifest.version,
-            ...(manifest.targets[`${os}-${arch}`]?.sha256
-              ? { 'X-Deploy-Cli-Sha256': manifest.targets[`${os}-${arch}`].sha256 }
-              : {}),
+            ...(target.sha256 ? { 'X-Deploy-Cli-Sha256': target.sha256 } : {}),
           }
         : {}),
     });

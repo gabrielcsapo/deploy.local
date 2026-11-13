@@ -326,3 +326,27 @@ test('Mac repair does not re-sign the running supervisor while staging a new wor
   await f.repair();
   assert.deepEqual(seals, [{ signSupervisor: false }]);
 });
+
+for (const fail of [false, true])
+  test(`full repair ${fail ? 'restores' : 'clears'} an installed code pointer`, async (t) => {
+    const f = fixture(t);
+    const { installCodeBundle, readCurrentBundle } = await import('./code-bundle.mjs');
+    const bytes = Buffer.from('module.exports = () => {};');
+    const pointer = installCodeBundle({
+      agentDir: f.root,
+      version: 'code-before-repair',
+      bytes,
+      sha256: digest(bytes),
+      size: bytes.length,
+      launcherProtocol: 1,
+      executableProtocol: 1,
+    });
+    f.options.restartServices = ({ rollback }) => {
+      if (rollback) return;
+      assert.equal(readCurrentBundle(f.root), null);
+      if (fail) throw new Error('restart failed');
+    };
+    if (fail) await assert.rejects(f.repair(), /restart failed/);
+    else await f.repair();
+    assert.deepEqual(readCurrentBundle(f.root), fail ? pointer : null);
+  });

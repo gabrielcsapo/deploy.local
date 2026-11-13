@@ -405,9 +405,15 @@ test(
       path = join(root, 'relays.json');
     writeFileSync(path, '[]');
     await bundleCli({ version: 'relay-test', packageVersion: '1.0.0', commit: 'unknown' }, root);
-    const child = spawn(process.execPath, [join(root, 'deploy.cjs'), 'agent', 'relay'], {
+    const child = spawn(process.execPath, [join(root, 'launcher.cjs'), 'agent', 'relay'], {
       cwd: root,
-      env: { ...process.env, DEPLOY_MDNS_ADDRESS: '127.0.0.1', DEPLOY_RELAY_STATE: path },
+      env: {
+        ...process.env,
+        DEPLOY_AGENT_CONFIG: join(root, 'agent.json'),
+        DEPLOY_DATA_DIR: join(root, 'data'),
+        DEPLOY_MDNS_ADDRESS: '127.0.0.1',
+        DEPLOY_RELAY_STATE: path,
+      },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     });
     let errors = '';

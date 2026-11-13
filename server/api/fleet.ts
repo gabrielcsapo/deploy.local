@@ -30,7 +30,12 @@ import { parseWantedRoles } from '../computer-roles.ts';
 import { enrollWorker } from '../workspace/credentials.ts';
 import { deploymentNotifications } from '../deployment-notification-service.ts';
 import { isIP } from 'node:net';
-import { reportComputerUpdate, rejectComputerUpdateJob } from '../v2/fleet-updates.ts';
+import {
+  reportComputerUpdate,
+  rejectComputerUpdateJob,
+  reserveSupervisorSwap,
+  reportSupervisorSwap,
+} from '../v2/fleet-updates.ts';
 import {
   claimAgentExecSession,
   pollAgentExecSession,
@@ -139,6 +144,16 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
         return json(res, { roles: getAgentRoles(nodeId!) });
       }
 
+      if (path === '/api/agent/supervisor-swap' && method === 'POST') {
+        const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
+        const secret = req.headers['x-deploy-node-secret'] as string | undefined;
+        if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
+        const body = JSON.parse((await readBody(req)).toString() || '{}');
+        return json(res, {
+          reserved: typeof body.target === 'string' && reserveSupervisorSwap(nodeId!, body.target),
+        });
+      }
+
       if (path === '/api/agent/heartbeat' && method === 'POST') {
         const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
         const secret = req.headers['x-deploy-node-secret'] as string | undefined;
@@ -163,6 +178,7 @@ export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
           body.updateReport,
           typeof body.agentVersion === 'string' ? body.agentVersion : undefined,
         );
+        reportSupervisorSwap(nodeId!, body.supervisorSwapReport);
         if (Array.isArray(body.capabilities?.apps)) {
           reconcileNodeRuntimePorts(nodeId!, body.capabilities.apps);
         }

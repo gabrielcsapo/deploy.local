@@ -93,7 +93,8 @@ export async function workerBuildInfo(path) {
   return info;
 }
 async function probeWorker(path, version, commit) {
-  const info = await workerBuildInfo(path);
+  const report = await workerBuildInfo(path);
+  const info = report.executable || report;
   if (info.version !== version || (commit && info.commit !== commit))
     throw new Error('The worker build does not match the coordinator release.');
 }

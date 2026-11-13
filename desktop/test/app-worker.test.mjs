@@ -128,6 +128,12 @@ async function fixture(t, options = {}) {
               ? flags.supervisorVersion
               : '2.0.0',
           commit: 'abc',
+          launcherProtocol:
+            flags.legacySupervisor &&
+            command.endsWith('-supervisor') &&
+            (await readFile(command, 'utf8')) === 'old supervisor'
+              ? undefined
+              : 1,
         }),
       );
     throw new Error('Unexpected command: ' + command);
@@ -138,6 +144,8 @@ async function fixture(t, options = {}) {
     uid: 501,
     platform: 'darwin',
     arch: 'x64',
+    darwinRelease: flags.darwinRelease || '22.0',
+    waitReady: async () => {},
     name: 'iMac',
     run,
     systemFile: join(home, 'system/sh.deploy.agent.plist'),
@@ -630,4 +638,27 @@ test('a stopped Colima is still Colima: Docker falls back to its default context
   assert.equal(docker.answering, false);
   await f.manager.restartDocker();
   assert.ok(f.calls.some((c) => c.command === '/fake/colima' && c.args[0] === 'start'));
+});
+
+test('macOS 15 reports the existing Repair state, and Repair replaces only a non-capable supervisor', async (t) => {
+  const f = await fixture(t, { darwinRelease: '24.0', legacySupervisor: true });
+  await f.seed({ current: true });
+  await f.put(f.manager.paths.supervisor, 'old supervisor');
+  await f.manager.mark();
+  assert.equal((await f.manager.status(true)).state, 'needs-repair');
+  assert.match(
+    render({ ...setupState, page: 'tray', online: true, appWorker: await f.manager.status() }),
+    /Repair the worker/,
+  );
+  await f.manager.repair();
+  assert.deepEqual(await readFile(f.manager.paths.supervisor), bytes);
+  assert.equal(await readFile(f.manager.paths.supervisor + '.previous', 'utf8'), 'old supervisor');
+  assert.equal((await f.manager.status(true)).state, 'running');
+  assert.equal(f.calls.filter((c) => c.args[0] === 'kickstart').length, 1);
+  f.calls.length = 0;
+  await f.manager.repair();
+  assert.equal(
+    f.calls.some((c) => c.args.includes('--identifier') || c.args[0] === 'kickstart'),
+    false,
+  );
 });

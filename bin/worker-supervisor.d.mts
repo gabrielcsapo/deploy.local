@@ -13,6 +13,8 @@ export function superviseWorker(input: {
     killGraceMs?: number;
   };
   root: string;
+  agentDir?: string;
+  executableProtocol?: number;
   version: string;
   stableMs?: number;
   startupMs?: number;

@@ -24,7 +24,6 @@ import {
   moveClashingWorker,
   workerRoot,
   installWorkerService,
-  restartWorkerService,
   installedServices,
   uninstallServices,
   systemdQuote,
@@ -49,6 +48,13 @@ import { createRelayController } from './relay-client.mjs';
 import { runRelayProcess } from './relay-process.mjs';
 import { downloadWorkerBuild, installWorkerBuild } from './worker-update.mjs';
 import { ensureWorkerBuild } from './agent-install.mjs';
+import { acceptsLauncher } from './launcher-protocol.mjs';
+import {
+  scheduleSupervisorSwap,
+  swapSupervisor,
+  supervisorSwapReceipt,
+  restartUpdatedServices,
+} from './supervisor-swap.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 import { printCertificateFingerprint } from './certificate-fingerprint.mjs';
@@ -1274,8 +1280,24 @@ async function sendAgentHeartbeat(config) {
       architecture: arch(),
       agentVersion: BUILD_INFO.version,
       address: agentLanAddress(),
-      capabilities: agentHeartbeatCapabilities(await agentCapabilities(), config.roles),
-      updateReport: workerUpdateReceipt(resolve(agentConfigPath(), '..', 'data')),
+      capabilities: agentHeartbeatCapabilities(
+        {
+          ...(await agentCapabilities()),
+          launcherProtocol: acceptsLauncher(
+            globalThis.deployLauncherBuild?.launcherProtocol,
+            Number(process.env.DEPLOY_SUPERVISOR_LAUNCHER_PROTOCOL),
+          )
+            ? globalThis.deployLauncherBuild.launcherProtocol
+            : undefined,
+        },
+        config.roles,
+      ),
+      supervisorSwapReport: supervisorSwapReceipt(
+        process.env.DEPLOY_DATA_DIR || resolve(agentConfigPath(), '..', 'data'),
+      ),
+      updateReport: workerUpdateReceipt(
+        process.env.DEPLOY_DATA_DIR || resolve(agentConfigPath(), '..', 'data'),
+      ),
     }),
   });
 }
@@ -1993,12 +2015,23 @@ async function processAgentJob(config, job) {
         throw new Error('This worker has no restart supervisor.');
       if (activeAgentExecSessions.size || claimingAgentExecSession)
         throw new Error('A terminal is still active; the installed build was kept.');
+      if (
+        job.payload.kind === 'code' &&
+        !acceptsLauncher(
+          job.payload.launcherProtocol,
+          globalThis.deployLauncherBuild?.launcherProtocol,
+        )
+      )
+        throw new Error('Unsupported launcher protocol');
       process.send({
         type: 'worker-update',
         request: {
           ...job.payload,
           jobId: job.id,
-          url: `${config.coordinatorUrl}/cli?os=${platform()}&arch=${arch()}&version=${encodeURIComponent(job.payload.targetVersion)}`,
+          url:
+            job.payload.kind === 'code'
+              ? `${config.coordinatorUrl}/cli/code?version=${encodeURIComponent(job.payload.targetVersion)}`
+              : `${config.coordinatorUrl}/cli?os=${platform()}&arch=${arch()}&version=${encodeURIComponent(job.payload.targetVersion)}`,
         },
       });
       return;
@@ -2244,9 +2277,19 @@ async function claimAgentExecSessionFromCoordinator(config) {
   }
 }
 
+let supervisorMaintenance = false;
 function workerUpdatePending() {
-  const receipt = workerUpdateReceipt(resolve(agentConfigPath(), '..', 'data'));
-  return receipt && ['staging', 'starting'].includes(receipt.state);
+  if (supervisorMaintenance) return true;
+  const receipt = workerUpdateReceipt(
+    process.env.DEPLOY_DATA_DIR || resolve(agentConfigPath(), '..', 'data'),
+  );
+  const swap = supervisorSwapReceipt(
+    process.env.DEPLOY_DATA_DIR || resolve(agentConfigPath(), '..', 'data'),
+  );
+  return (
+    (receipt && ['staging', 'starting'].includes(receipt.state)) ||
+    (swap && ['queued', 'staging', 'starting'].includes(swap.state))
+  );
 }
 
 async function cmdAgentRun() {
@@ -2275,15 +2318,15 @@ async function cmdAgentRun() {
     for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => controller.abort());
     await superviseWorker({
       executable,
-      // The supervisor's executable is not swapped by worker self-updates. Even a relay crash
-      // restarts the same relay code until this supervisor is replaced and restarted.
+      // Relays load current code on their next natural start; updates never interrupt them.
       relay: { executable: process.execPath, path: agentRelayStatePath() },
       previous: installed ? paths.previous : undefined,
       afterInstall: seal,
       root: process.env.DEPLOY_DATA_DIR,
+      agentDir,
       version: BUILD_INFO.version,
       signal: controller.signal,
-      onUpdated: () => restartWorkerService(),
+      onUpdated: restartUpdatedServices,
     });
     return;
   }
@@ -2353,10 +2396,38 @@ async function cmdAgentRun() {
     );
     execClaimTimer.unref();
   }
+  let supervisorChecked = false;
   while (true) {
     try {
       const job = workerUpdatePending() ? null : await claimAgentJobFromCoordinator(config);
       if (job) await processAgentJob(config, job);
+      else if (
+        process.env.DEPLOY_WORKER_CHILD &&
+        !supervisorChecked &&
+        !workerUpdatePending() &&
+        !activeAgentExecSessions.size &&
+        !claimingAgentExecSession
+      ) {
+        supervisorMaintenance = true;
+        try {
+          await scheduleSupervisorSwap({
+            agentDir,
+            root: process.env.DEPLOY_DATA_DIR,
+            reserve: async (target) => {
+              const result = await request(`${config.coordinatorUrl}/api/agent/supervisor-swap`, {
+                method: 'POST',
+                headers: { ...agentHeaders(config), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target }),
+              });
+              if (!result.reserved) throw new Error('Supervisor swap is waiting for idle jobs');
+              return true;
+            },
+          });
+          supervisorChecked = true;
+        } finally {
+          supervisorMaintenance = false;
+        }
+      }
     } catch (err) {
       console.error(`Agent job poll failed: ${err.message || err}`);
     }
@@ -2796,7 +2867,14 @@ async function cmdSsh(serverUrl, appName) {
 // ── Version & self-upgrade ──────────────────────────────────────────────────
 
 function cmdVersion({ json = false } = {}) {
-  const info = { ...BUILD_INFO, platform: platformTarget() };
+  const executable = globalThis.deployLauncherBuild;
+  const info = {
+    ...BUILD_INFO,
+    platform: platformTarget(),
+    launcherProtocol: executable?.launcherProtocol,
+    executable: executable || BUILD_INFO,
+    code: BUILD_INFO,
+  };
 
   if (json) {
     console.log(JSON.stringify(info, null, 2));
@@ -2804,6 +2882,10 @@ function cmdVersion({ json = false } = {}) {
   }
 
   console.log(`deploy ${info.version}`);
+  console.log(
+    `  executable: ${info.executable.version} (launcher protocol ${info.launcherProtocol || 0})`,
+  );
+  console.log(`  code: ${info.code.version}`);
   console.log(`  commit:   ${info.commit}${info.dirty ? ' (dirty working tree)' : ''}`);
   console.log(`  built:    ${info.buildTime ?? 'running from source (unpackaged)'}`);
   console.log(`  platform: ${info.platform}`);
@@ -3898,6 +3980,20 @@ try {
         const coordinatorUrl = positionals[2] || serverUrl;
         enableLocalTlsTrust(coordinatorUrl);
         await cmdAgentJoin(coordinatorUrl, values.name);
+      } else if (agentCommand === 'supervisor-swap') {
+        try {
+          await swapSupervisor({
+            agentDir: dirname(agentConfigPath()),
+            root: process.env.DEPLOY_DATA_DIR || resolve(agentConfigPath(), '..', 'data'),
+            scheduled: true,
+          });
+        } finally {
+          const job = process.env.DEPLOY_SWAP_JOB;
+          // Removing the job also ends this process, so it is the last thing done. A failed
+          // swap has already restored the old supervisor and recorded why.
+          if (job && /^sh\.deploy\.supervisor-swap\.\d+$/.test(job))
+            await runBounded('/bin/launchctl', ['remove', job], { timeoutMs: 15000 });
+        }
       } else if (agentCommand === 'relay') {
         await runRelayProcess();
       } else if (agentCommand === 'run') {
