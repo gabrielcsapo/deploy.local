@@ -166,6 +166,12 @@ export { Diff } from './v2/Diff';
 export { Field } from './v2/Field';
 export { Switch } from './v2/Switch';
 export { Action, Icon, IconButton, Glyph } from './v2/shared';
+export {
+  ListTemplate,
+  DetailTemplate,
+  ConversationTemplate,
+  SettingsTemplate,
+} from './v2/Templates';
 export type { ComponentState, IconName } from './v2/shared';
 export type { ApprovalMode } from './v2/Matrix';
 export type { DiffLine } from './v2/Diff';

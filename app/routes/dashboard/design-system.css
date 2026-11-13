@@ -232,3 +232,17 @@
     flex-wrap: wrap;
   }
 }
+
+/* Page template specimens: each in a frame the height of a short window. */
+.ds-template-frame {
+  display: flex;
+  height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-canvas);
+}
+.ds-template-frame + .dl-link {
+  display: inline-block;
+  margin-top: var(--ds-space-2);
+}

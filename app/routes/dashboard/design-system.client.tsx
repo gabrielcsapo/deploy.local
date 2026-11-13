@@ -17,6 +17,7 @@ import {
   Group,
   Head,
   Icon,
+  IconButton,
   Item,
   Matrix,
   Nav,
@@ -30,6 +31,10 @@ import {
   Tabs,
   Term,
   WorkLog,
+  ListTemplate,
+  DetailTemplate,
+  ConversationTemplate,
+  SettingsTemplate,
   type ApprovalMode,
   type ComponentState,
 } from '@/components/ui';
@@ -713,6 +718,235 @@ function Components({ state }: { state: ComponentState }) {
   );
 }
 
+// Page templates, with the copy of the approved boards. `?board=TemplateList&capture` shows one as a
+// whole page, beside the sidebar, for comparing with the board at 1440 and 700.
+const TEMPLATE_BOARDS = [
+  'TemplateList',
+  'TemplateDetail',
+  'TemplateConversation',
+  'TemplateSettings',
+] as const;
+type TemplateBoard = (typeof TEMPLATE_BOARDS)[number];
+
+function TemplateSpecimen({ board }: { board: TemplateBoard }) {
+  if (board === 'TemplateList')
+    return (
+      <ListTemplate
+        title="Projects"
+        description="Active projects grow. Maintained projects get fixes and updates. Done projects rest."
+        actions={
+          <>
+            <a className="dl-btn secondary" href="#discover">
+              Discover apps
+            </a>
+            <a className="dl-btn primary" href="#new">
+              New project
+            </a>
+          </>
+        }
+      >
+        <section className="dl-section">
+          <h2 className="dl-section-title">Active</h2>
+          <Group>
+            <Item
+              title="home-gym · Active"
+              description="1 proposal · 1 PR open · last change 3 days ago"
+              end={<Status kind="failed">1 failing</Status>}
+              href="#home-gym"
+            />
+            <Item
+              title="tally · Active"
+              description="2 proposals · 1 PR open · last change 3 days ago"
+              end={<Status kind="inactive">Not running</Status>}
+              href="#tally"
+            />
+            <Item
+              title="deploy.local · Active"
+              description="No proposals · 2 PRs open · last change 6 hours ago"
+              end={<Status>Healthy</Status>}
+              href="#deploy-local"
+            />
+          </Group>
+        </section>
+      </ListTemplate>
+    );
+  if (board === 'TemplateDetail')
+    return (
+      <DetailTemplate
+        title="home-gym"
+        parent={{ label: 'Projects', href: '#projects' }}
+        actions={
+          <a className="dl-btn primary" href="#new-task">
+            New task
+          </a>
+        }
+        tabs={{
+          value: '#overview',
+          items: [
+            { label: 'Overview', href: '#overview' },
+            { label: 'Code', href: '#code' },
+            { label: 'Pull requests', href: '#pulls' },
+            { label: 'Apps', href: '#apps' },
+          ],
+        }}
+      >
+        <section className="dl-section">
+          <h2 className="dl-section-title">Running</h2>
+          <p className="dl-section-sub">
+            Release 9c3e1fa on main. Open an app for its health, releases, logs and settings.
+          </p>
+          <Group>
+            <Item title="web" description="Web · SER" end={<Status>Healthy</Status>} href="#web" />
+            <Item
+              title="sync-worker"
+              description="38% of jobs error since 1:58 PM"
+              end={<Status kind="failed">Failing</Status>}
+              href="#sync-worker"
+            />
+          </Group>
+        </section>
+      </DetailTemplate>
+    );
+  if (board === 'TemplateConversation')
+    return (
+      <ConversationTemplate
+        title="Format the last-updated time as HH:MM:SS"
+        actions={
+          <>
+            <IconButton icon="more" label="More" />
+            <Action variant="primary">Merge and release</Action>
+          </>
+        }
+        tabs={{
+          value: '#chat',
+          items: [
+            { label: 'Chat', href: '#chat' },
+            { label: 'Changes', href: '#changes', count: 3 },
+            { label: 'Checks', href: '#checks', count: 3 },
+          ],
+        }}
+        composer={
+          <form className="dl-composer" onSubmit={(event) => event.preventDefault()}>
+            <input type="text" placeholder="Ask, build, or follow up…" aria-label="Message" />
+            <div className="dl-composer-bar">
+              <span className="dl-chip">SER</span>
+              <span className="dl-grow" />
+              <button type="submit" className="dl-send" aria-label="Send">
+                <Icon name="send" />
+              </button>
+            </div>
+          </form>
+        }
+      >
+        <div className="dl-you">
+          In Tally, format the last-updated time under the count as HH:MM:SS in 24-hour time
+        </div>
+        <div className="dl-turn">
+          <WorkLog summary="Worked for 6m" steps={sampleSteps} />
+          <div className="dl-reply">
+            <p>
+              The time under the count now reads 14:07:32: hours, minutes and seconds, padded, in
+              24-hour time. Midnight reads 00:00:00, and a test covers it.
+            </p>
+          </div>
+        </div>
+      </ConversationTemplate>
+    );
+  return (
+    <SettingsTemplate
+      title="Settings"
+      sections={
+        <>
+          <Nav href="#general" active>
+            General
+          </Nav>
+          <Nav href="#account">Account and SSH keys</Nav>
+          <Nav href="#agents">Agents and approvals</Nav>
+          <Nav href="#notifications">Notifications</Nav>
+        </>
+      }
+    >
+      <section className="dl-section">
+        <h2 className="dl-section-title">Appearance</h2>
+        <Group>
+          <Setting label="Theme" description="Light, Dark or System">
+            System
+            <Icon name="chevron" className="dl-chev" />
+          </Setting>
+          <Setting label="Text size" description="In conversations">
+            Default
+            <Icon name="chevron" className="dl-chev" />
+          </Setting>
+        </Group>
+      </section>
+    </SettingsTemplate>
+  );
+}
+
+function TemplatePage({ board }: { board: TemplateBoard }) {
+  return (
+    <div className="dl-app ds-template-page">
+      <Sidebar
+        brand={
+          <span className="dl-brand">
+            <span className="dl-mark">d</span>deploy.local
+          </span>
+        }
+        navigation={
+          <>
+            <Nav href="#new" lead={<Icon name="compose" />}>
+              New task
+            </Nav>
+            <Nav
+              href="#projects"
+              active={board === 'TemplateList' || board === 'TemplateDetail'}
+              lead={<Icon name="folder" />}
+            >
+              Projects
+            </Nav>
+            <Nav href="#live" lead={<Icon name="pulse" />} end="1 failing">
+              Live
+            </Nav>
+            <Nav href="#computers" lead={<Icon name="computer" />}>
+              Computers
+            </Nav>
+          </>
+        }
+        footer={<div className="dl-side-foot">Gabriel · Settings</div>}
+      />
+      <main className="dl-main">
+        <TemplateSpecimen board={board} />
+      </main>
+    </div>
+  );
+}
+
+function Templates() {
+  return (
+    <div className="ds-board" id="templates">
+      <h2 className="dl-title">Page templates</h2>
+      <p className="dl-meta">
+        A new page picks one: list, detail, conversation or settings. Each opens on its own beside
+        the sidebar.
+      </p>
+      <div className="ds-grid ds-halves">
+        {TEMPLATE_BOARDS.map((board) => (
+          <Section key={board} title={board.replace('Template', '')}>
+            <div className="ds-template-frame">
+              <main className="dl-main">
+                <TemplateSpecimen board={board} />
+              </main>
+            </div>
+            <a className="dl-link" href={`?board=${board}`}>
+              Open as a page
+            </a>
+          </Section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemClient() {
   const { url } = useRouter();
   const params = new URL(url, 'http://localhost').searchParams;
@@ -722,6 +956,8 @@ export default function DesignSystemClient() {
   const [preview, setPreview] = useState('default');
   const state = { disabled: preview === 'disabled', loading: preview === 'loading' };
   const board = params.get('board');
+  if (board && (TEMPLATE_BOARDS as readonly string[]).includes(board))
+    return <TemplatePage board={board as TemplateBoard} />;
   return (
     <div className="dl-sheet ds-reference" data-ds-theme={theme} data-preview-state={preview}>
       <link
@@ -755,11 +991,13 @@ export default function DesignSystemClient() {
           <a href="#foundations">Foundations</a>
           <a href="#states">States</a>
           <a href="#components">Components</a>
+          <a href="#templates">Templates</a>
         </div>
       )}
       {(!board || board === 'DesignSystem') && <Foundations theme={theme} state={state} />}
       {(!board || board === 'States') && <States state={state} />}
       {(!board || board === 'Components') && <Components state={state} />}
+      {(!board || board === 'Templates') && <Templates />}
     </div>
   );
 }
