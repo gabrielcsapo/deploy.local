@@ -374,12 +374,17 @@ export async function workspaceApi(
           projects: addressedProjects(owner),
           tasks: ((controls) =>
             list('task', owner).map((task) => ({
-              ...taskQueue(owner, taskPullSummary(task, pulls)),
+              ...taskQueue(owner, taskPullSummary(task, pulls), { runs, pulls }),
               runStatus: runStatus.get(task.id) ?? null,
               controlRequest: controls.get(task.id) ?? null,
               waitingForAnswer: waitingForAnswer.has(task.id),
             })))(pendingControlRequests(owner)),
-          runs: runs.map((run) => presentRun(owner, run)),
+          // The instructions each run was started with are for its worker, which reads the run
+          // itself. No client shows them, and they were most of this response.
+          runs: runs.map((run) => {
+            const { agentContext: _, ...shown } = presentRun(owner, run);
+            return shown;
+          }),
           ...(await capabilities(owner)),
         };
         return send(state satisfies WorkspaceState);

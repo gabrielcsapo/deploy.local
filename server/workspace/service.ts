@@ -560,17 +560,19 @@ async function cliInstalled(binary: string) {
 export async function capabilities(owner?: string) {
   const available = await cliInstalled('codex');
   const workers = computers(owner || '');
+  // Read once for every worker's load, not once per worker.
+  const runs = list('run', owner || '');
   return {
     workers: workers.map((worker) =>
       worker.id === 'local'
         ? {
             ...worker,
-            ...workerLoad(owner || '', worker.id),
+            ...workerLoad(owner || '', worker.id, runs),
             modelOptions: modelOptions(),
             providers: providerUsage(),
             capabilities: [...worker.capabilities, ...(available ? ['codex'] : [])],
           }
-        : { ...worker, ...workerLoad(owner || '', worker.id) },
+        : { ...worker, ...workerLoad(owner || '', worker.id, runs) },
     ),
     adapters: [
       {
