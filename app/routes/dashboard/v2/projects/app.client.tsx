@@ -1,4 +1,5 @@
 'use client';
+import { NoRepository } from './repository-connect.client';
 import { useState } from 'react';
 import {
   Action,
@@ -192,6 +193,9 @@ function AppSettings({ project, app, overview }: AppProps) {
       </section>
       {error && <Banner title={error} />}
       {saved && <Banner title="Memory limit saved" />}
+      {!project.fromDiscover && !overview.repository && !overview.repositoryError && (
+        <NoRepository project={project} />
+      )}
     </>
   );
 }

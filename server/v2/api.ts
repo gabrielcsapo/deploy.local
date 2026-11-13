@@ -1,3 +1,4 @@
+import { projectsApi } from './projects-api.ts';
 import { performanceApi } from './performance.ts';
 import { sendJson } from '../http.ts';
 import { packagesApi } from '../packages/api.ts';
@@ -49,6 +50,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (await computersApi(req, res, auth.username)) return;
     if (await selfUpdateApi(req, res, auth.username)) return;
     if (await backupsApi(req, res, auth.username)) return;
+    if (await projectsApi(req, res, auth.username)) return;
     if (await settingsApi(req, res, auth.username)) return;
     if (await agentsApi(req, res, auth.username)) return;
     if (await releasesApi(req, res, auth.username)) return;

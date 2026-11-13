@@ -234,6 +234,8 @@ export type LiveAppResponse = {
 };
 
 export type Project = {
+  stage?: 'active' | 'maintained' | 'done';
+  fromDiscover?: boolean;
   id: string;
   name: string;
   apps: { id: string; name: string; kind: 'web' | 'worker' }[];

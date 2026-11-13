@@ -82,14 +82,19 @@ const steps = (): Release['steps'] =>
 
 /** Current pointers, rather than release ordering, also describe failed activations and rollbacks. */
 export function currentProjectReleases(owner: string) {
-  return list('v2-project-current', owner).map((pointer) => {
-    const record: ReleaseRecord = get('v2-release', owner, pointer.releaseId);
-    const activation = record.release.steps.find((step) => step.name === 'activate');
-    return {
-      ...record,
-      releasedAt: pointer.releasedAt ?? activation?.endedAt ?? activation?.startedAt,
-    };
-  });
+  return list('v2-project-current', owner).flatMap((pointer) =>
+    [...new Set<string>([pointer.releaseId, ...(pointer.releaseIds || [])])].map((releaseId) => {
+      const record: ReleaseRecord = get('v2-release', owner, releaseId);
+      const activation = record.release.steps.find((step) => step.name === 'activate');
+      return {
+        ...record,
+        releasedAt:
+          (releaseId === pointer.releaseId ? pointer.releasedAt : undefined) ??
+          activation?.endedAt ??
+          activation?.startedAt,
+      };
+    }),
+  );
 }
 
 export function projectReleases(owner: string, projectId: string): Release[] {

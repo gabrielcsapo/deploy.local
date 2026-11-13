@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { authenticatedFetch, remember, remembered } from '../data/hooks';
 import type { Project } from '../../../../../shared/v2/contracts';
 export { authenticatedFetch };
@@ -69,3 +69,19 @@ export type Overview = {
   pulls: Work[];
   apps: Array<Project['apps'][number] & { computer?: string; memoryLimit?: string }>;
 };
+
+// The host never changes while a page is open, so there is nothing to subscribe to.
+const subscribeToNothing = () => () => {};
+
+/** The address bar's host, or nothing on the server, which has no window to read it from. */
+export function useBrowserHost() {
+  const origin = useBrowserOrigin();
+  return origin ? new URL(origin).host : '';
+}
+export function useBrowserOrigin() {
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => window.location.origin,
+    () => '',
+  );
+}

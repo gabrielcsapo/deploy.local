@@ -23,6 +23,7 @@ import { request, useData, type Overview } from './data';
 import { useSearchParams } from 'react-flight-router/client';
 import { formatTime } from '../data/time';
 import { projectPath, projectSegment } from './routing';
+import { NoRepository } from './repository-connect.client';
 import { RepositorySettings } from './repository-settings.client';
 
 export function ProjectConfiguration({
@@ -213,7 +214,11 @@ export function ProjectConfiguration({
           </Group>
         )}
       </section>
-      {overview.repository && <RepositorySettings project={project} />}
+      {overview.repository ? (
+        <RepositorySettings project={project} />
+      ) : (
+        !project.fromDiscover && !overview.repositoryError && <NoRepository project={project} />
+      )}
       <section className="dl-section">
         <h2 className="dl-section-title">Releases</h2>
         <p className="dl-section-sub">

@@ -1,3 +1,4 @@
+import { finished } from 'node:stream/promises';
 import { Readable, Writable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -17,6 +18,7 @@ export function routeFetch(
     );
     const chunks: Buffer[] = [];
     let status = 200;
+    let sent = false;
     let headers: Record<string, string> = {};
     const response = Object.assign(
       new Writable({
@@ -27,6 +29,7 @@ export function routeFetch(
       }),
       {
         writeHead(code: number, values: Record<string, string> = {}) {
+          sent = true;
           status = code;
           headers = values;
           return response;
@@ -34,6 +37,7 @@ export function routeFetch(
       },
     );
     await handle(request as unknown as IncomingMessage, response as unknown as ServerResponse);
+    if (sent && !response.writableEnded) await finished(response);
     if (!response.writableEnded) throw new Error(`Route did not end its response: ${url}`);
     return new Response(Buffer.concat(chunks), { status, headers });
   };

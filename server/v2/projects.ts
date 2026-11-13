@@ -6,8 +6,8 @@ import {
 } from '../secrets.ts';
 import type { Project } from '../../shared/v2/contracts.ts';
 import { getDeployments, getApplicationSpecRevision, getSqlite } from '../store.ts';
-import { list } from '../workspace/store.ts';
-import { repositoryApplication } from '../workspace/repositories.ts';
+import { db, list, save, remove, command, commandReplay } from '../workspace/store.ts';
+import { queueProject, repositoryApplication } from '../workspace/repositories.ts';
 import { parseStoredApplicationSpec } from '../application-spec.ts';
 import { fail } from '../errors.ts';
 
@@ -37,11 +37,25 @@ export async function projectsForOwner(owner: string): Promise<Project[]> {
   const links = (
     await Promise.all(
       projects.map(async (project) => {
-        const application = await repositoryApplication(owner, project.id);
+        const application = await repositoryApplication(owner, project.id).catch(() => null);
         return application ? [{ projectId: project.id, application }] : [];
       }),
     )
   ).flat();
+  // Older releases can predate explicit membership; use their project when no main manifest links it.
+  const currentReleaseIds = new Set(
+    list('v2-project-current', owner).flatMap((row) => [row.releaseId, ...(row.releaseIds || [])]),
+  );
+  for (const row of list('v2-release', owner)) {
+    if (
+      !currentReleaseIds.has(row.id) ||
+      !projects.some((project) => project.id === row.release.projectId)
+    )
+      continue;
+    for (const app of row.release.apps)
+      if (!links.some((link) => link.application === app.appId))
+        links.push({ projectId: row.release.projectId, application: app.appId });
+  }
   const apps = getDeployments(owner).map((app) => {
     const revision = app.activeSpecDigest
       ? getApplicationSpecRevision(app.name, app.activeSpecDigest)
@@ -111,13 +125,28 @@ export async function projectsForOwner(owner: string): Promise<Project[]> {
         id: link.projectId,
         name: apps.find((app) => app.name === link.application)?.name || link.projectId,
       });
-  return groupProjects(projects, apps, persisted);
+  const repositories = list('project', owner);
+  return groupProjects(projects, apps, persisted).map((project) => {
+    const fromDiscover = project.apps.some((app) => isDiscoverApp(app.name));
+    const storedStage = repositories.find((row) => row.id === project.id)?.stage;
+    const stage: Project['stage'] = ['active', 'maintained', 'done'].includes(storedStage)
+      ? storedStage
+      : fromDiscover
+        ? 'maintained'
+        : 'active';
+    return { ...project, stage, ...(fromDiscover ? { fromDiscover: true } : {}) };
+  });
 }
 
 export async function resolveProject(owner: string, key: string): Promise<Project> {
   const projects = await projectsForOwner(owner);
   const byId = projects.find((project) => project.id === key);
   if (byId) return byId;
+  const alias = list('v2-project-alias', owner).find((row) => row.id === key);
+  if (alias) {
+    const target = projects.find((project) => project.id === alias.projectId);
+    if (target) return target;
+  }
   const matches = projects.filter((project) => project.name === key);
   if (matches.length > 1) fail('Project name is ambiguous; use its id', 409);
   if (!matches.length) fail('Project not found', 404);
@@ -126,27 +155,37 @@ export async function resolveProject(owner: string, key: string): Promise<Projec
 
 export async function addProjectApplication(owner: string, key: string, application: string) {
   const project = await resolveProject(owner, key);
+  db.transaction(() => moveProjectApplication(owner, project, application))();
+  return resolveProject(owner, project.id);
+}
+
+function moveProjectApplication(owner: string, project: Project, application: string) {
   if (!getDeployments(owner).some((app) => app.name === application)) fail('App not found', 404);
+  if (isDiscoverApp(application)) fail('Only apps shipped from a folder can be added', 409);
   const database = getSqlite()!;
   if (
     list('v2-project-removal', owner).some(
       (removal) =>
         removal.id === project.id ||
+        removal.id === `app:${application}` ||
         removal.project.apps.some((app: ProjectApplication) => app.name === application),
     )
   )
     fail('This project or app is being removed', 409);
   if (
     list('v2-project-run', owner).some(
-      (run) => run.id === project.id || run.apps.includes(application),
+      (run) =>
+        run.id === project.id || run.id === `app:${application}` || run.apps.includes(application),
     )
   )
     fail('A release is changing this project; try again after it finishes', 409);
+  if (!list('project', owner).some((row) => row.id === project.id))
+    fail('Add a repository to this project first', 409);
   database.transaction(() => {
     const current = database
       .prepare('SELECT project_id FROM project_applications WHERE owner=? AND application=?')
       .get(owner, application) as { project_id: string } | undefined;
-    if (current && current.project_id !== project.id && current.project_id !== `app:${application}`)
+    if (current && current.project_id !== `app:${application}`)
       fail('App already belongs to another project', 409);
     // A standalone project's defaults become app overrides when it joins a
     // repository, so its values cannot unexpectedly change the other apps.
@@ -191,6 +230,29 @@ export async function addProjectApplication(owner: string, key: string, applicat
             row.updated_by,
           );
       }
+      // These are every other coordinator table with a project_id. Package pins have
+      // no owner column; app names are globally unique and membership was owner-checked above.
+      database
+        .prepare('UPDATE packages SET project_id=? WHERE project_id=? AND created_by=?')
+        .run(project.id, current.project_id, owner);
+      database
+        .prepare(`INSERT OR IGNORE INTO package_pins
+        SELECT ecosystem,key,?,release_id,reason FROM package_pins WHERE project_id=?`)
+        .run(project.id, current.project_id);
+      database.prepare('DELETE FROM package_pins WHERE project_id=?').run(current.project_id);
+      database
+        .prepare(`INSERT OR IGNORE INTO package_project_copies
+        SELECT username,?,commit_id,checked_at FROM package_project_copies WHERE username=? AND project_id=?`)
+        .run(project.id, owner, current.project_id);
+      database
+        .prepare(`INSERT OR IGNORE INTO package_project_requirements
+        SELECT username,?,key,name,version FROM package_project_requirements WHERE username=? AND project_id=?`)
+        .run(project.id, owner, current.project_id);
+      for (const table of ['package_project_copies', 'package_project_requirements'])
+        database
+          .prepare(`DELETE FROM ${table} WHERE username=? AND project_id=?`)
+          .run(owner, current.project_id);
+      moveProjectHistory(owner, current.project_id, project.id);
       database
         .prepare('DELETE FROM project_configuration WHERE owner=? AND project_id=?')
         .run(owner, current.project_id);
@@ -201,5 +263,116 @@ export async function addProjectApplication(owner: string, key: string, applicat
       )
       .run(application, owner, project.id);
   })();
-  return resolveProject(owner, project.id);
+}
+
+/** Rewrite structured project references, never app ids, messages or historical event payloads. */
+function moveProjectHistory(owner: string, from: string, to: string) {
+  function references(value: any): any {
+    if (Array.isArray(value)) return value.map(references);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        key === 'project' &&
+        entry &&
+        typeof entry === 'object' &&
+        'id' in entry &&
+        entry.id === from
+          ? { ...references(entry), id: to }
+          : (key === 'projectId' || key === 'project') && entry === from
+            ? to
+            : key === 'projects' && Array.isArray(entry)
+              ? entry.map((id) => (id === from ? to : id))
+              : references(entry),
+      ]),
+    );
+  }
+  db.transaction(() => {
+    const records = db.prepare('SELECT kind,id,data FROM records WHERE owner=?').all(owner) as {
+      kind: string;
+      id: string;
+      data: string;
+    }[];
+    for (const record of records) {
+      const row = references(JSON.parse(record.data));
+      // Project-scoped preferences and the current-release pointer use the project as their key.
+      if (record.id === from && record.kind.startsWith('v2-project-')) {
+        const existing = list(record.kind, owner).find((entry) => entry.id === to);
+        if (record.kind === 'v2-project-current' && existing) {
+          row.releaseIds = [
+            ...new Set([
+              ...(existing.releaseIds || []),
+              existing.releaseId,
+              ...(row.releaseIds || []),
+              row.releaseId,
+            ]),
+          ];
+          row.releaseId = existing.releaseId;
+          row.releasedAt = existing.releasedAt;
+        } else if (existing) {
+          // The destination's project-wide preferences keep governing its other apps.
+          Object.assign(row, existing);
+        }
+        row.id = to;
+        remove(record.kind, owner, from);
+      }
+      if (JSON.stringify(row) !== record.data) save(record.kind, owner, row);
+    }
+    save('v2-project-alias', owner, { id: from, projectId: to });
+  })();
+}
+
+/** The same creation path serves New project and Add repository, including legacy clients. */
+export async function createRepositoryProject(
+  owner: string,
+  input: any,
+  signature?: string,
+  expectedStandalone?: string,
+) {
+  const replay = commandReplay(owner, input.operationId, signature);
+  if (replay.found) return resolveProject(owner, replay.result.id);
+  const projects = await projectsForOwner(owner);
+  const name = String(input.name || '').trim();
+  const standalone = projects.find(
+    (project) =>
+      project.id.startsWith('app:') && project.name === name && !isDiscoverApp(project.name),
+  );
+  return command(
+    owner,
+    input.operationId,
+    () => {
+      if (expectedStandalone && standalone?.id !== expectedStandalone)
+        fail('App already belongs to a repository project', 409);
+      const repository = queueProject(owner, input);
+      const project: Project = { id: repository.id, name: repository.name, apps: [] };
+      if (standalone) {
+        for (const app of standalone.apps) moveProjectApplication(owner, project, app.name);
+        project.apps = standalone.apps;
+      }
+      return project;
+    },
+    signature,
+  );
+}
+
+export async function addProjectRepository(owner: string, key: string, input: any) {
+  const signature = JSON.stringify({ key, sourcePath: input.sourcePath || '' });
+  const replay = commandReplay(owner, input.operationId, signature);
+  if (replay.found) return resolveProject(owner, replay.result.id);
+  const project = await resolveProject(owner, key);
+  if (!project.id.startsWith('app:') || isDiscoverApp(project.name))
+    fail('App already belongs to a repository project', 409);
+  return createRepositoryProject(owner, { ...input, name: project.name }, signature, project.id);
+}
+
+export async function unlinkedProjectApps(owner: string) {
+  return (await projectsForOwner(owner))
+    .filter((project) => project.id.startsWith('app:') && !isDiscoverApp(project.name))
+    .flatMap((project) => project.apps);
+}
+
+function isDiscoverApp(application: string) {
+  return !!getSqlite()!
+    .prepare('SELECT 1 FROM catalog_installations WHERE application_name=?')
+    .get(application);
 }

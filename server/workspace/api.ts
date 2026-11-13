@@ -1,3 +1,4 @@
+import { createRepositoryProject } from '../v2/projects.ts';
 import { plainPath, sendJson } from '../http.ts';
 import type { WorkspaceState, TaskDetail, Message } from '../../shared/v2/contracts.ts';
 import { updateBase, baseUpdateWorker } from './update-base.ts';
@@ -39,7 +40,6 @@ import {
 import { queueTask, taskWorkspaceCommand } from './task-workspace.ts';
 import { repositorySetup } from './repository-setup.ts';
 import {
-  queueProject,
   updateProjectSettings,
   updateProjectControlPolicy,
   addProjectRemote,
@@ -571,6 +571,11 @@ export async function workspaceApi(
       const signature = createHash('sha256')
         .update(path + JSON.stringify(stable(body)))
         .digest('hex');
+      if (path === '/projects') {
+        const project = await createRepositoryProject(owner, body, signature);
+        const stored = get('project', owner, project.id);
+        return send(stored, stored.repositoryStatus === 'ready' ? 200 : 202);
+      }
       if (path === '/workers/managed/start')
         return send(command(owner, body.operationId, () => enableManagedWorker(owner), signature));
       if (path === '/provider-connections')
@@ -645,7 +650,6 @@ export async function workspaceApi(
           if (path === '/workers/enroll') return enrollWorker(owner, body);
           const revokeRoute = path.match(/^\/computers\/([^/]+)\/revoke$/);
           if (revokeRoute) return revokeWorker(owner, revokeRoute[1]);
-          if (path === '/projects') return queueProject(owner, body);
           const settingsRoute = path.match(/^\/projects\/([^/]+)\/settings$/);
           if (settingsRoute) return updateProjectSettings(owner, settingsRoute[1], body);
           const policyRoute = path.match(/^\/projects\/([^/]+)\/settings\/control$/);

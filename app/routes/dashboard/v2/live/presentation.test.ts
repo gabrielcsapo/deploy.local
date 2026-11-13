@@ -88,3 +88,23 @@ test('project health uses Live states with failure counts and no status for empt
   assert.deepEqual(projectHealth([stopped]), { kind: 'inactive', label: 'Not running' });
   assert.deepEqual(projectHealth([stopped, healthy]), { kind: 'healthy', label: 'Healthy' });
 });
+
+test('Live names every project, including folder apps, and keeps Discover provenance', async () => {
+  const { projectOrigin } = await import('./presentation.ts');
+  const app = {
+    appId: 'pantry',
+    name: 'pantry',
+    kind: 'web' as const,
+    state: 'healthy' as const,
+    summary: 'Healthy',
+  };
+  assert.deepEqual(projectOrigin(app, {}), {
+    label: 'pantry',
+    href: '/dashboard/projects/app%3Apantry',
+  });
+  assert.deepEqual(projectOrigin({ ...app, project: 'joined' }, { joined: 'recipes' }), {
+    label: 'recipes',
+    href: '/dashboard/projects/joined',
+  });
+  assert.deepEqual(projectOrigin({ ...app, fromDiscover: true }, {}), { label: 'From Discover' });
+});
