@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(import.meta.dirname, '..');
-const script = join(root, 'scripts/check-dl-styles.mjs');
-const run = (directory) =>
-  spawnSync(process.execPath, [script, '--root', directory], { encoding: 'utf8' });
+const run = (script, directory, ...args) =>
+  spawnSync(process.execPath, [join(root, 'scripts', script), '--root', directory, ...args], {
+    encoding: 'utf8',
+  });
 
 function copy(t) {
   const directory = mkdtempSync(join(tmpdir(), 'dl-styles-'));
@@ -18,45 +19,51 @@ function copy(t) {
     'app/components/ui/v2',
     'app/design-tokens.css',
     'scripts/dl-style-drift.json',
+    '.oxfmtrc.json',
   ])
     cpSync(join(root, path), join(directory, path), { recursive: true });
   return directory;
 }
 
-test('the boards and the web app differ only where the record says', () => {
-  const result = run(root);
+test('the app takes its dl-* rules from the design system', () => {
+  const result = run('check-dl-styles.mjs', root);
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('a value changed on one side only fails the check', (t) => {
+test('an app rule that changes a design-system property fails', (t) => {
   const directory = copy(t);
   appendFileSync(
     join(directory, 'app/components/ui/v2/components.css'),
-    '\n.dl-btn { border-radius: 4px; }\n',
+    '\n.dl-btn {\n  border-radius: 4px;\n}\n',
   );
-  const result = run(directory);
+  const result = run('check-dl-styles.mjs', directory);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /new conflicts: .*"\.dl-btn".*"border-radius"/);
+  assert.match(result.stderr, /components\.css sets border-radius on \.dl-btn/);
 });
 
-test('a token resolved differently in the dark theme fails the check', (t) => {
+test('a source change reaches the app only through the generator', (t) => {
   const directory = copy(t);
   appendFileSync(
     join(directory, 'design/ds/deploy-local/components/bundle.css'),
-    '\n.dl-hint{color:var(--ink)}\n',
+    '\n.dl-hint{letter-spacing:.01em}\n',
   );
-  const result = run(directory);
+  let result = run('check-dl-styles.mjs', directory);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /new conflicts: .*"\.dl-hint".*"color"/);
+  assert.match(result.stderr, /dl-components\.css is out of date/);
+  assert.equal(run('build-dl-styles.mjs', directory).status, 0);
+  result = run('check-dl-styles.mjs', directory);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(
+    readFileSync(join(directory, 'app/components/ui/v2/dl-components.css'), 'utf8'),
+    /letter-spacing: 0\.01em/,
+  );
 });
 
-test('a dl-* class added to one side only fails the check', (t) => {
+test('a design-system token that no longer matches its app token fails', (t) => {
   const directory = copy(t);
-  appendFileSync(
-    join(directory, 'app/components/ui/v2/components.css'),
-    '\n.dl-snooze { display: flex; }\n',
-  );
-  const result = run(directory);
+  const file = join(directory, 'design/ds/deploy-local/tokens.css');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('--paper: #fafafb;', '--paper: #fafafa;'));
+  const result = run('check-dl-styles.mjs', directory);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /new appOnlyClasses: "dl-snooze"/);
+  assert.match(result.stderr, /--paper → --ds-canvas differ in light/);
 });
