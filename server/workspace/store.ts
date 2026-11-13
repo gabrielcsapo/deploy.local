@@ -37,7 +37,29 @@ CREATE INDEX IF NOT EXISTS record_job_status ON records(owner,json_extract(data,
 });
 export const now = () => new Date().toISOString();
 export const id = () => randomUUID();
+// Views subscribe at the persistence boundary so every API writer is covered.
+type RecordChange = (owner: string, kind: string, row: any, previous: any) => void;
+const recordObservers = new Map<string, Set<RecordChange>>();
+export function onRecordChange(kinds: string[], listener: RecordChange) {
+  for (const kind of kinds) {
+    const listeners = recordObservers.get(kind) ?? new Set<RecordChange>();
+    listeners.add(listener);
+    recordObservers.set(kind, listeners);
+  }
+}
+function previousObservedRecord(kind: string, owner: string, recordId: string) {
+  if (!recordObservers.has(kind)) return undefined;
+  const row = db
+    .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
+    .get(kind, owner, recordId) as { data: string } | undefined;
+  return row ? JSON.parse(row.data) : undefined;
+}
+function recordChanged(kind: string, owner: string, row: any, previous: any) {
+  for (const listener of recordObservers.get(kind) ?? []) listener(owner, kind, row, previous);
+}
 export function save(kind: string, owner: string, row: any) {
+  const previous = previousObservedRecord(kind, owner, row.id);
+  let observed = row;
   const write = () => {
     let stored = kind === 'checkpoint' ? externalizeCheckpoint(root, row) : row;
     if (kind === 'job') {
@@ -59,16 +81,23 @@ export function save(kind: string, owner: string, row: any) {
       const { output: _, ...metadata } = row;
       stored = metadata;
     }
+    const data = JSON.stringify(stored);
     db.prepare(
       'INSERT INTO records VALUES(?,?,?,?) ON CONFLICT(kind,id,owner) DO UPDATE SET data=excluded.data',
-    ).run(kind, row.id, owner, JSON.stringify(stored));
+    ).run(kind, row.id, owner, data);
+    // Compare persisted shapes: omitted undefined fields in a repeated registration
+    // must not look like an inventory change merely because JSON drops them.
+    if (recordObservers.has(kind)) observed = JSON.parse(data);
   };
   if (kind === 'job') db.transaction(write).immediate();
   else write();
+  recordChanged(kind, owner, observed, previous);
   return row;
 }
 export function remove(kind: string, owner: string, recordId: string) {
+  const previous = previousObservedRecord(kind, owner, recordId);
   db.prepare('DELETE FROM records WHERE kind=? AND owner=? AND id=?').run(kind, owner, recordId);
+  recordChanged(kind, owner, undefined, previous);
 }
 /** Job lists contain metadata only; get() and jobOutput() opt in to the log. */
 export function list(kind: string, owner: string): any[] {

@@ -3,8 +3,8 @@ import type { ConversationEvent, WorkStep } from '../../shared/v2/contracts.ts';
 import type { V2Event, V2EventsResponse } from '../../shared/v2/api.ts';
 import { cursor as eventCursor, events, list } from '../workspace/store.ts';
 import { createOwnerEventPoller } from './event-poller.ts';
-import { getLive } from './live.ts';
-import { agentId, syncInbox } from './inbox.ts';
+import { agentId } from './inbox.ts';
+import { stateRefresh } from './state-refresh.ts';
 
 const workIcons = new Map<string, WorkStep['icon']>([
   ['command_execution', 'terminal'],
@@ -156,21 +156,7 @@ export function mapConversationEvent(row: any, run?: any): ConversationEvent | u
   }
 }
 
-// Time-based inbox expiry and state changes without an event appear within this interval.
-const STATE_REFRESH_INTERVAL_MS = 500;
-// Keep refresh bookkeeping only while requests for this owner are alive. Waking an
-// ignored page must retain its budget until that request either re-waits or returns.
-const refreshesByOwner = new Map<string, { at: number; requests: number }>();
-async function refresh(owner: string, force = false) {
-  const state = refreshesByOwner.get(owner);
-  if (!state) return;
-  const now = Date.now();
-  if (!force && now - state.at < STATE_REFRESH_INTERVAL_MS) return;
-  state.at = now;
-  await getLive(owner);
-  syncInbox(owner);
-}
-const poller = createOwnerEventPoller({ head: eventCursor, refresh });
+const poller = createOwnerEventPoller({ head: eventCursor, refresh: stateRefresh.read });
 
 /** Poll SQLite, including time-based inbox expiry, so independent workers can wake clients. */
 export async function waitForV2Events(
@@ -179,55 +165,48 @@ export async function waitForV2Events(
   waitMs: number,
   signal: AbortSignal,
 ): Promise<V2EventsResponse> {
-  const state = refreshesByOwner.get(owner) ?? { at: 0, requests: 0 };
-  state.requests++;
-  refreshesByOwner.set(owner, state);
-  try {
-    const deadline = Date.now() + Math.min(10_000, Math.max(0, waitMs));
-    let cursor = after;
-    let firstPass = true;
-    let runs: Map<string, any> | undefined;
-    for (;;) {
-      signal.throwIfAborted();
-      if (firstPass) {
-        firstPass = false;
-        await refresh(owner, true);
-      }
-      signal.throwIfAborted();
-      const rows = events(owner, cursor);
-      const result: V2Event[] = [];
-      for (const row of rows) {
-        const base = {
-          cursor: row.cursor,
-          taskId: row.taskId,
-          runId: row.runId,
-          at: row.createdAt,
-        };
-        if (row.type === 'agent.changed')
-          result.push({ ...base, type: 'agent', agentId: row.payload.agentId });
-        else if (row.type === 'v2.inbox')
-          result.push({ ...base, type: 'inbox', item: row.payload.item });
-        else if (row.type === 'v2.health')
-          result.push({ ...base, type: 'health', app: row.payload.app });
-        else if (row.type === 'v2.release')
-          result.push({ ...base, type: 'release', release: row.payload.release });
-        else if (row.type === 'v2.rollback')
-          result.push({ ...base, type: 'rollback', rollback: row.payload.rollback });
-        else {
-          runs ??= new Map(list('run', owner).map((run) => [run.id, run]));
-          const event = mapConversationEvent(row, runs.get(row.runId));
-          if (event) result.push({ ...base, type: 'conversation', event });
-        }
-        cursor = row.cursor;
-      }
-      if (result.length || (rows.length < 1000 && Date.now() >= deadline))
-        return { events: result, cursor, supportsWait: true };
-      // Drain full pages before sleeping; ignored events must not strand mapped events behind them.
-      if (rows.length === 1000) continue;
-      await poller.wait(owner, cursor, deadline, signal);
-      runs = undefined;
+  const deadline = Date.now() + Math.min(10_000, Math.max(0, waitMs));
+  let cursor = after;
+  let firstPass = true;
+  let runs: Map<string, any> | undefined;
+  for (;;) {
+    signal.throwIfAborted();
+    if (firstPass) {
+      firstPass = false;
+      await stateRefresh.read(owner);
     }
-  } finally {
-    if (--state.requests === 0) refreshesByOwner.delete(owner);
+    signal.throwIfAborted();
+    const rows = events(owner, cursor);
+    const result: V2Event[] = [];
+    for (const row of rows) {
+      const base = {
+        cursor: row.cursor,
+        taskId: row.taskId,
+        runId: row.runId,
+        at: row.createdAt,
+      };
+      if (row.type === 'agent.changed')
+        result.push({ ...base, type: 'agent', agentId: row.payload.agentId });
+      else if (row.type === 'v2.inbox')
+        result.push({ ...base, type: 'inbox', item: row.payload.item });
+      else if (row.type === 'v2.health')
+        result.push({ ...base, type: 'health', app: row.payload.app });
+      else if (row.type === 'v2.release')
+        result.push({ ...base, type: 'release', release: row.payload.release });
+      else if (row.type === 'v2.rollback')
+        result.push({ ...base, type: 'rollback', rollback: row.payload.rollback });
+      else {
+        runs ??= new Map(list('run', owner).map((run) => [run.id, run]));
+        const event = mapConversationEvent(row, runs.get(row.runId));
+        if (event) result.push({ ...base, type: 'conversation', event });
+      }
+      cursor = row.cursor;
+    }
+    if (result.length || (rows.length < 1000 && Date.now() >= deadline))
+      return { events: result, cursor, supportsWait: true };
+    // Drain full pages before sleeping; ignored events must not strand mapped events behind them.
+    if (rows.length === 1000) continue;
+    await poller.wait(owner, cursor, deadline, signal);
+    runs = undefined;
   }
 }

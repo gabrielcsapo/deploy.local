@@ -1,3 +1,4 @@
+import { stateRefresh } from './state-refresh.ts';
 import { fail } from '../errors.ts';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
@@ -67,7 +68,8 @@ function announceWithdrawn(owner: string) {
   save('v2-inbox-repair', owner, { id: 'withdrawn-events' });
 }
 
-export function syncInbox(owner: string): InboxItem[] {
+export function syncInbox(owner: string, invalidateRefresh = true): InboxItem[] {
+  if (invalidateRefresh) stateRefresh.invalidate(owner);
   announceWithdrawn(owner);
   return db
     .transaction(() => {

@@ -42,17 +42,48 @@ test('real SQLite waiters share idle head checks and deliver the same event to a
   assert.equal(heads(), count, 'no SQLite checks after the last waiter leaves');
 });
 
-test('every first pass refreshes, while periodic state refresh is shared across requests', async (t) => {
+test('refresh is shared across sequential and concurrent long polls for the cadence', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   const owner = randomUUID();
-  await waitForV2Events(owner, 0, 0, new AbortController().signal);
   const transactions = t.mock.method(db, 'transaction');
-  await Promise.all(
-    Array.from({ length: 4 }, () => waitForV2Events(owner, 0, 1100, new AbortController().signal)),
-  );
+  const read = () => waitForV2Events(owner, 0, 0, new AbortController().signal);
+  await Promise.all(Array.from({ length: 30 }, read));
   const count = transactions.mock.callCount();
-  assert.ok(count >= 5 && count <= 7, `four initial refreshes plus periodic refreshes: ${count}`);
-  await waitForV2Events(owner, 0, 0, new AbortController().signal);
+  assert.equal(count, 1);
+  for (let i = 0; i < 10; i++) await read();
+  assert.equal(transactions.mock.callCount(), count);
+  t.mock.timers.tick(1999);
+  await read();
+  assert.equal(transactions.mock.callCount(), count);
+  t.mock.timers.tick(1);
+  await Promise.all(Array.from({ length: 30 }, read));
   assert.equal(transactions.mock.callCount(), count + 1);
+});
+
+test('an inbox answer emits immediately and invalidates a warm refresh', async (t) => {
+  const { save } = await import('../workspace/store.ts');
+  const { syncInbox, answerInbox } = await import('./inbox.ts');
+  const owner = randomUUID();
+  const item = {
+    id: 'update:test',
+    kind: 'update',
+    state: 'waiting',
+    title: 'Update',
+    createdAt: new Date().toISOString(),
+    actions: [{ id: 'dismiss', label: 'Dismiss' }],
+  };
+  save('v2-inbox-native', owner, { id: item.id, item });
+  syncInbox(owner);
+  await waitForV2Events(owner, 0, 0, new AbortController().signal);
+  const before = cursor(owner);
+  const answered = answerInbox(owner, item.id, { actionId: 'dismiss', on: 'web' });
+  assert.equal(answered.state, 'answered');
+  const transactions = t.mock.method(db, 'transaction');
+  const response = await waitForV2Events(owner, before, 0, new AbortController().signal);
+  assert.equal(transactions.mock.callCount(), 1, 'answer invalidated the refresh');
+  assert.ok(
+    response.events.some((entry) => entry.type === 'inbox' && entry.item.state === 'answered'),
+  );
 });
 
 test('drains full ignored pages at the deadline, advances ignored tails, and aborts cleanly', async () => {

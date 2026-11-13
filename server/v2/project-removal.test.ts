@@ -398,10 +398,7 @@ test('an offline computer stops removal before anything is removed', async () =>
   assert.ok(store.getDeployment('offline-app'));
   assert.equal(workspace.list('v2-project-removal', 'offline-owner').length, 1);
 
-  store
-    .getSqlite()!
-    .prepare('UPDATE nodes SET last_seen_at = ? WHERE id = ?')
-    .run(Date.now(), 'computer-offline');
+  store.heartbeatNode('computer-offline', {});
   const retry = removeWith('offline-owner', project, docker);
   await workerFinishes('offline-app', { success: true, result: { verified: true } });
   await retry;

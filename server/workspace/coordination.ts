@@ -1,3 +1,4 @@
+import { computerView } from './computer-view.ts';
 import { packageHooks } from './package-hooks.ts';
 import { terminalRelay } from './terminal-service.ts';
 import { workerUpdate } from './worker-update.ts';
@@ -68,7 +69,11 @@ export function authenticateAgent(token: string): AgentScope | null {
 // is gone. Past the window silence really is offline.
 const coordinatorStartedAt = Date.now();
 const reconnectWindow = 15000;
-export function computers(owner: string) {
+// Passive heartbeat ageing (including capture availability) may lag by at most one second.
+export const COMPUTERS_CADENCE_MS = 1_000;
+const computersView = computerView(computeComputers, COMPUTERS_CADENCE_MS);
+export const computers = computersView.read;
+function computeComputers(owner: string) {
   const local = db.prepare("SELECT heartbeat FROM worker WHERE id='local'").get() as any;
   // A revoked worker keeps its record for task history, but is no longer a computer.
   const remote = list('worker', owner).filter((worker) => !worker.revokedAt);
@@ -490,6 +495,9 @@ export function jobCommand(owner: string, workerId: string, action: string, body
     return packageHooks.installConfig(owner, workerId, projectId);
   }
 
+  // Warm eligibility outside the claim transaction. Job/run rows themselves remain fresh.
+  const pollingComputer =
+    action === 'poll' ? computers(owner).find((candidate) => candidate.id === workerId) : undefined;
   return db
     .transaction(() => {
       if (workerId !== 'local') {
@@ -511,13 +519,13 @@ export function jobCommand(owner: string, workerId: string, action: string, body
           event(owner, job.taskId, job.runId, 'job.unknown', { jobId: job.id, workerId });
         }
         if (!workerRole(owner, workerId, 'take-tasks')) return { job: null };
-        const computer = computers(owner).find((candidate) => candidate.id === workerId);
+        const computer = pollingComputer;
         const pending = jobsWithStatus(owner, 'queued').find(
           (j) =>
             !j.stopRequested &&
             (j.workerId === workerId || (!j.workerId && j.requirements)) &&
             computer &&
-            eligibleForJob(computer, j.requirements) &&
+            eligibleForJob({ ...computer, status: 'online' }, j.requirements) &&
             (!j.artifactPaths?.length || supportsArtifacts(computer)),
         );
         if (!pending) return { job: null };

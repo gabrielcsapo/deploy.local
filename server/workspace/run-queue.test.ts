@@ -47,7 +47,8 @@ test('queued task snapshots expose the busy task and FIFO position, without chan
   assert.deepEqual(workerLoad(owner, 'bazzite'), { activeTaskCount: 1, queuedTaskCount: 2 });
   assert.equal(runQueue(owner, get('run', owner, 'busy')), null);
 });
-test('queue follows worker claim order and distinguishes preparation, offline and interrupted blockers', () => {
+test('queue follows worker claim order and distinguishes preparation, offline and interrupted blockers', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   const owner = fixture();
   save('task', owner, { ...get('task', owner, 'first'), workspaceStatus: 'preparing' });
   assert.equal(runQueue(owner, get('run', owner, 'first'))?.position, null);
@@ -59,6 +60,7 @@ test('queue follows worker claim order and distinguishes preparation, offline an
   save('task', owner, { ...get('task', owner, 'first'), workspaceStatus: 'ready' });
   assert.match(runQueue(owner, get('run', owner, 'first'))!.reason, /resolving interrupted task/);
   save('worker', owner, { ...get('worker', owner, 'bazzite'), heartbeat: '2000-01-01' });
+  t.mock.timers.tick(1000); // Passive liveness updates on the computer view cadence.
   assert.match(runQueue(owner, get('run', owner, 'first'))!.reason, /offline/);
 });
 test('only an unclaimed run moves to a fresh online compatible computer; old worker cannot claim it', () => {

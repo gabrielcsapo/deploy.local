@@ -1,3 +1,4 @@
+import { stateRefresh } from './state-refresh.ts';
 import { projectsForOwner } from './projects.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { sendJson } from '../http.ts';
@@ -165,6 +166,7 @@ export async function acceptWorkerReport(owner: string, body: unknown, now = Dat
   publishHealth(owner, health);
   await requestWorkerRollback(owner, health, now);
   refreshes.delete(owner);
+  stateRefresh.invalidate(owner);
   return health;
 }
 
@@ -358,7 +360,8 @@ async function collectLive(owner: string): Promise<LiveResponse> {
   };
 }
 
-export async function getLive(owner: string): Promise<LiveResponse> {
+export async function getLive(owner: string, invalidateRefresh = true): Promise<LiveResponse> {
+  if (invalidateRefresh) stateRefresh.invalidate(owner);
   const releases = JSON.stringify([
     list('v2-project-current', owner),
     getSqlite()!

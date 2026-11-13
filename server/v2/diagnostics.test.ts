@@ -68,6 +68,7 @@ test('profiling records what the thread did and which requests arrived, one prof
   const { summary, profile } = await taking;
   assert.ok(profile.samples.length > 0);
   assert.ok(summary.busyPercent > 0);
+  assert.equal('eventLoopUtilization' in summary, false);
   assert.equal(summary.routes[0].route, 'GET /api/v2/projects/:id/overview');
   assert.equal(summary.routes[0].count, 1);
   // Nothing is recorded once the profile is over.

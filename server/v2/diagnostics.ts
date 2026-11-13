@@ -130,20 +130,21 @@ export async function profileSelf(seconds: number) {
   const routes = new Map<string, RouteTiming>();
   collecting = routes;
   const session = new Session();
-  const loop = performance.eventLoopUtilization();
   try {
     session.connect();
     await session.post('Profiler.enable');
     await session.post('Profiler.setSamplingInterval', { interval: 1000 });
     await session.post('Profiler.start');
+    // Do not report eventLoopUtilization here: profiler sampling interrupts long native
+    // waits; kqueue retries reset libuv’s idle-start timestamp on EINTR without
+    // accumulating the interrupted wait (reproduced on macOS/libuv 1.52.1). An idle
+    // profile can report >90% ELU. The profile's idle samples still reflect that wait.
     await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
     const { profile } = (await session.post('Profiler.stop')) as { profile: CpuProfile };
-    const used = performance.eventLoopUtilization(loop);
     return {
       profile,
       summary: {
         ...summarizeProfile(profile),
-        eventLoopUtilization: Math.round(used.utilization * 1000) / 10,
         routes: [...routes]
           .map(([route, timing]) => ({
             route,

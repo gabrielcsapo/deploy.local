@@ -1,12 +1,29 @@
+import { materialized } from '../materialized.ts';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { nodes, computerRolePreferences, nodeEnrollments, deployments } from '../schema.ts';
-import { getDb, refreshDeploymentInCache } from './connection.ts';
+import { getDb, getSqlite, refreshDeploymentInCache } from './connection.ts';
 import { hostname, platform, arch, cpus, totalmem } from 'node:os';
 import { configuredPlacementLabels } from '../application-placement.ts';
 import { sql, eq, and } from 'drizzle-orm';
 import { type WantedRoles, parseWantedRoles } from '../computer-roles.ts';
 import { notifyRouteChanged } from '../ipc.ts';
 import { setSystemSetting, getSystemSetting } from './settings.ts';
+
+// Node liveness may age for two seconds; node/role writes invalidate immediately.
+export const NODE_VIEW_CADENCE_MS = 2_000;
+const nodeObservers = new Set<() => void>();
+export function onNodeChange(listener: () => void) {
+  nodeObservers.add(listener);
+}
+function invalidateNode(id: string) {
+  nodeView.invalidate(id);
+  preferenceView.invalidate(id);
+  for (const listener of nodeObservers) listener();
+}
+const nodeView = materialized(readNode, { cadenceMs: NODE_VIEW_CADENCE_MS });
+const preferenceView = materialized(readComputerRolePreferences, {
+  cadenceMs: NODE_VIEW_CADENCE_MS,
+});
 
 // ── Fleet nodes ─────────────────────────────────────────────────────────────
 
@@ -74,10 +91,13 @@ export function ensureCoordinatorNode() {
       },
     })
     .run();
+  invalidateNode(id);
   return publicNode(db.select().from(nodes).where(eq(nodes.id, id)).get()!);
 }
 
-export function getComputerRolePreferences(id: string): WantedRoles {
+export const getComputerRolePreferences = (id: string) =>
+  preferenceView.read(id, !getSqlite()!.inTransaction);
+function readComputerRolePreferences(id: string): WantedRoles {
   const row = getDb()
     .select()
     .from(computerRolePreferences)
@@ -98,7 +118,7 @@ export function getAgentRoles(id: string) {
 }
 
 export function setComputerRolePreferences(id: string, roles: WantedRoles) {
-  const merged = { ...getComputerRolePreferences(id), ...parseWantedRoles(roles) };
+  const merged = { ...readComputerRolePreferences(id), ...parseWantedRoles(roles) };
   getDb()
     .insert(computerRolePreferences)
     .values({ id, roles: JSON.stringify(merged) })
@@ -107,6 +127,7 @@ export function setComputerRolePreferences(id: string, roles: WantedRoles) {
       set: { roles: JSON.stringify(merged) },
     })
     .run();
+  invalidateNode(id);
   return merged;
 }
 
@@ -130,7 +151,8 @@ export function getNodes() {
     .map((node) => publicNode(node));
 }
 
-export function getNode(id: string) {
+export const getNode = (id: string) => nodeView.read(id, !getSqlite()!.inTransaction);
+function readNode(id: string) {
   const db = getDb();
   const node = db.select().from(nodes).where(eq(nodes.id, id)).get();
   return node ? publicNode(node) : null;
@@ -240,6 +262,7 @@ export function redeemNodeEnrollment(input: {
       .where(eq(nodeEnrollments.id, enrollment.id))
       .run();
   });
+  invalidateNode(nodeId);
   const roles = { ...getComputerRolePreferences(`enrollment:${enrollment.id}`), ...input.roles };
   if (Object.keys(roles).length) setComputerRolePreferences(nodeId, roles);
   return {
@@ -284,6 +307,7 @@ export function heartbeatNode(
     })
     .where(eq(nodes.id, nodeId))
     .run();
+  invalidateNode(nodeId);
   if (details.address && previous?.address !== details.address) {
     const assigned = db
       .select({ name: deployments.name })
@@ -346,6 +370,7 @@ export function revokeNode(nodeId: string) {
     .set({ revokedAt: new Date().toISOString(), credentialHash: null })
     .where(eq(nodes.id, nodeId))
     .run();
+  invalidateNode(nodeId);
   if (getDefaultNodeId() === nodeId) setSystemSetting(DEFAULT_NODE_SETTING, '');
 }
 

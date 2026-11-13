@@ -1,4 +1,4 @@
-import { db, list, save } from '../workspace/store.ts';
+import { db, list, save, remove } from '../workspace/store.ts';
 import { readCliManifest } from '../cli-download.ts';
 import { readReleaseConfig, runningRevision } from './self-update-host.ts';
 
@@ -54,8 +54,7 @@ export function reserveComputerUpdate(nodeId: string, jobId: string) {
   return true;
 }
 export function releaseComputerUpdate(nodeId: string, jobId: string) {
-  if (updateReservation(nodeId)?.jobId === jobId)
-    db.prepare('DELETE FROM records WHERE kind=? AND owner=? AND id=?').run(kind, 'system', nodeId);
+  if (updateReservation(nodeId)?.jobId === jobId) remove(kind, 'system', nodeId);
 }
 
 export function computerUpdateAllowed(payload: { releaseId: string; targetVersion: string }) {
