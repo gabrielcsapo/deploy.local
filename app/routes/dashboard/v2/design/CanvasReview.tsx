@@ -366,7 +366,7 @@ export function CanvasReviewBar({
           {review.error} <Action onClick={() => void load()}>Retry</Action>
         </div>
       )}
-      {record && (
+      {record && pending && (
         <div className="dz-review-record">
           <b>You approved this</b> {record.text} {building?.text}
         </div>

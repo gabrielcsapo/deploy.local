@@ -1272,8 +1272,32 @@
   line-height: 16px;
 }
 .dz-board-name .dz-tag.review {
-  background: var(--ds-ink);
-  color: var(--ds-surface);
+  background: color-mix(in srgb, var(--ds-accent) 14%, var(--ds-surface));
+  color: var(--ds-accent);
+}
+/* A ticked frame stays ticked: show it at full strength, not as a disabled control. */
+.dz-board-name .dl-check {
+  appearance: none;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1.5px solid var(--ds-line-strong);
+  border-radius: 4px;
+  background: var(--ds-surface);
+  cursor: pointer;
+}
+.dz-board-name .dl-check:checked {
+  border-color: var(--ds-accent);
+  background: var(--ds-accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E")
+    center / 10px no-repeat;
+  cursor: default;
+  opacity: 1;
+}
+.dz-board-name .dl-check:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
 }
 .dz-agent-mark {
   display: inline-flex;

@@ -18,9 +18,32 @@
   padding-inline: var(--ds-space-2);
 }
 .dl-build-menu {
+  position: fixed;
+  inset: auto;
   width: 316px;
+  max-width: calc(100vw - var(--ds-space-8));
+  margin: var(--ds-space-1) 0 0;
+  padding: var(--ds-space-1);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  box-shadow: 0 var(--ds-space-2) var(--ds-space-6)
+    color-mix(in srgb, var(--ds-shadow) 15%, transparent);
+  position-area: bottom span-left;
+  position-try-fallbacks: flip-inline, flip-block;
+}
+.dl-build-menu:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
 }
 .dl-build-menu > .dl-btn {
+  height: auto;
+  padding: var(--ds-space-2);
+  border: 0;
+  background: transparent;
+  text-align: start;
   justify-content: space-between;
   gap: var(--ds-space-2);
   white-space: normal;
