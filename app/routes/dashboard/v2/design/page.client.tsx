@@ -5,6 +5,7 @@ import { Skeleton, Action, Dialog, Empty, Field, Icon, type IconName } from '@/c
 import type { Project } from '../../../../../shared/v2/contracts';
 import { getAuth } from '../../detail/shared';
 import { useInbox } from '../data/hooks';
+import { useDataSeed, readSeeded } from '../data/seeds';
 import { request, useData } from '../projects/data';
 import {
   AgentPanel,
@@ -106,6 +107,7 @@ export default function DesignPage() {
 }
 
 function DesignCanvasPage({ initialProject }: { initialProject: string }) {
+  const seed = useDataSeed();
   const [params] = useSearchParams();
   const inbox = useInbox();
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
@@ -251,12 +253,18 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const { comments, refresh: refreshComments } = useComments(projectId);
   const [asking, setAsking] = useState(false);
   // Agents working on this design right now: a light poll of the coordinator's presence.
-  const [agents, setAgents] = useState<AgentPresence[]>([]);
+  const [agents, setAgents] = useState<AgentPresence[]>(
+    () =>
+      (seed?.data[`${projectApi}/presence`] as { agents: AgentPresence[] } | undefined)?.agents ??
+      [],
+  );
   useEffect(() => {
     if (!projectApi) return;
     let live = true;
     const look = () =>
-      request<{ agents: AgentPresence[] }>(`${projectApi}/presence`)
+      readSeeded(seed, `${projectApi}/presence`, () =>
+        request<{ agents: AgentPresence[] }>(`${projectApi}/presence`),
+      )
         .then((value) => live && setAgents(value.agents))
         .catch(() => undefined);
     look();
@@ -265,7 +273,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
       live = false;
       window.clearInterval(timer);
     };
-  }, [projectApi]);
+  }, [projectApi, seed]);
   const proposals = useData<{
     proposals: {
       id: string;

@@ -10,7 +10,7 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { itemSummary } from '../../../../../shared/v2/agents';
 import { useCoordinatorName, useResource } from '../data/hooks';
-import { formatTime } from '../data/time';
+import { useProjectFormatting } from '../projects/formatting';
 import { LooksAfterEditor } from './item';
 import { request } from './shared';
 
@@ -40,6 +40,7 @@ export function AgentHistory({
   onChanged: (agent: AgentConfiguration) => void;
 }) {
   const item = agent.looksAfter?.find((entry) => entry.id === itemId);
+  const { formatTime } = useProjectFormatting();
   const coordinator = useCoordinatorName();
   const projects = useResource<{ projects: Project[] }>('/api/v2/projects').data?.projects ?? [];
   const path = `/agents/${encodeURIComponent(agent.id)}/items/${encodeURIComponent(itemId)}`;

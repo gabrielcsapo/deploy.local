@@ -3,9 +3,11 @@ import { useEffect, useRef } from 'react';
 import { Banner, Group, Icon, Setting } from '@/components/ui';
 import { useData } from '../projects/data';
 import { useCoordinatorName } from '../data/hooks';
-const date = (value: string) =>
-  new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+import { useProjectFormatting } from '../projects/formatting';
 export function Copies() {
+  const { now, localeDate, formatTime } = useProjectFormatting();
+  const date = (value: string) =>
+    localeDate(value, { month: 'short', day: 'numeric' }, false, 'en-US');
   const { data, error, refresh } = useData<any>('/api/v2/packages/cache');
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -29,7 +31,7 @@ export function Copies() {
     <>
       {error && <Banner kind="danger" title={error} />}
       {source && !source.reachable && (
-        <Banner title="npmjs.org can’t be reached">{`Since ${new Date(source.downSince).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}. Installs use deploy.local’s copies, and anything missing below has to wait. deploy.local tries again every minute.`}</Banner>
+        <Banner title="npmjs.org can’t be reached">{`Since ${formatTime(source.downSince, 'clock')}. Installs use deploy.local’s copies, and anything missing below has to wait. deploy.local tries again every minute.`}</Banner>
       )}
       <section className="dl-section">
         <h2 className="dl-section-title">Sources</h2>
@@ -41,10 +43,8 @@ export function Copies() {
                 source?.reachable
                   ? 'Checked ' +
                     (source.checkedAt
-                      ? Math.max(
-                          1,
-                          Math.floor((Date.now() - Date.parse(source.checkedAt)) / 60000),
-                        ) + ' min ago'
+                      ? Math.max(1, Math.floor((now - Date.parse(source.checkedAt)) / 60000)) +
+                        ' min ago'
                       : 'just now')
                   : `${source?.copiesServed || 0} installs served from the copy`
               }

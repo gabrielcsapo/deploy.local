@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { authenticatedFetch, onAuthReset } from '../data/hooks';
+import { useDataSeed, freshSeed } from '../data/seeds';
+import { authenticatedFetch, onAuthReset, remembered, remember } from '../data/hooks';
 export async function computerRequest<T>(
   path: string,
   method = 'GET',
@@ -25,19 +26,26 @@ export async function computerRequest<T>(
   return result;
 }
 export function useComputerData<T>(path: string) {
-  const [data, setData] = useState<T>(),
-    [error, setError] = useState(''),
+  const seed = useDataSeed();
+  const key = `/api/v2${path}`;
+  const initial = () => remembered<T>(key, seed);
+  const [loaded, setLoaded] = useState({ path, seed });
+  const [data, setData] = useState<T | undefined>(initial),
+    [error, setError] = useState(seed?.errors?.[key] ?? ''),
     [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     let busy = false;
-    setData(undefined);
+    setLoaded({ path, seed });
+    setData(remembered<T>(key, seed));
+    setError(seed?.errors?.[key] ?? '');
     async function refresh() {
       if (busy) return;
       busy = true;
       try {
         const next = await computerRequest<T>(path, 'GET', undefined, controller.signal);
         if (!controller.signal.aborted) {
+          remember(key, next);
           setData(next);
           setError('');
         }
@@ -48,7 +56,7 @@ export function useComputerData<T>(path: string) {
         busy = false;
       }
     }
-    void refresh();
+    if (attempt || !freshSeed(seed, key)) void refresh();
     const timer = setInterval(() => void refresh(), 10000);
     const offReset = onAuthReset(() => {
       controller.abort();
@@ -61,6 +69,10 @@ export function useComputerData<T>(path: string) {
       controller.abort();
       clearInterval(timer);
     };
-  }, [path, attempt]);
-  return { data, error, refresh: () => setAttempt((value) => value + 1) };
+  }, [path, key, attempt, seed]);
+  return {
+    data: loaded.path === path && loaded.seed === seed ? data : initial(),
+    error,
+    refresh: () => setAttempt((value) => value + 1),
+  };
 }

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useDataSeed, freshSeed } from '../routes/dashboard/v2/data/seeds';
 
 /** The coordinator serves the zipped Mac app here (server/desktop-download.ts). */
 export const desktopMacDownload = '/desktop?os=darwin&arch=arm64';
@@ -15,8 +16,14 @@ export function hasMacDownload(manifest: unknown): boolean {
  * checking, then true or false.
  */
 export function useMacDownload(): boolean | undefined {
-  const [available, setAvailable] = useState<boolean>();
+  const seed = useDataSeed();
+  const [available, setAvailable] = useState<boolean | undefined>(() =>
+    seed && (Object.hasOwn(seed.data, '/desktop/version') || seed.errors?.['/desktop/version'])
+      ? hasMacDownload(seed.data['/desktop/version'])
+      : undefined,
+  );
   useEffect(() => {
+    if (freshSeed(seed, '/desktop/version')) return;
     let current = true;
     fetch('/desktop/version', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
@@ -25,6 +32,6 @@ export function useMacDownload(): boolean | undefined {
     return () => {
       current = false;
     };
-  }, []);
+  }, [seed]);
   return available;
 }

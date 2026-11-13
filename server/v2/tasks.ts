@@ -171,7 +171,13 @@ export async function tasksApi(req: IncomingMessage, res: ServerResponse, owner:
 }
 
 async function taskSnapshotRoute(res: ServerResponse, owner: string, task: string) {
-  const taskId = decodeURIComponent(task);
+  const snapshot = await readTaskPage(owner, decodeURIComponent(task));
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(snapshot));
+  return true;
+}
+
+export async function readTaskPage(owner: string, taskId: string) {
   const approved = approvedTaskDesign(owner, taskId);
   if (approved)
     await ensureDesignCheckBoards(
@@ -223,7 +229,5 @@ async function taskSnapshotRoute(res: ServerResponse, owner: string, task: strin
       // App metadata is optional; an unlinked or unavailable app has no project subtitle.
     }
   }
-  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(snapshot));
-  return true;
+  return snapshot;
 }

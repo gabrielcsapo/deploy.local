@@ -1,3 +1,8 @@
+import {
+  loadDashboardResources,
+  loadShellResources,
+  canReadProjectMembership,
+} from './dashboard-page.ts';
 import { authenticate, getNodes } from '../store.ts';
 import { parseAuthCookie } from '../auth-cookie.ts';
 import { projectsForOwner, resolveProject } from './projects.ts';
@@ -32,13 +37,17 @@ export type PageSeed = {
   errors: Record<string, string>;
   data: Record<string, unknown>;
 };
-export function projectPageURL(request?: Request) {
+export function dashboardPageURL(request?: Request) {
   if (!request) return undefined;
   const url = new URL(request.url);
   // RSC requests carry the destination in url; document requests use their own path.
   const target =
     url.pathname === '/__rsc' ? new URL(url.searchParams.get('url') || '/', url.origin) : url;
-  return /^\/dashboard\/projects(?:\/|$)/.test(target.pathname) ? target : undefined;
+  return /^\/dashboard(?:\/|$)/.test(target.pathname) ? target : undefined;
+}
+export function projectPageURL(request?: Request) {
+  const url = dashboardPageURL(request);
+  return url && /^\/dashboard\/projects(?:\/|$)/.test(url.pathname) ? url : undefined;
 }
 export function projectPageOwner(request?: Request) {
   if (!request) return undefined;
@@ -63,6 +72,9 @@ type Page = {
 const requests = new WeakMap<Request, Promise<Page | undefined>>();
 /** Request lifetime only: no shared URL cache can carry one owner's data to another. */
 export function loadProjectPage(request?: Request): Promise<Page | undefined> {
+  return projectPageURL(request) ? loadDashboardPage(request) : Promise.resolve(undefined);
+}
+export function loadDashboardPage(request?: Request): Promise<Page | undefined> {
   if (!request) return Promise.resolve(undefined);
   let pending = requests.get(request);
   if (!pending) {
@@ -72,7 +84,7 @@ export function loadProjectPage(request?: Request): Promise<Page | undefined> {
   return pending;
 }
 async function load(request: Request): Promise<Page | undefined> {
-  const url = projectPageURL(request),
+  const url = dashboardPageURL(request),
     owner = projectPageOwner(request);
   if (!url || !owner) return undefined;
   const seed: PageSeed = {
@@ -94,7 +106,11 @@ async function load(request: Request): Promise<Page | undefined> {
   };
   // Health collection/inbox synchronization can themselves publish events. Establish the
   // replay boundary afterwards, before reading the page's stored data.
-  await put('/api/v2/live', () => getLive(owner));
+  await loadShellResources(seed, url);
+  const projectsPage = !!projectPageURL(request);
+  // The existing project loader retains its reads. Other pages never start Git for membership.
+  if (projectsPage || canReadProjectMembership(owner))
+    await put('/api/v2/live', () => getLive(owner));
   const items = syncInbox(owner);
   seed.cursor = cursor(owner);
   for (const state of ['waiting', 'answered'])
@@ -102,6 +118,10 @@ async function load(request: Request): Promise<Page | undefined> {
       items: items.filter((item) => item.state === state),
       cursor: seed.cursor,
     };
+  if (!projectsPage) {
+    await loadDashboardResources(seed, url);
+    return { seed, url };
+  }
   const projects = await projectsForOwner(owner, true).catch(() => undefined);
   if (!projects) return undefined;
   seed.data['/api/v2/projects'] = { projects };

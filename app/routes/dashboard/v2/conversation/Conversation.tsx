@@ -4,7 +4,7 @@ import { Glyph, Icon, WorkLog } from '@/components/ui';
 import type { ConversationEvent, Release, Screenshot } from '../../../../../shared/v2/contracts';
 import { InboxDecision } from '../inbox/InboxDecision';
 import { useAgentName } from '../data/hooks';
-import { formatTime } from '../data/time';
+import { useProjectFormatting } from '../projects/formatting';
 import { conversationDays, safeResourceUrl } from './model';
 import { AttachmentImage, ScreenshotEvent } from './Media';
 import './style.css';
@@ -54,6 +54,7 @@ export function ConversationItem({
   resources?: ConversationResources;
 }) {
   const agentName = useAgentName();
+  const { formatTime } = useProjectFormatting();
   switch (event.kind) {
     case 'you':
       return (
@@ -168,7 +169,8 @@ export function Conversation({
   events: ConversationEvent[];
   resources?: ConversationResources;
 }) {
-  const days = conversationDays(events);
+  const { now, timeZone } = useProjectFormatting();
+  const days = conversationDays(events, new Date(now), timeZone);
   return (
     <div className="dl-thread">
       {days.map(({ day, events: items, pinned, folded }) => (

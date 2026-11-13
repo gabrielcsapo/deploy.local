@@ -16,12 +16,17 @@ import {
   Tabs,
 } from '@/components/ui';
 import { useAgentName, useInbox } from '../data/hooks';
-import { dayLabel } from '../data/sidebar';
+import { useProjectFormatting } from '../projects/formatting';
 import { reviewHref } from '../design/review-model';
 import { ReviewRedirect } from '../design/ReviewRedirect';
 import { answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
 
 export default function Inbox() {
+  const { formatTime } = useProjectFormatting();
+  const dayLabel = (at: string) => {
+    const day = formatTime(at, 'day');
+    return day === 'Today' || day === 'Yesterday' ? day : 'Earlier';
+  };
   const agentName = useAgentName();
   const [params] = useSearchParams();
   const answered = params.get('tab') === 'answered';

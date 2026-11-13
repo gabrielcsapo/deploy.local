@@ -4,6 +4,6 @@ export const inboxRoutes: RouteConfig[] = [
   {
     id: 'v2-inbox',
     path: 'inbox',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
 ];

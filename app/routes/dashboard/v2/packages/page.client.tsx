@@ -16,8 +16,7 @@ import { useCoordinatorName } from '../data/hooks';
 import './packages.css';
 const base = '/dashboard/packages';
 const packagePath = (name: string) => base + '/npm/' + encodeURIComponent(name);
-const date = (value: string) =>
-  new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+import { useProjectFormatting } from '../projects/formatting';
 export default function Packages() {
   const { pathname } = useLocation();
   const [search] = useSearchParams();
@@ -31,6 +30,9 @@ export default function Packages() {
   );
 }
 function PackageList({ tab }: { tab: string }) {
+  const { localeDate } = useProjectFormatting();
+  const date = (value: string) =>
+    localeDate(value, { month: 'short', day: 'numeric' }, false, 'en-US');
   const setup = tab === 'setup';
   const { data, error } = useData<any>('/api/v2/packages');
   return (
@@ -166,6 +168,9 @@ function Setup() {
   );
 }
 function PackagePage({ name }: { name: string }) {
+  const { localeDate } = useProjectFormatting();
+  const date = (value: string) =>
+    localeDate(value, { month: 'short', day: 'numeric' }, false, 'en-US');
   const path = '/api/v2/packages/npm/' + encodeURIComponent(name);
   const { data, error } = useData<any>(path);
   const [all, setAll] = useState(false);

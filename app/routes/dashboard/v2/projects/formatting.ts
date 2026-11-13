@@ -18,6 +18,20 @@ export function useProjectFormatting() {
   const zone = !hydrated ? seed?.timeZone : undefined;
   return {
     now,
+    timeZone: zone,
+    localeDate: (
+      value: string | number,
+      options?: Intl.DateTimeFormatOptions,
+      withTime = false,
+      preferredLocale?: string,
+    ) => {
+      const date = new Date(value);
+      const locale = preferredLocale ?? (!hydrated && seed ? 'en-US' : undefined);
+      const settings = { ...options, ...(zone ? { timeZone: zone } : {}) };
+      return withTime
+        ? date.toLocaleString(locale, settings)
+        : date.toLocaleDateString(locale, settings);
+    },
     formatCount: (value: number) => value.toLocaleString(!hydrated && seed ? 'en-US' : undefined),
     formatTime: (
       value: Parameters<typeof time>[0],

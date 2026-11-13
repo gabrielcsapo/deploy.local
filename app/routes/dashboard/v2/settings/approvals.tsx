@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Action, Banner, Dialog, Skeleton } from '@/components/ui';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
 import { SettingsList, SettingsRow } from '@/components/ui/v2/SettingsList';
@@ -9,16 +9,20 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { agentActions } from '../../../../../shared/v2/agents';
 import { request } from '../agents/shared';
+import { useDataSeed, readSeeded } from '../data/seeds';
 const labels = { ask: 'Ask', allow: 'Allowed', never: 'Never' };
 export function AgentRules({ agent }: { agent: Agent }) {
-  const [rules, setRules] = useState<Rule[] | null>(null);
+  const seed = useDataSeed();
+  const [rules, setRules] = useState<Rule[] | null>(
+    () => (seed?.data['/api/v2/approvals'] as { rules: Rule[] } | undefined)?.rules ?? null,
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    request('/approvals')
+    readSeeded(seed, '/api/v2/approvals', () => request('/approvals'))
       .then((v) => setRules(v.rules))
       .catch((e) => setError(e.message));
-  }, []);
+  }, [seed]);
   async function change(action: Rule['action'], mode: Rule['mode']) {
     setBusy(true);
     setError('');
@@ -81,18 +85,29 @@ export function AgentRules({ agent }: { agent: Agent }) {
   );
 }
 export function Approvals() {
-  const [agents, setAgents] = useState<Agent[] | null>(null);
-  const [rules, setRules] = useState<Rule[]>([]);
+  const seed = useDataSeed();
+  const first = useRef(true);
+  const [agents, setAgents] = useState<Agent[] | null>(
+    () => (seed?.data['/api/v2/agents'] as { agents: Agent[] } | undefined)?.agents ?? null,
+  );
+  const [rules, setRules] = useState<Rule[]>(
+    () => (seed?.data['/api/v2/approvals'] as { rules: Rule[] } | undefined)?.rules ?? [],
+  );
   const [selected, setSelected] = useState<Agent | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
-    Promise.all([request('/agents'), request('/approvals')])
+    const initial = first.current ? seed : undefined;
+    first.current = false;
+    Promise.all([
+      readSeeded(initial, '/api/v2/agents', () => request('/agents')),
+      readSeeded(initial, '/api/v2/approvals', () => request('/approvals')),
+    ])
       .then(([a, r]) => {
         setAgents(a.agents);
         setRules(r.rules);
       })
       .catch((e) => setError(e.message));
-  }, [selected]);
+  }, [selected, seed]);
   function summary(agent: Agent) {
     const entries = agentActions.map(
       (a) =>
@@ -145,14 +160,17 @@ export function Approvals() {
 }
 
 function ReleaseChecks({ onChanged }: { onChanged: (rules: Rule[]) => void }) {
-  const [rules, setRules] = useState<Rule[] | null>(null);
+  const seed = useDataSeed();
+  const [rules, setRules] = useState<Rule[] | null>(
+    () => (seed?.data['/api/v2/approvals'] as { rules: Rule[] } | undefined)?.rules ?? null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    request('/approvals')
+    readSeeded(seed, '/api/v2/approvals', () => request('/approvals'))
       .then((v) => setRules(v.rules))
       .catch((e) => setError(e.message));
-  }, []);
+  }, [seed]);
   const current = rules?.find(
     (rule) => rule.agent === 'warden' && rule.action === 'rollback' && !rule.projectId,
   );

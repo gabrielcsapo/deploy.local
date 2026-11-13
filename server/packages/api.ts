@@ -22,6 +22,11 @@ function served() {
   return !!db().prepare("SELECT 1 FROM system_settings WHERE key='packages.served'").get();
 }
 
+/** Sidebar status never inspects a repository or probes the registry. */
+export function packageSidebar(copy = npmRegistry.copy) {
+  return { served: served(), usingCopies: !copy.reachable };
+}
+
 /** The package a `/api/v2/packages/npm/<name>` path names, or 404. */
 function packageAt(encoded: string) {
   const name = nameOf(decodeURIComponent(encoded)),
@@ -86,31 +91,8 @@ export const packagesRoutes = [
     path: '/api/v2/packages',
     handler: async ({ res, url, context }) => {
       const { username, copy } = context;
-      if (url.searchParams.has('sidebar'))
-        return send(res, { served: served(), usingCopies: !copy.reachable });
-      const rows = db()
-        .prepare("SELECT * FROM packages WHERE ecosystem='npm' ORDER BY created_at,name")
-        .all() as Package[];
-      const projects = list('project', username);
-      const packages = [];
-      for (const pkg of rows) {
-        const latest = versions(pkg.id)[0];
-        packages.push({
-          ...pkg,
-          latest: latest
-            ? {
-                version: latest.version,
-                publishedBy: latest.published_by,
-                publishedByYou: latest.published_by === username,
-                publishedVia: latest.published_via,
-                createdAt: latest.created_at,
-              }
-            : null,
-          project: projects.find((p) => p.id === pkg.project_id)?.name || null,
-          usedBy: (await usedBy(username, pkg.name)).length,
-        });
-      }
-      send(res, { packages, served: served(), usingCopies: !copy.reachable });
+      if (url.searchParams.has('sidebar')) return send(res, packageSidebar(copy));
+      return send(res, await readPackages(username, copy));
     },
   }),
   // The package is looked up before the method is checked, so a wrong method on a missing
@@ -130,34 +112,9 @@ export const packagesRoutes = [
     method: '*',
     path: '/api/v2/packages/npm/:name*',
     handler: async ({ req, res, params, context }) => {
-      const { name, pkg } = packageAt(params.name);
+      packageAt(params.name);
       if (req.method !== 'GET') fail('Method not allowed', 405);
-      const { username, identity } = context;
-      const rows = versions(pkg.id);
-      const tags = db()
-        .prepare('SELECT tag,version FROM package_tags WHERE package_id=?')
-        .all(pkg.id);
-      const project = list('project', username).find((p) => p.id === pkg.project_id);
-      send(res, {
-        package: pkg,
-        project: project ? { id: project.id, name: project.name } : null,
-        directory: rows[0] ? JSON.parse(rows[0].manifest).repository?.directory || null : null,
-        versions: rows.map((v) => ({
-          version: v.version,
-          size: v.size,
-          deprecated: v.deprecated,
-          publishedBy: v.published_by,
-          publishedByYou: v.published_by === username,
-          publishedVia: v.published_via,
-          commit: v.commit,
-          pipeline:
-            v.published_via === 'release' ? JSON.parse(v.manifest)._deployPipeline || null : null,
-          createdAt: v.created_at,
-        })),
-        tags,
-        usedBy: await usedBy(username, name),
-        canPublish: identity.admin || pkg.created_by === username,
-      });
+      return send(res, await readPackage(context.username, params.name, context.identity.admin));
     },
   }),
 ];
@@ -186,4 +143,57 @@ export async function packagesApi(
       });
     },
   });
+}
+
+export async function readPackages(username: string, copy = npmRegistry.copy) {
+  const rows = db()
+    .prepare("SELECT * FROM packages WHERE ecosystem='npm' ORDER BY created_at,name")
+    .all() as Package[];
+  const projects = list('project', username);
+  const packages = [];
+  for (const pkg of rows) {
+    const latest = versions(pkg.id)[0];
+    packages.push({
+      ...pkg,
+      latest: latest
+        ? {
+            version: latest.version,
+            publishedBy: latest.published_by,
+            publishedByYou: latest.published_by === username,
+            publishedVia: latest.published_via,
+            createdAt: latest.created_at,
+          }
+        : null,
+      project: projects.find((p) => p.id === pkg.project_id)?.name || null,
+      usedBy: (await usedBy(username, pkg.name)).length,
+    });
+  }
+  return { packages, served: served(), usingCopies: !copy.reachable };
+}
+
+export async function readPackage(username: string, encoded: string, admin = isAdmin(username)) {
+  const { name, pkg } = packageAt(encoded);
+  const rows = versions(pkg.id);
+  const tags = db().prepare('SELECT tag,version FROM package_tags WHERE package_id=?').all(pkg.id);
+  const project = list('project', username).find((p) => p.id === pkg.project_id);
+  return {
+    package: pkg,
+    project: project ? { id: project.id, name: project.name } : null,
+    directory: rows[0] ? JSON.parse(rows[0].manifest).repository?.directory || null : null,
+    versions: rows.map((v) => ({
+      version: v.version,
+      size: v.size,
+      deprecated: v.deprecated,
+      publishedBy: v.published_by,
+      publishedByYou: v.published_by === username,
+      publishedVia: v.published_via,
+      commit: v.commit,
+      pipeline:
+        v.published_via === 'release' ? JSON.parse(v.manifest)._deployPipeline || null : null,
+      createdAt: v.created_at,
+    })),
+    tags,
+    usedBy: await usedBy(username, name),
+    canPublish: admin || pkg.created_by === username,
+  };
 }

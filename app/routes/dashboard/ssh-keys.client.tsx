@@ -9,6 +9,8 @@ import {
   LoadingState,
   ErrorBanner,
 } from '@/components/ui';
+import { useDataSeed, freshSeed } from './v2/data/seeds';
+import { useProjectFormatting } from './v2/projects/formatting';
 import { getAuth } from './detail/shared';
 
 type Key = {
@@ -45,7 +47,11 @@ export async function sshKeyRequest(path = '', body?: object): Promise<any> {
   return result;
 }
 export default function SshKeysSettings() {
-  const [data, setData] = useState<KeySettings>();
+  const seed = useDataSeed();
+  const { localeDate } = useProjectFormatting();
+  const [data, setData] = useState<KeySettings | undefined>(
+    () => seed?.data['/api/workspace/ssh-keys'] as KeySettings | undefined,
+  );
   const [name, setName] = useState('');
   const [publicKey, setPublicKey] = useState('');
   const [error, setError] = useState('');
@@ -61,8 +67,8 @@ export default function SshKeysSettings() {
     }
   }
   useEffect(() => {
-    void refresh();
-  }, []);
+    if (!freshSeed(seed, '/api/workspace/ssh-keys')) void refresh();
+  }, [seed]);
   return (
     <div className="min-w-0 space-y-4">
       {error && (
@@ -91,8 +97,8 @@ export default function SshKeysSettings() {
               <p className="text-sm text-text-secondary">{key.type}</p>
               <p className="font-mono text-xs break-all">{key.fingerprint}</p>
               <p className="text-xs text-text-secondary">
-                Added {new Date(key.createdAt).toLocaleDateString()} · Last used{' '}
-                {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleString() : 'Never'}
+                Added {localeDate(key.createdAt)} · Last used{' '}
+                {key.lastUsedAt ? localeDate(key.lastUsedAt, undefined, true) : 'Never'}
               </p>
             </div>
           ))}

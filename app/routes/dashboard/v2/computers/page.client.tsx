@@ -1,7 +1,7 @@
 'use client';
 import { ListTemplate, DetailTemplate } from '@/components/ui/v2/Templates';
 import { useState, type ReactNode } from 'react';
-import { useLocation } from 'react-flight-router/client';
+import { useLocation, useSearchParams } from 'react-flight-router/client';
 import {
   Action,
   Banner,
@@ -751,8 +751,8 @@ export default function Computers() {
   const key = decodeURIComponent(pathname.split('/')[3] || '');
   const { data, error, refresh } = useComputerData<{ computers: Computer[] }>('/computers');
   const [adding, setAdding] = useState(false);
-  const updates =
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('updates');
+  const [params] = useSearchParams();
+  const updates = params.has('updates');
   const selfUpdate = useSelfUpdate();
   const ownUpdate = updates ? selfUpdateView(selfUpdate.status) : null;
   const computer = data?.computers.find((c) => c.id === key);

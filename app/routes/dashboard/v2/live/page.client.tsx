@@ -26,7 +26,6 @@ import type {
   Rollback,
 } from '../../../../../shared/v2/contracts';
 import { liveRequest, useLive } from './data';
-import { formatTime } from '../data/time';
 import { useProjectFormatting } from '../projects/formatting';
 import { authenticatedFetch } from '../data/hooks';
 import { useData, type Overview as ProjectOverview } from '../projects/data';
@@ -48,7 +47,6 @@ const roles: Record<Role, string> = {
   'serve-models': 'Serve models',
   'use-screen': 'Use the screen',
 };
-const age = (at?: string) => formatTime(at, 'elapsed');
 function StartApp({ appId, refresh }: { appId: string; refresh: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -339,6 +337,8 @@ function Computer({
   computer: LiveResponse['computers'][number];
   names: Record<string, string>;
 }) {
+  const { formatTime, formatCount } = useProjectFormatting();
+  const age = (at?: string) => formatTime(at, 'elapsed');
   const apps = computer.apps.filter((app) => app.state !== 'stopped');
   if (!apps.length) return null;
   return (
@@ -403,7 +403,7 @@ function Computer({
                         <span className="dl-meta">
                           {app.queue
                             ? app.queue.depth
-                              ? `${app.queue.depth.toLocaleString()} queued`
+                              ? `${formatCount(app.queue.depth)} queued`
                               : 'Queue empty'
                             : 'Not measured · Queue depth was not reported'}
                         </span>
@@ -453,6 +453,8 @@ function Overview({
   names: Record<string, string>;
   refresh: () => void;
 }) {
+  const { formatTime } = useProjectFormatting();
+  const age = (at?: string) => formatTime(at, 'elapsed');
   const apps = live.computers.flatMap((computer) => computer.apps);
   const stopped = apps.filter((app) => app.state === 'stopped');
   const highMemory = apps.filter(

@@ -33,9 +33,8 @@ export function DataSeeds({
 }) {
   const parent = useContext(Seeds);
   const router = useRouter();
-  const inProjects =
-    !router ||
-    /^\/dashboard\/projects(?:\/|$)/.test(new URL(router.url, 'http://localhost').pathname);
+  const inDashboard =
+    !router || /^\/dashboard(?:\/|$)/.test(new URL(router.url, 'http://localhost').pathname);
   const hydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -53,7 +52,7 @@ export function DataSeeds({
   return (
     <Seeds.Provider
       value={
-        inProjects &&
+        inDashboard &&
         invalidated !== effective &&
         (!hydrated || !getAuth()?.username || getAuth()?.username === effective?.owner)
           ? effective
@@ -85,4 +84,16 @@ export function freshSeed(seed: DataSeed | undefined, path: string) {
       Object.hasOwn(seed.errors ?? {}, resourceKey(path))) &&
     Date.now() - seed.at < SEED_FRESH_MS
   );
+}
+
+/** First reads in form-specific loaders use the same freshness/identity rules as useData. */
+export async function readSeeded<T>(
+  seed: DataSeed | undefined,
+  path: string,
+  read: () => Promise<T>,
+): Promise<T> {
+  if (!freshSeed(seed, path)) return read();
+  const key = resourceKey(path);
+  if (seed?.errors?.[key]) throw new Error(seed.errors[key]);
+  return seed!.data[key] as T;
 }

@@ -253,6 +253,119 @@ for (let index = 5; index >= 1; index--) {
       output: 'Fixture job finished.\n',
     });
 }
+// Additional records for the dashboard-wide first-render proof.
+store.ensureCoordinatorNode();
+const { createAgent } = await import('../../../server/v2/agents.ts');
+const dashboardAgent = createAgent(owner, {
+  name: 'Dashboard keeper',
+  looksAfter: [
+    {
+      id: 'weekly',
+      what: 'Review dashboard health',
+      where: 'all-active',
+      when: { every: 'week', day: 1, time: '08:00', timezone: 'America/New_York' },
+      brings: 'message',
+      confirmedAt: at(86400_000),
+    },
+  ],
+});
+save('agent-message', owner, {
+  id: 'dashboard-reply',
+  agentId: dashboardAgent.id,
+  event: {
+    id: 'dashboard-reply',
+    kind: 'reply',
+    at: at(3600_000),
+    agent: dashboardAgent.id,
+    paragraphs: ['The dashboard is ready for review.'],
+  },
+});
+for (const [id, projectId] of [
+  ['dashboard-task', 'many-tabs'],
+  ['standalone-task', undefined],
+])
+  save('task', owner, {
+    id,
+    projectId,
+    title: 'Load dashboard data on the server',
+    status: 'completed',
+    revision: 1,
+    baseRevision: manyCommit,
+    workerId: 'fixture-worker',
+    agentId: dashboardAgent.id,
+    agentItemId: 'weekly',
+    createdAt: at(3600_000),
+    updatedAt: at(60000),
+  });
+for (const [id, name] of [
+  ['dashboard-package', 'dashboard-fixture'],
+  ['dashboard-scoped', '@fixture/dashboard'],
+]) {
+  store
+    .getSqlite()!
+    .prepare(
+      'INSERT INTO packages(id,ecosystem,name,project_id,created_by,created_at) VALUES(?,?,?,?,?,?)',
+    )
+    .run(id, 'npm', name, 'many-tabs', owner, at());
+  store
+    .getSqlite()!
+    .prepare(
+      'INSERT INTO package_versions(package_id,version,sha256,integrity,size,manifest,published_by,published_via,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+    )
+    .run(
+      id,
+      '1.0.0',
+      '0'.repeat(64),
+      'sha512-fixture',
+      0,
+      JSON.stringify({ name, version: '1.0.0' }),
+      owner,
+      'person',
+      at(),
+    );
+}
+const { loadSupportedCatalog } = await import('../../../server/catalog/index.ts');
+const blueprint = loadSupportedCatalog()[0];
+const dashboardPages = [
+  '/dashboard',
+  '/dashboard/live',
+  '/dashboard/live/web',
+  '/dashboard/inbox',
+  '/dashboard/inbox?tab=answered',
+  '/dashboard/computers',
+  '/dashboard/computers/coordinator',
+  '/dashboard/computers/models',
+  '/dashboard/computers/add',
+  ...['', '/changes', '/checks', '/design'].map((tab) => `/dashboard/tasks/dashboard-task${tab}`),
+  '/dashboard/tasks/standalone-task',
+  '/dashboard/projects/many-tabs/pulls',
+  '/dashboard/projects/many-tabs/pulls/pull-1',
+  '/dashboard/projects/many-tabs/releases',
+  '/dashboard/projects/many-tabs/releases/many-tabs-release-2',
+  '/dashboard/agents',
+  '/dashboard/agents/new',
+  `/dashboard/agents/${dashboardAgent.id}`,
+  `/dashboard/agents/${dashboardAgent.id}/tune`,
+  `/dashboard/agents/${dashboardAgent.id}/items/weekly/history`,
+  '/dashboard/design',
+  '/dashboard/design?project=many-tabs&view=canvas',
+  '/dashboard/packages',
+  '/dashboard/packages?tab=copies',
+  '/dashboard/packages?tab=setup',
+  '/dashboard/packages/npm/dashboard-fixture',
+  '/dashboard/packages/npm/@fixture/dashboard',
+  '/dashboard/settings',
+  '/dashboard/settings/approvals',
+  '/dashboard/settings/backups',
+  '/dashboard/settings/account',
+  '/dashboard/settings/devices',
+  '/dashboard/start',
+  '/dashboard/start/project',
+  '/dashboard/start/apps',
+  '/dashboard/discover',
+  ...(blueprint ? [`/dashboard/discover/${encodeURIComponent(blueprint.id)}`] : []),
+];
+
 const pages = {
   discover: '/dashboard/discover',
   list: '/dashboard/projects',
@@ -285,6 +398,7 @@ console.log(
       username: owner,
       token: account.token,
       pages,
+      dashboardPages,
       cookieSignIn: {
         method: 'POST',
         path: '/api/v2/auth/session',

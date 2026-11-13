@@ -2,9 +2,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { api } from '../../../v2-public/api';
 
+import { useDataSeed, freshSeed } from '../data/seeds';
+
 const SessionExpiredDialog = lazy(() => import('./SessionExpiredDialog'));
 
 export function SessionExpired({ initiallyExpired = false }: { initiallyExpired?: boolean }) {
+  const seed = useDataSeed();
   const [expired, setExpired] = useState(initiallyExpired);
   const [password, setPassword] = useState(false);
   useEffect(() => {
@@ -15,13 +18,13 @@ export function SessionExpired({ initiallyExpired = false }: { initiallyExpired?
       });
     const listener = () => void check();
     window.addEventListener('deploy:session-expired', listener);
-    void check();
+    if (!freshSeed(seed, '/api/v2/auth/account')) void check();
     const timer = setInterval(() => void check(), 30_000);
     return () => {
       clearInterval(timer);
       window.removeEventListener('deploy:session-expired', listener);
     };
-  }, []);
+  }, [seed]);
   return expired ? (
     <Suspense fallback={null}>
       <SessionExpiredDialog

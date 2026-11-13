@@ -1,5 +1,6 @@
 'use client';
-import { formatTime } from '../data/time';
+import { useProjectFormatting } from '../projects/formatting';
+import { useDataSeed, freshSeed, readSeeded } from '../data/seeds';
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Action, Banner, Field, Group, Item } from '@/components/ui';
@@ -14,13 +15,17 @@ import { SettingsFrame } from '../settings/frame.client';
 import { useCoordinatorName } from '../data/hooks';
 
 export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
+  const seed = useDataSeed();
   const coordinator = useCoordinatorName();
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let mounted = true;
-    void Promise.all([trusted(), api('/api/v2/auth/account')])
+    void Promise.all([
+      trusted(),
+      readSeeded(seed, '/api/v2/auth/account', () => api('/api/v2/auth/account')),
+    ])
       .then(async ([trust, info]) => {
         if (!mounted || !offerPasskey(info, trust)) return;
         await api('/api/v2/auth/account', { passkeyOffered: true });
@@ -30,7 +35,7 @@ export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [seed]);
   async function act(add: boolean) {
     setBusy(true);
     setError('');
@@ -67,18 +72,25 @@ export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
   );
 }
 function Devices() {
+  const { formatTime } = useProjectFormatting();
+  const seed = useDataSeed();
   const coordinator = useCoordinatorName();
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>(
+    () => (seed?.data['/api/v2/devices'] as { devices: any[] } | undefined)?.devices ?? [],
+  );
   const [pair, setPair] = useState<any>();
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const refresh = () => api('/api/v2/devices').then((data) => setItems(data.devices));
   useEffect(() => {
-    void refresh().catch((error) => setError(error.message));
-    const timer = setInterval(() => void refresh().catch(() => {}), 5000);
+    if (!freshSeed(seed, '/api/v2/devices'))
+      void refresh().catch((error) => setError(error.message));
+    const timer = setInterval(() => {
+      if (!freshSeed(seed, '/api/v2/devices')) void refresh().catch(() => {});
+    }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [seed]);
   useEffect(() => {
     if (!pair) return;
     const timer = setTimeout(
@@ -143,15 +155,16 @@ function Devices() {
   );
 }
 function Account() {
-  const [info, setInfo] = useState<any>();
+  const seed = useDataSeed();
+  const [info, setInfo] = useState<any>(() => seed?.data['/api/v2/auth/account']);
   const [message, setMessage] = useState('');
   const [canAdd, setCanAdd] = useState(false);
   useEffect(() => {
     void trusted().then(setCanAdd);
-    void api('/api/v2/auth/account')
+    void readSeeded(seed, '/api/v2/auth/account', () => api('/api/v2/auth/account'))
       .then(setInfo)
       .catch((error) => setMessage(error.message));
-  }, []);
+  }, [seed]);
   return (
     <SettingsFrame>
       <Group>

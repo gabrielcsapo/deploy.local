@@ -4,16 +4,16 @@ export const settingsRoutes: RouteConfig[] = [
   {
     id: 'v2-settings',
     path: 'settings',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
   {
     id: 'v2-settings-approvals',
     path: 'settings/approvals',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
   {
     id: 'v2-settings-backups',
     path: 'settings/backups',
-    component: () => import('./backups/page.client.js'),
+    component: () => import('./backups/page.js'),
   },
 ];

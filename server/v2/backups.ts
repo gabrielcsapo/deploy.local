@@ -811,12 +811,12 @@ export class BackupService {
   }
 }
 
-const service = new BackupService();
+export const backupService = new BackupService();
 export async function backupsApi(
   req: IncomingMessage,
   res: ServerResponse,
   owner: string,
-  operations = service,
+  operations = backupService,
 ): Promise<boolean> {
   try {
     return await backupsDispatch(req, res, { owner, operations });

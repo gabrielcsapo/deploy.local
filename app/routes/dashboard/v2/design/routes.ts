@@ -4,6 +4,6 @@ export const designRoutes: RouteConfig[] = [
   {
     id: 'v2-design',
     path: 'design',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
 ];

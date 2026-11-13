@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Action, Approval, Banner, Dialog, Field, Skeleton, Status } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { useAgentName, useInbox } from '../data/hooks';
-import { formatTime } from '../data/time';
+import { useProjectFormatting } from '../projects/formatting';
 import { DesignCard } from '../design/Review';
 
 import { QuestionDecision } from './QuestionDecision';
@@ -45,6 +45,7 @@ export function InboxDecision({ itemId }: { itemId: string }) {
 }
 
 function Decision({ item }: { item: InboxItem }) {
+  const { formatTime } = useProjectFormatting();
   const { answer } = useInbox();
   const agentName = useAgentName();
   const [note, setNote] = useState('');

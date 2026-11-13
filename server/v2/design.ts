@@ -2506,103 +2506,12 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       makeRoute({
         method: 'GET',
         path: '/api/v2/design/reviews',
-        handler: async () => {
-          const projectId = url.searchParams.get('project');
-          const rows = list('v2-inbox-native', owner).filter(
-            (row) =>
-              row.context?.source === 'design' &&
-              row.item.state === 'waiting' &&
-              (!projectId || row.context.projectId === projectId),
-          );
-          const proposals: DesignReviewSummary[] = [];
-          for (const row of rows)
-            proposals.push(
-              await reviewSummary(
-                owner,
-                requireRepository(owner, row.context.projectId),
-                row,
-                undefined,
-                true,
-              ),
-            );
-          proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-          const approved = list('v2-inbox-native', owner)
-            .filter(
-              (row) =>
-                row.context?.source === 'design' &&
-                row.item.answer?.actionId === 'approve' &&
-                (!projectId || row.context.projectId === projectId) &&
-                !list('design-review-landing', owner).some(
-                  (landing) => landing.id === row.id && landing.state !== 'landed',
-                ),
-            )
-            .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))
-            .flatMap((row) => {
-              const built = list('design-review-built', owner).find(
-                (entry) => entry.id === row.id && entry.state !== 'waiting',
-              );
-              const landing = reviewLanding(owner, row.id);
-              const task = list('task', owner).find((entry) => entry.id === landing?.build?.taskId);
-              const project = get('project', owner, row.context.projectId);
-              const building =
-                task && !['done', 'completed', 'cancelled', 'archived'].includes(task.status);
-              if (!built && !building) return [];
-              return [
-                {
-                  id: row.id,
-                  title: row.item.title,
-                  project: project.name ?? project.id,
-                  detail: built
-                    ? ['matches', 'kept'].includes(built.state)
-                      ? 'Built · matches the design'
-                      : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
-                    : landing?.build?.name
-                      ? `${project.name ?? project.id} · ${landing.build.name} is building it`
-                      : `${project.name ?? project.id} · being built`,
-                },
-              ];
-            })
-            .slice(0, 5);
-          return sendJson(res, { proposals, approved });
-        },
+        handler: async () => sendJson(res, await readDesignReviews(owner, url)),
       }),
       makeRoute({
         method: 'GET',
         path: '/api/v2/design/projects',
-        handler: async () => {
-          const projects = list('project', owner).filter((row: any) => row.repositoryPath);
-          const designs = await Promise.all(
-            projects.map((row: any) =>
-              // Each project is its own repository, so the Git limit per repository does not bound this.
-              pickerSlots('picker', async () => {
-                let boards = 0;
-                try {
-                  boards = Object.keys(
-                    (
-                      await readCanvas(
-                        row.repositoryPath,
-                        await presentationCommit(
-                          row.repositoryPath,
-                          `refs/heads/${(await repositoryRefs.read(row.repositoryPath)).symbolicHead || 'main'}`,
-                        ),
-                        true,
-                      )
-                    )?.boards ?? {},
-                  ).length;
-                } catch {
-                  // A canvas that is not valid JSON counts as no design.
-                }
-                return {
-                  id: row.id,
-                  name: row.name ?? row.id,
-                  description: row.description ?? null,
-                  boards,
-                };
-              }),
-            ),
-          );
-          return sendJson(res, { projects: designs });
-        },
+        handler: async () => sendJson(res, await readDesignProjects(owner)),
       }),
     ])(req, res, undefined)
   )
@@ -2691,9 +2600,10 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         method: 'GET',
         path: '/comments',
         handler: async () => {
-          return sendJson(res, {
-            comments: comments(owner, project.id, url.searchParams.get('board')),
-          });
+          return sendJson(
+            res,
+            readDesignComments(owner, project.id, url.searchParams.get('board')),
+          );
         },
       }),
       makeRoute({
@@ -3158,18 +3068,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         method: 'GET',
         path: '/asks',
         handler: async () => {
-          const asks = list('task', owner)
-            .filter((task: any) => task.projectId === project.id && task.design)
-            .sort((a: any, b: any) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-            .slice(0, 20)
-            .map((task: any) => ({
-              id: task.id,
-              title: task.title,
-              status: task.status,
-              branch: currentTaskBranch(task),
-              ...task.design,
-            }));
-          return sendJson(res, { asks });
+          return sendJson(res, readDesignAsks(owner, project.id));
         },
       }),
       makeRoute({
@@ -3260,7 +3159,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         method: 'GET',
         path: '/presence',
         handler: async () => {
-          return sendJson(res, { agents: livePresence(owner, project.id) });
+          return sendJson(res, readDesignPresence(owner, project.id));
         },
       }),
       makeRoute({
@@ -3440,29 +3339,153 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         method: 'GET',
         path: '/proposals',
         handler: async () => {
-          const prefix = `design:${project.id}:`;
-          // Each request also names the boards it would change, so the canvas can mark them In review.
-          // The canvas polls this every 10 s and it lists every proposal ever made, so it reads no git:
-          // counts and conflicts, which do, come from /api/v2/design/reviews for what still waits.
-          const contexts = new Map(
-            list('v2-inbox-native', owner)
-              .filter((row: any) => row.id.startsWith(prefix))
-              .map((row: any) => [row.id, row.context]),
-          );
-          const items = syncInbox(owner)
-            .filter((item) => item.id.startsWith(prefix))
-            .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-            .map((item) => ({
-              ...item,
-              branch: contexts.get(item.id)?.branch ?? null,
-              boards: ((contexts.get(item.id)?.paths ?? []) as string[])
-                .filter((path) => path.startsWith('design/boards/'))
-                .map((path) => path.slice('design/boards/'.length)),
-            }));
-          return sendJson(res, { proposals: items });
+          return sendJson(res, readDesignProposals(owner, project.id));
         },
       }),
     ],
     { path: () => sub, notFound: () => fail('Not found', 404) },
   )(req, res, undefined);
+}
+
+export async function readDesignReviews(owner: string, url: URL) {
+  const projectId = url.searchParams.get('project');
+  const rows = list('v2-inbox-native', owner).filter(
+    (row) =>
+      row.context?.source === 'design' &&
+      row.item.state === 'waiting' &&
+      (!projectId || row.context.projectId === projectId),
+  );
+  const proposals: DesignReviewSummary[] = [];
+  for (const row of rows)
+    proposals.push(
+      await reviewSummary(
+        owner,
+        requireRepository(owner, row.context.projectId),
+        row,
+        undefined,
+        true,
+      ),
+    );
+  proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const approved = list('v2-inbox-native', owner)
+    .filter(
+      (row) =>
+        row.context?.source === 'design' &&
+        row.item.answer?.actionId === 'approve' &&
+        (!projectId || row.context.projectId === projectId) &&
+        !list('design-review-landing', owner).some(
+          (landing) => landing.id === row.id && landing.state !== 'landed',
+        ),
+    )
+    .sort((a, b) => b.item.answer.at.localeCompare(a.item.answer.at))
+    .flatMap((row) => {
+      const built = list('design-review-built', owner).find(
+        (entry) => entry.id === row.id && entry.state !== 'waiting',
+      );
+      const landing = reviewLanding(owner, row.id);
+      const task = list('task', owner).find((entry) => entry.id === landing?.build?.taskId);
+      const project = get('project', owner, row.context.projectId);
+      const building =
+        task && !['done', 'completed', 'cancelled', 'archived'].includes(task.status);
+      if (!built && !building) return [];
+      return [
+        {
+          id: row.id,
+          title: row.item.title,
+          project: project.name ?? project.id,
+          detail: built
+            ? ['matches', 'kept'].includes(built.state)
+              ? 'Built · matches the design'
+              : `Built · ${built.differences} difference${built.differences === 1 ? '' : 's'} to look at`
+            : landing?.build?.name
+              ? `${project.name ?? project.id} · ${landing.build.name} is building it`
+              : `${project.name ?? project.id} · being built`,
+        },
+      ];
+    })
+    .slice(0, 5);
+  return { proposals, approved };
+}
+
+export async function readDesignProjects(owner: string) {
+  const projects = list('project', owner).filter((row: any) => row.repositoryPath);
+  const designs = await Promise.all(
+    projects.map((row: any) =>
+      // Each project is its own repository, so the Git limit per repository does not bound this.
+      pickerSlots('picker', async () => {
+        let boards = 0;
+        try {
+          boards = Object.keys(
+            (
+              await readCanvas(
+                row.repositoryPath,
+                await presentationCommit(
+                  row.repositoryPath,
+                  `refs/heads/${(await repositoryRefs.read(row.repositoryPath)).symbolicHead || 'main'}`,
+                ),
+                true,
+              )
+            )?.boards ?? {},
+          ).length;
+        } catch {
+          // A canvas that is not valid JSON counts as no design.
+        }
+        return {
+          id: row.id,
+          name: row.name ?? row.id,
+          description: row.description ?? null,
+          boards,
+        };
+      }),
+    ),
+  );
+  return { projects: designs };
+}
+
+/** Stored canvas metadata; these reads never open Git or render a board. */
+export function readDesignComments(owner: string, projectId: string, board?: string | null) {
+  const project = requireRepository(owner, projectId);
+  return { comments: comments(owner, project.id, board) };
+}
+export function readDesignPresence(owner: string, projectId: string) {
+  const project = requireRepository(owner, projectId);
+  return { agents: livePresence(owner, project.id) };
+}
+export function readDesignAsks(owner: string, projectId: string) {
+  const project = requireRepository(owner, projectId);
+  const asks = list('task', owner)
+    .filter((task: any) => task.projectId === project.id && task.design)
+    .sort((a: any, b: any) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 20)
+    .map((task: any) => ({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      branch: currentTaskBranch(task),
+      ...task.design,
+    }));
+  return { asks };
+}
+export function readDesignProposals(owner: string, projectId: string) {
+  const project = requireRepository(owner, projectId);
+  const prefix = `design:${project.id}:`;
+  // Each request also names the boards it would change, so the canvas can mark them In review.
+  // The canvas polls this every 10 s and it lists every proposal ever made, so it reads no git:
+  // counts and conflicts, which do, come from /api/v2/design/reviews for what still waits.
+  const contexts = new Map(
+    list('v2-inbox-native', owner)
+      .filter((row: any) => row.id.startsWith(prefix))
+      .map((row: any) => [row.id, row.context]),
+  );
+  const items = syncInbox(owner)
+    .filter((item) => item.id.startsWith(prefix))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .map((item) => ({
+      ...item,
+      branch: contexts.get(item.id)?.branch ?? null,
+      boards: ((contexts.get(item.id)?.paths ?? []) as string[])
+        .filter((path) => path.startsWith('design/boards/'))
+        .map((path) => path.slice('design/boards/'.length)),
+    }));
+  return { proposals: items };
 }

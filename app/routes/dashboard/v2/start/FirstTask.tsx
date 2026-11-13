@@ -6,7 +6,9 @@ import { api } from '../../../v2-public/api';
 import { shouldShowFirstTask } from './first-task';
 import './start.css';
 
+import { useDataSeed, readSeeded } from '../data/seeds';
 export function FirstTask() {
+  const seed = useDataSeed();
   const { pathname } = useLocation();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -14,7 +16,10 @@ export function FirstTask() {
     setVisible(false);
     const taskId = pathname.match(/^\/dashboard\/tasks\/([^/]+)$/)?.[1];
     if (!taskId) return;
-    void Promise.all([api('/api/v2/auth/account'), api(`/api/v2/tasks/${taskId}`)])
+    void Promise.all([
+      readSeeded(seed, '/api/v2/auth/account', () => api('/api/v2/auth/account')),
+      readSeeded(seed, `/api/v2/tasks/${taskId}`, () => api(`/api/v2/tasks/${taskId}`)),
+    ])
       .then(async ([account, task]) => {
         if (!mounted || !shouldShowFirstTask(account.firstTaskSeen, task.firstTask)) return;
         await api('/api/v2/auth/account', { firstTaskSeen: true });
@@ -24,7 +29,7 @@ export function FirstTask() {
     return () => {
       mounted = false;
     };
-  }, [pathname]);
+  }, [pathname, seed]);
   async function dismiss() {
     await api('/api/v2/auth/account', { firstTaskSeen: true });
     setVisible(false);

@@ -37,7 +37,7 @@ export const agentApprovalActions: AgentApprovalAction[] = [
   'rollback',
   'restart',
 ];
-function rulesForOwner(owner: string): AgentApprovalRule[] {
+export function rulesForOwner(owner: string): AgentApprovalRule[] {
   return list('v2-approval', owner).filter((rule) => agentApprovalActions.includes(rule.action));
 }
 function putRules(owner: string, rules: unknown) {
@@ -607,19 +607,7 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
           method: 'GET',
           path: '/agents/:agent/items/:item/runs',
           handler: () => {
-            return sendItem({
-              runs: agentRuns(owner, agent.id, itemId)
-                .reverse()
-                .map((task) => ({
-                  id: task.id,
-                  title: task.title,
-                  at: task.createdAt,
-                  itemId,
-                  status:
-                    list('run', owner).findLast((run) => run.taskId === task.id)?.status ??
-                    task.status,
-                })),
-            });
+            return sendItem(readAgentRuns(owner, agent.id, itemId));
           },
         }),
       ],
@@ -745,4 +733,22 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
     ],
     { path: () => path, notFound: () => send({ error: 'Method not allowed' }, 405) },
   )(req, res, undefined);
+}
+
+/** Validates both owner membership and item membership, as the route does. */
+export function readAgentRuns(owner: string, agentId: string, itemId: string) {
+  const agent = agentForOwner(owner, agentId);
+  if (!agent.looksAfter?.some((item) => item.id === itemId))
+    fail('Looks after item not found', 404);
+  return {
+    runs: agentRuns(owner, agent.id, itemId)
+      .reverse()
+      .map((task) => ({
+        id: task.id,
+        title: task.title,
+        at: task.createdAt,
+        itemId,
+        status: list('run', owner).findLast((run) => run.taskId === task.id)?.status ?? task.status,
+      })),
+  };
 }

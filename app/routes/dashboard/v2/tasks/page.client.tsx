@@ -4,7 +4,8 @@ import { useLocation } from 'react-flight-router/client';
 import { Action, Banner, Composer, Head, Icon, IconButton, Skeleton, Tabs } from '@/components/ui';
 import { Conversation, ReleaseProgress } from '../conversation/Conversation';
 import { authenticatedFetch, useInbox } from '../data/hooks';
-import { formatTime } from '../data/time';
+import { useDataSeed, readSeeded } from '../data/seeds';
+import { useProjectFormatting } from '../projects/formatting';
 import { useTask } from './data';
 import { PullDescription } from './description.client';
 import {
@@ -63,6 +64,8 @@ export default function TaskPage() {
   return <Task key={id} id={id} pathname={pathname} />;
 }
 function Task({ id, pathname }: { id: string; pathname: string }) {
+  const seed = useDataSeed();
+  const { formatTime } = useProjectFormatting();
   const { view, error, refresh, updateRelease } = useTask(id);
   const inbox = useInbox();
   const base = `/dashboard/tasks/${encodeURIComponent(id)}`;
@@ -75,7 +78,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
         : 'chat';
   // A task that changed its project's design gets a Design tab and a decision in its chat.
   const design = useTaskDesign(view?.project?.id, id);
-  const [diff, setDiff] = useState<TaskDiff | null>(null);
+  const [diff, setDiff] = useState<TaskDiff | null>(
+    () => (seed?.data[`/api/workspace/tasks/${encodeURIComponent(id)}/diff`] as TaskDiff) ?? null,
+  );
   const [checks, setChecks] = useState<TaskCheck[]>([]);
   const [detailVersion, setDetailVersion] = useState(0);
   const [detailError, setDetailError] = useState('');
@@ -109,10 +114,10 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
     setDetailError('');
     async function loadDetails() {
       try {
-        const data = await requestJson<TaskDiff & { checks?: TaskCheck[] }>(
-          authenticatedFetch,
-          `${path}/diff`,
-          { signal },
+        const data = await readSeeded(detailVersion === 0 ? seed : undefined, `${path}/diff`, () =>
+          requestJson<TaskDiff & { checks?: TaskCheck[] }>(authenticatedFetch, `${path}/diff`, {
+            signal,
+          }),
         );
         if (signal.aborted) return;
 
@@ -138,7 +143,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
     }
     void loadDetails();
     return () => controller.abort();
-  }, [id, projectId, pullId, pullRevision, taskRevision, detailVersion, loaded]);
+  }, [id, projectId, pullId, pullRevision, taskRevision, detailVersion, loaded, seed]);
   useEffect(() => {
     const timer = setInterval(() => setDetailVersion((value) => value + 1), 10000);
     return () => clearInterval(timer);

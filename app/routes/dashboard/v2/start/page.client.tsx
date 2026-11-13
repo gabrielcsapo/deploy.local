@@ -17,6 +17,7 @@ import {
 import { api } from '../../../v2-public/client';
 import { PasskeyOffer } from './account.client';
 import './start.css';
+import { useDataSeed, readSeeded } from '../data/seeds';
 export { FirstTask } from './FirstTask';
 import { NewProjectDialog } from '../projects/new-project.client';
 import { useCoordinatorName } from '../data/hooks';
@@ -110,17 +111,31 @@ function Welcome() {
   );
 }
 function InstallApp() {
+  const seed = useDataSeed();
   const coordinator = useCoordinatorName();
   const { pathname } = useLocation();
-  const [releases, setReleases] = useState<any[]>([]);
+  const catalog = seed?.data['/api/catalog'] as { releases: any[] } | undefined;
+  const selected = catalog?.releases.find((item) =>
+    pathname.endsWith(`/discover/${encodeURIComponent(item.id)}`),
+  );
+  const [releases, setReleases] = useState<any[]>(catalog?.releases ?? []);
   const [targets, setTargets] = useState<any[]>([]);
-  const [release, setRelease] = useState<any>();
-  const [detail, setDetail] = useState<any>();
+  const [release, setRelease] = useState<any>(selected);
+  const [detail, setDetail] = useState<any>(() =>
+    selected
+      ? seed?.data[
+          `/api/catalog/${encodeURIComponent(selected.id)}/${encodeURIComponent(selected.release)}`
+        ]
+      : undefined,
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<any>();
   useEffect(() => {
-    void Promise.all([api('/api/catalog'), api('/api/catalog/targets')])
+    void Promise.all([
+      readSeeded(seed, '/api/catalog', () => api('/api/catalog')),
+      api('/api/catalog/targets'),
+    ])
       .then(([catalog, computers]) => {
         setReleases(catalog.releases);
         const selected = catalog.releases.find((item: any) =>
@@ -130,16 +145,15 @@ function InstallApp() {
         setTargets(computers.targets);
       })
       .catch((error) => setError(error.message));
-  }, [pathname]);
+  }, [pathname, seed]);
   useEffect(() => {
     if (!release) return;
-    setDetail(undefined);
-    void api(
-      `/api/catalog/${encodeURIComponent(release.id)}/${encodeURIComponent(release.release)}`,
-    )
+    const path = `/api/catalog/${encodeURIComponent(release.id)}/${encodeURIComponent(release.release)}`;
+    setDetail(seed?.data[path]);
+    void readSeeded(seed, path, () => api(path))
       .then(setDetail)
       .catch((error) => setError(error.message));
-  }, [release]);
+  }, [release, seed]);
   async function install(form: HTMLFormElement) {
     setBusy(true);
     setError('');

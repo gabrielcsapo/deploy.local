@@ -9,6 +9,7 @@ import {
   requireAdmin,
 } from './shared.ts';
 import {
+  isAdmin,
   redeemNodeEnrollment,
   authenticateNode,
   deployRoleEnabled,
@@ -804,70 +805,7 @@ const table = [
       try {
         const auth = requireAdmin(req, res);
         if (!auth) return;
-        const fleet = getFleetPlacementState();
-        const coordinatorApps = await getDeploymentContainerStatuses();
-        return json(res, {
-          ...fleet,
-          nodes: fleet.nodes.map((entry) => {
-            const node = { ...entry, deployEnabled: deployRoleEnabled(entry.id) };
-            if (node.kind === 'coordinator') {
-              // The stored coordinator row claims Docker unconditionally; report the probe instead.
-              const reachable = coordinatorDockerReachable();
-              return {
-                ...node,
-                apps: coordinatorApps,
-                capabilities: JSON.stringify({
-                  ...JSON.parse(node.capabilities || '{}'),
-                  docker: reachable === true,
-                  ...(reachable === true
-                    ? {}
-                    : {
-                        dockerError:
-                          reachable === null
-                            ? 'Docker reachability has not been checked yet.'
-                            : 'Docker is not reachable from the coordinator. Check the daemon and service permissions.',
-                      }),
-                }),
-              };
-            }
-            try {
-              const capabilities = JSON.parse(node.capabilities || '{}') as {
-                apps?: unknown[];
-              };
-              return {
-                ...node,
-                apps: Array.isArray(capabilities.apps) ? capabilities.apps : [],
-                jobs: getRecentAgentJobs(node.id).map((job) => ({
-                  id: job.id,
-                  type: job.type,
-                  deploymentName: job.deploymentName,
-                  status: job.status,
-                  createdAt: job.createdAt,
-                  claimedAt: job.claimedAt,
-                  completedAt: job.completedAt,
-                  error: job.error,
-                  activity: agentActivityByJob.get(job.id) || null,
-                })),
-              };
-            } catch {
-              return {
-                ...node,
-                apps: [],
-                jobs: getRecentAgentJobs(node.id).map((job) => ({
-                  id: job.id,
-                  type: job.type,
-                  deploymentName: job.deploymentName,
-                  status: job.status,
-                  createdAt: job.createdAt,
-                  claimedAt: job.claimedAt,
-                  completedAt: job.completedAt,
-                  error: job.error,
-                  activity: agentActivityByJob.get(job.id) || null,
-                })),
-              };
-            }
-          }),
-        });
+        return json(res, await readNodes(auth.username));
       } catch (err: unknown) {
         console.error(err);
         error(
@@ -1023,4 +961,74 @@ const table = [
 
 export async function fleetRoutes(ctx: ApiRouteContext): Promise<boolean> {
   return dispatch(table, { path: () => ctx.path, method: () => ctx.method })(ctx.req, ctx.res, ctx);
+}
+
+/** The admin-only fleet response shared by HTTP and server-rendered pages. */
+export async function readNodes(owner: string) {
+  if (!isAdmin(owner))
+    throw Object.assign(new Error('Administrator access required'), { status: 403 });
+  const fleet = getFleetPlacementState();
+  const coordinatorApps = await getDeploymentContainerStatuses();
+  return {
+    ...fleet,
+    nodes: fleet.nodes.map((entry) => {
+      const node = { ...entry, deployEnabled: deployRoleEnabled(entry.id) };
+      if (node.kind === 'coordinator') {
+        // The stored coordinator row claims Docker unconditionally; report the probe instead.
+        const reachable = coordinatorDockerReachable();
+        return {
+          ...node,
+          apps: coordinatorApps,
+          capabilities: JSON.stringify({
+            ...JSON.parse(node.capabilities || '{}'),
+            docker: reachable === true,
+            ...(reachable === true
+              ? {}
+              : {
+                  dockerError:
+                    reachable === null
+                      ? 'Docker reachability has not been checked yet.'
+                      : 'Docker is not reachable from the coordinator. Check the daemon and service permissions.',
+                }),
+          }),
+        };
+      }
+      try {
+        const capabilities = JSON.parse(node.capabilities || '{}') as {
+          apps?: unknown[];
+        };
+        return {
+          ...node,
+          apps: Array.isArray(capabilities.apps) ? capabilities.apps : [],
+          jobs: getRecentAgentJobs(node.id).map((job) => ({
+            id: job.id,
+            type: job.type,
+            deploymentName: job.deploymentName,
+            status: job.status,
+            createdAt: job.createdAt,
+            claimedAt: job.claimedAt,
+            completedAt: job.completedAt,
+            error: job.error,
+            activity: agentActivityByJob.get(job.id) || null,
+          })),
+        };
+      } catch {
+        return {
+          ...node,
+          apps: [],
+          jobs: getRecentAgentJobs(node.id).map((job) => ({
+            id: job.id,
+            type: job.type,
+            deploymentName: job.deploymentName,
+            status: job.status,
+            createdAt: job.createdAt,
+            claimedAt: job.claimedAt,
+            completedAt: job.completedAt,
+            error: job.error,
+            activity: agentActivityByJob.get(job.id) || null,
+          })),
+        };
+      }
+    }),
+  };
 }

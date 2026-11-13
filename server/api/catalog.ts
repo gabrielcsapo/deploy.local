@@ -17,7 +17,7 @@ const catalogReleases =
     ? loadValidationCatalog()
     : loadSupportedCatalog();
 
-const catalogService = new CatalogService(catalogReleases, new DurableCatalogStore());
+export const catalogService = new CatalogService(catalogReleases, new DurableCatalogStore());
 
 const catalogRuntime = new DeployLocalCatalogRuntime();
 

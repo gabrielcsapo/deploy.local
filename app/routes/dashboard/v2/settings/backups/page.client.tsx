@@ -10,12 +10,11 @@ import type {
 import { request } from '../../agents/shared';
 import { SettingsFrame } from '../frame.client';
 import './style.css';
-import { formatTime } from '../../data/time';
+import { useProjectFormatting } from '../../projects/formatting';
+import { useDataSeed, readSeeded } from '../../data/seeds';
 import { authenticatedFetch } from '../../data/hooks';
 import { allCopiesLocal } from './presentation';
 
-const date = (value?: string) =>
-  value ? `${formatTime(value, 'day')}, ${formatTime(value, 'clock')}` : 'Not yet';
 function bytes(value: number | null) {
   if (value === null) return 'Size unavailable';
   for (const [unit, divisor] of [
@@ -44,7 +43,13 @@ function scheduleLabel(schedule: string) {
 const path = (id: string) => `/backups/${encodeURIComponent(id)}`;
 
 export default function Backups() {
-  const [data, setData] = useState<BackupsResponse>();
+  const seed = useDataSeed();
+  const { formatTime } = useProjectFormatting();
+  const date = (value?: string) =>
+    value ? `${formatTime(value, 'day')}, ${formatTime(value, 'clock')}` : 'Not yet';
+  const [data, setData] = useState<BackupsResponse | undefined>(
+    () => seed?.data['/api/v2/backups'] as BackupsResponse | undefined,
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<BackupPoint>();
@@ -66,7 +71,7 @@ export default function Backups() {
   }
   useEffect(() => {
     let active = true;
-    request('/backups')
+    readSeeded(seed, '/api/v2/backups', () => request('/backups'))
       .then((result: BackupsResponse) => {
         if (!active) return;
         setData(result);
@@ -82,7 +87,7 @@ export default function Backups() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [seed]);
   useEffect(() => {
     if (!data?.restores.some((row) => ['creating', 'switching'].includes(row.state))) return;
     const timer = setInterval(() => {

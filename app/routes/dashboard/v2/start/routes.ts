@@ -11,17 +11,17 @@ export const startRoutes: RouteConfig[] = [
   {
     id: 'v2-start',
     path: 'start',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
   {
     id: 'v2-start-project',
     path: 'start/project',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
   {
     id: 'v2-start-apps',
     path: 'start/apps',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
   {
     id: 'v2-settings-account',
@@ -38,13 +38,13 @@ export const discoverRoutes: RouteConfig[] = [
   {
     id: 'v2-discover',
     path: 'discover',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
 ];
 export const blueprintRoutes: RouteConfig[] = [
   {
     id: 'v2-discover-blueprint',
     path: 'discover/:blueprint',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
 ];

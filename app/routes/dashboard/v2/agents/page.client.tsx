@@ -12,6 +12,7 @@ import { AgentConversation } from './conversation';
 import { AgentIdentity } from './identity';
 import { LooksAfterList } from './item';
 import { AgentRules } from '../settings/approvals';
+import { useDataSeed, readSeeded } from '../data/seeds';
 import { useResource } from '../data/hooks';
 import './style.css';
 export default function Agents() {
@@ -126,8 +127,16 @@ function ExistingAgent({
   tune: boolean;
   historyItemId?: string;
 }) {
-  const [agent, setAgent] = useState<Agent | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const seed = useDataSeed();
+  const [agent, setAgent] = useState<Agent | null>(
+    () =>
+      (seed?.data['/api/v2/agents'] as { agents: Agent[] } | undefined)?.agents.find(
+        (a) => a.id === agentId,
+      ) ?? null,
+  );
+  const [projects, setProjects] = useState<Project[]>(
+    () => (seed?.data['/api/v2/projects'] as { projects: Project[] } | undefined)?.projects ?? [],
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -135,16 +144,16 @@ function ExistingAgent({
   const path = `/agents/${encodeURIComponent(agentId)}`;
   useEffect(() => {
     let active = true;
-    const load = () =>
-      request('/agents')
+    const load = (initial = false) =>
+      (initial ? readSeeded(seed, '/api/v2/agents', () => request('/agents')) : request('/agents'))
         .then((v) => {
           if (active) setAgent(v.agents.find((a: Agent) => a.id === agentId) ?? null);
         })
         .catch((e) => {
           if (active) setError(e.message);
         });
-    void load();
-    request('/projects')
+    void load(true);
+    readSeeded(seed, '/api/v2/projects', () => request('/projects'))
       .then((v) => {
         if (active) setProjects(v.projects);
       })
@@ -160,7 +169,7 @@ function ExistingAgent({
       active = false;
       window.removeEventListener('deploy:agents-changed', changed);
     };
-  }, [agentId, tune]);
+  }, [agentId, tune, seed]);
   async function save() {
     if (!agent) return;
     setBusy(true);

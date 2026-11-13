@@ -10,7 +10,8 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { agentSuggestions, itemSummary, itemWhen, weekDays } from '../../../../../shared/v2/agents';
 import { ConversationItem } from '../conversation/Conversation';
-import { formatTime } from '../data/time';
+import { useProjectFormatting } from '../projects/formatting';
+import { useDataSeed, readSeeded } from '../data/seeds';
 import { LooksAfterEditor, itemHistoryPath } from './item';
 import { request } from './shared';
 import { useResource } from '../data/hooks';
@@ -21,12 +22,17 @@ export function AgentConversation({
   agent: Agent;
   onChanged: (agent: Agent) => void;
 }) {
+  const seed = useDataSeed();
+  const { formatTime } = useProjectFormatting();
+  const snapshot = seed?.data[`/api/v2/agents/${encodeURIComponent(agent.id)}/conversation`] as
+    | { events: ConversationEvent[]; tracking: AgentTracking }
+    | undefined;
   const projects =
     useResource<{ projects: import('../../../../../shared/v2/contracts').Project[] }>(
       '/api/v2/projects',
     ).data?.projects ?? [];
-  const [tracking, setTracking] = useState<AgentTracking | null>(null);
-  const [events, setEvents] = useState<ConversationEvent[] | null>(null);
+  const [tracking, setTracking] = useState<AgentTracking | null>(snapshot?.tracking ?? null);
+  const [events, setEvents] = useState<ConversationEvent[] | null>(snapshot?.events ?? null);
   const [error, setError] = useState('');
   const [edit, setEdit] = useState<LooksAfterItem | null>(null);
   const [suggestion, setSuggestion] = useState<{ text: string; nonce: number }>();
@@ -34,8 +40,11 @@ export function AgentConversation({
   const path = `/agents/${encodeURIComponent(agent.id)}`;
   useEffect(() => {
     let active = true;
-    const refresh = () =>
-      request(`${path}/conversation`)
+    const refresh = (initial: boolean | Event = false) =>
+      (initial === true
+        ? readSeeded(seed, `/api/v2${path}/conversation`, () => request(`${path}/conversation`))
+        : request(`${path}/conversation`)
+      )
         .then((body) => {
           if (active) {
             setEvents(body.events);
@@ -45,7 +54,7 @@ export function AgentConversation({
         .catch((e) => {
           if (active) setError(e.message);
         });
-    void refresh();
+    void refresh(true);
     window.addEventListener('deploy:agents-changed', refresh);
     window.addEventListener('deploy:conversation-changed', refresh);
     return () => {
@@ -53,7 +62,7 @@ export function AgentConversation({
       window.removeEventListener('deploy:agents-changed', refresh);
       window.removeEventListener('deploy:conversation-changed', refresh);
     };
-  }, [path]);
+  }, [path, seed]);
   async function confirm(item: LooksAfterItem) {
     setBusy(true);
     setError('');

@@ -4,11 +4,11 @@ export const liveRoutes: RouteConfig[] = [
   {
     id: 'v2-live',
     path: 'live',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
   {
     id: 'v2-live-app',
     path: 'live/:app',
-    component: () => import('./page.client.js'),
+    component: () => import('./page.js'),
   },
 ];

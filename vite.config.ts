@@ -108,7 +108,9 @@ export default defineConfig({
     exclude: ['better-sqlite3'],
   },
   ssr: {
-    external: ['better-sqlite3', 'ssh2'],
+    // Design's shared reads also import its browser-rendering helpers. Keep Playwright's
+    // optional native dependencies in Node instead of bundling them into the RSC server.
+    external: ['better-sqlite3', 'ssh2', 'playwright'],
   },
   server: {
     watch: {

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useDataSeed, readSeeded } from '../../../routes/dashboard/v2/data/seeds';
 import { formatTime } from '../../../routes/dashboard/v2/data/time';
 import { AgentAvatar } from './AgentAvatar';
 import type { AgentConfiguration } from '../../../../shared/v2/contracts';
@@ -38,6 +39,7 @@ export function Composer({
   footer?: ReactNode;
   suggestedText?: { text: string; nonce: number };
 }) {
+  const seed = useDataSeed();
   const id = useId();
   const location = useLocation();
   const picker = useRef<HTMLInputElement>(null);
@@ -45,7 +47,10 @@ export function Composer({
   useEffect(() => {
     if (suggestedText) setText(suggestedText.text);
   }, [suggestedText]);
-  const [agents, setAgents] = useState<AgentConfiguration[]>([]);
+  const [agents, setAgents] = useState<AgentConfiguration[]>(
+    () =>
+      (seed?.data['/api/v2/agents'] as { agents: AgentConfiguration[] } | undefined)?.agents ?? [],
+  );
   const [mentionIndex, setMentionIndex] = useState(0);
   const [mentionClosed, setMentionClosed] = useState(false);
   const mentionQuery = !mentionClosed && text.match(/(?:^|\s)@([^@\n]*)$/)?.[1];
@@ -58,13 +63,15 @@ export function Composer({
     setMentionClosed(true);
   }
   useEffect(() => {
-    mediaRequest('/agents')
+    readSeeded(seed, '/api/v2/agents', () => mediaRequest('/agents'))
       .then((v) => setAgents(v.agents))
       .catch(() => {});
-  }, []);
+  }, [seed]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [menu, setMenu] = useState<'attach' | 'model' | 'screenshot' | 'project' | null>(null);
-  const [models, setModels] = useState<ComputerModels | null>(null);
+  const [models, setModels] = useState<ComputerModels | null>(
+    () => (seed?.data['/api/v2/computers/models'] as ComputerModels) ?? null,
+  );
   const [override, setOverride] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -92,7 +99,9 @@ export function Composer({
     const home = path === '/dashboard' || path === '/dashboard/';
     setContext({ taskId, agentId, home });
     if (taskId)
-      void mediaRequest(`/tasks/${encodeURIComponent(taskId)}`)
+      void readSeeded(seed, `/api/v2/tasks/${encodeURIComponent(taskId)}`, () =>
+        mediaRequest(`/tasks/${encodeURIComponent(taskId)}`),
+      )
         .then((value) => {
           if (!active) return;
           setContext({ taskId, projectId: value.project?.id });
@@ -103,7 +112,7 @@ export function Composer({
           }
         })
         .catch(() => {});
-    void mediaRequest('/computers/models')
+    void readSeeded(seed, '/api/v2/computers/models', () => mediaRequest('/computers/models'))
       .then((value) => {
         if (active) setModels(value);
       })
@@ -111,7 +120,7 @@ export function Composer({
     return () => {
       active = false;
     };
-  }, [location.pathname]);
+  }, [location.pathname, seed]);
   async function perform(action: () => Promise<void>) {
     setPending(true);
     setError('');

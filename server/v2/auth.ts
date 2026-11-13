@@ -189,8 +189,7 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
       route({
         method: 'GET',
         path: '/auth/account',
-        handler: () =>
-          send({ username: owner, ...preferences(owner), hasPasskey: passkeys(owner).length > 0 }),
+        handler: () => send(readAccount(owner)),
       }),
       route({
         method: 'POST',
@@ -236,4 +235,8 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
     ],
     { ...options, notFound: () => send({ error: 'Not found' }, 404) },
   )(req, res, undefined);
+}
+
+export function readAccount(owner: string) {
+  return { username: owner, ...preferences(owner), hasPasskey: passkeys(owner).length > 0 };
 }

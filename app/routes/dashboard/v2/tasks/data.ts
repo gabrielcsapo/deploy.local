@@ -1,12 +1,15 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import type { Release } from '../../../../../shared/v2/contracts';
+import { useDataSeed, readSeeded } from '../data/seeds';
 import { authenticatedFetch, eventFeed } from '../data/hooks';
 import { requestJson, updateTaskFromEvents } from './api';
 import type { TaskView } from './types';
 
 export function useTask(id: string) {
-  const [view, setView] = useState<TaskView | null>(null);
+  const seed = useDataSeed();
+  const path = `/api/v2/tasks/${encodeURIComponent(id)}`;
+  const [view, setView] = useState<TaskView | null>(() => (seed?.data[path] as TaskView) ?? null);
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((value) => value + 1), []);
@@ -23,12 +26,13 @@ export function useTask(id: string) {
     [],
   );
   useEffect(() => {
-    async function start(signal: AbortSignal) {
+    let first = version === 0;
+    async function start(signal: AbortSignal, boundary?: number) {
+      const initial = first && (boundary ?? 0) <= (seed?.cursor ?? -1);
+      first = false;
       try {
-        const data = await requestJson<TaskView>(
-          authenticatedFetch,
-          `/api/v2/tasks/${encodeURIComponent(id)}`,
-          { signal },
+        const data = await readSeeded(initial ? seed : undefined, path, () =>
+          requestJson<TaskView>(authenticatedFetch, path, { signal }),
         );
         if (signal.aborted) return;
         setView((old) => ({
@@ -39,27 +43,25 @@ export function useTask(id: string) {
         const project = data.project;
         async function loadReleases() {
           if (!project) return;
-          const response = await authenticatedFetch(
-            `/api/v2/projects/${encodeURIComponent(project.id)}/releases`,
-            { signal },
-          );
-          if (response.ok) {
-            const body = await response.json();
-            const releases = Array.isArray(body) ? body : body.releases;
-            if (Array.isArray(releases) && !signal.aborted)
-              setView((old) =>
-                old
-                  ? {
-                      ...old,
-                      releases: [
-                        ...new Map(
-                          [...old.releases, ...releases].map((release) => [release.id, release]),
-                        ).values(),
-                      ],
-                    }
-                  : old,
-              );
-          }
+          const releasePath = `/api/v2/projects/${encodeURIComponent(project.id)}/releases`;
+          const body = await readSeeded(version === 0 ? seed : undefined, releasePath, async () => {
+            const response = await authenticatedFetch(releasePath, { signal });
+            return response.ok ? response.json() : { releases: [] };
+          });
+          const releases = Array.isArray(body) ? body : body.releases;
+          if (Array.isArray(releases) && !signal.aborted)
+            setView((old) =>
+              old
+                ? {
+                    ...old,
+                    releases: [
+                      ...new Map(
+                        [...old.releases, ...releases].map((release) => [release.id, release]),
+                      ).values(),
+                    ],
+                  }
+                : old,
+            );
         }
         void loadReleases().catch((reason) => {
           if (!signal.aborted)
@@ -102,6 +104,6 @@ export function useTask(id: string) {
       unsubscribe();
       clearInterval(interval);
     };
-  }, [id, version, refresh]);
+  }, [id, path, seed, version, refresh]);
   return { view: view?.task.id === id ? view : null, error, refresh, updateRelease };
 }

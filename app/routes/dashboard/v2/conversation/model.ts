@@ -8,14 +8,16 @@ export function mergeEvents(current: ConversationEvent[], incoming: Conversation
   return [...events.values()].sort((a, b) => a.at.localeCompare(b.at));
 }
 
-export function conversationDays(events: ConversationEvent[]) {
+export function conversationDays(events: ConversationEvent[], now = new Date(), timeZone?: string) {
   const days = new Map<string, ConversationEvent[]>();
   for (const event of mergeEvents([], events)) {
-    const day = new Date(event.at).toDateString();
+    const day = timeZone
+      ? new Date(event.at).toLocaleDateString('en-US', { timeZone })
+      : new Date(event.at).toDateString();
     days.set(day, [...(days.get(day) || []), event]);
   }
   return [...days].map(([, items], index) => ({
-    day: formatTime(items[0].at, 'day'),
+    day: formatTime(items[0].at, 'day', now, timeZone),
     events: items,
     // A decision must stay visible even when its day is folded.
     pinned: index < days.size - 1 ? items.filter((event) => event.kind === 'decision') : [],
