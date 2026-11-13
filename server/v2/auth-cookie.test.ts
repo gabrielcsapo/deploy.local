@@ -42,18 +42,16 @@ test('token adoption validates explicit credentials, sets secure HTTPS cookies a
   const response = await post('/auth/session');
   assert.equal(response.status, 200);
   assert.match(cookie(response), /; Secure;/);
-  const http = await post('/auth/session', {}, headers, 'http://localhost');
-  assert.doesNotMatch(cookie(http), /; Secure;/);
-  // Behind the HTTPS front the server sees a plain socket; only loopback may drop Secure.
-  const fronted = await post('/auth/session', {}, headers, 'http://deploy.local');
+  // The edge forwards HTTP/2 requests to a loopback backend with no trace of HTTPS.
+  const fronted = await post('/auth/session', {}, headers, 'http://127.0.0.1:7843');
   assert.match(cookie(fronted), /; Secure;/);
-  const proxied = await post(
-    '/auth/session',
-    {},
-    { ...headers, 'x-forwarded-host': 'deploy.local' },
-    'http://127.0.0.1:3000',
-  );
-  assert.match(cookie(proxied), /; Secure;/);
+  process.env.DEPLOY_PUBLIC_ORIGIN = 'http://127.0.0.1:5188';
+  try {
+    const http = await post('/auth/session', {}, headers, 'http://127.0.0.1:5188');
+    assert.doesNotMatch(cookie(http), /; Secure;/);
+  } finally {
+    delete process.env.DEPLOY_PUBLIC_ORIGIN;
+  }
   const bad = await post('/auth/session', {}, { ...headers, 'x-deploy-token': 'wrong' });
   assert.equal(bad.status, 401);
   assert.match(cookie(bad), /Max-Age=0/);

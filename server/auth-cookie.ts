@@ -26,27 +26,19 @@ export function parseAuthCookie(req: Pick<IncomingMessage, 'headers'>): {
 }
 
 /**
- * Always Secure, except for plain HTTP on this machine's own loopback address (local runs).
- * The HTTPS front does not always say how the request arrived, so the default must be Secure.
+ * Secure unless this server was started for plain local HTTP (DEPLOY_PUBLIC_ORIGIN=http://…).
+ * Request headers cannot decide it: the edge forwards HTTP/2 requests to a loopback backend
+ * without the name or scheme people used, so a served request looks the same as a local one.
  */
-function attributes(req?: Pick<IncomingMessage, 'headers' | 'socket'>) {
-  // The edge forwards to a loopback backend and keeps the name people used in x-forwarded-host.
-  const host = String(req?.headers['x-forwarded-host'] ?? req?.headers.host ?? '').replace(
-    /:\d+$/,
-    '',
-  );
-  const loopback = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
-  const https =
-    !req ||
-    (!!req.socket && 'encrypted' in req.socket && req.socket.encrypted) ||
-    req.headers['x-forwarded-proto'] === 'https';
-  return `Path=/; HttpOnly; SameSite=Lax${https || !loopback ? '; Secure' : ''}`;
+function attributes() {
+  const local = /^http:\/\//.test(process.env.DEPLOY_PUBLIC_ORIGIN ?? '');
+  return `Path=/; HttpOnly; SameSite=Lax${local ? '' : '; Secure'}`;
 }
-export function buildAuthCookie(username: string, token: string, req?: IncomingMessage) {
-  return `${AUTH_COOKIE}=${encodeURIComponent(`${username}:${token}`)}; ${attributes(req)}; Max-Age=2592000`;
+export function buildAuthCookie(username: string, token: string, _req?: IncomingMessage) {
+  return `${AUTH_COOKIE}=${encodeURIComponent(`${username}:${token}`)}; ${attributes()}; Max-Age=2592000`;
 }
-export function clearAuthCookie(req?: IncomingMessage) {
-  return `${AUTH_COOKIE}=; ${attributes(req)}; Max-Age=0`;
+export function clearAuthCookie(_req?: IncomingMessage) {
+  return `${AUTH_COOKIE}=; ${attributes()}; Max-Age=0`;
 }
 
 /** A browser whose sign-in was revoked drops its cookie on the next page or payload request. */
