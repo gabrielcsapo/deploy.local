@@ -1,8 +1,8 @@
 import { mapMediaEvent } from './attachments.ts';
 import type { ConversationEvent, WorkStep } from '../../shared/v2/contracts.ts';
 import type { V2Event, V2EventsResponse } from '../../shared/v2/api.ts';
-import { cursor as eventCursor, events, list } from '../workspace/store.ts';
-import { createOwnerEventPoller } from './event-poller.ts';
+import { list } from '../workspace/store.ts';
+import { cursor as eventCursor, events, createOwnerEventPoller } from '../kernel/events/index.ts';
 import { agentId } from './inbox.ts';
 import { stateRefresh } from './state-refresh.ts';
 

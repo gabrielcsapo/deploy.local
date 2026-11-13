@@ -84,6 +84,7 @@ test('compatibility paths expose the same kernel functions and classes, includin
     ['sqlite.ts', 'kernel/db/sqlite.ts'],
     ['store/migration-lock.ts', 'kernel/db/migration-lock.ts'],
     ['workspace/database-open.ts', 'kernel/db/database-open.ts'],
+    ['v2/event-poller.ts', 'kernel/events/owner-poller.ts'],
   ];
   for (const [oldPath, newPath] of moves) {
     const oldModule = await import(pathToFileURL(join(server, oldPath)).href);

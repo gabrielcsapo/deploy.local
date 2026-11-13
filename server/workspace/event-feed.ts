@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import { events } from './store.ts';
+import './store.ts'; // Preserve workspace bootstrap before using its registered event store.
+import { events } from '../kernel/events/index.ts';
 
 /** SQLite is shared with independent worker processes; do not rely on in-process emitters. */
 export async function waitForEvents(

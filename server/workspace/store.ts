@@ -1,3 +1,8 @@
+import { workspaceRecords } from '../kernel/db/records.ts';
+export { save, get, list, remove, onRecordChange } from '../kernel/db/records.ts';
+export { command, commandReplay } from '../kernel/db/operations.ts';
+import { registerDatabase } from '../kernel/db/named-store.ts';
+export { event, events, cursor } from '../kernel/events/index.ts';
 import { migrateJobOutput } from './job-output.ts';
 import { openWorkspaceDatabase, withWorkspaceDatabaseGate } from '../kernel/db/database-open.ts';
 import { externalizeCheckpoint, materializeCheckpoint } from './checkpoint-storage.ts';
@@ -35,98 +40,58 @@ CREATE INDEX IF NOT EXISTS record_job_pipeline ON records(owner,json_extract(dat
 CREATE INDEX IF NOT EXISTS record_job_status ON records(owner,json_extract(data,'$.status')) WHERE kind='job';`);
   migrateJobOutput(db);
 });
+// Register only after the existing schema, indexes and inline upgrades finish.
+registerDatabase('workspace', db);
 export const now = () => new Date().toISOString();
 export const id = () => randomUUID();
-// Views subscribe at the persistence boundary so every API writer is covered.
-type RecordChange = (owner: string, kind: string, row: any, previous: any) => void;
-const recordObservers = new Map<string, Set<RecordChange>>();
-export function onRecordChange(kinds: string[], listener: RecordChange) {
-  for (const kind of kinds) {
-    const listeners = recordObservers.get(kind) ?? new Set<RecordChange>();
-    listeners.add(listener);
-    recordObservers.set(kind, listeners);
-  }
-}
-function previousObservedRecord(kind: string, owner: string, recordId: string) {
-  if (!recordObservers.has(kind)) return undefined;
-  const row = db
-    .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
-    .get(kind, owner, recordId) as { data: string } | undefined;
-  return row ? JSON.parse(row.data) : undefined;
-}
-function recordChanged(kind: string, owner: string, row: any, previous: any) {
-  for (const listener of recordObservers.get(kind) ?? []) listener(owner, kind, row, previous);
-}
-export function save(kind: string, owner: string, row: any) {
-  const previous = previousObservedRecord(kind, owner, row.id);
-  let observed = row;
-  const write = () => {
-    let stored = kind === 'checkpoint' ? externalizeCheckpoint(root, row) : row;
-    if (kind === 'job') {
-      if (Object.hasOwn(row, 'output')) {
-        db.prepare(`INSERT INTO job_output(owner,id,output) VALUES(?,?,?)
+// Feature serialization and SQL remain here; the named store owns generic CRUD.
+workspaceRecords.registerAdapter('checkpoint', {
+  encode: (_owner, row) => externalizeCheckpoint(root, row),
+  decode: (row) => materializeCheckpoint(root, row),
+});
+workspaceRecords.registerAdapter('job', {
+  immediate: true,
+  encode(owner, row) {
+    if (Object.hasOwn(row, 'output')) {
+      db.prepare(`INSERT INTO job_output(owner,id,output) VALUES(?,?,?)
           ON CONFLICT(owner,id) DO UPDATE SET output=excluded.output`).run(
-          owner,
-          row.id,
-          String(row.output ?? ''),
-        );
-      } else {
-        // A legacy writer may have replaced the metadata since it was listed.
-        // Preserve that newer inline output before overwriting the row.
-        db.prepare(`INSERT INTO job_output(owner,id,output)
+        owner,
+        row.id,
+        String(row.output ?? ''),
+      );
+    } else {
+      // A legacy writer may have replaced the metadata since it was listed.
+      // Preserve that newer inline output before overwriting the row.
+      db.prepare(`INSERT INTO job_output(owner,id,output)
           SELECT owner,id,COALESCE(json_extract(data,'$.output'),'') FROM records
           WHERE kind='job' AND owner=? AND id=? AND json_type(data,'$.output') IS NOT NULL
           ON CONFLICT(owner,id) DO UPDATE SET output=excluded.output`).run(owner, row.id);
-      }
-      const { output: _, ...metadata } = row;
-      stored = metadata;
     }
-    const data = JSON.stringify(stored);
-    db.prepare(
-      'INSERT INTO records VALUES(?,?,?,?) ON CONFLICT(kind,id,owner) DO UPDATE SET data=excluded.data',
-    ).run(kind, row.id, owner, data);
-    // Compare persisted shapes: omitted undefined fields in a repeated registration
-    // must not look like an inventory change merely because JSON drops them.
-    if (recordObservers.has(kind)) observed = JSON.parse(data);
-  };
-  if (kind === 'job') db.transaction(write).immediate();
-  else write();
-  recordChanged(kind, owner, observed, previous);
-  return row;
-}
-export function remove(kind: string, owner: string, recordId: string) {
-  const previous = previousObservedRecord(kind, owner, recordId);
-  db.prepare('DELETE FROM records WHERE kind=? AND owner=? AND id=?').run(kind, owner, recordId);
-  recordChanged(kind, owner, undefined, previous);
-}
-/** Job lists contain metadata only; get() and jobOutput() opt in to the log. */
-export function list(kind: string, owner: string): any[] {
-  // Strip legacy inline output too, without ever consulting job_output.
-  const rows = db
-    .prepare(`SELECT ${kind === 'job' ? "json_remove(data,'$.output')" : 'data'} AS data
-    FROM records WHERE kind=? AND owner=? ORDER BY rowid`)
-    .all(kind, owner) as { data: string }[];
-  return rows.map((row) => JSON.parse(row.data));
-}
+    const { output: _, ...metadata } = row;
+    return metadata;
+  },
+  list(owner) {
+    // Strip legacy inline output too, without ever consulting job_output.
+    const rows = db
+      .prepare(`SELECT json_remove(data,'$.output') AS data
+      FROM records WHERE kind=? AND owner=? ORDER BY rowid`)
+      .all('job', owner) as { data: string }[];
+    return rows.map((row) => JSON.parse(row.data));
+  },
+  get(owner, recordId) {
+    // Read metadata and output in one SQLite snapshot, including legacy inline writes.
+    const r = db.prepare(`SELECT r.data, ${jobOutputQuery}`).get(owner, recordId) as
+      | { data: string; output?: string | null }
+      | undefined;
+    if (!r) throw Object.assign(new Error('Not found'), { status: 404 });
+    return { ...JSON.parse(r.data), output: r.output ?? '' };
+  },
+});
 const jobOutputQuery = `CASE WHEN json_type(r.data,'$.output') IS NOT NULL
     THEN json_extract(r.data,'$.output') ELSE o.output END AS output
   FROM records r LEFT JOIN job_output o ON o.owner=r.owner AND o.id=r.id
   WHERE r.kind='job' AND r.owner=? AND r.id=?`;
 
-export function get(kind: string, owner: string, recordId: string): any {
-  // Read metadata and output in one SQLite snapshot, including legacy inline writes.
-  const r = (
-    kind === 'job'
-      ? db.prepare(`SELECT r.data, ${jobOutputQuery}`).get(owner, recordId)
-      : db
-          .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
-          .get(kind, owner, recordId)
-  ) as { data: string; output?: string | null } | undefined;
-  if (!r) throw Object.assign(new Error('Not found'), { status: 404 });
-  const row = JSON.parse(r.data);
-  if (kind === 'job') return { ...row, output: r.output ?? '' };
-  return kind === 'checkpoint' ? materializeCheckpoint(root, row) : row;
-}
 /** Hydrate only jobs whose output is actually consumed, after filtering metadata.
  * Inline output from a legacy writer always wins, including an explicit empty string.
  */
@@ -179,25 +144,6 @@ export function getCheckpointMetadata(owner: string, recordId: string): any {
   return JSON.parse(row.data);
 }
 
-export function event(
-  owner: string,
-  taskId: string,
-  runId: string | null,
-  type: string,
-  payload: any,
-) {
-  db.prepare(
-    'INSERT INTO events(owner,taskId,runId,type,payload,createdAt) VALUES(?,?,?,?,?,?)',
-  ).run(owner, taskId, runId, type, JSON.stringify(payload), now());
-}
-export function events(owner: string, after = 0, taskId?: string) {
-  const rows = db
-    .prepare(
-      `SELECT * FROM events WHERE owner=? AND cursor>? ${taskId ? 'AND taskId=?' : ''} ORDER BY cursor LIMIT 1000`,
-    )
-    .all(...(taskId ? [owner, after, taskId] : [owner, after])) as any[];
-  return rows.map(({ owner: _, payload, ...r }) => ({ ...r, payload: JSON.parse(payload) }));
-}
 /** Task detail carries a bounded tail of raw events; older ones page via eventsBefore(). */
 export const TASK_DETAIL_EVENT_LIMIT = 200;
 export const TASK_DETAIL_EVENT_BYTES = 256 * 1024;
@@ -266,47 +212,6 @@ export function activityEvents(owner: string, taskId: string) {
   )
     .reverse()
     .map((r) => ({ ...r, payload: JSON.parse(r.payload) }));
-}
-export function cursor(owner: string) {
-  return (
-    db.prepare('SELECT COALESCE(MAX(cursor),0) AS n FROM events WHERE owner=?').get(owner) as any
-  ).n;
-}
-export function commandReplay(
-  owner: string,
-  operationId: string,
-  signature?: string,
-): { found: boolean; result?: any } {
-  if (typeof operationId !== 'string' || !operationId || operationId.length > 200)
-    throw Object.assign(new Error('operationId required'), { status: 400 });
-  const old = db
-    .prepare('SELECT result FROM operations WHERE owner=? AND id=?')
-    .get(owner, operationId) as any;
-  if (!old) return { found: false };
-  const decoded = JSON.parse(old.result);
-  if (decoded['__workspaceOperation'] === 1) {
-    if (signature && decoded.signature && signature !== decoded.signature)
-      throw Object.assign(new Error('operationId was already used for a different command'), {
-        status: 409,
-      });
-    return { found: true, result: decoded.result };
-  }
-  return { found: true, result: decoded };
-}
-export function command(owner: string, operationId: string, fn: () => any, signature?: string) {
-  return db
-    .transaction(() => {
-      const replay = commandReplay(owner, operationId, signature);
-      if (replay.found) return replay.result;
-      const result = fn();
-      db.prepare('INSERT INTO operations VALUES(?,?,?)').run(
-        owner,
-        operationId,
-        JSON.stringify({ __workspaceOperation: 1, signature: signature || null, result }),
-      );
-      return result;
-    })
-    .immediate();
 }
 export function revise(task: any, revision: number) {
   if (task.revision !== revision)
