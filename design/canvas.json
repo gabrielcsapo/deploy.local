@@ -2970,6 +2970,22 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Template · Settings"
+    },
+    "OneAppQuiet.html": {
+      "x": 18720,
+      "y": 8380,
+      "w": 1440,
+      "h": 900,
+      "title": "An app with no traffic: zero and why, not “Unavailable”",
+      "expand": "fill"
+    },
+    "OneAppSettings.html": {
+      "x": 20240,
+      "y": 8380,
+      "w": 1440,
+      "h": 1900,
+      "title": "Settings for a project with one app: the app’s and the project’s on one page",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2996,6 +3012,8 @@
     "Welcome.html",
     "NewProject.html",
     "OneAppProject.html",
+    "OneAppQuiet.html",
+    "OneAppSettings.html",
     "FirstTask.html",
     "Discover.html",
     "InstallApp.html",
@@ -4794,6 +4812,13 @@
       "x": 500,
       "y": 5520,
       "text": "Page templates. A new feature picks one of four templates instead of drawing a layout: List (Projects), Detail (a project), Conversation (a task) and Settings (Settings), each on web and iPhone. They are components in the library (Assets › Page templates), placed as instances like the Sidebar, with settings for the words that change.\n• Existing boards already follow them: List — Projects, Compute, AgentsEmpty, ProjectPhone, ComputePhone. Detail — Project, App, AgentSettings, ProjectDetailPhone, AppSettingsPhone. Conversation — Task, AgentPage, Home, TaskPhone, AgentPhone. Settings — Settings, SettingsAgents, ProjectSettings, SettingsPhone, SettingsApprovalsPhone.\n• Those boards keep their own markup for now. Moving them onto the instances is a later step, one board at a time, once these are approved.\n• In the app, each template becomes one page component; a feature supplies its rows and actions."
+    },
+    "project-polish": {
+      "fill": "purple",
+      "w": 440,
+      "x": 21760,
+      "y": 8380,
+      "text": "For approval. Four things that got in the way on a project.\n\nDiscover has a way back. Its header reads Projects › Discover, like every page under Projects, and the sidebar keeps Projects selected (Discover).\n\nOne settings page for a project with one app. Settings shows the app’s Address and Health and resources, then the project’s Variables and secrets, Repository and Releases, then Remove, on one page (OneAppSettings). There is no second page and no notice sending you to it. A project with several apps keeps Project settings, and each app’s address, health and limits stay on that app’s page under the project.\n\nPipelines on a narrow window. Below 820 px the run you are looking at sits on top as one full-width row that says how many runs there are; tapping it opens the list. Its jobs, packages and release follow directly, so nothing is a long scroll away. The tab row fades at its edge when more tabs follow, and the current tab is scrolled into view (PipelineRun at 700).\n\nNumbers that are not there. “Unavailable” goes. When nothing happened the number is the truth: 0 requests per minute with “No requests in the last hour”, and a dash for a time with “No requests to time” (OneAppQuiet). When something is not measured the row says “Not measured” and why, for example “Traffic is not recorded for this app”. A memory limit that was never set reads “No limit”. Loading still shows a skeleton, never a zero.\n\niPhone: later."
     }
   },
   "starts": {}
