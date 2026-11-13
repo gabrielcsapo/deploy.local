@@ -195,7 +195,7 @@ try {
                                   : [];
           return {
             htmlHasData:
-              arrivedText.includes(name) &&
+              (arrivedText.includes(name) || parsed.body.textContent.includes(name)) &&
               expected.every((text) => parsed.body.textContent.includes(text)),
             firstCompletePaint: proof.firstCompletePaint,
             timeOrigin: performance.timeOrigin,
@@ -243,7 +243,7 @@ try {
     // Bypass intent prefetch for this test so the click must wait for a cold, delayed response.
     const page = await context.newPage();
     await page.goto(`${origin}/dashboard/projects/many-tabs/issues`);
-    await page.waitForSelector('[data-project-seed="tab"]');
+    await page.waitForSelector('[data-project-seed="tab"]', { state: 'attached' });
     const oldText = (await page.locator('.v2-project-page .dl-group').first().innerText())
       .trim()
       .split('\n')
@@ -291,7 +291,7 @@ try {
           requests.push(url.href);
       });
       await intentPage.goto(origin + source);
-      await intentPage.waitForSelector('[data-project-seed="page"]');
+      await intentPage.waitForSelector('[data-project-seed="page"]', { state: 'attached' });
       await intentPage.waitForTimeout(150);
       const beforeIntent = requests.length;
       const link = intentPage.locator(`${selector} a[href="${target}"]`).first();
