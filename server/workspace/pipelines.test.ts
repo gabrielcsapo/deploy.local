@@ -175,6 +175,21 @@ test('timed-out jobs fail the pipeline and skip dependents instead of waiting fo
   assert.equal(get('job', owner, jobs[1].id).status, 'skipped');
   assert.equal(get('pipeline-run', owner, pipeline.id).status, 'failed');
 });
+test('a job lost to a worker restart ends its run as unknown instead of leaving it open', async () => {
+  const f = fixture();
+  const pipeline = await start(f.project.id);
+  const jobs = list('job', owner).filter((job) => job.pipelineId === pipeline.id);
+  save('job', owner, { ...jobs[0], status: 'unknown' });
+  reconcilePipelines();
+  assert.equal(get('job', owner, jobs[1].id).status, 'skipped');
+  const run = get('pipeline-run', owner, pipeline.id);
+  assert.equal(run.status, 'unknown');
+  assert.ok(run.completedAt);
+  // Finished: later passes leave it alone, and cancelling it changes nothing.
+  reconcilePipelines();
+  assert.equal(get('pipeline-run', owner, pipeline.id).updatedAt, run.updatedAt);
+  assert.equal(pipelineCancel(owner, f.project.id, pipeline.id).status, 'unknown');
+});
 test('runs report deployment outcome instead of job-only success', () => {
   const project = createProject(owner, { name: 'Deploy outcome' });
   const run = (deployment: any) =>

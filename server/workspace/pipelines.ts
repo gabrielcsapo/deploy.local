@@ -7,6 +7,9 @@ import { gitText } from './repository-git.ts';
 import { requireRepository, resolveCommit } from './repositories.ts';
 import { describeJob } from './coordination.ts';
 const terminal = ['succeeded', 'failed', 'cancelled', 'skipped', 'timed_out'];
+// A job whose worker restarted under it is `unknown`, and nothing replays it: it is over, and so
+// is its run. Leaving such runs open kept every one of them in each reconcile pass for good.
+const settled = [...terminal, 'unknown'];
 async function changedFiles(project: any, commit: string, pull: any, previousCommit?: string) {
   let base = previousCommit;
   if (pull) {
@@ -220,7 +223,7 @@ export function pipelineCancel(owner: string, projectId: string, pipelineId: str
   // Act on the stored job outcome; a publishing release is owned by the controller.
   const pipeline = get('pipeline-run', owner, pipelineId);
   if (
-    terminal.includes(pipeline.status) &&
+    settled.includes(pipeline.status) &&
     !(
       pipeline.status === 'succeeded' &&
       pipeline.specification?.publish?.length &&
@@ -278,7 +281,7 @@ function reconcile(apply: boolean) {
     .prepare("SELECT owner,data FROM records WHERE kind='pipeline-run'")
     .all() as any[]) {
     const run = JSON.parse(row.data);
-    if (terminal.includes(run.status)) continue;
+    if (terminal.includes(run.status) || (run.status === 'unknown' && run.completedAt)) continue;
     const jobs = jobsOf(row.owner, run.id);
     for (const job of jobs) {
       if (job.status !== 'waiting') continue;
@@ -288,7 +291,9 @@ function reconcile(apply: boolean) {
         : dependencies.some(
               (dependency) =>
                 !dependency.pathFiltered &&
-                ['failed', 'cancelled', 'skipped', 'timed_out'].includes(dependency.status),
+                ['failed', 'cancelled', 'skipped', 'timed_out', 'unknown'].includes(
+                  dependency.status,
+                ),
             )
           ? 'skipped'
           : dependencies.every(
@@ -302,27 +307,32 @@ function reconcile(apply: boolean) {
         if (apply) save('job', row.owner, { ...job, updatedAt: now() });
       }
     }
-    const status = jobs.some((job) => job.status === 'unknown')
-      ? 'unknown'
-      : jobs.every((job) => terminal.includes(job.status))
-        ? run.stopRequested
+    // Waiting jobs above have already become skipped or cancelled where a dependency is over,
+    // so a run with an unknown job finishes as unknown once nothing else is left to run.
+    const status = !jobs.every((job) => settled.includes(job.status))
+      ? run.stopRequested
+        ? 'cancelling'
+        : jobs.some((job) => job.status === 'running')
+          ? 'running'
+          : jobs.some((job) => job.status === 'unknown')
+            ? 'unknown'
+            : 'queued'
+      : jobs.some((job) => job.status === 'unknown')
+        ? 'unknown'
+        : run.stopRequested
           ? 'cancelled'
           : jobs.every((job) => job.status === 'succeeded' || job.pathFiltered)
             ? 'succeeded'
-            : 'failed'
-        : run.stopRequested
-          ? 'cancelling'
-          : jobs.some((job) => job.status === 'running')
-            ? 'running'
-            : 'queued';
-    if (status !== run.status) {
+            : 'failed';
+    const over = jobs.every((job) => settled.includes(job.status));
+    if (status !== run.status || (over && !run.completedAt)) {
       changed = true;
       if (apply)
         save('pipeline-run', row.owner, {
           ...run,
           status,
           updatedAt: now(),
-          ...(terminal.includes(status) ? { completedAt: now() } : {}),
+          ...(over ? { completedAt: now() } : {}),
           ...(status === 'succeeded' && run.deployment
             ? { deployment: { ...run.deployment, status: 'ready' } }
             : {}),
