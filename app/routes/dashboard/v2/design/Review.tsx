@@ -1,7 +1,7 @@
 'use client';
 import { Skeleton } from '@/components/ui';
 import { useState } from 'react';
-import { DesignItemReview } from './ItemReview';
+import { ReviewRedirect } from './ReviewRedirect';
 import { alsoChanged, reviewCrop, reviewHref, counted } from './review-model';
 import { previewKey, useReviewPreviews, type Preview } from './ReviewPreviews';
 import type {
@@ -63,70 +63,6 @@ export function designStatus(design: TaskDesign) {
   return `${count} · waiting for your approval`;
 }
 
-/** A board as it is at a commit, scaled to fit a width. */
-export function BoardFrame({
-  src,
-  width,
-  w,
-  h,
-}: {
-  src: string;
-  width: number;
-  w: number;
-  h: number;
-}) {
-  // `w` is the width the board lays out at (1440, 700 or 390); `width` is how wide it shows.
-  const scale = width / w;
-  return (
-    <div className="dzr-frame" style={{ width, height: h * scale }}>
-      <iframe
-        title="Board"
-        sandbox="allow-same-origin"
-        src={src}
-        width={w}
-        height={h}
-        loading="lazy"
-        tabIndex={-1}
-        style={{ transform: `scale(${scale})` }}
-      />
-    </div>
-  );
-}
-
-/** The widths a board is reviewed at: web boards at 1440 and 700, phone boards at their own. */
-export const widthsOf = (board: { w: number }) => (board.w <= 500 ? [board.w] : [1440, 700]);
-
-export function WidthSwitch({
-  widths,
-  value,
-  onChange,
-}: {
-  widths: number[];
-  value: number;
-  onChange: (width: number) => void;
-}) {
-  if (widths.length < 2) return null;
-  return (
-    <div className="dl-seg" role="radiogroup" aria-label="Width">
-      {widths.map((width) => (
-        <a
-          key={width}
-          href="#"
-          role="radio"
-          aria-checked={value === width}
-          className={value === width ? 'on' : ''}
-          onClick={(event) => {
-            event.preventDefault();
-            onChange(width);
-          }}
-        >
-          {width}
-        </a>
-      ))}
-    </div>
-  );
-}
-
 /** Every entry point opens the same review, with the same pins and decision checks. */
 export function DesignReview({
   projectId,
@@ -137,8 +73,7 @@ export function DesignReview({
   taskId: string;
   design: TaskDesign;
 }) {
-  if (design.proposal)
-    return <DesignItemReview key={design.proposal.id} item={design.proposal} embedded />;
+  if (design.proposal) return <ReviewRedirect item={design.proposal.id} />;
   return (
     <div className="dzr-empty">
       <a

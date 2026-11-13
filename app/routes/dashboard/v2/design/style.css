@@ -2802,3 +2802,96 @@ button.dz-link-row:hover,
 .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-rail-shell .dz-restore {
   left: 44px;
 }
+
+/* Approved DesignReviewCanvas: the existing stage and tools remain the review surface. */
+.dl-design-waiting-banner {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  background: var(--ds-canvas);
+  border-bottom: 1px solid var(--ds-line);
+  font-size: var(--ds-type-ui);
+}
+.dl-design-waiting-banner > a {
+  margin-left: auto;
+}
+.dz-stage:has(> .dl-design-waiting-banner) {
+  display: flex;
+  flex-direction: column;
+}
+.dz-stage:has(> .dl-design-waiting-banner) > .dz-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.dz-review-bar {
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+.dz-review-heading {
+  flex: 1;
+  min-width: 160px;
+}
+.dz-review-heading > span {
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+}
+.dz-review-bar .dl-btn {
+  white-space: nowrap;
+}
+.dz-review-dim,
+.dz-review-world > .dz-note,
+.dz-review-world > .dz-mark,
+.dz-review-world > .dz-section-title,
+.dz-review-world > .dz-proto {
+  opacity: 0.4;
+}
+.dz-review-area {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 2px solid var(--ds-accent);
+  background: color-mix(in srgb, var(--ds-accent) 10%, transparent);
+}
+.dz-board-name input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--ds-accent);
+}
+.dz-review-step {
+  white-space: nowrap;
+  font-size: var(--ds-type-caption);
+  color: var(--ds-secondary);
+}
+.dz-review-record {
+  padding: var(--ds-space-2) var(--ds-space-4);
+  font-size: var(--ds-type-caption);
+  border-bottom: 1px dashed var(--ds-line);
+}
+.dz-review-feedback {
+  white-space: pre-wrap;
+}
+.dz-review-preview-error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--ds-surface);
+}
+@media (max-width: 820px) {
+  .dz-review-heading {
+    flex-basis: 100%;
+  }
+  .dz-stage:has(> .dz-review-bar) > .dz-toolbar {
+    top: calc(var(--dz-review-bar-height, 100px) + 12px);
+    bottom: auto;
+  }
+}
+.dz-conflict-preview {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}

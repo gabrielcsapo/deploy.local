@@ -3,7 +3,6 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DesignCard, cardRegion } from './Review';
-import * as model from './review-model';
 
 test('chat card keeps Review and Open in Design together', () => {
   const design = {
@@ -23,6 +22,7 @@ test('chat card keeps Review and Open in Design together', () => {
     createElement(DesignCard, { projectId: 'p', taskId: 't', design }),
   );
   assert.match(html, /Review<\/a><a class="dl-btn quiet"/);
+  assert.match(html, /href="\/dashboard\/design\?review=design%3Ap%3Ab%3Ac"/);
 });
 
 test('chat crops keep the approved zoom even when a changed wrapper spans the screen', () => {
@@ -36,15 +36,6 @@ test('chat crops keep the approved zoom even when a changed wrapper spans the sc
   assert.equal(region.w, 1440 * 0.52);
   assert.ok(region.x >= 0 && region.y >= 0);
   assert.ok(region.x + region.w <= preview.width && region.y + region.h <= preview.height);
-});
-
-test('sent changes retain their notice in later review rounds', () => {
-  assert.equal(model.changesNotice(2, 3, false, { actionId: 'changes' }), 'sent');
-  assert.equal(model.changesNotice(1, 3, true), 'draft');
-  assert.equal(model.changesNotice(2, 3, true), null);
-  assert.equal(model.changesNotice(1, 3, false, { actionId: 'approve' }), null);
-  assert.equal(model.changesNotice(1, 3, false, { actionId: 'update' }), null);
-  assert.equal(model.changesNotice(1, 0, false, { actionId: 'changes' }), null);
 });
 
 test('chat card uses the approved four-screen glyph', () => {

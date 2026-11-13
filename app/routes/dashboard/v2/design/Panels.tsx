@@ -1,4 +1,7 @@
 'use client';
+import type { DesignReview } from '../../../../../shared/v2/contracts';
+import { reviewHref } from './review-model';
+import type { ReviewSide } from './canvas-review-model';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Skeleton, Action, Icon, type IconName } from '@/components/ui';
 import type { InboxItem, Project } from '../../../../../shared/v2/contracts';
@@ -16,6 +19,7 @@ import {
   layerLabel,
   layerName,
   layerPath,
+  nameOf,
   markColors,
   markName,
   textStyle,
@@ -320,7 +324,11 @@ export function DesignMenu({
           key={item.id}
           className="dl-menu-item"
           role="menuitem"
-          href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}
+          href={
+            item.id.startsWith('design:')
+              ? reviewHref(item.id)
+              : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`
+          }
         >
           <span className="dz-attn" />
           <span className="dz-t">{item.title}</span>
@@ -2043,7 +2051,13 @@ export function RightPanel({
   onConnections,
   onConnection,
   onPlay,
+  review,
+  reviewSide,
+  reviewing,
 }: {
+  review?: DesignReview;
+  reviewing?: boolean;
+  reviewSide?: ReviewSide;
   project: Project | undefined;
   design: Design | undefined;
   canvas: Canvas | null;
@@ -2106,6 +2120,57 @@ export function RightPanel({
   } as Record<string, string>;
   // Welcome › Greeting › Title: the board, then the named layers down to the selection.
   const crumb = element ? [boardName(selection!.board), ...layerPath(element).slice(-2)] : [];
+  const reviewChanges = review && tab === 'edit' && (
+    <Prop
+      title="Changes on this branch"
+      actions={<span className="dz-meta">{review.boards.length + review.notes.length}</span>}
+    >
+      <div className="dz-list">
+        {review.boards.flatMap((entry) => {
+          const layers = entry.changes.length
+            ? entry.changes
+            : [{ layer: '', words: entry.added ? 'New' : entry.removed ? 'Removed' : 'Changed' }];
+          return layers.map((change) => (
+            <button
+              key={`${entry.file}:${change.layer}`}
+              type="button"
+              className="dz-list-item"
+              title={change.words}
+              onClick={() => select({ board: entry.file, layer: change.layer || null })}
+            >
+              <span className="dz-dot" />
+              <span className="dz-t">
+                {entry.title}
+                {change.layer
+                  ? ` › ${nameOf(frames.current.get(entry.file)?.contentDocument, change.layer)}`
+                  : ''}
+              </span>
+              <span className="dz-meta">{change.words}</span>
+            </button>
+          ));
+        })}
+        {review.notes.map((note) => (
+          <details key={note.id}>
+            <summary>{note.title}</summary>
+            {note[reviewSide ?? 'after']?.map((line, index) => (
+              <p key={index}>{line.text}</p>
+            ))}
+          </details>
+        ))}
+        {review.pins.map((pin) => (
+          <button
+            key={pin.id}
+            type="button"
+            className="dz-list-item"
+            onClick={() => select({ board: pin.board, layer: null })}
+          >
+            <span className="dz-t">{pin.text}</span>
+            <span className="dz-meta">{pin.resolved ? 'Addressed' : 'Open'}</span>
+          </button>
+        ))}
+      </div>
+    </Prop>
+  );
   return (
     <aside className="dz-right" aria-label="Edit">
       <span className="dz-grab" aria-hidden="true" />
@@ -2143,15 +2208,19 @@ export function RightPanel({
         >
           <Icon name="down" size={10} />
         </button>
-        <Action
-          variant="primary"
-          disabled={!propose || propose.state === 'in-review'}
-          loading={propose?.state === 'busy'}
-          title={propose?.note ?? 'Switch to a design branch with changes to propose it for review'}
-          onClick={propose?.run}
-        >
-          {propose?.state === 'in-review' ? 'In review' : 'Propose'}
-        </Action>
+        {!reviewing && (
+          <Action
+            variant="primary"
+            disabled={!propose || propose.state === 'in-review'}
+            loading={propose?.state === 'busy'}
+            title={
+              propose?.note ?? 'Switch to a design branch with changes to propose it for review'
+            }
+            onClick={propose?.run}
+          >
+            {propose?.state === 'in-review' ? 'In review' : 'Propose'}
+          </Action>
+        )}
       </div>
       <div className="dz-right-tabs">
         <div className="dz-tabs" role="tablist">
@@ -2229,6 +2298,7 @@ export function RightPanel({
         </div>
       </div>
       <div className="dz-right-body">
+        {(selection || mark || component) && reviewChanges}
         {tab === 'comments' ? (
           <>
             {comments}
@@ -2481,39 +2551,42 @@ export function RightPanel({
                 <span className="dz-meta">100%</span>
               </Field>
             </Prop>
-            <Prop
-              title="Changes on this branch"
-              actions={<span className="dz-meta">{changes.length}</span>}
-            >
-              {changes.length ? (
-                <div className="dz-list">
-                  {changes.map((change) => {
-                    const file = change.path.replace(/^design\/boards\//, '');
-                    const isBoard = change.path.startsWith('design/boards/');
-                    return (
-                      <button
-                        key={change.path}
-                        type="button"
-                        className="dz-list-item"
-                        disabled={!isBoard || !canvas?.boards[file]}
-                        onClick={() => select({ board: file, layer: null })}
-                      >
-                        <span className="dz-dot" />
-                        <span className="dz-t">
-                          {isBoard ? boardName(file) : change.path.replace(/^design\//, '')}
-                        </span>
-                        <span className="dz-meta">{change.status}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <span className="dz-meta">
-                  Nothing yet. This is the design on {design?.ref === 'HEAD' ? 'main' : design?.ref}
-                  .
-                </span>
-              )}
-            </Prop>
+            {reviewChanges}
+            {!review && (
+              <Prop
+                title="Changes on this branch"
+                actions={<span className="dz-meta">{changes.length}</span>}
+              >
+                {changes.length ? (
+                  <div className="dz-list">
+                    {changes.map((change) => {
+                      const file = change.path.replace(/^design\/boards\//, '');
+                      const isBoard = change.path.startsWith('design/boards/');
+                      return (
+                        <button
+                          key={change.path}
+                          type="button"
+                          className="dz-list-item"
+                          disabled={!isBoard || !canvas?.boards[file]}
+                          onClick={() => select({ board: file, layer: null })}
+                        >
+                          <span className="dz-dot" />
+                          <span className="dz-t">
+                            {isBoard ? boardName(file) : change.path.replace(/^design\//, '')}
+                          </span>
+                          <span className="dz-meta">{change.status}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="dz-meta">
+                    Nothing yet. This is the design on{' '}
+                    {design?.ref === 'HEAD' ? 'main' : design?.ref}.
+                  </span>
+                )}
+              </Prop>
+            )}
             <Prop title="Local tokens">
               <div className="dz-tokens">
                 {tokens.colors.slice(0, 12).map((token) => (

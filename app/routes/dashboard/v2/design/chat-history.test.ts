@@ -78,7 +78,7 @@ test('design decisions use one preview card and keep answered history and other 
     assert.match(html, /After · this task/);
     assert.match(html, /Review<\/a>/);
     assert.match(html, /Open in Design/);
-    assert.match(html, /dashboard\/inbox\?item=design%3Ap%3Ab%3Ac/);
+    assert.match(html, /dashboard\/design\?review=design%3Ap%3Ab%3Ac/);
     const events = [{ kind: 'decision', id: 'd', at: item.createdAt, inboxItemId: item.id }];
     assert.equal(fallback(item, events), '');
     assert.match(fallback(item, []), /aria-label="Design change"/);

@@ -3,15 +3,10 @@ import test from 'node:test';
 import {
   resolutionProgress,
   conflictCount,
-  conflictLine,
-  missingSummary,
   initialDesignProject,
-  nextUnseen,
-  openPins,
   reviewCounts,
   reviewCrop,
   counted,
-  reviewStep,
   approvalRecord,
   buildLine,
 } from './review-model.ts';
@@ -37,19 +32,6 @@ test('Design resumes only the named or last usable project and never an arbitrar
   assert.equal(initialDesignProject(projects, null, null), null);
 });
 
-test('Next unseen follows page order, wraps once and finishes without gating approval', () => {
-  const boards = [
-    { file: 'Beta.html', seen: false },
-    { file: 'New.html', seen: true },
-    { file: 'Alpha.html', seen: false },
-  ];
-  assert.equal(nextUnseen(boards), 'Beta.html');
-  assert.equal(nextUnseen(boards, 'Beta.html'), 'Alpha.html');
-  assert.equal(nextUnseen(boards, 'Alpha.html'), 'Beta.html');
-  assert.equal(nextUnseen(boards.map((board) => ({ ...board, seen: true }))), null);
-  assert.equal(nextUnseen([]), null);
-});
-
 test('crop includes the complete largest region and 48px context, clamped to the native board', () => {
   assert.deepEqual(
     reviewCrop(1440, 1380, [
@@ -67,37 +49,6 @@ test('crop includes the complete largest region and 48px context, clamped to the
   assert.deepEqual(reviewCrop(1440, 900, []), { x: 0, y: 0, w: 720, h: 520 });
 });
 
-test('counts and decisions include all unresolved pins, including pins on other screens', () => {
-  assert.equal(
-    reviewCounts({ screens: 22, changed: 9, new: 12, removed: 1 }),
-    '22 screens · 9 changed · 12 new · 1 removed',
-  );
-  const pin = {
-    id: '1',
-    number: 1,
-    board: 'Alpha.html',
-    noteId: null,
-    width: 1440,
-    revision: 'a',
-    x: 2,
-    y: 3,
-    text: 'Keep it visible',
-    author: 'owner',
-    resolved: false,
-    reply: null,
-    createdAt: '',
-  };
-  const pins = [
-    pin,
-    { ...pin, id: '2', number: 2, resolved: true },
-    { ...pin, id: '3', number: 3, board: 'Beta.html' },
-  ];
-  assert.deepEqual(
-    openPins({ pins }).map((pin) => pin.id),
-    ['1', '3'],
-  );
-});
-
 test('a changed crop expands to whole neighbouring text and inputs instead of slicing them', () => {
   assert.deepEqual(
     reviewCrop(
@@ -110,41 +61,6 @@ test('a changed crop expands to whole neighbouring text and inputs instead of sl
       ],
     ),
     { x: 252, y: 52, w: 348, h: 227 },
-  );
-});
-
-test('a conflict names two items in words and counts three or more', () => {
-  const name = (file: string) => (file === 'note:gutters' ? 'Gutters' : file.replace('.html', ''));
-  const agent = { id: 'a1', name: 'Release notes writer', avatar: null };
-  assert.equal(conflictCount(['Agent.html']), '1 screen conflicts with main');
-  assert.equal(
-    conflictCount(['Agent.html', 'note:gutters']),
-    '1 screen and 1 note conflict with main',
-  );
-  assert.equal(
-    conflictLine(['Agent.html', 'note:gutters'], name, agent),
-    'Main changed Agent and Gutters. Ask Release notes writer to update these screens.',
-  );
-  const many = ['A.html', 'B.html', 'C.html', 'note:x', 'note:y'];
-  assert.equal(conflictCount(many), '3 screens and 2 notes conflict with main');
-  assert.equal(
-    conflictLine(many, name, agent),
-    'Main changed them after this was proposed. Ask Release notes writer to update them.',
-  );
-  assert.equal(
-    conflictLine(many, name, { id: null, name: 'You', avatar: null }),
-    'Main changed them after this was proposed. Update them with main and propose again.',
-  );
-});
-
-test('a missing summary asks the proposer, or tells you when it is yours', () => {
-  assert.equal(
-    missingSummary({ id: 'a1', name: 'Release notes writer', avatar: null }),
-    'No summary. Ask Release notes writer to add one',
-  );
-  assert.equal(
-    missingSummary({ id: null, name: 'You', avatar: null }),
-    'No summary. Add one when you propose again.',
   );
 });
 
@@ -169,73 +85,6 @@ test('drawing paths use their native dimensions, preserve stroke order and rejec
   assert.equal(reviewDrawingPath(drawing, [{ x: 0, y: 0 }]), 'M0 0 l0 0');
   for (const x of [NaN, Infinity, -Infinity, -1, 1.1])
     assert.equal(validReviewDrawing({ ...drawing, strokes: [[{ x, y: 0 }]] }), false);
-});
-
-test('after a decision the footer names the outcome, when, and how far the look got', async () => {
-  const { reviewOutcome, alsoChanged } = await import('./review-model.ts');
-  const when = () => 'just now';
-  assert.equal(
-    reviewOutcome({ actionId: 'changes', at: 'now' }, { seen: 4, total: 22 }, 'task-1', when),
-    'Changes requested · just now · you looked at 4 of 22',
-  );
-  assert.equal(
-    reviewOutcome({ actionId: 'changes', at: 'now' }, { seen: 4, total: 22 }, null, when),
-    'Changes requested · just now · propose again when the screens are updated.',
-  );
-  assert.equal(
-    reviewOutcome({ actionId: 'approve', at: 'now' }, { seen: 22, total: 22 }, 'task-1', when),
-    'Approved · this is the design on main',
-  );
-  assert.equal(alsoChanged(['Welcome, narrow']), 'Also changed: Welcome, narrow');
-  assert.equal(alsoChanged([]), '');
-});
-
-test('arrow keys walk every screen of a review, across changes', () => {
-  const rows = [
-    { id: 'header', screens: ['a', 'b'] },
-    { id: 'phone', screens: ['c'] },
-    { id: 'new', screens: ['d', 'e'] },
-  ];
-  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 0 }, 'ArrowRight'), {
-    id: 'header',
-    screen: 1,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 1 }, 'ArrowRight'), {
-    id: 'phone',
-    screen: 0,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'phone', screen: 0 }, 'ArrowRight'), {
-    id: 'new',
-    screen: 0,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'new', screen: 0 }, 'ArrowLeft'), {
-    id: 'phone',
-    screen: 0,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'phone', screen: 0 }, 'ArrowLeft'), {
-    id: 'header',
-    screen: 1,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 1 }, 'ArrowDown'), {
-    id: 'phone',
-    screen: 0,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'new', screen: 1 }, 'ArrowUp'), {
-    id: 'phone',
-    screen: 0,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 0 }, 'ArrowLeft'), {
-    id: 'header',
-    screen: 0,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'new', screen: 1 }, 'ArrowDown'), {
-    id: 'new',
-    screen: 1,
-  });
-  assert.deepEqual(reviewStep(rows, { id: '', screen: 0 }, 'ArrowDown'), {
-    id: 'phone',
-    screen: 0,
-  });
 });
 
 test('an approved review says who decided and what happens next, without inventing a builder', () => {
@@ -317,17 +166,17 @@ test('Continue waits only for same-part choices, counts automatic merges, and Un
     assert.equal(resolutionProgress([both, { ...same, choice }]).canContinue, true);
   assert.equal(resolutionProgress([both, same]).canContinue, false);
   assert.equal(resolutionProgress([]).canContinue, true);
-  const rows = [
-    { id: 'conflict:Overview', screens: ['Overview'] },
-    { id: 'conflict:Settings', screens: ['Settings'] },
-    { id: 'header', screens: ['Overview', 'Settings'] },
-  ];
-  assert.deepEqual(reviewStep(rows, { id: 'conflict:Settings', screen: 0 }, 'ArrowRight'), {
-    id: 'header',
-    screen: 0,
-  });
-  assert.deepEqual(reviewStep(rows, { id: 'header', screen: 0 }, 'ArrowLeft'), {
-    id: 'conflict:Settings',
-    screen: 0,
-  });
+});
+
+test('review links target the canvas and preserve encoded proposal identity', async () => {
+  const { reviewHref } = await import('./review-model');
+  assert.equal(
+    reviewHref('design:p:design~test:abc'),
+    '/dashboard/design?review=design%3Ap%3Adesign~test%3Aabc',
+  );
+  assert.equal(conflictCount(['A.html', 'note:gutter']), '1 screen and 1 note conflict with main');
+  assert.equal(
+    reviewCounts({ screens: 2, changed: 1, new: 1, removed: 0 }),
+    '2 screens · 1 changed · 1 new · 0 removed',
+  );
 });

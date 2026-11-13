@@ -1,6 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Icon } from '@/components/ui';
+import type { DesignReviewScreen } from '../../../../../shared/v2/contracts';
+import { ReviewAreas } from './CanvasReview';
+import { frameSource, type ReviewSide } from './canvas-review-model';
 import {
   boardName,
   changeLabel,
@@ -107,7 +110,19 @@ export function DesignCanvas({
   onMoveMark,
   prototype,
   connections,
+  review,
+  onFollow,
 }: {
+  review?: {
+    api: string;
+    item: string;
+    boards: Map<string, DesignReviewScreen>;
+    side: ReviewSide;
+    approve: (file: string) => void;
+    busy: boolean;
+    waiting: boolean;
+  };
+  onFollow?: (file: string) => void;
   canvas: CanvasData;
   section: Section | null;
   base: string;
@@ -229,6 +244,7 @@ export function DesignCanvas({
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (
+        !review &&
         event.code === 'Space' &&
         !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
       )
@@ -241,7 +257,7 @@ export function DesignCanvas({
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, []);
+  }, [review]);
 
   const panning = tool === 'hand' || space;
   const files = section?.boards ?? Object.keys(canvas.boards);
@@ -586,7 +602,7 @@ export function DesignCanvas({
       }}
     >
       <div
-        className="dz-world"
+        className={`dz-world${review ? ' dz-review-world' : ''}`}
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
       >
         {Object.entries(canvas.notes ?? {})
@@ -607,23 +623,54 @@ export function DesignCanvas({
         {Object.entries(canvas.boards).map(([file, board]) => {
           const on = selection?.board === file;
           const agent = agentBoards?.has(file);
+          const changed = review?.boards.get(file);
+          const reviewRevision = changed && review ? frameSource(changed, review.side) : undefined;
+          const sourceBase =
+            changed && review?.side === 'before'
+              ? `${review.api}/files/${reviewRevision}`
+              : (boardSrc?.get(file)?.base ?? base);
+          const absent = changed && reviewRevision === null;
+
           return (
             <div
               key={file}
-              className={`dz-board${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}${typing?.board === file ? ' typing' : ''}`}
+              className={`dz-board${review && !changed ? ' dz-review-dim' : ''}${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}${typing?.board === file ? ' typing' : ''}`}
               style={{ left: board.x, top: board.y, width: board.w, height: board.h }}
             >
-              <button
-                type="button"
+              <div
                 className="dz-board-name"
                 // Names stay at screen size and, like Figma's, never run past their board.
                 style={{ transform: `scale(${1 / view.z})`, maxWidth: board.w * view.z }}
-                onClick={() => select({ board: file, layer: null })}
               >
-                <span className="dz-t">{boardName(file)}</span>
+                {changed && review && (
+                  <input
+                    type="checkbox"
+                    className="dl-check"
+                    aria-label={`Approve ${changed.title}`}
+                    checked={changed.seen}
+                    disabled={changed.seen || review.busy || !review.waiting}
+                    onChange={() => {
+                      select({ board: file, layer: null });
+                      review.approve(file);
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  />
+                )}
+                <button
+                  type="button"
+                  className="dz-link dz-t"
+                  onClick={() => select({ board: file, layer: null })}
+                >
+                  {board.title ?? boardName(file)}
+                </button>
                 {board.w * view.z > 160 && (
                   <span className="dz-tag">
                     {board.w <= 500 ? `Phone ${board.w}` : `Web ${board.w}`}
+                  </span>
+                )}
+                {changed && (
+                  <span className="dz-tag review">
+                    {changed.added ? 'New' : changed.removed ? 'Removed' : 'Changed'}
                   </span>
                 )}
                 {agent && <span className="dz-tag agent">Agent’s version</span>}
@@ -633,14 +680,20 @@ export function DesignCanvas({
                     Start
                   </span>
                 )}
-                {!agent && inReview?.has(file) && <span className="dz-tag review">In review</span>}
-              </button>
-              {visible(file) ? (
+                {!review && !agent && inReview?.has(file) && (
+                  <span className="dz-tag review">In review</span>
+                )}
+              </div>
+              {absent ? (
+                <div className="dz-board-placeholder">
+                  {changed.added ? 'New frame · no Before' : 'Removed frame · no After'}
+                </div>
+              ) : visible(file) ? (
                 <BoardFrame
-                  key={`${base}:${boardSrc?.get(file)?.reload ?? 0}`}
+                  key={`${base}:${review?.side === 'before' && changed ? reviewRevision : 'after'}:${boardSrc?.get(file)?.reload ?? 0}`}
                   file={file}
                   title={board.title ?? boardName(file)}
-                  src={`${boardSrc?.get(file)?.base ?? base}/boards/${encodeURIComponent(file)}`}
+                  src={`${sourceBase}/boards/${encodeURIComponent(file)}`}
                   width={board.w}
                   height={board.h}
                   frames={frames}
@@ -649,7 +702,17 @@ export function DesignCanvas({
               ) : (
                 <div className="dz-board-placeholder">{board.title ?? boardName(file)}</div>
               )}
-              {!panning && typing?.board !== file && (
+              {visible(file) && changed && review && !absent && (
+                <ReviewAreas
+                  api={review.api}
+                  item={review.item}
+                  board={{ ...changed, w: board.w }}
+                  side={review.side}
+                  zoom={view.z}
+                  frameDocument={frames.current.get(file)?.contentDocument}
+                />
+              )}
+              {!absent && !panning && typing?.board !== file && (
                 <div
                   className="dz-board-hit"
                   onMouseMove={(event) => setHover(pick(file, event))}
@@ -657,6 +720,24 @@ export function DesignCanvas({
                   onClick={(event) => {
                     event.stopPropagation();
                     if (panned.current) return void (panned.current = false);
+                    if (tool === 'move' && onFollow) {
+                      const frame = frames.current.get(file);
+                      const frameBox = frame?.getBoundingClientRect();
+                      const link =
+                        frameBox &&
+                        frame?.contentDocument
+                          ?.elementFromPoint(
+                            (event.clientX - frameBox.left) / view.z,
+                            (event.clientY - frameBox.top) / view.z,
+                          )
+                          ?.closest('a[href]');
+                      const href = link?.getAttribute('href');
+                      const target = href?.split(/[?#]/)[0].split('/').pop();
+                      if (target && canvas.boards[target]) {
+                        onFollow(target);
+                        return;
+                      }
+                    }
                     select(pick(file, event));
                   }}
                   onDoubleClick={(event) => {
