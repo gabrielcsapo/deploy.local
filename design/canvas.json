@@ -495,7 +495,7 @@
       "x": 7870,
       "y": 13104,
       "w": 1440,
-      "h": 1100,
+      "h": 1160,
       "title": "Live — every running app, grouped by computer",
       "expand": "fill"
     },
@@ -503,7 +503,7 @@
       "x": 9390,
       "y": 13104,
       "w": 1440,
-      "h": 1100,
+      "h": 1160,
       "title": "Live — dark theme",
       "expand": "fill"
     },
@@ -615,8 +615,8 @@
       "x": 16920,
       "y": 13104,
       "w": 1440,
-      "h": 900,
-      "title": "Projects by stage: Active, Maintained and Done, one care line each",
+      "h": 1040,
+      "title": "Projects by stage, each row with its care line and what it runs",
       "expand": "fill"
     },
     "ProjectPhone.html": {
@@ -4680,6 +4680,13 @@
       "x": 21760,
       "y": 6420,
       "text": "An app and its repository are one project\n\nAn app shipped from a folder has no repository. Its page says so and offers Add a repository (AppNoRepository, AddRepository); the same row sits in its Settings. The repository takes the app’s name and joins the app’s project, so the Projects list never shows the name twice. Afterwards the Code tab appears with the push commands from ProjectEmpty. The CLI keeps shipping from the folder until deploy.yaml is on main.\n\nNew project with the name of an app that has no repository adds the repository to that app (NewProjectExistingApp). A name no such app uses creates a project as before.\n\nA repository with no app offers Add an app you shipped (ProjectEmpty, AddExistingApp). The dialog lists only apps with no repository, the one with the project’s name first, and replaces the dialog that asked you to type an app’s name. With no such app the link is not shown. Adding moves the app’s variables, secrets and releases into the project.\n\niPhone: later."
+    },
+    "projects-and-live": {
+      "fill": "purple",
+      "w": 440,
+      "x": 15940,
+      "y": 13104,
+      "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them by stage; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: every Active and Maintained row ends with what it runs. Health on top, then where: the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped, “Not deployed” for a repository that has never shipped. A project with no repository says “No repository” in its care line. Done rows say nothing.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
     }
   },
   "starts": {}
