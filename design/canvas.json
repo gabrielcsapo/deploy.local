@@ -2894,6 +2894,22 @@
       "h": 900,
       "title": "Add an app that is already running to a repository",
       "expand": "fill"
+    },
+    "DesignReviewFollowed.html": {
+      "x": 9764,
+      "y": 55600,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review — a link followed to another screen, with the way back",
+      "expand": "fill"
+    },
+    "DesignReviewCanvas.html": {
+      "x": 9764,
+      "y": 55600,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas: changed frames marked, a checkbox on each",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3281,7 +3297,9 @@
     "AppLogsPhone.html",
     "AppLogsEmptyPhone.html",
     "AppLogsErrorPhone.html",
-    "AppSettingsPhone.html"
+    "AppSettingsPhone.html",
+    "DesignReviewCanvas.html",
+    "DesignReviewFollowed.html"
   ],
   "notes": {
     "intro": {
@@ -4687,6 +4705,20 @@
       "x": 15940,
       "y": 13104,
       "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them by stage; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: every Active and Maintained row ends with what it runs. Health on top, then where: the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped, “Not deployed” for a repository that has never shipped. A project with no repository says “No repository” in its care line. Done rows say nothing.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
+    },
+    "review-followed-link": {
+      "fill": "purple",
+      "w": 440,
+      "x": 11244,
+      "y": 55600,
+      "text": "Following a link in a review\n\nLinks on a screen in the review work, as they do in Play. Clicking one shows the screen it opens in the same place and keeps a trail, so there is always a way back.\n\nThe dock turns into the trail: Back, the screens you came through with the current one in ink, and whether this screen is part of the review. Back and the earlier names in the trail return to that screen as you left it, with its notes and its Old to New position. The browser’s Back does the same.\n\nA screen outside the review reads “Not changed in this review”. It has no Old and New to compare and takes no notes, so those tools leave the dock. The change you came from stays selected in the list, and its count of screens looked at does not move.\n\nA link to a screen that is in the review opens it as the list would: the dock keeps its tools, with Back in front of them.\n\nPicking another change or screen from the list clears the trail. iPhone: later; a link there does nothing today."
+    },
+    "review-on-canvas": {
+      "fill": "purple",
+      "w": 440,
+      "x": 11244,
+      "y": 55600,
+      "text": "For approval: a review happens on the canvas\n\nReviewing a design opens the Design canvas on the proposal’s branch, not a separate review surface. Same frames, same panels, same tools.\n\n• Changed and new frames stay at full strength, tagged Changed or New, with the changed areas marked on them. Everything else is dimmed. Before and After switches what the frames show.\n• Each changed frame has a checkbox beside its name. Ticking it approves that frame. The bar counts them: 1 of 3 approved.\n• The arrows in the tool bar, and ← →, move to the previous and next changed frame and zoom to it. Space ticks the frame you are on.\n• Because it is the canvas, a reviewer can do more than write: comment on a layer, draw, or edit the frame. Those land on the branch as suggestions for the proposer.\n• Links on a frame work as they do everywhere on the canvas, and the frame they open is right there beside it. There is nothing to go back from.\n• Changes on this branch, in the right panel, is the list of what changed. The review’s own list, viewer and dock go away, and so does their code.\n• Approve design is available at any time; unticked frames are named before it goes through. Ask for changes sends the comments, drawings and edits.\n\nThis replaces the DesignReview boards on web once approved; they stay on the canvas until then. iPhone keeps its pager."
     }
   },
   "starts": {}
