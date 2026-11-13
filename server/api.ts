@@ -36,6 +36,7 @@ import { healthRoutes } from './api/health.ts';
 import { requestsRoutes } from './api/requests.ts';
 import { backupsRoutes } from './api/backups.ts';
 import { buildLogsRoutes } from './api/build-logs.ts';
+import { observeRequest } from './v2/diagnostics.ts';
 
 // ── Reverse proxy hot path ──────────────────────────────────────────────────
 // Lives in edge/proxy.ts (shared with the edge process). In single-process
@@ -155,6 +156,7 @@ export function apiMiddleware(
     if (shortGit) req.url = shortGit.url;
     const workspacePath = shortGit ? '/api/workspace/git/' : path;
 
+    observeRequest(req, res, path);
     const ctx: ApiRouteContext = {
       req,
       res,
