@@ -1,4 +1,6 @@
 import type { RouteConfig } from 'react-flight-router/router';
+import { declaredRedirect } from './routes/dashboard/v2-redirects.ts';
+import { packagesRoutes } from './routes/dashboard/v2/packages/routes.ts';
 
 export const routes: RouteConfig[] = [
   {
@@ -19,7 +21,7 @@ export const routes: RouteConfig[] = [
       {
         id: 'discover',
         path: 'discover',
-        component: () => import('./routes/dashboard/v2-redirect.js'),
+        redirect: declaredRedirect,
       },
       {
         id: 'about',
@@ -94,7 +96,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-deploying',
             path: 'deploying',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'docs-ship',
@@ -104,7 +106,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-configuration',
             path: 'configuration',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'docs-deploy-yaml',
@@ -114,7 +116,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-managing',
             path: 'managing',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'docs-live',
@@ -124,7 +126,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-nodes',
             path: 'nodes',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'docs-computers',
@@ -144,7 +146,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-roadmap',
             path: 'roadmap',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'docs-ask',
@@ -161,17 +163,17 @@ export const routes: RouteConfig[] = [
       {
         id: 'packages-short',
         path: 'packages',
-        component: () => import('./routes/dashboard/v2-redirect.js'),
+        redirect: declaredRedirect,
       },
       {
         id: 'package-short',
         path: 'packages/npm/:name',
-        component: () => import('./routes/dashboard/v2-redirect.js'),
+        redirect: declaredRedirect,
       },
       {
         id: 'package-short-scoped',
         path: 'packages/npm/:scope/:name',
-        component: () => import('./routes/dashboard/v2-redirect.js'),
+        redirect: declaredRedirect,
       },
       // The workspace: `/dashboard/...` and repository short addresses share one layout, so moving
       // between tasks and a repository keeps it mounted. Last, so every page above wins.
@@ -395,21 +397,7 @@ export const routes: RouteConfig[] = [
             path: 'settings/devices',
             component: () => import('./routes/dashboard/v2/start/account.js'),
           },
-          {
-            id: 'v2-packages',
-            path: 'packages',
-            component: () => import('./routes/dashboard/v2/packages/page.js'),
-          },
-          {
-            id: 'v2-package',
-            path: 'packages/npm/:name',
-            component: () => import('./routes/dashboard/v2/packages/page.js'),
-          },
-          {
-            id: 'v2-scoped-package',
-            path: 'packages/npm/:scope/:name',
-            component: () => import('./routes/dashboard/v2/packages/page.js'),
-          },
+          ...packagesRoutes,
           {
             id: 'v2-settings',
             path: 'settings',
@@ -443,17 +431,17 @@ export const routes: RouteConfig[] = [
           {
             id: 'legacy-repositories',
             path: 'repositories',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-repository',
             path: 'repositories/:projectId',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-repository-section',
             path: 'repositories/:projectId/:section',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'dashboard-embed-computers',
@@ -468,37 +456,37 @@ export const routes: RouteConfig[] = [
           {
             id: 'legacy-apps',
             path: 'apps',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-activity',
             path: 'activity',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-logs',
             path: 'logs',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-nodes',
             path: 'nodes',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-catalog',
             path: 'catalog',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-catalog-import',
             path: 'catalog/import',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-catalog-id',
             path: 'catalog/:id',
-            component: () => import('./routes/dashboard/v2-redirect.js'),
+            redirect: declaredRedirect,
           },
           {
             id: 'legacy-name',
@@ -537,12 +525,12 @@ export const routes: RouteConfig[] = [
       {
         id: 'repository-address',
         path: ':repository',
-        component: () => import('./routes/dashboard/v2-redirect.js'),
+        redirect: declaredRedirect,
       },
       {
         id: 'repository-address-section',
         path: ':repository/:section',
-        component: () => import('./routes/dashboard/v2-redirect.js'),
+        redirect: declaredRedirect,
       },
     ],
   },
