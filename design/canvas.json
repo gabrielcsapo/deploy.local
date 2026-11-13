@@ -2846,6 +2846,22 @@
       "w": 1440,
       "h": 900,
       "title": "Menu bar when this computer cannot reach its apps: what is wrong and the fix"
+    },
+    "ReleaseTimes.html": {
+      "x": 2020,
+      "y": 16524,
+      "w": 1440,
+      "h": 900,
+      "title": "A slow release says where its time is going",
+      "expand": "fill"
+    },
+    "ComputerSlow.html": {
+      "x": 4170,
+      "y": 23864,
+      "w": 1440,
+      "h": 900,
+      "title": "One computer that is slow right now",
+      "expand": "fill"
     }
   },
   "order": [
@@ -2917,6 +2933,7 @@
     "ReleasePhone.html",
     "ReleaseFailed.html",
     "ReleaseFailedPhone.html",
+    "ReleaseTimes.html",
     "Deployments.html",
     "ReleasesPhone.html",
     "Live.html",
@@ -2952,6 +2969,7 @@
     "SecretEdit.html",
     "Compute.html",
     "Computer.html",
+    "ComputerSlow.html",
     "ComputePhone.html",
     "Models.html",
     "AddComputerName.html",
@@ -4612,6 +4630,13 @@
       "x": 14470,
       "y": 5160,
       "text": "For approval. The desktop app is the one place a computer’s worker is installed, changed, repaired and removed.\n• Setup offers Run apps on any computer with Docker. Turning it on installs one background service, so apps keep running when the app is quit and start again after a restart. Take tasks still lives with the app.\n• The menu bar says what this computer is doing. When it cannot reach its apps it says what is wrong in plain words and offers the fix: Restart Docker, or Repair the worker. Nobody opens a terminal to find out.\n• A computer set up earlier from the command line is offered a move. Nothing changes until you accept. The computer keeps its name, its apps, their addresses and their ports. An older copy that needs a password to remove is named, not hidden.\n• The terminal keeps one command, for a computer you cannot sit at: install and join with a code. The other deploy agent commands go away once every computer has moved.\n• Not drawn here: Windows, and the Linux versions of these four screens (same content in the Linux window, as SetupLinux)."
+    },
+    "release-and-computer-stats": {
+      "fill": "orange",
+      "w": 440,
+      "x": 2020,
+      "y": 17444,
+      "text": "For approval. deploy.local says where time goes, and when a computer is struggling.\n• A release step lists its parts with their times: copy data, build image, send, first answer. A running step shows the part it is in and how long so far.\n• A step on another computer is stopped only when that computer reports nothing for 10 minutes, not at a fixed 20. The release says when it last heard from it.\n• A computer’s page shows how long its disk and Docker take to answer. When either is slow for several minutes the page says so in plain words, and a release running there links to it.\n• Nothing here blocks a release; it only explains a slow one. Phones get the same step wording; the phone boards are unchanged in layout."
     }
   },
   "starts": {}
