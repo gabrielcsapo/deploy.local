@@ -243,3 +243,28 @@ You do not need any additional configuration for code splitting -- it works auto
 - [Navigation & Links](./navigation-and-links.md) — the `<Link>` component and programmatic navigation
 - [Layouts & Outlets](./layouts-and-outlets.md) — shared UI that persists across navigations
 - [Route Config](../api-reference/route-config.md) — full API reference for `RouteConfig`
+
+## Routes from several files
+
+`routes` is a plain array, so a feature can keep its own routes beside its pages and the routes file composes them:
+
+```ts
+// app/routes/packages/routes.ts
+import type { RouteConfig } from 'react-flight-router/router';
+
+export const packagesRoutes: RouteConfig[] = [
+  { id: 'packages', path: 'packages', component: () => import('./page.client.js') },
+  { id: 'package', path: 'packages/:name', component: () => import('./page.client.js') },
+];
+```
+
+```ts
+// app/routes.ts
+import { packagesRoutes } from './routes/packages/routes.ts';
+
+export const routes: RouteConfig[] = [
+  { id: 'root', path: '', component: () => import('./root.js'), children: [...packagesRoutes] },
+];
+```
+
+Import paths in a feature's file are relative to that file. Route ids must stay unique across all of them.

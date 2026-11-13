@@ -8,7 +8,14 @@ description: 'API reference for the route configuration types exported from reac
 React Flight Router uses a code-based route configuration. Routes are defined as an array of `RouteConfig` objects exported from your routes file (typically `app/routes.ts`). All types are available from the `"react-flight-router/router"` import path.
 
 ```ts
-import type { RouteConfig, RouteModule, RouteMatch, SlotMatch } from 'react-flight-router/router';
+import type {
+  RedirectStatus,
+  RouteConfig,
+  RouteModule,
+  RouteMatch,
+  RouteRedirect,
+  SlotMatch,
+} from 'react-flight-router/router';
 ```
 
 ---
@@ -22,14 +29,21 @@ interface RouteConfig {
   id: string;
   path?: string;
   index?: boolean;
-  component: () => Promise<RouteModule>;
+  component: () => Promise<RouteModule>; // or `redirect` instead
+  redirect?: RouteRedirect;
+  redirectStatus?: RedirectStatus;
   children?: RouteConfig[];
   notFound?: () => Promise<RouteModule>;
   error?: () => Promise<RouteModule>;
   loading?: () => Promise<RouteModule>;
   slots?: Record<string, RouteConfig[]>;
 }
+
+type RouteRedirect = string | ((match: { params: Record<string, string>; url: URL }) => string);
+type RedirectStatus = 301 | 302 | 307 | 308;
 ```
+
+A route has either a `component` or a `redirect`, never both.
 
 ### Properties
 
@@ -38,8 +52,17 @@ interface RouteConfig {
 | `id`        | `string`                     | Yes      | Unique route identifier. Used to build hierarchical segment keys (e.g., `"root"`, `"home"`). Must be unique across all routes.                                                                                                               |
 | `path`      | `string`                     | No       | URL path segment to match. Supports static segments (`"about"`), dynamic params (`":id"`), multi-segment patterns (`"posts/:slug"`), and catch-all params (`":path*"`). Omit for layout routes that wrap children without adding to the URL. |
 | `index`     | `boolean`                    | No       | When `true`, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |
-| `component` | `() => Promise<RouteModule>` | Yes      | A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |
+| `component` | `() => Promise<RouteModule>` | Yes¹     | A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand. The module may be a server component or a `"use client"` component.                                              |
 | `children`  | `RouteConfig[]`              | No       | Nested child routes. The parent route's component acts as a layout and must render an `<Outlet />` for children to appear.                                                                                                                   |
+
+¹ Not with `redirect`.
+
+### Redirects
+
+| Property         | Type             | Required | Description                                                                                                                                                                                                                                                                       |
+| ---------------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `redirect`       | `RouteRedirect`  | No       | Send every request this route matches elsewhere: a path or URL, or a function of the matched `params` and the request `url` that returns one. The function runs on the server, so it must not depend on browser state. See [Redirects](../guides/redirect.md#declared-redirects). |
+| `redirectStatus` | `RedirectStatus` | No       | Status for `redirect`. Defaults to `308`.                                                                                                                                                                                                                                         |
 
 ### Boundary properties
 
