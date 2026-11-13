@@ -3,7 +3,7 @@
 // the way a restarted server would read it.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   copyFileSync,
   existsSync,
@@ -55,48 +55,14 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-/** Rewrites a bundle in the shape older releases made: same format, one file fewer. */
-function withoutFile(bundlePath: string, path: string) {
-  const aad = Buffer.from('deploy.local/home-recovery/v1');
-  const envelope = JSON.parse(readFileSync(bundlePath, 'utf8'));
-  const { N, r, p } = envelope.kdf;
-  const key = scryptSync(passphrase, Buffer.from(envelope.kdf.salt, 'base64url'), 32, {
-    N,
-    r,
-    p,
-    maxmem: 64 * 1024 * 1024,
-  });
-  const decipher = createDecipheriv(
-    'aes-256-gcm',
-    key,
-    Buffer.from(envelope.encryption.nonce, 'base64url'),
-  );
-  decipher.setAAD(aad);
-  decipher.setAuthTag(Buffer.from(envelope.encryption.tag, 'base64url'));
-  const payload = JSON.parse(
-    Buffer.concat([
-      decipher.update(Buffer.from(envelope.ciphertext, 'base64url')),
-      decipher.final(),
-    ]).toString(),
-  );
-  const count = payload.files.length;
-  payload.files = payload.files.filter((file: { path: string }) => file.path !== path);
-  assert.equal(payload.files.length, count - 1, `The bundle should have held ${path}`);
-  const nonce = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', key, nonce);
-  cipher.setAAD(aad);
-  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(payload)), cipher.final()]);
-  envelope.encryption.nonce = nonce.toString('base64url');
-  envelope.encryption.tag = cipher.getAuthTag().toString('base64url');
-  envelope.ciphertext = ciphertext.toString('base64url');
-  writeFileSync(bundlePath, JSON.stringify(envelope));
-}
-
 describe('Home recovery round trip', () => {
   it('restores a bundle made before workspace.db was included, and says what is missing', async (t) => {
-    const bundlePath = join(root, 'older.bundle');
-    await recovery.createRecoveryBundle({ outputPath: bundlePath, passphrase });
-    withoutFile(bundlePath, 'workspace/workspace.db');
+    // Fixed v1 bytes captured before the format change; never rewritten by this test.
+    const bundlePath = join(import.meta.dirname, 'fixtures/recovery/v1-no-workspace.bundle');
+    assert.equal(
+      createHash('sha256').update(readFileSync(bundlePath)).digest('hex'),
+      '4b352d46ff40a7ba64432edfb1f1c6d487d1eda509113fa6cbce1234ab853c7c',
+    );
     assert.ok(recovery.verifyRecoveryBundle({ bundlePath, passphrase }));
     const warn = t.mock.method(console, 'warn', () => {});
     const replacement = join(root, 'older-replacement');

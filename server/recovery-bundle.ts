@@ -1,4 +1,10 @@
 import {
+  buildLegacyRecoveryInventory,
+  auditLegacyPortableLineage,
+  auditLegacySites,
+  type LegacyRecoveryInventory,
+} from './recovery-bundle-v1.ts';
+import {
   checkpointBlobReferences,
   checkpointBlobPath,
   verifyCheckpointBlobs,
@@ -40,23 +46,17 @@ import { ensureLocalIdentity, sortableId } from './local-site.ts';
 import { decryptSecret, secretAddress } from './secrets.ts';
 import { ensureApplicationRevisionArtifacts, getSqlite } from './store.ts';
 
-const RECOVERY_FORMAT_VERSION = 1;
-const RECOVERY_AAD = Buffer.from('deploy.local/home-recovery/v1');
+const RECOVERY_FORMAT_VERSION = 2;
+const recoveryAAD = (version: 1 | 2) => Buffer.from(`deploy.local/home-recovery/v${version}`);
+// v1 stays readable; v2 inventories Home state only. Older servers reject v2 before extraction.
 const INVENTORY_TABLES = [
   'deployments',
   'application_spec_revisions',
   'application_spec_transitions',
   'application_configuration_values',
   'fleets',
-  'sites',
   'application_aliases',
-  'fleet_events',
-  'site_sync_cursors',
-  'data_sync_policies',
-  'data_checkpoints',
-  'data_conflicts',
   'artifacts',
-  'release_candidates',
 ] as const;
 const WORKSPACE_DATABASE = 'workspace/workspace.db';
 const SSH_HOST_KEY = 'ssh_host_ed25519_key';
@@ -78,21 +78,30 @@ export interface RecoveryReceipt {
 const RECOVERY_FILE_LIMIT = 128 * 1024 * 1024;
 const megabytes = (bytes: number) => `${Math.ceil(bytes / (1024 * 1024))} MB`;
 
-interface RecoveryPayload {
-  formatVersion: 1;
+interface RecoveryPayloadFields {
   fleetId: string;
   homeSiteId: string;
   createdAt: string;
-  inventory: RecoveryInventory;
   inventoryDigest: string;
   /** Added compatibly to format v1; absent in older v1 bundles. */
   receipt?: RecoveryReceipt;
   files: RecoveryFile[];
 }
 
+type HomeRecoveryPayload = RecoveryPayloadFields & {
+  formatVersion: 2;
+  inventory: RecoveryInventory;
+};
+type RecoveryPayload =
+  | HomeRecoveryPayload
+  | (RecoveryPayloadFields & {
+      formatVersion: 1;
+      inventory: LegacyRecoveryInventory;
+    });
+
 interface RecoveryEnvelope {
   kind: 'deploy.local/HomeRecoveryBundle';
-  formatVersion: 1;
+  formatVersion: 1 | 2;
   kdf: { name: 'scrypt'; salt: string; N: number; r: number; p: number };
   encryption: { name: 'aes-256-gcm'; nonce: string; tag: string };
   ciphertext: string;
@@ -107,14 +116,6 @@ export interface RecoveryInventory {
     epoch: number;
     generation: number;
     desiredRelease: string | null;
-  }>;
-  sites: Array<{ id: string; status: string; revokedAt: string | null }>;
-  cursors: Array<{ local: string; remote: string; stream: string; sequence: number }>;
-  checkpoints: Array<{
-    id: string;
-    appId: string;
-    parentId: string | null;
-    manifestDigest: string;
   }>;
   artifacts: Array<{ digest: string; type: string; verification: string; retention: string }>;
 }
@@ -131,8 +132,8 @@ export interface RecoveryRehearsalReport {
     sites: number;
     applicationRevisions: number;
     applicationAliases: number;
-    dataPolicies: number;
-    checkpoints: number;
+    dataPolicies?: number;
+    checkpoints?: number;
     encryptedConfigurationValues: number;
     caKeyPair: true;
     homeSigningIdentity: true;
@@ -197,47 +198,6 @@ function buildRecoveryInventoryFromDatabase(sqlite: Database): RecoveryInventory
       epoch: row.release_authority_epoch,
       generation: row.release_generation,
       desiredRelease: row.desired_release_digest,
-    })),
-    sites: (
-      sqlite
-        .prepare('SELECT id, credential_status, revoked_at FROM sites ORDER BY id')
-        .all() as Array<{ id: string; credential_status: string; revoked_at: string | null }>
-    ).map((row) => ({ id: row.id, status: row.credential_status, revokedAt: row.revoked_at })),
-    cursors: (
-      sqlite
-        .prepare(
-          `SELECT local_site_id, remote_site_id, stream, last_accepted_sequence
-             FROM site_sync_cursors ORDER BY local_site_id, remote_site_id, stream`,
-        )
-        .all() as Array<{
-        local_site_id: string;
-        remote_site_id: string;
-        stream: string;
-        last_accepted_sequence: number;
-      }>
-    ).map((row) => ({
-      local: row.local_site_id,
-      remote: row.remote_site_id,
-      stream: row.stream,
-      sequence: row.last_accepted_sequence,
-    })),
-    checkpoints: (
-      sqlite
-        .prepare(
-          `SELECT id, app_id, parent_id, manifest_artifact_digest
-             FROM data_checkpoints ORDER BY app_id, sequence`,
-        )
-        .all() as Array<{
-        id: string;
-        app_id: string;
-        parent_id: string | null;
-        manifest_artifact_digest: string;
-      }>
-    ).map((row) => ({
-      id: row.id,
-      appId: row.app_id,
-      parentId: row.parent_id,
-      manifestDigest: row.manifest_artifact_digest,
     })),
     artifacts: (
       sqlite
@@ -424,14 +384,14 @@ function collectRecoveryFiles(root: string, databaseSnapshot: string) {
   };
 }
 
-function encryptPayload(payload: RecoveryPayload, passphrase: string): RecoveryEnvelope {
+function encryptPayload(payload: HomeRecoveryPayload, passphrase: string): RecoveryEnvelope {
   assertRecoveryPassphrase(passphrase);
   const salt = randomBytes(16);
   const nonce = randomBytes(12);
   const parameters = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
   const key = scryptSync(passphrase, salt, 32, parameters);
   const cipher = createCipheriv('aes-256-gcm', key, nonce);
-  cipher.setAAD(RECOVERY_AAD);
+  cipher.setAAD(recoveryAAD(payload.formatVersion));
   const ciphertext = Buffer.concat([cipher.update(canonical(payload), 'utf8'), cipher.final()]);
   return {
     kind: 'deploy.local/HomeRecoveryBundle',
@@ -457,7 +417,7 @@ function decryptEnvelope(path: string, passphrase: string): RecoveryPayload {
   const envelope = JSON.parse(readFileSync(path, 'utf8')) as RecoveryEnvelope;
   if (
     envelope.kind !== 'deploy.local/HomeRecoveryBundle' ||
-    envelope.formatVersion !== RECOVERY_FORMAT_VERSION ||
+    (envelope.formatVersion !== 1 && envelope.formatVersion !== 2) ||
     envelope.kdf?.name !== 'scrypt' ||
     envelope.encryption?.name !== 'aes-256-gcm'
   )
@@ -472,15 +432,14 @@ function decryptEnvelope(path: string, passphrase: string): RecoveryPayload {
     maxmem: 64 * 1024 * 1024,
   });
   const decipher = createDecipheriv('aes-256-gcm', key, nonce);
-  decipher.setAAD(RECOVERY_AAD);
+  decipher.setAAD(recoveryAAD(envelope.formatVersion));
   decipher.setAuthTag(tag);
   const plaintext = Buffer.concat([
     decipher.update(Buffer.from(envelope.ciphertext, 'base64url')),
     decipher.final(),
   ]);
   const payload = JSON.parse(plaintext.toString('utf8')) as RecoveryPayload;
-  if (payload.formatVersion !== RECOVERY_FORMAT_VERSION)
-    throw new Error('Invalid recovery payload');
+  if (payload.formatVersion !== envelope.formatVersion) throw new Error('Invalid recovery payload');
   return payload;
 }
 
@@ -680,8 +639,6 @@ function auditApplicationLineage(
 ): {
   applicationRevisions: number;
   applicationAliases: number;
-  dataPolicies: number;
-  checkpoints: number;
 } {
   const deployments = database
     .prepare('SELECT name, app_id, desired_spec_digest, active_spec_digest FROM deployments')
@@ -825,93 +782,17 @@ function auditApplicationLineage(
     }
   }
 
-  const policies = database
-    .prepare(
-      'SELECT app_id, site_id, policy, conflict_policy, acknowledged_risks, revision FROM data_sync_policies',
-    )
-    .all() as Array<{
-    app_id: string;
-    site_id: string;
-    policy: string;
-    conflict_policy: string;
-    acknowledged_risks: string;
-    revision: number;
-  }>;
-  for (const policy of policies) {
-    if (
-      !applicationIds.has(policy.app_id) ||
-      (policy.site_id && !siteIds.has(policy.site_id)) ||
-      !['automatic', 'manual', 'none'].includes(policy.policy) ||
-      !['collect', 'prefer-home', 'prefer-suitcase'].includes(policy.conflict_policy) ||
-      !Number.isSafeInteger(policy.revision) ||
-      policy.revision < 1
-    ) {
-      throw new Error('Recovered data sync policy has an invalid app, site, mode, or revision');
-    }
-    const risks = JSON.parse(policy.acknowledged_risks) as unknown;
-    if (!Array.isArray(risks) || risks.some((risk) => typeof risk !== 'string')) {
-      throw new Error('Recovered data sync policy has invalid risk acknowledgements');
-    }
-  }
+  return { applicationRevisions: revisions.length, applicationAliases: aliases.length };
+}
 
-  const checkpoints = database
-    .prepare(
-      `SELECT id, app_id, parent_id, origin_site_id, sequence, manifest_artifact_digest
-         FROM data_checkpoints`,
-    )
-    .all() as Array<{
-    id: string;
-    app_id: string;
-    parent_id: string | null;
-    origin_site_id: string;
-    sequence: number;
-    manifest_artifact_digest: string;
-  }>;
-  const checkpointMap = new Map(checkpoints.map((checkpoint) => [checkpoint.id, checkpoint]));
-  for (const checkpoint of checkpoints) {
-    const parent = checkpoint.parent_id ? checkpointMap.get(checkpoint.parent_id) : undefined;
-    if (
-      !applicationIds.has(checkpoint.app_id) ||
-      !siteIds.has(checkpoint.origin_site_id) ||
-      !Number.isSafeInteger(checkpoint.sequence) ||
-      checkpoint.sequence < 1 ||
-      !/^sha256:[a-f0-9]{64}$/.test(checkpoint.manifest_artifact_digest) ||
-      (checkpoint.parent_id &&
-        (!parent || parent.app_id !== checkpoint.app_id || parent.sequence >= checkpoint.sequence))
-    ) {
-      throw new Error('Recovered checkpoint has an invalid app, site, sequence, digest, or parent');
-    }
-    const seen = new Set<string>();
-    let cursor: typeof checkpoint | undefined = checkpoint;
-    while (cursor) {
-      if (seen.has(cursor.id)) throw new Error('Recovered checkpoint lineage contains a cycle');
-      seen.add(cursor.id);
-      cursor = cursor.parent_id ? checkpointMap.get(cursor.parent_id) : undefined;
-    }
+function auditHomeSite(database: Database, fleetId: string, homeSiteId: string): number {
+  const home = database.prepare('SELECT fleet_id, kind FROM sites WHERE id = ?').get(homeSiteId) as
+    | { fleet_id: string; kind: string }
+    | undefined;
+  if (!home || home.fleet_id !== fleetId || home.kind !== 'home') {
+    throw new Error('Rehearsed database contains duplicate, foreign, or ambiguous site identity');
   }
-  const replicaCheckpoints = database
-    .prepare(
-      `SELECT app_id, base_checkpoint_id, branch_checkpoint_id FROM app_replicas
-        WHERE base_checkpoint_id IS NOT NULL OR branch_checkpoint_id IS NOT NULL`,
-    )
-    .all() as Array<{
-    app_id: string;
-    base_checkpoint_id: string | null;
-    branch_checkpoint_id: string | null;
-  }>;
-  for (const replica of replicaCheckpoints) {
-    for (const checkpointId of [replica.base_checkpoint_id, replica.branch_checkpoint_id]) {
-      if (checkpointId && checkpointMap.get(checkpointId)?.app_id !== replica.app_id) {
-        throw new Error('Recovered replica references a missing or foreign checkpoint');
-      }
-    }
-  }
-  return {
-    applicationRevisions: revisions.length,
-    applicationAliases: aliases.length,
-    dataPolicies: policies.length,
-    checkpoints: checkpoints.length,
-  };
+  return 1;
 }
 
 function auditRestoredRecovery(
@@ -929,7 +810,10 @@ function auditRestoredRecovery(
       throw new Error('Rehearsed control-plane database failed integrity_check');
     }
     assertIntactWorkspaceDatabase(directory);
-    const restoredInventory = buildRecoveryInventoryFromDatabase(database);
+    const restoredInventory =
+      payload.formatVersion === 1
+        ? buildLegacyRecoveryInventory(database)
+        : buildRecoveryInventoryFromDatabase(database);
     if (
       digest(restoredInventory) !== payload.inventoryDigest ||
       canonical(restoredInventory) !== canonical(payload.inventory)
@@ -946,20 +830,12 @@ function auditRestoredRecovery(
     ) {
       throw new Error('Rehearsed database does not contain exactly one expected fleet identity');
     }
-    const sites = database.prepare('SELECT id, fleet_id, kind FROM sites').all() as Array<{
-      id: string;
-      fleet_id: string;
-      kind: string;
-    }>;
-    if (
-      new Set(sites.map((site) => site.id)).size !== sites.length ||
-      sites.some((site) => site.fleet_id !== payload.fleetId) ||
-      sites.filter((site) => site.kind === 'home').length !== 1 ||
-      !sites.some((site) => site.id === payload.homeSiteId && site.kind === 'home')
-    ) {
-      throw new Error('Rehearsed database contains duplicate, foreign, or ambiguous site identity');
-    }
+    const sites =
+      payload.formatVersion === 1
+        ? auditLegacySites(database, payload.fleetId, payload.homeSiteId)
+        : auditHomeSite(database, payload.fleetId, payload.homeSiteId);
     const lineage = auditApplicationLineage(database, directory);
+    const legacyLineage = payload.formatVersion === 1 ? auditLegacyPortableLineage(database) : {};
     const materials = auditRecoveryMaterials(directory, payload, database);
     return {
       bundleId,
@@ -970,8 +846,9 @@ function auditRestoredRecovery(
       checks: {
         inventoryTables: Object.keys(payload.inventory.counts).length,
         fleets: fleets.length,
-        sites: sites.length,
+        sites,
         ...lineage,
+        ...legacyLineage,
         encryptedConfigurationValues: materials.encryptedConfigurationValues,
         caKeyPair: true,
         homeSigningIdentity: true,
@@ -1019,7 +896,7 @@ export async function createRecoveryBundle(input: {
     } finally {
       snapshotDatabase.close();
     }
-    const payload: RecoveryPayload = {
+    const payload: HomeRecoveryPayload = {
       formatVersion: RECOVERY_FORMAT_VERSION,
       fleetId: fleet.id,
       homeSiteId: fleet.homeSiteId,
@@ -1132,7 +1009,7 @@ export function restoreRecoveryBundle(input: {
 }): {
   fleetId: string;
   homeSiteId: string;
-  inventory: RecoveryInventory;
+  inventory: RecoveryInventory | LegacyRecoveryInventory;
   receipt?: RecoveryReceipt;
 } {
   const destination = resolve(input.destinationDataDirectory);
@@ -1255,9 +1132,9 @@ export function rehearseRecoveryBundle(input: {
   }
 }
 
-/** Worker-only: keep the existing recovery format without buffering package files on control. */
+/** Worker-only: write Home-only v2 without buffering package files on control. */
 export async function writeRecoveryPayload(data: {
-  payload: RecoveryPayload;
+  payload: HomeRecoveryPayload;
   input: { outputPath: string; passphrase: string };
   databaseSnapshot: string;
   root: string;

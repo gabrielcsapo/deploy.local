@@ -1,7 +1,7 @@
 import { materializeCheckpoint } from './workspace/checkpoint-storage.ts';
 import { getRequestsSqlite } from './requests-db.ts';
 import assert from 'node:assert/strict';
-import { createHash, generateKeyPairSync } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   truncateSync,
@@ -42,7 +42,7 @@ after(() => {
 });
 
 describe('encrypted Home recovery bundle', () => {
-  it('verifies offline and restores fleet identity/control state onto a clean Home', async () => {
+  it('writes Home-only v2 inventory and verifies, restores and rehearses a clean Home', async () => {
     const fleet = localSite.ensureLocalIdentity('Family Fleet');
     secrets.loadOrCreateSecretKey();
     certs.ensureCerts();
@@ -104,84 +104,6 @@ describe('encrypted Home recovery bundle', () => {
         `sha256:${'9'.repeat(64)}`,
         new Date().toISOString(),
       );
-    const suitcases = ['historical-site-a', 'historical-site-b'].map((siteId) => {
-      const keys = generateKeyPairSync('ed25519');
-      const credential = 'historical-credential-' + siteId;
-      const now = new Date().toISOString();
-      databaseBeforeRecovery
-        .prepare(`INSERT INTO sites
-        (id, fleet_id, name, kind, public_key, credential_hash, credential_status,
-         capabilities, mode, default_data_policy, access_mode, security_profile,
-         readiness_summary, created_at, updated_at)
-        VALUES (?, ?, ?, 'suitcase', ?, ?, 'active', '{}', 'docked', 'automatic',
-                'existing-lan', 'isolated', '{}', ?, ?)`)
-        .run(
-          siteId,
-          fleet.id,
-          siteId,
-          keys.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
-          createHash('sha256').update(credential).digest('hex'),
-          now,
-          now,
-        );
-      return { siteId, credential };
-    });
-    databaseBeforeRecovery
-      .prepare(
-        `INSERT INTO data_sync_policies
-          (app_id, site_id, policy, conflict_policy, acknowledged_risks,
-           revision, updated_by, updated_at)
-         VALUES ('app-calendar', ?, 'automatic', 'collect', '[]', 1, 'admin', ?),
-                ('app-calendar', ?, 'manual', 'prefer-home', '["offline writes"]', 1, 'admin', ?)`,
-      )
-      .run(
-        suitcases[0]!.siteId,
-        new Date().toISOString(),
-        suitcases[1]!.siteId,
-        new Date().toISOString(),
-      );
-    databaseBeforeRecovery
-      .prepare(
-        `INSERT INTO data_checkpoints
-          (id, app_id, parent_id, origin_site_id, sequence, manifest_artifact_digest,
-           verification_status, acknowledgements, created_at)
-         VALUES ('checkpoint-calendar-1', 'app-calendar', NULL, ?, 1, ?, 'verified', '{}', ?),
-                ('checkpoint-calendar-2', 'app-calendar', 'checkpoint-calendar-1', ?, 2, ?,
-                 'verified', '{}', ?)`,
-      )
-      .run(
-        fleet.homeSiteId,
-        `sha256:${'a'.repeat(64)}`,
-        new Date().toISOString(),
-        suitcases[0]!.siteId,
-        `sha256:${'b'.repeat(64)}`,
-        new Date().toISOString(),
-      );
-    databaseBeforeRecovery
-      .prepare(
-        `UPDATE app_replicas SET base_checkpoint_id = 'checkpoint-calendar-2'
-          WHERE app_id = 'app-calendar'`,
-      )
-      .run();
-    for (const [index, suitcase] of suitcases.entries()) {
-      databaseBeforeRecovery
-        .prepare(
-          `INSERT INTO site_sync_cursors
-            (local_site_id, remote_site_id, stream, last_accepted_sequence,
-             protocol_version, last_success_at)
-           VALUES (?, ?, 'control', ?, 1, ?)`,
-        )
-        .run(fleet.homeSiteId, suitcase.siteId, 11 + index, new Date().toISOString());
-    }
-    databaseBeforeRecovery
-      .prepare(
-        `INSERT INTO release_candidates
-          (id, app_id, origin_site_id, actor, base_authority_epoch, base_generation,
-           state, created_at)
-         VALUES ('candidate-stale-review', 'app-calendar', ?, 'admin', 3, 6,
-                 'stale-authority', ?)`,
-      )
-      .run(suitcases[0]!.siteId, new Date().toISOString());
     mkdirSync(join(root, 'home', 'packages', 'hosted', 'sha256', 'ab'), { recursive: true });
     mkdirSync(join(root, 'home', 'packages', 'cache'), { recursive: true });
     writeFileSync(
@@ -248,6 +170,32 @@ describe('encrypted Home recovery bundle', () => {
     } finally {
       restoredWorkspace.close();
     }
+    assert.equal(JSON.parse(readFileSync(bundlePath, 'utf8')).formatVersion, 2);
+    assert.equal(
+      (
+        store
+          .getSqlite()!
+          .prepare('SELECT format_version FROM fleet_recovery_bundles WHERE id = ?')
+          .get(created.id) as { format_version: number }
+      ).format_version,
+      2,
+    );
+    assert.deepEqual(
+      Object.keys(restored.inventory).sort(),
+      ['fleetId', 'homeSiteId', 'counts', 'authority', 'artifacts'].sort(),
+    );
+    assert.deepEqual(
+      Object.keys(restored.inventory.counts).sort(),
+      [
+        'deployments',
+        'application_spec_revisions',
+        'application_spec_transitions',
+        'application_configuration_values',
+        'fleets',
+        'application_aliases',
+        'artifacts',
+      ].sort(),
+    );
     assert.deepEqual(restored.receipt, created.receipt);
     assert.equal(restored.fleetId, fleet.id);
     assert.equal(restored.homeSiteId, fleet.homeSiteId);
@@ -316,6 +264,65 @@ describe('encrypted Home recovery bundle', () => {
         home_site_id: string;
       };
       assert.deepEqual(restoredFleet, { id: fleet.id, home_site_id: fleet.homeSiteId });
+    } finally {
+      database.close();
+    }
+    const rehearsalResponse = await operations.handleOperationsRequest({
+      method: 'POST',
+      pathname: `/operations/recovery-bundles/${created.id}/rehearsal`,
+      actor: { username: 'admin', role: 'admin' },
+      body: { bundlePath, passphrase },
+    });
+    assert.equal(rehearsalResponse.status, 200);
+    const rehearsal =
+      rehearsalResponse.body as import('./recovery-bundle.ts').RecoveryRehearsalReport;
+    assert.equal(rehearsal.passed, true);
+    assert.equal('activeSuitcaseCredentials' in rehearsal.checks, false);
+    assert.equal(rehearsal.checks.applicationRevisions, 2);
+    assert.equal(rehearsal.checks.applicationAliases, 1);
+    assert.equal(rehearsal.checks.dataPolicies, undefined);
+    assert.equal(rehearsal.checks.checkpoints, undefined);
+    assert.equal(rehearsal.checks.encryptedConfigurationValues, 1);
+    assert.equal(rehearsal.checks.caKeyPair, true);
+    assert.equal(rehearsal.checks.homeSigningIdentity, true);
+
+    const record = store
+      .getSqlite()!
+      .prepare(
+        'SELECT verification_status, rehearsal_status FROM fleet_recovery_bundles WHERE id = ?',
+      )
+      .get(created.id) as { verification_status: string; rehearsal_status: string };
+    assert.deepEqual(record, { verification_status: 'verified', rehearsal_status: 'passed' });
+  });
+
+  it('verifies, restores and rehearses the unchanged v1 portable fixture', () => {
+    // Captured with the pre-v2 writer on 2026-11-13 from this test's historical fixture.
+    // These keys/credentials are disposable test data. Never regenerate with the current writer.
+    const bundlePath = join(import.meta.dirname, 'fixtures/recovery/v1.bundle');
+    const bytes = readFileSync(bundlePath);
+    assert.equal(
+      createHash('sha256').update(bytes).digest('hex'),
+      '6020dadefa3b3ae7d4ff6f755020743eb341e47305fbb1c66ce751728fb28de4',
+    );
+    const passphrase = 'correct horse suitcase battery';
+    const verified = recovery.verifyRecoveryBundle({ bundlePath, passphrase });
+    const replacement = join(root, 'v1-replacement');
+    const restored = recovery.restoreRecoveryBundle({
+      bundlePath,
+      passphrase,
+      destinationDataDirectory: replacement,
+    });
+    const fleet = { id: verified.fleetId, homeSiteId: verified.homeSiteId };
+    assert.equal(restored.fleetId, fleet.id);
+    assert.equal(restored.homeSiteId, fleet.homeSiteId);
+    assert.equal(restored.inventory.counts.data_sync_policies, 2);
+    assert.equal(restored.inventory.counts.data_checkpoints, 2);
+    const historicalSites = ['historical-site-a', 'historical-site-b'].map((siteId) => ({
+      siteId,
+      credential: 'historical-credential-' + siteId,
+    }));
+    const database = new Database(join(replacement, 'deploy.db'), { readonly: true });
+    try {
       const restoredSites = database
         .prepare(
           `SELECT id, credential_hash, credential_status
@@ -327,7 +334,7 @@ describe('encrypted Home recovery bundle', () => {
         credential_status: string;
       }>;
       assert.equal(restoredSites.length, 2);
-      for (const suitcase of suitcases) {
+      for (const suitcase of historicalSites) {
         const restoredSite = restoredSites.find((site) => site.id === suitcase.siteId);
         assert.equal(restoredSite?.credential_status, 'active');
         assert.equal(
@@ -357,32 +364,79 @@ describe('encrypted Home recovery bundle', () => {
     } finally {
       database.close();
     }
-    const rehearsalResponse = await operations.handleOperationsRequest({
-      method: 'POST',
-      pathname: `/operations/recovery-bundles/${created.id}/rehearsal`,
-      actor: { username: 'admin', role: 'admin' },
-      body: { bundlePath, passphrase },
-    });
-    assert.equal(rehearsalResponse.status, 200);
-    const rehearsal =
-      rehearsalResponse.body as import('./recovery-bundle.ts').RecoveryRehearsalReport;
-    assert.equal(rehearsal.passed, true);
-    assert.equal('activeSuitcaseCredentials' in rehearsal.checks, false);
-    assert.equal(rehearsal.checks.applicationRevisions, 2);
-    assert.equal(rehearsal.checks.applicationAliases, 1);
-    assert.equal(rehearsal.checks.dataPolicies, 2);
-    assert.equal(rehearsal.checks.checkpoints, 2);
-    assert.equal(rehearsal.checks.encryptedConfigurationValues, 1);
-    assert.equal(rehearsal.checks.caKeyPair, true);
-    assert.equal(rehearsal.checks.homeSigningIdentity, true);
-
-    const record = store
+    // Only the bundle catalog is live; all v1 inventory/lineage queries use its extracted DB.
+    const bundleId = 'historical-v1-fixture';
+    store
       .getSqlite()!
-      .prepare(
-        'SELECT verification_status, rehearsal_status FROM fleet_recovery_bundles WHERE id = ?',
-      )
-      .get(created.id) as { verification_status: string; rehearsal_status: string };
-    assert.deepEqual(record, { verification_status: 'verified', rehearsal_status: 'passed' });
+      .prepare(`INSERT INTO fleet_recovery_bundles
+      (id, fleet_id, format_version, artifact_digest, encryption_metadata, inventory_digest, verification_status, created_at)
+      VALUES (?, ?, 1, ?, '{}', ?, 'verified', ?)`)
+      .run(
+        bundleId,
+        fleet.id,
+        'sha256:6020dadefa3b3ae7d4ff6f755020743eb341e47305fbb1c66ce751728fb28de4',
+        verified.inventoryDigest,
+        new Date().toISOString(),
+      );
+    const report = recovery.rehearseRecoveryBundle({ bundleId, bundlePath, passphrase });
+    assert.equal(report.passed, true);
+    assert.equal(report.checks.sites, 3);
+    assert.equal(report.checks.dataPolicies, 2);
+    assert.equal(report.checks.checkpoints, 2);
+    assert.equal(report.checks.applicationRevisions, 2);
+    assert.equal(report.checks.applicationAliases, 1);
+    assert.equal(report.checks.encryptedConfigurationValues, 1);
+    assert.deepEqual(readFileSync(bundlePath), bytes);
+  });
+
+  it('keeps replica checkpoint lineage validation confined to the v1 reader', async () => {
+    const { auditLegacyPortableLineage } = await import('./recovery-bundle-v1.ts');
+    // Mutate only an extracted test copy, never the encrypted historical fixture.
+    const destination = join(root, 'v1-lineage');
+    const restored = recovery.restoreRecoveryBundle({
+      bundlePath: join(import.meta.dirname, 'fixtures/recovery/v1.bundle'),
+      passphrase: 'correct horse suitcase battery',
+      destinationDataDirectory: destination,
+    });
+    const database = new Database(join(destination, 'deploy.db'));
+    try {
+      database
+        .prepare(`INSERT INTO app_replicas
+        (id, app_id, site_id, base_checkpoint_id, created_at, updated_at)
+        VALUES ('legacy-replica', 'app-calendar', ?, 'checkpoint-calendar-2', ?, ?)`)
+        .run(restored.homeSiteId, new Date().toISOString(), new Date().toISOString());
+      assert.deepEqual(auditLegacyPortableLineage(database), { dataPolicies: 2, checkpoints: 2 });
+      database.prepare("UPDATE app_replicas SET base_checkpoint_id = 'missing'").run();
+      assert.throws(
+        () => auditLegacyPortableLineage(database),
+        /Recovered replica references a missing or foreign checkpoint/,
+      );
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rejects an unsupported envelope before creating a restore destination', () => {
+    const bundlePath = join(root, 'future.bundle');
+    const envelope = JSON.parse(readFileSync(join(root, 'recovery.bundle'), 'utf8'));
+    envelope.formatVersion = 3;
+    writeFileSync(bundlePath, JSON.stringify(envelope));
+    const destination = join(root, 'future-replacement');
+    assert.throws(
+      () =>
+        recovery.verifyRecoveryBundle({ bundlePath, passphrase: 'correct horse suitcase battery' }),
+      /Unsupported recovery bundle format/,
+    );
+    assert.throws(
+      () =>
+        recovery.restoreRecoveryBundle({
+          bundlePath,
+          passphrase: 'correct horse suitcase battery',
+          destinationDataDirectory: destination,
+        }),
+      /Unsupported recovery bundle format/,
+    );
+    assert.equal(existsSync(destination), false);
   });
 
   it('refuses to export a database whose external checkpoint body is missing', async () => {
