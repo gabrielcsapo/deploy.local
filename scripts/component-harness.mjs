@@ -10,6 +10,16 @@ export async function componentHarness(entry, stubs, globals = {}) {
   let effects = [];
   const cleanups = [];
   const hooks = {
+    createElement: require('react').createElement,
+    createContext(value) {
+      return { _currentValue: value };
+    },
+    useContext(context) {
+      return context._currentValue;
+    },
+    useSyncExternalStore(_subscribe, _getSnapshot, getServerSnapshot) {
+      return getServerSnapshot();
+    },
     useState(initial) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;

@@ -1,12 +1,14 @@
+import { getRequest } from 'react-flight-router/server';
+import { projectPageOwner, projectPageURL } from '../server/v2/project-page.ts';
 import { Suspense } from 'react';
 import './styles.css';
 import designTokens from './design-tokens.json';
 import { Outlet, ScrollRestoration } from 'react-flight-router/client';
-import { GlobalNavigationLoadingBar } from './routes/root.client';
+import { GlobalNavigationLoadingBar, RootFallback } from './routes/root.client';
 import { AppProviders } from './components/AppProviders';
-import { LoadingState } from './components/LoadingState';
 
 export default function RootLayout() {
+  const serverFirst = projectPageURL(getRequest()) && projectPageOwner(getRequest());
   return (
     <html lang="en">
       <head>
@@ -52,7 +54,7 @@ export default function RootLayout() {
         <GlobalNavigationLoadingBar />
         <AppProviders>
           <div className="flex-1">
-            <Suspense fallback={<LoadingState />}>
+            <Suspense fallback={<RootFallback seededProjects={!!serverFirst} />}>
               <Outlet />
             </Suspense>
           </div>

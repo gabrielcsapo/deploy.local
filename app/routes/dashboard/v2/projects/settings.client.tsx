@@ -1,4 +1,5 @@
 'use client';
+import { useProjectFormatting } from './formatting.ts';
 import { useEffect, useRef, useState } from 'react';
 import {
   Action,
@@ -22,7 +23,7 @@ import type {
 import { request, useData, type Overview } from './data';
 import { useSearchParams } from 'react-flight-router/client';
 import { useCoordinatorName } from '../data/hooks';
-import { formatTime } from '../data/time';
+
 import { projectPath, projectSegment } from './routing';
 import { NoRepository } from './repository-connect.client';
 import { RepositorySettings } from './repository-settings.client';
@@ -34,6 +35,7 @@ export function ProjectConfiguration({
   project: Project;
   overview: Overview;
 }) {
+  const { formatTime } = useProjectFormatting();
   const coordinator = useCoordinatorName();
   const single = project.apps.length === 1;
   const path = `/api/v2/projects/${projectSegment(project.id)}`;

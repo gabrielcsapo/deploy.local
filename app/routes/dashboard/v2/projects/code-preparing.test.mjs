@@ -10,6 +10,7 @@ test('a preparing repository without refs keeps the existing repository setup er
     'remark-gfm': { default: () => {} },
     'rehype-highlight': { default: () => {} },
     './data': {
+      useBrowserOrigin: () => 'https://deploy.local',
       useData: (path) => ({
         data: path?.endsWith('/repository') ? { status: 'preparing' } : undefined,
         error: path?.includes('/tree?') ? reason : '',

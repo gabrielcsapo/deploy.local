@@ -1,4 +1,5 @@
 'use client';
+import { useProjectFormatting } from './formatting.ts';
 import { ListTemplate, DetailTemplate } from '@/components/ui/v2/Templates';
 import { useEffect, useState } from 'react';
 import { useLocation, useSearchParams, useRouter } from 'react-flight-router/client';
@@ -24,14 +25,14 @@ import { ProjectPipelines } from './pipelines.client';
 import { ProjectLogs } from './logs.client';
 import { AppRequest, AppRequests } from './requests.client';
 import { AppPerformance } from './performance.client';
-import { formatRequestClock, type RequestDetail } from './requests';
+import { type RequestDetail } from './requests';
 import './projects.css';
 import { ProjectPanel } from './content.client';
 import { AddExistingAppDialog, NoRepository } from './repository-connect.client';
 import { projectRuntime } from './presentation';
 import { NewProjectDialog } from './new-project.client';
 import { ProjectPushCode, ProjectStart } from './project-start.client';
-import { formatTime } from '../data/time';
+
 import { remembered, useCoordinatorName, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
@@ -210,6 +211,7 @@ function ProjectPage({
   requestId?: string;
   search: string;
 }) {
+  const { formatRequestClock, formatTime, now } = useProjectFormatting();
   const { navigate } = useRouter();
   const overview = useData<Overview>(`/api/v2/projects/${projectSegment(projectKey)}/overview`);
   const pulls = useData<{ items: TaskPull[] }>(
@@ -407,6 +409,7 @@ function ProjectPage({
           data && (
             <>
               <Tabs
+                retainContent
                 value={tabs.find((tab) => tab.label === activeLabel)?.href ?? base}
                 items={tabs}
               />
@@ -539,8 +542,7 @@ function ProjectPage({
                             releases.filter(
                               (release) =>
                                 ['live', 'superseded'].includes(release.state) &&
-                                Date.parse(release.steps[0]?.startedAt || '') >
-                                  Date.now() - 7 * 86400000,
+                                Date.parse(release.steps[0]?.startedAt || '') > now - 7 * 86400000,
                             ).length
                           }
                         </span>
@@ -556,6 +558,7 @@ function ProjectPage({
                           {runningSubtitle(
                             runningApps.map(({ app }) => app),
                             repositoryName(data.repository?.source),
+                            formatTime,
                           )}
                         </p>
                         <Group>
@@ -642,6 +645,7 @@ function ProjectPage({
 }
 
 function WorkRow({ task, runs }: { task: Work; runs: WorkspaceState['runs'] }) {
+  const { formatTime } = useProjectFormatting();
   const snapshot = useData<{
     computer?: string;
     run?: { status: string; updatedAt: string };

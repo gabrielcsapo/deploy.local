@@ -252,6 +252,60 @@ export async function readProjectBody(req: IncomingMessage) {
     fail('Invalid JSON');
   }
 }
+/** Shared by the JSON API and request-scoped server pages. */
+export async function readProjectOverview(owner: string, project: Project) {
+  const workspaceProject = list('project', owner).find((entry) => entry.id === project.id);
+  let repository = null;
+  let repositoryError = false;
+  if (workspaceProject)
+    try {
+      repository = await repositoryInfo(owner, project.id, true);
+    } catch {
+      repositoryError = true;
+    }
+  return {
+    project,
+    repository,
+    repositoryError,
+    tasks: list('task', owner)
+      .filter((entry) => entry.projectId === project.id)
+      .map(({ id, title, status, createdAt, updatedAt }) => ({
+        id,
+        title,
+        status,
+        createdAt,
+        updatedAt,
+      })),
+    issues: list('issue', owner)
+      .filter((entry) => entry.projectId === project.id)
+      .map(({ id, title, state, status, taskId, createdAt }) => ({
+        id,
+        title,
+        state: state || status || 'open',
+        taskId,
+        createdAt,
+      })),
+    pulls: list('pull-request', owner)
+      .filter((entry) => entry.projectId === project.id)
+      .map(({ id, title, state, status, taskId }) => ({
+        id,
+        title,
+        state: state || status || 'open',
+        taskId,
+      })),
+    apps: project.apps.map((app) => {
+      const record = getDeployment(app.name)!;
+      const nodeId = record.activeNodeId || record.desiredNodeId || 'coordinator';
+      return {
+        ...app,
+        // The computer's name, as every other page shows it, not its internal ID.
+        computer: getNodes().find((node) => node.id === nodeId)?.name || nodeId,
+        memoryLimit: record.memoryLimit,
+      };
+    }),
+  };
+}
+
 export async function settingsApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -280,56 +334,7 @@ export async function settingsApi(
         method: 'GET',
         path: '/api/v2/projects/:project/overview',
         handler: async () => {
-          const workspaceProject = list('project', owner).find((entry) => entry.id === project.id);
-          let repository = null;
-          let repositoryError = false;
-          if (workspaceProject)
-            try {
-              repository = await repositoryInfo(owner, project.id, true);
-            } catch {
-              repositoryError = true;
-            }
-          return {
-            project,
-            repository,
-            repositoryError,
-            tasks: list('task', owner)
-              .filter((entry) => entry.projectId === project.id)
-              .map(({ id, title, status, createdAt, updatedAt }) => ({
-                id,
-                title,
-                status,
-                createdAt,
-                updatedAt,
-              })),
-            issues: list('issue', owner)
-              .filter((entry) => entry.projectId === project.id)
-              .map(({ id, title, state, status, taskId, createdAt }) => ({
-                id,
-                title,
-                state: state || status || 'open',
-                taskId,
-                createdAt,
-              })),
-            pulls: list('pull-request', owner)
-              .filter((entry) => entry.projectId === project.id)
-              .map(({ id, title, state, status, taskId }) => ({
-                id,
-                title,
-                state: state || status || 'open',
-                taskId,
-              })),
-            apps: project.apps.map((app) => {
-              const record = getDeployment(app.name)!;
-              const nodeId = record.activeNodeId || record.desiredNodeId || 'coordinator';
-              return {
-                ...app,
-                // The computer's name, as every other page shows it, not its internal ID.
-                computer: getNodes().find((node) => node.id === nodeId)?.name || nodeId,
-                memoryLimit: record.memoryLimit,
-              };
-            }),
-          };
+          return readProjectOverview(owner, project);
         },
       }),
       route({

@@ -255,6 +255,15 @@ for (let index = 5; index >= 1; index--) {
 }
 const pages = {
   discover: '/dashboard/discover',
+  list: '/dashboard/projects',
+  code: '/dashboard/projects/many-tabs/code',
+  apps: '/dashboard/projects/many-tabs?tab=apps',
+  logs: '/dashboard/projects/many-tabs/logs',
+  pullDetail: '/dashboard/projects/many-tabs/pulls/pull-1',
+  requests: '/dashboard/projects/pantry/requests',
+  performance: '/dashboard/projects/pantry/performance',
+  appRequests: '/dashboard/projects/many-tabs/apps/web/requests',
+  appPerformance: '/dashboard/projects/many-tabs/apps/web/performance',
   many: '/dashboard/projects/many-tabs',
   pulls: '/dashboard/projects/many-tabs/pulls',
   issues: '/dashboard/projects/many-tabs/issues',
@@ -270,6 +279,27 @@ const pages = {
   preparing: '/dashboard/projects/preparing/code',
   small: '/dashboard/projects/small',
 };
-console.log(JSON.stringify({ username: owner, token: account.token, pages }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      username: owner,
+      token: account.token,
+      pages,
+      cookieSignIn: {
+        method: 'POST',
+        path: '/api/v2/auth/session',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-deploy-username': owner,
+          'x-deploy-token': account.token,
+        },
+        body: {},
+        note: 'POST with the browser context request client before page.goto; it retains the validated HttpOnly cookie. Keep localStorage credentials for existing live API calls.',
+      },
+    },
+    null,
+    2,
+  ),
+);
 db.close();
 store._resetDb();

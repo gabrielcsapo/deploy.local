@@ -8,17 +8,22 @@ From the repository root, with dependencies installed:
 
 ```sh
 export DEPLOY_DATA_DIR="$(mktemp -d /tmp/project-pages.XXXXXX)"
-node --import tsx docs/evidence/project-pages/seed.mts
+node --import tsx docs/evidence/project-pages/seed.mts > /tmp/project-pages-seed.json
 pnpm build
 DEPLOY_ROLE=control CONTROL_PORT=5188 DEPLOY_MDNS_ADDRESS=127.0.0.1 \
+  DEPLOY_PUBLIC_ORIGIN=http://127.0.0.1:5188 \
   DOCKER_HOST=unix:///nonexistent/docker.sock node dist/server.js
 ```
 
-Seed before starting the server. Use an empty directory: the seed creates `owner` and refuses to replace an existing account. It prints JSON containing `username`, `token` and `pages`. It writes terminal pipeline jobs, releases, project membership, variables and encrypted fixture secrets. It constructs small bare repositories directly from Git objects, without running Git mutation commands, workers, Docker or network requests. The app's repository readers still use the real Git read APIs.
+Seed before starting the server. Use an empty directory: the seed creates `owner` and refuses to replace an existing account. It prints JSON containing `username`, `token`, `pages`, and `cookieSignIn` (the validated cookie-adoption endpoint, headers and body). Keep this output private: it contains fixture credentials. It writes terminal pipeline jobs, releases, project membership, variables and encrypted fixture secrets. It constructs small bare repositories directly from Git objects, without running Git mutation commands, workers, Docker or network requests. The app's repository readers still use the real Git read APIs.
 
-Authenticate Playwright on the server's origin with the printed token:
+Authenticate Playwright on the server's origin with the printed token. The cookie authenticates server renders; local storage authenticates subsequent browser API calls:
 
 ```js
+await context.request.post(`${origin}/api/v2/auth/session`, {
+  headers: { 'x-deploy-username': 'owner', 'x-deploy-token': token },
+  data: {},
+});
 await context.addInitScript(
   ({ username, token }) => {
     localStorage.setItem('deploy-sh-auth', JSON.stringify({ username, token }));
@@ -29,6 +34,20 @@ await page.goto('http://127.0.0.1:5188/dashboard/projects/many-tabs');
 ```
 
 Deployments are deliberately stopped: no health probes or Docker containers are needed. They therefore say Stopped, not the board's sample Healthy. HTTP recording remains known independently of runtime health. `unmeasured` is a private service with a TCP interface and no published HTTP route; it has no HTTP traffic to record. Missing resource samples correctly say Not measured; `pantry` has no configured memory limit.
+
+## Server-first automated proof
+
+After starting the built app above, run in a second shell:
+
+```sh
+node docs/evidence/project-pages/server-first.mjs \
+  http://127.0.0.1:5188 /tmp/project-pages-seed.json \
+  output/project-pages/server-first
+```
+
+The runner signs in through the validated cookie endpoint, checks cookie attributes, and visits the project list, every many-tabs tab, nested app pages, pull/release details and the other project fixtures at 1440 and 700 px. Each direct load uses a fresh page cache. The browser uses a different timezone and locale from the server. It writes HTML, screenshots and `report.json`; each report includes HTML data presence, first complete paint time, API request counts before that paint and in the first two seconds, any skeleton observed by a mutation observer, hydration errors, and repeated fresh seeded GETs. It also delays all requests by 300 ms during an unprefetched tab click and checks that the previous page stays while the clicked tab is pending. Any failed assertion exits nonzero.
+
+See [server-first implementation and verification](server-first.md) for route coverage, identity handling, changed files, test results and remaining limitations. The older verification inventory below describes the preceding project-page layout work, not this server-first change.
 
 ## States and paths
 
@@ -61,11 +80,11 @@ Multi-app project tabs retain existing availability: Requests and Performance ar
 
 ## Navigation proof
 
-After the initial project load, retain references to `header.dl-head` and `.v2-project-page .dl-tabs`. Click through Overview → Code → Pull requests → Issues → Apps → Pipelines → Releases → Logs → Settings, then back/forward. Assert those same DOM nodes remain connected and identical throughout, including pending RSC responses. Delay RSC requests to make the loading boundary observable: only content beneath the tabs may show a skeleton. Check computed `display: inline-flex` and the label/count gap on the Pull requests tab. Repeat on pantry including Requests and Performance, and on the small project.
+After the initial project load, retain references to `header.dl-head` and `.v2-project-page .dl-tabs`. Click through Overview → Code → Pull requests → Issues → Apps → Pipelines → Releases → Logs → Settings, then back/forward. Assert those same DOM nodes remain connected and identical throughout, including pending RSC responses. Delay requests by 300 ms: the clicked tab must be pending, the previous content must remain until the destination is ready, and no fallback or skeleton may appear. Check computed `display: inline-flex` and the label/count gap on the Pull requests tab. Repeat on pantry including Requests and Performance, and on the small project.
 
 At 700, choose a tab beyond the visible edge and resize with that tab selected. It must be revealed without scrolling the page. The trailing fade appears only when content remains beyond the right edge. Scroll to the final tab and check the fade clears. Retained counts must survive a failed refresh, not turn into zero or disappear.
 
-For loading proof, delay `/api/v2/live/pantry`: the metric area must show a skeleton until its first answer. Reject the request: show the retry notice, not zero traffic. Subsequent refreshes retain previously known answers. Missing browser timings, ratings and layout-shift values on Performance say Not measured and explain what was not reported; zero-request comparison periods use a dash and “No requests to time”. These partial telemetry cases are covered by component tests; the seed intentionally has no browser telemetry producer.
+For server-first proof, the initial response must contain the pantry metrics and the browser must skip the fresh seeded `/api/v2/live/pantry` request. Separately test the legacy path without a cookie: delaying that request retains the original skeleton, and rejecting it shows the retry notice, not zero traffic. Subsequent refreshes retain previously known answers. Missing browser timings, ratings and layout-shift values on Performance say Not measured and explain what was not reported; zero-request comparison periods use a dash and “No requests to time”. These partial telemetry cases are covered by component tests; the seed intentionally has no browser telemetry producer.
 
 ## Differences from the board
 

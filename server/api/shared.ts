@@ -94,27 +94,8 @@ export function error(res: ServerResponse, message: string, status = 400) {
 //     usual __action round-trip to fetch dashboard data.
 //   - X-Deploy-Username / X-Deploy-Token headers — used by the CLI and by
 //     existing client-side `'use server'` calls that pass auth explicitly.
-export const AUTH_COOKIE = 'deploy-sh-auth';
-
-function parseAuthCookie(req: IncomingMessage): { username?: string; token?: string } {
-  const raw = req.headers.cookie;
-  if (!raw) return {};
-  for (const part of raw.split(';')) {
-    const [name, ...rest] = part.trim().split('=');
-    if (name === AUTH_COOKIE) {
-      const value = rest.join('=');
-      try {
-        const decoded = decodeURIComponent(value);
-        const sep = decoded.indexOf(':');
-        if (sep === -1) return {};
-        return { username: decoded.slice(0, sep), token: decoded.slice(sep + 1) };
-      } catch {
-        return {};
-      }
-    }
-  }
-  return {};
-}
+export { AUTH_COOKIE, parseAuthCookie } from '../auth-cookie.ts';
+import { parseAuthCookie, clearAuthCookie, buildAuthCookie } from '../auth-cookie.ts';
 
 function getAuth(req: IncomingMessage) {
   const username = (req.headers['x-deploy-username'] as string | undefined) ?? undefined;
@@ -129,9 +110,13 @@ export function requireAuth(
 ): { username: string; token: string } | null {
   const { username, token } = getAuth(req);
   if (!authenticate(username, token)) {
+    if (req.headers.cookie) res.setHeader('Set-Cookie', clearAuthCookie(req));
     error(res, 'Unauthorized', 401);
     return null;
   }
+  const cookie = parseAuthCookie(req);
+  if (req.headers['x-deploy-token'] && (cookie.username !== username || cookie.token !== token))
+    res.setHeader('Set-Cookie', buildAuthCookie(username!, token!, req));
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     const app = new URL(req.url || '/', 'https://localhost').pathname.match(
       /^\/api\/(?:deployments|components)\/([^/]+)/,

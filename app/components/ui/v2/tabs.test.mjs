@@ -17,6 +17,7 @@ test('selected tab scrolls within its strip and overflow fades only while more t
   const h = await componentHarness(
     'app/components/ui/v2/Tabs.tsx',
     {
+      'react-flight-router/client': { Link: 'a' },
       './shared': { stateProps: () => ({}) },
     },
     {

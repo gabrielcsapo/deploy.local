@@ -51,7 +51,7 @@ const refreshes = new Map<
 >();
 async function projectNames(owner: string) {
   return new Map(
-    (await projectsForOwner(owner)).flatMap((project) =>
+    (await projectsForOwner(owner, true)).flatMap((project) =>
       project.apps.map((app) => [app.name, project.id] as const),
     ),
   );
@@ -242,15 +242,15 @@ async function collectLive(owner: string): Promise<LiveResponse> {
     list('v2-worker-health', owner).map((row) => [row.id, row.state as WorkerState]),
   );
   const releases = currentProjectReleases(owner);
+  const deployments = getDeployments(owner);
+  const installed = getSqlite()!.prepare(
+    'SELECT 1 FROM catalog_installations WHERE application_name=?',
+  );
   const discoveries = new Set(
-    (
-      getSqlite()!.prepare('SELECT application_name FROM catalog_installations').all() as {
-        application_name: string;
-      }[]
-    ).map((row) => row.application_name),
+    deployments.filter((app) => installed.get(app.name)).map((app) => app.name),
   );
   const computers: LiveResponse['computers'] = [];
-  for (const deployment of getDeployments(owner)) {
+  for (const deployment of deployments) {
     const nodeId = deployment.activeNodeId || 'coordinator';
     const node = nodes.find((n) => n.id === nodeId);
     const online = node?.online ?? nodeId === 'coordinator';
@@ -398,6 +398,37 @@ export async function getLive(owner: string, invalidateRefresh = true): Promise<
   return entry.pending;
 }
 
+/** The same owner-filtered projection used by the API and server pages. */
+export async function getLiveApp(owner: string, appId: string, snapshot?: LiveResponse) {
+  const live = snapshot ?? (await getLive(owner));
+  const app = live.computers.flatMap((c) => c.apps).find((a) => a.appId === appId);
+  if (!app) fail('App not found', 404);
+  const report = list('v2-worker-health', owner).find((r) => r.id === appId);
+  const now = Date.now();
+  const response: LiveAppResponse = {
+    app,
+    ...(app.release && app.project
+      ? { release: releaseById(owner, app.release, app.project) }
+      : {}),
+    history:
+      app.kind === 'worker'
+        ? (report?.state.samples ?? [])
+            .filter((sample: any) => now - sample.at <= 3600_000)
+            .map((sample: any) => ({
+              at: new Date(sample.at).toISOString(),
+              ...(sample.jobs ? { failRate: sample.failures / sample.jobs } : {}),
+            }))
+        : getRequestSeries(appId, now - 3600_000, now)
+            .series.filter((sample) => sample.count > 0)
+            .map((sample) => ({
+              at: new Date(sample.bucket).toISOString(),
+              p95ms: sample.p95,
+            })),
+  };
+
+  return response;
+}
+
 export async function liveApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -480,31 +511,7 @@ export async function liveApi(
       if (path === '/api/v2/live') send(live);
       else {
         const appId = decodeURIComponent(path.slice('/api/v2/live/'.length));
-        const app = live.computers.flatMap((c) => c.apps).find((a) => a.appId === appId);
-        if (!app) fail('App not found', 404);
-        const report = list('v2-worker-health', auth.username).find((r) => r.id === appId);
-        const now = Date.now();
-        const response: LiveAppResponse = {
-          app,
-          ...(app.release && app.project
-            ? { release: releaseById(auth.username, app.release, app.project) }
-            : {}),
-          history:
-            app.kind === 'worker'
-              ? (report?.state.samples ?? [])
-                  .filter((sample: any) => now - sample.at <= 3600_000)
-                  .map((sample: any) => ({
-                    at: new Date(sample.at).toISOString(),
-                    ...(sample.jobs ? { failRate: sample.failures / sample.jobs } : {}),
-                  }))
-              : getRequestSeries(appId, now - 3600_000, now)
-                  .series.filter((sample) => sample.count > 0)
-                  .map((sample) => ({
-                    at: new Date(sample.bucket).toISOString(),
-                    p95ms: sample.p95,
-                  })),
-        };
-        send(response);
+        send(await getLiveApp(auth.username, appId, live));
       }
     };
     await dispatch(

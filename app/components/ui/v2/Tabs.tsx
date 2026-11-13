@@ -1,4 +1,5 @@
 'use client';
+import { Link } from 'react-flight-router/client';
 import { useEffect, useRef, useState } from 'react';
 import { type ComponentState, stateProps } from './shared';
 export type TabItem = { label: string; href: string; count?: number; disabled?: boolean };
@@ -8,7 +9,8 @@ export function Tabs({
   label = 'Sections',
   disabled,
   loading,
-}: ComponentState & { items: TabItem[]; value: string; label?: string }) {
+  retainContent,
+}: ComponentState & { items: TabItem[]; value: string; label?: string; retainContent?: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const [more, setMore] = useState(false);
   const signature = items.map((item) => `${item.href}:${item.count}`).join('|');
@@ -48,18 +50,45 @@ export function Tabs({
       aria-label={label}
       {...stateProps({ disabled, loading })}
     >
-      {items.map((item) => (
-        <a
-          key={item.href}
-          href={item.disabled ? undefined : item.href}
-          aria-disabled={item.disabled || undefined}
-          aria-current={value === item.href ? 'page' : undefined}
-          className={value === item.href ? 'on' : ''}
-        >
-          {item.label}
-          {item.count !== undefined && <span className="dl-n">{item.count}</span>}
-        </a>
-      ))}
+      {items.map((item) => {
+        const content = (
+          <>
+            {item.label}
+            {item.count !== undefined && <span className="dl-n">{item.count}</span>}
+          </>
+        );
+        return retainContent && !item.disabled ? (
+          <Link
+            key={item.href}
+            to={item.href}
+            prefetch="intent"
+            retainContent
+            aria-current={value === item.href ? 'page' : undefined}
+            className={({ isPending }) =>
+              `${value === item.href ? 'on' : ''}${isPending ? ' loading' : ''}`
+            }
+          >
+            {({ isPending }) => (
+              <>
+                <span data-loading={isPending || undefined} aria-busy={isPending || undefined}>
+                  {item.label}
+                </span>
+                {item.count !== undefined && <span className="dl-n">{item.count}</span>}
+              </>
+            )}
+          </Link>
+        ) : (
+          <a
+            key={item.href}
+            href={item.disabled ? undefined : item.href}
+            aria-disabled={item.disabled || undefined}
+            aria-current={value === item.href ? 'page' : undefined}
+            className={value === item.href ? 'on' : ''}
+          >
+            {content}
+          </a>
+        );
+      })}
     </nav>
   );
 }

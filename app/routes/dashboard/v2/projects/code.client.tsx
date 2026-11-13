@@ -1,4 +1,5 @@
 'use client';
+import { useProjectFormatting } from './formatting.ts';
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
@@ -15,15 +16,9 @@ import {
   Item,
   Skeleton,
 } from '@/components/ui';
-import { request, useData, type Overview } from './data';
+import { request, useData, useBrowserOrigin, type Overview } from './data';
 import { projectPath, projectSegment } from './routing';
-import {
-  fileSize,
-  repositoryTime,
-  sourceLines,
-  sourceMarkdown,
-  type RepositoryCommit,
-} from './code';
+import { fileSize, sourceLines, sourceMarkdown, type RepositoryCommit } from './code';
 import './code.css';
 
 export function CopyButton({ value, label }: { value: string; label: string }) {
@@ -65,6 +60,8 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 export function ProjectCode({ overview }: { overview: Overview }) {
+  const { repositoryTime, formatCount } = useProjectFormatting();
+  const origin = useBrowserOrigin();
   const [params, setParams] = useSearchParams();
   const path = params.get('path') || '';
   const file = params.get('file') || '';
@@ -289,7 +286,7 @@ export function ProjectCode({ overview }: { overview: Overview }) {
                   'History'
                 ) : (
                   <>
-                    <b>{tree.data?.commitCount.toLocaleString()}</b> commits
+                    <b>{tree.data && formatCount(tree.data.commitCount)}</b> commits
                   </>
                 )}
               </a>
@@ -436,11 +433,15 @@ export function ProjectCode({ overview }: { overview: Overview }) {
             <input
               aria-label="Clone URL"
               readOnly
-              value={new URL(overview.repository?.clonePath || base, window.location.origin).href}
+              value={
+                new URL(overview.repository?.clonePath || base, origin || 'http://localhost').href
+              }
             />
             <CopyButton
               label="Copy clone URL"
-              value={new URL(overview.repository?.clonePath || base, window.location.origin).href}
+              value={
+                new URL(overview.repository?.clonePath || base, origin || 'http://localhost').href
+              }
             />
           </label>
         )}

@@ -35,12 +35,12 @@ export function appAddress(app: LiveApp) {
   return app.address?.replace(/^https?:\/\//, '') || 'no address';
 }
 
-export function runningSubtitle(apps: LiveApp[], repository?: string) {
+export function runningSubtitle(apps: LiveApp[], repository?: string, time = formatTime) {
   const app = apps[0];
   if (!app?.release || apps.some((entry) => entry.release !== app.release))
     return 'Open an app for its health, releases, logs and settings.';
   const ref = app.source?.gitRef || app.source?.ref;
-  return `Release ${releaseLabel(app.release, app.source)}${repository ? ` from ${repository}` : ''}${ref ? ` on ${ref}` : ''}${app.releasedAt ? `, shipped ${formatTime(app.releasedAt, 'clock')}` : ''}. Open an app for its health, releases, logs and settings.`;
+  return `Release ${releaseLabel(app.release, app.source)}${repository ? ` from ${repository}` : ''}${ref ? ` on ${ref}` : ''}${app.releasedAt ? `, shipped ${time(app.releasedAt, 'clock')}` : ''}. Open an app for its health, releases, logs and settings.`;
 }
 
 /** Aggregate the existing Live states; no runtime checks or independent health model. */

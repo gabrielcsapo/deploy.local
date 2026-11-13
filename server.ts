@@ -1,3 +1,5 @@
+import { parseAuthCookie, clearAuthCookie } from './server/auth-cookie.ts';
+import { authenticate } from './server/store.ts';
 import { flightLogLine, logFlightRouterError } from './server/flight-router-error.ts';
 // The built server: dist/server.js, which `pnpm start` runs through dist/supervisor.js. Everything is
 // bootServer's; this file adds only the built web app.
@@ -10,6 +12,7 @@ async function createFlightClient(): Promise<ClientHandler> {
   try {
     flightApp = await createFlightServer({
       buildDir: './dist',
+      cacheControl: { html: 'private, no-store, no-transform' },
       // The app has no server actions, so the router starts no worker threads.
       // Bound the synchronous render phase. Without this, a stuck server
       // component (e.g. awaiting an unreachable upstream) pins the request
@@ -34,10 +37,15 @@ async function createFlightClient(): Promise<ClientHandler> {
   }
   // Converts the request, strips HTTP/2 pseudo-headers and hop-by-hop headers,
   // writes at the client's pace and stops the render when the client leaves.
-  // The router's default Cache-Control makes the HTML document revalidate on
-  // every load (`no-cache`), so a page left open across a release never asks
-  // for hashed chunks that were deleted.
-  return flightApp.nodeListener;
+  // Identity-bearing HTML must never enter a shared cache. Revoked browser
+  // sessions also discard their cookie when requesting a document or RSC payload.
+  const listener = flightApp.nodeListener;
+  return (req, res) => {
+    const cookie = parseAuthCookie(req);
+    if (cookie.token && !authenticate(cookie.username, cookie.token))
+      res.setHeader('Set-Cookie', clearAuthCookie(req));
+    return listener(req, res);
+  };
 }
 
 void bootServer({

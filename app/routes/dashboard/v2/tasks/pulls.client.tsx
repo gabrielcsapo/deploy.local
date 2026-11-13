@@ -1,11 +1,12 @@
 'use client';
+import { useProjectFormatting } from '../projects/formatting.ts';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import { Action, Banner, Empty, Icon, Item, Seg, Skeleton } from '@/components/ui';
 import type { TaskPull } from './types';
 import { useData } from '../projects/data';
 import { projectSegment } from '../projects/routing';
-import { pullElapsed, pullHref, pullMeta } from './pull-presentation';
+import { pullHref, pullMeta } from './pull-presentation';
 import PullRequest from './pull.client';
 import './style.css';
 import './pulls.css';
@@ -22,6 +23,7 @@ export default function PullRequests() {
 }
 
 function PullList({ project }: { project: string }) {
+  const { pullElapsed } = useProjectFormatting();
   const [status, setStatus] = useState('open');
   const [search, setSearch] = useState('');
   const [before, setBefore] = useState<number>();

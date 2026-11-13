@@ -27,6 +27,7 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { liveRequest, useLive } from './data';
 import { formatTime } from '../data/time';
+import { useProjectFormatting } from '../projects/formatting';
 import { authenticatedFetch } from '../data/hooks';
 import { useData, type Overview as ProjectOverview } from '../projects/data';
 import { appPath, projectPath } from '../projects/routing';
@@ -528,8 +529,9 @@ function Overview({
   );
 }
 function History({ detail }: { detail: LiveAppResponse }) {
+  const { now } = useProjectFormatting();
   const samples = detail.history.filter((point) => point.failRate !== undefined);
-  const start = Date.now() - 3600_000;
+  const start = now - 3600_000;
   const points = (failed: boolean) =>
     samples
       .map(
@@ -614,6 +616,7 @@ export function AppDetail({
   projectName?: string;
   refresh: () => void;
 }) {
+  const { formatTime, now, formatCount } = useProjectFormatting();
   const app = detail.app;
   const overview = useData<ProjectOverview>(
     `/api/v2/projects/${encodeURIComponent(app.project || `app:${app.name}`)}/overview`,
@@ -725,7 +728,7 @@ export function AppDetail({
                 title="Queue"
                 description={
                   app.queue
-                    ? `${app.queue.depth.toLocaleString()} waiting · oldest ${Math.ceil(app.queue.oldestSec / 60)} min`
+                    ? `${formatCount(app.queue.depth)} waiting · oldest ${Math.ceil(app.queue.oldestSec / 60)} min`
                     : 'Not measured · Queue depth was not reported'
                 }
                 lead={
@@ -769,15 +772,15 @@ export function AppDetail({
           <Item
             title="Heartbeat"
             description={
-              app.heartbeatAt ? `Last seen ${age(app.heartbeatAt)} ago` : 'Heartbeat unavailable'
+              app.heartbeatAt
+                ? `Last seen ${formatTime(app.heartbeatAt, 'elapsed')} ago`
+                : 'Heartbeat unavailable'
             }
             lead={
               <Icon
                 name="check"
                 className={
-                  app.heartbeatAt && Date.now() - Date.parse(app.heartbeatAt) < 90000
-                    ? 'dl-ok'
-                    : 'dl-attn'
+                  app.heartbeatAt && now - Date.parse(app.heartbeatAt) < 90000 ? 'dl-ok' : 'dl-attn'
                 }
               />
             }

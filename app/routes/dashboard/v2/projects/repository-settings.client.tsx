@@ -1,11 +1,12 @@
 'use client';
+import { useProjectFormatting } from './formatting.ts';
 import { useEffect, useState } from 'react';
 import { Action, Banner, Dialog, Field, Group, Setting } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { useCoordinatorName } from '../data/hooks';
-import { formatTime } from '../data/time';
+
 import { pullHref } from '../tasks/pull-presentation';
-import { request, useData, type Overview } from './data';
+import { request, useData, useBrowserHost, type Overview } from './data';
 import { projectSegment } from './routing';
 
 type Repository = NonNullable<Overview['repository']> & {
@@ -19,6 +20,8 @@ type Repository = NonNullable<Overview['repository']> & {
 
 /** Where the repository lives: hosted here, and the remote it keeps in sync, if any. */
 export function RepositorySettings({ project }: { project: Project }) {
+  const { formatTime } = useProjectFormatting();
+  const host = useBrowserHost();
   const coordinator = useCoordinatorName();
   const base = `/api/workspace/projects/${projectSegment(project.id)}/repository`;
   const repository = useData<Repository>(base);
@@ -97,7 +100,7 @@ export function RepositorySettings({ project }: { project: Project }) {
           description="Tasks, reviews and releases work from this copy"
         >
           <code>
-            {window.location.host}
+            {host}
             {data.clonePath}
           </code>
         </Setting>

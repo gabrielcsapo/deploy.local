@@ -108,7 +108,7 @@ export default defineConfig({
     exclude: ['better-sqlite3'],
   },
   ssr: {
-    external: ['better-sqlite3'],
+    external: ['better-sqlite3', 'ssh2'],
   },
   server: {
     watch: {

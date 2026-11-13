@@ -48,6 +48,8 @@ interface LinkProps extends Omit<
    * Requires `<ScrollRestoration />`; back/forward still restores normally.
    */
   preventScrollReset?: boolean;
+  /** Retain revealed content until this destination is ready. */
+  retainContent?: boolean;
 }
 
 /**
@@ -90,6 +92,7 @@ export function Link({
   prefetch = 'none',
   intoSlot,
   preventScrollReset,
+  retainContent,
   ...rest
 }: LinkProps) {
   // The narrow hooks may return null during production SSR when the context
@@ -154,7 +157,7 @@ export function Link({
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onClick?.(e);
-    navigate?.(resolvedTo, preventScrollReset ? { preventScrollReset: true } : undefined);
+    navigate?.(resolvedTo, { preventScrollReset, retainContent });
   };
 
   const resolvedClassName = typeof className === 'function' ? className(renderProps) : className;

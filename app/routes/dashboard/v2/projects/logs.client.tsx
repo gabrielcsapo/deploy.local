@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { Action, Banner, ChipSelect, Icon, Status } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
+import { useDataSeed, freshSeed } from '../data/seeds';
+import { remembered } from '../data/hooks';
 import { authenticatedFetch, request } from './data';
 import { projectSegment } from './routing';
 import { logStreamStatus, type LogStreamState } from './logs';
@@ -9,6 +11,8 @@ import { logStreamStatus, type LogStreamState } from './logs';
 const connecting: LogStreamState = { openStreams: 0, hasOpened: false, finished: false };
 
 export function ProjectLogs({ project, selected }: { project: Project; selected: string }) {
+  const seed = useDataSeed();
+  const sourcePath = `/api/v2/projects/${projectSegment(project.id)}/logs?app=${encodeURIComponent(selected)}`;
   const [lines, setLines] = useState<{ app: string; text: string }[]>([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
@@ -28,10 +32,13 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
     setStream(connecting);
     async function start() {
       try {
-        const { sources } = await request<{ sources: { app: string; url: string }[] }>(
-          `/api/v2/projects/${projectSegment(project.id)}/logs?app=${encodeURIComponent(selected)}`,
-          { signal: controller.signal },
-        );
+        const { sources } =
+          (retry === 0 && freshSeed(seed, sourcePath)
+            ? remembered<{ sources: { app: string; url: string }[] }>(sourcePath, seed)
+            : undefined) ??
+          (await request<{ sources: { app: string; url: string }[] }>(sourcePath, {
+            signal: controller.signal,
+          }));
         if (controller.signal.aborted) return;
         await Promise.all(
           sources.map(async (source) => {
@@ -83,7 +90,7 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
     }
     void start();
     return () => controller.abort();
-  }, [project.id, selected, retry]);
+  }, [project.id, selected, retry, seed, sourcePath]);
   return (
     <>
       <div className="v2-project-toolbar v2-log-toolbar">

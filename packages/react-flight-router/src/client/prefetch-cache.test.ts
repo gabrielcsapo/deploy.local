@@ -123,3 +123,31 @@ describe('prefetch telemetry provenance', () => {
     expect(provenance).toHaveBeenLastCalledWith('miss');
   });
 });
+
+it('clears completed and in-flight responses across an identity change', async () => {
+  const { clearPrefetchCache, prefetchRSC, consumePrefetch } = await import('./prefetch-cache.js');
+  let resolveOld!: (response: Response) => void;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveOld = resolve;
+        }),
+    ),
+  );
+  prefetchRSC('/private-page');
+  clearPrefetchCache();
+  resolveOld(new Response('old identity'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(consumePrefetch('/private-page', '')).toBeNull();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response('new identity')),
+  );
+  prefetchRSC('/private-page');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(await consumePrefetch('/private-page', '')?.text()).toBe('new identity');
+  clearPrefetchCache();
+  vi.unstubAllGlobals();
+});

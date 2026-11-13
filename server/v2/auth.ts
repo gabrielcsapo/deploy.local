@@ -22,9 +22,8 @@ import { devices, pairDevice, exchangeDevice, removeDevice } from './devices.ts'
 import { fail } from '../errors.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
-function cookie(username: string, token: string) {
-  return `deploy-sh-auth=${encodeURIComponent(`${username}:${token}`)}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=2592000`;
-}
+import { buildAuthCookie, clearAuthCookie, parseAuthCookie } from '../auth-cookie.ts';
+import { authenticate } from '../store.ts';
 const attempts = new Map<string, { count: number; until: number }>();
 export function limitAuth(req: IncomingMessage) {
   const key = req.socket.remoteAddress || 'unknown';
@@ -107,7 +106,7 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
           path: '/setup',
           handler: () => {
             const result = setupAccount(body);
-            res.setHeader('Set-Cookie', cookie(result.username, result.token));
+            res.setHeader('Set-Cookie', buildAuthCookie(result.username, result.token, req));
             return send(result, 201);
           },
         }),
@@ -121,20 +120,56 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
           path: '/auth/passkey/login/verify',
           handler: async () => {
             const result = await loginVerify(body.challengeId, body.response);
-            res.setHeader('Set-Cookie', cookie(result.username, result.token));
+            res.setHeader('Set-Cookie', buildAuthCookie(result.username, result.token, req));
             return send({ username: result.username, token: result.token });
+          },
+        }),
+        route({
+          method: 'POST',
+          path: '/auth/session',
+          handler: () => {
+            // Adoption must validate the explicit token, never fall back to a different cookie.
+            const username = req.headers['x-deploy-username'];
+            const token = req.headers['x-deploy-token'];
+            if (
+              typeof username !== 'string' ||
+              typeof token !== 'string' ||
+              !authenticate(username, token)
+            ) {
+              res.setHeader('Set-Cookie', clearAuthCookie(req));
+              fail('Unauthorized', 401);
+            }
+            res.setHeader('Set-Cookie', buildAuthCookie(username, token, req));
+            return send({ adopted: true });
+          },
+        }),
+        route({
+          method: 'DELETE',
+          path: '/auth/session',
+          handler: () => {
+            res.setHeader('Set-Cookie', clearAuthCookie(req));
+            return send({ cleared: true });
           },
         }),
         route({ method: 'POST', path: '/auth/cli/start', handler: () => send(cliLoginStart()) }),
         route({
           method: 'POST',
           path: '/auth/cli/poll',
-          handler: () => send(cliPoll(body.deviceCode)),
+          handler: () => {
+            const result = cliPoll(body.deviceCode);
+            if (result.username && result.token)
+              res.setHeader('Set-Cookie', buildAuthCookie(result.username, result.token, req));
+            return send(result);
+          },
         }),
         route({
           method: 'POST',
           path: '/devices/exchange',
-          handler: () => send(exchangeDevice(body.token, body.name), 201),
+          handler: () => {
+            const result = exchangeDevice(body.token, body.name);
+            res.setHeader('Set-Cookie', buildAuthCookie(result.username, result.token, req));
+            return send(result, 201);
+          },
         }),
       ],
       options,
@@ -192,6 +227,9 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
         path: '/devices/:id',
         handler: ({ params }) => {
           removeDevice(owner, decodeURIComponent(params.id));
+          const cookie = parseAuthCookie(req);
+          if (cookie.token && !authenticate(cookie.username, cookie.token))
+            res.setHeader('Set-Cookie', clearAuthCookie(req));
           return send({ removed: true });
         },
       }),
