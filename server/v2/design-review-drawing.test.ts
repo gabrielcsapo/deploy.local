@@ -22,8 +22,8 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-async function call(path: string, body?: object) {
-  const url = new URL(`http://test.invalid/api/v2/projects/many/design${path}`);
+async function call(path: string, body?: object, project = 'many') {
+  const url = new URL(`http://test.invalid/api/v2/projects/${project}/design${path}`);
   const req = Object.assign(Readable.from(body ? [Buffer.from(JSON.stringify(body))] : []), {
     url: url.pathname + url.search,
     method: body ? 'POST' : 'GET',
@@ -41,6 +41,16 @@ async function call(path: string, body?: object) {
   } as unknown as import('node:http').ServerResponse;
   await v2Api(req, res, () => ({ username: 'alice' }));
   return { status, json: JSON.parse(bytes.toString() || 'null') };
+}
+
+/** How many drawings have started once no more start. */
+async function settled(started: string[]) {
+  let count = -1;
+  for (let wait = 0; wait < 400 && (count !== started.length || !count); wait++) {
+    count = started.length;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return started.length;
 }
 
 function within<T>(ms: number, work: Promise<T>, message: string): Promise<T> {
@@ -75,6 +85,8 @@ function png() {
 /** Chromium that starts a drawing when asked and finishes it when the test says so. */
 function heldChromium() {
   const started: string[] = [];
+  /** What each drawing showed, so a drawing made twice is visible. */
+  const drawn: string[] = [];
   const held: (() => void)[] = [];
   let connected = true;
   const browser = {
@@ -90,6 +102,7 @@ function heldChromium() {
         return {
           setContent: async (html: string) => {
             started.push(`${/>(Many\d+)</.exec(html)?.[1]}@${options.deviceScaleFactor}`);
+            drawn.push(`${html}@${options.deviceScaleFactor}`);
             await new Promise<void>((resolve) => held.push(resolve));
           },
           evaluate: async () => (evaluated++ ? { boxes: {}, textBoxes: [], words: {} } : undefined),
@@ -101,6 +114,7 @@ function heldChromium() {
   return {
     browser,
     started,
+    drawn,
     held,
     /** Let the oldest held drawing finish, and wait until the next ones have started. */
     async finishOne() {
@@ -123,8 +137,8 @@ function heldChromium() {
   };
 }
 
-test('opening a many-screen review never waits for its drawings, and a looked-at screen draws first', async (t) => {
-  const repo = join(root, 'many');
+async function manyBoards(name: string) {
+  const repo = join(root, name);
   mkdirSync(join(repo, 'design/boards'), { recursive: true });
   const git = (args: string[]) => gitText(repo, args);
   await git(['init', '--initial-branch=main']);
@@ -154,12 +168,17 @@ test('opening a many-screen review never waits for its drawings, and a looked-at
   await git(['commit', '-qam', 'Rename in every sidebar']);
   await git(['checkout', '-q', 'main']);
   save('project', 'alice', {
-    id: 'many',
-    name: 'many',
+    id: name,
+    name,
     repositoryPath: repo,
     repositoryStatus: 'ready',
   });
 
+  return { repo, git, boards, page };
+}
+
+test('opening a many-screen review never waits for its drawings, and a looked-at screen draws first', async (t) => {
+  const { boards } = await manyBoards('many');
   const chromiumStandIn = heldChromium();
   t.mock.method(chromium, 'executablePath', () => process.execPath);
   t.mock.method(chromium, 'launch', async () => chromiumStandIn.browser);
@@ -172,10 +191,10 @@ test('opening a many-screen review never waits for its drawings, and a looked-at
   });
   assert.equal(proposed.status, 201);
   const item = proposed.json.item.id;
-  // The proposal starts drawing every screen in the background (two sides, then two densities).
-  for (let wait = 0; wait < 400 && chromiumStandIn.started.length < 3; wait++)
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  assert.equal(chromiumStandIn.started.length, 3, 'three drawings at a time');
+  // The proposal starts drawing every screen in the background (two sides, then two densities),
+  // a few at a time.
+  const atOnce = await settled(chromiumStandIn.started);
+  assert.ok(atOnce >= 3 && atOnce < boards.length, `${atOnce} drawings at a time`);
 
   // The canvas opens the review while no drawing has finished.
   const opened = await within(
@@ -185,7 +204,7 @@ test('opening a many-screen review never waits for its drawings, and a looked-at
   );
   assert.equal(opened.status, 200);
   assert.equal(opened.json.boards.length, boards.length);
-  assert.equal(chromiumStandIn.held.length, 3, 'opening it drew nothing and finished nothing');
+  assert.equal(chromiumStandIn.held.length, atOnce, 'opening it drew nothing and finished nothing');
 
   // Looking at the last screen asks for its areas; its two drawings go ahead of the rest.
   const last = opened.json.boards.at(-1);
@@ -212,4 +231,35 @@ test('opening a many-screen review never waits for its drawings, and a looked-at
   // and nothing drawn twice.
   assert.equal(chromiumStandIn.started.length, boards.length * 2 * 3);
   assert.equal(new Set(chromiumStandIn.started).size, boards.length * 3);
+});
+
+test('proposing the same branch again drops the earlier warm-up and draws only what changed', async (t) => {
+  const { git, boards, page, repo } = await manyBoards('again');
+  const chromiumStandIn = heldChromium();
+  t.mock.method(chromium, 'executablePath', () => process.execPath);
+  t.mock.method(chromium, 'launch', async () => chromiumStandIn.browser);
+  t.after(() => chromiumStandIn.disconnect());
+  const propose = () =>
+    call(
+      '/propose',
+      { ref: 'design/many', title: 'Artifacts', summary: 'Rename Design to Artifacts.' },
+      'again',
+    );
+  assert.equal((await propose()).status, 201);
+  await settled(chromiumStandIn.started);
+  // A second round changes one screen while the first round's screens are still drawing.
+  await git(['checkout', '-q', 'design/many']);
+  writeFileSync(join(repo, 'design/boards', boards[23]), page('Artifacts!', boards[23]));
+  await git(['commit', '-qam', 'One more change']);
+  await git(['checkout', '-q', 'main']);
+  assert.equal((await propose()).status, 201);
+  await chromiumStandIn.finishAll();
+  // Every screen before and after, at 1×, 2× and 3×, each drawn once: the first round's other
+  // drawings were dropped, and the second round reused what both rounds show.
+  assert.equal(
+    new Set(chromiumStandIn.drawn).size,
+    chromiumStandIn.drawn.length,
+    'none drawn twice',
+  );
+  assert.equal(chromiumStandIn.drawn.length, boards.length * 2 * 3);
 });

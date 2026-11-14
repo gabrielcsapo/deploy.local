@@ -17,13 +17,13 @@ import {
   type ReviewEvidence,
 } from '../../shared/v2/design-review.ts';
 import { gitString, tryGitText } from '../kernel/git.ts';
-import { mkdtemp, readFile as readDiskFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile as readDiskFile, rm, utimes, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { homeOf, readReleaseConfig } from './self-update-host.ts';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
@@ -1323,10 +1323,11 @@ export async function designReview(
     let building = reviewBuilding.get(builtKey);
     if (building) {
       // Someone is waiting for this build now, so its drawings stop giving way to others'.
-      if (!drawingLane.getStore()?.background) buildingLanes.get(builtKey)?.promote();
+      buildingLanes.get(builtKey)?.promote(Math.max(askingPriority(), drawingPriority.review));
     } else {
       // Its own place in line, so promoting it never promotes the rest of what was drawing ahead.
-      const lane = drawingTicket(drawingLane.getStore());
+      const parent = drawingLane.getStore();
+      const lane = parent ? childLane(parent) : childLane(undefined, drawingPriority.review);
       buildingLanes.set(builtKey, lane);
       building = drawingLane
         .run(lane, () =>
@@ -1343,6 +1344,11 @@ export async function designReview(
             metadataOnly,
           ),
         )
+        .then((result) => {
+          // Drawings were dropped half way: what is left is not this review's evidence.
+          if (lane.cancelled) throw new DrawingCancelled();
+          return result;
+        })
         .finally(() => {
           reviewBuilding.delete(builtKey);
           buildingLanes.delete(builtKey);
@@ -1658,6 +1664,8 @@ function recordProposal(
   };
   // A newer commit replaces the request for the same branch.
   const stale = `design:${project.id}:${branchKey(proposal.branch)}:`;
+  // Nobody will look at an earlier round's screens drawn ahead of time.
+  cancelWarmUps(stale, item.id);
   for (const row of list('v2-inbox-native', owner))
     if (row.id.startsWith(stale) && row.id !== item.id && row.item.state === 'waiting') {
       const withdrawn = { ...row.item, state: 'withdrawn' as const };
@@ -2105,25 +2113,34 @@ const renders = new Map<string, BoardRender>();
 const renderers = new Map<string, typeof drawBoard>();
 const rendering = new Map<string, Promise<BoardRender>>();
 const renderLimit = 64;
-// Renders also stay on disk, so a restart doesn't make a review draw every screen again.
-const renderFiles = 600;
+// Renders also stay on disk, so a restart doesn't make a review draw every screen again. The
+// 1× drawings reviews compare are kept for every board of a large design, before and after,
+// at each width; the 2× and 3× previews, which are bigger and drawn again on demand, fewer.
+const renderFiles = { 1: 4000, other: 1200 };
 let rendersWritten = 0;
-const renderPath = (key: string) =>
-  join(deployDataPath('design-renders'), createHash('sha256').update(key).digest('hex'));
-async function readRender(key: string): Promise<BoardRender | null> {
+const renderPath = (key: string, scale: number) =>
+  join(
+    deployDataPath('design-renders'),
+    `${createHash('sha256').update(key).digest('hex')}${scale === 1 ? '' : `@${scale}x`}`,
+  );
+async function readRender(key: string, scale: number): Promise<BoardRender | null> {
   try {
-    const path = renderPath(key);
-    return {
+    const path = renderPath(key, scale);
+    const rendered = {
       png: await readDiskFile(`${path}.png`),
       ...JSON.parse(await readDiskFile(`${path}.json`, 'utf8')),
     };
+    // Used drawings are the last to go.
+    const used = new Date();
+    await utimes(`${path}.png`, used, used).catch(() => {});
+    return rendered;
   } catch {
     return null;
   }
 }
-function writeRender(key: string, rendered: BoardRender) {
+function writeRender(key: string, scale: number, rendered: BoardRender) {
   try {
-    const path = renderPath(key);
+    const path = renderPath(key, scale);
     mkdirSync(deployDataPath('design-renders'), { recursive: true });
     writeFileSync(`${path}.png`, rendered.png);
     writeFileSync(
@@ -2145,51 +2162,92 @@ function pruneRenders() {
     .filter((name) => name.endsWith('.png'))
     .map((name) => ({ name, at: statSync(join(directory, name)).mtimeMs }))
     .sort((a, b) => b.at - a.at);
-  for (const { name } of files.slice(renderFiles)) {
-    rmSync(join(directory, name), { force: true });
-    rmSync(join(directory, name.replace(/\.png$/, '.json')), { force: true });
-  }
+  for (const [dense, limit] of [
+    [false, renderFiles[1]],
+    [true, renderFiles.other],
+  ] as const)
+    for (const { name } of files
+      .filter((file) => file.name.includes('x.png') === dense)
+      .slice(limit)) {
+      rmSync(join(directory, name), { force: true });
+      rmSync(join(directory, name.replace(/\.png$/, '.json')), { force: true });
+    }
 }
 
 // One Chromium draws every board, a few at a time, and closes after a minute without work.
-const drawLimit = 3;
+// Three at a time was fixed; with more cores more at once is faster (60 boards on 18 cores:
+// 11.2 s three at a time, 9.1 s six), so it grows with the cores, never below three.
+const drawLimit = Math.max(3, Math.min(6, Math.floor(availableParallelism() / 3)));
 let drawing = 0;
 /**
- * Drawings someone is waiting for go first. Drawings made ahead of time (a new proposal's
- * screens, drawn right after it is proposed) give way to them, so a review being looked at
- * never waits behind a few hundred screens nobody has asked for yet.
+ * One line for every drawing, in this order: a screen someone asked for right now (a preview),
+ * then the rest of a review someone has open, then a new proposal's screens drawn ahead of time
+ * at 1×, then its 2× and 3× previews. Equal drawings go first come, first served. Drawings
+ * nobody needs any more (a withdrawn or superseded proposal's warm-up) leave the line.
  */
-type DrawingLane = { readonly background: boolean; promote(): void };
+const drawingPriority = { asked: 0, review: 1, warm: 2, warmDensities: 3 } as const;
+type DrawingLane = {
+  readonly priority: number;
+  readonly cancelled: boolean;
+  /** Someone is waiting for it at this priority now. */
+  promote(priority: number): void;
+};
 const drawingLane = new AsyncLocalStorage<DrawingLane>();
-function backgroundLane(): DrawingLane {
-  let background = true;
+/** A lane of its own; with a parent it is as urgent as its parent, unless promoted past it. */
+function childLane(
+  parent: DrawingLane | undefined,
+  priority?: number,
+): DrawingLane & {
+  cancel(): void;
+} {
+  let promoted: number | undefined;
+  let cancelled = false;
   return {
-    get background() {
-      return background;
+    get priority() {
+      return Math.min(promoted ?? Infinity, priority ?? parent?.priority ?? drawingPriority.asked);
     },
-    promote() {
-      background = false;
+    get cancelled() {
+      return promoted === undefined && (cancelled || Boolean(parent?.cancelled));
+    },
+    promote(to: number) {
+      promoted = Math.min(promoted ?? Infinity, to);
+    },
+    cancel() {
+      cancelled = true;
     },
   };
 }
-/** One drawing's place in line: behind its lane, unless someone asked for it directly. */
-function drawingTicket(lane: DrawingLane | undefined): DrawingLane {
-  let promoted = false;
-  return {
-    get background() {
-      return !promoted && Boolean(lane?.background);
-    },
-    promote() {
-      promoted = true;
-    },
-  };
+const askingPriority = () => drawingLane.getStore()?.priority ?? drawingPriority.asked;
+class DrawingCancelled extends Error {
+  constructor() {
+    super('Nobody needs this drawing any more');
+  }
 }
 const drawingTickets = new Map<string, DrawingLane>();
 const buildingLanes = new Map<string, DrawingLane>();
-const drawQueue: { start: () => void; lane: DrawingLane | undefined }[] = [];
+const drawQueue: {
+  start: () => void;
+  stop: (error: Error) => void;
+  lane: DrawingLane | undefined;
+}[] = [];
 function nextDrawing() {
-  const at = drawQueue.findIndex((entry) => !entry.lane?.background);
-  return drawQueue.splice(at < 0 ? 0 : at, 1)[0]?.start();
+  for (let at = drawQueue.length - 1; at >= 0; at--)
+    if (drawQueue[at].lane?.cancelled) drawQueue.splice(at, 1)[0].stop(new DrawingCancelled());
+  let best = -1;
+  for (let at = 0; at < drawQueue.length; at++)
+    if (best < 0 || (drawQueue[at].lane?.priority ?? 0) < (drawQueue[best].lane?.priority ?? 0))
+      best = at;
+  if (best >= 0) drawQueue.splice(best, 1)[0].start();
+}
+/** Warm-ups by review, so a withdrawn or superseded review's warm-up can be stopped. */
+const warmLanes = new Map<string, ReturnType<typeof childLane>>();
+function cancelWarmUps(prefix: string, keep: string) {
+  for (const [itemId, lane] of warmLanes)
+    if (itemId.startsWith(prefix) && itemId !== keep) {
+      lane.cancel();
+      warmLanes.delete(itemId);
+    }
+  nextDrawing();
 }
 let chromiumLaunch: Promise<import('playwright').Browser> | null = null;
 let chromiumIdle: ReturnType<typeof setTimeout> | undefined;
@@ -2197,9 +2255,11 @@ async function withBoardChromium<T>(
   executablePath: string,
   work: (browser: import('playwright').Browser) => Promise<T>,
 ): Promise<T> {
+  const lane = drawingLane.getStore();
+  if (lane?.cancelled) throw new DrawingCancelled();
   if (drawing >= drawLimit)
-    await new Promise<void>((resolve) =>
-      drawQueue.push({ start: resolve, lane: drawingLane.getStore() }),
+    await new Promise<void>((resolve, reject) =>
+      drawQueue.push({ start: resolve, stop: reject, lane }),
     );
   drawing++;
   clearTimeout(chromiumIdle);
@@ -2278,7 +2338,9 @@ export async function renderBoardLayout(
   scale = 1,
   draw: typeof drawBoard = drawBoard,
 ): Promise<BoardRender> {
-  const key = `${repo}:${commit}:${board}:${width}:${height ?? 'board'}:${scale}`;
+  const key =
+    (await drawingKey(repo, commit, board, width, height, scale)) ||
+    `${repo}:${commit}:${board}:${width}:${height ?? 'board'}:${scale}`;
   const cached = renders.get(key);
   if (cached && (draw === drawBoard || renderers.get(key) === draw)) return cached;
   let work = rendering;
@@ -2289,17 +2351,17 @@ export async function renderBoardLayout(
   const pending = work.get(key);
   if (pending) {
     // Someone is waiting for this drawing now: it goes ahead of drawings made for later.
-    if (!drawingLane.getStore()?.background) drawingTickets.get(key)?.promote();
+    drawingTickets.get(key)?.promote(askingPriority());
     return pending;
   }
-  const ticket = drawingTicket(drawingLane.getStore());
-  const stored = draw === drawBoard ? await readRender(key) : null;
+  const ticket = childLane(drawingLane.getStore());
+  const stored = draw === drawBoard ? await readRender(key, scale) : null;
   const job = stored
     ? Promise.resolve(stored)
     : drawingLane
         .run(ticket, () => draw(repo, commit, board, width, height, scale))
         .then((rendered) => {
-          if (draw === drawBoard) writeRender(key, rendered);
+          if (draw === drawBoard) writeRender(key, scale, rendered);
           return rendered;
         });
   work.set(key, job);
@@ -2313,6 +2375,96 @@ export async function renderBoardLayout(
   } finally {
     work.delete(key);
     if (drawingTickets.get(key) === ticket) drawingTickets.delete(key);
+  }
+}
+
+/**
+ * What a drawing shows depends only on the board's file, the design system's stylesheets and
+ * the size, so a repository's drawings are kept by those, not by commit: a board main and a
+ * proposal share, or that a later round left alone, is drawn once. Null when the commit has no
+ * such board on its canvas; drawBoard then says why.
+ */
+async function drawingKey(
+  repo: string,
+  commit: string,
+  board: string,
+  width: number,
+  height: number | undefined,
+  scale: number,
+) {
+  const [canvas, tree] = await Promise.all([drawingCanvas(repo, commit), designTree(repo, commit)]);
+  const placed = canvas?.boards?.[board];
+  const blob = tree.get(`design/boards/${board}`);
+  if (!placed || !blob) return null;
+  const styles = [...tree]
+    .filter(([path]) => path.startsWith('design/ds/') && path.endsWith('.css'))
+    .map(([path, sha]) => `${path}=${sha}`)
+    .sort();
+  return `drawing:${createHash('sha256')
+    .update(JSON.stringify([repo, blob, styles, width, height ?? placed.h, scale]))
+    .digest('hex')}`;
+}
+/** The canvas at a commit, read once for every drawing made at it. */
+const drawingCanvases = new Map<string, Promise<Canvas | null>>();
+function drawingCanvas(repo: string, commit: string) {
+  const key = `${repo}:${commit}`;
+  let canvas = drawingCanvases.get(key);
+  if (!canvas) {
+    canvas = canvasAt(repo, commit);
+    drawingCanvases.set(key, canvas);
+    if (drawingCanvases.size > 64) drawingCanvases.delete(drawingCanvases.keys().next().value!);
+    canvas
+      .then((value) => value || drawingCanvases.delete(key))
+      .catch(() => drawingCanvases.delete(key));
+  }
+  return canvas;
+}
+/** design/ at a commit, path to blob. A commit never changes, so it is listed once. */
+const designTrees = new Map<string, Promise<Map<string, string>>>();
+function designTree(repo: string, commit: string) {
+  const key = `${repo}:${commit}`;
+  let tree = designTrees.get(key);
+  if (!tree) {
+    tree = reviewTree(repo, commit);
+    designTrees.set(key, tree);
+    if (designTrees.size > 64) designTrees.delete(designTrees.keys().next().value!);
+    // An empty listing may be a Git failure; only a real one is kept.
+    tree
+      .then((entries) => entries.size || designTrees.delete(key))
+      .catch(() => designTrees.delete(key));
+  }
+  return tree;
+}
+
+/**
+ * The design system's fonts, fetched from Google once and kept: every drawing has a fresh
+ * context, which would otherwise fetch them again each time. The same bytes, so the same pixels.
+ */
+const fonts = new Map<
+  string,
+  Promise<{ status: number; headers: Record<string, string>; body: Buffer }>
+>();
+async function fontResponse(route: import('playwright').Route) {
+  const url = route.request().url();
+  let font = fonts.get(url);
+  if (!font) {
+    font = route.fetch().then(async (response) => {
+      if (!response.ok()) throw new Error(`${url} answered ${response.status()}`);
+      return {
+        status: response.status(),
+        headers: response.headers(),
+        body: await response.body(),
+      };
+    });
+    fonts.set(url, font);
+    if (fonts.size > 64) fonts.delete(fonts.keys().next().value!);
+    font.catch(() => fonts.delete(url));
+  }
+  try {
+    await route.fulfill(await font);
+  } catch {
+    // Offline or refused: the board draws in its fallback font, as it always did.
+    await route.abort().catch(() => {});
   }
 }
 
@@ -2348,7 +2500,7 @@ async function drawBoard(
     try {
       await context.route('**/*', (route) =>
         /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(route.request().url())
-          ? route.continue()
+          ? fontResponse(route)
           : route.abort(),
       );
       const tab = await context.newPage();
@@ -2431,14 +2583,30 @@ export async function reviewPreview(
  * (2×) and iPhone (3×) ask for, so the first look at it is as fast as the second.
  */
 function warmReview(owner: string, project: any, repo: string, itemId: string) {
-  return drawingLane.run(backgroundLane(), () => warmDrawings(owner, project, repo, itemId));
+  const lane = childLane(undefined, drawingPriority.warm);
+  warmLanes.set(itemId, lane);
+  return drawingLane
+    .run(lane, () => warmDrawings(owner, project, repo, itemId, lane))
+    .finally(() => warmLanes.get(itemId) === lane && warmLanes.delete(itemId));
 }
-async function warmDrawings(owner: string, project: any, repo: string, itemId: string) {
+async function warmDrawings(
+  owner: string,
+  project: any,
+  repo: string,
+  itemId: string,
+  lane: DrawingLane,
+) {
   try {
     const row = reviewRow(owner, project.id, itemId);
-    for (const board of (await designReview(owner, project, row)).boards)
-      for (const scale of [2, 3])
-        await reviewPreview(repo, project.id, board, board.widths[0], renderBoardLayout, scale);
+    const { boards } = await designReview(owner, project, row);
+    // Then 2× and 3×, only when nothing more urgent is waiting.
+    await drawingLane.run(childLane(lane, drawingPriority.warmDensities), async () => {
+      for (const board of boards)
+        for (const scale of [2, 3]) {
+          if (lane.cancelled) return;
+          await reviewPreview(repo, project.id, board, board.widths[0], renderBoardLayout, scale);
+        }
+    });
   } catch {
     // Warming is only a head start; the review draws whatever is missing when it opens.
   }
