@@ -41,6 +41,15 @@ after(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+/** A failed poll answers 200 without a token: a 4xx would send npm and pnpm to a username prompt. */
+async function failedPoll(url: string) {
+  const response = await fetch(url);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.token, undefined);
+  assert.match(body.error, /Run npm login again/);
+}
+
 async function start(agent = 'npm/12.0.2 node/v26 darwin arm64') {
   const response = await fetch(origin + '/npm/-/v1/login', {
     method: 'POST',
@@ -77,7 +86,7 @@ test('npm and pnpm browser login hands out a publishing key exactly once', async
     assert.equal(waiting.status, 202);
     assert.equal(waiting.headers.get('Retry-After'), '1');
     assert.deepEqual(await waiting.json(), { pending: true });
-    assert.equal((await fetch(origin + '/npm/-/v1/login/done/' + login.id)).status, 410);
+    await failedPoll(origin + '/npm/-/v1/login/done/' + login.id);
     const details = await (await fetch(login.api, { headers: { cookie } })).json();
     assert.deepEqual(details, {
       client,
@@ -93,18 +102,21 @@ test('npm and pnpm browser login hands out a publishing key exactly once', async
     assert.equal((await finish(login, 'approve')).status, 409);
     assert.equal((await finish(login, 'cancel')).status, 409);
     const responses = await Promise.all([fetch(login.doneUrl), fetch(login.doneUrl)]);
-    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 410]);
-    const { token } = await responses.find((response) => response.status === 200)!.json();
+    const bodies = await Promise.all(responses.map((response) => response.json()));
+    assert.deepEqual(
+      responses.map((response) => response.status),
+      [200, 200],
+    );
+    assert.equal(bodies.filter((body) => body.token).length, 1);
+    const winner = bodies.findIndex((body) => body.token);
+    const { token } = bodies[winner];
     assert.match(token, /^dlp_[A-Za-z0-9_-]{43}$/);
     assert.equal(
       (await fetch(login.api, { headers: { Authorization: 'Bearer ' + token } })).status,
       401,
     );
-    assert.equal(
-      responses.find((response) => response.status === 200)!.headers.get('Cache-Control'),
-      'no-store',
-    );
-    assert.equal((await fetch(login.doneUrl)).status, 410);
+    assert.equal(responses[winner].headers.get('Cache-Control'), 'no-store');
+    await failedPoll(login.doneUrl);
     const keys = listKeys('alice') as { label: string; scope: string }[];
     assert.ok(
       keys.some((key) => key.label === `${client} · Mac · 127.0.0.1` && key.scope === 'publish'),
@@ -132,13 +144,13 @@ test('cancel and expiry fail polls without creating keys', async (t) => {
   const before = listKeys('alice').length;
   const cancelled = await start();
   assert.equal((await finish(cancelled, 'cancel')).status, 200);
-  assert.equal((await fetch(cancelled.doneUrl)).status, 410);
+  await failedPoll(cancelled.doneUrl);
   assert.equal((await finish(cancelled, 'approve')).status, 409);
   const pending = await start();
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   t.mock.timers.tick(10 * 60_000);
   assert.equal((await finish(pending, 'approve')).status, 410);
-  assert.equal((await fetch(pending.doneUrl)).status, 410);
+  await failedPoll(pending.doneUrl);
   assert.equal((await fetch(pending.api, { headers: { cookie } })).status, 410);
   assert.equal(listKeys('alice').length, before);
 });
@@ -187,7 +199,8 @@ test('client and platform come from user-agent, never a claimed computer name', 
   for (const [agent, client, computer] of [
     ['pnpm/11.1.3 npm/? node/v26 linux arm64', 'pnpm', 'a Linux computer'],
     ['npm/12.0.2 node/v26 win32 x64', 'npm', 'a Windows computer'],
-    ['unknown', 'npm', 'a computer'],
+    // pnpm 11 sends undici's user agent and asks for web login with npm-auth-type.
+    ['undici', 'pnpm', 'a computer'],
   ]) {
     const login = await start(agent);
     const details = await (await fetch(login.api, { headers: { cookie } })).json();

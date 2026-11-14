@@ -70,7 +70,13 @@ export function startNpmLogin(req: IncomingMessage, registry: string) {
   for (const login of logins.values()) current(login);
   if (logins.size >= maximumPending) fail('Too many pending sign-ins. Try again shortly.', 429);
   const agent = req.headers['user-agent'] || '';
-  const client = /(?:^|\s)pnpm\//i.test(agent) ? 'pnpm' : 'npm';
+  // pnpm 11 sends only undici's user agent, but asks for web login with this header;
+  // npm names itself in its user agent.
+  const client =
+    /(?:^|\s)pnpm\//i.test(agent) ||
+    (req.headers['npm-auth-type'] === 'web' && !/(?:^|\s)npm\//i.test(agent))
+      ? 'pnpm'
+      : 'npm';
   const os = agent.match(/(?:^|\s)(darwin|linux|win32)(?:\s|$)/i)?.[1].toLowerCase();
   const [platform, computer] =
     os === 'darwin'
@@ -142,9 +148,14 @@ export function finishNpmLogin(
   return readNpmLogin(id, identity.username);
 }
 
+/**
+ * npm and pnpm treat any 4xx from the done URL as "this registry has no web login" and
+ * fall back to a username prompt, so a cancelled or expired sign-in answers 200 with no
+ * token: both clients then stop with an error instead.
+ */
 export function pollNpmLogin(secret: string) {
   const login = current(polls.get(secret));
-  if (!login) return expired();
+  if (!login) return { error: 'This sign-in was cancelled or has expired. Run npm login again.' };
   if (login.state === 'pending') return null;
   const token = login.token;
   delete login.token;

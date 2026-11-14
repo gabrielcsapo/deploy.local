@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import { Action, Banner } from '@/components/ui';
 import { api } from '../v2-public/api';
@@ -24,12 +24,15 @@ function SignIn({ pathname }: { pathname: string }) {
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  function failed(error: Error & { status?: number }) {
-    if (error.status === 401) {
-      window.location.assign('/signin?returnTo=' + encodeURIComponent(pathname));
-    } else if (error.status === 410) setExpired(true);
-    else setError(error.message);
-  }
+  const failed = useCallback(
+    (error: Error & { status?: number }) => {
+      if (error.status === 401) {
+        window.location.assign('/signin?returnTo=' + encodeURIComponent(pathname));
+      } else if (error.status === 410) setExpired(true);
+      else setError(error.message);
+    },
+    [pathname],
+  );
   useEffect(() => {
     let active = true;
     void api<Login>(path).then(
@@ -39,7 +42,7 @@ function SignIn({ pathname }: { pathname: string }) {
     return () => {
       active = false;
     };
-  }, [path]);
+  }, [path, failed]);
   async function finish(action: 'approve' | 'cancel') {
     setBusy(true);
     setError('');
