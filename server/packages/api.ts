@@ -27,7 +27,7 @@ export function packageSidebar(copy = npmRegistry.copy) {
   return { served: served(), usingCopies: !copy.reachable };
 }
 
-/** The package a `/api/v2/packages/npm/<name>` path names, or 404. */
+/** The package a `/api/packages/npm/<name>` path names, or 404. */
 function packageAt(encoded: string) {
   const name = nameOf(decodeURIComponent(encoded)),
     pkg = packageByName(name);
@@ -38,12 +38,12 @@ function packageAt(encoded: string) {
 export const packagesRoutes = [
   route({
     method: 'GET',
-    path: '/api/v2/packages/cache',
+    path: '/api/packages/cache',
     handler: ({ res, context }) => send(res, copiesStatus(context.username, context.copy)),
   }),
   route({
     method: 'POST',
-    path: '/api/v2/packages/cache/warm',
+    path: '/api/packages/cache/warm',
     input: smallBody,
     handler: ({ res, input: body, context }) => {
       const projects = list('project', context.username).filter(
@@ -56,12 +56,12 @@ export const packagesRoutes = [
   }),
   route({
     method: 'GET',
-    path: '/api/v2/package-keys',
+    path: '/api/package-keys',
     handler: ({ res, context }) => send(res, { keys: listKeys(context.username) }),
   }),
   route({
     method: 'POST',
-    path: '/api/v2/package-keys',
+    path: '/api/package-keys',
     input: smallBody,
     handler: ({ req, res, input: body, context }) => {
       const key = createKey(context.username, body.label, body.scope);
@@ -71,7 +71,7 @@ export const packagesRoutes = [
   }),
   route({
     method: 'DELETE',
-    path: '/api/v2/package-keys',
+    path: '/api/package-keys',
     input: smallBody,
     handler: ({ req, res, input: body, context }) => {
       db()
@@ -83,12 +83,12 @@ export const packagesRoutes = [
   }),
   route({
     method: '*',
-    path: '/api/v2/package-keys',
+    path: '/api/package-keys',
     handler: () => fail('Method not allowed', 405),
   }),
   route({
     method: 'GET',
-    path: '/api/v2/packages',
+    path: '/api/packages',
     handler: async ({ res, url, context }) => {
       const { username, copy } = context;
       if (url.searchParams.has('sidebar')) return send(res, packageSidebar(copy));
@@ -99,7 +99,7 @@ export const packagesRoutes = [
   // package is still a 404, and the body is read only once the package exists.
   route({
     method: '*',
-    path: '/api/v2/packages/npm/:name*/versions/:version/deprecate',
+    path: '/api/packages/npm/:name*/versions/:version/deprecate',
     handler: async ({ req, res, params, context }) => {
       const { pkg } = packageAt(params.name);
       if (req.method !== 'POST') fail('Method not allowed', 405);
@@ -110,7 +110,7 @@ export const packagesRoutes = [
   }),
   route({
     method: '*',
-    path: '/api/v2/packages/npm/:name*',
+    path: '/api/packages/npm/:name*',
     handler: async ({ req, res, params, context }) => {
       packageAt(params.name);
       if (req.method !== 'GET') fail('Method not allowed', 405);
@@ -120,7 +120,7 @@ export const packagesRoutes = [
 ];
 
 const packagesDispatch = dispatch(packagesRoutes, {
-  scope: /^\/api\/v2\/(?:packages|package-keys)(?:\/|$)/,
+  scope: /^\/api\/(?:packages|package-keys)(?:\/|$)/,
   notFound: () => fail('Not found', 404),
 });
 

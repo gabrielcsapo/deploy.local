@@ -74,7 +74,7 @@ test('Add an app lists eligible apps, marks the matching name and sends the sele
   assert.equal(elements(tree, 'Dialog')[0].props.title, 'Add an app to recipes');
   elements(rows[0].props.end, 'Action')[0].props.onClick();
   await settle();
-  assert.equal(calls[0].path, '/api/v2/projects/recipes-id/apps');
+  assert.equal(calls[0].path, '/api/projects/recipes-id/apps');
   assert.deepEqual(JSON.parse(calls[0].body), { app: 'recipes' });
   assert.equal(closed, 1);
   assert.equal(added, 1);
@@ -116,7 +116,7 @@ test('Add repository uses the optional remote, keeps failure recoverable and nav
   fail = false;
   elements(dialog.props.actions, 'Action')[1].props.onClick();
   await settle();
-  assert.equal(calls[0].path, '/api/v2/projects/app%3Arecipes/repository');
+  assert.equal(calls[0].path, '/api/projects/app%3Arecipes/repository');
   assert.equal(JSON.parse(calls[0].body).sourcePath, '');
   assert.equal(JSON.parse(calls[0].body).operationId, JSON.parse(calls[1].body).operationId);
   assert.deepEqual(destinations, ['/dashboard/projects/joined']);
@@ -159,7 +159,7 @@ test('New project changes helper and action for an existing app and returns to o
   tree = render();
   elements(elements(tree, 'Dialog')[0].props.actions, 'Action')[1].props.onClick();
   await settle();
-  assert.equal(calls[0].path, '/api/v2/projects');
+  assert.equal(calls[0].path, '/api/projects');
   assert.equal(JSON.parse(calls[0].body).name, 'recipes');
 });
 

@@ -1,3 +1,5 @@
+import { apiRouteManifest } from '../api/route-manifest.ts';
+import { compilePath } from '../kernel/routes.ts';
 import assert from 'node:assert/strict';
 import test, { after, mock } from 'node:test';
 import childProcess, { execFileSync } from 'node:child_process';
@@ -129,7 +131,12 @@ workspace.save('v2-inbox-native', 'owner', {
   },
 });
 const fetch = routeFetch((req, res) =>
-  req.url!.startsWith('/api/workspace')
+  apiRouteManifest.some(
+    (r) =>
+      r.handler === 'workspace' &&
+      r.method === req.method &&
+      compilePath(r.path)(new URL(req.url!, 'http://localhost').pathname),
+  )
     ? workspaceApi(req, res, 'owner')
     : v2Api(req, res, () => ({ username: 'owner' })),
 );
@@ -158,20 +165,20 @@ after(() => {
 });
 
 const paths = [
-  '/api/v2/projects',
-  '/api/v2/projects/p/overview',
-  '/api/v2/tasks/t',
-  '/api/v2/design/projects',
-  '/api/v2/projects/p/design',
-  '/api/v2/self-update',
-  '/api/v2/updates',
-  '/api/v2/backups',
-  '/api/workspace/projects/p/pulls',
-  '/api/v2/projects/p/releases',
-  '/api/v2/projects/p/settings',
-  '/api/v2/projects/unlinked-apps',
-  '/api/workspace/projects/p/repository',
-  '/api/v2/design/reviews',
+  '/api/projects',
+  '/api/projects/p/overview',
+  '/api/task-snapshots/t',
+  '/api/design/projects',
+  '/api/projects/p/design',
+  '/api/self-update',
+  '/api/updates',
+  '/api/backups',
+  '/api/projects/p/pulls',
+  '/api/projects/p/releases',
+  '/api/projects/p/settings',
+  '/api/projects/unlinked-apps',
+  '/api/projects/p/repository',
+  '/api/design/reviews',
 ];
 for (const path of paths)
   test(`warm GET ${path} starts no child process`, async (t) => {
@@ -180,16 +187,17 @@ for (const path of paths)
     const result = await request(path);
     t.diagnostic(`second request processes: ${starts.length}`);
     assert.deepEqual(starts, [], starts.join('\n'));
-    if (path.endsWith('/tasks/t')) assert.deepEqual(result.comparison, { ahead: 1, behind: 0 });
-    if (path === '/api/v2/self-update') assert.equal(result.ahead, 1);
-    if (path === '/api/v2/design/reviews') assert.equal(result.proposals.length, 1);
+    if (path.endsWith('/task-snapshots/t'))
+      assert.deepEqual(result.comparison, { ahead: 1, behind: 0 });
+    if (path === '/api/self-update') assert.equal(result.ahead, 1);
+    if (path === '/api/design/reviews') assert.equal(result.proposals.length, 1);
     starts = [];
     await request(path);
     assert.deepEqual(starts, [], 'first request after warm-up also reuses the view');
   });
 
 test('update progress stays live while service probing is cached', async () => {
-  await request('/api/v2/self-update');
+  await request('/api/self-update');
   writeFileSync(
     join(stateDir, 'current.json'),
     JSON.stringify({
@@ -199,13 +207,13 @@ test('update progress stays live while service probing is cached', async () => {
     }),
   );
   starts = [];
-  assert.equal((await request('/api/v2/self-update')).run.steps[0].detail, 'Building now');
+  assert.equal((await request('/api/self-update')).run.steps[0].detail, 'Building now');
   assert.deepEqual(starts, []);
 });
 
 test('a ref moved by the server or by another process is seen on the next read', async () => {
   const { gitText } = await import('../git.ts');
-  const overview = '/api/v2/projects/p/overview';
+  const overview = '/api/projects/p/overview';
   assert.equal((await request(overview)).repository.head, main);
   await gitText(repo, ['update-ref', 'refs/heads/main', proposal, main]);
   assert.equal((await request(overview)).repository.head, proposal);
@@ -216,32 +224,28 @@ test('a ref moved by the server or by another process is seen on the next read',
 });
 
 test('project, deployment and membership writes stay live after warm-up', async () => {
-  await request('/api/v2/projects');
+  await request('/api/projects');
   workspace.save('project', 'owner', {
     ...workspace.get('project', 'owner', 'p'),
     name: 'Renamed',
   });
   assert.equal(
-    (await request('/api/v2/projects')).projects.find((p: any) => p.id === 'p').name,
+    (await request('/api/projects')).projects.find((p: any) => p.id === 'p').name,
     'Renamed',
   );
   store.saveDeployment({ name: 'second', username: 'owner' });
   assert.ok(
-    (await request('/api/v2/projects/unlinked-apps')).apps.some(
-      (app: any) => app.name === 'second',
-    ),
+    (await request('/api/projects/unlinked-apps')).apps.some((app: any) => app.name === 'second'),
   );
   const { addProjectApplication } = await import('./projects.ts');
   await addProjectApplication('owner', 'p', 'second');
   assert.ok(
-    (await request('/api/v2/projects')).projects
+    (await request('/api/projects')).projects
       .find((p: any) => p.id === 'p')
       .apps.some((app: any) => app.name === 'second'),
   );
   assert.ok(
-    !(await request('/api/v2/projects/unlinked-apps')).apps.some(
-      (app: any) => app.name === 'second',
-    ),
+    !(await request('/api/projects/unlinked-apps')).apps.some((app: any) => app.name === 'second'),
   );
 });
 
@@ -280,7 +284,7 @@ test('transaction and decision helpers bypass a warm view', async () => {
   const { commitText, presentationCommit } = await import('../workspace/repository-views.ts');
   const { repositoryInfo } = await import('../workspace/repositories.ts');
   const { changesSince } = await import('./self-update-host.ts');
-  await request('/api/v2/projects/p/overview');
+  await request('/api/projects/p/overview');
   await commitText(repo, ['rev-parse', '--verify', `${main}^{tree}`]);
   git('update-ref', 'refs/heads/main', proposal, main);
   // The view has already noticed the move; what a transaction adds is that it asks Git itself.
@@ -311,7 +315,7 @@ test('transaction and decision helpers bypass a warm view', async () => {
 });
 
 test('same-process sync notifications refresh refs and changing review choices recomputes evidence', async () => {
-  const overview = '/api/v2/projects/p/overview';
+  const overview = '/api/projects/p/overview';
   await request(overview);
   git('update-ref', 'refs/heads/main', proposal, main);
   workspace.save('repository-operation', 'owner', {
@@ -320,7 +324,7 @@ test('same-process sync notifications refresh refs and changing review choices r
     status: 'succeeded',
   });
   assert.equal((await request(overview)).repository.head, proposal);
-  await request('/api/v2/design/reviews');
+  await request('/api/design/reviews');
   const review = workspace.get('v2-inbox-native', 'owner', 'review');
   workspace.save('v2-inbox-native', 'owner', {
     ...review,
@@ -330,7 +334,7 @@ test('same-process sync notifications refresh refs and changing review choices r
     },
   });
   starts = [];
-  await request('/api/v2/design/reviews');
+  await request('/api/design/reviews');
   assert.ok(starts.length > 0, 'saved choices never reuse evidence computed for older choices');
   const { gitText } = await import('../git.ts');
   await gitText(repo, ['update-ref', 'refs/heads/main', main, proposal]);
@@ -345,7 +349,7 @@ test('an unborn task branch uses its base without starting Git again, and appear
     revision: 1,
     baseRevision: first,
   });
-  const path = '/api/v2/projects/p/design?task=unborn';
+  const path = '/api/projects/p/design?task=unborn';
   assert.equal((await request(path)).commit, first);
   starts = [];
   assert.equal((await request(path)).commit, first);
@@ -382,7 +386,7 @@ test('immutable object reads preserve bytes and limits, survive ref moves, and r
 });
 
 test('design landing records invalidate their project through the review context', async () => {
-  const path = '/api/v2/projects/p/overview';
+  const path = '/api/projects/p/overview';
   assert.equal((await request(path)).repository.head, main);
   git('update-ref', 'refs/heads/main', proposal, main);
   workspace.save('design-review-landing', 'owner', {

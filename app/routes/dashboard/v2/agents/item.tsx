@@ -238,7 +238,7 @@ export function LooksAfterList({
   agent: AgentConfiguration;
   onSaved: (agent: AgentConfiguration) => void;
 }) {
-  const projects = useResource<{ projects: Project[] }>('/api/v2/projects').data?.projects ?? [];
+  const projects = useResource<{ projects: Project[] }>('/api/projects').data?.projects ?? [];
   const [edit, setEdit] = useState<LooksAfterItem | null>(null);
   return (
     <>

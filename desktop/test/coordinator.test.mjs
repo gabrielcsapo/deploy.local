@@ -17,9 +17,9 @@ test(
     assert.ok(Number(url.port) >= 5180 && Number(url.port) <= 5199);
     const cert = await inspectCertificate(origin);
     const untrusted = new CoordinatorClient(origin);
-    await assert.rejects(untrusted.request('/api/v2/inbox'));
+    await assert.rejects(untrusted.request('/api/inbox'));
     const changed = new CoordinatorClient(origin, { pin: cert.fingerprint.replace(/^../, '00') });
-    await assert.rejects(changed.request('/api/v2/inbox'), /certificate changed/);
+    await assert.rejects(changed.request('/api/inbox'), /certificate changed/);
     const client = new CoordinatorClient(origin, { pin: cert.fingerprint });
     const username = `desktop-${Date.now()}`,
       password = 'isolated-desktop-test-password';
@@ -45,7 +45,7 @@ test(
         ),
       ]);
       assert.deepEqual(message, { type: 'heartbeat', online: true });
-      const status = await client.request('/api/workspace/provider-connections');
+      const status = await client.request('/api/provider-connections');
       assert.ok(status.workers.some((w) => w.id === manager.connection.enrollment.workerId));
     } finally {
       await manager.stop();

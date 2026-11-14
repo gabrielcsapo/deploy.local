@@ -29,7 +29,7 @@ public actor AuthenticatedImageCache {
             return cached
         }
         let base = try connection.baseURL()
-        let url = base.appendingPathComponent("api/workspace/attachments/\(attachmentId)")
+        let url = base.appendingPathComponent("api/attachments/\(attachmentId)")
         var request = URLRequest(url: url)
         request.setValue(connection.username, forHTTPHeaderField: "X-Deploy-Username")
         request.setValue(connection.token, forHTTPHeaderField: "X-Deploy-Token")
@@ -59,4 +59,46 @@ public actor AuthenticatedImageCache {
             try? FileManager.default.removeItem(at: url); total -= size
         }
     }
+}
+
+/// Read-time conversion of stored attachment strings only; never an HTTP alias.
+/// Keep foreign, protocol-relative and embedded paths unchanged, as the server reader does.
+public func convertStoredAttachmentText(_ text: String, origins: [String] = ["https://deploy.local"]) -> String {
+    let pattern = #"(?:https?://[^\s<>"'`()]+)?/api/(?:v2|workspace)/attachments/[A-Za-z0-9-]+"#
+    let regex = try! NSRegularExpression(pattern: pattern)
+    let source = text as NSString
+    var result = text
+    for match in regex.matches(in: text, range: NSRange(location: 0, length: source.length)).reversed() {
+        let link = source.substring(with: match.range)
+        let absolute = link.hasPrefix("http://") || link.hasPrefix("https://")
+        if absolute {
+            guard let url = URL(string: link), origins.contains(where: { origin in
+                guard let base = URL(string: origin) else { return false }
+                return attachmentSameOrigin(url, base)
+            }) else { continue }
+        } else if match.range.location > 0 {
+            let previous = source.substring(with: NSRange(location: match.range.location - 1, length: 1))
+            if previous.range(of: #"[\w/.:%-]"#, options: .regularExpression) != nil { continue }
+        }
+        let converted = link.replacingOccurrences(of: "/api/v2/attachments/", with: "/api/conversation-attachments/")
+            .replacingOccurrences(of: "/api/workspace/attachments/", with: "/api/attachments/")
+        if let range = Range(match.range, in: result) { result.replaceSubrange(range, with: converted) }
+    }
+    return result
+}
+
+private func attachmentSameOrigin(_ url: URL, _ base: URL) -> Bool {
+    func port(_ url: URL) -> Int? { url.port ?? (url.scheme == "https" ? 443 : url.scheme == "http" ? 80 : nil) }
+    return url.scheme == base.scheme && url.host?.lowercased() == base.host?.lowercased() && port(url) == port(base)
+        && url.user == nil && url.password == nil
+}
+
+/// Resolve only this coordinator's attachment URLs before adding credentials or opening media.
+public func storedAttachmentURL(_ link: String, connection: Connection) -> URL? {
+    guard let base = try? connection.baseURL(), !link.hasPrefix("//") else { return nil }
+    let converted = convertStoredAttachmentText(link, origins: [base.absoluteString])
+    guard let url = URL(string: converted, relativeTo: base)?.absoluteURL,
+          attachmentSameOrigin(url, base),
+          url.path.range(of: #"^/api/(?:conversation-attachments|attachments)/[A-Za-z0-9-]+(?:/thumbnail)?$"#, options: .regularExpression) != nil else { return nil }
+    return url
 }

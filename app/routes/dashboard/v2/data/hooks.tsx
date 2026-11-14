@@ -72,7 +72,7 @@ export const authenticatedFetch: typeof fetch = (input, init) => {
     if (
       response.status === 401 &&
       !init?.signal?.aborted &&
-      !response.url.endsWith('/api/v2/auth/account') &&
+      !response.url.endsWith('/api/auth/account') &&
       window.location.pathname.startsWith('/dashboard')
     )
       window.dispatchEvent(new Event('deploy:session-expired'));

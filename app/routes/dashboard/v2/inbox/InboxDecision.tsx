@@ -75,7 +75,7 @@ function Decision({ item }: { item: InboxItem }) {
         projectId={item.projectId ?? item.id.split(':')[1]}
         taskId={item.taskId}
         design={{
-          api: `/api/v2/projects/${encodeURIComponent(item.projectId ?? item.id.split(':')[1])}/design`,
+          api: `/api/projects/${encodeURIComponent(item.projectId ?? item.id.split(':')[1])}/design`,
           proposal: item,
         }}
       />

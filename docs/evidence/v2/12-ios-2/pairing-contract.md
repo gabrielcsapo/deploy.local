@@ -1,6 +1,6 @@
 # iPhone pairing contract
 
-An authenticated person sends JSON `{}` to `POST /api/v2/devices/pair`.
+An authenticated person sends JSON `{}` to `POST /api/devices/pair`.
 Render the response as a QR code containing the JSON itself:
 
 ```json
@@ -19,15 +19,15 @@ Do not use an unauthenticated fingerprint fetched separately from the QR as the
 trust source. Never send the token to a redirect or another origin.
 
 Within five minutes, POST `{"token":"…","name":"Gabriel’s iPhone"}` as JSON to
-`<address>/api/v2/devices/exchange`. No existing session is required. It returns
+`<address>/api/devices/exchange`. No existing session is required. It returns
 `{id, username, token, expiresAt}`. Store the username/token in Keychain, then send
 `X-Deploy-Username` and `X-Deploy-Token` on requests. The device session lasts 30
 days, consistent with existing sessions; pair or sign in again after expiry.
 Only the token digest is retained while pairing. An atomic transaction consumes
 it and creates exactly one session/device. A failed replay returns 410.
 
-GET `/api/v2/devices` lists only the signed-in account's active paired devices.
-DELETE `/api/v2/devices/:id` with JSON `{}` revokes its actual session immediately.
+GET `/api/devices` lists only the signed-in account's active paired devices.
+DELETE `/api/devices/:id` with JSON `{}` revokes its actual session immediately.
 The caller cannot remove another account's devices. Existing APNs registrations
 remain in the separate push store: this slice revokes API access, but does not
 remove APNs tokens. The iPhone/push slice must associate those records with the

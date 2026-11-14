@@ -37,7 +37,7 @@ for (; port <= 5199; port++) {
   }
 }
 if (port > 5199) throw new Error('No test port available in 5180–5199');
-const origin = `http://127.0.0.1:${port}/api/v2`;
+const origin = `http://127.0.0.1:${port}/api`;
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((done) => server.close(() => done()));
@@ -88,11 +88,11 @@ async function request(scope: ReturnType<typeof fixture>, path: string, body?: a
 
 test('auth uses the existing mount and rejects missing, invalid, agent and worker credentials', async () => {
   assert.match(
-    readFileSync(new URL('../api/v2.ts', import.meta.url), 'utf8'),
-    /if \(path\.startsWith\('\/api\/v2\/'\)\)[\s\S]*v2Api\(req, res, requireAuth\)/,
+    readFileSync(new URL('../api/registry.ts', import.meta.url), 'utf8'),
+    /apiRouteManifest/,
   );
   const s = fixture();
-  for (const path of ['/inbox', '/events?waitMs=10000', '/inbox/question:q/answer']) {
+  for (const path of ['/inbox', '/activity-events?waitMs=10000', '/inbox/question:q/answer']) {
     for (const headers of [
       {},
       { 'x-deploy-username': s.owner, 'x-deploy-token': 'wrong' },
@@ -322,7 +322,7 @@ test('invalid requests cannot mutate decisions', async () => {
   ])
     assert.equal((await request(s, path, body)).status, 400);
   for (const query of ['after=-1', 'after=1.5', 'after=NaN', 'waitMs=Infinity', 'waitMs=-1'])
-    assert.equal((await request(s, '/events?' + query)).status, 400);
+    assert.equal((await request(s, '/activity-events?' + query)).status, 400);
   assert.equal((await request(s, '/inbox?state=expired')).status, 400);
   assert.equal((await request(s, '/unknown')).status, 404);
   const invalid = await fetch(origin + path, { method: 'POST', headers: s.headers, body: '{' });
@@ -402,20 +402,20 @@ test('conversation mapping preserves message, decision and work item identities'
 test('after=latest starts a client at the newest event without replaying history', async () => {
   const s = fixture();
   ask(s);
-  const all = await request(s, '/events?after=0');
-  const latest = await request(s, '/events?after=latest');
+  const all = await request(s, '/activity-events?after=0');
+  const latest = await request(s, '/activity-events?after=latest');
   assert.deepEqual(latest.body, { events: [], cursor: all.body.cursor, supportsWait: true });
 });
 
 test('long-poll wakes for cross-process events and replays stable cursors', async () => {
   const s = fixture(),
     q = ask(s);
-  const initial = await request(s, '/events?after=0');
+  const initial = await request(s, '/activity-events?after=0');
   assert.ok(
     initial.body.events.some((e: any) => e.type === 'conversation' && e.event.kind === 'decision'),
   );
   assert.ok(initial.body.events.some((e: any) => e.type === 'inbox' && e.item.state === 'waiting'));
-  const pending = request(s, '/events?after=' + initial.body.cursor + '&waitMs=10000');
+  const pending = request(s, '/activity-events?after=' + initial.body.cursor + '&waitMs=10000');
   const child = spawn(
     process.execPath,
     [
@@ -431,7 +431,10 @@ test('long-poll wakes for cross-process events and replays stable cursors', asyn
   assert.equal(response.body.supportsWait, true);
   const answered = response.body.events.find((e: any) => e.type === 'inbox');
   assert.equal(answered.item.answer.on, 'iphone');
-  assert.deepEqual((await request(s, '/events?after=' + initial.body.cursor)).body, response.body);
+  assert.deepEqual(
+    (await request(s, '/activity-events?after=' + initial.body.cursor)).body,
+    response.body,
+  );
 });
 
 test('long-poll observes legacy mutations and expiry without a v2 writer', async () => {
@@ -512,7 +515,7 @@ test('unmapped events advance cursors, other owners cannot wake a waiter, and di
   controller.abort();
   await assert.rejects(aborted, { name: 'AbortError' });
   await assert.rejects(
-    fetch(origin + '/events?after=' + page.cursor + '&waitMs=10000', {
+    fetch(origin + '/activity-events?after=' + page.cursor + '&waitMs=10000', {
       headers: s.headers,
       signal: AbortSignal.timeout(50),
     }),
@@ -524,7 +527,7 @@ test('unmapped events advance cursors, other owners cannot wake a waiter, and di
 test('wait duration is capped at ten seconds', async () => {
   const s = fixture(),
     started = Date.now();
-  const response = await request(s, '/events?waitMs=100000');
+  const response = await request(s, '/activity-events?waitMs=100000');
   assert.deepEqual(response.body.events, []);
   assert.ok(Date.now() - started >= 9900);
   assert.ok(Date.now() - started < 12000);

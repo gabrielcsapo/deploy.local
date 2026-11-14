@@ -102,7 +102,7 @@ private let roots = ["/srv/deploy/workspace/tasks/9f1c2e",
     """)
     // Without a task (activity notes), every disk path is shown as code.
     #expect(rewriteLocalFileLinks("[a](/home/w/tasks/8a0e/a.md)", taskId: nil) == "`a`")
-    #expect(isLocalFilePath("/api/workspace/attachments/1") == false)
+    #expect(isLocalFilePath("/api/attachments/1") == false)
 }
 
 @Test func barePathsInAMessageAreRewrittenLikeLinks() {
@@ -130,9 +130,9 @@ private let roots = ["/srv/deploy/workspace/tasks/9f1c2e",
                  MessageAttachmentRef(id: "att-2", name: "build.log", kind: "text")]
     #expect(rewriteLocalFileLinks("Screenshot: /var/home/bazzite/.config/deploy.local/phone-task.png",
                                   taskId: "9f1c2e", attachments: media)
-            == "Screenshot: ![phone-task.png](/api/workspace/attachments/att-1)")
+            == "Screenshot: ![phone-task.png](/api/attachments/att-1)")
     #expect(rewriteLocalFileLinks("[shot](/var/home/bazzite/out/phone-task.png)", taskId: "9f1c2e", attachments: media)
-            == "![phone-task.png](/api/workspace/attachments/att-1)")
+            == "![phone-task.png](/api/attachments/att-1)")
     // An attachment with no viewer still must not look openable.
     #expect(rewriteLocalFileLinks("Log at /var/home/bazzite/jobs/build.log", taskId: "9f1c2e", attachments: media)
             == "Log at `/var/home/bazzite/jobs/build.log`")

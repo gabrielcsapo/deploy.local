@@ -122,19 +122,19 @@ const server = createServer(async (req, res) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(value));
   };
-  if (req.url === '/api/v2/live') return send(f.live);
-  if (req.url?.startsWith('/api/v2/live/')) {
+  if (req.url === '/api/live') return send(f.live);
+  if (req.url?.startsWith('/api/live/')) {
     const app = f.live.computers
       .flatMap((c) => c.apps)
       .find((a) => a.appId === decodeURIComponent(req.url.split('/').at(-1)));
     return send({ app, history: f.history });
   }
-  if (req.url?.startsWith('/api/v2/inbox/') && req.method === 'POST') {
+  if (req.url?.startsWith('/api/inbox/') && req.method === 'POST') {
     dismissed = true;
     return send({ item: { ...f.item, state: 'answered' } });
   }
-  if (req.url?.startsWith('/api/v2/inbox')) return send({ items: dismissed ? [] : [f.item] });
-  if (req.url?.startsWith('/api/v2/events')) {
+  if (req.url?.startsWith('/api/inbox')) return send({ items: dismissed ? [] : [f.item] });
+  if (req.url?.startsWith('/api/activity-events')) {
     const timer = setTimeout(() => send({ events: [], cursor: 1, supportsWait: true }), 10000);
     res.on('close', () => clearTimeout(timer));
     return;

@@ -64,12 +64,12 @@ Without a usable base, capture falls back to the full tree under the 8 MiB limit
 
 Every consumer reads base + delta, so each still sees a complete tree:
 
-| Consumer                                           | How it gets the base tree                                         |
-| -------------------------------------------------- | ----------------------------------------------------------------- |
-| `deploy_commit`, Publish (`buildCheckpointCommit`) | `read-tree <base>`, deletions, then the files                     |
-| `deploy_application` (`checkpointBundle`)          | `extractBaseTree` from the hosted repository                      |
-| Checkpoint jobs (`job-runner`)                     | `fetchBaseTree` over `/api/workspace/git` with the worker's token |
-| Task detail (`checkpointChangedFileCount`)         | compares the base tree plus delta with the task's diff base       |
+| Consumer                                           | How it gets the base tree                                   |
+| -------------------------------------------------- | ----------------------------------------------------------- |
+| `deploy_commit`, Publish (`buildCheckpointCommit`) | `read-tree <base>`, deletions, then the files               |
+| `deploy_application` (`checkpointBundle`)          | `extractBaseTree` from the hosted repository                |
+| Checkpoint jobs (`job-runner`)                     | `fetchBaseTree` over `/api/git` with the worker's token     |
+| Task detail (`checkpointChangedFileCount`)         | compares the base tree plus delta with the task's diff base |
 
 `restoreSnapshot` still writes full-tree checkpoints and refuses a delta; `restoreCheckpoint`
 takes a callback that writes the base tree first. Jobs keep getting a fresh, isolated

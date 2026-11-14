@@ -23,7 +23,7 @@ async function request(path: string, body?: any, headers: Record<string, string>
       body === undefined ? [] : [JSON.stringify({ operationId: randomUUID(), ...body })],
     ),
     {
-      url: '/api/workspace' + path,
+      url: '/api' + path,
       method: body === undefined ? 'GET' : 'POST',
       headers,
     },

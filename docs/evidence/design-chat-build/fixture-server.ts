@@ -6,13 +6,14 @@ import { join, resolve, extname, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { DesignReview, DesignReviewScreen, InboxItem } from '../../../shared/v2/contracts';
 import { fixturePreview } from './fixture-preview';
+import { routeFetch } from '../../../server/v2/test-request.ts';
 
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
 const root = mkdtempSync(join(tmpdir(), 'design-chat-fixture-'));
 process.env.DEPLOY_DATA_DIR = root;
 const repo = resolve(import.meta.dirname, '../../..');
 const origin = 'http://127.0.0.1:5194';
-const api = '/api/v2/projects/deploy-local/design';
+const api = '/api/projects/deploy-local/design';
 const at = () => new Date().toISOString();
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 const proposer = { id: 'release-notes-writer', name: 'Release notes writer', avatar: null };
@@ -273,12 +274,12 @@ async function render(file: string, side: string, width: number, scale: number) 
   return images.get(key)!;
 }
 
-const server = createServer(async (req, res) => {
+const handle: import('node:http').RequestListener = async (req, res) => {
   const url = new URL(req.url!, origin),
     // Foundation percent-encodes '-' in project IDs; the real server decodes route segments.
     path = decodeURIComponent(url.pathname);
   const activeTask = tasks.find(
-    (task) => task.id === path.match(/^\/api\/(?:v2|workspace)\/tasks\/([^/]+)/)?.[1],
+    (task) => task.id === path.match(/^\/api\/(?:tasks|task-snapshots)\/([^/]+)/)?.[1],
   );
   const taskEvents =
     activeTask === task
@@ -331,7 +332,7 @@ const server = createServer(async (req, res) => {
     }
     if (path === '/api/login') return send({ token: 'fixture' });
     if (path === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
-    if (path === '/api/v2/auth/account')
+    if (path === '/api/auth/account')
       return send({
         username: 'Gabriel',
         welcomed: true,
@@ -340,7 +341,7 @@ const server = createServer(async (req, res) => {
       });
     if (path === '/api/nodes')
       return send({ nodes: [{ id: 'coordinator', name: 'SER', online: true }] });
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return send({
         version: 1,
         cursor: 1,
@@ -350,20 +351,20 @@ const server = createServer(async (req, res) => {
         runs: [],
         adapters: [],
       });
-    if (path === '/api/v2/live')
+    if (path === '/api/live')
       return send({
         summary: { running: 0, failing: 0, warning: 0, checkedAt: at() },
         computers: [],
       });
-    if (path === '/api/v2/agents')
+    if (path === '/api/agents')
       return send({ agents: [{ ...proposer, job: '', computers: [], looksAfter: [] }] });
-    if (path === '/api/v2/inbox')
+    if (path === '/api/inbox')
       return send({
         items: reviews
           .map((r) => r.item)
           .filter((i) => i.state === (url.searchParams.get('state') ?? 'waiting')),
       });
-    if (path === '/api/v2/events' || path.endsWith('/stream')) {
+    if (path === '/api/activity-events' || path.endsWith('/stream')) {
       if (url.searchParams.get('after') === 'latest')
         return send({ events: [], cursor: 1, supportsWait: true });
       const timer = setTimeout(
@@ -373,7 +374,7 @@ const server = createServer(async (req, res) => {
       res.on('close', () => clearTimeout(timer));
       return;
     }
-    if (activeTask && path === `/api/v2/tasks/${activeTask.id}`)
+    if (activeTask && path === `/api/task-snapshots/${activeTask.id}`)
       return send({
         task: activeTask,
         project: { id: 'deploy-local', name: 'deploy.local', kind: 'Web app' },
@@ -389,7 +390,7 @@ const server = createServer(async (req, res) => {
         screenshots: [],
         releases: [],
       });
-    if (activeTask && path === `/api/workspace/tasks/${activeTask.id}`)
+    if (activeTask && path === `/api/tasks/${activeTask.id}`)
       return send({
         task: activeTask,
         messages: (activeTask === task ? events : []).flatMap((event) =>
@@ -409,7 +410,7 @@ const server = createServer(async (req, res) => {
         events: [],
         cursor: 1,
       });
-    if (activeTask && path === `/api/workspace/tasks/${activeTask.id}/diff`)
+    if (activeTask && path === `/api/tasks/${activeTask.id}/diff`)
       return send({
         status: 'ready',
         baseRevision: 'before',
@@ -429,7 +430,7 @@ const server = createServer(async (req, res) => {
       });
     if (path === api) return send({ canvas });
     if (path === `${api}/proposals`) return send({ proposals: reviews.map((r) => r.item) });
-    const answer = path.match(/^\/api\/v2\/inbox\/(.+)\/answer$/);
+    const answer = path.match(/^\/api\/inbox\/(.+)\/answer$/);
     const r = reviews.find(
       (r) =>
         r.item.id ===
@@ -501,26 +502,28 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     send({ error: String(error) }, 500);
   }
-});
+};
+const server = createServer(handle);
 // Export the real HTTP responses for Swift decoding tests without launching a renderer.
 if (process.argv.includes('--dump')) {
-  const dumpPort = Number(process.env.DEPLOY_FIXTURE_DUMP_PORT ?? 5199);
-  await new Promise<void>((resolve) => server.listen(dumpPort, '127.0.0.1', resolve));
+  const request = routeFetch(async (req, res) => {
+    await handle(req, res);
+  });
   try {
     const paths = {
-      task: '/api/workspace/tasks/welcome',
-      diff: '/api/workspace/tasks/welcome/diff',
+      task: '/api/tasks/welcome',
+      diff: '/api/tasks/welcome/diff',
       chat: `${api}/review?item=${encodeURIComponent(chat.item.id)}`,
       chatEncoded: `${api.replace('deploy-local', 'deploy%2Dlocal')}/review?item=${encodeURIComponent(chat.item.id)}`,
       sent: `${api}/review?item=${encodeURIComponent(sent.item.id)}`,
-      inbox: '/api/v2/inbox',
-      sentTask: '/api/workspace/tasks/agents',
+      inbox: '/api/inbox',
+      sentTask: '/api/tasks/agents',
     };
     const responses = Object.fromEntries(
       await Promise.all(
         Object.entries(paths).map(async ([key, path]) => [
           key,
-          await (await fetch(`http://127.0.0.1:${dumpPort}${path}`)).json(),
+          await (await request(`${origin}${path}`)).json(),
         ]),
       ),
     );

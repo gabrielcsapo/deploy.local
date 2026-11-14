@@ -34,9 +34,9 @@ const seed: DataSeed = {
   timeZone: 'America/New_York',
   cursor: 1,
   data: {
-    '/api/v2/auth/account': { username: 'owner', name: 'Owner', welcomed: true, hasPasskey: true },
-    '/api/v2/agents': { agents: [agent], timezone: 'America/New_York' },
-    '/api/v2/agents/keeper/conversation': {
+    '/api/auth/account': { username: 'owner', name: 'Owner', welcomed: true, hasPasskey: true },
+    '/api/agents': { agents: [agent], timezone: 'America/New_York' },
+    '/api/agents/keeper/conversation': {
       events: [
         {
           id: 'reply',
@@ -48,9 +48,9 @@ const seed: DataSeed = {
       ],
       tracking: { running: [], runs: [], items: [] },
     },
-    '/api/v2/approvals': { rules: [], suggestions: [] },
-    '/api/v2/projects': { projects: [] },
-    '/api/v2/computers': {
+    '/api/approvals': { rules: [], suggestions: [] },
+    '/api/projects': { projects: [] },
+    '/api/computers': {
       computers: [
         {
           id: 'coordinator',
@@ -63,13 +63,13 @@ const seed: DataSeed = {
         },
       ],
     },
-    '/api/v2/computers/models': models,
-    '/api/v2/package-keys': { keys: [] },
-    '/api/v2/backups': { backups: [], restores: [], schedules: [] },
-    '/api/v2/devices': {
+    '/api/model-settings': models,
+    '/api/package-keys': { keys: [] },
+    '/api/backups': { backups: [], restores: [], schedules: [] },
+    '/api/devices': {
       devices: [{ id: 'phone', name: 'My phone', createdAt: '2026-11-12T23:30:00Z' }],
     },
-    '/api/workspace/ssh-keys': {
+    '/api/ssh-keys': {
       keys: [
         {
           id: 'key',
@@ -82,12 +82,12 @@ const seed: DataSeed = {
       ],
       server: { enabled: false, port: null, hostFingerprints: [], knownHostsLine: '' },
     },
-    '/api/v2/inbox?state=waiting': { items: [], cursor: 1 },
-    '/api/v2/inbox?state=answered': { items: [], cursor: 1 },
+    '/api/inbox?state=waiting': { items: [], cursor: 1 },
+    '/api/inbox?state=answered': { items: [], cursor: 1 },
     '/api/catalog': {
       releases: [{ id: 'reader', name: 'Reader', summary: 'Read feeds', release: '1' }],
     },
-    '/api/catalog/reader/1': { release: { application: { resources: {} } } },
+    '/api/catalog/releases/reader/1': { release: { application: { resources: {} } } },
   },
 };
 function render(component: ComponentType, path: string, value: DataSeed | null = seed) {

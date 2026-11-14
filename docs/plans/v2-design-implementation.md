@@ -67,7 +67,7 @@ All paths are relative to the repo root. These are the facts the slices build on
 | Area              | Today                                                                                                                                                                             | Gap for v2                                                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Workspace API     | `server/workspace/api.ts`: `/state`, `/tasks/:id`, projects, PRs, issues, pipelines, repository                                                                                   | none structural                                                                                                        |
-| Events to clients | Long-poll `/api/workspace/events?after=&waitMs=` (`event-feed.ts`, max 10 s) and WebSocket `/ws` (`server/ws.ts`) for deployments, logs, metrics                                  | Two channels with ad-hoc `type` strings. Need one typed event stream.                                                  |
+| Events to clients | Long-poll `/api/events?after=&waitMs=` (`event-feed.ts`, max 10 s) and WebSocket `/ws` (`server/ws.ts`) for deployments, logs, metrics                                            | Two channels with ad-hoc `type` strings. Need one typed event stream.                                                  |
 | Records           | Generic `records(kind, …)` and `events` tables (`server/workspace/store.ts:24`), no TS union                                                                                      | Add the typed unions below, keeping the storage                                                                        |
 | Decisions         | Agent questions via `deploy_ask_user` (`questions.ts`), desktop-control approve/deny (`interactive.ts:184`)                                                                       | No inbox query. Pending questions are found per task in the UI.                                                        |
 | Releases          | Per application. `CiRelease` is keyed by app (`server/ci-releases.ts:23`); deploys go through `/api/upload` (`server/api.ts:1609`); health check and revert at `api.ts:3164–3210` | **No project release, no project rollback route.** Migration undo exists only in component-profile `logical-rollback`. |
@@ -281,7 +281,7 @@ type Attachment = {
 };
 ```
 
-**Endpoints to add.** All are under `/api/v2`. Old endpoints stay until their screens are gone.
+**Endpoints to add.** All are under `/api`. Old endpoints stay until their screens are gone.
 
 - `GET /inbox?state=` and `POST /inbox/:id/answer`. These wrap `questions.ts`, `interactive.ts` and the new merge, rollback and install decisions.
 - `GET /events?after=`. This is one typed stream: `ConversationEvent`, `InboxItem` changes, `Release` and `Rollback` steps, and `AppHealth` changes. Keep long-poll so the iPhone code still works, and add SSE for web and Electron.
@@ -324,7 +324,7 @@ Tokens, components, contracts and routes.
   The two tokens the repo lacks, `focus` and `active`, get added. Regenerate the CSS and `WorkspaceStyle.swift`.
 
 - Port `bundle.css` into React components in `app/components/ui/`, one per `dl-*` family: Sidebar and Nav, Head, Group and Item, Setting, Approval, WorkLog, Composer, Status, Tabs and Seg, Dialog, Banner, Empty and Skeleton, Matrix, Steps, Term and Diff. Each component has default, hover, focus-visible, disabled and loading states (see the `States` board).
-- Add `shared/v2` contracts and `/api/v2/events`.
+- Add `shared/v2` contracts and `/api/activity-events`.
 - Add the route skeleton and every redirect in the table above, with a test that each old path lands on its new one.
 - **Done when:** the design-system route renders every component in light and dark, and the redirect tests pass.
 

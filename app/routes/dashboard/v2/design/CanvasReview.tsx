@@ -14,7 +14,7 @@ import { BuildDesign } from './BuildDesign';
 import { DesignBuildDecision } from '../inbox/DesignBuildDecision';
 
 export function useCanvasReview(project: string, item: string | null) {
-  const api = `/api/v2/projects/${encodeURIComponent(project)}/design`;
+  const api = `/api/projects/${encodeURIComponent(project)}/design`;
   const [data, setData] = useState<DesignReview>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -218,7 +218,7 @@ export function CanvasReviewBar({
     setBusy(true);
     try {
       const savedSuggestions = await beforeDecision(actionId);
-      await request(`/api/v2/inbox/${encodeURIComponent(item!)}/answer`, {
+      await request(`/api/inbox/${encodeURIComponent(item!)}/answer`, {
         method: 'POST',
         body: JSON.stringify({
           actionId,
@@ -537,7 +537,7 @@ export function CanvasReviewBar({
             pending={busy}
             submit={(actionId) => {
               setBusy(true);
-              void request(`/api/v2/inbox/${encodeURIComponent(build.id)}/answer`, {
+              void request(`/api/inbox/${encodeURIComponent(build.id)}/answer`, {
                 method: 'POST',
                 body: JSON.stringify({ actionId, on: 'web' }),
               })

@@ -21,7 +21,7 @@
   "repository": {
     "head": "14d5a56963dfea74d3f50dc9f4fb3da202f0e661",
     "defaultBranch": "main",
-    "clonePath": "/api/workspace/git/4a695762-b4aa-45cd-8556-797bbca37d2f"
+    "clonePath": "/api/git/4a695762-b4aa-45cd-8556-797bbca37d2f"
   },
   "runningTestApplication": {
     "release": 4,

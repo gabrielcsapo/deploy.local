@@ -34,7 +34,7 @@ const read = async (path = '', content = false, id = task.id, owner = 'alice') =
   await workspaceApi(
     {
       method: 'GET',
-      url: `/api/workspace/tasks/${id}/files${content ? '/content' : ''}?path=${encodeURIComponent(path)}`,
+      url: `/api/tasks/${id}/files${content ? '/content' : ''}?path=${encodeURIComponent(path)}`,
     } as IncomingMessage,
     {
       writeHead(code: number) {

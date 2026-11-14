@@ -19,7 +19,7 @@ retain DeployMac until the remaining acceptance below is completed.
   Coordinator requests receive the existing username/token headers from main. A non-secret
   localStorage marker bridges the existing web UI's signed-in check; the real token stays in main.
 - Tray popover: Waiting on you, Live summary, this computer's actual worker state, roles, web
-  shortcuts and Quit. Missing `/api/v2/live` reads Unavailable. Typed inbox events update the
+  shortcuts and Quit. Missing `/api/live` reads Unavailable. Typed inbox events update the
   model with cursor continuation; replay does not duplicate notifications. Decisions use the
   v2 answer endpoint with `on: 'desktop'`, including 409 conflicts. Native notifications open
   Review, with supported macOS action buttons. Other platforms retain click-to-review.

@@ -41,7 +41,7 @@ export async function extractBaseTree(
 }
 
 /** Fetches a checkpoint's base commit through its pinned ref, then writes its tree out.
- * Workers already read assigned repositories over /api/workspace/git with their token. */
+ * Workers already read assigned repositories over /api/git with their token. */
 export async function fetchBaseTree(
   base: CheckpointBase,
   destination: string,

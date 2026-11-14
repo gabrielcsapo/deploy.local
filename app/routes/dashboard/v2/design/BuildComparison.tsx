@@ -25,7 +25,7 @@ export function BuildComparison({
   const widths = [
     ...new Set([...board.widths, initialWidth].filter((value): value is number => !!value)),
   ];
-  const source = `/api/v2/projects/${encodeURIComponent(projectId)}/design/render?ref=${encodeURIComponent(commit)}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.height}`;
+  const source = `/api/projects/${encodeURIComponent(projectId)}/design/render?ref=${encodeURIComponent(commit)}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.height}`;
   return (
     <>
       <div className="dl-setting">

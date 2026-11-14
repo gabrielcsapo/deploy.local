@@ -4,7 +4,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://deploy.local/api/workspace/git/67d679c5-003f-45d0-b424-53a99dbb0149",
+    "url": "https://deploy.local/api/git/67d679c5-003f-45d0-b424-53a99dbb0149",
     "directory": "packages/react-flight-router"
   },
   "bin": {

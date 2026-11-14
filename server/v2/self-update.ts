@@ -371,9 +371,9 @@ export const selfUpdateRoutes = [
   route({ method: '*', path: '/self-update', handler: methodNotAllowed }),
 ];
 
-// These paths are matched without their /api/v2 prefix, as they always were.
+// These paths are matched without their /api prefix, as they always were.
 const selfUpdateDispatch = dispatch(selfUpdateRoutes, {
-  path: (url) => url.pathname.slice('/api/v2'.length),
+  path: (url) => url.pathname.slice('/api'.length),
 });
 
 export async function selfUpdateApi(req: IncomingMessage, res: ServerResponse, owner: string) {

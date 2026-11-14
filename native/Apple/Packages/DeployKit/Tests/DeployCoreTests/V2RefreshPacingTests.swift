@@ -50,10 +50,10 @@ private final class PacingServer: @unchecked Sendable {
     func body(path: String) -> String {
         lock.lock(); defer { lock.unlock() }
         switch path {
-        case "/api/workspace/state": refreshes += 1; return #"{"cursor":0,"projects":[],"tasks":\#(tasks),"workers":[]}"#
-        case "/api/v2/agents": return #"{"agents":[]}"#
-        case "/api/v2/inbox": return #"{"items":[]}"#
-        case "/api/v2/live": liveReads += 1; return #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"2026-10-27T14:14:00Z"},"computers":[]}"#
+        case "/api/state": refreshes += 1; return #"{"cursor":0,"projects":[],"tasks":\#(tasks),"workers":[]}"#
+        case "/api/agents": return #"{"agents":[]}"#
+        case "/api/inbox": return #"{"items":[]}"#
+        case "/api/live": liveReads += 1; return #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"2026-10-27T14:14:00Z"},"computers":[]}"#
         case "/api/nodes": computerReads += 1; return #"{"nodes":[]}"#
         case "/api/user": return #"{"username":"gabriel"}"#
         default: return "{}"
@@ -72,7 +72,7 @@ private final class PacingURLProtocol: URLProtocol, @unchecked Sendable {
     }
     override func startLoading() {
         let url = request.url!
-        guard url.path == "/api/v2/events" else { return deliver(Self.server.body(path: url.path)) }
+        guard url.path == "/api/activity-events" else { return deliver(Self.server.body(path: url.path)) }
         let waitMs = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "waitMs" }?.value.flatMap(Int.init) ?? 0
         Self.server.poll(waitMs: waitMs) { [self] body in deliver(body) }
     }

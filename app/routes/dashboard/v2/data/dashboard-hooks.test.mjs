@@ -7,7 +7,7 @@ test('Computers consumes the seed without a request, retains polling and explici
   let seed = {
     owner: 'alice',
     at: Date.now(),
-    data: { '/api/v2/computers': { computers: [{ name: 'Alice computer' }] } },
+    data: { '/api/computers': { computers: [{ name: 'Alice computer' }] } },
   };
   const requests = [],
     timers = [];
@@ -51,7 +51,7 @@ test('Computers consumes the seed without a request, retains polling and explici
     seed = {
       owner: 'bob',
       at: Date.now(),
-      data: { '/api/v2/computers': { computers: [{ name: 'Bob computer' }] } },
+      data: { '/api/computers': { computers: [{ name: 'Bob computer' }] } },
     };
     assert.equal(
       read().data.computers[0].name,
@@ -64,7 +64,7 @@ test('Computers consumes the seed without a request, retains polling and explici
 });
 
 test('first form reads honor fresh success/error seeds and expired seeds use the live API', async () => {
-  const path = '/api/v2/auth/account';
+  const path = '/api/auth/account';
   const seed = {
     owner: 'alice',
     at: Date.now(),
@@ -92,9 +92,13 @@ test('Composer does not re-request the shell agents, model choices, or seeded ta
     owner: 'alice',
     at: Date.now(),
     data: {
-      '/api/v2/agents': { agents: [] },
-      '/api/v2/computers/models': { choices: [], local: [], defaults: {}, providers: [] },
-      '/api/v2/tasks/task': { task: { id: 'task' }, project: { id: 'project' }, screenshots: [] },
+      '/api/agents': { agents: [] },
+      '/api/model-settings': { choices: [], local: [], defaults: {}, providers: [] },
+      '/api/task-snapshots/task': {
+        task: { id: 'task' },
+        project: { id: 'project' },
+        screenshots: [],
+      },
     },
   };
   const requests = [];

@@ -28,7 +28,7 @@ function PullList({ project }: { project: string }) {
   const [search, setSearch] = useState('');
   const [before, setBefore] = useState<number>();
   const [older, setOlder] = useState<TaskPull[]>([]);
-  const base = `/api/workspace/projects/${projectSegment(project)}/pulls`;
+  const base = `/api/projects/${projectSegment(project)}/pulls`;
   const page = useData<{
     items: TaskPull[];
     counts: Record<string, number>;

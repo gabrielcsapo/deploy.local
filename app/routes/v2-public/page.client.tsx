@@ -45,7 +45,7 @@ export function SignInForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    void Promise.all([api('/api/v2/auth/methods'), trusted()])
+    void Promise.all([api('/api/auth/methods'), trusted()])
       .then(([methods, trust]) => setPasskey(preferPasskey(methods, trust)))
       .catch(() => {});
   }, []);
@@ -120,13 +120,13 @@ function SignIn() {
   const destination = returnPath(params.get('returnTo'));
   useEffect(() => {
     if (code)
-      void api('/api/v2/auth/account')
+      void api('/api/auth/account')
         .then(() => setSignedIn(true))
         .catch(() => {});
   }, [code]);
   async function approve(approved: boolean) {
     try {
-      await api('/api/v2/auth/cli/approve', { code, approved });
+      await api('/api/auth/cli/approve', { code, approved });
       setFinished(approved ? 'Signed in. Return to your terminal.' : 'Sign-in denied.');
     } catch (error) {
       setError((error as Error).message);
@@ -169,7 +169,7 @@ function Setup() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    void api('/api/v2/setup')
+    void api('/api/setup')
       .then(setInfo)
       .catch((error) => setError(error.message));
   }, []);
@@ -177,7 +177,7 @@ function Setup() {
     setBusy(true);
     setError('');
     try {
-      const result = await api('/api/v2/setup', Object.fromEntries(new FormData(form)));
+      const result = await api('/api/setup', Object.fromEntries(new FormData(form)));
       setAuth(result.username, result.token);
       window.location.assign('/dashboard');
     } catch (error) {
@@ -302,10 +302,10 @@ function AppsHome() {
   const [data, setData] = useState<{ apps: HomeApp[]; server?: string; computers?: string[] }>();
   const [error, setError] = useState('');
   useEffect(() => {
-    void api('/api/v2/auth/account')
+    void api('/api/auth/account')
       .then(() => window.location.replace('/dashboard'))
       .catch(() => {});
-    void api('/api/v2/apps-home')
+    void api('/api/apps-home')
       .then(setData)
       .catch((error) => setError(error.message));
   }, []);
@@ -369,7 +369,7 @@ function Recover() {
   const [error, setError] = useState('');
   useEffect(() => {
     const read = () =>
-      api('/api/v2/setup/recovery')
+      api('/api/setup/recovery')
         .then(setData)
         .catch((error) => setError(error.message));
     void read();

@@ -3026,6 +3026,61 @@
       "h": 900,
       "title": "Deleting a task says what goes with it",
       "expand": "fill"
+    },
+    "SearchText.html": {
+      "x": 24730,
+      "y": 9884,
+      "w": 1440,
+      "h": 900,
+      "title": "Search: text inside code and messages, in the same box",
+      "expand": "fill"
+    },
+    "SearchSearching.html": {
+      "x": 26250,
+      "y": 9884,
+      "w": 1440,
+      "h": 900,
+      "title": "Search: names show at once while code is still being searched",
+      "expand": "fill"
+    },
+    "SearchCode.html": {
+      "x": 27770,
+      "y": 9884,
+      "w": 1440,
+      "h": 900,
+      "title": "Search: all matches in code, by file",
+      "expand": "fill"
+    },
+    "SearchProject.html": {
+      "x": 29290,
+      "y": 9884,
+      "w": 1440,
+      "h": 900,
+      "title": "Search from a project’s Code tab starts inside that project",
+      "expand": "fill"
+    },
+    "CodeFileMatch.html": {
+      "x": 30810,
+      "y": 9884,
+      "w": 1440,
+      "h": 900,
+      "title": "A file opened from a search result, at the matching line",
+      "expand": "fill"
+    },
+    "SearchNone.html": {
+      "x": 32330,
+      "y": 9884,
+      "w": 1440,
+      "h": 900,
+      "title": "Search: nothing matches",
+      "expand": "fill"
+    },
+    "SearchPhone.html": {
+      "x": 33850,
+      "y": 9884,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Search"
     }
   },
   "order": [
@@ -3089,6 +3144,13 @@
     "ScreenAsk.html",
     "ScreenWatch.html",
     "CommandPalette.html",
+    "SearchText.html",
+    "SearchSearching.html",
+    "SearchCode.html",
+    "SearchProject.html",
+    "CodeFileMatch.html",
+    "SearchNone.html",
+    "SearchPhone.html",
     "TasksByProject.html",
     "TasksGroupMenu.html",
     "TaskRowMenu.html",
@@ -3641,7 +3703,7 @@
       "w": 420,
       "x": 22710,
       "y": 9884,
-      "text": "Search\nWeb app\niPhone: later"
+      "text": "Search\nWeb and desktop 1440 / 700 · iPhone 390"
     },
     "ship-col-web": {
       "fill": "purple",
@@ -4878,6 +4940,13 @@
       "x": 22710,
       "y": 11224,
       "text": "Tasks in the sidebar group by date or by project; the first heading carries the choice and the app remembers it. By project: projects in order of their latest task, each with its 5 most recent tasks and “Show N more”; tasks with no project come last under No project. The + on a project starts a task in it.\n\nDelete task… is in a row’s ⋯ (shown in place of the time on hover or keyboard focus, and on right-click in the desktop app) and in the task’s own ⋯ menu. It always asks first and names what goes: the conversation, its checkpoints and its branch. The notice appears only when the branch has commits that are not on main. An open pull request is closed; merged work and releases stay. While a task is running the item is absent: stop it first."
+    },
+    "one-search": {
+      "fill": "blue",
+      "w": 420,
+      "x": 22710,
+      "y": 10004,
+      "text": "One search, everywhere\n• One box. The magnifier in the sidebar, ⌘K, a project’s Code tab and Search on iPhone all open it. There is no separate search page and no second search.\n• Names first: projects, apps, tasks, agents, computers, packages, pull requests and issues match by name as you type.\n• Text second, from three characters: lines of code, and messages in tasks and agent chats. Plain text, ignoring case.\n• Opened inside a project, it starts in that project, shown as a token before the words; Backspace searches everywhere. Show all narrows to one kind the same way.\n• Code is searched on each project’s main branch, or on the branch the Code tab is showing.\n• A code result opens the file at that line, with every match marked. A message opens its chat at that message.\n• Names never wait for code: the Code heading says Searching… until its lines arrive.\n• The Code tab’s Go to file box becomes Search this project ( / ); file names are the first group there."
     }
   },
   "starts": {}

@@ -41,15 +41,15 @@ private let runJSON = #"{"id":"r","taskId":"t","adapter":"codex","status":"queue
 private let agentId = "d5eb96ea-63bb-43df-91fb-63dc741ac621"
 private let agentJSON = #"{"id":"d5eb96ea-63bb-43df-91fb-63dc741ac621","name":"Release notes writer","job":"Summarize what was merged…","projectId":"p","schedule":{"enabled":false,"time":"08:00","futureOption":true},"triggers":{"mention":true,"disk":false},"apps":[],"computers":[],"createdBy":"gabriel","futureField":{"nested":true}}"#
 private func routes() -> [String: [(Int, String)]] {
-    ["GET /api/workspace/state": [(200, #"{"cursor":0,"projects":[],"tasks":[],"workers":[]}"#)],
-     "GET /api/v2/agents": [(200, #"{"agents":[]}"#)],
-     "GET /api/v2/inbox?state=waiting": [(200, #"{"items":[]}"#)],
-     "GET /api/v2/inbox?state=answered": [(200, #"{"items":[]}"#)],
-     "GET /api/v2/live": [(200, #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"2026-10-27T14:14:00Z"},"computers":[]}"#)],
+    ["GET /api/state": [(200, #"{"cursor":0,"projects":[],"tasks":[],"workers":[]}"#)],
+     "GET /api/agents": [(200, #"{"agents":[]}"#)],
+     "GET /api/inbox?state=waiting": [(200, #"{"items":[]}"#)],
+     "GET /api/inbox?state=answered": [(200, #"{"items":[]}"#)],
+     "GET /api/live": [(200, #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"2026-10-27T14:14:00Z"},"computers":[]}"#)],
      "GET /api/nodes": [(200, #"{"nodes":[]}"#)],
      "GET /api/user": [(200, #"{"username":"gabriel"}"#)],
-     "POST /api/workspace/tasks": [(200, taskJSON)],
-     "POST /api/workspace/tasks/t/messages": [(200, runJSON)]]
+     "POST /api/tasks": [(200, taskJSON)],
+     "POST /api/tasks/t/messages": [(200, runJSON)]]
 }
 private func body(_ request: URLRequest) -> [String: Any] {
     var data = request.httpBody ?? Data()
@@ -62,11 +62,44 @@ private func body(_ request: URLRequest) -> [String: Any] {
 }
 
 @Suite(.serialized) struct V2Tests {
+    @Test func storedAttachmentRequestsUseNewPathsAndKeepCredentialsOnTheCoordinator() async throws {
+        V2URLProtocol.state.reset([
+            "GET /api/attachments/abc": [(200, "image")],
+            "GET /api/conversation-attachments/abc": [(200, "conversation-image")]
+        ])
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [V2URLProtocol.self]
+        let api = WorkspaceClient(connection: connection, session: URLSession(configuration: config))
+        let oldWorkspace = "/api/" + "workspace/attachments/abc"
+        let oldConversation = "/api/" + "v2/attachments/abc"
+        #expect(try await api.data(oldWorkspace) == Data("image".utf8))
+        #expect(try await api.data(connection.origin + oldConversation) == Data("conversation-image".utf8))
+        do {
+            _ = try await api.data("https://foreign.invalid" + oldWorkspace)
+            Issue.record("A foreign attachment must not receive coordinator credentials")
+        } catch ClientError.invalidOrigin {}
+        catch { Issue.record("Unexpected error: \(error)") }
+        let requests = V2URLProtocol.state.recorded()
+        #expect(requests.map { $0.url!.path } == ["/api/attachments/abc", "/api/conversation-attachments/abc"])
+        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "X-Deploy-Token") == connection.token })
+    }
+
+    @Test func pairingCertificateDownloadUsesTheCanonicalPathWithoutCredentials() async throws {
+        V2URLProtocol.state.reset(["GET /ca.crt": [(200, "public-certificate")]])
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [V2URLProtocol.self]
+        let bytes = try await V2PairingClient.downloadCertificate(origin: connection.origin, session: URLSession(configuration: config))
+        #expect(bytes == Data("public-certificate".utf8))
+        let request = try #require(V2URLProtocol.state.recorded().first)
+        #expect(request.url?.path == "/ca.crt")
+        #expect(request.value(forHTTPHeaderField: "X-Deploy-Token") == nil)
+    }
+
     @Test func reviewRequestsSendGroupedSeenDelayAndUndo() async throws {
         V2URLProtocol.state.reset([
-            "POST /api/v2/projects/p/design/review/seen": [(200, "{}")],
-            "POST /api/v2/projects/p/design/review/undo": [(200, "{}")],
-            "POST /api/v2/inbox/review/answer": [(200, "{\"item\":\(answeredJSON)}")]
+            "POST /api/projects/p/design/review/seen": [(200, "{}")],
+            "POST /api/projects/p/design/review/undo": [(200, "{}")],
+            "POST /api/inbox/review/answer": [(200, "{\"item\":\(answeredJSON)}")]
         ])
         let api = client()
         try await api.reviewSeen(project: "p", item: "review", boards: ["A.html", "B.html"], revision: "b")
@@ -81,17 +114,17 @@ private func body(_ request: URLRequest) -> [String: Any] {
     }
 
     @Test func approvalsFetchUsesTheReadOnlyEndpointAndDecodesTheEnvelope() async throws {
-        V2URLProtocol.state.reset(["GET /api/v2/approvals": [(200, #"{"rules":[{"agent":"custom-agent","action":"start-task","mode":"allow"}],"suggestions":[]}"#)]])
+        V2URLProtocol.state.reset(["GET /api/approvals": [(200, #"{"rules":[{"agent":"custom-agent","action":"start-task","mode":"allow"}],"suggestions":[]}"#)]])
         let approvals = try await client().approvals()
         #expect(approvals.mode(agent: "custom-agent", action: .startTask) == .allow)
         let requests = V2URLProtocol.state.recorded()
         #expect(requests.count == 1)
         #expect(requests.first?.httpMethod == "GET")
-        #expect(requests.first?.url?.path == "/api/v2/approvals")
+        #expect(requests.first?.url?.path == "/api/approvals")
     }
 
     @Test func agentDraftPostsOnlyTheDescriptionAndDecodesTheEnvelope() async throws {
-        V2URLProtocol.state.reset(["POST /api/v2/agents/draft": [(200, #"{"draft":{"name":"Notes","job":"Summarize changes.\nAsk before publishing.","computers":["SER"],"apps":[],"futureField":true}}"#)]])
+        V2URLProtocol.state.reset(["POST /api/agents/draft": [(200, #"{"draft":{"name":"Notes","job":"Summarize changes.\nAsk before publishing.","computers":["SER"],"apps":[],"futureField":true}}"#)]])
         let draft = try await client().draftAgent(job: "Write release notes for home-gym")
         #expect(draft.name == "Notes")
         #expect(draft.job == "Summarize changes.\nAsk before publishing.")
@@ -102,7 +135,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
     }
 
     @Test func createAgentSendsOnlyEditableFieldsAndDecodes201() async throws {
-        V2URLProtocol.state.reset(["POST /api/v2/agents": [(201, #"{"agent":\#(agentJSON)}"#)]])
+        V2URLProtocol.state.reset(["POST /api/agents": [(201, #"{"agent":\#(agentJSON)}"#)]])
         let api = client()
         for enabled in [false, true] {
             let values = V2NewAgent(name: "Edited name", job: "Edited instructions\nAsk first", projectId: "p", schedule: .init(enabled: enabled, time: "19:30"))
@@ -125,8 +158,8 @@ private func body(_ request: URLRequest) -> [String: Any] {
 
     @Test func draftAndCreateErrorsPropagateAndDraftCanBeRetried() async throws {
         V2URLProtocol.state.reset([
-            "POST /api/v2/agents/draft": [(502, #"{"error":"The model returned an invalid agent draft."}"#), (200, #"{"draft":{"name":"Notes","job":"Write notes","computers":[]}}"#)],
-            "POST /api/v2/agents": [(400, #"{"error":"Invalid project"}"#)]
+            "POST /api/agents/draft": [(502, #"{"error":"The model returned an invalid agent draft."}"#), (200, #"{"draft":{"name":"Notes","job":"Write notes","computers":[]}}"#)],
+            "POST /api/agents": [(400, #"{"error":"Invalid project"}"#)]
         ])
         let api = client()
         await #expect(throws: ClientError.self) { try await api.draftAgent(job: "Write notes") }
@@ -139,8 +172,8 @@ private func body(_ request: URLRequest) -> [String: Any] {
 
     @Test func malformedDraftsAndCreationResponsesAreRejected() async throws {
         V2URLProtocol.state.reset([
-            "POST /api/v2/agents/draft": [(200, #"{"draft":{"name":"Notes","computers":[]}}"#)],
-            "POST /api/v2/agents": [(201, #"{"agent":{"name":"Notes"}}"#)]
+            "POST /api/agents/draft": [(200, #"{"draft":{"name":"Notes","computers":[]}}"#)],
+            "POST /api/agents": [(201, #"{"agent":{"name":"Notes"}}"#)]
         ])
         await #expect(throws: DecodingError.self) { try await client().draftAgent(job: "Write notes") }
         await #expect(throws: DecodingError.self) {
@@ -153,8 +186,8 @@ private func body(_ request: URLRequest) -> [String: Any] {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             defer { try? FileManager.default.removeItem(at: directory) }
             V2URLProtocol.state.reset([
-                "POST /api/v2/agents": [(201, #"{"agent":\#(agentJSON)}"#)],
-                "GET /api/v2/agents": [(status, status == 200 ? #"{"agents":[{"id":"other","name":"Other"},\#(agentJSON)]}"# : #"{"error":"Unavailable"}"#)]
+                "POST /api/agents": [(201, #"{"agent":\#(agentJSON)}"#)],
+                "GET /api/agents": [(status, status == 200 ? #"{"agents":[{"id":"other","name":"Other"},\#(agentJSON)]}"# : #"{"error":"Unavailable"}"#)]
             ])
             let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
             let created = try await store.createAgent(.init(name: "Notes", job: "Write notes", schedule: .init(enabled: false, time: "08:00")))
@@ -164,12 +197,12 @@ private func body(_ request: URLRequest) -> [String: Any] {
             #expect(store.snapshot.agents.count == (status == 200 ? 2 : 1))
             let restored = V2Store(connection: connection, client: client(), cacheDirectory: directory)
             #expect(restored.snapshot.agents == store.snapshot.agents)
-            #expect(V2URLProtocol.state.recorded().map { "\($0.httpMethod!) \($0.url!.path)" } == ["POST /api/v2/agents", "GET /api/v2/agents"])
+            #expect(V2URLProtocol.state.recorded().map { "\($0.httpMethod!) \($0.url!.path)" } == ["POST /api/agents", "GET /api/agents"])
         }
     }
 
     @Test func agentsDecodeCoordinatorResponseAndOptionalFields() async throws {
-        V2URLProtocol.state.reset(["GET /api/v2/agents": [(200, #"{"agents":[\#(agentJSON),{"id":"minimal","name":"Minimal"},{"id":"nullable","name":"Nullable","job":null,"projectId":null,"schedule":null}],"futureField":true}"#)]])
+        V2URLProtocol.state.reset(["GET /api/agents": [(200, #"{"agents":[\#(agentJSON),{"id":"minimal","name":"Minimal"},{"id":"nullable","name":"Nullable","job":null,"projectId":null,"schedule":null}],"futureField":true}"#)]])
         let agents = try await client().agents()
         #expect(agents.map(\.id) == [agentId, "minimal", "nullable"])
         #expect(agents[0].name == "Release notes writer")
@@ -198,7 +231,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
     }
 
     @Test func agentControlsUseTheCoordinatorId() async throws {
-        let path = "/api/v2/agents/\(agentId)/control"
+        let path = "/api/agents/\(agentId)/control"
         V2URLProtocol.state.reset([
             "GET " + path: [(200, #"{"paused":false,"mutedUntil":null}"#)],
             "PATCH " + path: [(200, #"{"paused":true,"mutedUntil":null}"#)]
@@ -216,7 +249,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         var responses = routes()
-        responses["GET /api/v2/agents"] = [
+        responses["GET /api/agents"] = [
             (200, #"{"agents":[\#(agentJSON)]}"#),
             (503, #"{"error":"Unavailable"}"#),
             (200, #"{"agents":[{"id":"missing-name"}]}"#),
@@ -256,25 +289,25 @@ private func body(_ request: URLRequest) -> [String: Any] {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         var responses = routes()
-        responses["GET /api/v2/agents"] = [(200, #"{"agents":[\#(agentJSON)]}"#)]
-        responses["POST /api/v2/composer/agents/\(agentId)/messages"] = [(200, #"{"events":[]}"#)]
+        responses["GET /api/agents"] = [(200, #"{"agents":[\#(agentJSON)]}"#)]
+        responses["POST /api/composer/agents/\(agentId)/messages"] = [(200, #"{"events":[]}"#)]
         V2URLProtocol.state.reset(responses)
         let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
         var draft = V2Draft(); draft.agent = agentId; draft.question = true; draft.text = "What merged?"
         #expect(await store.enqueue(draft))
         await store.refresh()
         let requests = V2URLProtocol.state.recorded()
-        let request = try #require(requests.first { $0.httpMethod == "POST" && $0.url?.path == "/api/v2/composer/agents/\(agentId)/messages" })
+        let request = try #require(requests.first { $0.httpMethod == "POST" && $0.url?.path == "/api/composer/agents/\(agentId)/messages" })
         #expect(body(request)["text"] as? String == "What merged?")
         // A question to an agent is a message in its chat, never a new task.
-        #expect(!requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/workspace/tasks" })
+        #expect(!requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/tasks" })
         #expect(store.snapshot.drafts.isEmpty)
     }
 
     @Test func answerUsesIPhoneAndReturnsWinnerAfterConflict() async throws {
         V2URLProtocol.state.reset([
-            "POST /api/v2/inbox/rollback:home-gym/answer": [(409, #"{"error":"Already answered"}"#)],
-            "GET /api/v2/inbox?state=answered": [(200, "{\"items\":[\(answeredJSON)]}")]
+            "POST /api/inbox/rollback:home-gym/answer": [(409, #"{"error":"Already answered"}"#)],
+            "GET /api/inbox?state=answered": [(200, "{\"items\":[\(answeredJSON)]}")]
         ])
         let result = try await client().answer("rollback:home-gym", action: "rollback")
         #expect(result.alreadyAnswered)
@@ -287,8 +320,8 @@ private func body(_ request: URLRequest) -> [String: Any] {
     @Test func notificationActionsAreScopedAndMustStillBeOffered() async throws {
         let waiting = answeredJSON.replacingOccurrences(of: "\"state\":\"answered\"", with: "\"state\":\"waiting\"")
         V2URLProtocol.state.reset([
-            "GET /api/v2/inbox?state=waiting": [(200, "{\"items\":[\(waiting)]}")],
-            "POST /api/v2/inbox/rollback:home-gym/answer": [(200, "{\"item\":\(answeredJSON)}")]
+            "GET /api/inbox?state=waiting": [(200, "{\"items\":[\(waiting)]}")],
+            "POST /api/inbox/rollback:home-gym/answer": [(200, "{\"item\":\(answeredJSON)}")]
         ])
         let api = client()
         let scope = V2Client.notificationScope(connection)
@@ -303,15 +336,15 @@ private func body(_ request: URLRequest) -> [String: Any] {
         let fallback = [V2Project(id: "p", name: "home-gym")]
         V2URLProtocol.state.reset([:])
         #expect(try await client().projects(fallback: fallback) == fallback)
-        V2URLProtocol.state.reset(["GET /api/v2/projects": [(401, #"{"error":"Expired"}"#)]])
+        V2URLProtocol.state.reset(["GET /api/projects": [(401, #"{"error":"Expired"}"#)]])
         await #expect(throws: ClientError.self) { try await client().projects(fallback: fallback) }
-        V2URLProtocol.state.reset(["GET /api/v2/projects": [(200, #"{"projects":[{"id":"v2","name":"recipes"}]}"#)]])
+        V2URLProtocol.state.reset(["GET /api/projects": [(200, #"{"projects":[{"id":"v2","name":"recipes"}]}"#)]])
         #expect(try await client().projects(fallback: fallback).first?.id == "v2")
-        V2URLProtocol.state.reset(["GET /api/v2/projects": [(200, #"[{"id":"v2-array","name":"recipes"}]"#)]])
+        V2URLProtocol.state.reset(["GET /api/projects": [(200, #"[{"id":"v2-array","name":"recipes"}]"#)]])
         #expect(try await client().projects(fallback: fallback).first?.id == "v2-array")
     }
     @Test func pollingEncodesCursorAndWait() async throws {
-        V2URLProtocol.state.reset(["GET /api/v2/events?after=42&waitMs=10000": [(200, #"{"events":[],"cursor":43,"supportsWait":true}"#)]])
+        V2URLProtocol.state.reset(["GET /api/activity-events?after=42&waitMs=10000": [(200, #"{"events":[],"cursor":43,"supportsWait":true}"#)]])
         #expect(try await client().events(after: 42).cursor == 43)
         #expect(V2Client.segment("a/b?c#d") == "a%2Fb%3Fc%23d")
     }
@@ -352,7 +385,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
     @Test @MainActor func ambiguousSendReplaysSameOperationAndDoesNotCreateSecondTask() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        var responses = routes(); responses["POST /api/workspace/tasks/t/messages"] = [(-1, ""), (200, runJSON)]
+        var responses = routes(); responses["POST /api/tasks/t/messages"] = [(-1, ""), (200, runJSON)]
         V2URLProtocol.state.reset(responses)
         let first = V2Store(connection: connection, client: client(), cacheDirectory: directory)
         var draft = V2Draft(); draft.text = "Fix sync"
@@ -366,7 +399,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
         await next.refresh()
         #expect(next.snapshot.drafts.isEmpty)
         let requests = V2URLProtocol.state.recorded()
-        #expect(requests.filter { $0.httpMethod == "POST" && $0.url?.path == "/api/workspace/tasks" }.count == 1)
+        #expect(requests.filter { $0.httpMethod == "POST" && $0.url?.path == "/api/tasks" }.count == 1)
         let messages = requests.filter { $0.url?.path.hasSuffix("/messages") == true }
         #expect(messages.count == 2)
         #expect(body(messages[0])["operationId"] as? String == draft.id)
@@ -375,7 +408,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
     @Test @MainActor func rejectedDraftWaitsForReviewInsteadOfAutomaticRetry() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        var responses = routes(); responses["POST /api/workspace/tasks/t/messages"] = [(409, #"{"error":"Task changed"}"#)]
+        var responses = routes(); responses["POST /api/tasks/t/messages"] = [(409, #"{"error":"Task changed"}"#)]
         V2URLProtocol.state.reset(responses)
         let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
         var draft = V2Draft(); draft.text = "Fix sync"
@@ -408,8 +441,8 @@ private func body(_ request: URLRequest) -> [String: Any] {
         var waiting = answered; waiting.state = .waiting; waiting.answer = nil
         var withdrawn = waiting; withdrawn.id = "old-withdrawn"; withdrawn.state = .withdrawn
         var responses = routes()
-        responses["GET /api/v2/inbox?state=waiting"] = [(200, #"{"items":[],"cursor":20}"#)]
-        responses["GET /api/v2/inbox?state=answered"] = [(200, #"{"items":[\#(answeredJSON)],"cursor":20}"#)]
+        responses["GET /api/inbox?state=waiting"] = [(200, #"{"items":[],"cursor":20}"#)]
+        responses["GET /api/inbox?state=answered"] = [(200, #"{"items":[\#(answeredJSON)],"cursor":20}"#)]
         V2URLProtocol.state.reset(responses)
         let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
         // The phone left at cursor zero; snapshot reads newer truth before replay catches up.
@@ -439,7 +472,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
     @Test @MainActor func unauthorizedStopsRefreshAndKeepsSavedDraft() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        var responses = routes(); responses["GET /api/workspace/state"] = [(401, #"{"error":"Expired"}"#)]
+        var responses = routes(); responses["GET /api/state"] = [(401, #"{"error":"Expired"}"#)]
         V2URLProtocol.state.reset(responses)
         let store = V2Store(connection: connection, client: client(), cacheDirectory: directory)
         var draft = V2Draft(); draft.text = "Still here"; store.saveComposer(draft)
@@ -451,11 +484,11 @@ private func body(_ request: URLRequest) -> [String: Any] {
     @Test func phonePreferencesAndRevocationUseTypedOwnerEndpoints() async throws {
         let preferences = #"{"decisions":true,"failingApps":false,"quietHours":true,"timeZone":"America/New_York"}"#
         V2URLProtocol.state.reset([
-            "GET /api/v2/notifications": [(200, preferences)],
-            "PATCH /api/v2/notifications": [(200, preferences)],
-            "PATCH /api/v2/agents/\(agentId)/control": [(200, #"{"paused":true,"mutedUntil":null}"#)],
-            "GET /api/v2/devices": [(200, #"{"devices":[{"id":"phone","name":"iPhone","createdAt":"2026-10-28T00:00:00Z"}]}"#)],
-            "DELETE /api/v2/devices/phone": [(200, #"{"removed":true}"#)]
+            "GET /api/notifications": [(200, preferences)],
+            "PATCH /api/notifications": [(200, preferences)],
+            "PATCH /api/agents/\(agentId)/control": [(200, #"{"paused":true,"mutedUntil":null}"#)],
+            "GET /api/devices": [(200, #"{"devices":[{"id":"phone","name":"iPhone","createdAt":"2026-10-28T00:00:00Z"}]}"#)],
+            "DELETE /api/devices/phone": [(200, #"{"removed":true}"#)]
         ])
         let api = client()
         let settings = try await api.notificationPreferences()
@@ -471,7 +504,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
     }
 
     @Test func designReviewRequestsShareAuthenticationAndEncodeCoordinates() async throws {
-        let prefix = "/api/v2/projects/p/design/review"
+        let prefix = "/api/projects/p/design/review"
         let preview = #"{"width":390,"height":844,"before":null,"after":"/preview.png","areas":[],"crop":{"x":0,"y":0,"w":390,"h":400}}"#
         V2URLProtocol.state.reset([
             "GET \(prefix)/preview?item=design%3Ap%3Ab%3Ac&board=Hello%20Phone%2Ehtml&width=390&scale=3.0": [(200, preview)],
@@ -480,7 +513,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
             "POST \(prefix)/pins": [(200, #"{"pins":[]}"#)],
             "PATCH \(prefix)/pins": [(200, #"{"pins":[]}"#)],
             "DELETE \(prefix)/pins": [(200, #"{"pins":[]}"#)],
-            "POST /api/v2/inbox/design:p:b:c/answer": [(200, #"{"item":\#(answeredJSON)}"#)]
+            "POST /api/inbox/design:p:b:c/answer": [(200, #"{"item":\#(answeredJSON)}"#)]
         ])
         let api = client()
         let metadata = try await api.reviewPreview(project: "p", item: "design:p:b:c", board: "Hello Phone.html", width: 390, scale: 4)
@@ -509,8 +542,8 @@ private func body(_ request: URLRequest) -> [String: Any] {
     @Test func designLandingUsesProjectScopedReviewsAndUsableDesigns() async throws {
         let proposal = #"{"id":"design:p:b:c","title":"Agents you make yourself","summary":null,"projectId":"p","project":"deploy.local","branch":"b","proposer":{"id":"designer","name":"Designer","avatar":null},"createdAt":"2026-11-04T12:00:00Z","counts":{"screens":22,"changed":9,"new":12,"removed":1},"stale":false,"conflicts":[]}"#
         V2URLProtocol.state.reset([
-            "GET /api/v2/design/reviews?project=p": [(200, #"{"proposals":[\#(proposal)]}"#)],
-            "GET /api/v2/design/projects": [(200, #"{"projects":[{"id":"empty","name":"Empty","boards":0},{"id":"p","name":"deploy.local","description":"Agents and computers","boards":168}]}"#)]
+            "GET /api/design/reviews?project=p": [(200, #"{"proposals":[\#(proposal)]}"#)],
+            "GET /api/design/projects": [(200, #"{"projects":[{"id":"empty","name":"Empty","boards":0},{"id":"p","name":"deploy.local","description":"Agents and computers","boards":168}]}"#)]
         ])
         let api = client()
         let projects = try await api.designProjects()

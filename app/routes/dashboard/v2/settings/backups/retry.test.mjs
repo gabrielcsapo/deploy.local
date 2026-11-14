@@ -103,7 +103,7 @@ test('a successful backup followed by a failed refresh retries only the read', a
   await settle();
   assert.deepEqual(f.calls, [
     ['GET', '/backups'],
-    ['POST', '/api/v2/backups/run'],
+    ['POST', '/api/backups/run'],
     ['GET', '/backups'],
     ['GET', '/backups'],
   ]);

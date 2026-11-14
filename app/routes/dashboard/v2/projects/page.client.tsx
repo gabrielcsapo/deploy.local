@@ -102,8 +102,8 @@ function Account() {
 }
 function ProjectList() {
   const coordinator = useCoordinatorName();
-  const projects = useData<{ projects: Project[] }>('/api/v2/projects');
-  const live = useResource<LiveResponse>('/api/v2/live');
+  const projects = useData<{ projects: Project[] }>('/api/projects');
+  const live = useResource<LiveResponse>('/api/live');
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -213,18 +213,18 @@ function ProjectPage({
 }) {
   const { formatRequestClock, formatTime, now } = useProjectFormatting();
   const { navigate } = useRouter();
-  const overview = useData<Overview>(`/api/v2/projects/${projectSegment(projectKey)}/overview`);
+  const overview = useData<Overview>(`/api/projects/${projectSegment(projectKey)}/overview`);
   const pulls = useData<{ items: TaskPull[] }>(
-    `/api/workspace/projects/${projectSegment(projectKey)}/pulls?status=open`,
+    `/api/projects/${projectSegment(projectKey)}/pulls?status=open`,
   );
   const history = useData<{ releases: Release[] }>(
-    `/api/v2/projects/${projectSegment(projectKey)}/releases`,
+    `/api/projects/${projectSegment(projectKey)}/releases`,
   );
   const [add, setAdd] = useState(false);
-  const available = useData<{ apps: Project['apps'] }>('/api/v2/projects/unlinked-apps');
+  const available = useData<{ apps: Project['apps'] }>('/api/projects/unlinked-apps');
   const inbox = useInbox();
-  const workspace = useResource<WorkspaceState>('/api/workspace/state');
-  const live = useResource<LiveResponse>('/api/v2/live');
+  const workspace = useResource<WorkspaceState>('/api/state');
+  const live = useResource<LiveResponse>('/api/live');
   const data = overview.data;
   const project = data?.project;
   const base = projectPath(project?.id || projectKey);
@@ -299,7 +299,7 @@ function ProjectPage({
     .find((app) => app.appId === (requestsApp ?? performanceApp)?.name)?.address;
   const requestDetail = useData<RequestDetail>(
     showRequests && requestId
-      ? `/api/v2/apps/${projectSegment(requestsApp!.name)}/requests/${encodeURIComponent(requestId)}`
+      ? `/api/apps/${projectSegment(requestsApp!.name)}/requests/${encodeURIComponent(requestId)}`
       : undefined,
   );
   const starting =
@@ -362,7 +362,7 @@ function ProjectPage({
           )) ||
           project?.name ||
           // Until the project loads, its name from the project list, never its ID.
-          remembered<{ projects: Project[] }>('/api/v2/projects')?.projects.find(
+          remembered<{ projects: Project[] }>('/api/projects')?.projects.find(
             (item) => item.id === projectKey,
           )?.name ||
           ''
@@ -649,9 +649,9 @@ function WorkRow({ task, runs }: { task: Work; runs: WorkspaceState['runs'] }) {
   const snapshot = useData<{
     computer?: string;
     run?: { status: string; updatedAt: string };
-  }>(`/api/v2/tasks/${encodeURIComponent(task.id)}`);
+  }>(`/api/task-snapshots/${encodeURIComponent(task.id)}`);
   const diff = useData<{ patch?: string; status?: string }>(
-    `/api/workspace/tasks/${encodeURIComponent(task.id)}/diff`,
+    `/api/tasks/${encodeURIComponent(task.id)}/diff`,
   );
   const files =
     diff.data?.patch === undefined || diff.data.status ? undefined : parsePatch(diff.data.patch);

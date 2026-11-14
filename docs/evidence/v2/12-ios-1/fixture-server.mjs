@@ -349,8 +349,8 @@ const server = http.createServer(async (req, res) => {
         roles: worker.id === 'local' ? ['coordinator', 'run-apps'] : ['take-tasks'],
       })),
     });
-  if (url.pathname === '/api/v2/projects') return send({ projects });
-  if (url.pathname === '/api/workspace/state')
+  if (url.pathname === '/api/projects') return send({ projects });
+  if (url.pathname === '/api/state')
     return send({
       version: 1,
       cursor: events.length,
@@ -360,7 +360,7 @@ const server = http.createServer(async (req, res) => {
       runs: [],
       adapters: [],
     });
-  if (url.pathname === '/api/v2/inbox')
+  if (url.pathname === '/api/inbox')
     return send({
       items: inbox.filter(
         (item) =>
@@ -368,13 +368,13 @@ const server = http.createServer(async (req, res) => {
           (item.id !== 'memory' || board === 'AskPhone'),
       ),
     });
-  if (url.pathname === '/api/v2/live') return send(live);
-  if (url.pathname.startsWith('/api/v2/live/'))
+  if (url.pathname === '/api/live') return send(live);
+  if (url.pathname.startsWith('/api/live/'))
     return send({
       app: apps.find((app) => app.appId === decodeURIComponent(url.pathname.split('/').at(-1))),
       history: [],
     });
-  if (url.pathname === '/api/v2/events') {
+  if (url.pathname === '/api/activity-events') {
     if (board === 'OfflinePhone') {
       offline = true;
       return send({ error: 'Offline fixture' }, 503);
@@ -387,7 +387,7 @@ const server = http.createServer(async (req, res) => {
       supportsWait: true,
     });
   }
-  const answer = url.pathname.match(/^\/api\/v2\/inbox\/([^/]+)\/answer$/);
+  const answer = url.pathname.match(/^\/api\/inbox\/([^/]+)\/answer$/);
   if (answer) {
     const item = inbox.find((item) => item.id === decodeURIComponent(answer[1]));
     if (!item) return send({ error: 'Missing decision' }, 404);
@@ -409,7 +409,7 @@ const server = http.createServer(async (req, res) => {
     });
     return send({ item });
   }
-  const task = url.pathname.match(/^\/api\/workspace\/tasks\/([^/]+)(?:\/(diff|messages))?$/);
+  const task = url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(diff|messages))?$/);
   if (task) {
     const record = tasks.find((taskRecord) => taskRecord.id === task[1]);
     if (!record) return send({ error: 'Missing task' }, 404);
@@ -470,7 +470,7 @@ const server = http.createServer(async (req, res) => {
       cursor: events.length,
     });
   }
-  if (url.pathname === '/api/workspace/tasks' && req.method === 'POST') {
+  if (url.pathname === '/api/tasks' && req.method === 'POST') {
     if (operations.has(input.operationId)) return send(operations.get(input.operationId));
     const task = {
       ...tasks[0],
@@ -484,7 +484,7 @@ const server = http.createServer(async (req, res) => {
     operations.set(input.operationId, task);
     return send(task);
   }
-  if (url.pathname === '/api/v2/devices')
+  if (url.pathname === '/api/devices')
     return send({ id: 'fixture-device', removed: req.method === 'DELETE' });
   return send({ error: 'Fixture endpoint unavailable' }, 404);
 });

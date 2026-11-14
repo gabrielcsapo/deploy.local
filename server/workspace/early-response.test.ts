@@ -42,10 +42,10 @@ function send(method: string, path: string, body?: Buffer) {
 }
 
 test('a body rejected partway is drained so the next request on its socket is not held up', async () => {
-  const rejected = await send('POST', '/api/workspace/tasks', Buffer.alloc(1_000_000, 'a'));
+  const rejected = await send('POST', '/api/tasks', Buffer.alloc(1_000_000, 'a'));
   assert.equal(rejected.status, 413);
   // The follow-up must not queue behind the unread upload until the server's idle timeout.
-  const next = await send('GET', '/api/workspace/transcription');
+  const next = await send('GET', '/api/transcription');
   assert.equal(next.status, 200);
   assert.ok(next.ms < 1000, `follow-up took ${next.ms}ms`);
 });

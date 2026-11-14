@@ -303,16 +303,16 @@ export async function handleJson(req: IncomingMessage, res: ServerResponse): Pro
       res.end();
       return true;
     }
-    if (path === '/api/v2/projects') send(res, { projects: await projectsForOwner(owner) });
-    else if (path === '/api/v2/projects/unlinked-apps')
+    if (path === '/api/projects') send(res, { projects: await projectsForOwner(owner) });
+    else if (path === '/api/projects/unlinked-apps')
       send(res, { apps: await unlinkedProjectApps(owner) });
-    else if (path === '/api/v2/live') send(res, await live());
-    else if (path.startsWith('/api/v2/live/')) {
+    else if (path === '/api/live') send(res, await live());
+    else if (path.startsWith('/api/live/')) {
       const app = rows('fixture-live').find(
-        (row) => row.id === path.slice('/api/v2/live/'.length),
+        (row) => row.id === path.slice('/api/live/'.length),
       )?.app;
       send(res, app ? { app, history: [] } : { error: 'App not found' }, app ? 200 : 404);
-    } else if (path === '/api/user' || path === '/api/v2/auth/account')
+    } else if (path === '/api/user' || path === '/api/auth/account')
       send(res, {
         username: owner,
         role: 'admin',
@@ -321,7 +321,7 @@ export async function handleJson(req: IncomingMessage, res: ServerResponse): Pro
         passkeyOffered: true,
       });
     else if (path === '/api/nodes') send(res, { nodes });
-    else if (path === '/api/workspace/state')
+    else if (path === '/api/state')
       send(res, {
         version: 1,
         cursor: 0,
@@ -331,16 +331,16 @@ export async function handleJson(req: IncomingMessage, res: ServerResponse): Pro
         workers: [],
         adapters: [],
       });
-    else if (path === '/api/v2/agents') send(res, { agents: rows('agent') });
-    else if (path === '/api/v2/inbox')
+    else if (path === '/api/agents') send(res, { agents: rows('agent') });
+    else if (path === '/api/inbox')
       send(res, {
         items: url.searchParams.get('state') === 'answered' ? [] : rows('fixture-inbox'),
         cursor: 0,
       });
-    else if (path === '/api/v2/packages')
+    else if (path === '/api/packages')
       send(res, { packages: [], served: false, usingCopies: false });
-    else if (path === '/api/v2/computers/models') send(res, { choices: [], defaults: {} });
-    else if (path === '/api/v2/events') {
+    else if (path === '/api/model-settings') send(res, { choices: [], defaults: {} });
+    else if (path === '/api/activity-events') {
       if (url.searchParams.get('after') === 'latest')
         send(res, { events: [], cursor: 0, supportsWait: true });
       else {
@@ -350,9 +350,9 @@ export async function handleJson(req: IncomingMessage, res: ServerResponse): Pro
         );
         res.on('close', () => clearTimeout(timer));
       }
-    } else if (/^\/api\/workspace\/projects\/[^/]+\/pulls$/.test(path)) send(res, { items: [] });
+    } else if (/^\/api\/projects\/[^/]+\/pulls$/.test(path)) send(res, { items: [] });
     else {
-      const match = path.match(/^\/api\/v2\/projects\/([^/]+)\/(overview|releases)$/);
+      const match = path.match(/^\/api\/projects\/([^/]+)\/(overview|releases)$/);
       if (!match) send(res, { error: `Unimplemented capture route: ${path}` }, 404);
       else {
         const project = await resolveProject(owner, match[1]);
@@ -530,9 +530,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
           response.headers.get('location'),
           `${states[state].route}?fixtureState=${state}`,
         );
-        const { projects } = await get('/api/v2/projects');
-        const health = await get('/api/v2/live');
-        const available = await get('/api/v2/projects/unlinked-apps');
+        const { projects } = await get('/api/projects');
+        const health = await get('/api/live');
+        const available = await get('/api/projects/unlinked-apps');
         if (['Projects', 'Live', 'LiveDark'].includes(state)) {
           assert.equal(projects.length, 10);
           assert.equal(projects.find((p: any) => p.id === 'home-gym').apps.length, 2);
@@ -567,13 +567,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
           );
           assert.equal(computers[0].apps.find((a: any) => a.appId === 'tally').state, 'stopped');
         } else {
-          const pantry = await get('/api/v2/projects/app%3Apantry/overview');
+          const pantry = await get('/api/projects/app%3Apantry/overview');
           assert.equal(pantry.repository, null);
           assert.equal(pantry.project.apps[0].name, 'pantry');
-          assert.equal((await get('/api/v2/live/pantry')).app.state, 'healthy');
-          assert.equal((await get('/api/v2/projects/app%3Apantry/releases')).releases.length, 2);
+          assert.equal((await get('/api/live/pantry')).app.state, 'healthy');
+          assert.equal((await get('/api/projects/app%3Apantry/releases')).releases.length, 2);
           if (state !== 'NewProjectExistingApp') {
-            const recipes = await get('/api/v2/projects/recipes/overview');
+            const recipes = await get('/api/projects/recipes/overview');
             assert.equal(recipes.repository.empty, true);
             assert.equal(recipes.project.apps.length, 0);
           }
@@ -585,26 +585,26 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         for (const path of [
           '/api/user',
           '/api/nodes',
-          '/api/workspace/state',
-          '/api/v2/agents',
-          '/api/v2/inbox?state=waiting',
-          '/api/v2/auth/account',
-          '/api/v2/packages?sidebar=1',
-          '/api/v2/events?after=latest',
-          '/api/v2/computers/models',
+          '/api/state',
+          '/api/agents',
+          '/api/inbox?state=waiting',
+          '/api/auth/account',
+          '/api/packages?sidebar=1',
+          '/api/activity-events?after=latest',
+          '/api/model-settings',
         ])
           await get(path);
         console.log(`OK ${state}`);
       }
       assert.equal((await fetch('http://127.0.0.1/__fixture?state=bad')).status, 400);
       assert.equal(
-        (await fetch('http://127.0.0.1/api/v2/projects', { method: 'POST', body: '{}' })).status,
+        (await fetch('http://127.0.0.1/api/projects', { method: 'POST', body: '{}' })).status,
         405,
       );
       assert.equal((await fetch('http://127.0.0.1/api/missing')).status, 404);
       assert.equal(rows('repository-operation').length, 0);
       reset('Projects');
-      assert.equal((await get('/api/v2/projects/unlinked-apps')).apps[0].name, 'groffee');
+      assert.equal((await get('/api/projects/unlinked-apps')).apps[0].name, 'groffee');
       console.log('JSON checks passed; no listener or browser started.');
       const vite = await createFixtureVite(true);
       try {

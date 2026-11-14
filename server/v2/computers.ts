@@ -417,8 +417,14 @@ async function body(req: IncomingMessage) {
   }
 }
 export async function computersApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
-  if (path !== '/updates' && path !== '/computers' && !path.startsWith('/computers/')) return false;
+  const path = new URL(req.url!, 'http://localhost').pathname.slice('/api'.length);
+  if (
+    path !== '/model-settings' &&
+    path !== '/updates' &&
+    path !== '/computers' &&
+    !path.startsWith('/computers/')
+  )
+    return false;
   const send = (value: unknown, status = 200) => sendJson(res, value, status);
   const route = routes<undefined>();
   return dispatch(
@@ -441,10 +447,10 @@ export async function computersApi(req: IncomingMessage, res: ServerResponse, ow
         path: '/computers',
         handler: () => send({ computers: getComputers(owner) }),
       }),
-      route({ method: 'GET', path: '/computers/models', handler: () => send(getModels(owner)) }),
+      route({ method: 'GET', path: '/model-settings', handler: () => send(getModels(owner)) }),
       route({
         method: 'PUT',
-        path: '/computers/models',
+        path: '/model-settings',
         handler: async () => send(setModelDefaults(owner, (await body(req)).defaults)),
       }),
       route({

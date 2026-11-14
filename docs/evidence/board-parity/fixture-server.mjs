@@ -55,7 +55,7 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(body));
   };
   if (path === '/api/fixture/requests') return send(requests);
-  if (path === '/api/v2/backups/run') {
+  if (path === '/api/backups/run') {
     requests.push({ method: req.method, path });
     await new Promise((done) => setTimeout(done, 500));
     return send(
@@ -66,7 +66,7 @@ const server = createServer(async (req, res) => {
       409,
     );
   }
-  if (req.method === 'DELETE' && /^\/api\/v2\/projects\/[^/]+$/.test(path))
+  if (req.method === 'DELETE' && /^\/api\/projects\/[^/]+$/.test(path))
     return send(
       {
         error:
@@ -76,7 +76,7 @@ const server = createServer(async (req, res) => {
       },
       409,
     );
-  if (path === '/api/v2/backups') {
+  if (path === '/api/backups') {
     requests.push({ method: req.method, path });
     if (ref.searchParams.has('loadError')) return send({ error: 'Backups could not load.' }, 503);
     return send({
@@ -94,7 +94,7 @@ const server = createServer(async (req, res) => {
     });
   }
   const f = liveFixture();
-  if (path === '/api/v2/live') return send(f.live);
+  if (path === '/api/live') return send(f.live);
   if (path === '/api/user') return send({ username: 'Gabriel' });
   if (path === '/api/nodes')
     return send({
@@ -103,22 +103,22 @@ const server = createServer(async (req, res) => {
         { id: 'bazzite', name: 'bazzite', online: true },
       ],
     });
-  if (path === '/api/v2/agents') return send({ agents });
-  if (/^\/api\/v2\/agents\/[^/]+\/conversation$/.test(path))
+  if (path === '/api/agents') return send({ agents });
+  if (/^\/api\/agents\/[^/]+\/conversation$/.test(path))
     return send({ events: [], tracking: { running: [], watching: [], shipped: [] } });
-  if (path === '/api/v2/computers') return send({ computers: [] });
-  if (path === '/api/v2/inbox')
+  if (path === '/api/computers') return send({ computers: [] });
+  if (path === '/api/inbox')
     return send({ items: url.searchParams.get('state') === 'answered' ? [] : [f.item] });
-  if (path === '/api/v2/auth/account')
+  if (path === '/api/auth/account')
     return send({ username: 'gabriel', welcomed: true, firstTaskSeen: true });
-  if (path === '/api/v2/setup') return send({ name: 'SER', needsSetup: false });
-  if (path === '/api/v2/packages') return send({ served: false });
+  if (path === '/api/setup') return send({ name: 'SER', needsSetup: false });
+  if (path === '/api/packages') return send({ served: false });
   if (path.endsWith('/events')) {
     const timer = setTimeout(() => send({ events: [], cursor: 1, supportsWait: true }), 1000);
     res.on('close', () => clearTimeout(timer));
     return;
   }
-  if (path.startsWith('/api/v2/tasks/'))
+  if (path.startsWith('/api/task-snapshots/'))
     return send({ ...taskFixture('FirstTask'), firstTask: false });
   if (path.startsWith('/api/')) {
     const count = ref.searchParams.get('appCount');

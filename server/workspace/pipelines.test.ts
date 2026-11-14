@@ -117,7 +117,7 @@ test('trigger notifications survive restart and deduplicate against branch scans
   writeFileSync(join(f.source, 'source.txt'), 'next');
   git(f.source, ['commit', '-am', 'Next']);
   const next = git(f.source, ['rev-parse', 'HEAD']);
-  await gitText(f.source, ['push', `${origin}/api/workspace/git/${f.project.id}`, 'HEAD:main']);
+  await gitText(f.source, ['push', `${origin}/api/git/${f.project.id}`, 'HEAD:main']);
   assert.ok(
     list('pipeline-trigger-request', owner).some(
       (request) => request.projectId === f.project.id && request.commit === next,

@@ -23,7 +23,7 @@ export function NewProjectDialog({
 }) {
   const coordinator = useCoordinatorName();
   const available = useData<{ apps: Project['apps'] }>(
-    open ? '/api/v2/projects/unlinked-apps' : undefined,
+    open ? '/api/projects/unlinked-apps' : undefined,
   );
   const host = useBrowserHost();
   const [name, setName] = useState('');
@@ -43,7 +43,7 @@ export function NewProjectDialog({
     setError('');
     try {
       setPreview(
-        await request('/api/v2/start/inspect', {
+        await request('/api/start/inspect', {
           method: 'POST',
           body: JSON.stringify({ sourcePath: remote }),
         }),
@@ -59,7 +59,7 @@ export function NewProjectDialog({
     setBusy(true);
     setError('');
     try {
-      const project = await request<Project>('/api/v2/projects', {
+      const project = await request<Project>('/api/projects', {
         method: 'POST',
         body: JSON.stringify({
           name,

@@ -529,7 +529,7 @@ test('a real remote worker uploads artifacts over its authenticated channel only
       const row = get('job', owner, job.id);
       return row.status === 'running' && row.generation && row;
     });
-    const target = `${origin}/api/workspace/workers/${enrollment.workerId}/jobs/${job.id}/artifacts?generation=${running.generation}&path=out%2Fscreen.png`;
+    const target = `${origin}/api/workers/${enrollment.workerId}/jobs/${job.id}/artifacts?generation=${running.generation}&path=out%2Fscreen.png`;
     // Another enrolled worker cannot use this job's upload route, even with the right job id.
     const crossWorker = await fetch(target, {
       method: 'POST',
@@ -579,7 +579,7 @@ test('a real remote worker uploads artifacts over its authenticated channel only
     assert.deepEqual((await attachmentBytes(owner, image.id)).data, png);
     assert.equal(image.jobId, job.id);
     // The agent reads text through its own tool endpoint, by reference.
-    const read = await fetch(origin + '/api/workspace/agent/tools', {
+    const read = await fetch(origin + '/api/agent/tools', {
       method: 'POST',
       headers: { 'x-deploy-agent-token': token, 'Content-Type': 'application/json' },
       body: JSON.stringify({

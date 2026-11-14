@@ -307,10 +307,10 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
       'x-deploy-worker-token': credential.workerToken,
     };
   try {
-    assert.equal((await fetch(origin + '/api/workspace/state', { headers })).status, 403);
+    assert.equal((await fetch(origin + '/api/state', { headers })).status, 403);
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/projects', {
+        await fetch(origin + '/api/repository-projects', {
           method: 'POST',
           headers,
           body: JSON.stringify({ operationId: 'forbidden', name: 'No' }),
@@ -320,7 +320,7 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
     );
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/workers/register', {
+        await fetch(origin + '/api/workers/register', {
           method: 'POST',
           headers,
           body: JSON.stringify({ workerId: 'different' }),
@@ -331,7 +331,7 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
     const p = createProject('alice', { name: 'Private repository' });
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/git/' + p.id + '/info/refs?service=git-upload-pack', {
+        await fetch(origin + '/api/git/' + p.id + '/info/refs?service=git-upload-pack', {
           headers,
         })
       ).status,
@@ -339,7 +339,7 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
     );
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/workers/register', {
+        await fetch(origin + '/api/workers/register', {
           method: 'POST',
           headers,
           body: JSON.stringify({ workerId: 'scoped-worker', instanceId: 'first' }),
@@ -349,7 +349,7 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
     );
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/workers/register', {
+        await fetch(origin + '/api/workers/register', {
           method: 'POST',
           headers,
           body: JSON.stringify({ workerId: 'scoped-worker', instanceId: 'competing' }),
@@ -365,7 +365,7 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
     startRun('alice', t.id, { revision: 0, content: 'Read' });
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/workers/scoped-worker/poll', {
+        await fetch(origin + '/api/workers/scoped-worker/poll', {
           method: 'POST',
           headers,
           body: JSON.stringify({ instanceId: 'first' }),
@@ -375,7 +375,7 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
     );
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/git/' + p.id + '/info/refs?service=git-upload-pack', {
+        await fetch(origin + '/api/git/' + p.id + '/info/refs?service=git-upload-pack', {
           headers,
         })
       ).status,
@@ -383,7 +383,7 @@ test('scoped worker credentials reject client commands and unrelated Git reposit
     );
     assert.equal(
       (
-        await fetch(origin + '/api/workspace/git/' + p.id + '/info/refs?service=git-receive-pack', {
+        await fetch(origin + '/api/git/' + p.id + '/info/refs?service=git-receive-pack', {
           headers,
         })
       ).status,
@@ -522,7 +522,7 @@ test('long checks keep state responsive, replay one job, fence writers and clean
   const p = createProject('check-owner', { name: 'Async checks' }),
     t = createTask('check-owner', { projectId: p.id, title: 'Long-running check' });
   const request = async (path: string, body?: any) => {
-    const response = await fetch(origin + '/api/workspace' + path, {
+    const response = await fetch(origin + '/api' + path, {
       method: body ? 'POST' : 'GET',
       headers: { 'Content-Type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {}),

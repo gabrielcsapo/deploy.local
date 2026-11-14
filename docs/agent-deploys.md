@@ -94,7 +94,7 @@ is capped at the last 64,000 characters and costs model tokens.
 
 When the job ends, on any outcome including failure and timeout, the worker resolves the
 paths inside its isolated copy and streams each file over its own authenticated channel
-(`POST /api/workspace/workers/:id/jobs/:jobId/artifacts`). Only regular files whose real
+(`POST /api/workers/:id/jobs/:jobId/artifacts`). Only regular files whose real
 path stays inside the job directory are returned: `..`, absolute paths and symlinks that
 escape are refused. The coordinator accepts uploads only from the worker process running
 that job generation, and only for paths the agent requested.
@@ -114,7 +114,7 @@ listed with a `skipped` reason; it never fails the job.
 `deploy_get_job` returns `artifacts: [{ path, name, caption, attachmentId, kind, bytes }]`
 or `{ path, name, caption, skipped }` entries. These are references only, never file
 contents. To show an image or video in the reply, the agent writes
-`![caption](/api/workspace/attachments/<attachmentId>)`. To inspect a log, it calls
+`![caption](/api/attachments/<attachmentId>)`. To inspect a log, it calls
 `deploy_read_artifact { attachmentId, offset?, maxBytes? }`, which returns at most
 16 KB of text per call with `totalBytes` and `nextOffset`. Images and videos cannot be
 read through that tool.

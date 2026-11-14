@@ -2,16 +2,13 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { isSea } from 'node:sea';
-import { workerBuild, type WorkerBuild } from './worker-build.ts';
+import { workerBuild } from './worker-build.ts';
+import {
+  configureWorkerLeaseProcess,
+  type WorkerLease,
+} from '../kernel/jobs/worker-lease-process.ts';
+export type { WorkerLease } from '../kernel/jobs/worker-lease-process.ts';
 
-export type WorkerLease = {
-  pid: number;
-  executablePath: string;
-  entryPath: string;
-  workerRoot?: string;
-  build: WorkerBuild;
-  started?: string;
-};
 const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
 
 /** Linux refuses this read while a process exits or belongs to another user: unverified, not fatal. */
@@ -154,3 +151,6 @@ export function watchWorkerParent(
     process.off('disconnect', shutdown);
   };
 }
+
+// Register in every worker/service bundle without moving OS inspection or signals into the kernel.
+configureWorkerLeaseProcess({ workerLease, stopStaleWorker });

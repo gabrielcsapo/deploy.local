@@ -204,7 +204,7 @@ export function createFixture() {
         })();
     }
     // A started task records the project the start page sent; it is not created.
-    if (path === '/api/v2/composer/messages' && request.method === 'POST')
+    if (path === '/api/composer/messages' && request.method === 'POST')
       return (async () => {
         const body = await request.json().catch(() => ({}));
         started.push({ text: body.text, projectId: body.projectId ?? null });
@@ -212,10 +212,10 @@ export function createFixture() {
         return json({ taskId: cache, runId: `run-${cache}` });
       })();
     // The page adopts its stored sign-in as a cookie session; nothing is checked here.
-    if (path === '/api/v2/auth/session') return json({ username: 'Gabriel' });
+    if (path === '/api/auth/session') return json({ username: 'Gabriel' });
     if (!['GET', 'HEAD'].includes(request.method))
       return json({ error: 'Capture fixture: mutation disabled' }, 405);
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return json({
         version: 1,
         cursor: 1,
@@ -225,24 +225,24 @@ export function createFixture() {
         workers: [],
         adapters: [],
       });
-    if (path === '/api/v2/projects') return json({ projects });
+    if (path === '/api/projects') return json({ projects });
     if (/^\/api\/v2\/projects\/[^/]+\/releases$/.test(path)) return json({ releases: [] });
     if (/^\/api\/v2\/projects\/[^/]+\/design\/changes$/.test(path))
       return json({ base: 'main', commit: 'main', files: [] });
     if (/^\/api\/v2\/projects\/[^/]+\/design\/proposals$/.test(path))
       return json({ proposals: [] });
     if (/^\/api\/v2\/projects\/[^/]+\/design$/.test(path)) return json({ canvas: null });
-    if (path === '/api/v2/inbox') return json({ items: [], cursor: 1 });
+    if (path === '/api/inbox') return json({ items: [], cursor: 1 });
     if (path === '/api/user') return json({ username: 'Gabriel', role: 'admin' });
-    if (path === '/api/v2/auth/account')
+    if (path === '/api/auth/account')
       return json({
         username: 'Gabriel',
         welcomed: true,
         firstTaskSeen: true,
         passkeyOffered: true,
       });
-    if (path === '/api/v2/agents') return json({ agents: [] });
-    if (path === '/api/v2/computers/models')
+    if (path === '/api/agents') return json({ agents: [] });
+    if (path === '/api/computers/models')
       return json({
         defaults: { 'writing-code': 'opus', reviewing: 'opus', 'answering-questions': 'opus' },
         choices: [{ id: 'opus', name: 'Opus', provider: 'claude', model: 'opus' }],
@@ -256,9 +256,9 @@ export function createFixture() {
           { id: 'bazzite', name: 'bazzite', online: true },
         ],
       });
-    if (path === '/api/v2/live') return json({ summary: { running: 2, failing: 1 } });
-    if (path === '/api/v2/packages') return json({ served: true, usingCopies: false });
-    if (path === '/api/v2/events')
+    if (path === '/api/live') return json({ summary: { running: 2, failing: 1 } });
+    if (path === '/api/packages') return json({ served: true, usingCopies: false });
+    if (path === '/api/events')
       return url.searchParams.get('after') === 'latest'
         ? json({ events: [], cursor: 1, supportsWait: true })
         : new Promise((done) => {
@@ -413,32 +413,30 @@ async function check() {
           : new RegExp(`^/dashboard/tasks/${cache}\\?`),
       );
     }
-    const state = await (await call('/api/workspace/state')).json();
+    const state = await (await call('/api/state')).json();
     assert.equal(state.tasks.filter((task: any) => task.projectId === 'deploy-local').length, 7);
     assert.equal(state.tasks.filter((task: any) => !task.projectId).length, 1);
-    const deletion = await (await call(`/api/workspace/tasks/${cache}/deletion`)).json();
+    const deletion = await (await call(`/api/tasks/${cache}/deletion`)).json();
     assert.deepEqual(
       [deletion.branch, deletion.unmergedCommits, deletion.running],
       ['scout/discover-cache', 2, false],
     );
-    const running = await call('/api/workspace/tasks/self-release/delete', {
+    const running = await call('/api/tasks/self-release/delete', {
       method: 'POST',
       body: JSON.stringify({ revision: 3 }),
     });
     assert.equal(running.status, 409);
-    const removed = await call(`/api/workspace/tasks/${cache}/delete`, {
+    const removed = await call(`/api/tasks/${cache}/delete`, {
       method: 'POST',
       body: JSON.stringify({ revision: 3 }),
     });
     assert.equal(removed.status, 200);
-    assert.equal((await call(`/api/v2/tasks/${cache}`)).status, 404);
+    assert.equal((await call(`/api/tasks/${cache}`)).status, 404);
     assert.equal(
-      (await (await call('/api/workspace/state')).json()).tasks.some(
-        (task: any) => task.id === cache,
-      ),
+      (await (await call('/api/state')).json()).tasks.some((task: any) => task.id === cache),
       false,
     );
-    const sent = await call('/api/v2/composer/messages', {
+    const sent = await call('/api/composer/messages', {
       method: 'POST',
       body: JSON.stringify({ text: 'Add a calmer header', projectId: 'home-gym' }),
     });
@@ -447,7 +445,7 @@ async function check() {
       { text: 'Add a calmer header', projectId: 'home-gym' },
     ]);
     assert.equal((await call('/api/not-seeded')).status, 404);
-    assert.equal((await call('/api/v2/inbox/x/answer', { method: 'POST' })).status, 405);
+    assert.equal((await call('/api/inbox/x/answer', { method: 'POST' })).status, 405);
     console.log(
       'PASS: five board states and New task in, seeded cast, deletion preview, delete and its guards, chosen project sent.',
     );

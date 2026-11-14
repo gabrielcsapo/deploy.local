@@ -2,9 +2,9 @@
 
 ## Implemented
 
-- The sidebar reads Waiting on you from `/api/v2/inbox` and consumes `/api/v2/events` with a shared cursor and long-poll subscription. Answering in a card updates the sidebar and other mounted cards immediately. Replay cannot restore an answered item to Waiting. Unmount and account changes abort pending reads and discard old responses.
-- Today and Yesterday use `/api/workspace/state`, ordered by latest task activity. The latest run supplies running, ready and stalled states. Agents use the optional `/api/v2/agents` envelope `{ agents }`, falling back to the two built-in agents, Scout and Warden. The section appears only with more than one agent.
-- Live uses `/api/v2/live` → `summary: { running, failing }`. A 404 hides it; other failures say Unavailable. Account and online computer count come from `/api/user` and `/api/nodes`. Ancillary sidebar resources refresh every ten seconds; inbox events stay live through the server's long-poll feed.
+- The sidebar reads Waiting on you from `/api/inbox` and consumes `/api/activity-events` with a shared cursor and long-poll subscription. Answering in a card updates the sidebar and other mounted cards immediately. Replay cannot restore an answered item to Waiting. Unmount and account changes abort pending reads and discard old responses.
+- Today and Yesterday use `/api/state`, ordered by latest task activity. The latest run supplies running, ready and stalled states. Agents use the optional `/api/agents` envelope `{ agents }`, falling back to the two built-in agents, Scout and Warden. The section appears only with more than one agent.
+- Live uses `/api/live` → `summary: { running, failing }`. A 404 hides it; other failures say Unavailable. Account and online computer count come from `/api/user` and `/api/nodes`. Ancillary sidebar resources refresh every ten seconds; inbox events stay live through the server's long-poll feed.
 - `/dashboard/inbox` has Waiting and Answered tabs. Actions send `on: 'web'`; a 409 replaces the card with the stored answer and reports the conflict. Answered cards stay mounted as dashed records. Free-text questions require an answer, failed requests retain the decision, and server-supplied confirmation text opens a confirmation dialog.
 - `app/routes/dashboard/v2/inbox/InboxDecision.tsx` exports `<InboxDecision itemId={event.inboxItemId} />` for conversation `decision` events. It uses the `InboxProvider` already mounted by `V2Layout`.
 - Both production `server.ts` and development `server/index.ts` call `handleWebRedirect` before rendering. It calls the existing `permanentRedirectResponse` adapter, returns HTTP 308, and resolves application ownership with the existing authenticated repository data. Cookie/header authentication is supported. Missing browser-local credentials or unavailable lookup retain the client fallback. Responses are private and not cached across accounts. `server/api.ts`, schema, shared contracts, design sources and other routes were not changed.
@@ -57,7 +57,7 @@ Pair each capture using `design/v2/tools/pair.py` with its matching reference PN
 - Conversation views must render every `decision` through `InboxDecision`; they should not synthesize independent approval state or answer through the legacy API.
 - The Live branch should preserve `summary.running` and `summary.failing`. Agents may supply `{ agents: [{ id, name, ... }] }`; before that endpoint exists the two built-ins remain visible.
 - The API lacks result health, release IDs and rule provenance on `InboxItem`; adding those would require an additive contract in a later slice. Nothing in this change changes existing contracts.
-- HTTP redirect lookup uses the same owner-scoped repository association as `/api/workspace/application-repositories`. Browser-local authentication continues through the unchanged client resolver.
+- HTTP redirect lookup uses the same owner-scoped repository association as `/api/application-repositories`. Browser-local authentication continues through the unchanged client resolver.
 
 ## Visual review (added by the orchestrating session)
 

@@ -397,7 +397,7 @@ public struct TaskDetail: Decodable, Equatable, Sendable {
     public let runs: [Run]
     public let jobs: [WorkspaceJob]?
     public let events: [WorkspaceEvent]
-    /// `events` is the newest slice; older ones page from `/api/workspace/events?taskId=…&before=eventsBefore`.
+    /// `events` is the newest slice; older ones page from `/api/events?taskId=…&before=eventsBefore`.
     public var eventsTruncated: Bool? = nil
     public var eventsBefore: Int? = nil
     public let cursor: Int

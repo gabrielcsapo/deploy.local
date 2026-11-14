@@ -1,3 +1,5 @@
+import { apiRouteManifest } from '../api/route-manifest.ts';
+import { compilePath } from '../kernel/routes.ts';
 import { sendJson } from '../kernel/http.ts';
 import { spawn } from 'node:child_process';
 import { coordinationApi } from './coordination-api.ts';
@@ -30,6 +32,12 @@ if (!existsSync(credentials)) {
 startTerminalRelay();
 createServer(async (req, res) => {
   const url = new URL(req.url!, 'http://localhost');
+  const workspaceLeaf = apiRouteManifest.some(
+    (route) =>
+      route.handler === 'workspace' &&
+      (route.method === req.method || route.method === '*') &&
+      compilePath(route.path)(url.pathname),
+  );
   const send = (data: unknown, status = 200) => {
     sendJson(res, data, status, { headers: { 'Content-Type': 'application/json' } });
   };
@@ -76,8 +84,7 @@ createServer(async (req, res) => {
     }
     if (req.headers['x-deploy-agent-token']) return coordinationApi(req, res);
     const worker = workerAuthentication(req);
-    if (worker && url.pathname.startsWith('/api/workspace/'))
-      return workspaceApi(req, res, worker.owner, worker.workerId);
+    if (worker && workspaceLeaf) return workspaceApi(req, res, worker.owner, worker.workerId);
     if (!authenticate(username, token)) {
       // JSON clients handle expired sessions in-app. A Basic challenge can instead
       // suspend browser fetch behind the browser's own authentication prompt.
@@ -85,7 +92,7 @@ createServer(async (req, res) => {
         res.setHeader('WWW-Authenticate', 'Basic realm="deploy.local"');
       return send({ error: 'Unauthorized' }, 401);
     }
-    if (url.pathname.startsWith('/api/workspace/')) return workspaceApi(req, res, username);
+    if (workspaceLeaf) return workspaceApi(req, res, username);
     if (url.pathname === '/api/me') return send(getUser(username));
     if (url.pathname === '/api/logout') return send({ ok: true });
     return send({ error: 'This disposable preview serves the project harness only' }, 404);

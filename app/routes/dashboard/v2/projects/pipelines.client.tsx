@@ -33,7 +33,7 @@ const failureSummary = (entry: any) =>
       : 'release failed';
 export function ProjectPipelines({ projectId }: { projectId: string }) {
   const { formatTime } = useProjectFormatting();
-  const path = `/api/workspace/projects/${encodeURIComponent(projectId)}/pipelines`;
+  const path = `/api/projects/${encodeURIComponent(projectId)}/pipelines`;
   const runs = useData<any>(path);
   const runSelector = useRef<HTMLButtonElement>(null);
   const [runsOpen, setRunsOpen] = useState(false);

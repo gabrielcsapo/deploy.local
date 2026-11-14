@@ -256,14 +256,14 @@ describe('catalog preflight, plans, store, and handler', () => {
 
     const detail = await handleCatalogRequest(service, {
       method: 'GET',
-      pathname: '/catalog/postgres-service-graph-fixture/1.0.0-validation.1',
+      pathname: '/catalog/releases/postgres-service-graph-fixture/1.0.0-validation.1',
       actor: { username: 'admin', role: 'admin' },
     });
     assert.equal(detail.status, 200);
 
     const preflight = await handleCatalogRequest(service, {
       method: 'POST',
-      pathname: '/catalog/postgres-service-graph-fixture/1.0.0-validation.1/preflight',
+      pathname: '/catalog/releases/postgres-service-graph-fixture/1.0.0-validation.1/preflight',
       body: {
         applicationName: 'fixture',
         target: capableTarget,
@@ -276,7 +276,7 @@ describe('catalog preflight, plans, store, and handler', () => {
 
     const installPlan = await handleCatalogRequest(service, {
       method: 'POST',
-      pathname: '/catalog/volume-app-fixture/1.0.0-validation.1/install-plan',
+      pathname: '/catalog/releases/volume-app-fixture/1.0.0-validation.1/install-plan',
       body: { applicationName: 'volume-app', target: capableTarget },
       actor: { username: 'admin', role: 'admin' },
     });
@@ -343,7 +343,7 @@ describe('catalog preflight, plans, store, and handler', () => {
       service,
       {
         method: 'POST',
-        pathname: `/catalog/${initial.release.id}/${initial.release.release}/install`,
+        pathname: `/catalog/releases/${initial.release.id}/${initial.release.release}/install`,
         body: { applicationName: 'handler-lifecycle', target: capableTarget },
         actor,
       },

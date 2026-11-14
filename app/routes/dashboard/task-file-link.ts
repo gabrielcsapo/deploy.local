@@ -1,3 +1,4 @@
+import { convertStoredAttachmentText } from '../../../shared/stored-attachment-urls.ts';
 export interface TaskFileReference {
   path: string;
   line?: number;
@@ -127,7 +128,7 @@ export function attachmentForPath(
 }
 
 /** Where the dashboard serves an attachment the agent produced. */
-export const attachmentURL = (id: string) => `/api/workspace/attachments/${encodeURIComponent(id)}`;
+export const attachmentURL = (id: string) => `/api/attachments/${encodeURIComponent(id)}`;
 
 // Code spans, Markdown links/images and autolinks keep their text exactly as written.
 const protectedSpan = /(`+)[\s\S]*?\1|!?\[[^\]\n]*\]\([^)\n]*\)|<[^\s<>]*>/g;
@@ -167,6 +168,10 @@ export function rewriteMessagePaths(
   content: string,
   context: { task?: TaskFileContext; attachments?: MessageAttachment[] },
 ): string {
+  content = convertStoredAttachmentText(
+    content,
+    typeof location === 'undefined' ? undefined : [location.origin],
+  );
   if (!content.includes('/')) return content;
   let fence = '';
   return content

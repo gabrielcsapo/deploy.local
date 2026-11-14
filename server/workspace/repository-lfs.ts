@@ -78,7 +78,7 @@ export async function serveRepositoryLfs(
       (req.socket as any).encrypted || req.headers['x-forwarded-proto'] === 'https'
         ? 'https'
         : 'http';
-    const base = `${protocol}://${host}/api/workspace/git/${projectId}/info/lfs`;
+    const base = `${protocol}://${host}/api/git/${projectId}/info/lfs`;
     const objects = await Promise.all(
       input.objects.map(async (object: any) => {
         if (

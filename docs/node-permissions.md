@@ -114,16 +114,16 @@ app installer on a different computer.
 The panel is driven entirely by these endpoints, so other shells (such as a node's own tray app)
 can embed it:
 
-|                                                |                                                            |
-| ---------------------------------------------- | ---------------------------------------------------------- |
-| `GET /api/workspace/computers`                 | `{computers: [{id, name, platform, status, permissions}]}` |
-| `GET /api/workspace/computers/:id/permissions` | One computer, same shape; 404 if unknown or revoked        |
-| `POST /api/workspace/computers/:id/revoke`     | Body `{operationId}`; remote task workers only             |
-| `/dashboard/embed/computers`                   | Chrome-free page listing every computer's permissions      |
-| `/dashboard/embed/computers/:id`               | Chrome-free page for one computer                          |
-| `/dashboard/nodes#task-computers`              | The panel inside the dashboard                             |
+|                                      |                                                            |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `GET /api/worker-permissions`        | `{computers: [{id, name, platform, status, permissions}]}` |
+| `GET /api/computers/:id/permissions` | One computer, same shape; 404 if unknown or revoked        |
+| `POST /api/computers/:id/revoke`     | Body `{operationId}`; remote task workers only             |
+| `/dashboard/embed/computers`         | Chrome-free page listing every computer's permissions      |
+| `/dashboard/embed/computers/:id`     | Chrome-free page for one computer                          |
+| `/dashboard/nodes#task-computers`    | The panel inside the dashboard                             |
 
-Owner authentication applies as for the rest of `/api/workspace`. Worker credentials are refused.
+Owner authentication applies as for the rest of `/api`. Worker credentials are refused.
 The embed pages have no dashboard chrome, fit a 420×640 window, refresh every 4 seconds, and ask
 the viewer to sign in when there is no session.
 
@@ -143,7 +143,7 @@ neither client hard-codes per-platform rules.
 
 ## Not in this change
 
-- **Enrolling a remote task worker from the UI.** Today it's `POST /api/workspace/workers/enroll`
+- **Enrolling a remote task worker from the UI.** Today it's `POST /api/workers/enroll`
   plus a hand-written `worker.env`. The right shape is the deployment agent's flow: a one-use code
   here, and `deploy worker join <url>` on the computer to redeem it and install a service. The panel
   shows how to connect a task worker, but the join command is a follow-up.

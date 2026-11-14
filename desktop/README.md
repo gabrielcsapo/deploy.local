@@ -32,7 +32,7 @@ The build reads and bundles `../server/workspace/remote-worker.ts`, the app-work
 from `../bin/`, and their dependencies. The
 local `worker.ts` shares a coordinator database and therefore must not run on a desktop client.
 The remote worker uses Electron's bundled Node runtime, its own directory inside app user data,
-and the existing `/api/workspace/workers/enroll` API. Git and provider CLIs must already be
+and the existing `/api/workers/enroll` API. Git and provider CLIs must already be
 available on PATH. It does not install them. Provider accounts are discovered by the existing
 worker; setup does not claim an account is signed in before that check.
 
@@ -226,7 +226,7 @@ the CLI retains its existing defaults and commands.
 
 Fresh installation uses the signed-in owner's pinned `CoordinatorClient`:
 
-1. `POST /api/v2/computers/enrollment` with `{ name }` creates the join code (owner/admin API).
+1. `POST /api/computers/enrollment` with `{ name }` creates the join code (owner/admin API).
 2. Shared `joinAgent` redeems it with `POST /api/agent/enroll`, carrying `code`, `name`,
    platform, architecture and `{ deploy: true, tasks: false, computer: false, browser: false }`.
 3. `GET /cli/version` selects `darwin-arm64` or `darwin-x64`.
@@ -256,7 +256,7 @@ remove that plist only. An actively running all-users service is not a leftover:
 refuses to create a second running service. No operation here removes enrollment or data.
 Removing the primary worker is not exposed by these boards; CLI removal is unchanged.
 
-Menu status reads `/api/v2/live` and `/api/v2/computers`, matches this computer by node id,
+Menu status reads `/api/live` and `/api/computers`, matches this computer by node id,
 and combines them with bounded service/Docker probes cached for 15 seconds. The four states
 are `running`, `docker-not-answering`, `service-stopped`, and `cannot-reach-coordinator`.
 Previously read apps remain visible on connection failure. `deployDesktop.worker.status()`

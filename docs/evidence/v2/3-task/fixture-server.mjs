@@ -20,15 +20,15 @@ const server = createServer(async (req, res) => {
   if (path === '/api/user') return send({ username: 'Gabriel' });
   if (path === '/api/nodes')
     return send({ nodes: [{ online: true }, { online: true }, { online: true }] });
-  if (path === '/api/v2/agents')
+  if (path === '/api/agents')
     return send({
       agents: [
         { id: 'scout', name: 'Scout' },
         { id: 'warden', name: 'Warden' },
       ],
     });
-  if (path === '/api/v2/live') return send({ summary: { running: 7, failing: 1 } });
-  if (path === '/api/workspace/state')
+  if (path === '/api/live') return send({ summary: { running: 7, failing: 1 } });
+  if (path === '/api/state')
     return send({
       projects: [],
       tasks: boards
@@ -36,13 +36,13 @@ const server = createServer(async (req, res) => {
         .map((b) => fixture(b).task),
       runs: [],
     });
-  if (path === '/api/v2/inbox')
+  if (path === '/api/inbox')
     return send({
       items: decisions
         .map((item) => answered.get(item.id) || item)
         .filter((item) => item.state === (url.searchParams.get('state') || 'waiting')),
     });
-  const answer = path.match(/^\/api\/v2\/inbox\/([^/]+)\/answer$/);
+  const answer = path.match(/^\/api\/inbox\/([^/]+)\/answer$/);
   if (answer && req.method === 'POST') {
     let raw = '';
     for await (const chunk of req) raw += chunk;
@@ -62,7 +62,7 @@ const server = createServer(async (req, res) => {
     answered.set(item.id, item);
     return send({ item });
   }
-  if (path === '/api/v2/events') {
+  if (path === '/api/activity-events') {
     const timer = setTimeout(() => {
       if (released)
         released = {
@@ -81,7 +81,7 @@ const server = createServer(async (req, res) => {
     res.on('close', () => clearTimeout(timer));
     return;
   }
-  if (path.match(/^\/api\/v2\/projects\/[^/]+\/releases$/)) {
+  if (path.match(/^\/api\/projects\/[^/]+\/releases$/)) {
     if (req.method === 'POST') {
       if (process.env.TASK_SHIP_UNSUPPORTED === '1') return send({ error: 'Not found' }, 404);
       let raw = '';
@@ -104,15 +104,15 @@ const server = createServer(async (req, res) => {
     }
     return send({ releases: released ? [released] : [] });
   }
-  const task = path.match(/^\/api\/v2\/tasks\/([^/]+)$/);
+  const task = path.match(/^\/api\/tasks\/([^/]+)$/);
   if (task) return send(fixture(decodeURIComponent(task[1])));
-  if (path.match(/^\/api\/workspace\/tasks\/[^/]+\/diff$/))
+  if (path.match(/^\/api\/tasks\/[^/]+\/diff$/))
     return send({
       ...taskDetails(decodeURIComponent(path.split('/')[4])),
       baseCommit: 'a'.repeat(40),
       headCommit: 'b'.repeat(40),
     });
-  if (path.match(/^\/api\/workspace\/projects\/[^/]+\/pulls$/))
+  if (path.match(/^\/api\/projects\/[^/]+\/pulls$/))
     return send({ items: pulls, nextBefore: null });
   if (path.endsWith('/diff'))
     return send({ patch, baseCommit: 'a'.repeat(40), headCommit: 'b'.repeat(40) });

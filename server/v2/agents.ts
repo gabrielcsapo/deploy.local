@@ -576,7 +576,7 @@ export function saveAgentReply(
 }
 
 export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
-  const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
+  const path = new URL(req.url!, 'http://localhost').pathname.slice('/api'.length);
   const itemMatch = path.match(/^\/agents\/([^/]+)\/items\/([^/]+)(\/confirm|\/runs|\/run)?$/);
   if (itemMatch) {
     const agent = agentForOwner(owner, decodeURIComponent(itemMatch[1]));

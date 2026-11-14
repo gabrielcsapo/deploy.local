@@ -38,7 +38,7 @@ export function ProjectConfiguration({
   const { formatTime } = useProjectFormatting();
   const coordinator = useCoordinatorName();
   const single = project.apps.length === 1;
-  const path = `/api/v2/projects/${projectSegment(project.id)}`;
+  const path = `/api/projects/${projectSegment(project.id)}`;
   const appNames = project.apps.map((app) => app.name);
   const removalDescription =
     appNames.length === 0

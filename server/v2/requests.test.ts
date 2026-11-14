@@ -27,7 +27,7 @@ const fetch = routeFetch((req, res) =>
     return null;
   }),
 );
-const origin = 'http://localhost/api/v2/apps';
+const origin = 'http://localhost/api/apps';
 after(() => {
   db.close();
   _resetDb();

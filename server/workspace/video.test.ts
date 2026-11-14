@@ -109,7 +109,7 @@ test('stream upload exceeds a small buffering budget, stays bounded, is idempote
       status = 0;
     const request = Object.assign(Readable.from(chunks()), {
       method: 'POST',
-      url: `/api/workspace/tasks/${task.id}/attachments?kind=video&name=demo.mp4&operationId=${args.operationId}`,
+      url: `/api/tasks/${task.id}/attachments?kind=video&name=demo.mp4&operationId=${args.operationId}`,
       headers: { 'content-type': 'video/mp4' },
     });
     await workspaceApi(
@@ -235,7 +235,7 @@ test('remote deploy_attach streams a workspace video via scoped agent HTTP and v
     );
     return new Response(response, { status, headers: { 'Content-Type': 'application/json' } });
   });
-  const endpoint = 'http://worker-coordinator.test/api/workspace/agent/tools';
+  const endpoint = 'http://worker-coordinator.test/api/agent/tools';
   const old = {
     cwd: process.cwd(),
     url: process.env.DEPLOY_AGENT_URL,
@@ -253,7 +253,7 @@ test('remote deploy_attach streams a workspace video via scoped agent HTTP and v
     assert.equal(attached.kind, 'video');
     assert.equal(attached.runId, run.id);
     assert.equal(attached.source, 'agent');
-    assert.match(paths[0], /^\/api\/workspace\/agent\/attachments\?/);
+    assert.match(paths[0], /^\/api\/agent\/attachments\?/);
     assert.equal(types[0], 'application/octet-stream');
     assert.equal(
       (await callCoordinationTool('deploy_attach', { path: 'remote.webm', caption: 'Flow' })).id,

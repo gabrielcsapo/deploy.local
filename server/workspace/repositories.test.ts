@@ -71,7 +71,7 @@ after(async () => {
 });
 let op = 0;
 async function post(path: string, body: any = {}) {
-  const response = await fetch(origin + '/api/workspace' + path, {
+  const response = await fetch(origin + '/api' + path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ operationId: `test-${++op}`, ...body }),
@@ -79,7 +79,7 @@ async function post(path: string, body: any = {}) {
   return { status: response.status, body: (await response.json()) as any };
 }
 async function read(path: string, owner = 'alice') {
-  const response = await fetch(origin + '/api/workspace' + path, {
+  const response = await fetch(origin + '/api' + path, {
     headers: { 'x-test-owner': owner },
   });
   return { status: response.status, body: (await response.json()) as any };
@@ -121,7 +121,7 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   const original = git(source, ['rev-parse', 'HEAD']);
   writeFileSync(join(source, 'README.md'), 'dirty source\n');
   const start = Date.now();
-  const created = await post('/projects', {
+  const created = await post('/repository-projects', {
     operationId: 'import-once',
     name: 'Native project',
     sourcePath: source,
@@ -131,7 +131,7 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   const project = created.body;
   assert.equal(
     (
-      await post('/projects', {
+      await post('/repository-projects', {
         operationId: 'import-once',
         name: 'Native project',
         sourcePath: source,
@@ -164,7 +164,7 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   ).body;
   assert.equal(blob.content, 'original\n');
   const cloned = join(data, 'clone');
-  await gitText(data, ['clone', `${origin}/api/workspace/git/${project.id}`, cloned]);
+  await gitText(data, ['clone', `${origin}/api/git/${project.id}`, cloned]);
   // The advertised clone path is the short address `/<repo>.git`, so a plain `git clone` names
   // the folder after the repository.
   assert.equal(info.clonePath, `/${repositoryFolderName(project.name)}.git`);
@@ -260,7 +260,7 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   ).body;
   assert.equal(remoteTask.baseRevision, git(source, ['rev-parse', 'HEAD']));
   const remoteCopy = join(data, 'pinned-remote-clone');
-  await gitText(data, ['clone', `${origin}/api/workspace/git/${project.id}`, remoteCopy]);
+  await gitText(data, ['clone', `${origin}/api/git/${project.id}`, remoteCopy]);
   await gitText(remoteCopy, ['fetch', 'origin', remoteTask.sourceRef]);
   assert.equal(git(remoteCopy, ['rev-parse', 'FETCH_HEAD']), remoteTask.baseRevision);
 });
@@ -269,11 +269,14 @@ test('empty source initializes without altering upstream; failures retry and can
   const empty = join(data, 'empty');
   mkdirSync(empty);
   git(empty, ['init', '--bare']);
-  const created = await post('/projects', { name: 'Empty', sourcePath: empty });
+  const created = await post('/repository-projects', { name: 'Empty', sourcePath: empty });
   const info = (await ready(created.body.id)).body;
   assert.equal(info.defaultBranch, 'main');
   assert.equal(git(empty, ['for-each-ref']), '');
-  const bad = await post('/projects', { name: 'Missing', sourcePath: join(data, 'missing') });
+  const bad = await post('/repository-projects', {
+    name: 'Missing',
+    sourcePath: join(data, 'missing'),
+  });
   await until(
     () => read(`/projects/${bad.body.id}/repository`),
     (r) => r.body.operation.status === 'failed',
@@ -283,7 +286,7 @@ test('empty source initializes without altering upstream; failures retry and can
     () => read(`/projects/${bad.body.id}/repository`),
     (r) => r.body.operation.status === 'failed',
   );
-  const slow = await post('/projects', { name: 'Cancel', sourcePath: empty });
+  const slow = await post('/repository-projects', { name: 'Cancel', sourcePath: empty });
   await until(
     () => read(`/projects/${slow.body.id}/repository`),
     (r) => r.body.operation.status === 'running',
@@ -346,7 +349,9 @@ test('sources reject credentials and helpers before persisting anything', () => 
 
 test('task preparation accepts a first message, fences execution, and can recover queued cancellation', async () => {
   const source = sourceRepo('queued-source');
-  const project = (await post('/projects', { name: 'Queued workspace', sourcePath: source })).body;
+  const project = (
+    await post('/repository-projects', { name: 'Queued workspace', sourcePath: source })
+  ).body;
   await ready(project.id);
   const binary = join(data, 'fixture-agent');
   writeFileSync(
@@ -444,7 +449,7 @@ test('repositories get short addresses that pages and other repositories cannot 
 });
 
 test('a hosted repository starts empty and syncs both ways with a remote, pausing when main changed on both sides', async () => {
-  const created = await post('/projects', { name: 'Recipes' });
+  const created = await post('/repository-projects', { name: 'Recipes' });
   assert.equal(created.body.source.kind, 'hosted');
   const info = (await ready(created.body.id)).body;
   assert.equal(info.empty, true);

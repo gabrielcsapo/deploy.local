@@ -9,7 +9,7 @@ public func formatMediaDuration(_ seconds: Double?) -> String? {
 public enum AuthenticatedMedia {
     public static func request(connection: Connection, attachmentId: String) throws -> URLRequest {
         guard !attachmentId.isEmpty, attachmentId.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else { throw ClientError.invalidResponse }
-        var request = URLRequest(url: try connection.baseURL().appendingPathComponent("api/workspace/attachments/\(attachmentId)"))
+        var request = URLRequest(url: try connection.baseURL().appendingPathComponent("api/attachments/\(attachmentId)"))
         request.setValue(connection.username, forHTTPHeaderField: "X-Deploy-Username")
         request.setValue(connection.token, forHTTPHeaderField: "X-Deploy-Token")
         return request
@@ -50,7 +50,7 @@ extension WorkspaceStore {
         defer { uploadingAttachment = false; mediaUploadTask = nil; attachmentUploadName = nil }
         let task = Task { [self] () throws -> MediaAttachment in
             var parts = URLComponents(); parts.queryItems = [URLQueryItem(name: "name", value: name ?? file.lastPathComponent), URLQueryItem(name: "operationId", value: UUID().uuidString)]
-            var request = URLRequest(url: try connection.baseURL().appendingPathComponent("api/workspace/tasks/\(taskId)/attachments"))
+            var request = URLRequest(url: try connection.baseURL().appendingPathComponent("api/tasks/\(taskId)/attachments"))
             request.url = URL(string: request.url!.absoluteString + "?" + parts.percentEncodedQuery!)
             request.httpMethod = "POST"; request.timeoutInterval = 600
             request.setValue(connection.username, forHTTPHeaderField: "X-Deploy-Username")

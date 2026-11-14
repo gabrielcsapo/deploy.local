@@ -8,7 +8,7 @@ export async function computerRequest<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await authenticatedFetch(`/api/v2${path}`, {
+  const response = await authenticatedFetch(`/api${path}`, {
     method,
     signal,
     headers: {
@@ -27,7 +27,7 @@ export async function computerRequest<T>(
 }
 export function useComputerData<T>(path: string) {
   const seed = useDataSeed();
-  const key = `/api/v2${path}`;
+  const key = `/api${path}`;
   const initial = () => remembered<T>(key, seed);
   const [loaded, setLoaded] = useState({ path, seed });
   const [data, setData] = useState<T | undefined>(initial),

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { componentHarness, settle } from '../../../../../scripts/component-harness.mjs';
 
 test('seeded resources skip the initial read, refresh on events and isolate browser identities', async () => {
-  const path = '/api/v2/live';
+  const path = '/api/live';
   const seed = { owner: 'alice', at: Date.now(), cursor: 8, data: { [path]: { name: 'first' } } };
   let auth = { username: 'alice', token: 'one' };
   let subscriber;
@@ -106,7 +106,7 @@ test('parts of a page share a read in flight, and a refresh after a change start
         init.signal.addEventListener('abort', () => reject(init.signal.reason));
       });
     const read = (afterChange, signal = new AbortController().signal) =>
-      h.exports.sharedRead('/api/v2/live', signal, false, afterChange, request);
+      h.exports.sharedRead('/api/live', signal, false, afterChange, request);
     const leaving = new AbortController();
     const polls = [read(false), read(false), read(false, leaving.signal)];
     assert.equal(pending.length, 1, 'three polls, one request');
@@ -118,7 +118,7 @@ test('parts of a page share a read in flight, and a refresh after a change start
     const refreshes = [read(true), read(true)];
     assert.equal(pending.length, 2);
     const tolerant = h.exports.sharedRead(
-      '/api/v2/live',
+      '/api/live',
       new AbortController().signal,
       true,
       false,

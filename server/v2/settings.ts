@@ -314,7 +314,7 @@ export async function settingsApi(
   if (await logsApi(req, res, owner)) return true;
   const url = new URL(req.url!, 'http://localhost');
   const match = url.pathname.match(
-    /^\/api\/v2\/projects\/([^/]+)\/(overview|settings|apps|secrets\/([^/]+))$/,
+    /^\/api\/projects\/([^/]+)\/(overview|settings|apps|secrets\/([^/]+))$/,
   );
   if (!match) return false;
   const project = await resolveProject(owner, decodeURIComponent(match[1]), req.method === 'GET');
@@ -332,19 +332,19 @@ export async function settingsApi(
     [
       route({
         method: 'GET',
-        path: '/api/v2/projects/:project/overview',
+        path: '/api/projects/:project/overview',
         handler: async () => {
           return readProjectOverview(owner, project);
         },
       }),
       route({
         method: 'GET',
-        path: '/api/v2/projects/:project/settings',
+        path: '/api/projects/:project/settings',
         handler: () => readProjectSettings(owner, project),
       }),
       route({
         method: 'PATCH',
-        path: '/api/v2/projects/:project/settings',
+        path: '/api/projects/:project/settings',
         handler: async () => {
           putProjectReleasePolicy(owner, project, await readProjectBody(req));
           return readProjectSettings(owner, project);
@@ -352,19 +352,19 @@ export async function settingsApi(
       }),
       route({
         method: 'PUT',
-        path: '/api/v2/projects/:project/settings',
+        path: '/api/projects/:project/settings',
         handler: async () => putProjectSettings(owner, project, await readProjectBody(req)),
       }),
       route({
         method: 'POST',
-        path: '/api/v2/projects/:project/apps',
+        path: '/api/projects/:project/apps',
         handler: async () => ({
           project: await addProjectApplication(owner, project.id, (await readProjectBody(req)).app),
         }),
       }),
       route({
         method: 'PUT',
-        path: '/api/v2/projects/:project/secrets/:key',
+        path: '/api/projects/:project/secrets/:key',
         handler: async ({ params }) =>
           putProjectSecret(
             owner,
@@ -379,7 +379,7 @@ export async function settingsApi(
       }),
       route({
         method: 'DELETE',
-        path: '/api/v2/projects/:project/secrets/:key',
+        path: '/api/projects/:project/secrets/:key',
         handler: ({ params }) =>
           putProjectSecret(
             owner,

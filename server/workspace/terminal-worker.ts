@@ -121,7 +121,7 @@ export function startTerminalWorker(config: {
     while (!controller.signal.aborted) {
       try {
         const response = await fetch(
-          `${config.origin}/api/workspace/workers/${encodeURIComponent(config.workerId)}/terminals?instanceId=${encodeURIComponent(config.instanceId)}`,
+          `${config.origin}/api/workers/${encodeURIComponent(config.workerId)}/terminals?instanceId=${encodeURIComponent(config.instanceId)}`,
           {
             headers,
             redirect: 'error',

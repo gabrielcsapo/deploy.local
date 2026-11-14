@@ -21,7 +21,7 @@ node design/v2/tools/capture.mjs http://127.0.0.1:5189/dashboard/live/home-gym-s
 Pair each capture with `design/v2/canvas/png/<Board>-<width>.png` using
 `design/v2/tools/pair.py`. Inspect both widths, keyboard focus and error/retry behavior.
 On fresh fixtures, each Roll back button should POST `actionId: rollback`, `on: web` to
-`/api/v2/inbox/rollback%3Ahome-gym%3A9c3e1fa/answer` and remove the pending decision.
+`/api/inbox/rollback%3Ahome-gym%3A9c3e1fa/answer` and remove the pending decision.
 The fixture's Not now action also answers it. Restart the fixture between those checks.
 Production releases advertise Keep release instead, which uses the `keep` action.
 Stop both fixture and Vite after review. Neither fixture starts the real rollback runtime;

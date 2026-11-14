@@ -33,7 +33,7 @@ type KeySettings = {
 export async function sshKeyRequest(path = '', body?: object): Promise<any> {
   const auth = getAuth();
   if (!auth) throw new Error('Sign in to manage SSH keys');
-  const response = await fetch('/api/workspace/ssh-keys' + path, {
+  const response = await fetch('/api/ssh-keys' + path, {
     method: body ? 'POST' : 'GET',
     headers: {
       'x-deploy-username': auth.username,
@@ -50,7 +50,7 @@ export default function SshKeysSettings() {
   const seed = useDataSeed();
   const { localeDate } = useProjectFormatting();
   const [data, setData] = useState<KeySettings | undefined>(
-    () => seed?.data['/api/workspace/ssh-keys'] as KeySettings | undefined,
+    () => seed?.data['/api/ssh-keys'] as KeySettings | undefined,
   );
   const [name, setName] = useState('');
   const [publicKey, setPublicKey] = useState('');
@@ -67,7 +67,7 @@ export default function SshKeysSettings() {
     }
   }
   useEffect(() => {
-    if (!freshSeed(seed, '/api/workspace/ssh-keys')) void refresh();
+    if (!freshSeed(seed, '/api/ssh-keys')) void refresh();
   }, [seed]);
   return (
     <div className="min-w-0 space-y-4">

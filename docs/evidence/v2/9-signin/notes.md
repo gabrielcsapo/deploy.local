@@ -36,7 +36,7 @@ All requested continuation wiring and legacy fixture fixes are committed on
    the `/setup` path, installer-code instructions, and the option to ask an admin.
 5. **Legacy fixtures:** `server/test-auth.ts` issues a local setup code through the
    production installer helper in a subprocess, then creates the owner over HTTP
-   `/api/v2/setup`. All three legacy HTTP suites use it, and additional accounts
+   `/api/setup`. All three legacy HTTP suites use it, and additional accounts
    are registered with the existing admin's credentials. Anonymous registration
    stays closed; a negative HTTP assertion covers it. No production registration
    gate or database schema was changed in this continuation.

@@ -77,10 +77,10 @@ server.on('request', async (req, res) => {
     res.end(JSON.stringify(value));
   };
   if (path === '/api/user') return send({ username: 'Gabriel' });
-  if (path === '/api/v2/projects') return send({ projects });
-  if (path === '/api/v2/live') return send(f.live);
-  if (path === '/api/v2/inbox') return send({ items: [f.item] });
-  if (path === '/api/v2/events') {
+  if (path === '/api/projects') return send({ projects });
+  if (path === '/api/live') return send(f.live);
+  if (path === '/api/inbox') return send({ items: [f.item] });
+  if (path === '/api/activity-events') {
     // The first read only asks where the feed is; pages wait on it before loading.
     if (url.searchParams.get('after') === 'latest')
       return send({ events: [], cursor: 1, supportsWait: true });
@@ -88,11 +88,10 @@ server.on('request', async (req, res) => {
     res.on('close', () => clearTimeout(timer));
     return;
   }
-  if (path === '/api/workspace/state')
-    return send({ cursor: 1, projects, tasks: [], runs: [], workers: [] });
-  if (path === '/api/v2/agents') return send({ agents: [] });
+  if (path === '/api/state') return send({ cursor: 1, projects, tasks: [], runs: [], workers: [] });
+  if (path === '/api/agents') return send({ agents: [] });
   if (path === '/api/nodes') return send({ nodes: [{ id: 'ser', name: 'SER', online: true }] });
-  if (path.startsWith('/api/v2/live/')) {
+  if (path.startsWith('/api/live/')) {
     const app = [...apps, pantry].find((candidate) => candidate.appId === path.split('/').at(-1));
     return app
       ? send({
@@ -110,14 +109,14 @@ server.on('request', async (req, res) => {
           : '#9 [build 4/6] RUN pnpm install --frozen-lockfile\n#9 11.9s Done in 11.4s\n#10 [build 5/6] RUN pnpm build\n#10 29.8s ✓ built in 28.6s\n#12 exporting to image\n#12 DONE 2.1s\nVerify: copy started on SER\nVerify: GET /healthz 200',
     });
   if (path.endsWith('/issues')) return send({ items: [] });
-  if (path === '/api/v2/design/projects') return send({ projects: [] });
+  if (path === '/api/design/projects') return send({ projects: [] });
   if (path.endsWith('/design/reviews')) return send({ proposals: [] });
   if (path.endsWith('/pulls'))
     return send({
       items: [{ id: '18', number: 18, title: 'Show expiry dates', state: 'open', taskIds: [] }],
     });
   const match = path.match(
-    /^\/api\/v2\/projects\/([^/]+)\/(overview|releases|rollbacks|logs|settings)$/,
+    /^\/api\/projects\/([^/]+)\/(overview|releases|rollbacks|logs|settings)$/,
   );
   if (match) {
     const project = projects.find((candidate) => candidate.id === match[1]);

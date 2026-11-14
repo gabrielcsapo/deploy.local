@@ -116,7 +116,7 @@ public struct MessageAttachmentRef: Equatable, Sendable {
 }
 
 /// Where the dashboard serves an attachment the agent produced.
-public func attachmentURLPath(_ id: String) -> String { "/api/workspace/attachments/\(id)" }
+public func attachmentURLPath(_ id: String) -> String { "/api/attachments/\(id)" }
 
 /// A file the agent attached to this task, matched by name. Artifacts and attachments are copied
 /// off their computer, so the agent names them by a path only that computer has; the app can

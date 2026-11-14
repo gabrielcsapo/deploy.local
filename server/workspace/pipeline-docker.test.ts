@@ -43,7 +43,7 @@ test(
       process.env.DEPLOY_PIPELINE_ORIGIN = origin;
       const headers = { 'x-deploy-username': 'ci-owner', 'x-deploy-token': info.ownerToken };
       if (macPilot) {
-        const enrolled = await fetch(origin + '/api/workspace/workers/enroll', {
+        const enrolled = await fetch(origin + '/api/workers/enroll', {
           method: 'POST',
           headers: { ...headers, 'Content-Type': 'application/json' },
           body: JSON.stringify({

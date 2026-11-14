@@ -73,7 +73,7 @@ const server = createServer((request, response) => {
       response.end(JSON.stringify({ placementReady: true }));
     } else if (path === '/api/upload') {
       response.end(JSON.stringify({ accepted: true, name: 'home-gym', buildLogId: 42 }));
-    } else if (path === '/api/v2/projects/home-gym/releases') {
+    } else if (path === '/api/projects/home-gym/releases') {
       response.statusCode = releasesSupported ? 200 : 404;
       response.end(
         JSON.stringify({
@@ -89,7 +89,7 @@ const server = createServer((request, response) => {
           ],
         }),
       );
-    } else if (path === '/api/v2/projects/home-gym/rollback') {
+    } else if (path === '/api/projects/home-gym/rollback') {
       response.end(
         JSON.stringify({
           id: 'rollback-42',
@@ -101,21 +101,21 @@ const server = createServer((request, response) => {
           })),
         }),
       );
-    } else if (path === '/api/workspace/state') {
+    } else if (path === '/api/state') {
       response.end(
         JSON.stringify({
           tasks: [{ id: 'task-1', title: 'Fix sync worker', status: 'running' }],
           workers: [{ id: 'worker-bazzite', name: 'bazzite' }],
         }),
       );
-    } else if (path === '/api/workspace/tasks') {
+    } else if (path === '/api/tasks') {
       response.end(
         JSON.stringify({ id: 'task-2', title: JSON.parse(body).title, status: 'preparing' }),
       );
-    } else if (path === '/api/v2/inbox?state=waiting') {
+    } else if (path === '/api/inbox?state=waiting') {
       response.statusCode = inboxStatus;
       response.end(JSON.stringify({ items: waiting ? [item] : [] }));
-    } else if (path === '/api/v2/inbox/rollback-1/answer') {
+    } else if (path === '/api/inbox/rollback-1/answer') {
       response.end(
         JSON.stringify({
           ...item,
@@ -375,7 +375,7 @@ test('rollback previews all changes, requires confirmation and uses only the pro
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).state, 'rolled-back');
   assert.deepEqual(requests.at(-1), {
-    path: '/api/v2/projects/home-gym/rollback',
+    path: '/api/projects/home-gym/rollback',
     method: 'POST',
     body: { to: '81be0d2', from: '9c3e1fa' },
   });

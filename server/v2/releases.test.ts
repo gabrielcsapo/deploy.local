@@ -481,14 +481,14 @@ test('agent and worker tokens cannot Ship through the actual v2 router', async (
   const { v2Api } = await import('./api.ts');
   const fetch = routeFetch((req, res) => v2Api(req, res, () => ({ username: 'owner' })));
   for (const header of ['x-deploy-agent-token', 'x-deploy-worker-token']) {
-    const response = await fetch(`http://localhost/api/v2/projects/home-gym/releases`, {
+    const response = await fetch(`http://localhost/api/projects/home-gym/releases`, {
       method: 'POST',
       headers: { [header]: 'credential', 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: { kind: 'ship', ref: 'main' } }),
     });
     assert.equal(response.status, 403);
   }
-  const put = await fetch(`http://localhost/api/v2/approvals`, {
+  const put = await fetch(`http://localhost/api/release-approval-rules`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -496,9 +496,9 @@ test('agent and worker tokens cannot Ship through the actual v2 router', async (
     }),
   });
   assert.equal(put.status, 200);
-  const response = await fetch(`http://localhost/api/v2/approvals`);
+  const response = await fetch(`http://localhost/api/release-approval-rules`);
   assert.equal((await response.json()).rules[0].mode, 'ask');
-  const projects = await fetch(`http://localhost/api/v2/projects`);
+  const projects = await fetch(`http://localhost/api/projects`);
   assert.deepEqual(await projects.json(), { projects: [] });
 });
 

@@ -7,8 +7,8 @@ The only preview servers started were the fixture and Vite on 5190/5191; both we
 
 ## Implemented, by task item
 
-1. **Computers:** GET `/api/v2/computers` returns `{ computers: Computer[] }`; GET
-   `/api/v2/computers/:id` returns `{ computer }`. Fleet computers and owner-scoped workspace
+1. **Computers:** GET `/api/computers` returns `{ computers: Computer[] }`; GET
+   `/api/computers/:id` returns `{ computer }`. Fleet computers and owner-scoped workspace
    workers share one projection. The local worker joins the coordinator; remote workers use
    `worker:<workerId>` identities. Names alone never merge computers. Administrator-written
    `v2-computer-roles` records can preserve explicit worker-to-fleet links; there is not yet a
@@ -19,28 +19,28 @@ The only preview servers started were the fixture and Vite on 5190/5191; both we
    and remote run admission and job claims; existing runs are returned/continued. Use the screen
    is enforced before an interactive command is claimed. Unsupported roles are rejected.
 2. **Add:** `/dashboard/computers/add` and the list action open one dialog. An administrator
-   enters a reserved computer name and POSTs `/api/v2/computers/enrollment`; this calls the exact
+   enters a reserved computer name and POSTs `/api/computers/enrollment`; this calls the exact
    `createNodeEnrollment` implementation behind `/api/nodes/enrollment`. The actual supported
    headless command is `sudo deploy computer join <coordinator-origin>` on Linux with the CLI
    installed, followed by the code at its prompt. The code has the existing ten-minute TTL.
    The dialog polls computer inventory for connection, reports expiry and can create another code.
-   Existing desktop apps use password sign-in and `/api/workspace/workers/enroll`, as inspected in
+   Existing desktop apps use password sign-in and `/api/workers/enroll`, as inspected in
    `desktop/src/worker.mjs`; those registrations appear in this list without a second fleet key.
-3. **Remove:** GET `/api/v2/computers/:id/removal` returns `{ computerId, allowed, reasons, apps,
+3. **Remove:** GET `/api/computers/:id/removal` returns `{ computerId, allowed, reasons, apps,
 tasks }`. DELETE rechecks that plan immediately before revoking credentials. It refuses the
    coordinator, apps (including another owner's apps and desired placements), queued/active or
    unknown work, and a reported model-serving role. It lists other online Run apps computers
    without asserting their capacity or data compatibility. Idle removal revokes worker and/or
    fleet credentials, leaves disk data alone, and hides the removed identity. Non-admin mutations
    are refused. These checks do not claim a cross-database global deployment reservation.
-4. **Models:** GET `/api/v2/computers/models` returns `ComputerModels`; PUT `{ defaults }` saves
+4. **Models:** GET `/api/model-settings` returns `ComputerModels`; PUT `{ defaults }` saves
    owner-scoped defaults for writing-code, reviewing and answering-questions. Model choices come
    from worker-reported model options and reported local inventory. Claude/Codex usage projects
    the latest reported weekly window, never inventing usage or summing potentially shared quotas.
    Local inventory uses node `capabilities.models` entries `{ id, name, loaded }` and appears only
    on Serve models computers. Missing usage is Unavailable. The Models page is the sole new
    defaults editor.
-5. **Updates:** GET `/api/v2/updates` returns `ComputerUpdates`. The target is the current
+5. **Updates:** GET `/api/updates` returns `ComputerUpdates`. The target is the current
    deploy.local app's **Live project Release**, using `currentProjectReleases` from the v2 release
    engine, so a failed Watch is not propagated. The UI links to that project's existing release
    page. Per-computer status distinguishes current, waiting, ready, offline and unavailable.

@@ -26,7 +26,7 @@ async function request(path: string, body?: any) {
     Readable.from(
       body === undefined ? [] : [JSON.stringify({ operationId: randomUUID(), ...body })],
     ),
-    { url: '/api/workspace' + path, method: body === undefined ? 'GET' : 'POST', headers: {} },
+    { url: '/api' + path, method: body === undefined ? 'GET' : 'POST', headers: {} },
   );
   let status = 0,
     result = '';

@@ -187,12 +187,12 @@ const server = createServer(async (req, res) => {
       } catch {}
     }
     if (
-      /^\/api\/v2\/(projects|tasks)($|\/)/.test(path) ||
-      /^\/api\/workspace\/(tasks|projects)\//.test(path) ||
+      /^\/api\/(projects|tasks)($|\/)/.test(path) ||
+      /^\/api\/(tasks|projects)\//.test(path) ||
       path.includes('/fixture-log') ||
       path.startsWith('/api/deployments/') ||
       (['Project', 'ProjectSettings', 'Logs'].includes(board) &&
-        ['/api/v2/live', '/api/workspace/state'].includes(path))
+        ['/api/live', '/api/state'].includes(path))
     )
       return projectFixture(req, res);
     if (path.endsWith('/events')) {
@@ -203,7 +203,7 @@ const server = createServer(async (req, res) => {
     if (path === '/api/user') return send({ username: 'Gabriel' });
     if (path === '/api/nodes')
       return send({ nodes: [{ online: true }, { online: true }, { online: true }] });
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return send({
         tasks: [
           {
@@ -222,9 +222,8 @@ const server = createServer(async (req, res) => {
         projects: [],
         runs: [],
       });
-    if (path === '/api/v2/live')
-      return send({ summary: { running: 7, failing: 1 }, computers: [] });
-    if (path === '/api/v2/agents/draft')
+    if (path === '/api/live') return send({ summary: { running: 7, failing: 1 }, computers: [] });
+    if (path === '/api/agents/draft')
       return send({
         draft: {
           name: agents[2].name,
@@ -235,7 +234,7 @@ const server = createServer(async (req, res) => {
           triggers: { mention: true, disk: true },
         },
       });
-    if (path === '/api/v2/agents') {
+    if (path === '/api/agents') {
       if (req.method === 'POST') {
         const agent = { ...body, id: 'keeper', createdBy: 'Gabriel' };
         agents[2] = agent;
@@ -249,14 +248,14 @@ const server = createServer(async (req, res) => {
             : agents.slice(0, 2),
       });
     }
-    if (path === '/api/v2/projects')
+    if (path === '/api/projects')
       return send({
         projects: [
           { id: 'gym', name: 'home-gym', apps: [] },
           { id: 'deploy', name: 'deploy.local', apps: [] },
         ],
       });
-    if (path === '/api/v2/approvals') {
+    if (path === '/api/approvals') {
       if (req.method === 'PUT') rules = body.rules;
       return send({
         suggestions: [{ agent: 'warden', action: 'rollback', count: 4 }],
@@ -265,7 +264,7 @@ const server = createServer(async (req, res) => {
         ),
       });
     }
-    if (path === '/api/v2/inbox')
+    if (path === '/api/inbox')
       return send({
         items:
           url.searchParams.get('state') === 'answered'
@@ -331,7 +330,7 @@ const server = createServer(async (req, res) => {
         });
       return send({ events: scout, tracking });
     }
-    if (path.startsWith('/api/v2/agents/') && req.method === 'PATCH')
+    if (path.startsWith('/api/agents/') && req.method === 'PATCH')
       return send({
         agent: { ...agents.find((agent) => agent.id === path.split('/')[4]), ...body },
       });

@@ -230,10 +230,10 @@ Everything reuses deploy.local accounts. **Every request needs a credential**: t
 - **iPhone:** Settings → Agents and data gets a Packages row (`SettingsPhone`). It opens a read-only list (`PackagesPhone`): private packages, sources and what is kept. A package row opens its versions in a sheet. Not drawn: it uses the same rows.
 - **CLI:** `deploy packages` (list), `login`, `use`, `publish`, `deprecate`, `yank`, and `copies` (status, or `fetch` to get what a project's lockfile is missing). Each gets a line in `HELP`, and the code lives in `bin/packages.mjs`.
 - **API** for the apps:
-  - `GET /api/v2/packages` and `GET /api/v2/packages/:ecosystem/:name`
-  - `GET /api/v2/packages/cache` and `POST /api/v2/packages/cache/warm`
-  - `GET|POST|DELETE /api/v2/package-keys`
-  - `POST /api/v2/packages/:ecosystem/:name/versions/:version/deprecate|yank`
+  - `GET /api/packages` and `GET /api/packages/:ecosystem/:name`
+  - `GET /api/packages/cache` and `POST /api/packages/cache/warm`
+  - `GET|POST|DELETE /api/package-keys`
+  - `POST /api/packages/:ecosystem/:name/versions/:version/deprecate|yank`
 
 ### Safety
 

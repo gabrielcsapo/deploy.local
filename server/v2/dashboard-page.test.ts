@@ -32,7 +32,7 @@ const { loadDashboardPage, loadProjectPage, dashboardPageURL } = await import('.
 const { buildAuthCookie } = await import('../auth-cookie.ts');
 const { routeFetch } = await import('./test-request.ts');
 const { v2Api } = await import('./api.ts');
-const { workspaceApi } = await import('../workspace/api.ts');
+const { apiRoutes } = await import('../api/registry.ts');
 const { createAgent } = await import('./agents.ts');
 const { updatePreferences } = await import('./auth-store.ts');
 store.registerUser('admin', 'test-password');
@@ -88,8 +88,8 @@ test('dashboard seeds use only cookie identity and are deduplicated only within 
   updatePreferences('alice', { welcomed: true });
   const fresh = (await loadDashboardPage(request('/dashboard/agents')))!;
   assert.notEqual(fresh.seed, page.seed);
-  assert.equal((fresh.seed.data['/api/v2/auth/account'] as any).welcomed, true);
-  assert.equal((page.seed.data['/api/v2/auth/account'] as any).welcomed, false);
+  assert.equal((fresh.seed.data['/api/auth/account'] as any).welcomed, true);
+  assert.equal((page.seed.data['/api/auth/account'] as any).welcomed, false);
   const other = await loadDashboardPage(request('/dashboard/agents', 'bob', bob.token));
   assert.doesNotMatch(JSON.stringify(other!.seed), /Alice private agent/);
 });
@@ -119,8 +119,17 @@ test('missing, malformed, expired, revoked and header-only credentials retain cl
 });
 
 test('every seeded v2 value is the API wire response, including permissions and encoded identifiers', async () => {
-  const api = routeFetch((req, res) => v2Api(req, res, () => ({ username: 'alice' })));
-  const workspaceApiRead = routeFetch((req, res) => workspaceApi(req, res, 'alice'));
+  const api = routeFetch((req, res) => {
+    const url = new URL(req.url!, 'https://deploy.test');
+    return apiRoutes({
+      req,
+      res,
+      url,
+      path: url.pathname,
+      workspacePath: url.pathname,
+      method: req.method,
+    });
+  });
   for (const path of [
     '/dashboard',
     '/dashboard/live',
@@ -152,23 +161,23 @@ test('every seeded v2 value is the API wire response, including permissions and 
   ]) {
     const page = (await loadDashboardPage(request(path)))!;
     if (path === '/dashboard/live/standalone.app') {
-      assert.ok(page.seed.data['/api/v2/live/standalone.app']);
-      assert.ok(page.seed.data['/api/v2/projects/app%3Astandalone.app/overview']);
+      assert.ok(page.seed.data['/api/live/standalone.app']);
+      assert.ok(page.seed.data['/api/projects/app%3Astandalone.app/overview']);
     }
     for (const [key, value] of Object.entries(page.seed.data)) {
-      if (!key.startsWith('/api/v2/') && !key.startsWith('/api/workspace/')) continue;
-      const response = await (key.startsWith('/api/workspace/') ? workspaceApiRead : api)(
-        `https://deploy.test${key}`,
-      );
+      if (!key.startsWith('/api/')) continue;
+      const response = await api(`https://deploy.test${key}`, {
+        headers: { cookie: buildAuthCookie('alice', alice.token!) },
+      });
       assert.equal(response.status, 200, `${path}: ${key}`);
       assert.deepEqual(JSON.parse(JSON.stringify(value)), await response.json(), `${path}: ${key}`);
     }
     assert.ok(
-      '/api/workspace/state' in page.seed.data || '/api/workspace/state' in page.seed.errors,
+      '/api/state' in page.seed.data || '/api/state' in page.seed.errors,
       'the sidebar task list is read with the page',
     );
-    assert.ok(!('/api/v2/self-update' in page.seed.data));
-    assert.ok(!('/api/v2/updates' in page.seed.data));
+    assert.ok(!('/api/self-update' in page.seed.data));
+    assert.ok(!('/api/updates' in page.seed.data));
   }
   const catalog = (await loadDashboardPage(request('/dashboard/discover')))!.seed;
   assert.equal(catalog.data['/api/catalog'], undefined);
@@ -197,12 +206,12 @@ test('repository-backed task, design and package reads stay in the browser', asy
     '/dashboard/settings/backups',
   ]) {
     const page = (await loadDashboardPage(request(path)))!;
-    for (const resource of ['/api/v2/tasks/linked', '/api/v2/design/projects', '/api/v2/packages'])
+    for (const resource of ['/api/task-snapshots/linked', '/api/design/projects', '/api/packages'])
       assert.ok(!(resource in page.seed.data), `${path} must not await ${resource}`);
     if (path.includes('view=canvas')) {
       const api = routeFetch((req, res) => v2Api(req, res, () => ({ username: 'alice' })));
       for (const suffix of ['/asks?v=0', '/comments', '/presence', '/proposals?v=0']) {
-        const resource = `/api/v2/projects/ready/design${suffix}`;
+        const resource = `/api/projects/ready/design${suffix}`;
         assert.deepEqual(
           page.seed.data[resource],
           await (await api(`https://deploy.test${resource}`)).json(),

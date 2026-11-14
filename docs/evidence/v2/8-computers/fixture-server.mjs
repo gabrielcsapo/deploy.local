@@ -126,7 +126,7 @@ createServer(async (req, res) => {
         body = JSON.parse(Buffer.concat(chunks).toString());
       } catch {}
     }
-    if (path === '/api/v2/computers')
+    if (path === '/api/computers')
       return send({
         computers:
           board === 'SelfUpdate'
@@ -137,12 +137,12 @@ createServer(async (req, res) => {
               }))
             : computers,
       });
-    if (path === '/api/v2/computers/models') {
+    if (path === '/api/model-settings') {
       if (req.method === 'PUT') models.defaults = body.defaults;
       return send(models);
     }
-    if (path === '/api/v2/updates') return send(updates);
-    if (path === '/api/v2/computers/enrollment')
+    if (path === '/api/updates') return send(updates);
+    if (path === '/api/computers/enrollment')
       return send({ code: '7KQ2-M9XD', name: body.name, expiresAt: Date.now() + 600000 });
     if (path.endsWith('/removal'))
       return send({
@@ -159,21 +159,21 @@ createServer(async (req, res) => {
         })),
         tasks: [{ id: 'sync', name: 'Fix the sync migration' }],
       });
-    if (path.startsWith('/api/v2/computers/')) {
+    if (path.startsWith('/api/computers/')) {
       const computer = computers.find((c) => c.id === decodeURIComponent(path.split('/')[4]));
       if (computer) {
         if (req.method === 'PATCH') computer.roles = body.roles;
         return send({ computer });
       }
     }
-    if (path === '/api/v2/agents')
+    if (path === '/api/agents')
       return send({
         agents: [
           { id: 'scout', name: 'Scout' },
           { id: 'warden', name: 'Warden' },
         ],
       });
-    if (path === '/api/v2/inbox')
+    if (path === '/api/inbox')
       return send({
         items:
           url.searchParams.get('state') === 'answered'
@@ -189,13 +189,12 @@ createServer(async (req, res) => {
                 actions: [],
               })),
       });
-    if (path === '/api/v2/events')
+    if (path === '/api/activity-events')
       return setTimeout(() => send({ events: [], cursor: 0, supportsWait: true }), 10000);
-    if (path === '/api/v2/live')
-      return send({ summary: { running: 7, failing: 1 }, computers: [] });
+    if (path === '/api/live') return send({ summary: { running: 7, failing: 1 }, computers: [] });
     if (path === '/api/user') return send({ user: { username: 'Gabriel' } });
     if (path === '/api/nodes') return send({ nodes: computers });
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return send({
         tasks: [
           { id: 'self', title: 'Self-release pipeline', updatedAt: new Date().toISOString() },

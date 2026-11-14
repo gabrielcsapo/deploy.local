@@ -34,7 +34,7 @@ export default function Agents() {
   );
 }
 function AgentsLanding() {
-  const { data, loading, error } = useResource<{ agents: Agent[] }>('/api/v2/agents');
+  const { data, loading, error } = useResource<{ agents: Agent[] }>('/api/agents');
   useEffect(() => {
     if (data?.agents[0])
       window.location.replace(`/dashboard/agents/${encodeURIComponent(data.agents[0].id)}`);
@@ -130,12 +130,12 @@ function ExistingAgent({
   const seed = useDataSeed();
   const [agent, setAgent] = useState<Agent | null>(
     () =>
-      (seed?.data['/api/v2/agents'] as { agents: Agent[] } | undefined)?.agents.find(
+      (seed?.data['/api/agents'] as { agents: Agent[] } | undefined)?.agents.find(
         (a) => a.id === agentId,
       ) ?? null,
   );
   const [projects, setProjects] = useState<Project[]>(
-    () => (seed?.data['/api/v2/projects'] as { projects: Project[] } | undefined)?.projects ?? [],
+    () => (seed?.data['/api/projects'] as { projects: Project[] } | undefined)?.projects ?? [],
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -145,7 +145,7 @@ function ExistingAgent({
   useEffect(() => {
     let active = true;
     const load = (initial = false) =>
-      (initial ? readSeeded(seed, '/api/v2/agents', () => request('/agents')) : request('/agents'))
+      (initial ? readSeeded(seed, '/api/agents', () => request('/agents')) : request('/agents'))
         .then((v) => {
           if (active) setAgent(v.agents.find((a: Agent) => a.id === agentId) ?? null);
         })
@@ -153,7 +153,7 @@ function ExistingAgent({
           if (active) setError(e.message);
         });
     void load(true);
-    readSeeded(seed, '/api/v2/projects', () => request('/projects'))
+    readSeeded(seed, '/api/projects', () => request('/projects'))
       .then((v) => {
         if (active) setProjects(v.projects);
       })

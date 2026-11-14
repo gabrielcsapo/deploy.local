@@ -71,7 +71,7 @@ const server = createServer(async (req, res) => {
     res.on('close', () => clearTimeout(timer));
     return;
   }
-  if (path === '/api/v2/projects')
+  if (path === '/api/projects')
     return res.end(
       JSON.stringify({
         projects: [

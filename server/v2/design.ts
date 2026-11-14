@@ -38,7 +38,7 @@ import {
 } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
-import { keyedSlots, withRepositoryWrites } from '../workspace/repository-lock.ts';
+import { keyedSlots, withRepositoryWrites } from '../kernel/jobs/repository-lock.ts';
 import {
   gitEnvironment,
   gitRead as readGitOutput,
@@ -2561,7 +2561,7 @@ export async function reviewPreview(
   ]);
   const areas = reviewAreas(board.changes, before?.boxes ?? {}, after?.boxes ?? {}, width, board.h);
   const url = (revision: string) =>
-    `/api/v2/projects/${encodeURIComponent(projectId)}/design/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}&scale=${scale}`;
+    `/api/projects/${encodeURIComponent(projectId)}/design/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}&scale=${scale}`;
   return {
     width,
     height: board.h,
@@ -2815,18 +2815,18 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     await dispatch([
       makeRoute({
         method: 'GET',
-        path: '/api/v2/design/reviews',
+        path: '/api/design/reviews',
         handler: async () => sendJson(res, await readDesignReviews(owner, url)),
       }),
       makeRoute({
         method: 'GET',
-        path: '/api/v2/design/projects',
+        path: '/api/design/projects',
         handler: async () => sendJson(res, await readDesignProjects(owner)),
       }),
     ])(req, res, undefined)
   )
     return true;
-  const route = url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/design(\/.*)?$/);
+  const route = url.pathname.match(/^\/api\/projects\/([^/]+)\/design(\/.*)?$/);
   if (!route) return false;
   const projectId = decodeURIComponent(route[1]);
   const project = requireRepository(owner, projectId);
@@ -3784,7 +3784,7 @@ export function readDesignProposals(owner: string, projectId: string) {
   const prefix = `design:${project.id}:`;
   // Each request also names the boards it would change, so the canvas can mark them In review.
   // The canvas polls this every 10 s and it lists every proposal ever made, so it reads no git:
-  // counts and conflicts, which do, come from /api/v2/design/reviews for what still waits.
+  // counts and conflicts, which do, come from /api/design/reviews for what still waits.
   const contexts = new Map(
     list('v2-inbox-native', owner)
       .filter((row: any) => row.id.startsWith(prefix))

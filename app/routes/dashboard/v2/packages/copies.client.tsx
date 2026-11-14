@@ -8,7 +8,7 @@ export function Copies() {
   const { now, localeDate, formatTime } = useProjectFormatting();
   const date = (value: string) =>
     localeDate(value, { month: 'short', day: 'numeric' }, false, 'en-US');
-  const { data, error, refresh } = useData<any>('/api/v2/packages/cache');
+  const { data, error, refresh } = useData<any>('/api/packages/cache');
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   useEffect(() => {

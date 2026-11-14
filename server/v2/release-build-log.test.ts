@@ -50,10 +50,10 @@ test('a release job finds its build log through the plan ID it carries', () => {
 });
 test('output is owner scoped, empty before output exists, and refreshed from the append-only log', async () => {
   save('v2-release', 'owner', { id: 'tail', release: { id: 'tail', projectId: 'gym' } });
-  const url = 'http://localhost/api/v2/releases/tail/output';
+  const url = 'http://localhost/api/releases/tail/output';
   assert.equal((await request('other')(url)).status, 404);
   assert.equal(
-    (await request('owner')('http://localhost/api/v2/releases/missing/output')).status,
+    (await request('owner')('http://localhost/api/releases/missing/output')).status,
     404,
   );
   assert.deepEqual(await (await request('owner')(url)).json(), { output: '' });

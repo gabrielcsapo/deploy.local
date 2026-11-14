@@ -30,7 +30,7 @@ Project: **Repository CI** (`4a695762-b4aa-45cd-8556-797bbca37d2f`).
 
 Application: [repo-ci-smoke](https://repo-ci-smoke.local/).
 
-Hosted remote: `https://deploy.local/api/workspace/git/4a695762-b4aa-45cd-8556-797bbca37d2f`.
+Hosted remote: `https://deploy.local/api/git/4a695762-b4aa-45cd-8556-797bbca37d2f`.
 
 Permanent checkout: `/Users/gabrielcsapo/Documents/coding/repository-ci` (clean `main`, tracking `origin/main`). Reusable source: `examples/repository-ci/` in this repository.
 

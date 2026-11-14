@@ -36,10 +36,10 @@ const server = createServer(async (req, res) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(value));
   };
-  if (url.pathname === '/api/v2/setup') return send({ name: 'SER', needsSetup: true });
-  if (url.pathname === '/api/v2/auth/trust') return send({ trusted: true });
-  if (url.pathname === '/api/v2/auth/methods') return send({ passkey: true, server: 'SER' });
-  if (url.pathname === '/api/v2/auth/account')
+  if (url.pathname === '/api/setup') return send({ name: 'SER', needsSetup: true });
+  if (url.pathname === '/api/auth/trust') return send({ trusted: true });
+  if (url.pathname === '/api/auth/methods') return send({ passkey: true, server: 'SER' });
+  if (url.pathname === '/api/auth/account')
     return ['AppsHome', 'AppsHomePhone', 'SessionExpired'].includes(board)
       ? send({}, 401)
       : send({
@@ -49,7 +49,7 @@ const server = createServer(async (req, res) => {
           firstTaskSeen: false,
           hasPasskey: false,
         });
-  if (url.pathname === '/api/v2/setup/recovery')
+  if (url.pathname === '/api/setup/recovery')
     return send({
       state: 'restored',
       summary:
@@ -66,7 +66,7 @@ const server = createServer(async (req, res) => {
         { name: 'Miniflux', detail: 'Waiting for Immich to finish', status: 'Waiting' },
       ],
     });
-  if (url.pathname === '/api/v2/apps-home')
+  if (url.pathname === '/api/apps-home')
     return send({
       server: 'SER and bazzite',
       apps: [
@@ -77,7 +77,7 @@ const server = createServer(async (req, res) => {
         ['Reading', 'feeds'],
       ].map(([name, host]) => ({ name, address: `https://${host}.deploy.local` })),
     });
-  if (url.pathname === '/api/v2/devices')
+  if (url.pathname === '/api/devices')
     return send({
       devices: [{ id: 'iphone', name: 'Gabriel’s iPhone', createdAt: '2026-10-27T12:00:00Z' }],
     });
@@ -89,7 +89,8 @@ const server = createServer(async (req, res) => {
     });
   if (url.pathname === '/api/catalog/targets')
     return send({ targets: [{ siteId: 'ser', name: 'SER' }] });
-  if (url.pathname === '/api/catalog/immich/v1.123.0') return send({ release: { questions: [] } });
+  if (url.pathname === '/api/catalog/releases/immich/v1.123.0')
+    return send({ release: { questions: [] } });
   if (url.pathname.startsWith('/api/')) return send({}, 404);
   if (url.pathname === '/') {
     const html = await vite.transformIndexHtml(

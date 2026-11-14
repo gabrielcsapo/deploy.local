@@ -17,7 +17,7 @@ const server = createServer((req, res) => {
 });
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
-const origin = `http://127.0.0.1:${(server.address() as any).port}/api/workspace/events`;
+const origin = `http://127.0.0.1:${(server.address() as any).port}/api/events`;
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((done) => server.close(() => done()));
