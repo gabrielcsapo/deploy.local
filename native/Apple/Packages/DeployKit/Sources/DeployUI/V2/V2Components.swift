@@ -6,6 +6,8 @@ struct V2Page<Content: View>: View {
     let title: String
     var action: (() -> Void)? = nil
     var icon = "square.and.pencil"
+    /// Search, in the leading corner of the page's top row.
+    var search: (() -> Void)? = nil
     var loading: [V2LoadState]? = nil
     @ViewBuilder var content: Content
     @Environment(\.colorScheme) private var scheme
@@ -14,7 +16,8 @@ struct V2Page<Content: View>: View {
             VStack(alignment: .leading, spacing: 22) {
                 if let loading {
                     HStack {
-                        Color.clear.frame(width: 44, height: 44)
+                        if let search { Button(action: search) { Image(systemName: "magnifyingglass").font(.system(size: 20)).frame(width: 44, height: 44) }.accessibilityLabel("Search") }
+                        else { Color.clear.frame(width: 44, height: 44) }
                         Spacer(minLength: 0)
                         V2LoadingHeader(states: loading)
                         Spacer(minLength: 0)

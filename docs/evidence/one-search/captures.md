@@ -37,4 +37,17 @@ Known and outside this change:
 - The fixture's Code tab is mounted without the project page's header and tabs, and its inbox is not seeded in the shape the sidebar reads, so Waiting on you is missing from the names capture.
 - A message result opens its chat; the chat does not yet scroll to that message.
 
-Not built: iPhone Search (SearchPhone and the Search button on the Work boards).
+## iPhone
+
+```sh
+node docs/evidence/one-search/ios-fixture-server.mjs
+xcrun simctl launch <UDID> local.deploy.workspace.ios --v2-fixture http://127.0.0.1:5186 --v2-board SearchPhone
+```
+
+The fixture is the agents fixture with seeded search answers; `--v2-board SearchPhone` opens Search with the board's words, and `HomePhone` shows Work with its Search button. `ios/SearchPhone-pair.png` shows each board beside its simulator capture.
+
+Differences on iPhone:
+
+- A code result opens the file at its line on the web, because iPhone has no file viewer. No board draws this.
+- Search also shows an Agents group when an agent's name matches; the board shows Tasks, Code and Messages only. Projects, apps, computers, pull requests and issues are not listed on iPhone.
+- Times read as clock times, as on the rest of iPhone.
