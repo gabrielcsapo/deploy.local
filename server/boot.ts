@@ -104,6 +104,8 @@ function serveDownload(req: IncomingMessage, res: ServerResponse) {
 }
 
 async function start(options: BootOptions) {
+  const { wireBackupCatalog } = await import('./main/backups.ts');
+  wireBackupCatalog();
   // Env-overridable so tests (and non-root setups) can bind unprivileged ports.
   const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
   const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);

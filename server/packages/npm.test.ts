@@ -31,6 +31,7 @@ const has = (command: string) => spawnSync(command, ['--version']).status === 0;
 process.env.DEPLOY_DATA_DIR = root;
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
 process.env.NPM_CONFIG_CACHE = join(root, 'cli-npm-cache');
+await import('../test-backups.ts');
 const { registerUser, getSqlite, _resetDb } = await import('../store.ts');
 const { db: workspaceDb, save } = await import('../workspace/store.ts');
 const { createNpmRegistry } = await import('./npm.ts');

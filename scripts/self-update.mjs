@@ -27,6 +27,28 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
+export async function backupSelfUpdateDatabases(dataDirectory, revision) {
+  const { backup, DatabaseSync } = await import('node:sqlite');
+  const directory = join(dataDirectory, 'backups');
+  for (const [name, path] of [
+    ['deploy', join(dataDirectory, 'deploy.db')],
+    ['workspace', join(dataDirectory, 'workspace', 'workspace.db')],
+  ]) {
+    const database = new DatabaseSync(path, { readOnly: true });
+    try {
+      await backup(database, join(directory, `self-update-${short(revision)}-${name}.db`));
+    } finally {
+      database.close();
+    }
+  }
+  // Keep the three most recent updates' backups; older ones are this updater's own.
+  const ours = readdirSync(directory)
+    .filter((name) => /^self-update-[0-9a-f]{7}-(deploy|workspace)\.db$/.test(name))
+    .map((name) => ({ name, time: statSync(join(directory, name)).mtimeMs }))
+    .sort((a, b) => b.time - a.time);
+  for (const { name } of ours.slice(6)) rmSync(join(directory, name));
+}
+
 const short = (sha) => sha.slice(0, 7);
 export function duration(ms) {
   const seconds = Math.round(ms / 1000);
@@ -378,25 +400,7 @@ function main(file) {
 
     started = begin('backup');
     try {
-      const { backup, DatabaseSync } = await import('node:sqlite');
-      const directory = join(plan.data, 'backups');
-      for (const [name, path] of [
-        ['deploy', join(plan.data, 'deploy.db')],
-        ['workspace', join(plan.data, 'workspace', 'workspace.db')],
-      ]) {
-        const database = new DatabaseSync(path, { readOnly: true });
-        try {
-          await backup(database, join(directory, `self-update-${short(run.to)}-${name}.db`));
-        } finally {
-          database.close();
-        }
-      }
-      // Keep the three most recent updates' backups; older ones are this updater's own.
-      const ours = readdirSync(directory)
-        .filter((name) => /^self-update-[0-9a-f]{7}-(deploy|workspace)\.db$/.test(name))
-        .map((name) => ({ name, time: statSync(join(directory, name)).mtimeMs }))
-        .sort((a, b) => b.time - a.time);
-      for (const { name } of ours.slice(6)) rmSync(join(directory, name));
+      await backupSelfUpdateDatabases(plan.data, run.to);
       finish('backup', 'done', `deploy.db and workspace.db · ${duration(Date.now() - started)}`);
     } catch (error) {
       log(`${error.stack || error}\n`);
