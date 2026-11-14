@@ -1,3 +1,4 @@
+import { workerRole } from '../kernel/computers/policy.ts';
 import { computers } from '../workspace/coordination.ts';
 import { getComputers } from './computers.ts';
 
@@ -27,7 +28,9 @@ export function onlineTaskWorker(
         wanted.includes(computer.name.toLowerCase()),
     )
     .sort((a, b) => Number(b.id === 'coordinator') - Number(a.id === 'coordinator'))
-    .flatMap((computer) => computer.workerIds.filter((id) => workers.has(id)));
+    .flatMap((computer) =>
+      computer.workerIds.filter((id) => workers.has(id) && workerRole(owner, id, 'take-tasks')),
+    );
   const connected = ready.find((id) =>
     workers
       .get(id)

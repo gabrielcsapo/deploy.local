@@ -14,6 +14,8 @@ export type V2Event = { cursor: number; taskId: string; runId: string | null; at
   | { type: 'release'; release: Release }
   | { type: 'rollback'; rollback: Rollback }
   | { type: 'conversation'; event: ConversationEvent }
+  /** The task was deleted; it is gone from every list and its page. */
+  | { type: 'task-deleted' }
 );
 export type V2EventsResponse = { events: V2Event[]; cursor: number; supportsWait: true };
 

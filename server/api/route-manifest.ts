@@ -1575,12 +1575,17 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'POST',
-    path: '/api/tasks/:task/:action(messages|stop|mark-stopped|check|close|reopen)',
+    path: '/api/tasks/:task/:action(messages|stop|mark-stopped|check|close|reopen|delete)',
     handler: 'workspace',
   },
   {
     method: 'GET',
     path: '/api/tasks/:task/:diff(diff)',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
+    path: '/api/tasks/:task/deletion',
     handler: 'workspace',
   },
   {

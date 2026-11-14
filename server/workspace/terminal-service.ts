@@ -1,3 +1,4 @@
+import { workerAvailable } from '../kernel/computers/policy.ts';
 import { createShellMessage, shellEnded, shellOutput, setShellHidden } from './shell-commands.ts';
 import { db, get, list, save, event } from './store.ts';
 import { TerminalRelay, type TerminalComputer } from './terminal-relay.ts';
@@ -9,7 +10,7 @@ export function terminalComputer(owner: string, workerId: string): TerminalCompu
     id: workerId,
     name: worker.name,
     instanceId: worker.instanceId,
-    enabled: permission?.enabled === true,
+    enabled: permission?.enabled === true && workerAvailable(owner, workerId),
     online: Date.now() - Date.parse(worker.heartbeat) < 15000,
     supported: worker.capabilities?.includes('terminal') === true,
     taskSupported: worker.capabilities?.includes('task-terminal') === true,

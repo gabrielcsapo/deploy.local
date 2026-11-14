@@ -1,3 +1,5 @@
+import { updateReservation } from '../kernel/computers/reservations.ts';
+export { updateReservation, workerUpdateReserved } from '../kernel/computers/reservations.ts';
 import { db, list, save, remove } from '../workspace/store.ts';
 import { readCliManifest } from '../cli-download.ts';
 import { readReleaseConfig, runningRevision } from './self-update-host.ts';
@@ -11,16 +13,6 @@ export function selfUpdateTarget(manifest = readCliManifest()) {
   return running && manifest?.commit === running
     ? { id: `self-update-${running}`, version: manifest.version }
     : undefined;
-}
-export function updateReservation(nodeId: string) {
-  return list(kind, 'system').find((row) => row.id === nodeId);
-}
-export function workerUpdateReserved(owner: string, workerId: string) {
-  return list(kind, 'system').some((row) =>
-    row.workers.some(
-      (worker: { owner: string; id: string }) => worker.owner === owner && worker.id === workerId,
-    ),
-  );
 }
 export function withUpdateAdmission<T>(action: () => T): T {
   return db.transaction(action).immediate();

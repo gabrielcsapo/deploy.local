@@ -449,3 +449,30 @@ test('workspace leaves retain worker authentication, identity fencing and owner-
     200,
   );
 });
+
+test('every route a handler declares is in the manifest, so a new route cannot silently 404', () => {
+  // The manifest is an index over the handlers' own tables. A route added to a handler and not
+  // to the manifest is never dispatched. Nested tables declare a suffix of the served path, so
+  // each declared path must be the tail of some manifest path (parameter names aside).
+  const names = (path: string) =>
+    path.replace(/:[A-Za-z0-9_]+/g, ':p').replace(/:p\([^)]*\)/g, ':p');
+  const manifest = apiRouteManifest.map((route) => names(route.path));
+  const sources = [
+    'server/workspace/api.ts',
+    ...readdirSync('server/v2')
+      .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
+      .map((file) => 'server/v2/' + file),
+  ];
+  const missing: string[] = [];
+  for (const file of sources)
+    for (const match of readFileSync(file, 'utf8').matchAll(/^\s+path: '(\/[^']*)',?$/gm)) {
+      // Scope dispatchers hand a subtree to nested tables; their leaves are checked themselves.
+      if (match[1].endsWith(':rest*')) continue;
+      // The manifest names the only action that has restore steps.
+      if (match[1].startsWith('/api/backups/:backup/:action(restore|test)/:restore/')) continue;
+      const declared = names(match[1]);
+      if (!manifest.some((path) => path === '/api' + declared || path.endsWith(declared)))
+        missing.push(`${file}: ${match[1]}`);
+    }
+  assert.deepEqual(missing, []);
+});

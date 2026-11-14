@@ -7,6 +7,7 @@ import type { AgentConfiguration } from '../../../../shared/v2/contracts';
 import { Icon, IconButton, type ComponentState } from './shared';
 import { Dialog } from './Dialog';
 import { useLocation } from 'react-flight-router/client';
+import { chosenProject, projectParameter } from '../../../routes/dashboard/v2/start/chosen-project';
 import type { Attachment, ComputerModels } from '../../../../shared/v2/contracts';
 import {
   mediaRequest,
@@ -79,6 +80,8 @@ export function Composer({
     agentId?: string;
     home?: boolean;
     projectId?: string;
+    /** The project a New task link chose for the start page. */
+    chosen?: { id: string; name: string };
   }>({});
   const [target, setTarget] = useState('web');
   const [address, setAddress] = useState('');
@@ -86,6 +89,8 @@ export function Composer({
   const [files, setFiles] = useState<any[]>([]);
   const [projectRef, setProjectRef] = useState('HEAD');
   const busy = disabled || loading || pending;
+  // A project heading's + opens the start page with its project chosen (?project=<id>).
+  const chosenId = projectParameter(location.pathname, location.search);
   useEffect(() => {
     const path = location.pathname;
     setText('');
@@ -97,6 +102,13 @@ export function Composer({
     const agentId = path.match(/^\/dashboard\/agents\/([^/]+)$/)?.[1];
     const home = path === '/dashboard' || path === '/dashboard/';
     setContext({ taskId, agentId, home });
+    if (home && chosenId)
+      void readSeeded(seed, '/api/projects', () => mediaRequest('/projects'))
+        .then((value: { projects?: { id: string; name: string }[] }) => {
+          const chosen = chosenProject(chosenId, value?.projects);
+          if (active && chosen) setContext({ home, chosen });
+        })
+        .catch(() => {});
     if (taskId)
       void readSeeded(seed, `/api/task-snapshots/${encodeURIComponent(taskId)}`, () =>
         mediaRequest(`/task-snapshots/${encodeURIComponent(taskId)}`),
@@ -119,7 +131,7 @@ export function Composer({
     return () => {
       active = false;
     };
-  }, [location.pathname, seed]);
+  }, [location.pathname, chosenId, seed]);
   async function perform(action: () => Promise<void>) {
     setPending(true);
     setError('');
@@ -158,7 +170,12 @@ export function Composer({
     await perform(async () => {
       const message = { text: text.trim(), attachments, model: override };
       if (context.taskId || context.agentId || context.home) {
-        const result = await submitMessage(message, context.taskId, context.agentId);
+        const result = await submitMessage(
+          message,
+          context.taskId,
+          context.agentId,
+          context.home ? context.chosen?.id : undefined,
+        );
         if (context.home) {
           window.location.assign(`/dashboard/tasks/${encodeURIComponent(result.taskId)}`);
           return;
@@ -304,7 +321,7 @@ export function Composer({
           {project && (
             <span className="dl-chip">
               <Icon name="folder" size={14} />
-              {project}
+              {context.chosen?.name ?? project}
             </span>
           )}
           {computer && (

@@ -1,3 +1,4 @@
+import { computerRole } from '../kernel/computers/policy.ts';
 import type { Project } from '../../shared/v2/contracts.ts';
 import { getComputers } from './computers.ts';
 import { readDeploymentRecord } from '../store.ts';
@@ -19,7 +20,13 @@ export type ShipPlan = ShipChoices & {
 
 export function releaseChoices(owner: string, project: Project): ShipPlan {
   const computers = getComputers(owner)
-    .filter((computer) => computer.nodeId && computer.online && computer.roles.includes('run-apps'))
+    .filter(
+      (computer) =>
+        computer.nodeId &&
+        computer.online &&
+        computer.roles.includes('run-apps') &&
+        computerRole(owner, computer.nodeId, 'run-apps'),
+    )
     .map((computer) => ({ id: computer.nodeId!, name: computer.name }));
   return {
     computers,
