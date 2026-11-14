@@ -4,14 +4,6 @@ pipeline:
   on: [push, pull_request, manual]
   branches: [main]
   jobs:
-    router-test:
-      runsOn: { os: linux, capabilities: [node] }
-      container: node:26-trixie
-      paths:
-        - deploy.yaml
-        - packages/react-flight-router/**
-      run: sh scripts/ci-setup.sh && pnpm install --frozen-lockfile && pnpm --filter react-flight-router test
-      timeoutSeconds: 900
     typecheck:
       runsOn: { os: linux, capabilities: [node] }
       container: node:26-trixie

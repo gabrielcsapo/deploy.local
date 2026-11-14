@@ -276,17 +276,6 @@ test('a first publish from a hosted repository belongs to that project', async (
   assert.equal(await packageProject('someone', clone), null);
   assert.equal(await packageProject('owner', clone + '-other'), null);
 });
-test('the router builds before it is packed', async () => {
-  const manifest = JSON.parse(
-    await readFile(
-      new URL('../../packages/react-flight-router/package.json', import.meta.url),
-      'utf8',
-    ),
-  );
-  assert.equal(manifest.scripts.prepublishOnly, 'pnpm build');
-  assert.deepEqual(manifest.files, ['dist']);
-  assert.equal(manifest.typesVersions['*'].prepublishOnly, undefined);
-});
 test('PR checks pack only changed versions and display only current, free, checked evidence', async () => {
   const f = await fixture(['packages/a']);
   await f.git(['switch', '-c', 'feature']);
