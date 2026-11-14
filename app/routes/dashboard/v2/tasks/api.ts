@@ -20,7 +20,7 @@ export async function shipProject(
   ref: string,
   choices?: ShipChoices,
 ): Promise<Release> {
-  const response = await request(`/api/v2/projects/${encodeURIComponent(project)}/releases`, {
+  const response = await request(`/api/projects/${encodeURIComponent(project)}/releases`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ source: { kind: 'ship', ref }, ref, choices }),
@@ -37,7 +37,7 @@ export async function shipProject(
   return body.release;
 }
 export function workspaceCommand<T>(request: typeof fetch, path: string, body: object) {
-  return requestJson<T>(request, `/api/workspace${path}`, {
+  return requestJson<T>(request, `/api${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...body, operationId: crypto.randomUUID() }),
@@ -147,7 +147,7 @@ export async function readPullChecks(
   headCommit: string,
   signal?: AbortSignal,
 ) {
-  const base = `/api/workspace/projects/${encodeURIComponent(project)}`;
+  const base = `/api/projects/${encodeURIComponent(project)}`;
   const detail = await requestJson<{ checks: import('./types.ts').TaskCheck[] }>(
     request,
     `${base}/pulls/${encodeURIComponent(pull)}`,
@@ -181,7 +181,7 @@ export async function mergeAndRelease(
       mergeOperation?: { status: string; error?: string };
     }>(
       request,
-      `/api/workspace/projects/${encodeURIComponent(project)}/pulls/${encodeURIComponent(pull.id)}`,
+      `/api/projects/${encodeURIComponent(project)}/pulls/${encodeURIComponent(pull.id)}`,
     );
     if (detail.record.mergeOperationId !== queued.mergeOperationId)
       throw new Error('The merge changed. Review the pull request before releasing.');
@@ -190,7 +190,7 @@ export async function mergeAndRelease(
       if (!ref) throw new Error('The merge did not record a commit to release.');
       const body = await requestJson<{ release: Release }>(
         request,
-        `/api/v2/projects/${encodeURIComponent(project)}/releases`,
+        `/api/projects/${encodeURIComponent(project)}/releases`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

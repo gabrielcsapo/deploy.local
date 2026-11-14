@@ -12,7 +12,7 @@ import type { TaskDiff, TaskPull } from './types';
 
 export default function PullRequest({ project, id }: { project: string; id: string }) {
   const { repositoryTime } = useProjectFormatting();
-  const base = `/api/workspace/projects/${projectSegment(project)}/pulls/${projectSegment(id)}`;
+  const base = `/api/projects/${projectSegment(project)}/pulls/${projectSegment(id)}`;
   const detail = useData<{ record: TaskPull }>(base);
   const changes = useData<TaskDiff & { commits: RepositoryCommit[]; commitCount: number }>(
     `${base}/diff`,

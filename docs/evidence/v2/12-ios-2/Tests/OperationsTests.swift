@@ -66,11 +66,11 @@ private func payload(_ changes: [String: Any] = [:]) throws -> String {
 @Suite(.serialized) struct OperationsTests {
     @Test func releasesShipAndRollbackUseWholeProjectContract() async throws {
         V2URLProtocol.state.reset([
-            "GET /api/v2/projects/home-gym/releases": [(200, "{\"releases\":[\(releaseJSON)]}")],
-            "GET /api/v2/releases/9c3e1fa": [(200, "{\"release\":\(releaseJSON)}")],
-            "POST /api/v2/projects/home-gym/releases": [(202, "{\"release\":\(releaseJSON)}")],
-            "GET /api/v2/projects/home-gym/rollbacks": [(200, "{\"rollbacks\":[\(rollbackJSON)]}")],
-            "POST /api/v2/projects/home-gym/rollback": [(202, "{\"rollback\":\(rollbackJSON)}")]
+            "GET /api/projects/home-gym/releases": [(200, "{\"releases\":[\(releaseJSON)]}")],
+            "GET /api/releases/9c3e1fa": [(200, "{\"release\":\(releaseJSON)}")],
+            "POST /api/projects/home-gym/releases": [(202, "{\"release\":\(releaseJSON)}")],
+            "GET /api/projects/home-gym/rollbacks": [(200, "{\"rollbacks\":[\(rollbackJSON)]}")],
+            "POST /api/projects/home-gym/rollback": [(202, "{\"rollback\":\(rollbackJSON)}")]
         ])
         let api = client()
         #expect(try await api.releases(project: "home-gym").first?.apps.count == 2)
@@ -85,12 +85,12 @@ private func payload(_ changes: [String: Any] = [:]) throws -> String {
         #expect(requests[4].value(forHTTPHeaderField: "X-Deploy-Token") == "private-token")
     }
     @Test func destructiveReleaseRequestsAreNotRetriedAfterLostResponse() async {
-        V2URLProtocol.state.reset(["POST /api/v2/projects/home-gym/releases": [(-1, "")]])
+        V2URLProtocol.state.reset(["POST /api/projects/home-gym/releases": [(-1, "")]])
         await #expect(throws: URLError.self) { try await client().ship(project: "home-gym", task: "meal", ref: "main") }
         #expect(V2URLProtocol.state.recorded().count == 1)
     }
     @Test func rollbackDataLossConflictIsNotApprovedAutomatically() async {
-        V2URLProtocol.state.reset(["POST /api/v2/projects/home-gym/rollback": [(409, #"{"error":"Review the pre-release backup","dataLoss":{"backupId":"backup"}}"#)]])
+        V2URLProtocol.state.reset(["POST /api/projects/home-gym/rollback": [(409, #"{"error":"Review the pre-release backup","dataLoss":{"backupId":"backup"}}"#)]])
         await #expect(throws: ClientError.self) { try await client().rollback(project: "home-gym", from: "a", to: "b") }
         #expect(V2URLProtocol.state.recorded().count == 1)
     }
@@ -107,10 +107,10 @@ private func payload(_ changes: [String: Any] = [:]) throws -> String {
     }
     @Test func restoreCopyMustBeCheckedBeforeSwitchAndCannotCancelAfterSwitch() async throws {
         V2URLProtocol.state.reset([
-            "GET /api/v2/backups": [(200, "{\"backups\":[],\"restores\":[\(restoreJSON)],\"schedules\":[]}")],
-            "POST /api/v2/backups/backup/restore": [(201, "{\"restore\":\(restoreJSON)}")],
-            "POST /api/v2/backups/backup/restore/copy/switch": [(202, "{\"restore\":\(restoreJSON.replacingOccurrences(of: "ready", with: "switching"))}")],
-            "POST /api/v2/backups/backup/restore/copy/cancel": [(200, "{\"restore\":\(restoreJSON.replacingOccurrences(of: "ready", with: "cancelled"))}")]
+            "GET /api/backups": [(200, "{\"backups\":[],\"restores\":[\(restoreJSON)],\"schedules\":[]}")],
+            "POST /api/backups/backup/restore": [(201, "{\"restore\":\(restoreJSON)}")],
+            "POST /api/backups/backup/restore/copy/switch": [(202, "{\"restore\":\(restoreJSON.replacingOccurrences(of: "ready", with: "switching"))}")],
+            "POST /api/backups/backup/restore/copy/cancel": [(200, "{\"restore\":\(restoreJSON.replacingOccurrences(of: "ready", with: "cancelled"))}")]
         ])
         let api = client()
         #expect(try await api.backups().restores.count == 1)
@@ -133,7 +133,7 @@ private func payload(_ changes: [String: Any] = [:]) throws -> String {
     }
     @Test func pairingExchangeUsesOnlySingleUseTokenAndRetainsPin() async throws {
         let qr = try V2PairingPayload.parse(payload())
-        V2URLProtocol.state.reset(["GET /ca.crt": [(200, certificate)], "POST /api/v2/devices/exchange": [(200, "{\"id\":\"phone\",\"username\":\"gabriel\",\"token\":\"device-token\",\"expiresAt\":\(Date().addingTimeInterval(86400).timeIntervalSince1970 * 1000)}")]])
+        V2URLProtocol.state.reset(["GET /ca.crt": [(200, certificate)], "POST /api/devices/exchange": [(200, "{\"id\":\"phone\",\"username\":\"gabriel\",\"token\":\"device-token\",\"expiresAt\":\(Date().addingTimeInterval(86400).timeIntervalSince1970 * 1000)}")]])
         let device = try await V2PairingClient.exchange(qr, name: "Test iPhone", session: session())
         #expect(device.connection.token == "device-token")
         #expect(device.fingerprint == qr.fingerprint)
@@ -147,7 +147,7 @@ private func payload(_ changes: [String: Any] = [:]) throws -> String {
     @Test func pairingDetectsOldCoordinatorAndDoesNotReplayExpiredCode() async throws {
         let qr = try V2PairingPayload.parse(payload())
         for status in [404, 501, 410] {
-            V2URLProtocol.state.reset(["GET /ca.crt": [(200, certificate)], "POST /api/v2/devices/exchange": [(status, #"{"error":"Code unavailable"}"#)]])
+            V2URLProtocol.state.reset(["GET /ca.crt": [(200, certificate)], "POST /api/devices/exchange": [(status, #"{"error":"Code unavailable"}"#)]])
             await #expect(throws: ClientError.self) { try await V2PairingClient.exchange(qr, name: "iPhone", session: session()) }
             #expect(V2URLProtocol.state.recorded().count == 2)
         }

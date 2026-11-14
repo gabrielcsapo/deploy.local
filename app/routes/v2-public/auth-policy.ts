@@ -4,7 +4,7 @@ export async function trusted(
 ) {
   if (!context.isSecureContext || context.location.protocol !== 'https:') return false;
   try {
-    const response = await request('/api/v2/auth/trust', {
+    const response = await request('/api/auth/trust', {
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),
     });

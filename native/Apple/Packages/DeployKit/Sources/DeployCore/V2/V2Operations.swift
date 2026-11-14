@@ -51,35 +51,35 @@ public struct V2Backups: Codable, Sendable {
 extension V2Client {
     public func releases(project: String) async throws -> [Release] {
         struct Response: Decodable, Sendable { var releases: [Release] }
-        let response: Response = try await client.request("/api/v2/projects/\(Self.segment(project))/releases")
+        let response: Response = try await client.request("/api/projects/\(Self.segment(project))/releases")
         return response.releases
     }
     public func release(_ id: String) async throws -> Release {
         struct Response: Decodable, Sendable { var release: Release }
-        let response: Response = try await client.request("/api/v2/releases/\(Self.segment(id))")
+        let response: Response = try await client.request("/api/releases/\(Self.segment(id))")
         return response.release
     }
     public func ship(project: String, task: String, ref: String) async throws -> Release {
         struct Body: Encodable { var source: ReleaseSource; var ref: String }
         struct Response: Decodable, Sendable { var release: Release }
-        let response: Response = try await client.request("/api/v2/projects/\(Self.segment(project))/releases", method: "POST", body: JSONEncoder().encode(Body(source: ReleaseSource(kind: .ship, ref: task), ref: ref)))
+        let response: Response = try await client.request("/api/projects/\(Self.segment(project))/releases", method: "POST", body: JSONEncoder().encode(Body(source: ReleaseSource(kind: .ship, ref: task), ref: ref)))
         return response.release
     }
     public func rollbacks(project: String) async throws -> [Rollback] {
         struct Response: Decodable, Sendable { var rollbacks: [Rollback] }
-        let response: Response = try await client.request("/api/v2/projects/\(Self.segment(project))/rollbacks")
+        let response: Response = try await client.request("/api/projects/\(Self.segment(project))/rollbacks")
         return response.rollbacks
     }
     public func rollback(project: String, from: String, to: String) async throws -> Rollback {
         struct Response: Decodable, Sendable { var rollback: Rollback }
         // Data-loss confirmation is intentionally never inferred from a normal code rollback.
-        let response: Response = try await client.request("/api/v2/projects/\(Self.segment(project))/rollback", method: "POST", body: JSONEncoder().encode(["from": from, "to": to, "reason": "Requested on iPhone"]))
+        let response: Response = try await client.request("/api/projects/\(Self.segment(project))/rollback", method: "POST", body: JSONEncoder().encode(["from": from, "to": to, "reason": "Requested on iPhone"]))
         return response.rollback
     }
-    public func backups() async throws -> V2Backups { try await client.request("/api/v2/backups") }
+    public func backups() async throws -> V2Backups { try await client.request("/api/backups") }
     public func restore(backup: String) async throws -> V2Restore {
         struct Response: Decodable, Sendable { var restore: V2Restore }
-        let response: Response = try await client.request("/api/v2/backups/\(Self.segment(backup))/restore", method: "POST", body: Data("{}".utf8), timeout: 120)
+        let response: Response = try await client.request("/api/backups/\(Self.segment(backup))/restore", method: "POST", body: Data("{}".utf8), timeout: 120)
         return response.restore
     }
     public func switchRestore(_ restore: V2Restore, checked: Bool) async throws -> V2Restore {
@@ -92,12 +92,12 @@ extension V2Client {
     }
     private func restoreAction(_ restore: V2Restore, action: String, body: Data) async throws -> V2Restore {
         struct Response: Decodable, Sendable { var restore: V2Restore }
-        let response: Response = try await client.request("/api/v2/backups/\(Self.segment(restore.backupId))/restore/\(Self.segment(restore.id))/\(action)", method: "POST", body: body, timeout: 120)
+        let response: Response = try await client.request("/api/backups/\(Self.segment(restore.backupId))/restore/\(Self.segment(restore.id))/\(action)", method: "POST", body: body, timeout: 120)
         return response.restore
     }
     public func projectWork(_ project: String, kind: String) async throws -> [ProjectWorkItem] {
         guard ["pulls", "issues"].contains(kind) else { throw ClientError.invalidResponse }
-        let response: ProjectWorkResponse = try await client.request("/api/workspace/projects/\(Self.segment(project))/\(kind)")
+        let response: ProjectWorkResponse = try await client.request("/api/projects/\(Self.segment(project))/\(kind)")
         return response.items ?? []
     }
     /// A project's design in design/: how many boards it has and how many designs wait on you. Nil without one.
@@ -110,14 +110,14 @@ extension V2Client {
     }
     /// One design review: the request, Before and After, and each changed board.
     public func designReview(project: String, item: String) async throws -> V2DesignReview {
-        try await client.request("/api/v2/projects/\(Self.segment(project))/design/review?item=\(Self.segment(item))")
+        try await client.request("/api/projects/\(Self.segment(project))/design/review?item=\(Self.segment(item))")
     }
     /// A board rendered at a commit and width, as PNG.
     public func designImage(project: String, board: String, commit: String, width: Int, height: Int? = nil) async throws -> Data {
-        try await client.data("/api/v2/projects/\(Self.segment(project))/design/render?ref=\(Self.segment(commit))&board=\(Self.segment(board))&width=\(width)\(height.map { "&height=\($0)" } ?? "")", timeout: 60)
+        try await client.data("/api/projects/\(Self.segment(project))/design/render?ref=\(Self.segment(commit))&board=\(Self.segment(board))&width=\(width)\(height.map { "&height=\($0)" } ?? "")", timeout: 60)
     }
     public func repository(_ project: String) async throws -> RepositoryInfo {
-        try await client.request("/api/workspace/projects/\(Self.segment(project))/repository")
+        try await client.request("/api/projects/\(Self.segment(project))/repository")
     }
 }
 

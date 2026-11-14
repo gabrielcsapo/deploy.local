@@ -142,9 +142,7 @@ try {
     const composer = page.locator('.dl-home-composer');
     await composer.locator('.dl-chip', { hasText: 'home-gym' }).waitFor();
     assert.equal(await side.getByRole('link', { name: /^New task in No project/ }).count(), 0);
-    const sent = page.waitForRequest((request) =>
-      request.url().endsWith('/api/v2/composer/messages'),
-    );
+    const sent = page.waitForRequest((request) => request.url().endsWith('/api/composer/messages'));
     await composer.getByRole('textbox', { name: 'Message' }).fill('Add a calmer header');
     await composer.getByRole('button', { name: 'Send' }).click();
     assert.equal(JSON.parse((await sent).postData()).projectId, 'home-gym');
@@ -156,9 +154,7 @@ try {
     await page.goto(`${origin}/dashboard?project=removed`);
     const composer = page.locator('.dl-home-composer');
     await composer.locator('.dl-chip', { hasText: 'deploy.local' }).waitFor();
-    const sent = page.waitForRequest((request) =>
-      request.url().endsWith('/api/v2/composer/messages'),
-    );
+    const sent = page.waitForRequest((request) => request.url().endsWith('/api/composer/messages'));
     await composer.getByRole('textbox', { name: 'Message' }).fill('Plain new task');
     await composer.getByRole('button', { name: 'Send' }).click();
     assert.equal(JSON.parse((await sent).postData()).projectId, undefined);

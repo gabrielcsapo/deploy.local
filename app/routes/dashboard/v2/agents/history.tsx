@@ -42,13 +42,13 @@ export function AgentHistory({
   const item = agent.looksAfter?.find((entry) => entry.id === itemId);
   const { formatTime } = useProjectFormatting();
   const coordinator = useCoordinatorName();
-  const projects = useResource<{ projects: Project[] }>('/api/v2/projects').data?.projects ?? [];
+  const projects = useResource<{ projects: Project[] }>('/api/projects').data?.projects ?? [];
   const path = `/agents/${encodeURIComponent(agent.id)}/items/${encodeURIComponent(itemId)}`;
   const {
     data,
     loading,
     error: loadError,
-  } = useResource<{ runs: NonNullable<AgentTracking['runs']> }>(`/api/v2${path}/runs`);
+  } = useResource<{ runs: NonNullable<AgentTracking['runs']> }>(`/api${path}/runs`);
   const [edit, setEdit] = useState<LooksAfterItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

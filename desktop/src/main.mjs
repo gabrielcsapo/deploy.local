@@ -812,9 +812,7 @@ async function checkControl() {
   try {
     let active;
     for (const taskId of controlTasks) {
-      const result = await client.request(
-        `/api/workspace/tasks/${encodeURIComponent(taskId)}/controls`,
-      );
+      const result = await client.request(`/api/tasks/${encodeURIComponent(taskId)}/controls`);
       const match = activeControl(result.sessions, saved.enrollment.workerId);
       if (match) {
         active = { ...match, taskId };
@@ -861,7 +859,7 @@ async function changeControl(action) {
   if (!controlSession) return;
   const current = controlSession;
   await client.request(
-    `/api/workspace/tasks/${encodeURIComponent(current.taskId)}/controls/${action === 'stop-control' ? 'stop' : 'takeover'}`,
+    `/api/tasks/${encodeURIComponent(current.taskId)}/controls/${action === 'stop-control' ? 'stop' : 'takeover'}`,
     {
       method: 'POST',
       body: { ...controlBody(current, controlClientId), operationId: randomUUID() },

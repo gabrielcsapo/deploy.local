@@ -211,7 +211,7 @@ process.stdout.write(JSON.stringify({ type: ${JSON.stringify(adapter === 'claude
         }
         let value: any = {};
         if (req.url?.endsWith('/register')) instanceId = body.instanceId;
-        if (req.url === '/api/workspace/workers/remote/poll' && !assigned) {
+        if (req.url === '/api/workers/remote/poll' && !assigned) {
           assigned = true;
           value = {
             run: {

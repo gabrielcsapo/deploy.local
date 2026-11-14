@@ -494,20 +494,20 @@ const methodNotAllowed = () => fail('Method not allowed', 405);
 export const requestsRoutes = [
   route({
     method: 'GET',
-    path: '/api/v2/apps/:app/requests',
+    path: '/api/apps/:app/requests',
     handler: ({ res, url, params, context }) =>
       requestsRoute(res, url, context, params.app, undefined),
   }),
   route({
     method: 'GET',
-    path: '/api/v2/apps/:app/requests/:which(summary|\\d+)',
+    path: '/api/apps/:app/requests/:which(summary|\\d+)',
     handler: ({ res, url, params, context }) =>
       requestsRoute(res, url, context, params.app, params.which),
   }),
-  route({ method: '*', path: '/api/v2/apps/:app/requests', handler: methodNotAllowed }),
+  route({ method: '*', path: '/api/apps/:app/requests', handler: methodNotAllowed }),
   route({
     method: '*',
-    path: '/api/v2/apps/:app/requests/:which(summary|\\d+)',
+    path: '/api/apps/:app/requests/:which(summary|\\d+)',
     handler: methodNotAllowed,
   }),
 ];

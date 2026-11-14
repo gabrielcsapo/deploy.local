@@ -24,12 +24,12 @@ export function AgentConversation({
 }) {
   const seed = useDataSeed();
   const { formatTime } = useProjectFormatting();
-  const snapshot = seed?.data[`/api/v2/agents/${encodeURIComponent(agent.id)}/conversation`] as
+  const snapshot = seed?.data[`/api/agents/${encodeURIComponent(agent.id)}/conversation`] as
     | { events: ConversationEvent[]; tracking: AgentTracking }
     | undefined;
   const projects =
     useResource<{ projects: import('../../../../../shared/v2/contracts').Project[] }>(
-      '/api/v2/projects',
+      '/api/projects',
     ).data?.projects ?? [];
   const [tracking, setTracking] = useState<AgentTracking | null>(snapshot?.tracking ?? null);
   const [events, setEvents] = useState<ConversationEvent[] | null>(snapshot?.events ?? null);
@@ -42,7 +42,7 @@ export function AgentConversation({
     let active = true;
     const refresh = (initial: boolean | Event = false) =>
       (initial === true
-        ? readSeeded(seed, `/api/v2${path}/conversation`, () => request(`${path}/conversation`))
+        ? readSeeded(seed, `/api${path}/conversation`, () => request(`${path}/conversation`))
         : request(`${path}/conversation`)
       )
         .then((body) => {

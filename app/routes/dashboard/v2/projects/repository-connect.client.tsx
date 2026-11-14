@@ -51,7 +51,7 @@ export function AddRepositoryDialog({
     setError('');
     try {
       const created = await request<Project>(
-        `/api/v2/projects/${projectSegment(project.id)}/repository`,
+        `/api/projects/${projectSegment(project.id)}/repository`,
         {
           method: 'POST',
           body: JSON.stringify({ sourcePath: source.trim(), operationId: operation }),
@@ -132,8 +132,8 @@ export function AddExistingAppDialog({
   onClose: () => void;
   onAdded: () => void;
 }) {
-  const available = useData<{ apps: Project['apps'] }>('/api/v2/projects/unlinked-apps');
-  const live = useResource<LiveResponse>('/api/v2/live');
+  const available = useData<{ apps: Project['apps'] }>('/api/projects/unlinked-apps');
+  const live = useResource<LiveResponse>('/api/live');
   const coordinator = useCoordinatorName();
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -142,7 +142,7 @@ export function AddExistingAppDialog({
     setBusy(app);
     setError('');
     try {
-      await request(`/api/v2/projects/${projectSegment(project.id)}/apps`, {
+      await request(`/api/projects/${projectSegment(project.id)}/apps`, {
         method: 'POST',
         body: JSON.stringify({ app }),
       });

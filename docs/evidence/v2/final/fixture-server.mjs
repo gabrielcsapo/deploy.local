@@ -80,7 +80,7 @@ const server = createServer(async (req, res) => {
       `<html><head><link rel="stylesheet" href="/desktop/assets/design-tokens.css"><link rel="stylesheet" href="/desktop/assets/shell.css"></head><body>${render(state)}</body></html>`,
     );
   }
-  if (path === '/api/v2/approvals') {
+  if (path === '/api/approvals') {
     const actions = ['start-task', 'open-pull-request', 'merge', 'restart', 'rollback'];
     res.setHeader('Content-Type', 'application/json');
     return res.end(
@@ -108,7 +108,7 @@ const server = createServer(async (req, res) => {
       }),
     );
   }
-  if (path.startsWith('/api/v2/projects') && req.headers.referer?.includes('/settings')) {
+  if (path.startsWith('/api/projects') && req.headers.referer?.includes('/settings')) {
     await projectFixture(req, res);
     if (res.writableEnded) return;
   }
@@ -143,7 +143,7 @@ const server = createServer(async (req, res) => {
     for await (const chunk of req) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
     requests.push({ path, body });
-    if (path === '/api/v2/start/inspect') return send(preview);
+    if (path === '/api/start/inspect') return send(preview);
     if (path.endsWith('/restart')) {
       started = true;
       return send({ message: 'Started' });
@@ -152,8 +152,8 @@ const server = createServer(async (req, res) => {
       undone = true;
       return send({ rollback: { ...rollback, from: body.from, to: body.to } });
     }
-    if (path === '/api/workspace/tasks') return send({ id: 'FixRelease' }, 201);
-    if (path === '/api/v2/backups/run') return send({ success: true });
+    if (path === '/api/tasks') return send({ id: 'FixRelease' }, 201);
+    if (path === '/api/backups/run') return send({ success: true });
     if (path.endsWith('/answer')) {
       answered = true;
       return send({
@@ -190,19 +190,19 @@ const server = createServer(async (req, res) => {
         { online: true, name: 'bazzite' },
       ],
     });
-  if (path === '/api/v2/agents')
+  if (path === '/api/agents')
     return send({
       agents: [
         { id: 'scout', name: 'Scout' },
         { id: 'warden', name: 'Warden' },
       ],
     });
-  if (path === '/api/v2/events' || path === '/api/workspace/events') {
+  if (path === '/api/activity-events' || path === '/api/events') {
     const timer = setTimeout(() => send({ events: [], cursor: 1, supportsWait: true }), 10000);
     res.on('close', () => clearTimeout(timer));
     return;
   }
-  if (path === '/api/v2/inbox') {
+  if (path === '/api/inbox') {
     const titles = [
       'Roll back home-gym to 81be0d2',
       'Start the self-release pipeline',
@@ -276,8 +276,8 @@ const server = createServer(async (req, res) => {
             : [f.item],
     });
   }
-  if (path === '/api/v2/live') return send(f.live);
-  if (path.startsWith('/api/v2/live/'))
+  if (path === '/api/live') return send(f.live);
+  if (path.startsWith('/api/live/'))
     return send({
       app: f.live.computers
         .flatMap((computer) => computer.apps)
@@ -297,7 +297,7 @@ const server = createServer(async (req, res) => {
       'Error: column "started" does not exist\n  at syncWorkouts (src/sync.ts:42)\n  at runBatch (src/worker.ts:18)',
     );
   }
-  if (path === '/api/v2/projects')
+  if (path === '/api/projects')
     return send({
       projects: [
         { id: 'deploy.local', name: 'deploy.local', apps },
@@ -341,7 +341,7 @@ const server = createServer(async (req, res) => {
             ],
     });
   if (path.endsWith('/rollbacks')) return send({ rollbacks: [] });
-  if (path === '/api/v2/backups')
+  if (path === '/api/backups')
     return send({
       backups,
       restores: [],
@@ -355,7 +355,7 @@ const server = createServer(async (req, res) => {
         },
       ],
     });
-  if (path === '/api/v2/apps-home')
+  if (path === '/api/apps-home')
     return send({
       server: 'SER and bazzite',
       apps: [
@@ -366,12 +366,12 @@ const server = createServer(async (req, res) => {
         ['Reading', 'feeds'],
       ].map(([name, host]) => ({ name, address: `https://${host}.deploy.local` })),
     });
-  if (path === '/api/v2/auth/account')
+  if (path === '/api/auth/account')
     return referer.pathname === '/'
       ? send({}, 401)
       : send({ username: 'gabriel', welcomed: true, firstTaskSeen: false, hasPasskey: false });
-  if (path === '/api/v2/auth/methods') return send({ passkey: false, server: 'SER' });
-  if (path === '/api/v2/setup') return send({ name: 'SER', needsSetup: false });
+  if (path === '/api/auth/methods') return send({ passkey: false, server: 'SER' });
+  if (path === '/api/setup') return send({ name: 'SER', needsSetup: false });
   if (path === '/api/catalog')
     return send({
       releases: [
@@ -390,7 +390,7 @@ const server = createServer(async (req, res) => {
         },
       ],
     });
-  if (path === '/api/catalog/immich/v1.123.0')
+  if (path === '/api/catalog/releases/immich/v1.123.0')
     return send({
       release: {
         questions: [],
@@ -405,12 +405,12 @@ const server = createServer(async (req, res) => {
         },
       },
     });
-  if (path.startsWith('/api/v2/tasks/')) {
+  if (path.startsWith('/api/task-snapshots/')) {
     const task = taskFixture('FirstTask');
     if (!path.endsWith('/FirstTask')) task.firstTask = false;
     return send(task);
   }
-  if (path === '/api/workspace/state') return send({ projects: [], tasks: [], runs: [] });
+  if (path === '/api/state') return send({ projects: [], tasks: [], runs: [] });
   if (path.startsWith('/api/')) return send({}, 404);
   if (path === '/about' || path === '/' || path === '/signin' || path.startsWith('/dashboard')) {
     const html = await vite.transformIndexHtml(

@@ -203,7 +203,7 @@ async function measure() {
       server.once('exit', () => reject(new Error('The server did not start')));
     });
     const origin = `http://127.0.0.1:${port}`;
-    const design = `/api/v2/projects/site/design`;
+    const design = `/api/projects/site/design`;
     const call = async (path: string, body?: unknown) => {
       const response = await fetch(origin + path, {
         method: body === undefined ? 'GET' : 'POST',
@@ -289,8 +289,8 @@ async function measure() {
     const boards = Object.keys(canvas.boards) as string[];
     const firstLoad = [
       design,
-      '/api/v2/design/projects',
-      '/api/v2/design/reviews?project=site',
+      '/api/design/projects',
+      '/api/design/reviews?project=site',
       `${design}/proposals`,
       `${design}/presence`,
       `${design}/comments`,
@@ -323,7 +323,7 @@ async function measure() {
     );
     await scenario('GET /design', () => repeat(samples, () => call(design)));
     await scenario('GET /design/reviews', () =>
-      repeat(samples, () => call('/api/v2/design/reviews?project=site')),
+      repeat(samples, () => call('/api/design/reviews?project=site')),
     );
     await scenario('GET /design/links (uncached)', () =>
       repeat(Math.min(samples, 4), (n) => call(`${design}/links?ref=design/large-${n}`)),
@@ -388,7 +388,7 @@ async function measure() {
       return times;
     });
     const approve = (id: string) =>
-      call(`/api/v2/inbox/${encodeURIComponent(id)}/answer`, { actionId: 'approve', on: 'web' });
+      call(`/api/inbox/${encodeURIComponent(id)}/answer`, { actionId: 'approve', on: 'web' });
     await scenario('approve (40 boards)', () =>
       repeat(approvals.length - 1, (n) => approve(approvals[n + 1])),
     );

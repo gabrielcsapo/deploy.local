@@ -312,7 +312,7 @@ export async function pushApi(
   requireAuth: RequireAuth,
 ): Promise<boolean> {
   const path = new URL(req.url!, 'http://localhost').pathname;
-  if (!['/api/v2/devices', '/api/v2/notifications'].includes(path)) return false;
+  if (!['/api/devices', '/api/notifications'].includes(path)) return false;
   const send = (body: unknown, status = 200) => {
     sendJson(res, body, status);
   };
@@ -340,25 +340,25 @@ export async function pushApi(
       [
         route({
           method: 'GET',
-          path: '/api/v2/notifications',
+          path: '/api/notifications',
           handler: () => send(notificationPreferences(auth.username)),
         }),
         route({
           method: 'PATCH',
-          path: '/api/v2/notifications',
+          path: '/api/notifications',
           input,
           handler: ({ input }) => send(putNotificationPreferences(auth.username, input)),
         }),
         route({
           method: 'POST',
-          path: '/api/v2/devices',
+          path: '/api/devices',
           input,
           handler: ({ input }) =>
             send(registerDevice(auth.username, input, pairedDeviceForRequest(auth.username, req))),
         }),
         route({
           method: 'DELETE',
-          path: '/api/v2/devices',
+          path: '/api/devices',
           input,
           handler: ({ input }) => {
             removeDevice(auth.username, input.token);

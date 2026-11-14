@@ -9,7 +9,7 @@ export function adoptSession(): Promise<void> {
   const identity = JSON.stringify(auth);
   if (adopted === identity) return pending ?? Promise.resolve();
   adopted = identity;
-  pending = fetch('/api/v2/auth/session', {
+  pending = fetch('/api/auth/session', {
     method: 'POST',
     credentials: 'same-origin',
     headers: {

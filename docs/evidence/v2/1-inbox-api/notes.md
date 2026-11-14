@@ -43,7 +43,7 @@ to the live coordinator. For a real client, send the existing session cookie or 
 headers; these are omitted from the examples.
 
 ```http
-GET /api/v2/inbox?state=waiting
+GET /api/inbox?state=waiting
 ```
 
 ```json
@@ -71,7 +71,7 @@ GET /api/v2/inbox?state=waiting
 ```
 
 ```http
-POST /api/v2/inbox/question%3Achoose-color/answer
+POST /api/inbox/question%3Achoose-color/answer
 Content-Type: application/json
 
 {"actionId":"option:0","on":"iphone"}
@@ -84,7 +84,7 @@ stored answer and the answered item. `GET /inbox?state=answered` returns the sam
 Free-text replies use `{"actionId":"answer","on":"web","note":"Purple"}`.
 
 ```http
-GET /api/v2/events?after=0&waitMs=10000
+GET /api/activity-events?after=0&waitMs=10000
 ```
 
 Returns `{ events, cursor, supportsWait: true }`. The captured example contains a conversation

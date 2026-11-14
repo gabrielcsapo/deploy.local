@@ -35,8 +35,9 @@ export function limitAuth(req: IncomingMessage) {
 }
 export async function authApi(req: IncomingMessage, res: ServerResponse, requireAuth: RequireAuth) {
   const url = new URL(req.url!, 'http://localhost');
-  const path = url.pathname.slice('/api/v2'.length);
+  const path = url.pathname.slice('/api'.length);
   if (!/^\/(setup|auth|devices|apps-home)(\/|$)/.test(path)) return false;
+  if (path === '/devices' && (req.method === 'POST' || req.method === 'DELETE')) return false;
   const send = (data: unknown, status = 200) => sendJson(res, data, status);
   if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
     fail('Sign in as a person to manage accounts.', 403);

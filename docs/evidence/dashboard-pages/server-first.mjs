@@ -41,7 +41,7 @@ try {
     let started;
     let deadline;
     try {
-      const signIn = await context.request.post(new URL('/api/v2/auth/session', origin).href, {
+      const signIn = await context.request.post(new URL('/api/auth/session', origin).href, {
         headers: { 'x-deploy-username': fixture.username, 'x-deploy-token': fixture.token },
         data: {},
       });

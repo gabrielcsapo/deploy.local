@@ -13,7 +13,7 @@ pnpm --dir desktop run capture:electron
 ```
 
 The script starts and stops its own coordinator at **http://127.0.0.1:5184**, logs in through
-`/api/login`, reads `/api/v2/inbox`, `/api/v2/live`, `/api/v2/events` and `/api/v2/computers`, and uses
+`/api/login`, reads `/api/inbox`, `/api/live`, `/api/activity-events` and `/api/computers`, and uses
 a fresh temporary app profile. It cannot enroll or start a worker. It disables mDNS/hostname
 resolution and pins the fixture origin. Port 5185 is shared by Node's IPv6-loopback inspector and
 Chromium's IPv4-loopback debugger. No other listener port is requested. The fixture harness is

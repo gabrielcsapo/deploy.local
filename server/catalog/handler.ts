@@ -211,13 +211,13 @@ export async function handleCatalogRequest(
       }
       return notFound();
     }
-    if (segments.length >= 3) {
-      const id = segments[1];
-      const release = segments[2];
-      if (request.method === 'GET' && segments.length === 3) {
+    if (segments[1] === 'releases' && segments.length >= 4) {
+      const id = segments[2];
+      const release = segments[3];
+      if (request.method === 'GET' && segments.length === 4) {
         return { status: 200, body: service.detail(id, release) };
       }
-      if (request.method === 'POST' && segments.length === 4) {
+      if (request.method === 'POST' && segments.length === 5) {
         const body = record(request.body);
         const shared = {
           id,
@@ -226,13 +226,13 @@ export async function handleCatalogRequest(
           target: await requestTarget(body, targetResolver),
           answers: optionalRecord(body.answers),
         };
-        if (segments[3] === 'preflight') {
+        if (segments[4] === 'preflight') {
           return { status: 200, body: service.preflight(shared) };
         }
-        if (segments[3] === 'install-plan') {
+        if (segments[4] === 'install-plan') {
           return { status: 200, body: service.installPlan(shared) };
         }
-        if (segments[3] === 'install') {
+        if (segments[4] === 'install') {
           if (!runtime) return unavailable();
           const plan = service.installPlan(shared);
           const result = await service.install({

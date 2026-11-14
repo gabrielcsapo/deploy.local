@@ -12,7 +12,7 @@ unapplied, and visual/runtime capture acceptance is not complete.**
    default-setting endpoint is called. Selection lasts for the mounted chat.
    Home creates a scratch task; task replies retain the existing task. Other
    Composer consumers retain their supplied callback (with an optional rich message).
-2. Uploads use raw bytes at `POST /api/v2/attachments`, `Content-Type` and a
+2. Uploads use raw bytes at `POST /api/conversation-attachments`, `Content-Type` and a
    percent-encoded `X-File-Name`. There is a 10 MiB per-file limit, an eight-file /
    20 MiB per-message limit, a MIME allowlist and signature/UTF-8 checks. Owner
    records refer to the existing content store. Download responses are private,
@@ -75,22 +75,22 @@ provider and do not call paid or live models.
 
 ## API / iPhone handoff
 
-- `POST /api/v2/tasks/:id/screenshots` takes `{ target, widths }` and waits for
+- `POST /api/tasks/:id/screenshots` takes `{ target, widths }` and waits for
   `{ screenshots }`. Web target has `url`; simulator/desktop has `device` (the UUID
   or approved helper target ID). Optional `text` records the user's request.
-- `GET /api/v2/tasks/:id/screenshots` and `GET /api/v2/screenshots/:id` are owner-scoped.
+- `GET /api/tasks/:id/screenshots` and `GET /api/screenshots/:id` are owner-scoped.
 - Stored screenshot records also contain `width`, `height`, `workerId` and
   `requestedAt`; these are additive JSON metadata, not contract type changes.
-- `PATCH /api/v2/screenshots/:id` accepts `{ markup, renderedImage? }`. `renderedImage`
+- `PATCH /api/screenshots/:id` accepts `{ markup, renderedImage? }`. `renderedImage`
   is the ref from uploading the flattened image. Include it when sending markup:
   its attachment record carries the full strokes/texts to workers and providers.
   Merely PATCHing marks stores editable annotations but does not flatten the image.
 - Points/text positions use original pixels, colors 0 red, 1 yellow, 2 blue.
   `strokes` supports pen and arrow; `texts` supports x/y/text/color. Undo is local.
-- `POST /api/v2/composer/messages` accepts text, attachments, optional taskId,
+- `POST /api/composer/messages` accepts text, attachments, optional taskId,
   model choice ID (e.g. `codex:<model>`), and optional revision. With no taskId it
   creates a scratch task. `model: null` follows the writing-code default.
-- `POST /api/v2/composer/agents/:id/messages` uses the answering-questions default
+- `POST /api/composer/agents/:id/messages` uses the answering-questions default
   and returns the agent conversation. Neither endpoint changes global defaults.
 - Project-file browsing is a saved repository snapshot, not a live worker file
   browser. The existing repository reader limits selected files to UTF-8 / 256 KiB.

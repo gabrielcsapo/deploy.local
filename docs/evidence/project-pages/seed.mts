@@ -401,7 +401,7 @@ console.log(
       dashboardPages,
       cookieSignIn: {
         method: 'POST',
-        path: '/api/v2/auth/session',
+        path: '/api/auth/session',
         headers: {
           'Content-Type': 'application/json',
           'x-deploy-username': owner,

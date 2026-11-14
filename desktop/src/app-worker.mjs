@@ -237,7 +237,7 @@ export class AppWorker {
       if (!detected.docker.found)
         throw new Error('Install Docker on this Mac before turning on Run apps.');
       this.onProgress('Adding this computer…');
-      const { code } = await this.client.request('/api/v2/computers/enrollment', {
+      const { code } = await this.client.request('/api/computers/enrollment', {
         method: 'POST',
         body: { name: this.name },
       });
@@ -581,12 +581,12 @@ export class AppWorker {
     return this.exclusive(async () => {
       const config = await this.config();
       if (!this.matching(config)) throw new Error('No worker for this coordinator was found.');
-      const { computers } = await this.client.request('/api/v2/computers');
+      const { computers } = await this.client.request('/api/computers');
       const computer = computers.find((c) => c.nodeId === config.nodeId);
       if (!computer) throw new Error('This computer has not connected yet. Try again shortly.');
       const roles = computer.roles.filter((role) => role !== 'run-apps');
       if (enabled) roles.push('run-apps');
-      await this.client.request(`/api/v2/computers/${encodeURIComponent(computer.id)}`, {
+      await this.client.request(`/api/computers/${encodeURIComponent(computer.id)}`, {
         method: 'PATCH',
         body: { roles },
       });
@@ -617,8 +617,8 @@ export class AppWorker {
       reachable = true;
     try {
       const [live, listing] = await Promise.all([
-        this.client.request('/api/v2/live'),
-        this.client.request('/api/v2/computers'),
+        this.client.request('/api/live'),
+        this.client.request('/api/computers'),
       ]);
       computer = detected.nodeId
         ? listing.computers.find((c) => c.nodeId === detected.nodeId)

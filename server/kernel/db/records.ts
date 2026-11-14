@@ -1,3 +1,4 @@
+import { readStoredValue as readStoredUrls } from '../read-value.ts';
 import { namedDatabase } from './named-store.ts';
 
 /** Feature-owned serialization and SQL, called at the same point as the generic write. */
@@ -27,7 +28,7 @@ export function createRecordStore(name: string) {
     const row = db
       .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
       .get(kind, owner, recordId) as { data: string } | undefined;
-    return row ? JSON.parse(row.data) : undefined;
+    return row ? readStoredUrls(JSON.parse(row.data)) : undefined;
   }
   function recordChanged(kind: string, owner: string, row: any, previous: any) {
     for (const listener of recordObservers.get(kind) ?? []) listener(owner, kind, row, previous);
@@ -45,7 +46,7 @@ export function createRecordStore(name: string) {
         'INSERT INTO records VALUES(?,?,?,?) ON CONFLICT(kind,id,owner) DO UPDATE SET data=excluded.data',
       ).run(kind, row.id, owner, data);
       // Compare persisted shapes, including fields omitted by JSON serialization.
-      if (recordObservers.has(kind)) observed = JSON.parse(data);
+      if (recordObservers.has(kind)) observed = readStoredUrls(JSON.parse(data));
     };
     if (adapter?.immediate) db.transaction(write).immediate();
     else write();
@@ -60,21 +61,21 @@ export function createRecordStore(name: string) {
   }
   function list(kind: string, owner: string): any[] {
     const adapter = adapters.get(kind);
-    if (adapter?.list) return adapter.list(owner);
+    if (adapter?.list) return readStoredUrls(adapter.list(owner));
     const rows = namedDatabase(name)
       .prepare('SELECT data FROM records WHERE kind=? AND owner=? ORDER BY rowid')
       .all(kind, owner) as { data: string }[];
-    return rows.map((row) => JSON.parse(row.data));
+    return rows.map((row) => readStoredUrls(JSON.parse(row.data)));
   }
   function get(kind: string, owner: string, recordId: string): any {
     const adapter = adapters.get(kind);
-    if (adapter?.get) return adapter.get(owner, recordId);
+    if (adapter?.get) return readStoredUrls(adapter.get(owner, recordId));
     const r = namedDatabase(name)
       .prepare('SELECT data FROM records WHERE kind=? AND owner=? AND id=?')
       .get(kind, owner, recordId) as { data: string } | undefined;
     if (!r) throw Object.assign(new Error('Not found'), { status: 404 });
-    const row = JSON.parse(r.data);
-    return adapter?.decode ? adapter.decode(row) : row;
+    const row = readStoredUrls(JSON.parse(r.data));
+    return readStoredUrls(adapter?.decode ? adapter.decode(row) : row);
   }
   return {
     save,

@@ -20,7 +20,7 @@ const owner = 'detail-owner';
 const server = createServer((req, res) => void workspaceApi(req, res, owner));
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
-const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/workspace`;
+const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
 after(() => server.close());
 
 async function read(path: string) {

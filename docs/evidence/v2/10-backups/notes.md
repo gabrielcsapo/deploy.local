@@ -13,7 +13,7 @@ Implemented on `codex/v2-backups`, continuing `0570321`. This is a coordinator-l
 
 ## API and next slice
 
-All paths start with `/api/v2`. Use the existing signed-in session. Agent and worker headers are refused.
+All paths start with `/api`. Use the existing signed-in session. Agent and worker headers are refused.
 
 | Request                                                            | Result                                                                                 |
 | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |

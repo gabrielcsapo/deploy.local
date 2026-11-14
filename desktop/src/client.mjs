@@ -191,7 +191,7 @@ export class CoordinatorClient {
     return this.credentials;
   }
   inbox() {
-    return this.request('/api/v2/inbox?state=waiting');
+    return this.request('/api/inbox?state=waiting');
   }
   async inboxSnapshot(cursor) {
     // Capture the position first: decisions arriving during the list read are replayed.
@@ -200,18 +200,18 @@ export class CoordinatorClient {
   }
   async live() {
     try {
-      return await this.request('/api/v2/live');
+      return await this.request('/api/live');
     } catch (error) {
       if ([404, 501].includes(error.status)) return null;
       throw error;
     }
   }
   async workspace() {
-    return this.request('/api/workspace/state');
+    return this.request('/api/state');
   }
   async computers() {
     try {
-      return (await this.request('/api/v2/computers')).computers;
+      return (await this.request('/api/computers')).computers;
     } catch (error) {
       if ([403, 404, 501].includes(error.status)) return null;
       throw error;
@@ -222,18 +222,18 @@ export class CoordinatorClient {
     if (!computer) throw new Error('Join this computer in Computer roles first.');
     const roles = computer.roles.filter((role) => role !== 'take-tasks');
     if (enabled) roles.push('take-tasks');
-    return this.request(`/api/v2/computers/${encodeURIComponent(computer.id)}`, {
+    return this.request(`/api/computers/${encodeURIComponent(computer.id)}`, {
       method: 'PATCH',
       body: { roles },
     });
   }
   events(cursor) {
     return this.request(
-      `/api/v2/events?after=${encodeURIComponent(cursor)}${cursor === 'latest' ? '' : '&waitMs=10000'}`,
+      `/api/activity-events?after=${encodeURIComponent(cursor)}${cursor === 'latest' ? '' : '&waitMs=10000'}`,
     );
   }
   answer(id, actionId, note) {
-    return this.request(`/api/v2/inbox/${encodeURIComponent(id)}/answer`, {
+    return this.request(`/api/inbox/${encodeURIComponent(id)}/answer`, {
       method: 'POST',
       body: { actionId, on: 'desktop', ...(note === undefined ? {} : { note }) },
     });

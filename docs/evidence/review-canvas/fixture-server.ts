@@ -24,7 +24,7 @@ export const states = [
 ] as const;
 type State = (typeof states)[number];
 const repo = resolve(import.meta.dirname, '../../..');
-const api = '/api/v2/projects/deploy-local/design';
+const api = '/api/projects/deploy-local/design';
 const before = 'b901d12fixture';
 const after = 'a731e45fixture';
 const id = `design:deploy-local:design~welcome-gutter:${after}`;
@@ -453,8 +453,8 @@ export function createFixture() {
     if (path === `${api}/changes`) return json({ files: [] });
     if (path === `${api}/components`) return json({ library: null, usage: {} });
     if (path === `${api}/links`) return json({ links: [] });
-    if (path === '/api/v2/projects') return json({ projects: [project] });
-    if (path === '/api/v2/inbox')
+    if (path === '/api/projects') return json({ projects: [project] });
+    if (path === '/api/inbox')
       return json({
         items:
           !url.searchParams.has('state') || url.searchParams.get('state') === review.item.state
@@ -463,15 +463,15 @@ export function createFixture() {
         cursor: 1,
       });
     if (path === '/api/user') return json({ username: 'Gabriel', role: 'admin' });
-    if (path === '/api/v2/auth/account')
+    if (path === '/api/auth/account')
       return json({
         username: 'Gabriel',
         welcomed: true,
         firstTaskSeen: true,
         passkeyOffered: true,
       });
-    if (path === '/api/v2/agents') return json({ agents: [designer] });
-    if (path === '/api/v2/computers') return json({ computers: [] });
+    if (path === '/api/agents') return json({ agents: [designer] });
+    if (path === '/api/computers') return json({ computers: [] });
     if (path === '/api/nodes')
       return json({
         nodes: [
@@ -479,9 +479,9 @@ export function createFixture() {
           { id: 'mac', name: 'Mac', online: true },
         ],
       });
-    if (path === '/api/v2/live') return json({ summary: { running: 0, failing: 0 } });
-    if (path === '/api/v2/packages') return json({ served: false, usingCopies: false });
-    if (path === '/api/workspace/state')
+    if (path === '/api/live') return json({ summary: { running: 0, failing: 0 } });
+    if (path === '/api/packages') return json({ served: false, usingCopies: false });
+    if (path === '/api/state')
       return json({
         version: 1,
         cursor: 1,
@@ -491,7 +491,7 @@ export function createFixture() {
         runs: [],
         adapters: [],
       });
-    if (path === '/api/v2/events') {
+    if (path === '/api/activity-events') {
       if (url.searchParams.get('after') !== 'latest') await wait(request.signal, 10000);
       return json({ events: [], cursor: 1, supportsWait: true });
     }
@@ -671,10 +671,10 @@ async function check() {
           assert.equal((await call(`${api}/files/${revision}/boards/${board.file}`))!.status, 200);
       }
       for (const path of [
-        '/api/v2/inbox?state=waiting',
-        '/api/v2/inbox?state=answered',
-        '/api/workspace/state',
-        '/api/v2/auth/account',
+        '/api/inbox?state=waiting',
+        '/api/inbox?state=answered',
+        '/api/state',
+        '/api/auth/account',
         `${api}/presence`,
         `${api}/components`,
         `${api}/files/${after}/ds/deploy-local/tokens.json`,
@@ -683,7 +683,7 @@ async function check() {
       for (const path of [
         `${api}/review/build`,
         `${api}/canvas`,
-        `/api/v2/inbox/${encodeURIComponent(id)}/answer`,
+        `/api/inbox/${encodeURIComponent(id)}/answer`,
       ])
         assert.equal((await call(path, { method: 'POST', body: '{}' }))!.status, 405);
     }

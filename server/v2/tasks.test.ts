@@ -141,7 +141,7 @@ test('Task route passes through owner authentication and refuses agent credentia
       body = '';
     const req = {
       method: 'GET',
-      url: '/api/v2/tasks/t',
+      url: '/api/task-snapshots/t',
       headers,
     } as import('node:http').IncomingMessage;
     const res = {
@@ -302,7 +302,7 @@ test('task route reads branch distance and linked app facts without exposing a r
   const { tasksApi } = await import('./tasks.ts');
   let body: any;
   await tasksApi(
-    { method: 'GET', url: '/api/v2/tasks/facts-task' } as import('node:http').IncomingMessage,
+    { method: 'GET', url: '/api/task-snapshots/facts-task' } as import('node:http').IncomingMessage,
     {
       writeHead() {},
       end(value: string) {

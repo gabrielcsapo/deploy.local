@@ -17,12 +17,12 @@ export function FirstTask() {
     const taskId = pathname.match(/^\/dashboard\/tasks\/([^/]+)$/)?.[1];
     if (!taskId) return;
     void Promise.all([
-      readSeeded(seed, '/api/v2/auth/account', () => api('/api/v2/auth/account')),
-      readSeeded(seed, `/api/v2/tasks/${taskId}`, () => api(`/api/v2/tasks/${taskId}`)),
+      readSeeded(seed, '/api/auth/account', () => api('/api/auth/account')),
+      readSeeded(seed, `/api/task-snapshots/${taskId}`, () => api(`/api/task-snapshots/${taskId}`)),
     ])
       .then(async ([account, task]) => {
         if (!mounted || !shouldShowFirstTask(account.firstTaskSeen, task.firstTask)) return;
-        await api('/api/v2/auth/account', { firstTaskSeen: true });
+        await api('/api/auth/account', { firstTaskSeen: true });
         if (mounted) setVisible(true);
       })
       .catch(() => {});
@@ -31,7 +31,7 @@ export function FirstTask() {
     };
   }, [pathname, seed]);
   async function dismiss() {
-    await api('/api/v2/auth/account', { firstTaskSeen: true });
+    await api('/api/auth/account', { firstTaskSeen: true });
     setVisible(false);
   }
   return visible ? (

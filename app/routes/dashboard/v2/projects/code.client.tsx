@@ -75,7 +75,7 @@ export function ProjectCode({ overview }: { overview: Overview }) {
   const [outline, setOutline] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   const readmeElement = useRef<HTMLDivElement>(null);
-  const base = `/api/workspace/projects/${encodeURIComponent(overview.project.id)}/repository`;
+  const base = `/api/projects/${encodeURIComponent(overview.project.id)}/repository`;
   const page = `${projectPath(overview.project.id)}/code`;
   const href = (next: { path?: string; file?: string; ref?: string; history?: boolean } = {}) => {
     const query = new URLSearchParams({ ref: next.ref || ref });
@@ -500,7 +500,7 @@ export function ProjectIssues({ overview, refresh }: { overview: Overview; refre
     setBusy(true);
     setError('');
     try {
-      await request(`/api/workspace/projects/${projectSegment(overview.project.id)}/issues`, {
+      await request(`/api/projects/${projectSegment(overview.project.id)}/issues`, {
         method: 'POST',
         body: JSON.stringify({ operationId: crypto.randomUUID(), title, body }),
       });

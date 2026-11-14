@@ -155,7 +155,7 @@ type Upload = { key: string; name: string; size: number; progress: number; error
 function upload(pullId: string, file: File, onProgress: (value: number) => void) {
   return new Promise<PullFile>((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open('POST', `/api/v2/pulls/${encodeURIComponent(pullId)}/files`);
+    request.open('POST', `/api/pulls/${encodeURIComponent(pullId)}/files`);
     request.withCredentials = true;
     const auth = getAuth();
     if (auth) {

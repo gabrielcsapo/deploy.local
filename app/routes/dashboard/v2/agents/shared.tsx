@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Head, IconButton, Group, Icon } from '@/components/ui';
 import { authenticatedFetch } from '../data/hooks';
 export async function request(path: string, method = 'GET', body?: unknown) {
-  const response = await authenticatedFetch(`/api/v2${path}`, {
+  const response = await authenticatedFetch(`/api${path}`, {
     method,
     headers: { 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),

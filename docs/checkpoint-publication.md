@@ -1,6 +1,6 @@
 # Publishing checkpoints
 
-`POST /api/workspace/tasks/:id/publish` accepts an optional `checkpointId` alongside
+`POST /api/tasks/:id/publish` accepts an optional `checkpointId` alongside
 `operationId` and the task `revision`. Without it, patch publication is unchanged.
 With it, Publish builds the exact validated checkpoint tree, including binary bytes
 and executable modes, on the task branch or the linked open pull request's source

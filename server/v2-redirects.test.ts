@@ -82,19 +82,14 @@ test('query strings, hashes, trailing slashes and encoded identities survive', a
     '/dashboard/projects/my%2Fproject/logs?app=my+app&level=error',
   );
 });
-test('lookup uses the application repository endpoint and supports existing coordinator mount', async () => {
+test('lookup uses the single application repository endpoint', async () => {
   const paths: string[] = [];
   const request: typeof fetch = async (input) => {
     paths.push(String(input));
-    return paths.length === 1
-      ? new Response('', { status: 404 })
-      : Response.json({ projects: [{ id: 'project-1', name: 'home-gym' }] });
+    return Response.json({ projects: [{ id: 'project-1', name: 'home-gym' }] });
   };
   assert.equal(await lookupApplicationProject('home gym', request), 'project-1');
-  assert.deepEqual(paths, [
-    '/api/application-repositories?application=home%20gym',
-    '/api/workspace/application-repositories?application=home%20gym',
-  ]);
+  assert.deepEqual(paths, ['/api/application-repositories?application=home%20gym']);
 });
 test('missing, malformed, unauthorized and unreachable projects fall back safely', async () => {
   for (const body of [{ projects: [] }, {}, { projects: [null, { id: 42 }] }])

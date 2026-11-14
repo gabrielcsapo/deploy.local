@@ -172,7 +172,7 @@ const diagnosticRoute = routes<string>();
 export const diagnosticsApi = dispatch([
   diagnosticRoute({
     method: 'POST',
-    path: '/api/v2/diagnostics/profile',
+    path: '/api/diagnostics/profile',
     handler: async ({ res, url, context: owner }) => {
       if (!isAdmin(owner)) fail('Only an administrator can profile the server', 403);
       const seconds = Number(url.searchParams.get('seconds') ?? 30);
@@ -186,7 +186,7 @@ export const diagnosticsApi = dispatch([
   }),
   diagnosticRoute({
     method: '*',
-    path: '/api/v2/diagnostics/profile',
+    path: '/api/diagnostics/profile',
     handler: ({ res }) => sendJson(res, { error: 'Method not allowed' }, 405),
   }),
 ]);

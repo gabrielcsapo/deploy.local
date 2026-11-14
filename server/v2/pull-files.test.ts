@@ -43,7 +43,7 @@ save('pull-request', 'owner', {
   taskIds: ['t1'],
 });
 const upload = (body: Buffer, type: string, name: string, owner = 'owner', pull = 'pr1') =>
-  fetch(`${origin}/api/v2/pulls/${pull}/files`, {
+  fetch(`${origin}/api/pulls/${pull}/files`, {
     method: 'POST',
     headers: {
       'Content-Type': type,
@@ -77,7 +77,7 @@ test('upload, list and serve description files for the owner only', async () => 
   const { file } = await response.json();
   assert.equal(file.kind, 'image');
   assert.equal(file.name, 'release flow.png');
-  assert.match(file.url, /^\/api\/v2\/pulls\/pr1\/files\/[a-f0-9-]+$/);
+  assert.match(file.url, /^\/api\/pulls\/pr1\/files\/[a-f0-9-]+$/);
 
   const image = await fetch(origin + file.url);
   assert.equal(image.headers.get('content-type'), 'image/png');
@@ -100,7 +100,7 @@ test('upload, list and serve description files for the owner only', async () => 
   assert.equal(part.headers.get('content-range'), `bytes 0-3/${png.length}`);
   assert.deepEqual(Buffer.from(await part.arrayBuffer()), png.subarray(0, 4));
 
-  const files = (await (await fetch(`${origin}/api/v2/pulls/pr1/files`)).json()).files;
+  const files = (await (await fetch(`${origin}/api/pulls/pr1/files`)).json()).files;
   assert.deepEqual(
     files.map((item: any) => item.name),
     ['release flow.png', 'ser.zip'],
@@ -142,7 +142,7 @@ test('editing the description records who edited it', async () => {
     {
       operationId: 'edit-1',
       revision: get('pull-request', 'owner', 'pr1').revision,
-      body: '![release flow.png](/api/v2/pulls/pr1/files/x)',
+      body: '![release flow.png](/api/pulls/pr1/files/x)',
     },
     'sig-1',
   );

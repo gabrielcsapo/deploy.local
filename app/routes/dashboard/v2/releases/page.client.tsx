@@ -30,7 +30,7 @@ import { formatTime } from '../data/time';
 import { missingVariable } from './presentation';
 
 async function request(path: string, options: RequestInit = {}) {
-  const response = await authenticatedFetch(`/api/v2${path}`, {
+  const response = await authenticatedFetch(`/api${path}`, {
     ...options,
     headers: { 'Content-Type': 'application/json' },
   });
@@ -152,9 +152,9 @@ export default function Releases() {
   const projectKey = segments[2],
     releaseId = segments[4];
   const seed = useDataSeed();
-  const seededProjects = remembered<{ projects: Project[] }>('/api/v2/projects', seed)?.projects;
+  const seededProjects = remembered<{ projects: Project[] }>('/api/projects', seed)?.projects;
   const seededProject = seededProjects?.find((p) => p.id === projectKey || p.name === projectKey);
-  const seedPath = `/api/v2/projects/${encodeURIComponent(projectKey)}`;
+  const seedPath = `/api/projects/${encodeURIComponent(projectKey)}`;
   const seededReleases = remembered<{ releases: Release[] }>(
     `${seedPath}/releases`,
     seed,
@@ -259,7 +259,7 @@ export default function Releases() {
     setBusy(true);
     setError('');
     try {
-      const task = await workspaceRequest('/api/workspace/tasks', {
+      const task = await workspaceRequest('/api/tasks', {
         method: 'POST',
         body: JSON.stringify({
           operationId: crypto.randomUUID(),

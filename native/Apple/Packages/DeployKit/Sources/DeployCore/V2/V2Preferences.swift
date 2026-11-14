@@ -17,25 +17,25 @@ public struct V2PairedDeviceSummary: Codable, Identifiable, Sendable {
 }
 extension V2Client {
     public func notificationPreferences() async throws -> V2NotificationPreferences {
-        try await client.request("/api/v2/notifications")
+        try await client.request("/api/notifications")
     }
     public func saveNotificationPreferences(_ preferences: V2NotificationPreferences) async throws -> V2NotificationPreferences {
-        try await client.request("/api/v2/notifications", method: "PATCH", body: JSONEncoder().encode(preferences))
+        try await client.request("/api/notifications", method: "PATCH", body: JSONEncoder().encode(preferences))
     }
     public func agentControl(_ agent: String) async throws -> V2AgentControl {
-        try await client.request("/api/v2/agents/\(Self.segment(agent))/control")
+        try await client.request("/api/agents/\(Self.segment(agent))/control")
     }
     public func changeAgentControl(_ agent: String, paused: Bool? = nil, muteMinutes: Int? = nil) async throws -> V2AgentControl {
         struct Body: Encodable { let paused: Bool?; let muteMinutes: Int? }
-        return try await client.request("/api/v2/agents/\(Self.segment(agent))/control", method: "PATCH", body: JSONEncoder().encode(Body(paused: paused, muteMinutes: muteMinutes)))
+        return try await client.request("/api/agents/\(Self.segment(agent))/control", method: "PATCH", body: JSONEncoder().encode(Body(paused: paused, muteMinutes: muteMinutes)))
     }
     public func pairedDevices() async throws -> [V2PairedDeviceSummary] {
         struct Response: Decodable, Sendable { let devices: [V2PairedDeviceSummary] }
-        let response: Response = try await client.request("/api/v2/devices")
+        let response: Response = try await client.request("/api/devices")
         return response.devices
     }
     public func revokeDevice(_ id: String) async throws {
         struct Response: Decodable, Sendable { let removed: Bool? }
-        let _: Response = try await client.request("/api/v2/devices/\(Self.segment(id))", method: "DELETE")
+        let _: Response = try await client.request("/api/devices/\(Self.segment(id))", method: "DELETE")
     }
 }

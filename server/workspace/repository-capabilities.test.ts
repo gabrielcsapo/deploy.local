@@ -69,7 +69,7 @@ components:
   try {
     const links = async (application: string, owner = 'alice') => {
       const response = await fetch(
-        `${origin}/api/workspace/application-repositories?application=${application}`,
+        `${origin}/api/application-repositories?application=${application}`,
         { headers: { 'x-owner': owner } },
       );
       assert.equal(response.status, 200);

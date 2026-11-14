@@ -33,7 +33,7 @@ export function ProjectStart({
             project={project.name}
             onSend={async (text) => {
               try {
-                const task = await request('/api/workspace/tasks', {
+                const task = await request('/api/tasks', {
                   method: 'POST',
                   body: JSON.stringify({
                     operationId: crypto.randomUUID(),

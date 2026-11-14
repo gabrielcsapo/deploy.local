@@ -342,7 +342,7 @@ const handler: import('node:http').RequestListener = async (req, res) => {
       res.end(html(true));
       return;
     }
-    if (url.pathname === '/api/workspace/state')
+    if (url.pathname === '/api/state')
       return send({
         version: 1,
         cursor: 1,
@@ -355,9 +355,9 @@ const handler: import('node:http').RequestListener = async (req, res) => {
     if (url.pathname === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
     if (url.pathname === '/api/nodes')
       return send({ nodes: [{ id: 'local', name: 'SER', online: true }] });
-    if (url.pathname === '/api/v2/auth/account')
+    if (url.pathname === '/api/auth/account')
       return send({ username: owner, welcomed: true, firstTaskSeen: true, passkeyOffered: true });
-    if (url.pathname === '/api/workspace/projects/tally/pulls/pull5/diff')
+    if (url.pathname === '/api/projects/tally/pulls/pull5/diff')
       return send({
         patch: git('diff', main, head),
         baseCommit: main,
@@ -365,18 +365,18 @@ const handler: import('node:http').RequestListener = async (req, res) => {
         mergeable: true,
         conflicts: [],
       });
-    if (url.pathname === '/api/workspace/projects/tally/pulls/pull5')
+    if (url.pathname === '/api/projects/tally/pulls/pull5')
       return send({ record: get('pull-request', owner, 'pull5'), checks: latest() });
-    if (req.method === 'POST' && url.pathname.startsWith('/api/workspace/'))
+    if (req.method === 'POST' && url.pathname.startsWith('/api/'))
       return send({ error: 'This capture fixture does not merge or release.' }, 409);
-    if (url.pathname === '/api/v2/events' && url.searchParams.get('after') === 'latest')
+    if (url.pathname === '/api/activity-events' && url.searchParams.get('after') === 'latest')
       return send({ events: [], cursor: 0, supportsWait: true });
-    if (url.pathname === '/api/v2/events' || url.pathname.endsWith('/stream')) {
+    if (url.pathname === '/api/activity-events' || url.pathname.endsWith('/stream')) {
       const timer = setTimeout(() => send({ events: [], cursor: 1, supportsWait: true }), 15000);
       res.on('close', () => clearTimeout(timer));
       return;
     }
-    if (url.pathname.startsWith('/api/v2/')) {
+    if (url.pathname.startsWith('/api/')) {
       await v2Api(req, res, () => ({ username: owner }));
       if (res.writableEnded || res.headersSent) return;
     }

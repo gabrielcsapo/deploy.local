@@ -43,7 +43,7 @@ export function ShipDialog({
     setError('');
     void requestJson<{ plan: ShipPlan }>(
       authenticatedFetch,
-      `/api/v2/projects/${encodeURIComponent(projectId)}/releases/plan`,
+      `/api/projects/${encodeURIComponent(projectId)}/releases/plan`,
       { method: 'POST', signal: controller.signal },
     )
       .then(({ plan }) => setPlan(plan))

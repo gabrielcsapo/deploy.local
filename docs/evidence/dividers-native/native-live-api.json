@@ -12,7 +12,7 @@
   ],
   "messages": 8,
   "origin": "https:\/\/deploy.local",
-  "repository": "RepositoryInfo(status: \"ready\", clonePath: \"\/api\/workspace\/git\/ace23c97-5a0f-4378-9136-1467a3977762\", defaultBranch: Optional(\"main\"), refs: Optional([main.RepositoryInfo.RepositoryRef(name: \"refs\/heads\/main\", oid: \"e75a4884aa046ac0cbc008cadfb838e368d5dc39\"), main.RepositoryInfo.RepositoryRef(name: \"refs\/heads\/verification\/managed-worker\", oid: \"7d360fe876bd3377f403fa084f88497447b437a8\")]), operation: Optional(main.MergeOperation(status: \"succeeded\", error: nil)), deployment: Optional(main.RepositoryDeployment(configured: false, pipeline: nil, application: nil, error: nil)))",
+  "repository": "RepositoryInfo(status: \"ready\", clonePath: \"\/api\/git\/ace23c97-5a0f-4378-9136-1467a3977762\", defaultBranch: Optional(\"main\"), refs: Optional([main.RepositoryInfo.RepositoryRef(name: \"refs\/heads\/main\", oid: \"e75a4884aa046ac0cbc008cadfb838e368d5dc39\"), main.RepositoryInfo.RepositoryRef(name: \"refs\/heads\/verification\/managed-worker\", oid: \"7d360fe876bd3377f403fa084f88497447b437a8\")]), operation: Optional(main.MergeOperation(status: \"succeeded\", error: nil)), deployment: Optional(main.RepositoryDeployment(configured: false, pipeline: nil, application: nil, error: nil)))",
   "runs": [
     {
       "id": "edcd179c-be0a-42ec-88a5-ec5ef0903208",

@@ -35,11 +35,11 @@ test('shared authentication reports 401s for Live/computers, and one storage res
   await assert.rejects(liveRequest('/live'), /Sign in again to see Live/);
   await assert.rejects(computerRequest('/computers'), /Sign in again to see your computers/);
   assert.equal(expired, 2);
-  await authenticatedFetch('/api/v2/auth/account');
+  await authenticatedFetch('/api/auth/account');
   assert.equal(expired, 2);
   const cancelled = new AbortController();
   cancelled.abort();
-  await authenticatedFetch('/api/v2/live', { signal: cancelled.signal });
+  await authenticatedFetch('/api/live', { signal: cancelled.signal });
   assert.equal(expired, 2, 'a late 401 from an aborted old session cannot expire the new session');
 
   const polls: { signal: AbortSignal; username: string }[] = [];

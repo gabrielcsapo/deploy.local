@@ -126,7 +126,7 @@ test('workspace inventory and task detail both expose queued presentation', asyn
     server.closeAllConnections();
     server.close();
   });
-  const origin = `http://127.0.0.1:${(server.address() as any).port}/api/workspace`;
+  const origin = `http://127.0.0.1:${(server.address() as any).port}/api`;
   const state = await (await fetch(origin + '/state')).json();
   assert.equal(state.tasks.find((task: any) => task.id === 'first').status, 'queued');
   // Lists read a task's latest run status, so a stopped run is not shown as finished.

@@ -835,13 +835,13 @@ const route = routes<BackupsContext>();
 export const backupsRoutes = [
   route({
     method: 'GET',
-    path: '/api/v2/backups',
+    path: '/api/backups',
     handler: async ({ res, context }) =>
       sendJson(res, await context.operations.listing(context.owner)),
   }),
   route({
     method: 'POST',
-    path: '/api/v2/backups/run',
+    path: '/api/backups/run',
     handler: async ({ res, context }) => {
       if (!isAdmin(context.owner))
         return sendJson(res, { error: 'Only the owner can back up the coordinator' }, 403);
@@ -851,20 +851,20 @@ export const backupsRoutes = [
   }),
   route({
     method: '*',
-    path: '/api/v2/backups/:backup/:action(restore|test)',
+    path: '/api/backups/:backup/:action(restore|test)',
     handler: ({ req, res, params, context }) =>
       backupRoute(req, res, context, [params.backup, params.action]),
   }),
   route({
     method: '*',
-    path: '/api/v2/backups/:backup/:action(restore|test)/:restore/:step(switch|cancel)',
+    path: '/api/backups/:backup/:action(restore|test)/:restore/:step(switch|cancel)',
     handler: ({ req, res, params, context }) =>
       backupRoute(req, res, context, [params.backup, params.action, params.restore, params.step]),
   }),
 ];
 
 const backupsDispatch = dispatch(backupsRoutes, {
-  scope: '/api/v2/backups',
+  scope: '/api/backups',
   before: ({ req, res }) =>
     !!(req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token']) &&
     sendJson(res, { error: 'Only a signed-in person can restore backups' }, 403),

@@ -43,7 +43,7 @@ LockScreen cannot be accepted by rendering a SwiftUI imitation. On a dedicated
 simulator with notifications already permitted, fetch `/fixture/push`, save it to
 a temporary `.apns` file, and use `xcrun simctl push "$SIMULATOR_UDID"
 local.deploy.workspace.ios /tmp/ios2-push.apns`. Open the notification and exercise
-Approve, Not now and Open; verify `on: iphone` in `/api/v2/inbox?state=answered`.
+Approve, Not now and Open; verify `on: iphone` in `/api/inbox?state=answered`.
 Reset `/fixture/board` between decisions. Repeat an already-answered decision and
 an unavailable-network action; check that no success is fabricated. Confirm that
 the failed-answer notification opens the correct scoped inbox item. Unlock is

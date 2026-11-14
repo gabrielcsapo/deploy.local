@@ -53,7 +53,7 @@ after(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 async function request(owner: string, path: string, method = 'GET', body?: unknown) {
-  const res = await fetch(`${origin}/api/v2${path}`, {
+  const res = await fetch(`${origin}/api${path}`, {
     method,
     headers: { 'x-test-owner': owner, 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),

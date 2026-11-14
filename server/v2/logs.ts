@@ -15,7 +15,7 @@ export function projectLogSources(project: Project, app: string | null) {
 }
 export async function logsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const url = new URL(req.url!, 'http://localhost');
-  const match = url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/logs$/);
+  const match = url.pathname.match(/^\/api\/projects\/([^/]+)\/logs$/);
   if (!match) return false;
   if (req.method !== 'GET') fail('Method not allowed', 405);
   const project = await resolveProject(owner, decodeURIComponent(match[1]));

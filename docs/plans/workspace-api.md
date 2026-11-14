@@ -2,7 +2,7 @@
 
 All endpoints use existing `x-deploy-username` and `x-deploy-token` headers or browser auth cookie. Native clients sign in with POST `/api/login` {username,password}, response {token}. No separate workspace identity.
 
-GET `/api/workspace/state`: `{version:1,cursor,projects,tasks,runs,workers,adapters}`.
+GET `/api/state`: `{version:1,cursor,projects,tasks,runs,workers,adapters}`.
 Project: `{id,name,description?:string,settingsRevision?:number,owner,sourcePath:string|null,repositoryPath,createdAt}`.
 
 `GET /projects/:id/settings` returns `{id,name,description,settingsRevision}` for an owned project. `POST /projects/:id/settings` accepts `{operationId,name,description,settingsRevision}` and saves display metadata only. Names contain 1–120 characters and descriptions at most 240, without control characters. A stale revision returns 409; retrying the same operation ID replays the original result. Git identity, source, branch and setup-operation fields cannot be changed through this endpoint. Worker credentials cannot use it.
@@ -14,16 +14,16 @@ Worker: `{id,name,platform,architecture,status,capabilities:string[]}`.
 Adapter: `{id,name,available,capabilities:{resume,cancellation,questions,steering,permissions,browser,computer},billingMode}`.
 Dates are ISO 8601 strings. IDs are opaque strings. Run statuses: queued, starting, running, succeeded, failed, interrupted. Task statuses: ready, running, review.
 
-GET `/api/workspace/tasks/:id`: `{task,messages,runs,events,cursor,questions}`.
-GET `/api/workspace/events?after=0&taskId=optional`: `{events,cursor}` (bounded replay; poll 500ms–2s, refresh snapshot if needed).
-POST `/api/workspace/projects`: `{operationId,name,sourcePath?}` -> Project. Without sourcePath creates initialized hosted repo; local path or external Git URL imports committed history without touching source working files.
-POST `/api/workspace/tasks`: `{operationId,projectId?:string|null,title,prompt?}` -> Task (prompt optional creates initial run).
-POST `/api/workspace/tasks/:id/messages`: `{operationId,revision,content,model?}` -> Run.
-POST `/api/workspace/tasks/:id/stop`: `{operationId,revision}` -> Task.
-GET `/api/workspace/tasks/:id/diff`: `{baseRevision,headRevision,patch,status,files:[{path,status}],checks:[]}`.
-POST `/api/workspace/tasks/:id/check`: `{operationId,revision,command}` -> durable queued check result (execution belongs to the independent worker).
+GET `/api/tasks/:id`: `{task,messages,runs,events,cursor,questions}`.
+GET `/api/events?after=0&taskId=optional`: `{events,cursor}` (bounded replay; poll 500ms–2s, refresh snapshot if needed).
+POST `/api/repository-projects`: `{operationId,name,sourcePath?}` -> Project. Without sourcePath creates initialized hosted repo; local path or external Git URL imports committed history without touching source working files.
+POST `/api/tasks`: `{operationId,projectId?:string|null,title,prompt?}` -> Task (prompt optional creates initial run).
+POST `/api/tasks/:id/messages`: `{operationId,revision,content,model?}` -> Run.
+POST `/api/tasks/:id/stop`: `{operationId,revision}` -> Task.
+GET `/api/tasks/:id/diff`: `{baseRevision,headRevision,patch,status,files:[{path,status}],checks:[]}`.
+POST `/api/tasks/:id/check`: `{operationId,revision,command}` -> durable queued check result (execution belongs to the independent worker).
 
-Every mutation requires a unique operationId. Retrying same operation returns the original result. Conflicting task revision or active writer returns 409 `{error}`. Errors use `{error:string}`. Stopping retains files. Follow-up resumes provider session where available. Unsupported steering/permissions/browser/computer integration is explicit. HTTP Git hosting lives at `/api/workspace/git/:projectId/*` using same auth headers or HTTP Basic username/token. Clone URL is coordinator origin + that path.
+Every mutation requires a unique operationId. Retrying same operation returns the original result. Conflicting task revision or active writer returns 409 `{error}`. Errors use `{error:string}`. Stopping retains files. Follow-up resumes provider session where available. Unsupported steering/permissions/browser/computer integration is explicit. HTTP Git hosting lives at `/api/git/:projectId/*` using same auth headers or HTTP Basic username/token. Clone URL is coordinator origin + that path.
 
 ## Additive worker/model fields
 
@@ -95,7 +95,7 @@ use a new operation ID for the new source. Read current state with `deploy_get_j
 
 Codex and Claude Code receive the stdio MCP server automatically through their worker launch
 configuration. Compatible model endpoints receive the same function schemas and task-scoped client.
-The tools communicate with `POST /api/workspace/agent/tools` using `x-deploy-agent-token`. Tokens are
+The tools communicate with `POST /api/agent/tools` using `x-deploy-agent-token`. Tokens are
 stored hashed, expire after 24 hours, and authorize only the issuing task while that run is active.
 They cannot use client administration or worker endpoints. The local worker hosts this endpoint on
 an ephemeral loopback listener; remote agents use their configured coordinator origin. Tokens are
@@ -175,7 +175,7 @@ Remote project tasks return ready without constructing an unused local checkout.
 
 ## Project issues and pull requests
 
-These owner-scoped routes are under `/api/workspace/projects/:projectId`. They reuse the existing
+These owner-scoped routes are under `/api/projects/:projectId`. They reuse the existing
 login and idempotency contract. Worker credentials cannot access them. Issues and pull requests
 share a monotonically increasing project number; URLs use their opaque IDs. No YAML is required.
 
@@ -259,7 +259,7 @@ Task detail includes `questions`, each with `{id,taskId,runId,question,options,s
 createdAt,expiresAt}`. `expiresAt` is Unix milliseconds. Status is `pending`, `answered`, `dismissed`,
 `expired`, or `cancelled`. Events use `question.requested` and `question.<terminal-status>`.
 
-POST `/api/workspace/tasks/:taskId/questions/:questionId/answer` accepts
+POST `/api/tasks/:taskId/questions/:questionId/answer` accepts
 `{operationId,answer}` or `{operationId,dismiss:true}`. Answers contain 1–4000 nonblank characters.
 Only authenticated owner clients can answer; worker and agent credentials cannot. Identical answer
 retries are safe even with a new operation ID. Conflicting answers, expired questions, or stopped

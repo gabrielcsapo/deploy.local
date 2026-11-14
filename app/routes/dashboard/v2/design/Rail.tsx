@@ -28,9 +28,9 @@ export function DesignRail({
   updatePopoverId: string;
   updateTriggerRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const packages = useResource<{ served: boolean }>('/api/v2/packages?sidebar=1');
+  const packages = useResource<{ served: boolean }>('/api/packages?sidebar=1');
   const inbox = useInbox();
-  const live = useResource<{ summary: LiveSummary }>('/api/v2/live', true);
+  const live = useResource<{ summary: LiveSummary }>('/api/live', true);
   const user = useResource<{ username: string }>('/api/user');
   const waiting = inbox.items.filter((item) => item.state === 'waiting').length;
   const failing = live.data?.summary.failing ?? 0;

@@ -14,14 +14,14 @@ live service, worker, container, installed app, or other worktree was changed.
    `isAllowed` refuses screen/secrets/install/spend/ship even with an old Allow.
    The brief explains why its earlier action list was wrong. Empty project-rule
    sections are hidden; scoped overrides remain visible when present.
-2. **Project writes:** `PATCH /api/v2/projects/:p/settings` accepts
+2. **Project writes:** `PATCH /api/projects/:p/settings` accepts
    `{keepReleases: 1..100, verifyMigrations: boolean}`. Defaults are 5 and true.
    Retention preserves the current release plus N earlier complete rollback plans;
    expired plans cannot be rollback targets. Audit and backup receipts survive.
    Verify-off skips migration jobs on the verification copy; app verification and
    activation-time migrations still run. Rollback data verification remains on.
    Both local and remote verification adapters receive the preference.
-3. **Remove:** `DELETE /api/v2/projects/:p` requires `{confirm: <project name>}`.
+3. **Remove:** `DELETE /api/projects/:p` requires `{confirm: <project name>}`.
    It checks ownership, fleet guards, active releases/rollbacks and app mutations;
    preserves local backup copies before removing runtime/data; frees deployment
    routes and membership; and retains copies for 30 days after completion.
@@ -29,8 +29,8 @@ live service, worker, container, installed app, or other worktree was changed.
    relay. Failed removal retains a durable receipt and can be resumed. Removal
    blocks new project releases. Local backup archives are isolated from app-name
    reuse and expire through an hourly sweep and access-time cleanup.
-   `GET /api/v2/projects/removed` lists retained copies, with an owner-only
-   `/api/v2/projects/removed/:archiveId/backup` download. Old release backup paths
+   `GET /api/removed-projects` lists retained copies, with an owner-only
+   `/api/removed-projects/:archiveId/backup` download. Old release backup paths
    are detached so a reused app name cannot expose another owner's files.
 4. **Project UI:** retention and Verify save; Remove has a typed-name confirmation
    and real error handling. `settings?key=NAME` edits an existing variable/secret
@@ -52,7 +52,7 @@ live service, worker, container, installed app, or other worktree was changed.
 8. **iPhone:** owner-scoped agent control GET/PATCH endpoints support pause/resume
    and mute for one hour/unmute. Pause blocks new agent conversation work and
    unattended Warden rollback, including automatic proposals. Mute suppresses that
-   agent's push notifications until expiry. GET/PATCH `/api/v2/notifications`
+   agent's push notifications until expiry. GET/PATCH `/api/notifications`
    supports Decisions, Failing apps, and quiet hours (22:00–07:00 in the supplied
    IANA timezone), except rollback decisions. Turning a category off or explicitly
    muting an agent still takes precedence. Pair-derived APNs registrations are
@@ -144,7 +144,7 @@ admission point. No scheduler is implied by an agent's textual schedule today.
 ## iPhone build and capture after the final merge (added by the orchestrating session)
 
 - From the merged branch (`7caf957`): `xcodegen generate`, then `xcodebuild` DeployIOS (Debug, iOS Simulator) succeeds. DeployMac also built from `fe3f7ce`.
-- The part 2 fixture (`docs/evidence/v2/12-ios-2/fixture-server.mjs`) now also serves `/api/v2/notifications`, `/api/v2/devices` and `/api/v2/agents/:id/control`. Without them, Settings showed "Fixture endpoint unavailable (404)".
+- The part 2 fixture (`docs/evidence/v2/12-ios-2/fixture-server.mjs`) now also serves `/api/notifications`, `/api/devices` and `/api/agents/:id/control`. Without them, Settings showed "Fixture endpoint unavailable (404)".
 - Captured on the dedicated 390-pt simulator and paired (`ios/SettingsPhone-390.png`, `ios/AgentMenuPhone-390.png`, board left):
   - **SettingsPhone** shows Decisions, Failing apps and Quiet hours as real switches, plus paired devices.
   - **AgentMenuPhone** shows Mute for 1 hour, Tune and Pause, as on the board.

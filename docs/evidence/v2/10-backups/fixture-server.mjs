@@ -44,7 +44,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(body));
   };
-  if (url.pathname === '/api/v2/backups')
+  if (url.pathname === '/api/backups')
     return send({
       backups,
       restores,
@@ -59,7 +59,7 @@ const server = createServer(async (req, res) => {
       ],
     });
   const match = url.pathname.match(
-    /^\/api\/v2\/backups\/([^/]+)\/(restore|test)(?:\/([^/]+)\/(switch|cancel))?$/,
+    /^\/api\/backups\/([^/]+)\/(restore|test)(?:\/([^/]+)\/(switch|cancel))?$/,
   );
   if (match && req.method === 'POST') {
     if (match[2] === 'test') return send({ status: 'passed', testedAt: new Date().toISOString() });
@@ -89,7 +89,7 @@ const server = createServer(async (req, res) => {
     res.end('Fixture copy: home-gym data is ready to check.');
     return;
   }
-  if (url.pathname === '/api/v2/events') {
+  if (url.pathname === '/api/activity-events') {
     const timer = setTimeout(() => send({ events: [], cursor: 0, supportsWait: true }), 10000);
     res.on('close', () => clearTimeout(timer));
     return;
@@ -97,9 +97,9 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/user') return send({ username: 'Gabriel' });
   if (url.pathname === '/api/nodes')
     return send({ nodes: [1, 2, 3].map(() => ({ online: true })) });
-  if (url.pathname === '/api/v2/live') return send({ summary: { running: 7, failing: 1 } });
-  if (url.pathname === '/api/workspace/state') return send({ tasks: [], runs: [] });
-  if (url.pathname === '/api/v2/inbox')
+  if (url.pathname === '/api/live') return send({ summary: { running: 7, failing: 1 } });
+  if (url.pathname === '/api/state') return send({ tasks: [], runs: [] });
+  if (url.pathname === '/api/inbox')
     return send({
       items: [
         ['Roll back home-gym?', 0],

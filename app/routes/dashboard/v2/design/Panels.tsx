@@ -2531,7 +2531,7 @@ export function RightPanel({
                   {(board.w <= 500 ? [board.w] : [1440, 700]).map((width) => (
                     <a
                       key={width}
-                      href={`/api/v2/projects/${encodeURIComponent(project.id)}/design/render?ref=${design.commit}&board=${encodeURIComponent(selection.board)}&width=${width}`}
+                      href={`/api/projects/${encodeURIComponent(project.id)}/design/render?ref=${design.commit}&board=${encodeURIComponent(selection.board)}&width=${width}`}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -2621,7 +2621,7 @@ export function useChanges(projectId: string | undefined, ref: string, commit: s
     files: { status: string; path: string; layers?: LayerChange[] }[];
   }>(
     projectId && commit
-      ? `/api/v2/projects/${encodeURIComponent(projectId)}/design/changes?ref=${encodeURIComponent(ref)}&v=${commit}`
+      ? `/api/projects/${encodeURIComponent(projectId)}/design/changes?ref=${encodeURIComponent(ref)}&v=${commit}`
       : undefined,
   );
   return data?.files ?? [];

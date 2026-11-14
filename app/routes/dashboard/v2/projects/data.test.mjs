@@ -17,7 +17,7 @@ test('known project counts survive refresh, failed reads and remounts; other pro
   };
   const open = () =>
     componentHarness('app/routes/dashboard/v2/projects/data.ts', stubs, { AbortController });
-  const path = '/api/v2/projects/gym/overview';
+  const path = '/api/projects/gym/overview';
   const known = { pulls: [{ state: 'open' }], issues: [{}], project: { apps: [{ name: 'web' }] } };
   let h = await open();
   const read = (key = path) => h.render(() => h.exports.useData(key));
@@ -38,15 +38,15 @@ test('known project counts survive refresh, failed reads and remounts; other pro
   h = await open();
   assert.equal(read().data, known, 'remount starts with cached counts');
   h.effects();
-  read('/api/v2/projects/other/overview');
+  read('/api/projects/other/overview');
   h.effects();
-  assert.equal(read('/api/v2/projects/other/overview').data, undefined);
+  assert.equal(read('/api/projects/other/overview').data, undefined);
   assert.equal(pending[0].init.signal.aborted, true);
   h.dispose();
 });
 
 test('a server seed skips the first request and refreshes after an event, including a subscription gap', async () => {
-  const path = '/api/v2/projects/p/overview';
+  const path = '/api/projects/p/overview';
   const seed = { owner: 'owner', at: Date.now(), cursor: 10, data: { [path]: { name: 'server' } } };
   let subscriber;
   const requests = [];

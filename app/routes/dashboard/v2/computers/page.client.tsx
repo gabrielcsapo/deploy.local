@@ -278,7 +278,7 @@ function AddComputer({ onClose }: { onClose: () => void }) {
   );
 }
 function Models() {
-  const { data, error, refresh } = useComputerData<ComputerModels>('/computers/models');
+  const { data, error, refresh } = useComputerData<ComputerModels>('/model-settings');
   const [saving, setSaving] = useState(false),
     [saveError, setSaveError] = useState('');
   async function change(key: keyof ComputerModels['defaults'], value: string) {
@@ -286,7 +286,7 @@ function Models() {
     setSaving(true);
     setSaveError('');
     try {
-      await computerRequest('/computers/models', 'PUT', {
+      await computerRequest('/model-settings', 'PUT', {
         defaults: { ...data.defaults, [key]: value || null },
       });
       refresh();

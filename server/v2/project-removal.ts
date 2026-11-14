@@ -499,7 +499,7 @@ const removalRoute = routes<string>();
 const removedProjectsApi = dispatch([
   removalRoute({
     method: 'GET',
-    path: '/api/v2/projects/removed',
+    path: '/api/removed-projects',
     handler: ({ res, context: owner }) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(
@@ -509,7 +509,7 @@ const removedProjectsApi = dispatch([
             name: row.project.name,
             removedAt: row.removedAt,
             retainUntil: row.retainUntil,
-            backupUrl: `/api/v2/projects/removed/${row.id}/backup`,
+            backupUrl: `/api/removed-projects/${row.id}/backup`,
           })),
         }),
       );
@@ -518,7 +518,7 @@ const removedProjectsApi = dispatch([
   }),
   removalRoute({
     method: 'GET',
-    path: '/api/v2/projects/removed/:id/backup',
+    path: '/api/removed-projects/:id/backup',
     handler: ({ res, params, context: owner }) => {
       const receipt = list('v2-removed-project', owner).find((row) => row.id === params.id);
       if (!receipt) fail('Retained backups not found', 404);
@@ -547,7 +547,7 @@ const removedProjectsApi = dispatch([
   }),
   removalRoute({
     method: 'DELETE',
-    path: '/api/v2/projects/:project',
+    path: '/api/projects/:project',
     handler: async ({ req, res, params, context: owner }) => {
       const key = decodeURIComponent(params.project);
       const pending = list('v2-project-removal', owner).find(
@@ -565,7 +565,7 @@ const removedProjectsApi = dispatch([
 export async function projectRemovalApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname;
   // This prefix deliberately also covers unmatched GETs (including removedXYZ).
-  if (req.method === 'GET' && path.startsWith('/api/v2/projects/removed'))
+  if (req.method === 'GET' && path.startsWith('/api/removed-projects'))
     await purgeRemovedProjects(owner);
   return removedProjectsApi(req, res, owner);
 }

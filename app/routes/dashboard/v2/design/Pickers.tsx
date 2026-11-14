@@ -78,7 +78,7 @@ function Choice({
 /** Each project with how many boards its design has on main; ones without one say so. */
 export function useDesignProjects() {
   return useData<{ projects: { id: string; name: string; boards: number }[] }>(
-    '/api/v2/design/projects',
+    '/api/design/projects',
   ).data?.projects;
 }
 

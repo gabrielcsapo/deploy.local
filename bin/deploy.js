@@ -3135,7 +3135,7 @@ async function cmdCatalog(action, args, options, serverUrl) {
     if (!id) throw new Error('Usage: deploy catalog inspect <catalog-id> [release]');
     const release = await resolveCatalogRelease(adminRequest, id, args[1] || options.release);
     const result = await adminRequest(
-      `/api/catalog/${encodeURIComponent(id)}/${encodeURIComponent(release)}`,
+      `/api/catalog/releases/${encodeURIComponent(id)}/${encodeURIComponent(release)}`,
     );
     console.log(JSON.stringify(result, null, 2));
     return;
@@ -3146,7 +3146,7 @@ async function cmdCatalog(action, args, options, serverUrl) {
     const release = await resolveCatalogRelease(adminRequest, id, args[1] || options.release);
     const applicationName = options.name || id;
     const result = await adminRequest(
-      `/api/catalog/${encodeURIComponent(id)}/${encodeURIComponent(release)}/${action}`,
+      `/api/catalog/releases/${encodeURIComponent(id)}/${encodeURIComponent(release)}/${action}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

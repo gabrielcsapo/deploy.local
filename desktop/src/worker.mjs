@@ -68,7 +68,7 @@ export class WorkerManager {
       return enrollment;
     }
     if (!enrollment)
-      enrollment = await client.request('/api/workspace/workers/enroll', {
+      enrollment = await client.request('/api/workers/enroll', {
         method: 'POST',
         body: { workerId: `desktop-${randomUUID()}`, operationId: randomUUID() },
       });

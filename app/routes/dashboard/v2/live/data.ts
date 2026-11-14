@@ -9,7 +9,7 @@ export async function liveRequest<T>(
   signal?: AbortSignal,
   body?: unknown,
 ): Promise<T> {
-  const response = await authenticatedFetch(`/api/v2${path}`, {
+  const response = await authenticatedFetch(`/api${path}`, {
     signal,
     headers: {
       'Content-Type': 'application/json',
@@ -28,12 +28,12 @@ export async function liveRequest<T>(
 
 export function useLive(appId?: string) {
   const seed = useDataSeed();
-  const detailKey = appId && `/api/v2/live/${encodeURIComponent(appId)}`;
-  const initialLive = () => remembered<LiveResponse>('/api/v2/live', seed);
+  const detailKey = appId && `/api/live/${encodeURIComponent(appId)}`;
+  const initialLive = () => remembered<LiveResponse>('/api/live', seed);
   const initialDetail = () =>
     detailKey ? remembered<LiveAppResponse>(detailKey, seed) : undefined;
   const initialItems = () =>
-    remembered<{ items: InboxItem[] }>('/api/v2/inbox?state=waiting', seed)?.items ?? [];
+    remembered<{ items: InboxItem[] }>('/api/inbox?state=waiting', seed)?.items ?? [];
   const [loadedSeed, setLoadedSeed] = useState(seed);
   const [live, setLive] = useState(initialLive);
   const [detail, setDetail] = useState(() =>
@@ -41,7 +41,7 @@ export function useLive(appId?: string) {
   );
   const [items, setItems] = useState<InboxItem[]>(() => (seed ? initialItems() : []));
   const [error, setError] = useState(
-    () => seed?.errors?.[detailKey || '/api/v2/live'] ?? seed?.errors?.['/api/v2/live'] ?? '',
+    () => seed?.errors?.[detailKey || '/api/live'] ?? seed?.errors?.['/api/live'] ?? '',
   );
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -50,21 +50,19 @@ export function useLive(appId?: string) {
     let stopped = false;
     let loaded =
       !!seed &&
-      !!remembered<LiveResponse>('/api/v2/live', seed) &&
+      !!remembered<LiveResponse>('/api/live', seed) &&
       (!detailKey || !!remembered<LiveAppResponse>(detailKey, seed));
     let skipSnapshot =
       attempt === 0 &&
-      freshSeed(seed, '/api/v2/live') &&
-      freshSeed(seed, '/api/v2/inbox?state=waiting') &&
+      freshSeed(seed, '/api/live') &&
+      freshSeed(seed, '/api/inbox?state=waiting') &&
       (!detailKey || freshSeed(seed, detailKey));
     // What Live showed last stays on screen while it refreshes.
     setLoadedSeed(seed);
-    setLive(remembered<LiveResponse>('/api/v2/live', seed));
+    setLive(remembered<LiveResponse>('/api/live', seed));
     setDetail(detailKey ? remembered<LiveAppResponse>(detailKey, seed) : undefined);
     if (seed)
-      setItems(
-        remembered<{ items: InboxItem[] }>('/api/v2/inbox?state=waiting', seed)?.items ?? [],
-      );
+      setItems(remembered<{ items: InboxItem[] }>('/api/inbox?state=waiting', seed)?.items ?? []);
     async function refresh(signal = controller.signal): Promise<boolean> {
       // An event may arrive during a periodic read. Finish that read, then take another
       // snapshot; merely sharing its promise could miss the event that triggered us.
@@ -89,7 +87,7 @@ export function useLive(appId?: string) {
             : undefined,
         ]);
         if (stopped || signal.aborted) return false;
-        remember('/api/v2/live', next);
+        remember('/api/live', next);
         if (detailKey) remember(detailKey, app);
         setLive(next);
         setItems(inbox.items);

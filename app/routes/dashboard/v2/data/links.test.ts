@@ -31,7 +31,7 @@ test('a plain click on a dashboard link stays in the page, with its query and ha
 
 test('the browser follows links elsewhere, downloads, new tabs and modified clicks', () => {
   assert.equal(inAppPath(link('https://example.com/dashboard'), click, origin), null);
-  assert.equal(inAppPath(link('/api/v2/export'), click, origin), null);
+  assert.equal(inAppPath(link('/api/export'), click, origin), null);
   assert.equal(inAppPath(link('/docs'), click, origin), null);
   assert.equal(inAppPath(link('/dashboard/logs', { download: '' }), click, origin), null);
   assert.equal(inAppPath(link('/dashboard/live', { target: '_blank' }), click, origin), null);

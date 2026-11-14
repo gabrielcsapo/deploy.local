@@ -15,9 +15,9 @@ for types; TypeScript clients use `import type`. The contract module has no runt
 Swift equivalents are public Codable types in DeployCore's `V2Contracts.swift`, including
 flat `kind`-tagged conversation objects and two-element arrays for markup points.
 
-- `GET /api/v2/inbox?state=waiting|answered` returns `{ items: InboxItem[] }`.
+- `GET /api/inbox?state=waiting|answered` returns `{ items: InboxItem[] }`.
   The default is `waiting`; items are sorted newest first, then by ID.
-- `POST /api/v2/inbox/:id/answer` takes `{ actionId, on, note? }` and returns `{ item }`.
+- `POST /api/inbox/:id/answer` takes `{ actionId, on, note? }` and returns `{ item }`.
   `on` must be `web`, `iphone`, `desktop`, or `cli`. The server supplies `by` and `at`.
   Use the exact action ID from the item, and URL-encode the item ID in paths.
 - Question IDs are `question:<legacy-id>`. Options have action IDs `option:0`, `option:1`,
@@ -37,7 +37,7 @@ flat `kind`-tagged conversation objects and two-element arrays for markup points
 
 ## Feed and storage
 
-`GET /api/v2/events?after=0&waitMs=10000` returns
+`GET /api/activity-events?after=0&waitMs=10000` returns
 `{ events: V2Event[], cursor: number, supportsWait: true }`. Both query values must be
 non-negative safe integers; the wait is capped at 10 seconds. A disconnect cancels its timer.
 The envelope contains `cursor`, `taskId`, `runId`, `at`, and either:
@@ -113,11 +113,11 @@ All database fixtures use temporary directories; HTTP fixtures bind only ports 5
 
 ## Live and worker health (slice 2)
 
-`GET /api/v2/live` returns `{ summary: { running, failing, warning, checkedAt }, computers }`.
+`GET /api/live` returns `{ summary: { running, failing, warning, checkedAt }, computers }`.
 Computers have `id`, `name`, fixed `roles`, `online`, optional CPU/memory/disk percentages,
 and `apps`. Apps are `AppHealth` plus `name` and optional `project` (project ID), `address`,
 `release`, `releasedAt`. Stopped apps remain in the response but do not count as running.
-`GET /api/v2/live/:app` returns `{ app, history: [{ at, failRate?, p95ms? }] }`.
+`GET /api/live/:app` returns `{ app, history: [{ at, failRate?, p95ms? }] }`.
 Unknown measurements are omitted. Ratios (`failRate`, `baselineFailRate`) are 0–1.
 The owner is always taken from authentication, never from a report body.
 
@@ -140,7 +140,7 @@ health admission and individual component URLs are not guessed from an applicati
 
 ### Report from an app
 
-`POST /api/v2/health/report` accepts:
+`POST /api/health/report` accepts:
 
 ```json
 {

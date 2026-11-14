@@ -14,7 +14,7 @@ export function setAuth(username: string, token: string) {
 }
 
 export function clearAuth() {
-  void fetch('/api/v2/auth/session', {
+  void fetch('/api/auth/session', {
     method: 'DELETE',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },

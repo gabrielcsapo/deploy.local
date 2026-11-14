@@ -48,7 +48,7 @@ export default function Backups() {
   const date = (value?: string) =>
     value ? `${formatTime(value, 'day')}, ${formatTime(value, 'clock')}` : 'Not yet';
   const [data, setData] = useState<BackupsResponse | undefined>(
-    () => seed?.data['/api/v2/backups'] as BackupsResponse | undefined,
+    () => seed?.data['/api/backups'] as BackupsResponse | undefined,
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -71,7 +71,7 @@ export default function Backups() {
   }
   useEffect(() => {
     let active = true;
-    readSeeded(seed, '/api/v2/backups', () => request('/backups'))
+    readSeeded(seed, '/api/backups', () => request('/backups'))
       .then((result: BackupsResponse) => {
         if (!active) return;
         setData(result);
@@ -185,7 +185,7 @@ export default function Backups() {
                         disabled={busy || !data.schedules.length}
                         onClick={() =>
                           void act(async () => {
-                            const response = await authenticatedFetch('/api/v2/backups/run', {
+                            const response = await authenticatedFetch('/api/backups/run', {
                               method: 'POST',
                             });
                             const result = await response.json();

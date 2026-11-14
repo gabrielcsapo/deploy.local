@@ -212,13 +212,13 @@ test('models persist owner defaults and project weekly usage only when reported'
   assert.equal(list('v2-model-defaults', 'owner').length, 1);
 });
 test('HTTP list/detail and models use envelopes, agent writes are refused', async () => {
-  const response = await fetch(`http://127.0.0.1:${port}/api/v2/computers`);
+  const response = await fetch(`http://127.0.0.1:${port}/api/computers`);
   assert.equal(response.status, 200);
   const value = await response.json();
   assert.ok(Array.isArray(value.computers));
-  const detail = await fetch(`http://127.0.0.1:${port}/api/v2/computers/worker%3Amodels`);
+  const detail = await fetch(`http://127.0.0.1:${port}/api/computers/worker%3Amodels`);
   assert.equal((await detail.json()).computer.id, 'worker:models');
-  const rejected = await fetch(`http://127.0.0.1:${port}/api/v2/computers/worker%3Amodels`, {
+  const rejected = await fetch(`http://127.0.0.1:${port}/api/computers/worker%3Amodels`, {
     method: 'PATCH',
     headers: { 'x-deploy-agent-token': 'agent' },
     body: '{"roles":[]}',

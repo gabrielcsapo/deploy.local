@@ -117,7 +117,7 @@ No live coordinator API, service, worker, container or installed app was changed
   through `registerInboxAction`, sharing admission/current-release checks with the project
   rollback POST API. Until then the action returns 501 and stays waiting. Project release
   metadata is deliberately not guessed from legacy per-app deploy history.
-- Inbox/sidebar: consume `summary` from `/api/v2/live` and health events. Existing sidebar is
+- Inbox/sidebar: consume `summary` from `/api/live` and health events. Existing sidebar is
   untouched by this slice. A worker must first establish a measured baseline; absent baseline
   stays Warning. The task's exact two-minute rule overrides the brief's one-minute statement.
 - Worker authors: send non-overlapping 10–60-second deltas using the documented helper. No

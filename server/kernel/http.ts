@@ -1,3 +1,4 @@
+import { readStoredValue as readStoredUrls } from './read-value.ts';
 import type { IncomingMessage, ServerResponse, OutgoingHttpHeaders } from 'node:http';
 import { fail } from './errors.ts';
 
@@ -19,7 +20,7 @@ export function sendJson(
     status,
     options.headers ?? { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   );
-  res.end(JSON.stringify(value));
+  res.end(JSON.stringify(readStoredUrls(value)));
   return true as const;
 }
 

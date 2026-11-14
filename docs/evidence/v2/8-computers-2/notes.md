@@ -8,7 +8,7 @@ listeners were constrained to 5186 and 5187. The isolated screenshot fixture was
 
 ## Work by task item
 
-1. **Coordinator self-release — not implemented.** The existing GET `/api/v2/updates`
+1. **Coordinator self-release — not implemented.** The existing GET `/api/updates`
    still projects the current deploy.local project release. It does not turn the
    host-supervised coordinator into that project. The supervisor has fixed child
    entry paths; restarting the coordinator would also terminate an in-process
@@ -216,7 +216,7 @@ services were updated on this machine.
 
 The existing SelfUpdate structure, group rows and Settings hierarchy remain. The
 text placeholder becomes the design system's real `Switch`, labeled "Auto-update
-computers", backed by PUT `/api/v2/updates`. Errors from saving are visible. Computer
+computers", backed by PUT `/api/updates`. Errors from saving are visible. Computer
 rows now show update failure, startup verification and precise unavailability
 reasons; the coordinator explanation reflects missing safe build support.
 

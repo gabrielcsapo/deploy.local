@@ -13,7 +13,7 @@ test('checked CLI boundary preserves workspace and v2 paths, payloads and respon
   const calls: { path: string; options?: { method?: string; body?: string } }[] = [];
   const api = async (path: string, options?: { method?: string; body?: string }) => {
     calls.push({ path, options });
-    return path === '/api/workspace/state' ? workspaceFixture.state : workspaceFixture.detail.task;
+    return path === '/api/state' ? workspaceFixture.state : workspaceFixture.detail.task;
   };
   assert.equal(await workspaceState(api), workspaceFixture.state);
   assert.equal(
@@ -24,9 +24,9 @@ test('checked CLI boundary preserves workspace and v2 paths, payloads and respon
   await rollbackProject(api, 'a/b', 'old', 'current');
   await answerInbox(api, 'question:one', 'yes');
   assert.deepEqual(calls, [
-    { path: '/api/workspace/state', options: undefined },
+    { path: '/api/state', options: undefined },
     {
-      path: '/api/workspace/tasks',
+      path: '/api/tasks',
       options: {
         method: 'POST',
         body: JSON.stringify({
@@ -37,13 +37,13 @@ test('checked CLI boundary preserves workspace and v2 paths, payloads and respon
         }),
       },
     },
-    { path: '/api/v2/projects/a%2Fb/releases', options: undefined },
+    { path: '/api/projects/a%2Fb/releases', options: undefined },
     {
-      path: '/api/v2/projects/a%2Fb/rollback',
+      path: '/api/projects/a%2Fb/rollback',
       options: { method: 'POST', body: JSON.stringify({ to: 'old', from: 'current' }) },
     },
     {
-      path: '/api/v2/inbox/question%3Aone/answer',
+      path: '/api/inbox/question%3Aone/answer',
       options: { method: 'POST', body: JSON.stringify({ actionId: 'yes', on: 'cli' }) },
     },
   ]);

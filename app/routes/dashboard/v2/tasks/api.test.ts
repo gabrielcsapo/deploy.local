@@ -7,7 +7,7 @@ test('Ship sends only a user-triggered source request and returns the project re
   const release = { id: '9c3e1fa', projectId: 'home gym', steps: [] };
   const request = (async (path, init) => {
     calls++;
-    assert.equal(path, '/api/v2/projects/home%20gym/releases');
+    assert.equal(path, '/api/projects/home%20gym/releases');
     assert.equal(init?.method, 'POST');
     // The release-plan API also takes the ref at the top level; choices are omitted when unset.
     assert.deepEqual(JSON.parse(String(init?.body)), {
@@ -62,7 +62,7 @@ test('Merge pins the reviewed PR revision and both commits to the existing route
   };
   await mergePull(
     (async (path, init) => {
-      assert.equal(path, '/api/workspace/projects/p/pulls/pr/merge');
+      assert.equal(path, '/api/projects/p/pulls/pr/merge');
       const body = JSON.parse(String(init?.body));
       assert.equal(body.revision, 4);
       assert.equal(body.baseCommit, 'a');
@@ -142,7 +142,7 @@ test('PR checks read jobs only from the latest run of the displayed commit', asy
     );
   }) as typeof fetch;
   const checks = await readPullChecks(request, 'p', 'pr', 'head');
-  assert.equal(paths[1], '/api/workspace/projects/p/pipelines/current');
+  assert.equal(paths[1], '/api/projects/p/pipelines/current');
   assert.equal(checks[0].status, 'failed');
   assert.equal(checks[0].headCommit, 'head');
   paths.length = 0;

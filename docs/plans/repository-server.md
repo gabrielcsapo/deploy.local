@@ -17,15 +17,15 @@ DEPLOY_DATA_DIR=/absolute/server/data pnpm workspace:repositories
 DEPLOY_DATA_DIR=/absolute/server/data pnpm workspace:doctor
 ```
 
-The disposable `workspace:preview` starts its own repository and pipeline services automatically. Do not start a second one for the same data directory. The doctor reports Git availability, writable storage, available disk bytes, and repository-service heartbeat; its exit status is nonzero until all prerequisites are ready. Authenticated clients get the same report and their operation counts from `GET /api/workspace/repositories/setup`.
+The disposable `workspace:preview` starts its own repository and pipeline services automatically. Do not start a second one for the same data directory. The doctor reports Git availability, writable storage, available disk bytes, and repository-service heartbeat; its exit status is nonzero until all prerequisites are ready. Authenticated clients get the same report and their operation counts from `GET /api/repositories/setup`.
 
 Private Git sources use the server service account's existing Git credential helper or SSH configuration/agent and known-hosts store. Configure these for that account before importing. Import is noninteractive; prompts produce a visible failed operation. Source URLs containing credentials or query parameters are rejected. SSH user names are allowed. A local import path means a path on the server, not on the phone or another computer.
 
 ## Create or import
 
-`POST /api/workspace/projects` accepts `{operationId,name,sourcePath?}`. Omit `sourcePath` for a hosted repository; provide an absolute server path or an HTTP(S)/SSH Git remote to import committed history. The response is the project, with HTTP 202 and `repositoryStatus:"preparing"`. Retrying the same command returns the same project and its current setup state.
+`POST /api/repository-projects` accepts `{operationId,name,sourcePath?}`. Omit `sourcePath` for a hosted repository; provide an absolute server path or an HTTP(S)/SSH Git remote to import committed history. The response is the project, with HTTP 202 and `repositoryStatus:"preparing"`. Retrying the same command returns the same project and its current setup state.
 
-Poll `GET /api/workspace/projects/:id/repository`. The response includes:
+Poll `GET /api/projects/:id/repository`. The response includes:
 
 - `status`: `preparing`, `ready`, `failed`, or `unknown`.
 - `source`: original location, kind (`hosted`, `local`, `remote`), `authority:"deploy.local"`, and `syncPolicy`.
@@ -43,13 +43,13 @@ Task creation and Git transport reject repositories that are not ready with HTTP
 
 The hosted copy becomes the project's source of truth. Import is not bidirectional synchronization. `POST .../repository/fetch` with a new operation ID fetches source branches atomically into `refs/remotes/upstream/*`; it does not change local branches, default HEAD, active task worktrees, source files, or the external remote. Tags are preserved by the initial import; subsequent fetches do not update tags or prune upstream refs. External publishing remains an explicit ordinary Git action.
 
-Clone/fetch/push use the existing authenticated smart HTTP path `/api/workspace/git/:projectId`. Use a normal deploy.local account and its session token as the Git password, or the existing supported auth headers. Keep tokens in a credential manager, not a clone URL. Enrolled execution workers retain read-only access to their assigned project; they cannot browse unrelated projects or push.
+Clone/fetch/push use the existing authenticated smart HTTP path `/api/git/:projectId`. Use a normal deploy.local account and its session token as the Git password, or the existing supported auth headers. Keep tokens in a credential manager, not a clone URL. Enrolled execution workers retain read-only access to their assigned project; they cannot browse unrelated projects or push.
 
 Transfers have backpressure, a deadline, bounded CGI headers, cancellation on client disconnect, and failure responses when Git cannot start. Only smart Git discovery/RPC paths are served; repository internals and dumb HTTP files are not exposed.
 
 ## Commit-pinned source context
 
-Authenticated, owner-scoped reads are available under `/api/workspace/projects/:id/repository`:
+Authenticated, owner-scoped reads are available under `/api/projects/:id/repository`:
 
 | Route      | Inputs                                          | Result                                                               |
 | ---------- | ----------------------------------------------- | -------------------------------------------------------------------- |
@@ -153,7 +153,7 @@ CA trust configuration. The disposable workspace-only preview has no deployment 
 ## Git LFS
 
 Hosted repositories support the Git LFS basic batch, upload, verify and download protocol under
-`/api/workspace/git/:projectId/info/lfs`; the optional `.git` suffix is accepted. Objects are
+`/api/git/:projectId/info/lfs`; the optional `.git` suffix is accepted. Objects are
 streamed, SHA-256 verified and published atomically, with a 2 GiB per-object limit. Downloads are
 owner/project scoped. Workers can only download assets for a currently assigned repository and
 cannot upload. Objects live beside the bare repository in its standard `lfs/objects` layout.

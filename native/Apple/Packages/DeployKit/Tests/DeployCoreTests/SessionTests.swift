@@ -20,7 +20,7 @@ import Foundation
 @Test(arguments: ["https://other.local/api/state", "http://deploy.local/api/state", "https://deploy.local:8443/api/state"])
 func credentialsCannotFollowRedirects(destination: String) async throws {
     let session = URLSession(configuration: .ephemeral)
-    let origin = URL(string: "https://deploy.local/api/workspace/state")!
+    let origin = URL(string: "https://deploy.local/api/state")!
     var request = URLRequest(url: origin)
     request.setValue("test-only-token", forHTTPHeaderField: "X-Deploy-Token")
     let task = session.dataTask(with: request)

@@ -38,11 +38,9 @@ export function DeleteTaskDialog({
     setPending(false);
     if (!id) return;
     const controller = new AbortController();
-    requestJson<TaskDeletion>(
-      authenticatedFetch,
-      `/api/workspace/tasks/${encodeURIComponent(id)}/deletion`,
-      { signal: controller.signal },
-    )
+    requestJson<TaskDeletion>(authenticatedFetch, `/api/tasks/${encodeURIComponent(id)}/deletion`, {
+      signal: controller.signal,
+    })
       .then((value) => {
         if (controller.signal.aborted) return;
         setDeletion(value);

@@ -81,19 +81,17 @@ const packages = [
 ];
 export function payload(path: string, query = new URLSearchParams()): unknown {
   if (path === '/api/user') return { username: 'gabriel', role: 'admin' };
-  if (path === '/api/workspace/state')
-    return { cursor: 1, projects: [project], tasks: [task], workers: [] };
-  if (path === '/api/v2/projects') return { projects: [project] };
-  if (path === '/api/v2/agents') return { agents: [agent] };
+  if (path === '/api/state') return { cursor: 1, projects: [project], tasks: [task], workers: [] };
+  if (path === '/api/projects') return { projects: [project] };
+  if (path === '/api/agents') return { agents: [agent] };
   if (path === '/api/nodes')
     return { nodes: [{ id: 'coordinator', name: 'SER', kind: 'coordinator', online: true }] };
-  if (path === '/api/v2/inbox')
+  if (path === '/api/inbox')
     return { items: query.get('state') === 'answered' ? [] : [decision], cursor: 1 };
-  if (path === '/api/v2/live') return live;
-  if (path.startsWith('/api/v2/live/')) return { app: live.computers[0].apps[0], history: [] };
-  if (path === '/api/workspace/tasks/sync')
-    return { task, messages: [], runs: [], events: [], cursor: 1 };
-  if (path === '/api/workspace/tasks/sync/diff')
+  if (path === '/api/live') return live;
+  if (path.startsWith('/api/live/')) return { app: live.computers[0].apps[0], history: [] };
+  if (path === '/api/tasks/sync') return { task, messages: [], runs: [], events: [], cursor: 1 };
+  if (path === '/api/tasks/sync/diff')
     return {
       baseRevision: 'fixture',
       headRevision: 'fixture',
@@ -102,14 +100,14 @@ export function payload(path: string, query = new URLSearchParams()): unknown {
       files: [],
       checks: [],
     };
-  if (path === '/api/v2/packages') return { packages };
-  if (path === '/api/v2/packages/cache')
+  if (path === '/api/packages') return { packages };
+  if (path === '/api/packages/cache')
     return {
       sources: [{ name: 'npmjs.org', reachable: true, checkedAt: at() }],
       projects: [{ missing: 0, checkedAt: at(), removed: [] }],
       storage: { bytes: 1073741824, limit: 10737418240 },
     };
-  if (path.startsWith('/api/v2/packages/'))
+  if (path.startsWith('/api/packages/'))
     return {
       versions: [
         {
@@ -121,7 +119,7 @@ export function payload(path: string, query = new URLSearchParams()): unknown {
         },
       ],
     };
-  if (path === '/api/v2/approvals') return { rules: [] };
+  if (path === '/api/approvals') return { rules: [] };
   return null;
 }
 export function cachedSnapshot() {
@@ -130,7 +128,7 @@ export function cachedSnapshot() {
     inbox: [decision],
     inboxPosition: { waiting: 1, answered: 1, items: { [decision.id]: 1 } },
     live,
-    workspace: payload('/api/workspace/state'),
+    workspace: payload('/api/state'),
     projects: [project],
     agents: [agent],
     computers: [{ id: 'coordinator', name: 'SER', online: true }],
@@ -171,18 +169,18 @@ export function createLoadingFixture(initialBoard = 'HomeLoadingPhone') {
   const counts: Record<string, number> = {};
   function policy(path: string): Behavior {
     if (board === 'PackagesPhone' || board === 'PackageVersionsPhone') {
-      if (path === '/api/v2/packages/cache') return copiesBehavior;
-      if (path === '/api/v2/packages')
+      if (path === '/api/packages/cache') return copiesBehavior;
+      if (path === '/api/packages')
         return board === 'PackageVersionsPhone' ? 'success' : privateBehavior;
-      if (path.startsWith('/api/v2/packages/')) return behavior ?? 'hang';
+      if (path.startsWith('/api/packages/')) return behavior ?? 'hang';
       return 'success';
     }
     if (board === 'TaskLoadingPhone')
-      return path.startsWith('/api/workspace/tasks/') ? (behavior ?? 'hang') : 'success';
+      return path.startsWith('/api/tasks/') ? (behavior ?? 'hang') : 'success';
     if (board === 'ProjectsLoadingPhone')
-      return path === '/api/v2/projects' ? (behavior ?? 'hang') : 'success';
+      return path === '/api/projects' ? (behavior ?? 'hang') : 'success';
     if (board === 'LiveLoadingPhone')
-      return path === '/api/v2/live' ? (behavior ?? 'hang') : 'success';
+      return path === '/api/live' ? (behavior ?? 'hang') : 'success';
     return behavior ?? (board === 'HomeUnavailablePhone' ? 'fail' : 'hang');
   }
   function send(res: ServerResponse, value: unknown, status = 200) {
@@ -227,7 +225,7 @@ export function createLoadingFixture(initialBoard = 'HomeLoadingPhone') {
     }
     if (path === '/fixture') return send(res, { board, boards, pending: pending.size, counts });
     counts[path] = (counts[path] ?? 0) + 1;
-    if (path === '/api/v2/events') {
+    if (path === '/api/activity-events') {
       const timer = setTimeout(
         () => send(res, { events: [], cursor: 1, supportsWait: true }),
         10_000,
@@ -248,12 +246,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(
       JSON.stringify({
         cache: cachedSnapshot(),
-        task: payload('/api/workspace/tasks/sync'),
-        diff: payload('/api/workspace/tasks/sync/diff'),
-        live: payload('/api/v2/live'),
-        packages: payload('/api/v2/packages'),
-        copies: payload('/api/v2/packages/cache'),
-        versions: payload('/api/v2/packages/npm/@home/shared'),
+        task: payload('/api/tasks/sync'),
+        diff: payload('/api/tasks/sync/diff'),
+        live: payload('/api/live'),
+        packages: payload('/api/packages'),
+        copies: payload('/api/packages/cache'),
+        versions: payload('/api/packages/npm/@home/shared'),
       }),
     );
     process.exit(0);

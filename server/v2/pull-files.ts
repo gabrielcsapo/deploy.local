@@ -108,7 +108,7 @@ function present(row: any): PullFile {
     kind: row.kind,
     type: row.type,
     bytes: row.bytes,
-    url: `/api/v2/pulls/${encodeURIComponent(row.pullId)}/files/${row.id}`,
+    url: `/api/pulls/${encodeURIComponent(row.pullId)}/files/${row.id}`,
     createdAt: row.createdAt,
     ...(row.durationSeconds ? { durationSeconds: row.durationSeconds } : {}),
   };
@@ -191,13 +191,13 @@ const route = routes<string>();
 export const pullFilesRoutes = [
   route({
     method: '*',
-    path: '/api/v2/pulls/:pull/files',
+    path: '/api/pulls/:pull/files',
     handler: ({ req, res, params, context }) =>
       pullFilesRoute(req, res, context, params.pull, undefined),
   }),
   route({
     method: '*',
-    path: '/api/v2/pulls/:pull/files/:file([a-f0-9-]+)',
+    path: '/api/pulls/:pull/files/:file([a-f0-9-]+)',
     handler: ({ req, res, params, context }) =>
       pullFilesRoute(req, res, context, params.pull, params.file),
   }),

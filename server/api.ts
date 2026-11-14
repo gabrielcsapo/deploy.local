@@ -22,18 +22,7 @@ import { getDeployment, logRequest } from './store.ts';
 import { createHotPathHandler } from './edge/proxy.ts';
 import { emit } from './events.ts';
 import { type ApiRouteContext } from './api/context.ts';
-import { v2Routes } from './api/v2.ts';
-import { workspaceRoutes } from './api/workspace.ts';
-import { catalogRoutes } from './api/catalog.ts';
-import { authRoutes } from './api/auth.ts';
-import { fleetRoutes } from './api/fleet.ts';
-import { uploadRoutes } from './api/upload.ts';
-import { deploymentsRoutes } from './api/deployments.ts';
-import { containersRoutes } from './api/containers.ts';
-import { healthRoutes } from './api/health.ts';
-import { requestsRoutes } from './api/requests.ts';
-import { backupsRoutes } from './api/backups.ts';
-import { buildLogsRoutes } from './api/build-logs.ts';
+import { apiRoutes } from './api/registry.ts';
 import { observeRequest } from './v2/diagnostics.ts';
 
 // ── Reverse proxy hot path ──────────────────────────────────────────────────
@@ -143,29 +132,18 @@ export function apiMiddleware() {
       return;
     }
     if (shortGit) req.url = shortGit.url;
-    const workspacePath = shortGit ? '/api/workspace/git/' : path;
+    const workspacePath = shortGit ? new URL(req.url!, url).pathname : path;
 
     observeRequest(req, res, path);
     const ctx: ApiRouteContext = {
       req,
       res,
-      path,
+      path: workspacePath,
       method,
-      url,
+      url: shortGit ? new URL(req.url!, url) : url,
       workspacePath,
     };
-    if (await v2Routes(ctx)) return;
-    if (await workspaceRoutes(ctx)) return;
-    if (await catalogRoutes(ctx)) return;
-    if (await authRoutes(ctx)) return;
-    if (await fleetRoutes(ctx)) return;
-    if (await uploadRoutes(ctx)) return;
-    if (await deploymentsRoutes(ctx)) return;
-    if (await containersRoutes(ctx)) return;
-    if (await healthRoutes(ctx)) return;
-    if (await requestsRoutes(ctx)) return;
-    if (await backupsRoutes(ctx)) return;
-    if (await buildLogsRoutes(ctx)) return;
+    if (await apiRoutes(ctx)) return;
     try {
       // ── Not an API route — pass to next middleware ─────────────────────
       next();

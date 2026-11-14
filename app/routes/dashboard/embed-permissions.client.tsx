@@ -33,7 +33,7 @@ function headers(): Record<string, string> {
 
 /**
  * Computer permissions without dashboard chrome, for a narrow embedded window such as a node's
- * own tray app. All state comes from GET /api/workspace/computers[/:id/permissions].
+ * own tray app. All state comes from GET /api/worker-permissions and /api/computers/:id/permissions.
  */
 export default function EmbedPermissionsClient() {
   const { workerId } = useParams() as { workerId?: string };
@@ -54,8 +54,8 @@ export default function EmbedPermissionsClient() {
     if (!getAuth()) return setSignedOut(true);
     try {
       const path = workerId
-        ? `/api/workspace/computers/${encodeURIComponent(workerId)}/permissions`
-        : '/api/workspace/computers';
+        ? `/api/computers/${encodeURIComponent(workerId)}/permissions`
+        : '/api/worker-permissions';
       const response = await fetch(path, { headers: headers() });
       if (response.status === 401) return setSignedOut(true);
       const body = await response.json();
@@ -138,14 +138,11 @@ export default function EmbedPermissionsClient() {
     if (!revoke) return;
     const target = revoke;
     setRevoke(null);
-    const response = await fetch(
-      `/api/workspace/computers/${encodeURIComponent(target.id)}/revoke`,
-      {
-        method: 'POST',
-        headers: { ...headers(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operationId: crypto.randomUUID() }),
-      },
-    );
+    const response = await fetch(`/api/computers/${encodeURIComponent(target.id)}/revoke`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operationId: crypto.randomUUID() }),
+    });
     if (!response.ok) setError((await response.json()).error || 'Unable to revoke');
     await load();
   }

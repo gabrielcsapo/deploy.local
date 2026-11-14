@@ -181,7 +181,7 @@ export async function rewriteMedia(
       try {
         const attachment = await upload(reference.path, match[1]);
         attachmentIds.push(attachment.id);
-        rewritten += `![${match[1]}](/api/workspace/attachments/${attachment.id})`;
+        rewritten += `![${match[1]}](/api/attachments/${attachment.id})`;
       } catch (error: any) {
         errors.push(error.message);
         rewritten += `${match[1] || 'Image'}: Image unavailable (${error.message})`;

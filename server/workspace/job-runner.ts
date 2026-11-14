@@ -1,3 +1,4 @@
+import { rewriteManagedGitUrl } from './git-url-migration.ts';
 import { finishPackageJob } from './package-publish.ts';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { preparePackageInstall, secretOutput } from '../../shared/package-install.mjs';
@@ -147,7 +148,14 @@ export class JobRunner {
         this.preparation = new AbortController();
         mkdirSync(cwd);
         if (job.container) writeFileSync(cwd + '.container', String(job.container));
-        const source = assignment.repository;
+        const source = {
+          ...assignment.repository,
+          location: rewriteManagedGitUrl(
+            assignment.repository.location,
+            this.authentication ? [this.authentication.origin] : ['https://deploy.local'],
+            true,
+          ),
+        };
         const location =
           source.location.startsWith('/api/') && this.authentication
             ? this.authentication.origin + source.location
@@ -175,7 +183,14 @@ export class JobRunner {
         // A checkpoint job still gets a fresh, isolated directory holding the whole tree: the
         // base commit comes from the coordinator's Git, then the checkpoint's delta is applied.
         await restoreCheckpoint(assignment.snapshot, cwd, async (commit, destination) => {
-          const base = assignment.base;
+          const base = assignment.base && {
+            ...assignment.base,
+            location: rewriteManagedGitUrl(
+              assignment.base.location,
+              this.authentication ? [this.authentication.origin] : ['https://deploy.local'],
+              true,
+            ),
+          };
           if (base?.commit !== commit)
             throw new Error('The coordinator did not send this checkpoint’s base commit');
           this.preparation = new AbortController();

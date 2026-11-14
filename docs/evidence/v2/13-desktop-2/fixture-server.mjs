@@ -196,9 +196,9 @@ export async function startFixture({ previews = false, port = 5184 } = {}) {
       return send({ token: 'fixture-session-only' });
     if (req.headers['x-deploy-token'] !== 'fixture-session-only')
       return send({ error: 'Sign in' }, 401);
-    if (url.pathname === '/api/v2/inbox') return send({ items: inbox });
-    if (url.pathname === '/api/v2/live') return send(live);
-    if (url.pathname === '/api/v2/events') {
+    if (url.pathname === '/api/inbox') return send({ items: inbox });
+    if (url.pathname === '/api/live') return send(live);
+    if (url.pathname === '/api/activity-events') {
       const timer = setTimeout(
         () => send({ events: [], cursor: Number(url.searchParams.get('after') || 0) }),
         1000,
@@ -206,8 +206,8 @@ export async function startFixture({ previews = false, port = 5184 } = {}) {
       res.on('close', () => clearTimeout(timer));
       return;
     }
-    if (url.pathname === '/api/v2/computers') return send({ computers: state.computers });
-    if (url.pathname === '/api/v2/computers/worker%3Adesktop-fixture' && req.method === 'PATCH') {
+    if (url.pathname === '/api/computers') return send({ computers: state.computers });
+    if (url.pathname === '/api/computers/worker%3Adesktop-fixture' && req.method === 'PATCH') {
       let data = '';
       for await (const chunk of req) data += chunk;
       state.computers[1].roles = JSON.parse(data).roles;

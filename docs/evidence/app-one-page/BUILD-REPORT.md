@@ -52,7 +52,7 @@ Changes are left in the working tree. No Git writes, commits, pushes, deployment
 
 ## 7. Running release Output
 
-- Added owner-scoped `GET /api/v2/releases/:id/output` returning `{ output }`. It first checks ownership of the release, then resolves only that owner's upload/build-log pairing. Existing agent/worker restrictions remain.
+- Added owner-scoped `GET /api/releases/:id/output` returning `{ output }`. It first checks ownership of the release, then resolves only that owner's upload/build-log pairing. Existing agent/worker restrictions remain.
 - Reads at most 64 KiB from the file, retains at most 200 lines, handles UTF-8 boundaries and missing files, and closes file handles. Does not read an entire large build log into memory.
 - Running releases poll every two seconds; Output is absent until text exists. Shows an existing Group and Term with a quiet Full log link to project logs, retaining app scope. Polls abort on unmount; terminal releases show their existing result view.
 - Files: `server/v2/releases-api.ts`, `server/v2/release-build-log.ts`, `server/v2/release-build-log.test.ts`, `releases/page.client.tsx`.

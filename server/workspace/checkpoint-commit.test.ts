@@ -61,7 +61,7 @@ function request(scope: any, cwd: string, branch?: string) {
 async function endpoint(token: string, args: any) {
   const req = Object.assign(Readable.from([JSON.stringify({ name: 'deploy_commit', args })]), {
     method: 'POST',
-    url: '/api/workspace/agent/tools',
+    url: '/api/agent/tools',
     headers: { 'x-deploy-agent-token': token },
   }) as unknown as IncomingMessage;
   let status = 0,

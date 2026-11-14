@@ -284,7 +284,7 @@ test('owner permission persists, disabling closes immediately, audits are worksp
   await once(server, 'listening');
   try {
     const response = await fetch(
-      `http://127.0.0.1:${(server.address() as any).port}/api/workspace/computers/ser/terminal`,
+      `http://127.0.0.1:${(server.address() as any).port}/api/computers/ser/terminal`,
       {
         method: 'POST',
         headers: { 'x-deploy-worker-id': 'ser', 'x-deploy-worker-token': credential.workerToken },

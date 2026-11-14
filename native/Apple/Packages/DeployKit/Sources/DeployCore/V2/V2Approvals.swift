@@ -56,7 +56,7 @@ public struct V2Approvals: Codable, Sendable {
 
 extension V2Client {
     public func saveApprovals(_ value: V2Approvals) async throws -> V2Approvals {
-        try await client.request("/api/v2/approvals", method: "PUT", body: JSONEncoder().encode(value))
+        try await client.request("/api/approvals", method: "PUT", body: JSONEncoder().encode(value))
     }
     public func setAgentRule(_ agent: String, action: V2ApprovalAction, mode: V2ApprovalMode) async throws -> V2Approvals {
         var current = try await approvals()
@@ -65,6 +65,6 @@ extension V2Client {
         return try await saveApprovals(current)
     }
     public func approvals() async throws -> V2Approvals {
-        try await client.request("/api/v2/approvals")
+        try await client.request("/api/approvals")
     }
 }

@@ -421,7 +421,7 @@ test('HTTP routing leaves options public, protects registration/pairing, and rej
   assert.ok(port <= 5199);
   try {
     const post = (path: string, body: any = {}, headers = {}) =>
-      fetch(`http://127.0.0.1:${port}/api/v2${path}`, {
+      fetch(`http://127.0.0.1:${port}/api${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify(body),

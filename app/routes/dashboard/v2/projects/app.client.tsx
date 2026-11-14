@@ -119,7 +119,7 @@ function AppHealthOverview({ project, app }: AppProps) {
 }
 export function AppSettings({ project, app, overview }: Omit<AppProps, 'releases'>) {
   const coordinator = useCoordinatorName();
-  const live = useData<LiveAppResponse>(`/api/v2/live/${projectSegment(app.name)}`);
+  const live = useData<LiveAppResponse>(`/api/live/${projectSegment(app.name)}`);
   const [memory, setMemory] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -220,7 +220,7 @@ export function AppSettings({ project, app, overview }: Omit<AppProps, 'releases
 
 function SingleAppOverview({ project, app, overview, releases }: AppProps) {
   const coordinator = useCoordinatorName();
-  const live = useData<LiveAppResponse>(`/api/v2/live/${projectSegment(app.name)}`);
+  const live = useData<LiveAppResponse>(`/api/live/${projectSegment(app.name)}`);
   const [restart, setRestart] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

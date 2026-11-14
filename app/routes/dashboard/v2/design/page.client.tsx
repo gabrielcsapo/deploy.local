@@ -114,7 +114,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   // Read after hydration: the server has no browser storage.
   const [owner, setOwner] = useState('');
   useEffect(() => setOwner(getAuth()?.username ?? ''), []);
-  const projects = useData<{ projects: Project[] }>('/api/v2/projects');
+  const projects = useData<{ projects: Project[] }>('/api/projects');
   const [projectId, setProjectId] = useState(initialProject);
   const project = projects.data?.projects.find((item) => item.id === projectId);
   const reviewId = params.get('review');
@@ -130,12 +130,12 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   // The design loads from the id in the address, alongside the project list rather than after it.
   const designPath =
     projectId && (!reviewId || reviewData)
-      ? `/api/v2/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(readRef)}`
+      ? `/api/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(readRef)}`
       : undefined;
   const design = useData<Design>(designPath);
   const beforeDesign = useData<Design>(
     reviewData
-      ? `/api/v2/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(reviewData.before)}`
+      ? `/api/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(reviewData.before)}`
       : undefined,
   );
   useEffect(() => {
@@ -150,7 +150,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [taskId, setTaskId] = useState(reviewId ? '' : (params.get('task') ?? ''));
   const [mode, setMode] = useState<OverlayMode>('overlay');
   const [poll, setPoll] = useState(0);
-  const projectApi = projectId ? `/api/v2/projects/${encodeURIComponent(projectId)}/design` : '';
+  const projectApi = projectId ? `/api/projects/${encodeURIComponent(projectId)}/design` : '';
   const agentDesign = useData<Design>(
     project && taskId ? `${projectApi}?task=${encodeURIComponent(taskId)}&v=${poll}` : undefined,
   );
@@ -203,7 +203,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     setBoardSrc(new Map());
   }, [shown]);
   const filesAt = (commit: string) =>
-    `/api/v2/projects/${encodeURIComponent(projectId)}/design/files/${commit}`;
+    `/api/projects/${encodeURIComponent(projectId)}/design/files/${commit}`;
   const base = projectId && shown && frameCommit ? filesAt(frameCommit) : null;
   const agentBoards = useMemo(
     () =>
@@ -872,7 +872,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     if (!name || !project) return;
     try {
       const { branch } = await request<{ branch: { name: string } }>(
-        `/api/v2/projects/${encodeURIComponent(project.id)}/design/branches`,
+        `/api/projects/${encodeURIComponent(project.id)}/design/branches`,
         { method: 'POST', body: JSON.stringify({ name, from: design.data?.commit ?? 'HEAD' }) },
       );
       chooseRef(branch.name);

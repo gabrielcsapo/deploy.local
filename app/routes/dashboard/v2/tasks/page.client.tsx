@@ -81,7 +81,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   // A task that changed its project's design gets a Design tab and a decision in its chat.
   const design = useTaskDesign(view?.project?.id, id);
   const [diff, setDiff] = useState<TaskDiff | null>(
-    () => (seed?.data[`/api/workspace/tasks/${encodeURIComponent(id)}/diff`] as TaskDiff) ?? null,
+    () => (seed?.data[`/api/tasks/${encodeURIComponent(id)}/diff`] as TaskDiff) ?? null,
   );
   const [checks, setChecks] = useState<TaskCheck[]>([]);
   const [detailVersion, setDetailVersion] = useState(0);
@@ -112,8 +112,8 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
     const signal = controller.signal;
     const path =
       pullId && projectId
-        ? `/api/workspace/projects/${encodeURIComponent(projectId)}/pulls/${encodeURIComponent(pullId)}`
-        : `/api/workspace/tasks/${encodeURIComponent(id)}`;
+        ? `/api/projects/${encodeURIComponent(projectId)}/pulls/${encodeURIComponent(pullId)}`
+        : `/api/tasks/${encodeURIComponent(id)}`;
     setDetailError('');
     async function loadDetails() {
       try {

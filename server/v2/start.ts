@@ -77,12 +77,12 @@ const route = routes<string>();
 export const startRoutes = [
   route({
     method: 'POST',
-    path: '/api/v2/start/inspect',
+    path: '/api/start/inspect',
     handler: ({ req, res }) => inspectRoute(req, res),
   }),
   route({
     method: '*',
-    path: '/api/v2/start/inspect',
+    path: '/api/start/inspect',
     handler: () => fail('Method not allowed', 405),
   }),
 ];

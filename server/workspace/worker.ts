@@ -86,7 +86,7 @@ capabilityTimer.unref();
 const instanceId = randomUUID();
 const toolServer = createServer(coordinationApi);
 await new Promise<void>((ready) => toolServer.listen(0, '127.0.0.1', ready));
-const toolUrl = `http://127.0.0.1:${(toolServer.address() as any).port}/api/workspace/agent/tools`;
+const toolUrl = `http://127.0.0.1:${(toolServer.address() as any).port}/api/agent/tools`;
 const jobRunners = new Map<string, JobRunner>();
 const screenshotRunners = new Map<string, ScreenshotRunner>();
 const interactiveRunners = new Map<string, InteractiveRunner>();

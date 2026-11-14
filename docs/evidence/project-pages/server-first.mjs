@@ -24,7 +24,7 @@ async function contextFor(width) {
     timezoneId: 'Pacific/Honolulu',
     locale: 'de-DE',
   });
-  const signIn = await context.request.post(`${origin}/api/v2/auth/session`, {
+  const signIn = await context.request.post(`${origin}/api/auth/session`, {
     headers: { 'x-deploy-username': fixture.username, 'x-deploy-token': fixture.token },
     data: {},
   });

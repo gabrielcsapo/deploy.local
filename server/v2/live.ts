@@ -435,11 +435,7 @@ export async function liveApi(
   requireAuth: RequireAuth,
 ): Promise<boolean> {
   const path = new URL(req.url!, 'http://localhost').pathname;
-  if (
-    path !== '/api/v2/health/report' &&
-    path !== '/api/v2/live' &&
-    !path.startsWith('/api/v2/live/')
-  )
+  if (path !== '/api/health/report' && path !== '/api/live' && !path.startsWith('/api/live/'))
     return false;
   const send = (value: unknown, status = 200) => {
     sendJson(res, value, status, { guard: true });
@@ -450,7 +446,7 @@ export async function liveApi(
       await dispatch([
         route({
           method: 'POST',
-          path: '/api/v2/health/report',
+          path: '/api/health/report',
           handler: async () => {
             const chunks: Buffer[] = [];
             let size = 0;
@@ -495,7 +491,7 @@ export async function liveApi(
         }),
         route({
           method: '*',
-          path: '/api/v2/health/report',
+          path: '/api/health/report',
           handler: () => send({ error: 'Method not allowed' }, 405),
         }),
       ])(req, res, undefined)
@@ -508,17 +504,17 @@ export async function liveApi(
     // The scope above intentionally includes an empty or multi-segment Live suffix.
     const readLive = async () => {
       const live = await getLive(auth.username);
-      if (path === '/api/v2/live') send(live);
+      if (path === '/api/live') send(live);
       else {
-        const appId = decodeURIComponent(path.slice('/api/v2/live/'.length));
+        const appId = decodeURIComponent(path.slice('/api/live/'.length));
         send(await getLiveApp(auth.username, appId, live));
       }
     };
     await dispatch(
       [
-        route({ method: 'GET', path: '/api/v2/live', handler: readLive }),
-        route({ method: 'GET', path: '/api/v2/live/', handler: readLive }),
-        route({ method: 'GET', path: '/api/v2/live/:app*', handler: readLive }),
+        route({ method: 'GET', path: '/api/live', handler: readLive }),
+        route({ method: 'GET', path: '/api/live/', handler: readLive }),
+        route({ method: 'GET', path: '/api/live/:app*', handler: readLive }),
       ],
       { notFound: () => send({ error: 'Method not allowed' }, 405) },
     )(req, res, undefined);

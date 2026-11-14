@@ -11,7 +11,7 @@ const route = routes<string>();
 export const performanceRoutes = [
   route({
     method: 'GET',
-    path: '/api/v2/apps/:app/performance',
+    path: '/api/apps/:app/performance',
     handler: ({ res, url, params, context: owner }) => {
       const name = decodeURIComponent(params.app);
       const app = getDeployment(name);
@@ -25,7 +25,7 @@ export const performanceRoutes = [
   }),
   route({
     method: '*',
-    path: '/api/v2/apps/:app/performance',
+    path: '/api/apps/:app/performance',
     handler: () => fail('Method not allowed', 405),
   }),
 ];

@@ -105,35 +105,35 @@ async function load(request: Request): Promise<Page | undefined> {
   await loadShellResources(seed, url);
   const projectsPage = !!projectPageURL(request);
   // The sidebar shows running apps and tasks on every page.
-  await put('/api/v2/live', () => getLive(owner));
+  await put('/api/live', () => getLive(owner));
   const items = syncInbox(owner);
   seed.cursor = cursor(owner);
   for (const state of ['waiting', 'answered'])
-    seed.data[`/api/v2/inbox?state=${state}`] = {
+    seed.data[`/api/inbox?state=${state}`] = {
       items: items.filter((item) => item.state === state),
       cursor: seed.cursor,
     };
   if (!projectsPage) {
     await Promise.all([
-      put('/api/workspace/state', () => readWorkspaceState(owner)),
+      put('/api/state', () => readWorkspaceState(owner)),
       loadDashboardResources(seed, url),
     ]);
     return { seed, url };
   }
   const projects = await projectsForOwner(owner, true).catch(() => undefined);
   if (!projects) return undefined;
-  seed.data['/api/v2/projects'] = { projects };
+  seed.data['/api/projects'] = { projects };
   const key = decodeURIComponent(url.pathname.split('/')[3] || '');
   const project =
     projects.find((entry) => entry.id === key) ??
     (key ? await resolveProject(owner, key, true).catch(() => undefined) : undefined);
-  await put('/api/workspace/state', () => readWorkspaceState(owner));
+  await put('/api/state', () => readWorkspaceState(owner));
   if (!key || !project) return { seed, url };
-  const base = `/api/v2/projects/${encodeURIComponent(key)}`;
+  const base = `/api/projects/${encodeURIComponent(key)}`;
   await Promise.all([
     put(`${base}/overview`, () => readProjectOverview(owner, project)),
     put(`${base}/releases`, () => ({ releases: projectReleases(owner, project.id) })),
-    put(`/api/workspace/projects/${encodeURIComponent(key)}/pulls?status=open`, () =>
+    put(`/api/projects/${encodeURIComponent(key)}/pulls?status=open`, () =>
       collaborationRead(
         owner,
         project.id,
@@ -145,7 +145,7 @@ async function load(request: Request): Promise<Page | undefined> {
     ),
   ]);
   // The unlinked-app picker is mounted with the header. Reuse the membership read.
-  seed.data['/api/v2/projects/unlinked-apps'] = {
+  seed.data['/api/projects/unlinked-apps'] = {
     apps: projects.filter((p) => p.id.startsWith('app:') && !p.fromDiscover).flatMap((p) => p.apps),
   };
   const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
@@ -159,7 +159,7 @@ async function load(request: Request): Promise<Page | undefined> {
     parts[3] === 'requests' ? parts[4] : parts[5] === 'requests' ? parts[6] : undefined;
   if (selected && requestId)
     await put(
-      `/api/v2/apps/${encodeURIComponent(selected.name)}/requests/${encodeURIComponent(requestId)}`,
+      `/api/apps/${encodeURIComponent(selected.name)}/requests/${encodeURIComponent(requestId)}`,
       () => requestDetail(owner, selected.name, Number(requestId)),
     );
   return { seed, project, overview: seed.data[`${base}/overview`] as Page['overview'], url };
@@ -175,9 +175,9 @@ export async function loadProjectTab(page?: Page): Promise<PageSeed | undefined>
     parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
   const section = parts[3] || '',
     params = url.searchParams;
-  const base = `/api/v2/projects/${encodeURIComponent(parts[2])}`;
-  const canonicalBase = `/api/v2/projects/${encodeURIComponent(project.id)}`;
-  const repo = `/api/workspace/projects/${encodeURIComponent(project.id)}/repository`;
+  const base = `/api/projects/${encodeURIComponent(parts[2])}`;
+  const canonicalBase = `/api/projects/${encodeURIComponent(project.id)}`;
+  const repo = `/api/projects/${encodeURIComponent(project.id)}/repository`;
   const put = async <T>(path: string, read: () => T | Promise<T>): Promise<T | undefined> => {
     try {
       const data = await read();
@@ -198,12 +198,8 @@ export async function loadProjectTab(page?: Page): Promise<PageSeed | undefined>
   const jobs: Promise<unknown>[] = [];
   if (app && ['', 'settings'].includes(tab))
     jobs.push(
-      put(`/api/v2/live/${encodeURIComponent(app.name)}`, () =>
-        getLiveApp(
-          owner,
-          app.name,
-          seed.data['/api/v2/live'] as Awaited<ReturnType<typeof getLive>>,
-        ),
+      put(`/api/live/${encodeURIComponent(app.name)}`, () =>
+        getLiveApp(owner, app.name, seed.data['/api/live'] as Awaited<ReturnType<typeof getLive>>),
       ),
     );
   if (tab === 'settings') {
@@ -213,7 +209,7 @@ export async function loadProjectTab(page?: Page): Promise<PageSeed | undefined>
   if (section === 'releases')
     jobs.push(put(`${base}/rollbacks`, () => ({ rollbacks: projectRollbacks(owner, project.id) })));
   if (section === 'pulls') {
-    const pulls = `/api/workspace/projects/${encodeURIComponent(parts[2])}/pulls`;
+    const pulls = `/api/projects/${encodeURIComponent(parts[2])}/pulls`;
     if (parts[4]) {
       const path = `${pulls}/${encodeURIComponent(parts[4])}`;
       jobs.push(put(path, () => collaborationRead(owner, project.id, 'pulls', parts[4])));
@@ -241,7 +237,7 @@ export async function loadProjectTab(page?: Page): Promise<PageSeed | undefined>
     'deployment' in overview.repository &&
     (overview.repository as Repository).deployment?.pipeline
   ) {
-    const path = `/api/workspace/projects/${encodeURIComponent(project.id)}/pipelines`;
+    const path = `/api/projects/${encodeURIComponent(project.id)}/pipelines`;
     const runs = await put(path, () => pipelineRead(owner, project.id));
     const id = runs && 'runs' in runs ? runs.runs?.[0]?.id : undefined;
     if (id)
@@ -289,7 +285,7 @@ export async function loadProjectTab(page?: Page): Promise<PageSeed | undefined>
     }
   }
   if (app && tab === 'requests') {
-    const path = `/api/v2/apps/${encodeURIComponent(app.name)}/requests`;
+    const path = `/api/apps/${encodeURIComponent(app.name)}/requests`;
     const id = section === 'apps' ? parts[6] : parts[4];
     if (id)
       jobs.push(
@@ -322,7 +318,7 @@ export async function loadProjectTab(page?: Page): Promise<PageSeed | undefined>
       ['1h', '24h', '7d'].includes(params.get('range') || '') ? params.get('range') : '24h'
     ) as '1h' | '24h' | '7d';
     jobs.push(
-      put(`/api/v2/apps/${encodeURIComponent(app.name)}/performance?range=${range}`, () =>
+      put(`/api/apps/${encodeURIComponent(app.name)}/performance?range=${range}`, () =>
         readPerformance(getRequestsSqlite(), app.name, range),
       ),
     );

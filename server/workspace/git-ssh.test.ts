@@ -32,7 +32,7 @@ async function api(path: string, body?: any, owner = 'alice', worker = false) {
     ),
     {
       method: body ? 'POST' : 'GET',
-      url: '/api/workspace' + path,
+      url: '/api' + path,
       headers: {},
     },
   );

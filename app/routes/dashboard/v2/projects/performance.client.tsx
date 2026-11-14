@@ -611,7 +611,7 @@ function PerformanceRead({
   onRange: (range: PerformanceRange) => void;
 }) {
   const resource = useData<PerformanceData>(
-    `/api/v2/apps/${projectSegment(app)}/performance?range=${range}`,
+    `/api/apps/${projectSegment(app)}/performance?range=${range}`,
   );
   return <PerformanceView app={app} range={range} {...props} {...resource} />;
 }

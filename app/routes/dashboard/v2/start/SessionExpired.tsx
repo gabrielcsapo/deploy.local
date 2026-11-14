@@ -13,12 +13,12 @@ export function SessionExpired({ initiallyExpired = false }: { initiallyExpired?
   useEffect(() => {
     // The probe catches expiry while preserving the mounted page and unsent drafts.
     const check = () =>
-      api('/api/v2/auth/account').catch((error) => {
+      api('/api/auth/account').catch((error) => {
         if (error.status === 401) setExpired(true);
       });
     const listener = () => void check();
     window.addEventListener('deploy:session-expired', listener);
-    if (!freshSeed(seed, '/api/v2/auth/account')) void check();
+    if (!freshSeed(seed, '/api/auth/account')) void check();
     const timer = setInterval(() => void check(), 30_000);
     return () => {
       clearInterval(timer);

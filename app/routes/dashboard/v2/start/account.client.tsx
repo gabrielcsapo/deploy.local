@@ -24,11 +24,11 @@ export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
     let mounted = true;
     void Promise.all([
       trusted(),
-      readSeeded(seed, '/api/v2/auth/account', () => api('/api/v2/auth/account')),
+      readSeeded(seed, '/api/auth/account', () => api('/api/auth/account')),
     ])
       .then(async ([trust, info]) => {
         if (!mounted || !offerPasskey(info, trust)) return;
-        await api('/api/v2/auth/account', { passkeyOffered: true });
+        await api('/api/auth/account', { passkeyOffered: true });
         if (mounted) setVisible(true);
       })
       .catch(() => {});
@@ -41,7 +41,7 @@ export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
     setError('');
     try {
       if (add) await addPasskey();
-      await api('/api/v2/auth/account', { passkeyOffered: true });
+      await api('/api/auth/account', { passkeyOffered: true });
       setVisible(false);
       onChange?.();
     } catch (error) {
@@ -76,18 +76,17 @@ function Devices() {
   const seed = useDataSeed();
   const coordinator = useCoordinatorName();
   const [items, setItems] = useState<any[]>(
-    () => (seed?.data['/api/v2/devices'] as { devices: any[] } | undefined)?.devices ?? [],
+    () => (seed?.data['/api/devices'] as { devices: any[] } | undefined)?.devices ?? [],
   );
   const [pair, setPair] = useState<any>();
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const refresh = () => api('/api/v2/devices').then((data) => setItems(data.devices));
+  const refresh = () => api('/api/devices').then((data) => setItems(data.devices));
   useEffect(() => {
-    if (!freshSeed(seed, '/api/v2/devices'))
-      void refresh().catch((error) => setError(error.message));
+    if (!freshSeed(seed, '/api/devices')) void refresh().catch((error) => setError(error.message));
     const timer = setInterval(() => {
-      if (!freshSeed(seed, '/api/v2/devices')) void refresh().catch(() => {});
+      if (!freshSeed(seed, '/api/devices')) void refresh().catch(() => {});
     }, 5000);
     return () => clearInterval(timer);
   }, [seed]);
@@ -106,7 +105,7 @@ function Devices() {
     setBusy(true);
     setError('');
     try {
-      const result = await api('/api/v2/devices/pair', {});
+      const result = await api('/api/devices/pair', {});
       setQr(await QRCode.toDataURL(JSON.stringify(result), { width: 320, margin: 2 }));
       setPair(result);
     } catch (error) {
@@ -117,7 +116,7 @@ function Devices() {
   }
   async function remove(id: string) {
     try {
-      await api(`/api/v2/devices/${encodeURIComponent(id)}`, {}, 'DELETE');
+      await api(`/api/devices/${encodeURIComponent(id)}`, {}, 'DELETE');
       await refresh();
     } catch (error) {
       setError((error as Error).message);
@@ -156,12 +155,12 @@ function Devices() {
 }
 function Account() {
   const seed = useDataSeed();
-  const [info, setInfo] = useState<any>(() => seed?.data['/api/v2/auth/account']);
+  const [info, setInfo] = useState<any>(() => seed?.data['/api/auth/account']);
   const [message, setMessage] = useState('');
   const [canAdd, setCanAdd] = useState(false);
   useEffect(() => {
     void trusted().then(setCanAdd);
-    void readSeeded(seed, '/api/v2/auth/account', () => api('/api/v2/auth/account'))
+    void readSeeded(seed, '/api/auth/account', () => api('/api/auth/account'))
       .then(setInfo)
       .catch((error) => setMessage(error.message));
   }, [seed]);
@@ -177,7 +176,7 @@ function Account() {
       </Group>
       <PasskeyOffer
         onChange={() => {
-          void api('/api/v2/auth/account')
+          void api('/api/auth/account')
             .then(setInfo)
             .catch((error) => setMessage(error.message));
         }}
@@ -186,7 +185,7 @@ function Account() {
         <Action
           onClick={() =>
             void addPasskey()
-              .then(() => api('/api/v2/auth/account'))
+              .then(() => api('/api/auth/account'))
               .then(setInfo)
               .catch((error) => setMessage(error.message))
           }

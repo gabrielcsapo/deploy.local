@@ -12,7 +12,7 @@ const connecting: LogStreamState = { openStreams: 0, hasOpened: false, finished:
 
 export function ProjectLogs({ project, selected }: { project: Project; selected: string }) {
   const seed = useDataSeed();
-  const sourcePath = `/api/v2/projects/${projectSegment(project.id)}/logs?app=${encodeURIComponent(selected)}`;
+  const sourcePath = `/api/projects/${projectSegment(project.id)}/logs?app=${encodeURIComponent(selected)}`;
   const [lines, setLines] = useState<{ app: string; text: string }[]>([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
