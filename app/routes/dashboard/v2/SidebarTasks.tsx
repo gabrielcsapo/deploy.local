@@ -137,7 +137,8 @@ export function SidebarTasks({
                   onClick={() => {
                     setGrouping(value);
                     closeGroupMenu();
-                    groupTrigger.current?.focus();
+                    // The button moves to the new first heading; focus it once it is there.
+                    requestAnimationFrame(() => groupTrigger.current?.focus());
                   }}
                 >
                   {name}
