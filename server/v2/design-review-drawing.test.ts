@@ -23,7 +23,7 @@ after(() => {
 });
 
 async function call(path: string, body?: object, project = 'many') {
-  const url = new URL(`http://test.invalid/api/v2/projects/${project}/design${path}`);
+  const url = new URL(`http://test.invalid/api/projects/${project}/design${path}`);
   const req = Object.assign(Readable.from(body ? [Buffer.from(JSON.stringify(body))] : []), {
     url: url.pathname + url.search,
     method: body ? 'POST' : 'GET',
