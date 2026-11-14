@@ -1336,37 +1336,57 @@
   outline: none;
   border-color: var(--ds-accent);
 }
-.dz.minimized {
-  grid-template-columns: minmax(0, 1fr);
-}
-.dz.minimized .dz-left,
-.dz.minimized .dz-right {
+/* Each panel closes on its own; one small button at that top corner of the canvas brings it back.
+   Below 820 px nothing changes: the left panel is already folded and the right one is a sheet. */
+.dz-panel-shows {
   display: none;
 }
-.dz-restore {
+@media (min-width: 821px) {
+  .dz.left-hidden {
+    grid-template-columns: minmax(0, 1fr) var(--dz-right);
+  }
+  .dz.right-hidden {
+    grid-template-columns: var(--dz-left) minmax(0, 1fr);
+  }
+  .dz.left-hidden.right-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dz.left-hidden .dz-left,
+  .dz.right-hidden .dz-right {
+    display: none;
+  }
+  .dz-panel-shows {
+    position: relative;
+    z-index: 20;
+    display: block;
+    height: 0;
+  }
+}
+.dz-panel-show {
   position: absolute;
-  z-index: 20;
   top: var(--ds-space-3);
-  left: var(--ds-space-3);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 var(--ds-space-2);
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: 0;
   border-radius: var(--ds-radius-control);
   background: var(--ds-surface);
   box-shadow:
     0 0 0 1px var(--ds-line),
-    var(--ds-shadow-lg);
+    var(--ds-shadow-sm);
   color: var(--ds-secondary);
   cursor: pointer;
 }
-.dz-restore .dl-mark {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  font-size: var(--ds-type-caption);
+.dz-panel-show:hover {
+  color: var(--ds-text);
+}
+.dz-panel-show.left {
+  left: var(--ds-space-3);
+}
+.dz-panel-show.right {
+  right: var(--ds-space-3);
 }
 
 .dz-narrow-bar,
@@ -2823,7 +2843,7 @@ button.dz-link-row:hover,
   }
 }
 
-.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-rail-shell .dz-restore {
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-rail-shell .dz-panel-show.left {
   left: 44px;
 }
 

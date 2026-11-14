@@ -6,6 +6,11 @@ import type { Project } from '../../../../../shared/v2/contracts';
 import { getAuth } from '../../detail/shared';
 import { useInbox } from '../data/hooks';
 import { useDataSeed, readSeeded } from '../data/seeds';
+import {
+  designPanelHidden,
+  rememberDesignPanel,
+  type DesignPanel,
+} from '../data/sidebar-preference';
 import { request, useData } from '../projects/data';
 import {
   AgentPanel,
@@ -361,8 +366,17 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [pickSheet, setPickSheet] = useState(false);
   // On a phone, Layers opens as a sheet from the tool bar.
   const [layersOpen, setLayersOpen] = useState(false);
-  // Figma's Minimize UI: hide both panels for more canvas.
-  const [minimized, setMinimized] = useState(false);
+  // Each panel closes on its own, for more canvas, and stays that way on this device.
+  const [hidden, setHidden] = useState({ left: false, right: false });
+  // Read after hydration: the server has no browser storage.
+  useEffect(
+    () => setHidden({ left: designPanelHidden('left'), right: designPanelHidden('right') }),
+    [],
+  );
+  const showPanel = useCallback((panel: DesignPanel, show: boolean) => {
+    rememberDesignPanel(panel, !show);
+    setHidden((state) => ({ ...state, [panel]: !show }));
+  }, []);
   const [revision, setRevision] = useState(0);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const stage = useRef<HTMLDivElement>(null);
@@ -1017,7 +1031,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const empty = projects.data && !projects.data.projects.length;
   return (
     <div
-      className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${minimized ? ' minimized' : ''}${layersOpen ? ' layers-open' : ''}`}
+      className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${hidden.left ? ' left-hidden' : ''}${hidden.right ? ' right-hidden' : ''}${layersOpen ? ' layers-open' : ''}`}
       ref={stage}
     >
       <Dialog
@@ -1187,18 +1201,6 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
           </Action>
         )}
       </div>
-      {minimized && (
-        <button
-          type="button"
-          className="dz-restore"
-          aria-label="Show panels"
-          title="Show panels"
-          onClick={() => setMinimized(false)}
-        >
-          <span className="dl-mark">d</span>
-          <Icon name="panel" size={14} />
-        </button>
-      )}
       <LeftPanel
         projects={projects.data?.projects ?? []}
         project={project}
@@ -1235,7 +1237,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
         onNewBranch={newBranch}
         inReview={inReviewBoards}
         agentAt={agentAt}
-        onHide={() => setMinimized(true)}
+        onHide={() => showPanel('left', false)}
         onCloseSheet={() => setLayersOpen(false)}
         loose={loose}
         mark={mark}
@@ -1304,6 +1306,32 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
               </a>
             </div>
           )}
+        {(hidden.left || hidden.right) && (
+          <div className="dz-panel-shows">
+            {hidden.left && (
+              <button
+                type="button"
+                className="dz-panel-show left"
+                aria-label="Show left panel"
+                title="Show left panel"
+                onClick={() => showPanel('left', true)}
+              >
+                <Icon name="sidebar" size={15} />
+              </button>
+            )}
+            {hidden.right && (
+              <button
+                type="button"
+                className="dz-panel-show right"
+                aria-label="Show right panel"
+                title="Show right panel"
+                onClick={() => showPanel('right', true)}
+              >
+                <Icon name="panel" size={15} />
+              </button>
+            )}
+          </div>
+        )}
         {empty ? (
           <Empty title="No projects yet">
             Add a project with a design/ folder to see its boards here.
@@ -1569,6 +1597,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
         </div>
       </div>
       <RightPanel
+        onHide={() => showPanel('right', false)}
         project={project}
         design={design.data}
         canvas={canvas}

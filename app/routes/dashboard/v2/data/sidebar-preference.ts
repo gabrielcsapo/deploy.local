@@ -34,3 +34,22 @@ export function rememberTaskGrouping(grouping: TaskGrouping) {
     // The choice still applies until the page reloads.
   }
 }
+
+/** The canvas's left and right panels each stay open or closed on this device, apart. */
+export type DesignPanel = 'left' | 'right';
+export const designPanelKey = (panel: DesignPanel) => `deploy.design.${panel}Panel.hidden`;
+
+export function designPanelHidden(panel: DesignPanel) {
+  try {
+    return localStorage.getItem(designPanelKey(panel)) === 'true';
+  } catch {
+    return false;
+  }
+}
+export function rememberDesignPanel(panel: DesignPanel, hidden: boolean) {
+  try {
+    localStorage.setItem(designPanelKey(panel), String(hidden));
+  } catch {
+    // The panel still opens and closes when storage is unavailable.
+  }
+}

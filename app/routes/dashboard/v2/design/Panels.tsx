@@ -501,11 +501,11 @@ export function LeftPanel({
           <button
             type="button"
             className="dl-icon-btn dz-hide"
-            aria-label="Hide panels"
-            title="Hide panels"
+            aria-label="Hide left panel"
+            title="Hide left panel"
             onClick={onHide}
           >
-            <Icon name="panel" size={15} />
+            <Icon name="sidebar" size={15} />
           </button>
         </div>
         <BranchPicker
@@ -2054,7 +2054,10 @@ export function RightPanel({
   review,
   reviewSide,
   reviewing,
+  onHide,
 }: {
+  /** Closes this panel; the canvas then shows one button to bring it back. */
+  onHide: () => void;
   review?: DesignReview;
   reviewing?: boolean;
   reviewSide?: ReviewSide;
@@ -2221,6 +2224,15 @@ export function RightPanel({
             {propose?.state === 'in-review' ? 'In review' : 'Propose'}
           </Action>
         )}
+        <button
+          type="button"
+          className="dl-icon-btn dz-hide"
+          aria-label="Hide right panel"
+          title="Hide right panel"
+          onClick={onHide}
+        >
+          <Icon name="panel" size={15} />
+        </button>
       </div>
       <div className="dz-right-tabs">
         <div className="dz-tabs" role="tablist">
