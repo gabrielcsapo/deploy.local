@@ -128,7 +128,14 @@ export function migrateManagedGitCheckouts(
     }
   };
   const walk = (directory: string) => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+      // A folder this process cannot read holds nothing it could rewrite either.
+      return;
+    }
+    for (const entry of entries) {
       if (entry.isSymbolicLink()) continue;
       const path = resolve(directory, entry.name);
       if (entry.name === '.git') {

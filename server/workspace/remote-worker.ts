@@ -77,7 +77,15 @@ const statePath = resolve(localRoot, 'assignment.json'),
   lockPath = resolve(localRoot, 'worker.pid');
 const releaseLease = claimRemoteWorker(lockPath);
 process.on('exit', releaseLease);
-migrateManagedGitCheckouts(localRoot, [new URL(origin).origin]);
+// A clone that cannot be rewritten (unreadable files a job's container left, a held lock) must not
+// stop the worker from starting; it is reported and tried again on the next start.
+try {
+  const stuck: string[] = [];
+  migrateManagedGitCheckouts(localRoot, [new URL(origin).origin], stuck);
+  if (stuck.length) console.error(`[git addresses] ${stuck.length} clone(s) not rewritten yet`);
+} catch (error) {
+  console.error('[git addresses] could not rewrite worker clones:', error);
+}
 let state: any = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null,
   child: ReturnType<typeof spawn> | null = null,
   busy = false;
