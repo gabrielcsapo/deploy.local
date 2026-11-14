@@ -63,6 +63,8 @@ export interface GraphContainerInspection {
   status: string;
   health: 'starting' | 'healthy' | 'unhealthy' | 'none';
   hostPorts: Readonly<Record<number, number>>;
+  /** The container's addresses on its Docker networks, for networks that publish no ports. */
+  addresses?: readonly string[];
 }
 
 export type GraphHealthProbe =
@@ -258,6 +260,7 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
         status: 'missing',
         health: 'none',
         hostPorts: {},
+        addresses: [],
       };
     }
     const hostPorts: Record<number, number> = {};
@@ -268,6 +271,12 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
         hostPorts[containerPort] = hostPort;
       }
     }
+    const addresses = Object.values(
+      (inspection.NetworkSettings as { Networks?: Record<string, { IPAddress?: string }> })
+        .Networks ?? {},
+    )
+      .map((network) => network.IPAddress ?? '')
+      .filter(Boolean);
     const dockerHealth = inspection.State.Health?.Status;
     return {
       id: inspection.Id,
@@ -280,6 +289,7 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
           ? dockerHealth
           : 'none',
       hostPorts,
+      addresses,
     };
   }
 
@@ -449,8 +459,18 @@ export class DockerCliGraphAdapter implements GraphDockerAdapter {
     const hostPort = probe.hostNetwork
       ? probe.containerPort
       : inspection.hostPorts[probe.containerPort];
-    if (!hostPort) return false;
-    return probe.kind === 'http' ? probeHttp(hostPort, probe.path) : probeTcp(hostPort);
+    if (hostPort)
+      return probe.kind === 'http' ? probeHttp(hostPort, probe.path) : probeTcp(hostPort);
+    // Docker publishes no ports on an internal network, which release verification uses so the
+    // copy cannot reach the outside. On Linux the host still reaches the container directly.
+    for (const address of inspection.addresses ?? []) {
+      const reached =
+        probe.kind === 'http'
+          ? await probeHttp(probe.containerPort, probe.path, address)
+          : await probeTcp(probe.containerPort, address);
+      if (reached) return true;
+    }
+    return false;
   }
 }
 
@@ -582,9 +602,9 @@ async function fileDigest(path: string): Promise<`sha256:${string}`> {
   return `sha256:${digest.digest('hex')}`;
 }
 
-function probeTcp(port: number): Promise<boolean> {
+function probeTcp(port: number, host = '127.0.0.1'): Promise<boolean> {
   return new Promise((resolvePromise) => {
-    const socket = createConnection({ host: '127.0.0.1', port });
+    const socket = createConnection({ host, port });
     const timer = setTimeout(() => finish(false), 1_000);
     let finished = false;
     const finish = (value: boolean) => {
@@ -599,9 +619,9 @@ function probeTcp(port: number): Promise<boolean> {
   });
 }
 
-function probeHttp(port: number, path: string): Promise<boolean> {
+function probeHttp(port: number, path: string, host = '127.0.0.1'): Promise<boolean> {
   return new Promise((resolvePromise) => {
-    const request = http.get({ host: '127.0.0.1', port, path, timeout: 1_000 }, (response) => {
+    const request = http.get({ host, port, path, timeout: 1_000 }, (response) => {
       response.resume();
       resolvePromise((response.statusCode ?? 500) < 500);
     });
