@@ -239,6 +239,8 @@ struct V2SettingsView: View {
     @State private var backups = false
     @State private var packages = false
     @State private var packageSummary: String?
+    @State private var artifacts = false
+    @State private var artifactSummary: String?
     @State private var summaryRefresh = 0
     @State private var notifications = false
     @State private var devices = false
@@ -310,6 +312,10 @@ struct V2SettingsView: View {
                         Button { packages = true } label: {
                             V2SettingsRow(title: "Packages", subtitle: packageSummary ?? "Checking…", icon: "shippingbox") { V2SettingsChevron() }
                         }
+                        Divider()
+                        Button { artifacts = true } label: {
+                            V2SettingsRow(title: "Artifacts", subtitle: artifactSummary ?? "Checking…", icon: "square.3.layers.3d") { V2SettingsChevron() }
+                        }
                     }
                     V2SettingsGroup(title: "Display") {
                         Menu {
@@ -341,7 +347,7 @@ struct V2SettingsView: View {
                     }.padding(.top, 36)
                 }.padding(.horizontal, 16).padding(.bottom, 32)
             }
-        }.defaultScrollAnchor(V2Evidence.board == "SettingsPackagesRowPhone" ? .bottom : .top)
+        }.defaultScrollAnchor(["SettingsPackagesRowPhone", "SettingsArtifactsRowPhone"].contains(V2Evidence.board) ? .bottom : .top)
         .scrollIndicators(.hidden).buttonStyle(.plain).foregroundStyle(WorkspaceStyle.text(scheme)).background(WorkspaceStyle.canvas(scheme))
         .confirmationDialog("Forget SER's certificate?", isPresented: $forgetCertificate, titleVisibility: .visible) {
             Button("Forget", role: .destructive) { forget() }
@@ -351,12 +357,14 @@ struct V2SettingsView: View {
         }
         .sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
         .sheet(isPresented: $packages, onDismiss: { summaryRefresh += 1 }) { NavigationStack { V2PackagesView(store: store).toolbar { Button("Done") { packages = false } } } }
+        .sheet(isPresented: $artifacts, onDismiss: { summaryRefresh += 1 }) { NavigationStack { V2ArtifactsView(store: store, done: { artifacts = false }).toolbar { Button("Done") { artifacts = false } } } }
         .sheet(isPresented: $notifications) { V2NotificationSettings(store: store) }
         .sheet(isPresented: $devices) { V2DevicesView(store: store) }
         .sheet(isPresented: $approvals, onDismiss: { summaryRefresh += 1 }) { V2SettingsApprovals(store: store) }
         .task {
             if V2Evidence.board == "PackagesPhone" || V2Evidence.board == "PackageVersionsPhone" { packages = true }
             if V2Evidence.board == "RestorePhone" { backups = true }
+            if ["ArtifactsPhone", "ArtifactsEmptyPhone", "ArtifactsNewPhone", "ArtifactDocumentPhone"].contains(V2Evidence.board) { artifacts = true }
             if V2Evidence.board == "SettingsApprovalsPhone" { approvals = true }
             if V2Evidence.agentsBoard == .rules { approvals = true }
         }
@@ -374,6 +382,14 @@ struct V2SettingsView: View {
         let rules = try? await store.client.approvals()
         guard !Task.isCancelled else { return }
         approvalRules = rules
+        do {
+            let gallery = try await store.client.artifacts()
+            guard !Task.isCancelled else { return }
+            artifactSummary = gallery.summary
+        } catch {
+            guard !Task.isCancelled else { return }
+            artifactSummary = "Could not be checked"
+        }
         do {
             async let list = store.client.packages()
             async let status = store.client.packageCopies()
