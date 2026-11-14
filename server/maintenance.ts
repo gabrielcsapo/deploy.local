@@ -1,3 +1,4 @@
+import { requireBackupAccess } from './backups/port.ts';
 import { pruneDeploymentData } from './data-retention.ts';
 import { finalizeReleases } from './telemetry.ts';
 import { migrateCheckpointSnapshots } from './workspace/checkpoint-storage.ts';
@@ -44,7 +45,6 @@ import {
   assertRoomForCopy,
   copyBytesNeeded,
   createCopyDirectory,
-  listBackupCopies,
   pruneBackupCopies,
   removeSnapshots,
   rsyncArguments,
@@ -272,9 +272,9 @@ async function runRsyncBackup(): Promise<BackupResult> {
     // The steps above can take minutes, and a drive can go away during them.
     const stillThere = destinationProblem(DATA_DIR, settings.destination);
     if (stillThere) return finish(stillThere);
-    const previous = (await listBackupCopies(settings.destination)).find(
-      (copy) => copy.complete,
-    )?.path;
+    const previous = (
+      await requireBackupAccess('maintenance').directory.list.run(settings.destination)
+    ).find((copy) => copy.complete)?.path;
     if (previous && (await stat(previous)).dev !== (await stat(settings.destination)).dev) {
       console.error(
         `Backup reference ${previous} is on a different filesystem from ${settings.destination}; hard links require the same filesystem.`,
@@ -460,6 +460,10 @@ export function startMaintenance(packages?: { warm(): Promise<void>; daily(): Pr
 /**
  * Export for manual maintenance operations and backup management
  */
+export function readBackupStatus(): BackupStatus {
+  return { ..._backupStatus };
+}
+
 export const maintenance = {
   runBackup: runRsyncBackup,
 };

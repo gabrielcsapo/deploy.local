@@ -1,7 +1,7 @@
 import { fail } from '../kernel/errors.ts';
 import { createHash } from 'node:crypto';
 import { command, db, event, get, id, list, now, save } from './store.ts';
-import { startRun } from './service.ts';
+import { requireTaskRunStarter } from './task-run-starter-port.ts';
 import { cancelTaskQuestions } from './question-lifecycle.ts';
 import type { AgentScope } from './coordination.ts';
 
@@ -125,7 +125,7 @@ function resumeQuestion(owner: string, q: any) {
   const task = get('task', owner, q.taskId);
   if (['done', 'merged'].includes(task.status)) return q;
   const prior = get('run', owner, q.runId);
-  const run = startRun(
+  const run = requireTaskRunStarter('workspace')(
     owner,
     q.taskId,
     {

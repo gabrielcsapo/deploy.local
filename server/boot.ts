@@ -1,3 +1,8 @@
+import './main/task-workspace-imports.ts';
+import { wireTaskRunStarter } from './main/task-run-starter.ts';
+import { wireQuestionAnswerResumer } from './main/question-answer-resumer.ts';
+import { wireStateRefreshSources } from './main/state-refresh-sources.ts';
+import { wireAgentChatSource } from './main/agent-chat-source.ts';
 import { startTaskPlacement } from './workspace/task-workspace.ts';
 import { startDesignApprovals } from './v2/design.ts';
 import { createTelemetryCollector } from './telemetry-runtime.ts';
@@ -104,6 +109,8 @@ function serveDownload(req: IncomingMessage, res: ServerResponse) {
 }
 
 async function start(options: BootOptions) {
+  const { wireBackupCatalog } = await import('./main/backups.ts');
+  wireBackupCatalog();
   // Env-overridable so tests (and non-root setups) can bind unprivileged ports.
   const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
   const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
@@ -367,6 +374,10 @@ async function start(options: BootOptions) {
 
 export function bootServer(options: BootOptions) {
   wireServerWorkspacePorts();
+  wireTaskRunStarter();
+  wireQuestionAnswerResumer();
+  wireStateRefreshSources();
+  wireAgentChatSource();
   // Previously started during dependency evaluation, in this order. Keep them before
   // the heartbeat, storage initialization, client creation and either role's listeners.
   startTerminalRelay();

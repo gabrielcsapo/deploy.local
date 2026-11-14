@@ -9,6 +9,7 @@ import type { ReleaseRuntime } from './releases.ts';
 import { routeFetch } from './test-request.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-releases-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const { db, list, get, save } = await import('../workspace/store.ts');
 const { ProjectReleaseService, projectReleases, projectRollbacks, putApprovalRules } =
   await import('./releases.ts');

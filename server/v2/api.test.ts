@@ -11,6 +11,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-v2-api-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const { STATE_REFRESH_INTERVAL_MS } = await import('./state-refresh.ts');
 const { db, save, get, list, event, cursor, now } = await import('../workspace/store.ts');
 const { registerUser } = await import('../store.ts');

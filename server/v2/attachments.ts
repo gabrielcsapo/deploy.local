@@ -1,3 +1,4 @@
+import { requireAgentChatSource } from './agent-chat-source-port.ts';
 import { readBytes, readJson, sendJson } from '../kernel/http.ts';
 export { readBytes, readJson, sendJson } from '../kernel/http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -196,7 +197,7 @@ export async function attachmentsApi(req: IncomingMessage, res: ServerResponse, 
 /** Agent chats use the existing compatible connection, with no tools or implicit task. */
 export async function sendAgentMessage(owner: string, agentId: string, body: any) {
   const { agentsForOwner, agentConversation, agentTeachingPrompt, saveAgentReply } =
-    await import('./agents.ts');
+    await requireAgentChatSource('agent chat')();
   const { providerConnections } = await import('../workspace/provider-connections.ts');
   const agent = agentsForOwner(owner).find((item) => item.id === agentId);
   if (!agent) fail('Agent not found', 404);

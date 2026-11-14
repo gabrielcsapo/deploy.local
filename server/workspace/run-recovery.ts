@@ -1,4 +1,4 @@
-import { resumeQuestionAnswers } from './questions.ts';
+import { requireQuestionAnswerResumer } from './question-answer-resumer-port.ts';
 import { runQueue } from './run-queue.ts';
 import { db, get, list, save, event, now, revise } from './store.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
@@ -54,7 +54,7 @@ export function resolveRestartedRun(
     recovery: method,
   });
   releaseQueuedMessage(owner, run.taskId, 'interrupted');
-  resumeQuestionAnswers(owner, run.taskId, run.id);
+  requireQuestionAnswerResumer('run recovery')(owner, run.taskId, run.id);
   return resolved;
 }
 

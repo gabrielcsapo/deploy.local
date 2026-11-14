@@ -9,6 +9,7 @@ import { getEventListeners } from 'node:events';
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-events-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const { db, event, cursor } = await import('../workspace/store.ts');
 const { waitForV2Events } = await import('./events.ts');
 after(() => {

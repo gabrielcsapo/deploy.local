@@ -5,8 +5,18 @@ import { wireCollaborationPreferencesSource } from './main/workspace-collaborati
 import { wireWorkspaceLazyTools } from './main/workspace-lazy-tools.ts';
 import { wireLocalWorkerMedia } from './main/local-worker-media.ts';
 
+import { wireTaskRunStarter } from './main/task-run-starter.ts';
+import { wireQuestionAnswerResumer } from './main/question-answer-resumer.ts';
+import { wireStateRefreshSources } from './main/state-refresh-sources.ts';
+import { wireAgentChatSource } from './main/agent-chat-source.ts';
+
 wireAgentInstructionsSource();
 wireRepositoryProjectCreator();
 wireCollaborationPreferencesSource();
 wireWorkspaceLazyTools();
 wireLocalWorkerMedia();
+
+wireTaskRunStarter();
+wireQuestionAnswerResumer();
+wireStateRefreshSources();
+wireAgentChatSource();

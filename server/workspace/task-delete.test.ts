@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 
 const root = mkdtempSync(join(tmpdir(), 'task-delete-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const { db, save, get, list, event, events, command } = await import('./store.ts');
 const { createProject, createTask } = await import('./test-repository.ts');
 const { deleteTask, taskDeletion } = await import('./task-delete.ts');

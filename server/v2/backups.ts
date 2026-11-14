@@ -1,3 +1,4 @@
+import { requireBackupAccess } from '../backups/port.ts';
 import { readFile } from 'node:fs/promises';
 import { sendJson } from '../kernel/http.ts';
 import { copyHostname } from '../edge/copies.ts';
@@ -31,10 +32,9 @@ import {
   type GraphDockerAdapter,
 } from '../graph-docker-adapter.ts';
 import {
-  getBackups,
   getBackupSettings,
-  getDeployments,
   getSqlite,
+  getDeployments,
   isAdmin,
   readDeploymentRecord,
 } from '../store.ts';
@@ -186,7 +186,7 @@ export async function backupSources(owner: string, presentation = false): Promis
       );
   }
   for (const app of getDeployments(owner)) {
-    for (const backup of getBackups(app.name)) {
+    for (const backup of requireBackupAccess('product backups').application.list.run(app.name)) {
       if (seen.has(`${app.name}/${backup.filename}`)) continue;
       add(
         {
@@ -211,9 +211,7 @@ export async function backupSources(owner: string, presentation = false): Promis
     }
   }
   if (isAdmin(owner)) {
-    const rows = getSqlite()!
-      .prepare('SELECT * FROM fleet_recovery_bundles ORDER BY created_at DESC')
-      .all() as Array<Record<string, any>>;
+    const rows = requireBackupAccess('product backups').home.list.run();
     for (const row of rows) {
       const artifact = getArtifact(row.artifact_digest);
       const path = JSON.parse(row.encryption_metadata).scheduledPath || artifact?.localPath;

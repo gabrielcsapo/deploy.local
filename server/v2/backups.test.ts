@@ -16,6 +16,7 @@ import type {
 } from '../graph-docker-adapter.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-backups-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-backups.ts');
 const { BackupService, CoordinatorBackupRuntime, backupSources, backupsApi } =
   await import('./backups.ts');
 const { CoordinatorReleaseRuntime } = await import('./releases-runtime.ts');

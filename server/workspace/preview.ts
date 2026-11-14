@@ -2,6 +2,9 @@ import { apiRouteManifest } from '../api/route-manifest.ts';
 import { compilePath } from '../kernel/routes.ts';
 import { sendJson } from '../kernel/http.ts';
 import { spawn } from 'node:child_process';
+import '../main/task-workspace-imports.ts';
+import { wireTaskRunStarter } from '../main/task-run-starter.ts';
+import { wireQuestionAnswerResumer } from '../main/question-answer-resumer.ts';
 import { wirePreviewWorkspaceTools } from '../main/preview-workspace-tools.ts';
 import { coordinationApi } from './coordination-api.ts';
 import { workerAuthentication } from './credentials.ts';
@@ -14,6 +17,8 @@ import { wireRepositoryProjectCreator } from '../main/preview-workspace-projects
 import { workspaceApi } from './api.ts';
 import { root } from './store.ts';
 import { startTerminalRelay, terminalRelay } from './terminal-service.ts';
+wireTaskRunStarter();
+wireQuestionAnswerResumer();
 wirePreviewWorkspaceTools();
 wireRepositoryProjectCreator();
 if (!process.env.DEPLOY_DATA_DIR || !process.env.DEPLOY_DATA_DIR.startsWith('/tmp/'))
