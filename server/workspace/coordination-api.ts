@@ -1,3 +1,4 @@
+import { requireWorkspaceDesignTool } from './design-tool-port.ts';
 import { requireTaskTools } from './task-workspace.ts';
 import { sendJson } from '../kernel/http.ts';
 import { updateBase } from './update-base.ts';
@@ -93,7 +94,7 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
                       ? await projectTool(scope, body.args || {})
                       : body.name === 'deploy_design'
                         ? // Loaded when used: the design module registers itself with the v2 inbox.
-                          await (await import('../v2/design.ts')).designTool(scope, body.args || {})
+                          await requireWorkspaceDesignTool('workspace')(scope, body.args || {})
                         : body.name === 'deploy_read_artifact'
                           ? readJobArtifact(scope, body.args || {})
                           : await coordinationTool(scope, body.name, body.args || {}),

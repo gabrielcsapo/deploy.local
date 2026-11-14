@@ -18,6 +18,7 @@ const data = mkdtempSync(join(tmpdir(), 'deploy-repositories-'));
 process.env.DEPLOY_DATA_DIR = data;
 process.env.DEPLOY_CODEX_BIN = '/no-codex-in-this-test';
 process.env.DEPLOY_CLAUDE_BIN = '/no-claude-in-this-test';
+await import('../test-ports.ts');
 const { workspaceApi, shortGitRoute } = await import('./api.ts');
 const { get, save } = await import('./store.ts');
 const { git } = await import('./service.ts');

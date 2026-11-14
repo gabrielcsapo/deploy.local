@@ -1,5 +1,5 @@
 import { presentationCommit } from './repository-views.ts';
-import { preferences } from '../v2/auth-store.ts';
+import { requireCollaborationPreferencesSource } from './collaboration-preferences-port.ts';
 import { pullTaskChecks } from './workspace-checks.ts';
 import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
 import { cancelTaskQuestions } from './question-lifecycle.ts';
@@ -197,9 +197,15 @@ async function presentPull(owner: string, pull: any) {
     );
   return {
     ...pull,
-    authorName: pull.author ? preferences(pull.author).name : undefined,
-    mergedByName: pull.mergedBy ? preferences(pull.mergedBy).name : undefined,
-    closedByName: pull.closedBy ? preferences(pull.closedBy).name : undefined,
+    authorName: pull.author
+      ? requireCollaborationPreferencesSource('workspace')(pull.author).name
+      : undefined,
+    mergedByName: pull.mergedBy
+      ? requireCollaborationPreferencesSource('workspace')(pull.mergedBy).name
+      : undefined,
+    closedByName: pull.closedBy
+      ? requireCollaborationPreferencesSource('workspace')(pull.closedBy).name
+      : undefined,
     taskAuthor: agent?.name,
     checksPassed: checks.filter(
       (check) => check.status === 'succeeded' || check.status === 'passed',

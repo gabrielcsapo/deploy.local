@@ -37,15 +37,7 @@ test('workspace boundary scan covers types, exports, side effects, dynamic impor
   );
 });
 
-// These callers also have direct-module tests. Moving their dependencies to process entries
-// requires explicit test composition; existing tests may only change import paths in this step.
-const remainingV2 = [
-  'agent-context-store.ts -> ../v2/agent-instructions.ts',
-  'api.ts -> ../v2/projects.ts',
-  'coordination-api.ts -> ../v2/design.ts',
-  'project-collaboration.ts -> ../v2/auth-store.ts',
-  'project-tools.ts -> ../v2/releases.ts',
-];
+const remainingV2: string[] = [];
 // Package hooks deliberately have optional behavior in CLI/remote workers. Leave the package
 // startup/credential/copy policy together until its process-specific composition is extracted.
 const remainingPackages = [

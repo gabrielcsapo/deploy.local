@@ -16,6 +16,7 @@ import { convertStoredAttachments } from '../shared/stored-attachment-urls.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'one-api-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('./test-ports.ts');
 after(() => rmSync(root, { recursive: true, force: true }));
 const oldPrefix = (family: string) => ['', 'api', family, ''].join('/');
 

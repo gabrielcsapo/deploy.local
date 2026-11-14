@@ -16,6 +16,7 @@ import { once } from 'node:events';
 
 const data = mkdtempSync(join(tmpdir(), 'deploy-remote-restart-'));
 process.env.DEPLOY_DATA_DIR = data;
+await import('../test-ports.ts');
 const { get, list, save } = await import('./store.ts');
 const { workerCommand } = await import('./protocol.ts');
 const { enrollWorker, workerAuthentication } = await import('./credentials.ts');
