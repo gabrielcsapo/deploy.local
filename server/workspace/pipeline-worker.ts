@@ -1,7 +1,7 @@
 import { advanceAllPipelinePackages } from '../packages/pipelines.ts';
 import { claimWorker } from './worker-lease.ts';
 import { startSupervisorHeartbeat } from '../supervisor-heartbeat.ts';
-import { startServiceLoop } from './service-loop.ts';
+import { startServiceLoop } from '../kernel/jobs/service-loop.ts';
 import { db, now } from './store.ts';
 import { reconcilePipelines, scanPipelineTriggers } from './pipelines.ts';
 import { advancePipelineDeployments } from './pipeline-deployment.ts';
