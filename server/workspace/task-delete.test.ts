@@ -93,6 +93,7 @@ test('the confirmation names the branch and counts commits that are not on main'
   assert.deepEqual(taskDeletion(owner, task.id), {
     id: task.id,
     title: 'Cache Discover images on SER',
+    revision: task.revision,
     branch,
     unmergedCommits: 2,
     running: false,

@@ -150,7 +150,9 @@
     "dl-worklog-live",
     "dl-worklog-toggle",
     "dl-x",
-    "dl-you"
+    "dl-you",
+    "side-anchor",
+    "side-more"
   ],
   "modifiers": [
     "active",

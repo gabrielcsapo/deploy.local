@@ -17,6 +17,8 @@ import {
   workspaceCommand,
 } from './api';
 import { ShipDialog } from './ShipDialog';
+import { DeleteTaskDialog } from './DeleteTaskDialog';
+import { workingStatus } from '../data/sidebar';
 import type { TaskCheck, TaskDiff } from './types';
 import { TaskChecks, TaskFiles, TaskPanel } from './details.client';
 import {
@@ -92,6 +94,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const [shipped, setShipped] = useState<string>();
   const [panel, setPanel] = useState<boolean | null>(null);
   const [hint, setHint] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const pull = view?.pulls.at(-1);
   const projectId = view?.project?.id;
   const pullId = pull?.id;
@@ -312,6 +315,18 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                       >
                         Refresh task
                       </Action>
+                      {!workingStatus(view.run?.status) && (
+                        <Action
+                          variant="quiet"
+                          className="dl-del"
+                          onClick={() => {
+                            setMore(false);
+                            setDeleting(true);
+                          }}
+                        >
+                          Delete task…
+                        </Action>
+                      )}
                     </div>
                   )}
                 </div>
@@ -542,6 +557,10 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
           setShipped(item.id);
           updateRelease(item);
         }}
+      />
+      <DeleteTaskDialog
+        task={deleting ? { id: view.task.id, title: view.task.title } : null}
+        onClose={() => setDeleting(false)}
       />
     </div>
   );

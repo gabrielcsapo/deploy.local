@@ -347,6 +347,9 @@
   background: var(--ds-surface);
   box-shadow: var(--ds-shadow-lg);
 }
+.dl-task-menu .dl-btn.dl-del {
+  color: var(--ds-danger);
+}
 .dl-task-menu a {
   padding: 6px 12px;
   font-size: var(--ds-type-ui);

@@ -72,6 +72,71 @@
 .dl-home-scroll ~ .dl-fixture-note {
   display: none;
 }
+/* Tasks in the sidebar: the first heading carries the grouping choice, and a task row's actions
+   replace its time while the pointer or keyboard focus is on it. */
+.side-label-actions {
+  display: inline-flex;
+  align-items: center;
+}
+.side-anchor {
+  position: relative;
+  height: 0;
+}
+.side-anchor .dl-menu-item {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--ds-ink);
+  cursor: pointer;
+}
+.side-anchor .dl-menu-item.danger {
+  color: var(--ds-danger);
+}
+.side-anchor .dl-menu-item:hover {
+  background: color-mix(in srgb, var(--ds-line) 70%, transparent);
+}
+.side-anchor .dl-menu-item:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+.side-task {
+  position: relative;
+}
+.side-task:is(:hover, .open) > .dl-nav {
+  background: color-mix(in srgb, var(--ds-line) 60%, transparent);
+  color: var(--ds-ink);
+}
+.side-task > .side-task-more {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+}
+.side-task:is(:hover, :focus-within, .open) > .side-task-more {
+  opacity: 1;
+}
+.side-task:is(:hover, :focus-within, .open):has(> .side-task-more) > .dl-nav {
+  padding-right: 32px;
+}
+.side-task:is(:hover, :focus-within, .open):has(> .side-task-more) > .dl-nav .dl-end {
+  display: none;
+}
+.side-task.open > .side-task-more {
+  background: color-mix(in srgb, var(--ds-line) 80%, transparent);
+  color: var(--ds-ink);
+}
+button.dl-nav.side-more {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .dl-sidebar-notice {
   padding: 0 16px;
   font-size: var(--ds-type-meta);

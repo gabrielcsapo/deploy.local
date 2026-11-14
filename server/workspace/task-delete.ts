@@ -112,6 +112,8 @@ function ownedRefs(owner: string, repo: string, task: any) {
 export type TaskDeletion = {
   id: string;
   title: string;
+  /** The task revision the delete command must carry. */
+  revision: number;
   /** Null when the task has no branch in its project repository. */
   branch: string | null;
   /** Commits on that branch that are not on the project's default branch. */
@@ -143,6 +145,7 @@ export function taskDeletion(owner: string, taskId: string): TaskDeletion {
   return {
     id: task.id,
     title: task.title,
+    revision: task.revision,
     branch,
     unmergedCommits,
     running: taskRunning(owner, task),
