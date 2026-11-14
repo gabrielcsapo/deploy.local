@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { Database } from '../kernel/db/sqlite.ts';
 
 /**
  * Text search over what people and agents said: task messages (`message`) and agent chats
@@ -20,7 +20,7 @@ const TEXT = (row: string) => `CASE
 END`;
 const KINDS = `('message','agent-message')`;
 
-export function ensureMessageSearch(db: Database.Database) {
+export function ensureMessageSearch(db: Database) {
   const existed = db.prepare("SELECT 1 FROM sqlite_master WHERE name='message_search'").get();
   db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(content, tokenize='trigram');
 CREATE TRIGGER IF NOT EXISTS message_search_insert AFTER INSERT ON records WHEN new.kind IN ${KINDS} BEGIN
@@ -46,7 +46,7 @@ export type MessageHit = { kind: 'message' | 'agent-message'; row: any; text: st
 
 /** The owner's messages containing `text`, newest first. Shorter than three characters finds nothing. */
 export function searchMessageRecords(
-  db: Database.Database,
+  db: Database,
   owner: string,
   text: string,
   limit = 200,

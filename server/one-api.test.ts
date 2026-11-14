@@ -39,6 +39,8 @@ test('source strings and served routes contain no retired API prefixes', () => {
       if (['node_modules', 'dist', '.git', '.build'].includes(entry.name) || entry.isSymbolicLink())
         continue;
       const file = join(directory, entry.name);
+      // Bundled desktop output (git-ignored) inlines the allowed migration files above.
+      if (file === join('desktop', 'build')) continue;
       if (entry.isDirectory()) scan(file);
       else if (entry.isFile()) {
         if (file.startsWith('native/') && !file.endsWith('.swift')) continue;

@@ -91,10 +91,11 @@ export function Composer({
   const busy = disabled || loading || pending;
   // A project heading's + opens the start page with its project chosen (?project=<id>).
   const chosenId = projectParameter(location.pathname, location.search);
+  // Search's "Ask an agent about…" arrives with the words already written, even on the agent's own page.
+  const ask = new URLSearchParams(location.search).get('ask') ?? '';
   useEffect(() => {
     const path = location.pathname;
-    // Search's "Ask an agent about…" arrives with the words already written.
-    setText(new URLSearchParams(location.search).get('ask') ?? '');
+    setText(ask);
     setAttachments([]);
     setOverride(null);
     setError('');
@@ -132,9 +133,7 @@ export function Composer({
     return () => {
       active = false;
     };
-    // The composer resets when the page changes; ?ask is read once on arrival, not on every query change.
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, chosenId, seed]);
+  }, [location.pathname, chosenId, ask, seed]);
   async function perform(action: () => Promise<void>) {
     setPending(true);
     setError('');

@@ -39,6 +39,9 @@ export async function componentHarness(entry, stubs, globals = {}) {
     useCallback(fn) {
       return fn;
     },
+    useMemo(compute) {
+      return compute();
+    },
     useEffect(fn, deps) {
       const index = cursor++;
       const previous = slots[index];
@@ -52,7 +55,8 @@ export async function componentHarness(entry, stubs, globals = {}) {
     },
     Suspense: 'Suspense',
   };
-  const modules = { react: hooks, ...stubs };
+  // Portals (dialogs, the search box) render their children in place: there is no DOM here.
+  const modules = { react: hooks, 'react-dom': { createPortal: (node) => node }, ...stubs };
   const result = await build({
     entryPoints: [entry],
     bundle: true,
