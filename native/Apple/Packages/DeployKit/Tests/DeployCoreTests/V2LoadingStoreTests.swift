@@ -16,16 +16,16 @@ private final class LoadingURLProtocol: URLProtocol, @unchecked Sendable {
         let body: String
         var status = 200
         switch url.path {
-        case "/api/workspace/state": status = 503; body = "{}"
-        case "/api/v2/agents": body = #"{"agents":[{"id":"writer","name":"Release notes writer"}]}"#
-        case "/api/v2/inbox":
+        case "/api/state": status = 503; body = "{}"
+        case "/api/agents": body = #"{"agents":[{"id":"writer","name":"Release notes writer"}]}"#
+        case "/api/inbox":
             if url.query?.contains("answered") == true { body = #"{"items":[],"cursor":3}"# }
             else {
                 let cursor = url.host == "legacy.loading.invalid" ? "" : ",\"cursor\":\(Self.counter.next())"
                 body = #"{"items":[{"id":"waiting","kind":"question","title":"Continue?","text":"Review","from":"writer","createdAt":"2026-11-07T12:00:00Z","state":"waiting","actions":[]}]\#(cursor)}"#
             }
-        case "/api/v2/live": body = #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"now"},"computers":[]}"#
-        case "/api/v2/projects":
+        case "/api/live": body = #"{"summary":{"running":0,"failing":0,"warning":0,"checkedAt":"now"},"computers":[]}"#
+        case "/api/projects":
             if url.host == "missing.loading.invalid" { status = 404; body = "{}" }
             else { body = #"{"projects":[{"id":"tally","name":"tally"}]}"# }
         case "/api/nodes": body = #"{"nodes":[{"id":"ser","name":"SER","online":true}]}"#

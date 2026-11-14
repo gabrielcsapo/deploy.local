@@ -178,7 +178,19 @@ export async function v2Api(
       )(req, res, undefined)
     )
       return;
-    return false;
+    // A feature selected by the registry may decline; a standalone entry must let every
+    // other leaf try the request and then end it with the registry's 404/405.
+    if (feature) return false;
+    const { apiRoutes } = await import('../api/registry.ts');
+    const url = new URL(req.url!, 'http://localhost');
+    return apiRoutes({
+      req,
+      res,
+      url,
+      path: url.pathname,
+      workspacePath: url.pathname,
+      method: req.method,
+    });
   } catch (error: any) {
     return send(
       {

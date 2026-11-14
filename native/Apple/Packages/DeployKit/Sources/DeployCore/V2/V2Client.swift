@@ -181,13 +181,13 @@ public actor V2Client {
         try await inboxPage(state: state).items
     }
     public func inboxPage(state: String = "waiting") async throws -> V2InboxPage {
-        try await client.request("/api/v2/inbox?state=\(Self.segment(state))")
+        try await client.request("/api/inbox?state=\(Self.segment(state))")
     }
     public func answer(_ id: String, action: String, note: String? = nil, delay: Bool? = nil) async throws -> V2AnswerResult {
         struct Body: Encodable { let actionId: String; let on = "iphone"; let note: String?; let delay: Bool? }
         struct Response: Decodable, Sendable { let item: InboxItem }
         do {
-            let result: Response = try await client.request("/api/v2/inbox/\(Self.segment(id))/answer", method: "POST", body: JSONEncoder().encode(Body(actionId: action, note: note, delay: delay)))
+            let result: Response = try await client.request("/api/inbox/\(Self.segment(id))/answer", method: "POST", body: JSONEncoder().encode(Body(actionId: action, note: note, delay: delay)))
             return V2AnswerResult(item: result.item, alreadyAnswered: false)
         } catch ClientError.response(409, _) {
             // The first answer wins. Read its authoritative record, never retry the command.
@@ -198,25 +198,25 @@ public actor V2Client {
         }
     }
     public func events(after: Int, waitMs: Int = 10000) async throws -> V2EventPage {
-        try await client.request("/api/v2/events?after=\(after)&waitMs=\(waitMs)", timeout: 20)
+        try await client.request("/api/activity-events?after=\(after)&waitMs=\(waitMs)", timeout: 20)
     }
-    public func live() async throws -> V2Live { try await client.request("/api/v2/live") }
-    public func liveApp(_ id: String) async throws -> V2LiveDetail { try await client.request("/api/v2/live/\(Self.segment(id))") }
-    public func workspace() async throws -> V2Workspace { try await client.request("/api/workspace/state") }
+    public func live() async throws -> V2Live { try await client.request("/api/live") }
+    public func liveApp(_ id: String) async throws -> V2LiveDetail { try await client.request("/api/live/\(Self.segment(id))") }
+    public func workspace() async throws -> V2Workspace { try await client.request("/api/state") }
     public func agents() async throws -> [V2Agent] {
         struct Response: Decodable, Sendable { let agents: [V2Agent] }
-        let response: Response = try await client.request("/api/v2/agents")
+        let response: Response = try await client.request("/api/agents")
         return response.agents
     }
     public func draftAgent(job: String) async throws -> V2AgentDraft {
         struct Body: Encodable { let job: String }
         struct Response: Decodable, Sendable { let draft: V2AgentDraft }
-        let response: Response = try await client.request("/api/v2/agents/draft", method: "POST", body: JSONEncoder().encode(Body(job: job)))
+        let response: Response = try await client.request("/api/agents/draft", method: "POST", body: JSONEncoder().encode(Body(job: job)))
         return response.draft
     }
     public func createAgent(_ agent: V2NewAgent) async throws -> V2Agent {
         struct Response: Decodable, Sendable { let agent: V2Agent }
-        let response: Response = try await client.request("/api/v2/agents", method: "POST", body: JSONEncoder().encode(agent))
+        let response: Response = try await client.request("/api/agents", method: "POST", body: JSONEncoder().encode(agent))
         return response.agent
     }
     public func projects(fallback: [V2Project]?) async throws -> [V2Project] {
@@ -229,7 +229,7 @@ public actor V2Client {
             }
         }
         do {
-            let response: Response = try await client.request("/api/v2/projects")
+            let response: Response = try await client.request("/api/projects")
             return response.projects
         } catch ClientError.response(let status, let message) where status == 404 || status == 501 {
             guard let fallback else { throw ClientError.response(status, message) }
@@ -242,15 +242,15 @@ public actor V2Client {
         return response.nodes
     }
     public func account() async throws -> V2Account { try await client.request("/api/user") }
-    public func task(_ id: String) async throws -> TaskDetail { try await client.request("/api/workspace/tasks/\(Self.segment(id))") }
-    public func diff(_ id: String) async throws -> TaskDiff { try await client.request("/api/workspace/tasks/\(Self.segment(id))/diff") }
+    public func task(_ id: String) async throws -> TaskDetail { try await client.request("/api/tasks/\(Self.segment(id))") }
+    public func diff(_ id: String) async throws -> TaskDiff { try await client.request("/api/tasks/\(Self.segment(id))/diff") }
     public func createTask(operationId: String, title: String, projectId: String?, workerId: String) async throws -> V2Task {
         struct Body: Encodable { let operationId: String; let title: String; let projectId: String?; let workerId: String }
-        return try await client.request("/api/workspace/tasks", method: "POST", body: JSONEncoder().encode(Body(operationId: operationId, title: title, projectId: projectId, workerId: workerId)))
+        return try await client.request("/api/tasks", method: "POST", body: JSONEncoder().encode(Body(operationId: operationId, title: title, projectId: projectId, workerId: workerId)))
     }
     public func send(taskId: String, operationId: String, revision: Int, text: String, model: String?, adapter: String) async throws {
         let body = SendBody(operationId: operationId, revision: revision, content: text, model: model, effort: nil, adapter: adapter)
-        let _: Run = try await client.request("/api/workspace/tasks/\(Self.segment(taskId))/messages", method: "POST", body: JSONEncoder().encode(body))
+        let _: Run = try await client.request("/api/tasks/\(Self.segment(taskId))/messages", method: "POST", body: JSONEncoder().encode(body))
     }
     public static func notificationScope(_ connection: Connection) -> String {
         var parts = URLComponents(string: connection.origin)
@@ -271,9 +271,9 @@ public actor V2Client {
         return try await answer(itemId, action: actionId)
     }
     public func registerDevice(token: String, environment: String) async throws {
-        let _: JSONValue = try await client.request("/api/v2/devices", method: "POST", body: JSONEncoder().encode(["token": token, "environment": environment, "scope": Self.notificationScope(connection)]))
+        let _: JSONValue = try await client.request("/api/devices", method: "POST", body: JSONEncoder().encode(["token": token, "environment": environment, "scope": Self.notificationScope(connection)]))
     }
     public func removeDevice(token: String) async throws {
-        let _: JSONValue = try await client.request("/api/v2/devices", method: "DELETE", body: JSONEncoder().encode(["token": token]))
+        let _: JSONValue = try await client.request("/api/devices", method: "DELETE", body: JSONEncoder().encode(["token": token]))
     }
 }

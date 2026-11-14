@@ -71,7 +71,11 @@ export function rewriteManagedGitConfig(config: string, origins: readonly string
 }
 
 /** Scan only managed storage, never symlinks, external worktrees, or user source checkouts. */
-export function migrateManagedGitCheckouts(root: string, origins: readonly string[]): string[] {
+export function migrateManagedGitCheckouts(
+  root: string,
+  origins: readonly string[],
+  failed: string[] = [],
+): string[] {
   if (!existsSync(root)) return [];
   const boundary = realpathSync(root),
     changed: string[] = [],
@@ -80,7 +84,16 @@ export function migrateManagedGitCheckouts(root: string, origins: readonly strin
     const rel = relative(boundary, path);
     return rel !== '..' && !rel.startsWith('../') && !isAbsolute(rel);
   };
+  // One checkout that cannot be rewritten now (a config lock held by a running git, a file that
+  // vanished) must not stop the rest or the server's start. It is reported and retried next start.
   const config = (file: string) => {
+    try {
+      rewrite(file);
+    } catch {
+      failed.push(file);
+    }
+  };
+  const rewrite = (file: string) => {
     if (!existsSync(file)) return;
     const real = realpathSync(file);
     if (!inside(real) || visited.has(real)) return;

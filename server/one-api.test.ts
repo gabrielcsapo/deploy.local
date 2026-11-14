@@ -23,14 +23,24 @@ test('source strings and served routes contain no retired API prefixes', () => {
   const exceptions = new Map([
     ['shared/stored-attachment-urls.ts', 'Read-time conversion of stored attachment strings only'],
     ['server/workspace/git-url-migration.ts', 'Git remote rewrite'],
+    [
+      'native/Apple/Packages/DeployKit/Sources/DeployCore/Attachments.swift',
+      'Read-time conversion of stored attachment strings only',
+    ],
+    [
+      'native/Apple/Packages/DeployKit/Tests/DeployCoreTests/AttachmentTests.swift',
+      'testStoredLinksResolveToNewResourcesWithoutRewritingForeignLinks',
+    ],
   ]);
   const violations: string[] = [];
   function scan(directory: string) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (['node_modules', 'dist', '.git'].includes(entry.name) || entry.isSymbolicLink()) continue;
+      if (['node_modules', 'dist', '.git', '.build'].includes(entry.name) || entry.isSymbolicLink())
+        continue;
       const file = join(directory, entry.name);
       if (entry.isDirectory()) scan(file);
       else if (entry.isFile()) {
+        if (file.startsWith('native/') && !file.endsWith('.swift')) continue;
         const source = readFileSync(file, 'utf8');
         const normalized = source.replaceAll('\\/', '/');
         if (
@@ -42,7 +52,7 @@ test('source strings and served routes contain no retired API prefixes', () => {
       }
     }
   }
-  for (const directory of ['app', 'bin', 'desktop', 'server', 'shared', 'packages'])
+  for (const directory of ['app', 'bin', 'desktop', 'server', 'shared', 'packages', 'native/Apple'])
     scan(directory);
   assert.deepEqual(violations, []);
   for (const route of apiRouteManifest) {
@@ -294,4 +304,148 @@ test('startup converts only coordinator project sources and is idempotent', asyn
   const changes = (db.prepare('SELECT total_changes() AS n').get() as any).n;
   migrateCoordinatorUrls(db, resolve(root, 'no-checkouts'));
   assert.equal((db.prepare('SELECT total_changes() AS n').get() as any).n, changes);
+});
+
+// Expand constrained parameters too: one sample per alternative, not just the first action.
+function manifestPaths(pattern: string): string[] {
+  const segments = pattern.split('/');
+  let paths = [''];
+  for (const segment of segments.slice(1)) {
+    const param = segment.match(/^:([\w]+)(?:\((.+)\)|(\*))?$/);
+    let values = [segment];
+    if (param) {
+      const expression = param[2];
+      values = !expression
+        ? ['missing']
+        : expression === '[a-f0-9]{64}'
+          ? ['a'.repeat(64)]
+          : expression === '.+\\.git'
+            ? ['missing.git']
+            : expression.split('|').map((value) => {
+                if (value === '\\d+' || value === '[0-9]+') return '1';
+                if (/^\[.*\]\+$/.test(value)) return 'abc123';
+                return value;
+              });
+    }
+    paths = paths.flatMap((path) => values.map((value) => path + '/' + value));
+  }
+  for (const path of paths) assert.ok(compilePath(pattern)(path), `${pattern}: ${path}`);
+  return paths;
+}
+
+async function registryFetch() {
+  const { apiRoutes } = await import('./api/registry.ts');
+  const { routeFetch } = await import('./v2/test-request.ts');
+  return routeFetch((req, res) => {
+    const url = new URL(req.url!, 'https://deploy.test');
+    return apiRoutes({
+      req,
+      res,
+      url,
+      path: url.pathname,
+      workspacePath: url.pathname,
+      method: req.method,
+    });
+  });
+}
+
+test(
+  'every manifest leaf and action ends an unauthenticated request without sockets',
+  { timeout: 30000 },
+  async () => {
+    const call = await registryFetch();
+    for (const route of apiRouteManifest) {
+      for (const path of manifestPaths(route.path)) {
+        const method = route.method === '*' ? 'GET' : route.method;
+        const response = await call('https://deploy.test' + path, {
+          method,
+          ...(['GET', 'HEAD'].includes(method) ? {} : { body: '{}' }),
+        });
+        assert.ok(
+          response.status >= 200 && response.status < 500,
+          `${method} ${path}: ${response.status}`,
+        );
+      }
+    }
+  },
+);
+
+test('standalone dispatch ends unknown requests and delegates other API leaves', async () => {
+  const { v2Api } = await import('./v2/api.ts');
+  const { requireAuth } = await import('./api/shared.ts');
+  const { routeFetch } = await import('./v2/test-request.ts');
+  const { registerUser } = await import('./store.ts');
+  const token = registerUser('standalone-owner', 'test-password').token!;
+  const headers = { 'x-deploy-username': 'standalone-owner', 'x-deploy-token': token };
+  const call = routeFetch((req, res) => v2Api(req, res, requireAuth));
+  for (const method of ['GET', 'POST', 'DELETE']) {
+    assert.equal((await call('https://deploy.test/api/unknown', { method, headers })).status, 404);
+  }
+  assert.equal(
+    (await call('https://deploy.test/api/model-settings', { method: 'DELETE', headers })).status,
+    405,
+  );
+  assert.equal((await call('https://deploy.test/api/user', { headers })).status, 200);
+});
+
+test('workspace leaves retain worker authentication, identity fencing and owner-only commands', async () => {
+  const call = await registryFetch();
+  const { enrollWorker } = await import('./workspace/credentials.ts');
+  const { registerUser } = await import('./store.ts');
+  const { get } = await import('./workspace/store.ts');
+  const owner = 'worker-route-owner';
+  const token = registerUser(owner, 'test-password').token!;
+  const person = { 'x-deploy-username': owner, 'x-deploy-token': token };
+  const credential = enrollWorker(owner, { workerId: 'test-worker' });
+  const worker = {
+    'x-deploy-worker-id': credential.workerId,
+    'x-deploy-worker-token': credential.workerToken,
+  };
+  const post = (path: string, headers: Record<string, string>, body = {}) =>
+    call('https://deploy.test/api' + path, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+  assert.equal(
+    (
+      await post('/workers/register', worker, {
+        workerId: credential.workerId,
+        instanceId: 'test-instance',
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await post('/workers/test-worker/poll', worker, { instanceId: 'test-instance' })).status,
+    200,
+  );
+  assert.equal((await post('/workers/someone-else/poll', worker)).status, 403);
+  assert.equal((await post('/workers/register', worker, { workerId: 'someone-else' })).status, 403);
+  for (const path of ['/worker-permissions', '/computers/test-worker/permissions']) {
+    assert.equal((await call('https://deploy.test/api' + path, { headers: person })).status, 200);
+    assert.equal((await call('https://deploy.test/api' + path, { headers: worker })).status, 403);
+  }
+  assert.equal(
+    (
+      await post('/repository-projects', worker, {
+        name: 'Forbidden',
+        operationId: 'worker-create',
+      })
+    ).status,
+    403,
+  );
+  const created = await post('/repository-projects', person, {
+    name: 'Queued repository',
+    operationId: 'owner-create',
+  });
+  assert.equal(created.status, 202);
+  const project = await created.json();
+  assert.equal(project.source.kind, 'hosted');
+  assert.equal(get('project', owner, project.id).repositoryStatus, 'preparing');
+  assert.equal(
+    (await call(`https://deploy.test/api/projects/${project.id}/repository`, { headers: person }))
+      .status,
+    200,
+  );
 });

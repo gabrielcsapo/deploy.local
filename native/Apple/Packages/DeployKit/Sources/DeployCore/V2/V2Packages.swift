@@ -82,13 +82,13 @@ public struct V2PackageCopies: Decodable, Sendable {
 extension V2Client {
     public func packages() async throws -> [V2Package] {
         struct Response: Decodable, Sendable { var packages: [V2Package] }
-        let response: Response = try await client.request("/api/v2/packages")
+        let response: Response = try await client.request("/api/packages")
         return response.packages
     }
     public func packageVersions(_ package: V2Package) async throws -> [V2PackageVersion] {
         struct Response: Decodable, Sendable { var versions: [V2PackageVersion] }
-        let response: Response = try await client.request("/api/v2/packages/\(Self.segment(package.ecosystem))/\(Self.segment(package.name))")
+        let response: Response = try await client.request("/api/packages/\(Self.segment(package.ecosystem))/\(Self.segment(package.name))")
         return response.versions
     }
-    public func packageCopies() async throws -> V2PackageCopies { try await client.request("/api/v2/packages/cache") }
+    public func packageCopies() async throws -> V2PackageCopies { try await client.request("/api/packages/cache") }
 }

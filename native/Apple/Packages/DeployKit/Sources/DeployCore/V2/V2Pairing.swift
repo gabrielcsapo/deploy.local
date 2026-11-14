@@ -135,7 +135,7 @@ public enum V2PairingClient {
         let client = WorkspaceClient(connection: Connection(origin: payload.address, username: "", token: ""), session: transport)
         struct Response: Decodable, Sendable { let id: String; let username: String; let token: String; let expiresAt: Double }
         do {
-            let result: Response = try await client.request("/api/v2/devices/exchange", method: "POST", body: JSONEncoder().encode(["token": payload.token, "name": name]))
+            let result: Response = try await client.request("/api/devices/exchange", method: "POST", body: JSONEncoder().encode(["token": payload.token, "name": name]))
             guard !result.id.isEmpty, !result.username.isEmpty, !result.token.isEmpty, result.expiresAt > Date().timeIntervalSince1970 * 1000 else { throw ClientError.invalidResponse }
             return V2PairedDevice(id: result.id, connection: Connection(origin: payload.address, username: result.username, token: result.token), fingerprint: payload.fingerprint, certificate: certificate, expiresAt: result.expiresAt)
         } catch ClientError.response(let status, _) where status == 404 || status == 501 {

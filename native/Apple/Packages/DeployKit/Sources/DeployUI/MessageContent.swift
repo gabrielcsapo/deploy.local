@@ -24,6 +24,7 @@ struct MessageContent: View, Equatable {
     private let textSize = 15.0
     #endif
     @Environment(\.taskMedia) private var media
+    @Environment(\.mediaConnection) private var connection
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.content == rhs.content && lhs.fileLinks?.taskId == rhs.fileLinks?.taskId
             && lhs.fileLinks?.workspacePaths == rhs.fileLinks?.workspacePaths
@@ -34,7 +35,7 @@ struct MessageContent: View, Equatable {
 
     var body: some View {
         // Worker-disk paths become in-task links, attachments or inline code before MarkdownUI sees them.
-        Markdown(rewriteLocalFileLinks(content, taskId: fileLinks?.taskId,
+        Markdown(rewriteLocalFileLinks(convertStoredAttachmentText(content, origins: [connection?.origin ?? "https://deploy.local"]), taskId: fileLinks?.taskId,
                                        workspacePaths: fileLinks?.workspacePaths ?? [], attachments: attachments))
             .markdownTextStyle(\.text) {
                 ForegroundColor(.primary)
@@ -76,6 +77,9 @@ struct MessageContent: View, Equatable {
             .markdownImageProvider(ConversationImageProvider())
             .textSelection(.enabled)
             .environment(\.openURL, OpenURLAction { url in
+                if let connection, let attachment = storedAttachmentURL(url.absoluteString, connection: connection) {
+                    return .systemAction(attachment)
+                }
                 if ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { return .systemAction }
                 if let fileLinks, let reference = TaskFileReference(linkURL: url) {
                     fileLinks.open(reference)
@@ -113,8 +117,42 @@ private struct ConversationCodeBlock: View {
 
 private struct ConversationImageProvider: ImageProvider {
     func makeImage(url: URL?) -> some View {
-        if let url, url.path.hasPrefix("/api/workspace/attachments/"), !url.path.hasSuffix("/thumbnail") {
-            AttachmentThumbnail(id: url.lastPathComponent)
+        ConversationImage(url: url)
+    }
+}
+
+private struct ConversationImage: View {
+    let url: URL?
+    nonisolated init(url: URL?) { self.url = url }
+    @Environment(\.mediaConnection) private var connection
+    @State private var data: Data?
+    @State private var failed = false
+    private var attachment: URL? {
+        guard let url, let connection else { return nil }
+        return storedAttachmentURL(url.absoluteString, connection: connection)
+    }
+    var body: some View {
+        if let attachment, attachment.path.hasPrefix("/api/attachments/"), !attachment.path.hasSuffix("/thumbnail") {
+            AttachmentThumbnail(id: attachment.lastPathComponent)
+        } else if let attachment {
+            Group {
+                #if os(macOS)
+                if let data, let image = NSImage(data: data) {
+                    Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 420).clipShape(RoundedRectangle(cornerRadius: 10))
+                } else if failed { Label("Image unavailable", systemImage: "photo").foregroundStyle(.secondary) }
+                else { ProgressView().padding() }
+                #else
+                if let data, let image = UIImage(data: data) {
+                    Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 420).clipShape(RoundedRectangle(cornerRadius: 10))
+                } else if failed { Label("Image unavailable", systemImage: "photo").foregroundStyle(.secondary) }
+                else { ProgressView().padding() }
+                #endif
+            }.task(id: connection) {
+                data = nil; failed = false
+                guard let connection else { return }
+                do { data = try await WorkspaceClient(connection: connection).data(attachment.absoluteString) }
+                catch { failed = true }
+            }
         } else if let url, ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {

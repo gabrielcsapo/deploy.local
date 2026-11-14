@@ -6,6 +6,7 @@ import { join, resolve, extname, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { DesignReview, DesignReviewScreen, InboxItem } from '../../../shared/v2/contracts';
 import { fixturePreview } from './fixture-preview';
+import { routeFetch } from '../../../server/v2/test-request.ts';
 
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
 const root = mkdtempSync(join(tmpdir(), 'design-chat-fixture-'));
@@ -273,12 +274,12 @@ async function render(file: string, side: string, width: number, scale: number) 
   return images.get(key)!;
 }
 
-const server = createServer(async (req, res) => {
+const handle: import('node:http').RequestListener = async (req, res) => {
   const url = new URL(req.url!, origin),
     // Foundation percent-encodes '-' in project IDs; the real server decodes route segments.
     path = decodeURIComponent(url.pathname);
   const activeTask = tasks.find(
-    (task) => task.id === path.match(/^\/api\/(?:v2|workspace)\/tasks\/([^/]+)/)?.[1],
+    (task) => task.id === path.match(/^\/api\/(?:tasks|task-snapshots)\/([^/]+)/)?.[1],
   );
   const taskEvents =
     activeTask === task
@@ -501,11 +502,13 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     send({ error: String(error) }, 500);
   }
-});
+};
+const server = createServer(handle);
 // Export the real HTTP responses for Swift decoding tests without launching a renderer.
 if (process.argv.includes('--dump')) {
-  const dumpPort = Number(process.env.DEPLOY_FIXTURE_DUMP_PORT ?? 5199);
-  await new Promise<void>((resolve) => server.listen(dumpPort, '127.0.0.1', resolve));
+  const request = routeFetch(async (req, res) => {
+    await handle(req, res);
+  });
   try {
     const paths = {
       task: '/api/tasks/welcome',
@@ -520,7 +523,7 @@ if (process.argv.includes('--dump')) {
       await Promise.all(
         Object.entries(paths).map(async ([key, path]) => [
           key,
-          await (await fetch(`http://127.0.0.1:${dumpPort}${path}`)).json(),
+          await (await request(`${origin}${path}`)).json(),
         ]),
       ),
     );

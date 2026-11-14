@@ -80,36 +80,36 @@ public struct V2AgentEdit: Encodable, Sendable {
 extension V2Client {
     public func agentTimezone() async throws -> String {
         struct Response: Decodable, Sendable { var timezone: String? }
-        let value: Response = try await client.request("/api/v2/agents")
+        let value: Response = try await client.request("/api/agents")
         return value.timezone ?? TimeZone.current.identifier
     }
-    public func agentConversation(_ id: String) async throws -> V2AgentConversation { try await client.request("/api/v2/agents/\(Self.segment(id))/conversation") }
+    public func agentConversation(_ id: String) async throws -> V2AgentConversation { try await client.request("/api/agents/\(Self.segment(id))/conversation") }
     public func sendAgent(_ id: String, text: String, operationId: String, model: String? = nil) async throws -> V2AgentConversation {
         struct Body: Encodable { var text: String; var operationId: String; var model: String? }
-        return try await client.request("/api/v2/composer/agents/\(Self.segment(id))/messages", method: "POST", body: JSONEncoder().encode(Body(text: text, operationId: operationId, model: model)))
+        return try await client.request("/api/composer/agents/\(Self.segment(id))/messages", method: "POST", body: JSONEncoder().encode(Body(text: text, operationId: operationId, model: model)))
     }
     public func editAgent(_ id: String, values: V2AgentEdit) async throws -> V2Agent {
         struct Response: Decodable, Sendable { var agent: V2Agent }
-        let r: Response = try await client.request("/api/v2/agents/\(Self.segment(id))", method: "PATCH", body: JSONEncoder().encode(values))
+        let r: Response = try await client.request("/api/agents/\(Self.segment(id))", method: "PATCH", body: JSONEncoder().encode(values))
         return r.agent
     }
     public func confirmAgentItem(_ id: String, item: String) async throws -> V2Agent {
         struct Response: Decodable, Sendable { var agent: V2Agent }
-        let r: Response = try await client.request("/api/v2/agents/\(Self.segment(id))/items/\(Self.segment(item))/confirm", method: "POST", body: Data("{}".utf8))
+        let r: Response = try await client.request("/api/agents/\(Self.segment(id))/items/\(Self.segment(item))/confirm", method: "POST", body: Data("{}".utf8))
         return r.agent
     }
     public func runAgentItem(_ id: String, item: String) async throws -> String {
         struct Response: Decodable, Sendable { struct Task: Decodable, Sendable { var id: String }; var task: Task }
-        let value: Response = try await client.request("/api/v2/agents/\(Self.segment(id))/items/\(Self.segment(item))/run", method: "POST", body: Data("{}".utf8))
+        let value: Response = try await client.request("/api/agents/\(Self.segment(id))/items/\(Self.segment(item))/run", method: "POST", body: Data("{}".utf8))
         return value.task.id
     }
     public func agentItemRuns(_ id: String, item: String) async throws -> [V2AgentRun] {
         struct Response: Decodable, Sendable { var runs: [V2AgentRun] }
-        let r: Response = try await client.request("/api/v2/agents/\(Self.segment(id))/items/\(Self.segment(item))/runs")
+        let r: Response = try await client.request("/api/agents/\(Self.segment(id))/items/\(Self.segment(item))/runs")
         return r.runs
     }
     public func deleteAgent(_ id: String) async throws {
         struct Response: Decodable, Sendable { var deleted: String }
-        let _: Response = try await client.request("/api/v2/agents/\(Self.segment(id))", method: "DELETE")
+        let _: Response = try await client.request("/api/agents/\(Self.segment(id))", method: "DELETE")
     }
 }

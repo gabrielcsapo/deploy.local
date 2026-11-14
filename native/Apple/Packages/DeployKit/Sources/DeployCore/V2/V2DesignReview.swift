@@ -411,37 +411,37 @@ extension V2Client {
     public func designReviews(project: String? = nil) async throws -> [V2ReviewSummary] {
         struct Response: Decodable, Sendable { var proposals: [V2ReviewSummary] }
         let query = project.map { "?project=\(Self.segment($0))" } ?? ""
-        let response: Response = try await client.request("/api/v2/design/reviews\(query)")
+        let response: Response = try await client.request("/api/design/reviews\(query)")
         return response.proposals
     }
     public func designProjects() async throws -> [V2DesignProject] {
         struct Response: Decodable, Sendable { var projects: [V2DesignProject] }
-        let response: Response = try await client.request("/api/v2/design/projects")
+        let response: Response = try await client.request("/api/design/projects")
         return response.projects.filter { $0.boards > 0 }
     }
     public func reviewPreview(project: String, item: String, board: String, width: Int, scale: Double = 1, main: Bool = false) async throws -> V2ReviewPreview {
-        try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/preview?item=\(Self.segment(item))&board=\(Self.segment(board))&width=\(width)&scale=\(min(3, max(1, scale)))\(main ? "&comparison=main" : "")", timeout: 120)
+        try await client.request("/api/projects/\(Self.segment(project))/design/review/preview?item=\(Self.segment(item))&board=\(Self.segment(board))&width=\(width)&scale=\(min(3, max(1, scale)))\(main ? "&comparison=main" : "")", timeout: 120)
     }
     /// Reuses the authenticated, origin-checked and certificate-pinned request session.
     public func reviewImage(_ url: String) async throws -> Data { try await client.data(url, timeout: 120) }
     /// Conflict metadata arrives first; the normal review can then request pixel evidence.
     public func reviewEvidence(project: String, item: String) async throws -> V2DesignReview {
-        try await client.request("/api/v2/projects/\(Self.segment(project))/design/review?item=\(Self.segment(item))&evidence=all", timeout: 120)
+        try await client.request("/api/projects/\(Self.segment(project))/design/review?item=\(Self.segment(item))&evidence=all", timeout: 120)
     }
     public func reviewChoice(project: String, item: String, file: String, choice: String?, main: String, proposal: String) async throws {
         var body: [String: JSONValue] = ["item": .string(item), "file": .string(file), "main": .string(main), "proposal": .string(proposal)]
         body["choice"] = choice.map { .string($0) } ?? .null
-        let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/choice", method: "POST", body: JSONEncoder().encode(body))
+        let _: JSONValue = try await client.request("/api/projects/\(Self.segment(project))/design/review/choice", method: "POST", body: JSONEncoder().encode(body))
     }
     public func reviewSeen(project: String, item: String, board: String, revision: String) async throws {
-        let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/seen", method: "POST", body: JSONEncoder().encode(["item": item, "board": board, "revision": revision]))
+        let _: JSONValue = try await client.request("/api/projects/\(Self.segment(project))/design/review/seen", method: "POST", body: JSONEncoder().encode(["item": item, "board": board, "revision": revision]))
     }
     public func reviewSeen(project: String, item: String, boards: [String], revision: String) async throws {
         struct Body: Encodable { var item: String; var boards: [String]; var revision: String }
-        let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/seen", method: "POST", body: JSONEncoder().encode(Body(item: item, boards: boards, revision: revision)))
+        let _: JSONValue = try await client.request("/api/projects/\(Self.segment(project))/design/review/seen", method: "POST", body: JSONEncoder().encode(Body(item: item, boards: boards, revision: revision)))
     }
     public func undoReviewApproval(project: String, item: String) async throws {
-        let _: JSONValue = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/undo", method: "POST", body: JSONEncoder().encode(["item": item]))
+        let _: JSONValue = try await client.request("/api/projects/\(Self.segment(project))/design/review/undo", method: "POST", body: JSONEncoder().encode(["item": item]))
     }
     public func addReviewPin(project: String, draft: V2ReviewPinDraft) async throws -> [V2ReviewPin] {
         try await reviewPins(project: project, method: "POST", body: JSONEncoder().encode(draft))
@@ -455,7 +455,7 @@ extension V2Client {
     }
     private func reviewPins(project: String, method: String, body: Data) async throws -> [V2ReviewPin] {
         struct Response: Decodable, Sendable { var pins: [V2ReviewPin] }
-        let response: Response = try await client.request("/api/v2/projects/\(Self.segment(project))/design/review/pins", method: method, body: body)
+        let response: Response = try await client.request("/api/projects/\(Self.segment(project))/design/review/pins", method: method, body: body)
         return response.pins
     }
 }

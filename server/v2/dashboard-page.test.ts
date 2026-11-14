@@ -1,5 +1,3 @@
-import { apiRouteManifest } from '../api/route-manifest.ts';
-import { compilePath } from '../kernel/routes.ts';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -34,7 +32,7 @@ const { loadDashboardPage, loadProjectPage, dashboardPageURL } = await import('.
 const { buildAuthCookie } = await import('../auth-cookie.ts');
 const { routeFetch } = await import('./test-request.ts');
 const { v2Api } = await import('./api.ts');
-const { workspaceApi } = await import('../workspace/api.ts');
+const { apiRoutes } = await import('../api/registry.ts');
 const { createAgent } = await import('./agents.ts');
 const { updatePreferences } = await import('./auth-store.ts');
 store.registerUser('admin', 'test-password');
@@ -121,8 +119,17 @@ test('missing, malformed, expired, revoked and header-only credentials retain cl
 });
 
 test('every seeded v2 value is the API wire response, including permissions and encoded identifiers', async () => {
-  const api = routeFetch((req, res) => v2Api(req, res, () => ({ username: 'alice' })));
-  const workspaceApiRead = routeFetch((req, res) => workspaceApi(req, res, 'alice'));
+  const api = routeFetch((req, res) => {
+    const url = new URL(req.url!, 'https://deploy.test');
+    return apiRoutes({
+      req,
+      res,
+      url,
+      path: url.pathname,
+      workspacePath: url.pathname,
+      method: req.method,
+    });
+  });
   for (const path of [
     '/dashboard',
     '/dashboard/live',
@@ -159,16 +166,9 @@ test('every seeded v2 value is the API wire response, including permissions and 
     }
     for (const [key, value] of Object.entries(page.seed.data)) {
       if (!key.startsWith('/api/')) continue;
-      const response = await (
-        apiRouteManifest.some(
-          (r) =>
-            r.handler === 'workspace' &&
-            r.method === 'GET' &&
-            compilePath(r.path)(new URL(key, 'https://deploy.test').pathname),
-        )
-          ? workspaceApiRead
-          : api
-      )(`https://deploy.test${key}`);
+      const response = await api(`https://deploy.test${key}`, {
+        headers: { cookie: buildAuthCookie('alice', alice.token!) },
+      });
       assert.equal(response.status, 200, `${path}: ${key}`);
       assert.deepEqual(JSON.parse(JSON.stringify(value)), await response.json(), `${path}: ${key}`);
     }

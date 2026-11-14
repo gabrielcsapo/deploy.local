@@ -127,7 +127,7 @@ public actor WorkspaceClient {
     /// The response's bytes, for what is not JSON, like a rendered board.
     public func data(_ path: String, method: String = "GET", body: Data? = nil, contentType: String = "application/json", timeout: TimeInterval = 20) async throws -> Data {
         let base = try connection.baseURL()
-        guard let url = URL(string: path, relativeTo: base)?.absoluteURL,
+        guard let url = URL(string: convertStoredAttachmentText(path, origins: [base.absoluteString]), relativeTo: base)?.absoluteURL,
               url.host == base.host, url.port == base.port, url.scheme == base.scheme else {
             throw ClientError.invalidOrigin
         }

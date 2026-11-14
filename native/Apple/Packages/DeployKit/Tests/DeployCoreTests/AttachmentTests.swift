@@ -10,7 +10,7 @@ final class AttachmentTests: XCTestCase {
         XCTAssertNil(formatMediaDuration(nil)); XCTAssertNil(formatMediaDuration(.infinity)); XCTAssertNil(formatMediaDuration(-1))
         let connection = Connection(origin: "https://deploy.local", username: "alice", token: "secret")
         let request = try AuthenticatedMedia.request(connection: connection, attachmentId: "video-id")
-        XCTAssertEqual(request.url?.absoluteString, "https://deploy.local/api/workspace/attachments/video-id")
+        XCTAssertEqual(request.url?.absoluteString, "https://deploy.local/api/attachments/video-id")
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Deploy-Username"), "alice")
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Deploy-Token"), "secret")
         XCTAssertEqual(try AuthenticatedMedia.asset(connection: connection, attachmentId: "video-id").url, request.url)
@@ -33,5 +33,32 @@ final class AttachmentTests: XCTestCase {
         }
         XCTAssertNotEqual(key, try AuthenticatedImageCache.key(connection: a, attachmentId: "other"))
         XCTAssertFalse(key.contains("secret"))
+    }
+}
+
+extension AttachmentTests {
+    func testStoredLinksResolveToNewResourcesWithoutRewritingForeignLinks() throws {
+        let connection = Connection(origin: "https://deploy.local", username: "alice", token: "secret")
+        for (old, new) in [("/api/v2/attachments/abc", "/api/conversation-attachments/abc"),
+                           ("/api/workspace/attachments/abc", "/api/attachments/abc")] {
+            for suffix in ["", "/thumbnail", "?download=1#image"] {
+                XCTAssertEqual(storedAttachmentURL(old + suffix, connection: connection)?.absoluteString,
+                               "https://deploy.local" + new + suffix)
+                XCTAssertEqual(storedAttachmentURL("https://deploy.local" + old + suffix, connection: connection)?.absoluteString,
+                               "https://deploy.local" + new + suffix)
+            }
+            let markdown = "🖼 ![image](\(old)) [download](https://deploy.local\(old)?download=1) https://foreign.test\(old) //foreign.test\(old) /nested\(old)"
+            let converted = "🖼 ![image](\(new)) [download](https://deploy.local\(new)?download=1) https://foreign.test\(old) //foreign.test\(old) /nested\(old)"
+            XCTAssertEqual(convertStoredAttachmentText(markdown), converted)
+            XCTAssertEqual(convertStoredAttachmentText(converted), converted)
+            for prefix in ["https://foreign.test", "//foreign.test", "/nested", "https://deploy.local:8443", "https://alice:secret@deploy.local"] {
+                XCTAssertNil(storedAttachmentURL(prefix + old, connection: connection))
+            }
+        }
+        let custom = Connection(origin: "http://localhost:5194", username: "alice", token: "secret")
+        XCTAssertEqual(storedAttachmentURL("http://localhost:5194/api/v2/attachments/abc", connection: custom)?.path,
+                       "/api/conversation-attachments/abc")
+        XCTAssertNil(storedAttachmentURL("/api/v2/tasks/abc", connection: connection))
+        XCTAssertNil(storedAttachmentURL("/api/attachments/../user", connection: connection))
     }
 }
