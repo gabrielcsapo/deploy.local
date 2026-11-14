@@ -134,15 +134,15 @@ function Setup() {
             </Setting>
             <Setting
               label="Sign in to publish"
-              description="Makes a publishing key from your deploy.local sign-in"
+              description="Opens deploy.local in your browser and gives npm and pnpm a publishing key"
             >
-              <span className="dl-mono">deploy packages login</span>
+              <span className="dl-mono">npm login --registry https://deploy.local/npm/</span>
             </Setting>
             <Setting
               label="Publish by hand"
               description="From the package’s folder, for a package with no pipeline"
             >
-              <span className="dl-mono">deploy packages publish</span>
+              <span className="dl-mono">pnpm publish</span>
             </Setting>
           </div>
         </Group>

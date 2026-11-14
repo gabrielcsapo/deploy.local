@@ -112,7 +112,7 @@ export function registryIdentity(req: IncomingMessage): Identity | null {
 }
 export function canPublish(identity: Identity, owner?: string) {
   if (identity.pipeline) return;
-  if (identity === ANONYMOUS) fail('Run deploy packages login.', 401);
+  if (identity === ANONYMOUS) fail('Run npm login --registry https://deploy.local/npm/', 401);
   if (identity.computer)
     fail(
       "Tasks can't publish. Set the version in the pull request; the pipeline publishes it when it merges.",

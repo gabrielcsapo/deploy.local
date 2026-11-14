@@ -93,7 +93,12 @@ test('auth uses the existing mount and rejects missing, invalid, agent and worke
     /apiRouteManifest/,
   );
   const s = fixture();
-  for (const path of ['/inbox', '/activity-events?waitMs=10000', '/inbox/question:q/answer']) {
+  for (const path of [
+    '/inbox',
+    '/activity-events?waitMs=10000',
+    '/inbox/question:q/answer',
+    '/packages/npm-login/missing',
+  ]) {
     for (const headers of [
       {},
       { 'x-deploy-username': s.owner, 'x-deploy-token': 'wrong' },
@@ -102,7 +107,9 @@ test('auth uses the existing mount and rejects missing, invalid, agent and worke
     ]) {
       const res = await fetch(origin + path, {
         headers: headers as Record<string, string>,
-        ...(path.endsWith('/answer') ? { method: 'POST', body: '{}' } : {}),
+        ...(path.endsWith('/answer') || path.includes('/npm-login/')
+          ? { method: 'POST', body: '{}' }
+          : {}),
       });
       assert.equal(res.status, 401);
     }

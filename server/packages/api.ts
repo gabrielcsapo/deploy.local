@@ -1,3 +1,4 @@
+import { readNpmLogin, finishNpmLogin, requireNpmLoginOrigin } from './npm-login.ts';
 import { copiesStatus, queueCopies } from './copies.ts';
 import { npmRegistry } from './npm.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -36,6 +37,21 @@ function packageAt(encoded: string) {
 }
 
 export const packagesRoutes = [
+  route({
+    method: 'GET',
+    path: '/api/packages/npm-login/:id',
+    handler: ({ res, params, context }) => send(res, readNpmLogin(params.id, context.username)),
+  }),
+  route({
+    method: 'POST',
+    path: '/api/packages/npm-login/:id',
+    input: async (req) => {
+      requireNpmLoginOrigin(req);
+      return smallBody(req);
+    },
+    handler: ({ req, res, params, input, context }) =>
+      send(res, finishNpmLogin(params.id, input.action, context.identity, req)),
+  }),
   route({
     method: 'GET',
     path: '/api/packages/cache',

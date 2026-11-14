@@ -328,7 +328,7 @@ test('npm protocol, auth, isolation, cache and responsiveness', async (t) => {
       );
       assert.equal(
         (await call('-/user/org.couchdb.user:a', { method: 'PUT', body: '{}' })).body.error,
-        'Run deploy packages login.',
+        `Run npm login --registry ${origin}/npm/`,
       );
       assert.ok(
         (await call('-/v1/search?text=test')).body.objects.some(
