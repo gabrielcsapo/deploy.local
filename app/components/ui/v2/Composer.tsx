@@ -132,6 +132,8 @@ export function Composer({
     return () => {
       active = false;
     };
+    // The composer resets when the page changes; ?ask is read once on arrival, not on every query change.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, chosenId, seed]);
   async function perform(action: () => Promise<void>) {
     setPending(true);
