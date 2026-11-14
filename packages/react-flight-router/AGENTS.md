@@ -6,4 +6,4 @@ No application- or host-specific logic or names. The router is a general library
 
 Run `pnpm --filter react-flight-router test` for the build, unit tests and compiled worker tests. Run browser tests from this directory with `pnpm exec playwright test --config e2e/playwright.config.ts` (build first). The local telemetry fixture uses temporary files and ports 5304–5307.
 
-Publishing happens through deploy.local's pipeline when the package version changes on main.
+This package now lives in its own repository, react-flight-router on deploy.local, which tests, publishes and documents it. Make router changes there; this copy is removed once deploy.local installs the published package.

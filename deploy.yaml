@@ -32,5 +32,3 @@ pipeline:
       container: node:26-trixie
       run: sh scripts/ci-setup.sh && pnpm install --frozen-lockfile && pnpm run build
       timeoutSeconds: 1800
-  publish:
-    - packages/react-flight-router
