@@ -53,6 +53,7 @@ struct V2Tabs: View {
     @State private var openedTab = false
     @State private var compose = false
     @State private var inbox = false
+    @State private var search = false
     @State private var answered = false
     @State private var workSlowKey: String?
     @State private var task: String?
@@ -99,6 +100,9 @@ struct V2Tabs: View {
             }.padding(.top, 5).background(WorkspaceStyle.sidebar(scheme))
         }.background(WorkspaceStyle.canvas(scheme)).foregroundStyle(WorkspaceStyle.text(scheme)).tint(WorkspaceStyle.text(scheme))
             .sheet(isPresented: $compose) { V2ComposerSheet(store: store) }
+            .fullScreenCover(isPresented: $search) {
+                V2SearchView(store: store, initialText: V2Evidence.board == "SearchPhone" ? "workouts.started" : "", openTask: { task = $0 }, openAgent: { agent = $0 })
+            }
             .sheet(isPresented: $newAgent, onDismiss: {
                 if let createdAgent { agent = createdAgent; self.createdAgent = nil }
             }) {
@@ -168,7 +172,7 @@ struct V2Tabs: View {
                 Task { await store.refresh() }
             }
     }
-    private var modalOpen: Bool { compose || newAgent || inbox || task != nil || agent != nil || decision != nil || signIn }
+    private var modalOpen: Bool { compose || search || newAgent || inbox || task != nil || agent != nil || decision != nil || signIn }
     private var workKeys: [String] { ["agents", "waiting", "workspace"] }
     private var visibleKeys: [String] {
         switch tab {
@@ -199,6 +203,7 @@ struct V2Tabs: View {
         switch board {
         case "SignInPhone": signIn = true
         case "ComposePhone": compose = true
+        case "SearchPhone": search = true
         case "NewAgentPhone", "NewAgentDraftPhone": newAgent = true
         case "TaskPhone", "TaskLoadingPhone": task = "sync"
         case "NewProductPhone", "TaskInfoPhone", "ShipPhone": task = "meal"
@@ -216,7 +221,7 @@ struct V2Tabs: View {
         }
     }
     private var work: some View {
-        V2Page(title: "Work", action: { compose = true }, loading: workStates) {
+        V2Page(title: "Work", action: { compose = true }, search: { search = true }, loading: workStates) {
             if store.needsAuthentication {
                 Button("Sign in again") { signIn = true }.buttonStyle(V2ActionStyle(primary: true))
             }

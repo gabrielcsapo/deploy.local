@@ -93,7 +93,8 @@ export function Composer({
   const chosenId = projectParameter(location.pathname, location.search);
   useEffect(() => {
     const path = location.pathname;
-    setText('');
+    // Search's "Ask an agent about…" arrives with the words already written.
+    setText(new URLSearchParams(location.search).get('ask') ?? '');
     setAttachments([]);
     setOverride(null);
     setError('');

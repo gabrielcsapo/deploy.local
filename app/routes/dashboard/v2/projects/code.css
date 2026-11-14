@@ -202,6 +202,28 @@
   width: 220px;
   height: 32px;
 }
+.v2-code-search {
+  cursor: text;
+  text-align: left;
+}
+.v2-code-search-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ds-muted);
+}
+/* The line a search result opened, behind its text. */
+.v2-code-lines {
+  position: relative;
+  isolation: isolate;
+}
+.v2-code-hit {
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: color-mix(in srgb, var(--ds-warning) 14%, transparent);
+}
 .v2-code-crumb {
   display: flex;
   align-items: center;
