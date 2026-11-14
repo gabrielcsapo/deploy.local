@@ -24,6 +24,7 @@ import { jobArtifactRequest } from './job-artifacts.ts';
 import { taskAttachments, uploadAttachment, serveAttachment } from './attachments.ts';
 import { taskPullSummary, taskPublishDefaults } from './task-presentation.ts';
 import { publishTask } from './publish.ts';
+import { deleteTask, taskDeletion } from './task-delete.ts';
 import { taskFiles } from './task-files.ts';
 import {
   interactiveRead,
@@ -765,7 +766,7 @@ export async function workspaceApi(
                 ),
                 route({
                   method: 'POST',
-                  path: '/tasks/:task/:action(messages|stop|mark-stopped|check|close|reopen)',
+                  path: '/tasks/:task/:action(messages|stop|mark-stopped|check|close|reopen|delete)',
                   handler: async ({ params }) => {
                     try {
                       return runCommand(() => {
@@ -775,6 +776,7 @@ export async function workspaceApi(
                           return markRunStopped(owner, params.task, body);
                         if (params.action === 'close' || params.action === 'reopen')
                           return setTaskOutcome(owner, params.task, params.action, body);
+                        if (params.action === 'delete') return deleteTask(owner, params.task, body);
                         return queueCheck(owner, params.task, body);
                       });
                     } catch (error: any) {
@@ -1276,6 +1278,17 @@ export async function workspaceApi(
                   ? taskFilePatch(owner, task.id, url.searchParams.get('path') || '', scope)
                   : taskPatch(owner, task.id, scope),
               );
+            } catch (error: any) {
+              return respondError(error);
+            }
+          },
+        }),
+        route({
+          method: 'GET',
+          path: '/tasks/:task/deletion',
+          handler: async ({ params }) => {
+            try {
+              return send(taskDeletion(owner, params.task));
             } catch (error: any) {
               return respondError(error);
             }

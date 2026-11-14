@@ -195,6 +195,7 @@ export async function waitForV2Events(
         result.push({ ...base, type: 'release', release: row.payload.release });
       else if (row.type === 'v2.rollback')
         result.push({ ...base, type: 'rollback', rollback: row.payload.rollback });
+      else if (row.type === 'task.deleted') result.push({ ...base, type: 'task-deleted' });
       else {
         runs ??= new Map(list('run', owner).map((run) => [run.id, run]));
         const event = mapConversationEvent(row, runs.get(row.runId));
