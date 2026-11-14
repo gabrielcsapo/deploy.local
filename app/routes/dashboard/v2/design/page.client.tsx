@@ -1124,7 +1124,11 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
         )}
       </div>
       <div className="dz-narrow-bar">
-        <a className="dl-icon-btn" aria-label="Back to deploy.local" href="/dashboard">
+        <a
+          className="dl-icon-btn"
+          aria-label="Back to Artifacts"
+          href="/dashboard/design?view=review"
+        >
           <Icon name="back" />
         </a>
         <span className="dz-narrow-menu">
@@ -1136,7 +1140,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
             aria-expanded={narrowMenu}
             onClick={() => setNarrowMenu(!narrowMenu)}
           >
-            <span className="dz-narrow-title">Designs</span>
+            <span className="dz-narrow-title">Artifacts</span>
             <Icon name="down" size={12} />
             {waiting.length > 0 && <span className="dz-badge">{waiting.length}</span>}
           </button>

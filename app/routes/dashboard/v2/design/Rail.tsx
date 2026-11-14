@@ -77,7 +77,7 @@ export function DesignRail({
       )}
       {place('/dashboard/computers', 'computer', 'Computers')}
       {packages.data?.served && place('/dashboard/packages', 'package', 'Packages')}
-      {place('/dashboard/design', 'layers', 'Design')}
+      {place('/dashboard/design', 'layers', 'Artifacts')}
       <span className="dz-rail-sep" />
       {place(
         '/dashboard/inbox',

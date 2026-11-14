@@ -69,7 +69,7 @@ export function V2Sidebar({
   const { inbox, workspace, live, user, computers } = data;
   const agents = data.agents.data?.agents ?? [];
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
-  // Design approvals waiting, counted on the Design item like Live counts what runs.
+  // Design approvals waiting, counted on the Artifacts item like Live counts what runs.
   const designReviews = waiting.filter((item) => item.id.startsWith('design:')).length;
   const summary = live.data?.summary;
   const username = user.data?.username || 'Account';
@@ -159,11 +159,11 @@ export function V2Sidebar({
           )}
           <Nav
             href="/dashboard/design"
-            active={pathname === '/dashboard/design'}
+            active={pathname === '/dashboard/design' || pathname.startsWith('/dashboard/artifacts')}
             lead={<Icon name="layers" />}
             end={designReviews ? <span>{designReviews} to review</span> : undefined}
           >
-            Design
+            Artifacts
           </Nav>
         </>
       }

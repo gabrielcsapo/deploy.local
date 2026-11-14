@@ -61,7 +61,7 @@ export function ToReview({
   return (
     <div className="dl-review">
       <Head
-        title="Design"
+        title="Artifacts"
         menu={
           <IconButton
             icon="menu"
