@@ -5,6 +5,7 @@ import {
   blueprintRoutes,
 } from './routes/dashboard/v2/start/routes.ts';
 import { designRoutes } from './routes/dashboard/v2/design/routes.ts';
+import { artifactsRoutes } from './routes/dashboard/v2/artifacts/routes.ts';
 import { inboxRoutes } from './routes/dashboard/v2/inbox/routes.ts';
 import { liveRoutes } from './routes/dashboard/v2/live/routes.ts';
 import { tasksRoutes } from './routes/dashboard/v2/tasks/routes.ts';
@@ -203,6 +204,7 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/design-system.js'),
           },
           ...designRoutes,
+          ...artifactsRoutes,
           ...inboxRoutes,
           ...liveRoutes,
           ...tasksRoutes,

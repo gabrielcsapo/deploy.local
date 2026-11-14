@@ -8,6 +8,7 @@ import { startApi } from './start.ts';
 import { screenshotsApi } from './screenshots.ts';
 import { pullFilesApi } from './pull-files.ts';
 import { designApi } from './design.ts';
+import { artifactsApi } from './artifacts.ts';
 import { searchApi } from './search.ts';
 import { computersApi } from './computers.ts';
 import { selfUpdateApi } from './self-update.ts';
@@ -36,6 +37,7 @@ const beforeSignIn: FeatureApi<RequireAuth>[] = [screenshotsApi, authApi, pushAp
 const signedIn: FeatureApi<string>[] = [
   packagesApi,
   designApi,
+  artifactsApi,
   searchApi,
   startApi,
   projectRemovalApi,
@@ -61,6 +63,7 @@ const featureApis: Record<string, FeatureApi<RequireAuth> | FeatureApi<string>> 
   'v2/live': liveApi,
   'packages/api': packagesApi,
   'v2/design': designApi,
+  'v2/artifacts': artifactsApi,
   'v2/search': searchApi,
   'v2/start': startApi,
   'v2/project-removal': projectRemovalApi,

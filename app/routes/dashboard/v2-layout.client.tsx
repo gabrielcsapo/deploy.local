@@ -158,7 +158,7 @@ export function V2Sidebar({
             </Nav>
           )}
           <Nav
-            href="/dashboard/design"
+            href="/dashboard/artifacts"
             active={pathname === '/dashboard/design' || pathname.startsWith('/dashboard/artifacts')}
             lead={<Icon name="layers" />}
             end={designReviews ? <span>{designReviews} to review</span> : undefined}

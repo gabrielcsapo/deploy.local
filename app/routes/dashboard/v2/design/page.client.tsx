@@ -100,6 +100,9 @@ export default function DesignPage() {
     },
     [setParams],
   );
+  // The place is Artifacts now: the old address with nothing in it opens the gallery.
+  if (!canvasProject && !params.has('project') && params.get('view') !== 'review')
+    return <ToGallery />;
   return canvasProject ? (
     <DesignCanvasPage key={`${canvasProject}:${reviewId ?? ''}`} initialProject={canvasProject} />
   ) : (
@@ -109,6 +112,11 @@ export default function DesignPage() {
       openProject={openProject}
     />
   );
+}
+
+function ToGallery() {
+  useEffect(() => window.location.replace('/dashboard/artifacts'), []);
+  return <Skeleton block label="Loading artifacts" />;
 }
 
 function DesignCanvasPage({ initialProject }: { initialProject: string }) {
@@ -1138,11 +1146,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
         )}
       </div>
       <div className="dz-narrow-bar">
-        <a
-          className="dl-icon-btn"
-          aria-label="Back to Artifacts"
-          href="/dashboard/design?view=review"
-        >
+        <a className="dl-icon-btn" aria-label="Back to Artifacts" href="/dashboard/artifacts">
           <Icon name="back" />
         </a>
         <span className="dz-narrow-menu">
