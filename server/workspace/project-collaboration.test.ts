@@ -30,7 +30,7 @@ async function request(path: string, body?: any, headers: Record<string, string>
       body === undefined ? [] : [JSON.stringify({ operationId: randomUUID(), ...body })],
     ),
     {
-      url: `/api/workspace${path}`,
+      url: `/api${path}`,
       method: body === undefined ? 'GET' : 'POST',
       headers: { 'content-type': 'application/json', ...headers },
       complete: true,
@@ -602,7 +602,7 @@ test('pull presentation uses account names while preserving actor identifiers', 
 async function agentTool(token: string, args: any) {
   const req = Object.assign(Readable.from([JSON.stringify({ name: 'deploy_project', args })]), {
     method: 'POST',
-    url: '/api/workspace/agent/tools',
+    url: '/api/agent/tools',
     headers: { 'x-deploy-agent-token': token },
   });
   let status = 0;

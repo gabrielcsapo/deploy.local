@@ -71,7 +71,7 @@ export function storeAttachment(
     kind: kind || (type.startsWith('image/') ? 'photo' : 'file'),
     name,
     bytes: bytes.length,
-    ref: `/api/v2/attachments/${id()}`,
+    ref: `/api/conversation-attachments/${id()}`,
   };
   save('v2-attachment', owner, {
     id: attachment.ref.split('/').at(-1),
@@ -82,7 +82,8 @@ export function storeAttachment(
   return attachment;
 }
 export function attachmentRecord(owner: string, ref: string) {
-  const match = typeof ref === 'string' && ref.match(/^\/api\/v2\/attachments\/([a-f0-9-]+)$/);
+  const match =
+    typeof ref === 'string' && ref.match(/^\/api\/conversation-attachments\/([a-f0-9-]+)$/);
   if (!match) fail('Invalid attachment reference');
   return get('v2-attachment', owner, match[1]);
 }
@@ -137,7 +138,7 @@ export function bindRunAttachments(owner: string, run: any, attachments: Attachm
 }
 export async function attachmentsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const url = new URL(req.url!, 'http://localhost');
-  if (url.pathname === '/api/v2/attachments' && req.method === 'POST') {
+  if (url.pathname === '/api/conversation-attachments' && req.method === 'POST') {
     const type = String(req.headers['content-type'] || '').split(';')[0];
     const name = decodeURIComponent(String(req.headers['x-file-name'] || ''));
     return sendJson(
@@ -146,7 +147,7 @@ export async function attachmentsApi(req: IncomingMessage, res: ServerResponse, 
       201,
     );
   }
-  const file = url.pathname.match(/^\/api\/v2\/attachments\/([a-f0-9-]+)$/);
+  const file = url.pathname.match(/^\/api\/conversation-attachments\/([a-f0-9-]+)$/);
   if (file && req.method === 'GET') {
     const record = await attachmentBytes(owner, url.pathname);
     res.writeHead(200, {
@@ -160,7 +161,7 @@ export async function attachmentsApi(req: IncomingMessage, res: ServerResponse, 
     res.end(record.bytes);
     return true;
   }
-  const project = url.pathname.match(/^\/api\/v2\/attachments\/projects\/([^/]+)$/);
+  const project = url.pathname.match(/^\/api\/conversation-attachments\/projects\/([^/]+)$/);
   if (project) {
     const projectId = decodeURIComponent(project[1]);
     if (req.method === 'GET')

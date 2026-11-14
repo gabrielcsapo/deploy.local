@@ -9,13 +9,13 @@ const route = routes<string>();
 export const projectsRoutes = [
   route({
     method: 'GET',
-    path: '/api/v2/projects/unlinked-apps',
+    path: '/api/projects/unlinked-apps',
     handler: async ({ res, context: owner }) =>
       sendJson(res, { apps: await unlinkedProjectApps(owner, true) }),
   }),
   route({
     method: 'POST',
-    path: '/api/v2/projects/:project/repository',
+    path: '/api/projects/:project/repository',
     input: readProjectBody,
     handler: async ({ res, params, input: body, context: owner }) =>
       sendJson(
@@ -26,7 +26,7 @@ export const projectsRoutes = [
   }),
   route({
     method: 'POST',
-    path: '/api/v2/projects',
+    path: '/api/projects',
     input: readProjectBody,
     handler: async ({ res, input: body, context: owner }) =>
       sendJson(res, await createRepositoryProject(owner, body, JSON.stringify(body)), 202),

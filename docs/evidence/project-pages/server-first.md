@@ -13,7 +13,7 @@ The changes are left in the working tree. No git writes, design edits, native/de
 - Approved CLI polling and paired-device token exchange in `server/v2/auth.ts`.
 - Existing trusted sessions and tokens supplied by the desktop bridge use the validated adoption path. Certificate trust itself does not mint a session.
 
-`POST /api/v2/auth/session` validates the explicit username/token headers before adopting them into a cookie. The browser calls it once per token, including on local-storage identity changes; successful authenticated API calls also repair a missing/mismatched cookie. Existing users do not need to sign in again. JSON response shapes of existing endpoints are unchanged. `DELETE /api/v2/auth/session` clears the cookie even for an expired session; logout and device-session revocation clear it too. A session revoked elsewhere is rejected immediately and its cookie expires on the next API/document/RSC request.
+`POST /api/auth/session` validates the explicit username/token headers before adopting them into a cookie. The browser calls it once per token, including on local-storage identity changes; successful authenticated API calls also repair a missing/mismatched cookie. Existing users do not need to sign in again. JSON response shapes of existing endpoints are unchanged. `DELETE /api/auth/session` clears the cookie even for an expired session; logout and device-session revocation clear it too. A session revoked elsewhere is rejected immediately and its cookie expires on the next API/document/RSC request.
 
 No admin-only node response is seeded. The coordinator's display name is provided separately; sensitive node configuration is not serialized.
 

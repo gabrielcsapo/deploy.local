@@ -85,10 +85,7 @@ test('capture coordinator serves real v2 envelopes, admission and offline errors
     const result = await client.takeNewTasks('desktop-fixture', false);
     assert.equal(result.computer.roles.includes('take-tasks'), false);
     assert.equal(result.computer.doing.length, 1);
-    await assert.rejects(
-      client.request('/api/workspace/workers/enroll', { method: 'POST' }),
-      /unavailable/,
-    );
+    await assert.rejects(client.request('/api/workers/enroll', { method: 'POST' }), /unavailable/);
     fixture.state.offline = true;
     await assert.rejects(client.live(), /offline/);
     for (const board of ['Setup', 'SetupLinux', 'Permissions', 'Tray', 'Offline', 'Notification']) {

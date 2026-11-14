@@ -25,8 +25,7 @@ const post = (
   body = {},
   extra: Record<string, string> = headers,
   origin = 'https://example.test',
-) =>
-  fetch(`${origin}/api/v2${path}`, { method: 'POST', headers: extra, body: JSON.stringify(body) });
+) => fetch(`${origin}/api${path}`, { method: 'POST', headers: extra, body: JSON.stringify(body) });
 after(() => {
   db.close();
   store._resetDb();
@@ -71,7 +70,7 @@ test('CLI approval and pairing exchange set the same cookie without changing the
   });
   const paired = await pairing.json();
   assert.ok(cookie(pairing).includes(encodeURIComponent(`owner:${paired.token}`)));
-  const revoked = await fetch(`https://example.test/api/v2/devices/${paired.id}`, {
+  const revoked = await fetch(`https://example.test/api/devices/${paired.id}`, {
     method: 'DELETE',
     headers: { ...headers, cookie: cookie(pairing).split(';')[0] },
     body: '{}',
@@ -81,7 +80,7 @@ test('CLI approval and pairing exchange set the same cookie without changing the
   assert.equal(store.authenticate('owner', paired.token), false);
 });
 test('sign-out clears the cookie even when the token has already been revoked', async () => {
-  const response = await fetch('https://example.test/api/v2/auth/session', {
+  const response = await fetch('https://example.test/api/auth/session', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',

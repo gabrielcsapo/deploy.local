@@ -29,7 +29,7 @@ const server = createServer(
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
 const origin = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}`;
-const base = `${origin}/api/v2`;
+const base = `${origin}/api`;
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -269,8 +269,13 @@ test('message submission binds owner attachments to the run and overrides only t
     200,
   );
   assert.equal(
-    (await fetch(base + '/attachments', { method: 'POST', headers: workerHeaders, body: 'no' }))
-      .status,
+    (
+      await fetch(base + '/conversation-attachments', {
+        method: 'POST',
+        headers: workerHeaders,
+        body: 'no',
+      })
+    ).status,
     403,
   );
 });

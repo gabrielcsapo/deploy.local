@@ -415,12 +415,12 @@ const server = createServer(async (req, res) => {
     }
     // Current phase-1 hooks use JSON long polling. SSE consumers get a genuinely idle stream.
     if (
-      path === '/api/v2/events' ||
+      path === '/api/activity-events' ||
       path === '/api/events' ||
       path === '/api/events/stream' ||
-      path === '/api/v2/events/stream'
+      path === '/api/activity-events/stream'
     ) {
-      if (req.headers.accept?.includes('text/event-stream') || path !== '/api/v2/events') {
+      if (req.headers.accept?.includes('text/event-stream') || path !== '/api/activity-events') {
         res.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -444,7 +444,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (path === '/api/user') return send({ username: 'Gabriel' });
-    if (path === '/api/v2/auth/account')
+    if (path === '/api/auth/account')
       return send({
         username: 'Gabriel',
         welcomed: true,
@@ -452,12 +452,12 @@ const server = createServer(async (req, res) => {
         passkeyOffered: true,
       });
     if (path === '/api/nodes') return send({ nodes });
-    if (path === '/api/v2/live')
+    if (path === '/api/live')
       return send({
         summary: { running: 0, failing: board === 'TaskMention' ? 1 : 0 },
         computers: [],
       });
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return send({
         projects,
         runs: [],
@@ -479,8 +479,8 @@ const server = createServer(async (req, res) => {
               },
             ],
       });
-    if (path === '/api/v2/projects') return send({ projects });
-    if (path === '/api/v2/computers/models')
+    if (path === '/api/projects') return send({ projects });
+    if (path === '/api/model-settings')
       return send({
         choices: [
           { id: 'connected', name: 'Connected model', provider: 'fixture', model: 'connected' },
@@ -494,7 +494,7 @@ const server = createServer(async (req, res) => {
         providers: [{ id: 'fixture', name: 'Fixture', computers: ['SER', 'bazzite'] }],
         local: [],
       });
-    if (path === '/api/v2/agents') {
+    if (path === '/api/agents') {
       if (req.method === 'POST') {
         // Name-only creation opens a new empty chat without duplicating the five identities.
         const agent = {
@@ -512,17 +512,17 @@ const server = createServer(async (req, res) => {
       }
       return send({ agents: state.agents, timezone });
     }
-    if (path === '/api/v2/approvals') {
+    if (path === '/api/approvals') {
       if (req.method === 'PUT') state.rules = body.rules;
       return send({ rules: state.rules });
     }
-    if (path === '/api/v2/inbox')
+    if (path === '/api/inbox')
       return send({
         items: state.inbox.filter(
           (item) => item.state === (url.searchParams.get('state') || 'waiting'),
         ),
       });
-    const answer = path.match(/^\/api\/v2\/inbox\/([^/]+)\/answer$/);
+    const answer = path.match(/^\/api\/inbox\/([^/]+)\/answer$/);
     if (answer && req.method === 'POST') {
       const item = state.inbox.find((item) => item.id === decodeURIComponent(answer[1]));
       if (!item) return send({ error: 'No such fixture inbox item' }, 404);
@@ -532,7 +532,7 @@ const server = createServer(async (req, res) => {
       });
       return send({ item });
     }
-    const agentMessage = path.match(/^\/api\/v2\/composer\/agents\/([^/]+)\/messages$/);
+    const agentMessage = path.match(/^\/api\/composer\/agents\/([^/]+)\/messages$/);
     if (agentMessage && req.method === 'POST') {
       const agent = state.agents.find((a) => a.id === decodeURIComponent(agentMessage[1]));
       if (!agent) return send({ error: 'No such fixture agent' }, 404);
@@ -550,13 +550,13 @@ const server = createServer(async (req, res) => {
       }
       return send({ events: state.conversations[agent.id] });
     }
-    if (path === '/api/v2/composer/messages' && req.method === 'POST') {
+    if (path === '/api/composer/messages' && req.method === 'POST') {
       // Record the message, but never invoke a model or execute the task.
       state.taskEvents ??= structuredClone(taskView.events);
       state.taskEvents.push(you(`message-${state.taskEvents.length}`, body.text || ''));
       return send({ taskId: body.taskId || taskId }, 201);
     }
-    const agentPath = path.match(/^\/api\/v2\/agents\/([^/]+)(.*)$/);
+    const agentPath = path.match(/^\/api\/agents\/([^/]+)(.*)$/);
     if (agentPath) {
       const agent = state.agents.find((a) => a.id === decodeURIComponent(agentPath[1]));
       if (!agent) return send({ error: 'No such fixture agent' }, 404);
@@ -594,9 +594,9 @@ const server = createServer(async (req, res) => {
           return send({ task: { id: running[0].id } });
       }
     }
-    if (path === `/api/v2/tasks/${taskId}`)
+    if (path === `/api/task-snapshots/${taskId}`)
       return send({ ...taskView, events: state.taskEvents || taskView.events });
-    if (/^\/api\/v2\/tasks\/(draft-this-week|notes-latest|notes-previous)$/.test(path)) {
+    if (/^\/api\/tasks\/(draft-this-week|notes-latest|notes-previous)$/.test(path)) {
       const id = path.split('/').at(-1);
       return send({
         ...taskView,
@@ -614,17 +614,16 @@ const server = createServer(async (req, res) => {
         run: { ...taskView.run, status: 'running' },
       });
     }
-    if (path === '/api/workspace/projects/tally/pulls/5/diff')
+    if (path === '/api/projects/tally/pulls/5/diff')
       return send({ patch, headCommit, baseCommit, mergeable: true, conflicts: [] });
-    if (path === '/api/workspace/projects/tally/pulls/5') return send({ record: pull, checks });
-    if (/^\/api\/workspace\/tasks\/[^/]+\/diff$/.test(path))
+    if (path === '/api/projects/tally/pulls/5') return send({ record: pull, checks });
+    if (/^\/api\/tasks\/[^/]+\/diff$/.test(path))
       return send({ patch: '', headCommit, baseCommit });
-    if (/^\/api\/v2\/projects\/[^/]+\/releases$/.test(path)) return send({ releases: [] });
-    if (/^\/api\/v2\/projects\/[^/]+\/design\/changes$/.test(path))
+    if (/^\/api\/projects\/[^/]+\/releases$/.test(path)) return send({ releases: [] });
+    if (/^\/api\/projects\/[^/]+\/design\/changes$/.test(path))
       return send({ base: baseCommit, commit: headCommit, files: [] });
-    if (/^\/api\/v2\/projects\/[^/]+\/design\/proposals$/.test(path))
-      return send({ proposals: [] });
-    if (/^\/api\/v2\/projects\/[^/]+\/design$/.test(path)) return send({ canvas: null });
+    if (/^\/api\/projects\/[^/]+\/design\/proposals$/.test(path)) return send({ proposals: [] });
+    if (/^\/api\/projects\/[^/]+\/design$/.test(path)) return send({ canvas: null });
     // Captures never submit model work, upload attachments, merge, or release.
     // Fail explicitly instead of pretending an unimplemented action succeeded.
     console.warn(`Unimplemented fixture API: ${req.method} ${path}`);

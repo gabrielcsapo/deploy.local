@@ -621,7 +621,7 @@ export function AppDetail({
   const { formatTime, now, formatCount } = useProjectFormatting();
   const app = detail.app;
   const overview = useData<ProjectOverview>(
-    `/api/v2/projects/${encodeURIComponent(app.project || `app:${app.name}`)}/overview`,
+    `/api/projects/${encodeURIComponent(app.project || `app:${app.name}`)}/overview`,
   );
   const repository = overview.data?.repository;
   const source = detail.release?.source ?? app.source;
@@ -854,7 +854,7 @@ export default function LivePage() {
   const encoded = pathname.split('/')[3];
   const appId = encoded ? decodeURIComponent(encoded) : undefined;
   const { live, detail, items, error, retry } = useLive(appId);
-  const projects = useData<{ projects: Project[] }>('/api/v2/projects');
+  const projects = useData<{ projects: Project[] }>('/api/projects');
   const names = Object.fromEntries(
     projects.data?.projects.map((project) => [project.id, project.name]) ?? [],
   );

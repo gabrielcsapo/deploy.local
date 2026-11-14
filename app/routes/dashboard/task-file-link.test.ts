@@ -76,7 +76,7 @@ test('disk paths are told apart from dashboard routes and web links', () => {
   assert.equal(isLocalFilePath('/var/home/bazzite/.config/deploy.local Node/a.md'), true);
   assert.equal(isLocalFilePath('file:///Users/me/a.md'), true);
   assert.equal(isLocalFilePath('/dashboard?task=1'), false);
-  assert.equal(isLocalFilePath('/api/workspace/attachments/1'), false);
+  assert.equal(isLocalFilePath('/api/attachments/1'), false);
   assert.equal(isLocalFilePath('/docs'), false);
   assert.equal(isLocalFilePath('//cdn.example.com/a.js'), false);
   assert.equal(isLocalFilePath('https://example.com/a'), false);
@@ -135,7 +135,7 @@ test('bare paths naming attached media open the attachment viewer', () => {
       task,
       attachments,
     }),
-    'Screenshot: ![phone-task.png](/api/workspace/attachments/att-1)',
+    'Screenshot: ![phone-task.png](/api/attachments/att-1)',
   );
   // An attachment with no viewer still must not look openable.
   assert.equal(
@@ -152,7 +152,7 @@ test('code, links, dashboard routes and web URLs are left exactly as written', (
     '```\n/var/home/me/a.txt\n```',
     '~~~\n/var/home/me/a.txt\n~~~',
     '[report](</var/home/me/a.txt>)',
-    '![shot](/api/workspace/attachments/att-1)',
+    '![shot](/api/attachments/att-1)',
     'Open /dashboard?task=9f1c2e to review',
     'See https://deploy.local/docs/guide/intro for more',
     'Fetched from https://example.com/a/b/c.json',

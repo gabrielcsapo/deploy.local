@@ -1,3 +1,4 @@
+import { readStoredValue as readStoredUrls } from '../read-value.ts';
 import { namedDatabase } from '../db/named-store.ts';
 
 export { createOwnerEventPoller } from './owner-poller.ts';
@@ -23,7 +24,10 @@ export function events(owner: string, after = 0, taskId?: string) {
       `SELECT * FROM events WHERE owner=? AND cursor>? ${taskId ? 'AND taskId=?' : ''} ORDER BY cursor LIMIT 1000`,
     )
     .all(...(taskId ? [owner, after, taskId] : [owner, after])) as any[];
-  return rows.map(({ owner: _, payload, ...r }) => ({ ...r, payload: JSON.parse(payload) }));
+  return rows.map(({ owner: _, payload, ...r }) => ({
+    ...r,
+    payload: readStoredUrls(JSON.parse(payload)),
+  }));
 }
 export function cursor(owner: string) {
   const db = namedDatabase('workspace');

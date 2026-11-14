@@ -141,7 +141,7 @@ export async function projectFixture(req, res, { removalAppCount } = {}) {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(value));
   };
-  if (/^\/api\/v2\/tasks\//.test(path))
+  if (/^\/api\/tasks\//.test(path))
     return send({
       computer: path.endsWith('release') ? 'MacBook Pro' : undefined,
       run: {
@@ -149,7 +149,7 @@ export async function projectFixture(req, res, { removalAppCount } = {}) {
         updatedAt: path.endsWith('release') ? ago(12) : ago(40),
       },
     });
-  if (/^\/api\/workspace\/tasks\/.*\/diff$/.test(path))
+  if (/^\/api\/tasks\/.*\/diff$/.test(path))
     return send({
       patch: path.includes('/checks/')
         ? 'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,12 +1,88 @@\n' +
@@ -175,7 +175,7 @@ export async function projectFixture(req, res, { removalAppCount } = {}) {
         },
       ],
     });
-  if (path === '/api/v2/projects') return send({ projects: projects.slice(0, 4) });
+  if (path === '/api/projects') return send({ projects: projects.slice(0, 4) });
   if (path === '/api/user') return send({ username: 'Gabriel' });
   if (path === '/api/nodes')
     return send({
@@ -185,15 +185,15 @@ export async function projectFixture(req, res, { removalAppCount } = {}) {
         { id: 'mac', name: 'MacBook Pro', online: true },
       ],
     });
-  if (path === '/api/workspace/state') return send({ tasks, runs: [], projects });
-  if (path === '/api/v2/agents')
+  if (path === '/api/state') return send({ tasks, runs: [], projects });
+  if (path === '/api/agents')
     return send({
       agents: [
         { id: 'scout', name: 'Scout' },
         { id: 'warden', name: 'Warden' },
       ],
     });
-  if (path === '/api/v2/inbox')
+  if (path === '/api/inbox')
     return send({
       items: [
         {
@@ -228,20 +228,20 @@ export async function projectFixture(req, res, { removalAppCount } = {}) {
         },
       ],
     });
-  if (path === '/api/v2/events') {
+  if (path === '/api/activity-events') {
     const timer = setTimeout(() => send({ events: [], cursor: 1, supportsWait: true }), 10000);
     res.on('close', () => clearTimeout(timer));
     return;
   }
-  if (path === '/api/v2/live')
+  if (path === '/api/live')
     return send({
       summary: { running: 7, failing: 1, warning: 1, checkedAt: at },
       computers: [{ id: 'ser', name: 'SER', roles: ['coordinator'], online: true, apps: liveApps }],
     });
-  if (path.startsWith('/api/v2/live/'))
+  if (path.startsWith('/api/live/'))
     return send({ app: liveApps.find((a) => a.appId === path.split('/').at(-1)), history: [] });
   const match = path.match(
-    /^\/api\/v2\/projects\/([^/]+)\/(overview|releases|settings|logs|apps|secrets\/[^/]+)$/,
+    /^\/api\/projects\/([^/]+)\/(overview|releases|settings|logs|apps|secrets\/[^/]+)$/,
   );
   if (match) {
     const project = projects.find((p) => p.id === match[1]);
@@ -257,7 +257,7 @@ export async function projectFixture(req, res, { removalAppCount } = {}) {
                 defaultBranch: 'main',
                 head: '2a91c0e',
                 source: { location: `git@github.com:gabriel/${project.name}.git` },
-                clonePath: `/api/workspace/git/${project.id}`,
+                clonePath: `/api/git/${project.id}`,
               },
         repositoryError: false,
         tasks: tasks.filter((t) => t.projectId === project.id),
@@ -298,7 +298,7 @@ export async function projectFixture(req, res, { removalAppCount } = {}) {
     res.writeHead(200, { 'Content-Type': 'text/plain', 'X-Accel-Buffering': 'no' });
     res.write(
       [
-        '14:16:02  edge         info   GET /api/workspace/state 200 18ms',
+        '14:16:02  edge         info   GET /api/state 200 18ms',
         '14:16:01  coordinator  info   worker heartbeat',
         '14:15:58  coordinator  warn   run queue: MacBook Pro busy, queued task for bazzite',
         '14:15:51  edge         info   POST /tasks/messages 202 41ms',

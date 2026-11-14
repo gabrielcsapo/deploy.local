@@ -83,7 +83,7 @@ export async function streamWorkspaceAttachment(
     if (current.size !== stat.size || current.mtimeMs !== stat.mtimeMs)
       throw new Error('Attachment changed while reading; finalize the file and retry');
     const url = new URL(endpoint);
-    url.pathname = '/api/workspace/agent/attachments';
+    url.pathname = '/api/agent/attachments';
     url.search = new URLSearchParams({
       name: basename(path),
       caption,

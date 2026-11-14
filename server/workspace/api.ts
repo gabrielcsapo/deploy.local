@@ -62,7 +62,7 @@ import {
 } from './coordination.ts';
 import { queueCheck } from './checks.ts';
 import { enrollWorker, workerAuthentication } from './credentials.ts';
-import { createHash } from 'node:crypto';
+import { operationSignature } from './operation-signature.ts';
 import { workerCommand } from './protocol.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { serveRepositoryGit } from './git-http.ts';
@@ -102,7 +102,7 @@ export function shortGitRoute(rawUrl: string, method?: string) {
     return method === 'GET' || method === 'HEAD' ? { redirect: '/' + repository, url: '' } : null;
   return {
     redirect: '',
-    url: `/api/workspace/git/${repository}.git${request.transport}${url.search}`,
+    url: `/api/git/${repository}.git${request.transport}${url.search}`,
   };
 }
 /**
@@ -147,7 +147,7 @@ export async function workspaceApi(
 ) {
   const url = new URL(req.url!, 'http://localhost'),
     // The iPhone app writes a project ID as 37bba42d%2D72d2…; routes match the plain form.
-    path = plainPath(url.pathname).slice('/api/workspace'.length),
+    path = plainPath(url.pathname).slice('/api'.length),
     method = req.method;
   const send = async (value: any, status = 200) => {
     const headers: Record<string, string> = {
@@ -352,19 +352,7 @@ export async function workspaceApi(
           // Compute the signature only after worker routes fall through. Rejections of their
           // returned send promises bypass this continuation and its catch.
           try {
-            const stable = (value: any): any =>
-              value && typeof value === 'object' && !Array.isArray(value)
-                ? Object.fromEntries(
-                    Object.keys(value)
-                      .sort()
-                      .map((key) => [key, stable(value[key])]),
-                  )
-                : Array.isArray(value)
-                  ? value.map(stable)
-                  : value;
-            const signature = createHash('sha256')
-              .update(path + JSON.stringify(stable(body)))
-              .digest('hex');
+            const signature = operationSignature(path, body);
 
             const runCommand = (action: () => any) => {
               const result = command(owner, body.operationId, action, signature);
@@ -376,7 +364,7 @@ export async function workspaceApi(
               }
               if (/^\/tasks\/[^/]+\/workspace\/(retry|cancel)$/.test(path))
                 return send(get('repository-operation', owner, result.id));
-              if (path === '/projects') {
+              if (path === '/repository-projects') {
                 const project = get('project', owner, result.id);
                 return send(project, project.repositoryStatus === 'ready' ? 200 : 202);
               }
@@ -388,7 +376,7 @@ export async function workspaceApi(
               [
                 route({
                   method: 'POST',
-                  path: '/projects',
+                  path: '/repository-projects',
                   handler: async () => {
                     try {
                       const project = await createRepositoryProject(owner, body, signature);
@@ -996,7 +984,7 @@ export async function workspaceApi(
         }),
         route({
           method: 'GET',
-          path: '/projects/:project/settings',
+          path: '/projects/:project/metadata',
           handler: async ({ params }) => {
             try {
               const project = get('project', owner, params.project);
@@ -1011,7 +999,7 @@ export async function workspaceApi(
             }
           },
         }),
-        ...['/computers', '/computers/:computer/permissions'].map((pattern) =>
+        ...['/worker-permissions', '/computers/:computer/permissions'].map((pattern) =>
           route({
             method: 'GET',
             path: pattern,

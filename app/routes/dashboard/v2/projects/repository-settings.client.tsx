@@ -23,7 +23,7 @@ export function RepositorySettings({ project }: { project: Project }) {
   const { formatTime } = useProjectFormatting();
   const host = useBrowserHost();
   const coordinator = useCoordinatorName();
-  const base = `/api/workspace/projects/${projectSegment(project.id)}/repository`;
+  const base = `/api/projects/${projectSegment(project.id)}/repository`;
   const repository = useData<Repository>(base);
   const [adding, setAdding] = useState(false);
   const [remote, setRemote] = useState('');

@@ -48,8 +48,7 @@ export function Composer({
     if (suggestedText) setText(suggestedText.text);
   }, [suggestedText]);
   const [agents, setAgents] = useState<AgentConfiguration[]>(
-    () =>
-      (seed?.data['/api/v2/agents'] as { agents: AgentConfiguration[] } | undefined)?.agents ?? [],
+    () => (seed?.data['/api/agents'] as { agents: AgentConfiguration[] } | undefined)?.agents ?? [],
   );
   const [mentionIndex, setMentionIndex] = useState(0);
   const [mentionClosed, setMentionClosed] = useState(false);
@@ -63,14 +62,14 @@ export function Composer({
     setMentionClosed(true);
   }
   useEffect(() => {
-    readSeeded(seed, '/api/v2/agents', () => mediaRequest('/agents'))
+    readSeeded(seed, '/api/agents', () => mediaRequest('/agents'))
       .then((v) => setAgents(v.agents))
       .catch(() => {});
   }, [seed]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [menu, setMenu] = useState<'attach' | 'model' | 'screenshot' | 'project' | null>(null);
   const [models, setModels] = useState<ComputerModels | null>(
-    () => (seed?.data['/api/v2/computers/models'] as ComputerModels) ?? null,
+    () => (seed?.data['/api/model-settings'] as ComputerModels) ?? null,
   );
   const [override, setOverride] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -99,8 +98,8 @@ export function Composer({
     const home = path === '/dashboard' || path === '/dashboard/';
     setContext({ taskId, agentId, home });
     if (taskId)
-      void readSeeded(seed, `/api/v2/tasks/${encodeURIComponent(taskId)}`, () =>
-        mediaRequest(`/tasks/${encodeURIComponent(taskId)}`),
+      void readSeeded(seed, `/api/task-snapshots/${encodeURIComponent(taskId)}`, () =>
+        mediaRequest(`/task-snapshots/${encodeURIComponent(taskId)}`),
       )
         .then((value) => {
           if (!active) return;
@@ -112,7 +111,7 @@ export function Composer({
           }
         })
         .catch(() => {});
-    void readSeeded(seed, '/api/v2/computers/models', () => mediaRequest('/computers/models'))
+    void readSeeded(seed, '/api/model-settings', () => mediaRequest('/model-settings'))
       .then((value) => {
         if (active) setModels(value);
       })
@@ -180,7 +179,7 @@ export function Composer({
   }
   async function projectFiles(path: string) {
     const value = await mediaRequest(
-      `/attachments/projects/${encodeURIComponent(context.projectId!)}?path=${encodeURIComponent(path)}&ref=${encodeURIComponent(projectRef)}`,
+      `/conversation-attachments/projects/${encodeURIComponent(context.projectId!)}?path=${encodeURIComponent(path)}&ref=${encodeURIComponent(projectRef)}`,
     );
     setFiles(value.entries);
     setProjectPath(path);
@@ -516,7 +515,7 @@ export function Composer({
                   if (file.type === 'tree') await projectFiles(file.path);
                   else {
                     const value = await mediaRequest(
-                      `/attachments/projects/${encodeURIComponent(context.projectId!)}`,
+                      `/conversation-attachments/projects/${encodeURIComponent(context.projectId!)}`,
                       'POST',
                       { path: file.path, ref: projectRef },
                     );

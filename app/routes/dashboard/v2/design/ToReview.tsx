@@ -31,9 +31,9 @@ export function ToReview({
     .map((item) => item.id)
     .join(',');
   const reviews = useData<{ proposals: DesignReviewSummary[]; approved?: DesignApproved[] }>(
-    `/api/v2/design/reviews?${projectId ? `project=${encodeURIComponent(projectId)}&` : ''}v=${encodeURIComponent(version)}`,
+    `/api/design/reviews?${projectId ? `project=${encodeURIComponent(projectId)}&` : ''}v=${encodeURIComponent(version)}`,
   );
-  const projects = useData<{ projects: DesignProject[] }>('/api/v2/design/projects');
+  const projects = useData<{ projects: DesignProject[] }>('/api/design/projects');
   useEffect(() => {
     if (
       inbox.loading ||

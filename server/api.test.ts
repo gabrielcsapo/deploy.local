@@ -135,7 +135,7 @@ describe('API – auth flow', () => {
   });
 
   it('setup owner signs in with a password, sees a trusted-only offer, registers a passkey and gets passkey-first sign-in', async () => {
-    assert.equal((await req(port, '/api/v2/setup')).body.needsSetup, false);
+    assert.equal((await req(port, '/api/setup')).body.needsSetup, false);
     const login = await req(port, '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -143,7 +143,7 @@ describe('API – auth flow', () => {
     });
     assert.equal(login.status, 200);
     const headers = authHeaders('test-admin', login.body.token);
-    const account = () => req(port, '/api/v2/auth/account', { headers });
+    const account = () => req(port, '/api/auth/account', { headers });
     const initial = (await account()).body;
     const probe: typeof fetch = (path, options) =>
       fetch(`http://localhost:${port}${path}`, options);
@@ -167,17 +167,17 @@ describe('API – auth flow', () => {
     const trust = await trusted(context(true), probe);
     assert.equal(trust, true);
     assert.equal(offerPasskey(initial, trust), true);
-    assert.equal(preferPasskey((await req(port, '/api/v2/auth/methods')).body, trust), false);
+    assert.equal(preferPasskey((await req(port, '/api/auth/methods')).body, trust), false);
     const post = (path: string, body: unknown) =>
       req(port, path, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-    await post('/api/v2/auth/account', { passkeyOffered: true, firstTaskSeen: true });
+    await post('/api/auth/account', { passkeyOffered: true, firstTaskSeen: true });
     assert.equal(offerPasskey((await account()).body, trust), false);
     assert.equal((await account()).body.firstTaskSeen, true);
-    const options = await post('/api/v2/auth/passkey/register/options', {});
+    const options = await post('/api/auth/passkey/register/options', {});
     assert.equal(options.status, 200);
     // This upstream "none" attestation has no attestation signature; bind its
     // client data to the fresh server challenge, keeping the library's RP/key data.
@@ -185,14 +185,14 @@ describe('API – auth flow', () => {
     const client = JSON.parse(Buffer.from(vector.response.clientDataJSON, 'base64url').toString());
     client.challenge = options.body.options.challenge;
     vector.response.clientDataJSON = Buffer.from(JSON.stringify(client)).toString('base64url');
-    const verified = await post('/api/v2/auth/passkey/register/verify', {
+    const verified = await post('/api/auth/passkey/register/verify', {
       challengeId: options.body.challengeId,
       response: vector,
     });
     assert.equal(verified.status, 200, JSON.stringify(verified.body));
     assert.equal((await account()).body.hasPasskey, true);
     assert.equal(offerPasskey((await account()).body, trust), false);
-    const methods = (await req(port, '/api/v2/auth/methods')).body;
+    const methods = (await req(port, '/api/auth/methods')).body;
     assert.equal(preferPasskey(methods, trust), true);
     assert.equal(preferPasskey(methods, false), false);
     const again = await req(port, '/api/login', {
@@ -203,7 +203,7 @@ describe('API – auth flow', () => {
     assert.equal(again.status, 200, 'Password still works after passkey registration');
     assert.equal(
       (
-        await req(port, '/api/v2/auth/account', {
+        await req(port, '/api/auth/account', {
           headers: authHeaders('test-admin', again.body.token),
         })
       ).body.firstTaskSeen,
@@ -649,7 +649,7 @@ describe('CLI sign-in through the real HTTP API', () => {
           false,
           'No session saved before approval',
         );
-        const approval = await req(port, '/api/v2/auth/cli/approve', {
+        const approval = await req(port, '/api/auth/cli/approve', {
           method: 'POST',
           headers: { ...testAuthHeaders(owner), 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, approved: true }),

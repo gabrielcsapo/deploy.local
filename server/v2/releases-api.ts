@@ -64,7 +64,7 @@ export async function releasesApi(
   owner: string,
 ): Promise<boolean> {
   const url = new URL(req.url!, 'http://localhost');
-  const path = url.pathname.slice('/api/v2'.length);
+  const path = url.pathname.slice('/api'.length);
   const projectRoute = path.match(
     /^\/projects\/([^/]+)\/(releases(?:\/plan)?|rollback|rollbacks)$/,
   );
@@ -72,7 +72,7 @@ export async function releasesApi(
   const releaseRoute = path.match(/^\/releases\/([^/]+)(?:\/(output))?$/);
   if (
     path !== '/projects' &&
-    path !== '/approvals' &&
+    path !== '/release-approval-rules' &&
     !projectRoute &&
     !releaseRoute &&
     !uploadRoute
@@ -95,12 +95,12 @@ export async function releasesApi(
         }),
         route({
           method: 'GET',
-          path: '/approvals',
+          path: '/release-approval-rules',
           handler: () => send({ rules: approvalRules(owner) }),
         }),
         route({
           method: 'PUT',
-          path: '/approvals',
+          path: '/release-approval-rules',
           handler: async () =>
             send({
               rules: putApprovalRules(

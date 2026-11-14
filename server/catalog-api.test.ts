@@ -65,11 +65,17 @@ describe('catalog API integration', () => {
   });
 
   it('admits an installable fixture and writes an ordinary executor revision and placement', async () => {
-    const response = await request('/api/catalog/volume-app-fixture/1.0.0-validation.1/install', {
-      method: 'POST',
-      headers: { ...authHeaders('admin', adminToken), 'content-type': 'application/json' },
-      body: JSON.stringify({ applicationName: 'catalog-api-fixture', targetSiteId: 'coordinator' }),
-    });
+    const response = await request(
+      '/api/catalog/releases/volume-app-fixture/1.0.0-validation.1/install',
+      {
+        method: 'POST',
+        headers: { ...authHeaders('admin', adminToken), 'content-type': 'application/json' },
+        body: JSON.stringify({
+          applicationName: 'catalog-api-fixture',
+          targetSiteId: 'coordinator',
+        }),
+      },
+    );
     assert.equal(response.status, 202, JSON.stringify(response.body));
     const result = response.body as {
       installation: { id: string; status: string };
@@ -106,7 +112,8 @@ describe('catalog API integration', () => {
   });
 
   it('derives Home Assistant readiness server-side and rejects forged capability documents', async () => {
-    const endpoint = '/api/catalog/home-assistant-container/2026.8.0-validation.1/preflight';
+    const endpoint =
+      '/api/catalog/releases/home-assistant-container/2026.8.0-validation.1/preflight';
     const preflight = await request(endpoint, {
       method: 'POST',
       headers: { ...authHeaders('admin', adminToken), 'content-type': 'application/json' },
@@ -150,7 +157,7 @@ describe('catalog API integration', () => {
       answers: { 'worker-token': secret },
     };
     const response = await request(
-      '/api/catalog/postgres-service-graph-fixture/1.0.0-validation.1/install',
+      '/api/catalog/releases/postgres-service-graph-fixture/1.0.0-validation.1/install',
       {
         method: 'POST',
         headers: { ...authHeaders('admin', adminToken), 'content-type': 'application/json' },
@@ -164,7 +171,7 @@ describe('catalog API integration', () => {
     if (availableStorageMiB < 16_384) {
       assert.equal(response.status, 400);
       const plan = await request(
-        '/api/catalog/postgres-service-graph-fixture/1.0.0-validation.1/install-plan',
+        '/api/catalog/releases/postgres-service-graph-fixture/1.0.0-validation.1/install-plan',
         {
           method: 'POST',
           headers: { ...authHeaders('admin', adminToken), 'content-type': 'application/json' },

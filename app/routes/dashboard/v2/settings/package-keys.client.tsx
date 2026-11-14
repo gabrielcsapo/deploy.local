@@ -6,7 +6,7 @@ import { formatTime } from '../data/time';
 export function PackageKeys() {
   const { data, error, refresh } = useData<{
     keys: { id: string; label: string; scope: string; lastUsedAt: string | null }[];
-  }>('/api/v2/package-keys');
+  }>('/api/package-keys');
   const [failure, setFailure] = useState('');
   return (
     <section className="dl-section">
@@ -32,7 +32,7 @@ export function PackageKeys() {
               variant="quiet"
               onClick={async () => {
                 try {
-                  await request('/api/v2/package-keys', {
+                  await request('/api/package-keys', {
                     method: 'DELETE',
                     body: JSON.stringify({ id: key.id }),
                   });

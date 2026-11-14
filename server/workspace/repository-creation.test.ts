@@ -57,7 +57,7 @@ async function endpoint(token: string, args: any) {
     Readable.from([JSON.stringify({ name: 'deploy_create_repository', args })]),
     {
       method: 'POST',
-      url: '/api/workspace/agent/tools',
+      url: '/api/agent/tools',
       headers: { 'x-deploy-agent-token': token },
     },
   ) as unknown as IncomingMessage;

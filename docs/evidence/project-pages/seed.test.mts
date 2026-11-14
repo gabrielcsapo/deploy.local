@@ -21,7 +21,7 @@ const { v2Api } = await import('../../../server/v2/api.ts');
 const { routeFetch } = await import('../../../server/v2/test-request.ts');
 const fetch = routeFetch((req, res) => v2Api(req, res, () => ({ username: 'owner' })));
 const api = async (path: string) => {
-  const response = await fetch(`http://localhost/api/v2${path}`);
+  const response = await fetch(`http://localhost/api${path}`);
   assert.equal(response.status, 200, path);
   return response.json();
 };

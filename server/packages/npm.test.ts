@@ -254,7 +254,7 @@ test('npm protocol, auth, isolation, cache and responsiveness', async (t) => {
           );
       }
       const revoked = createKey('alice', 'remove me', 'publish');
-      await fetch(origin + '/api/v2/package-keys', {
+      await fetch(origin + '/api/package-keys', {
         method: 'DELETE',
         body: JSON.stringify({ id: revoked.id }),
       });
@@ -810,7 +810,7 @@ test('CLI preserves user config, never writes keys to projects, uses pnpm pack a
     runPackages(['publish'], {}, { ...context, cwd: cargo }),
     /Cargo isn't available yet/,
   );
-  assert.ok((await fetch(origin + '/api/v2/packages?sidebar=1').then((r) => r.json())).served);
+  assert.ok((await fetch(origin + '/api/packages?sidebar=1').then((r) => r.json())).served);
 });
 
 test('reserved existing projects keep identity, settings and clone access', async () => {
@@ -820,7 +820,7 @@ test('reserved existing projects keep identity, settings and clone access', asyn
     const project = { id: 'legacy-' + name, name, owner: 'alice' };
     save('project', 'alice', project);
     assert.equal(findRepository('alice', name).id, project.id);
-    assert.match(repositoryClonePath('alice', project), /api\/workspace\/git\//);
+    assert.match(repositoryClonePath('alice', project), /api\/git\//);
     assert.match(repositoryWebURL('alice', project), /dashboard\/repositories\//);
     updateProjectSettings('alice', project.id, { name, description: '', settingsRevision: 0 });
     assert.equal(findRepository('alice', name).name, name);
@@ -1441,19 +1441,19 @@ test('attestations pass through from the source, and private names have none', a
 test('Copies API and CLI expose only the signed-in owner’s projects and warming requests', async () => {
   save('project', 'alice', { id: 'alice-cache', name: 'Alice cache' });
   save('project', 'bob', { id: 'bob-cache', name: 'Bob secret cache' });
-  const response = await fetch(origin + '/api/v2/packages/cache');
+  const response = await fetch(origin + '/api/packages/cache');
   assert.equal(response.status, 200);
   const result = await response.json();
   assert.ok(result.projects.some((p: any) => p.id === 'alice-cache'));
   assert.ok(!JSON.stringify(result).includes('Bob secret cache'));
   assert.equal(result.storage.limit, 20 * 1024 ** 3);
   assert.equal(result.storage.days, 90);
-  const forbidden = await fetch(origin + '/api/v2/packages/cache/warm', {
+  const forbidden = await fetch(origin + '/api/packages/cache/warm', {
     method: 'POST',
     body: JSON.stringify({ projectId: 'bob-cache' }),
   });
   assert.equal(forbidden.status, 404);
-  const accepted = await fetch(origin + '/api/v2/packages/cache/warm', {
+  const accepted = await fetch(origin + '/api/packages/cache/warm', {
     method: 'POST',
     body: JSON.stringify({ projectId: 'alice-cache' }),
   });

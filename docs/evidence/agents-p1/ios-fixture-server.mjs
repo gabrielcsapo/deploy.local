@@ -427,8 +427,8 @@ export function createFixtureHandler() {
             roles: node.id === 'coordinator' ? ['coordinator', 'run-apps'] : ['take-tasks'],
           })),
         });
-      if (path === '/api/v2/projects') return send({ projects });
-      if (path === '/api/v2/live')
+      if (path === '/api/projects') return send({ projects });
+      if (path === '/api/live')
         return send({
           summary: {
             running: 0,
@@ -442,7 +442,7 @@ export function createFixtureHandler() {
             apps: [],
           })),
         });
-      if (path === '/api/workspace/state') {
+      if (path === '/api/state') {
         const taskIDs =
           state.board === 'WorkNoAgentsPhone'
             ? []
@@ -469,8 +469,8 @@ export function createFixtureHandler() {
           adapters: [],
         });
       }
-      if (path === '/api/v2/inbox') return send({ items: state.inbox });
-      if (path === '/api/v2/events') {
+      if (path === '/api/inbox') return send({ items: state.inbox });
+      if (path === '/api/activity-events') {
         // Workspace events contain the task's actual typed conversation, not TaskDetail.events.
         const events = Object.entries(state.taskEvents)
           .flatMap(([id, entries]) =>
@@ -490,7 +490,7 @@ export function createFixtureHandler() {
           supportsWait: true,
         });
       }
-      if (path === '/api/v2/agents') {
+      if (path === '/api/agents') {
         if (req.method === 'POST') {
           const agent = {
             id: writerId,
@@ -509,7 +509,7 @@ export function createFixtureHandler() {
         }
         return send({ agents: state.agents, timezone });
       }
-      if (path === '/api/v2/approvals') {
+      if (path === '/api/approvals') {
         // iPhone knows five actions. Preserve the web fixture's other rules in memory.
         if (req.method === 'PUT') {
           if (
@@ -527,7 +527,7 @@ export function createFixtureHandler() {
         }
         return send({ rules: state.rules.filter((rule) => nativeActions.has(rule.action)) });
       }
-      const agentMessage = path.match(/^\/api\/v2\/composer\/agents\/([^/]+)\/messages$/);
+      const agentMessage = path.match(/^\/api\/composer\/agents\/([^/]+)\/messages$/);
       if (agentMessage && req.method === 'POST') {
         const agent = state.agents.find(
           (agent) => agent.id === decodeURIComponent(agentMessage[1]),
@@ -544,7 +544,7 @@ export function createFixtureHandler() {
         } else state.conversations[agent.id] = [you('fixture-message', input.text || '')];
         return send({ events: state.conversations[agent.id] });
       }
-      const agentPath = path.match(/^\/api\/v2\/agents\/([^/]+)(.*)$/);
+      const agentPath = path.match(/^\/api\/agents\/([^/]+)(.*)$/);
       if (agentPath) {
         const id = decodeURIComponent(agentPath[1]);
         const agent = state.agents.find((agent) => agent.id === id);
@@ -603,7 +603,7 @@ export function createFixtureHandler() {
             return send({ task: { id: running[0].id } });
         }
       }
-      const taskPath = path.match(/^\/api\/workspace\/tasks\/([^/]+)(?:\/(diff|messages))?$/);
+      const taskPath = path.match(/^\/api\/tasks\/([^/]+)(?:\/(diff|messages))?$/);
       if (taskPath) {
         const task = allTasks.find((task) => task.id === decodeURIComponent(taskPath[1]));
         if (!task) return send({ error: 'Missing fixture task' }, 404);
@@ -642,9 +642,9 @@ export function createFixtureHandler() {
         }
         return send({ task, messages: [], runs: [run], events: [], cursor: 0 });
       }
-      if (path === `/api/v2/tasks/${taskId}`)
+      if (path === `/api/task-snapshots/${taskId}`)
         return send({ ...taskView, events: state.taskEvents[taskId] });
-      if (/^\/api\/v2\/projects\/[^/]+\/releases$/.test(path)) return send({ releases: [] });
+      if (/^\/api\/projects\/[^/]+\/releases$/.test(path)) return send({ releases: [] });
       // Never pretend to execute unsupported model, release, upload or coordinator operations.
       return send({ error: `Fixture route unavailable: ${req.method} ${path}` }, 404);
     } catch (error) {

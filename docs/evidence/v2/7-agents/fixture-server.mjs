@@ -189,7 +189,7 @@ const server = createServer(async (req, res) => {
     if (path === '/api/user') return send({ username: 'Gabriel' });
     if (path === '/api/nodes')
       return send({ nodes: [{ online: true }, { online: true }, { online: true }] });
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return send({
         tasks: [
           {
@@ -208,13 +208,12 @@ const server = createServer(async (req, res) => {
         projects: [],
         runs: [],
       });
-    if (path === '/api/v2/live')
-      return send({ summary: { running: 7, failing: 1 }, computers: [] });
-    if (path === '/api/v2/agents/draft')
+    if (path === '/api/live') return send({ summary: { running: 7, failing: 1 }, computers: [] });
+    if (path === '/api/agents/draft')
       return send({
         draft: { name: agents[2].name, job: agents[2].job, computers: agents[2].computers },
       });
-    if (path === '/api/v2/agents') {
+    if (path === '/api/agents') {
       if (req.method === 'POST') {
         const agent = { ...body, id: 'keeper', createdBy: 'Gabriel' };
         return send({ agent }, 201);
@@ -225,14 +224,14 @@ const server = createServer(async (req, res) => {
           : agents.slice(0, 2),
       });
     }
-    if (path === '/api/v2/projects')
+    if (path === '/api/projects')
       return send({
         projects: [
           { id: 'gym', name: 'home-gym', apps: [] },
           { id: 'deploy', name: 'deploy.local', apps: [] },
         ],
       });
-    if (path === '/api/v2/approvals') {
+    if (path === '/api/approvals') {
       if (req.method === 'PUT') rules = body.rules;
       return send({
         rules: rules.filter(
@@ -240,7 +239,7 @@ const server = createServer(async (req, res) => {
         ),
       });
     }
-    if (path === '/api/v2/inbox')
+    if (path === '/api/inbox')
       return send({
         items:
           url.searchParams.get('state') === 'answered'
@@ -285,7 +284,7 @@ const server = createServer(async (req, res) => {
         });
       return send({ events: scout });
     }
-    if (path.startsWith('/api/v2/agents/') && req.method === 'PATCH')
+    if (path.startsWith('/api/agents/') && req.method === 'PATCH')
       return send({
         agent: { ...agents.find((agent) => agent.id === path.split('/')[4]), ...body },
       });

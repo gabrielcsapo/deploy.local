@@ -60,7 +60,7 @@ async function api(
     body: any;
   const req = Object.assign(Readable.from([data]), {
     method,
-    url: '/api/workspace' + path,
+    url: '/api' + path,
     headers,
   });
   await workspaceApi(
@@ -219,7 +219,7 @@ test('run-end Markdown upload maps local, file URL and remote worker paths, rewr
   assert.deepEqual(paths, ['screen.png', 'screen.png', 'screen.png', 'gone.png']);
   assert.equal(result.attachmentIds.length, 3);
   assert.equal(result.errors.length, 1);
-  assert.match(result.content, /\/api\/workspace\/attachments\//);
+  assert.match(result.content, /\/api\/attachments\//);
   assert.match(result.content, /Image unavailable/);
   assert.match(result.content, /https:\/\/example.test/);
 });
@@ -257,7 +257,7 @@ test('per-run agent endpoint accepts uploads and reads only image input assigned
       body: any;
     const req = Object.assign(Readable.from([JSON.stringify({ name, args })]), {
       method: 'POST',
-      url: '/api/workspace/agent/tools',
+      url: '/api/agent/tools',
       headers: { 'x-deploy-agent-token': token },
     });
     await coordinationApi(

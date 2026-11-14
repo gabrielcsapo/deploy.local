@@ -1,3 +1,4 @@
+import { migrateManagedGitCheckouts } from './git-url-migration.ts';
 import { gitStringSync } from '../kernel/git.ts';
 import { prepareAgentInstall, agentEnvironment } from './agent-packages.ts';
 import { secretOutput } from '../../shared/package-install.mjs';
@@ -76,6 +77,7 @@ const statePath = resolve(localRoot, 'assignment.json'),
   lockPath = resolve(localRoot, 'worker.pid');
 const releaseLease = claimRemoteWorker(lockPath);
 process.on('exit', releaseLease);
+migrateManagedGitCheckouts(localRoot, [new URL(origin).origin]);
 let state: any = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null,
   child: ReturnType<typeof spawn> | null = null,
   busy = false;
@@ -112,7 +114,7 @@ function archiveRecoveredAssignment() {
   console.log(`Previous run resolved by the coordinator; archived its assignment as ${target}`);
 }
 async function request(path: string, body: any) {
-  const response = await fetch(origin + '/api/workspace' + path, {
+  const response = await fetch(origin + '/api' + path, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -194,7 +196,7 @@ async function start(assignment: any) {
           assignment.task.baseRevision;
         await cloneTaskRepository(
           state.workspacePath,
-          origin + '/api/workspace/git/' + assignment.project.id,
+          origin + '/api/git/' + assignment.project.id,
           { env: gitEnv },
         );
         try {
@@ -224,7 +226,7 @@ async function start(assignment: any) {
         await refreshCommitBaseline(
           state.workspacePath,
           state.task,
-          origin + '/api/workspace/git/' + assignment.project.id,
+          origin + '/api/git/' + assignment.project.id,
           {
             origin: origin!,
             header: gitEnv.GIT_CONFIG_VALUE_0,
@@ -237,15 +239,11 @@ async function start(assignment: any) {
           summaryPatchLimit,
         );
       preparation = new AbortController();
-      await hydrateLfs(
-        state.workspacePath,
-        origin + '/api/workspace/git/' + assignment.project.id,
-        {
-          signal: preparation.signal,
-          timeout: 600000,
-          authentication: { origin: origin!, header: gitEnv.GIT_CONFIG_VALUE_0 },
-        },
-      );
+      await hydrateLfs(state.workspacePath, origin + '/api/git/' + assignment.project.id, {
+        signal: preparation.signal,
+        timeout: 600000,
+        authentication: { origin: origin!, header: gitEnv.GIT_CONFIG_VALUE_0 },
+      });
       preparation = undefined;
     }
     if (state.stopRequested) throw new Error('Task stopped during workspace preparation');
@@ -256,7 +254,7 @@ async function start(assignment: any) {
       state.startCheckpoint = null;
     }
     persist();
-    const mediaEndpoint = origin + '/api/workspace/agent/tools';
+    const mediaEndpoint = origin + '/api/agent/tools';
     const images = await prepareAgentImages(
       state.run.attachmentIds,
       mediaEndpoint,
@@ -301,7 +299,7 @@ async function start(assignment: any) {
         ...install.env,
         ...launch.env,
         DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
-        DEPLOY_AGENT_URL: origin + '/api/workspace/agent/tools',
+        DEPLOY_AGENT_URL: origin + '/api/agent/tools',
         DEPLOY_AGENT_TOKEN: assignment.agentToken,
         DEPLOY_AGENT_SESSION_ID: state.run.sessionId || '',
         ...providerEnvironment(state.run.adapter),
@@ -416,7 +414,7 @@ const jobs = new JobRunner(
   {
     // Raw streaming over the worker credential; files never pass through JSON or the agent.
     uploadArtifact: async (job, file, body, signal) => {
-      const url = new URL(`${origin}/api/workspace/workers/${workerId}/jobs/${job.id}/artifacts`);
+      const url = new URL(`${origin}/api/workers/${workerId}/jobs/${job.id}/artifacts`);
       url.search = new URLSearchParams({
         generation: job.generation,
         path: file.path,
@@ -446,7 +444,7 @@ const interactive = new InteractiveRunner(
   {
     uploadRecording: async (session, path) => {
       const response = await fetch(
-        `${origin}/api/workspace/workers/${workerId}/controls/${session.id}/recording`,
+        `${origin}/api/workers/${workerId}/controls/${session.id}/recording`,
         {
           method: 'POST',
           redirect: 'error',
@@ -488,7 +486,7 @@ const baseUpdateTimer = setInterval(async () => {
               (operation.workspaceGeneration ? '-' + operation.workspaceGeneration : ''),
           ),
           operation,
-          origin + '/api/workspace/git/' + operation.projectId,
+          origin + '/api/git/' + operation.projectId,
           { origin: origin!, header: gitEnv.GIT_CONFIG_VALUE_0 },
         );
         await executeBaseUpdate(
@@ -499,7 +497,7 @@ const baseUpdateTimer = setInterval(async () => {
               (operation.workspaceGeneration ? '-' + operation.workspaceGeneration : ''),
           ),
           operation,
-          origin + '/api/workspace/git/' + operation.projectId,
+          origin + '/api/git/' + operation.projectId,
           (action, body) => request(`/workers/${workerId}/base-updates/${action}`, body),
           { origin: origin!, header: gitEnv.GIT_CONFIG_VALUE_0 },
         );
@@ -519,7 +517,7 @@ const baseUpdateTimer = setInterval(async () => {
 }, 1000);
 baseUpdateTimer.unref();
 async function screenshotRequest(action: string, body: any) {
-  const response = await fetch(origin + '/api/v2/screenshots/worker/' + action, {
+  const response = await fetch(origin + '/api/screenshots/worker/' + action, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -643,7 +641,7 @@ async function tick() {
             : await refreshCommitBaseline(
                 state.workspacePath,
                 task,
-                origin + '/api/workspace/git/' + task.projectId,
+                origin + '/api/git/' + task.projectId,
                 {
                   origin: origin!,
                   header: gitEnv.GIT_CONFIG_VALUE_0,

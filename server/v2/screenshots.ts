@@ -256,7 +256,7 @@ export async function screenshotsApi(
 ) {
   const path = new URL(req.url!, 'http://localhost').pathname;
   if (
-    !/^\/api\/v2\/(attachments(?:\/|$)|screenshots(?:\/|$)|tasks\/[^/]+\/screenshots$|composer(?:\/|$))/.test(
+    !/^\/api\/(conversation-attachments(?:\/|$)|screenshots(?:\/|$)|tasks\/[^/]+\/screenshots$|composer(?:\/|$))/.test(
       path,
     )
   )
@@ -267,7 +267,7 @@ export async function screenshotsApi(
     await dispatch([
       route({
         method: 'POST',
-        path: '/api/v2/screenshots/worker/:action(poll|complete|attachments)',
+        path: '/api/screenshots/worker/:action(poll|complete|attachments)',
         handler: async ({ params }) => {
           const worker = workerAuthentication(req);
           if (!worker) fail('Worker authentication required', 401);
@@ -307,7 +307,7 @@ export async function screenshotsApi(
   if (!auth) return true;
   const owner = auth.username;
   if (await attachmentsApi(req, res, owner)) return true;
-  const task = path.match(/^\/api\/v2\/tasks\/([^/]+)\/screenshots$/);
+  const task = path.match(/^\/api\/tasks\/([^/]+)\/screenshots$/);
   if (task) {
     const taskId = decodeURIComponent(task[1]);
     get('task', owner, taskId);
@@ -315,7 +315,7 @@ export async function screenshotsApi(
       await dispatch([
         route({
           method: 'GET',
-          path: '/api/v2/tasks/:task/screenshots',
+          path: '/api/tasks/:task/screenshots',
           handler: () =>
             sendJson(res, {
               screenshots: list('screenshot', owner).filter((s) => s.taskId === taskId),
@@ -323,7 +323,7 @@ export async function screenshotsApi(
         }),
         route({
           method: 'POST',
-          path: '/api/v2/tasks/:task/screenshots',
+          path: '/api/tasks/:task/screenshots',
           handler: async () => {
             const body = await readJson(req);
             const request = queueScreenshots(owner, taskId, body);
@@ -366,13 +366,13 @@ export async function screenshotsApi(
     [
       route({
         method: 'GET',
-        path: '/api/v2/screenshots/:id',
+        path: '/api/screenshots/:id',
         handler: ({ params }) =>
           sendJson(res, { screenshot: get('screenshot', owner, decodeURIComponent(params.id)) }),
       }),
       route({
         method: 'PATCH',
-        path: '/api/v2/screenshots/:id',
+        path: '/api/screenshots/:id',
         handler: async ({ params }) =>
           sendJson(res, {
             screenshot: patchScreenshot(
@@ -384,7 +384,7 @@ export async function screenshotsApi(
       }),
       route({
         method: 'POST',
-        path: '/api/v2/composer/agents/:agent/messages',
+        path: '/api/composer/agents/:agent/messages',
         handler: async ({ params }) =>
           sendJson(
             res,
@@ -393,7 +393,7 @@ export async function screenshotsApi(
       }),
       route({
         method: 'POST',
-        path: '/api/v2/composer/messages',
+        path: '/api/composer/messages',
         handler: async () => {
           const body = await readJson(req);
           return sendJson(res, sendTaskMessage(owner, body.taskId, body), 201);

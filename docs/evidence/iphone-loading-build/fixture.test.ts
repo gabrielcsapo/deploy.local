@@ -37,28 +37,28 @@ test('loading capture holds requests, fails immediately, recovers, and reveals p
       await configure(`board=${board}&behavior=hang`);
       const path =
         board === 'ProjectsLoadingPhone'
-          ? '/api/v2/projects'
+          ? '/api/projects'
           : board === 'TaskLoadingPhone'
-            ? '/api/workspace/tasks/sync'
+            ? '/api/tasks/sync'
             : board === 'LiveLoadingPhone'
-              ? '/api/v2/live'
-              : '/api/workspace/state';
+              ? '/api/live'
+              : '/api/state';
       const pending = await held(path);
       await configure('behavior=success');
       assert.equal((await pending.response).status, 200);
     }
     await configure('board=HomeUnavailablePhone&behavior=fail');
-    assert.equal((await request('/api/workspace/state')).status, 503);
+    assert.equal((await request('/api/state')).status, 503);
     await configure('behavior=success');
-    assert.equal((await request('/api/workspace/state')).status, 200);
+    assert.equal((await request('/api/state')).status, 200);
     await configure('board=PackagesPhone&private=success&copies=hang');
-    assert.equal((await (await request('/api/v2/packages')).json()).packages.length, 1);
-    const copies = await held('/api/v2/packages/cache');
+    assert.equal((await (await request('/api/packages')).json()).packages.length, 1);
+    const copies = await held('/api/packages/cache');
     await configure('copies=fail');
     assert.equal((await copies.response).status, 503);
-    assert.equal((await request('/api/v2/packages')).status, 200);
+    assert.equal((await request('/api/packages')).status, 200);
     await configure('copies=success');
-    assert.equal((await request('/api/v2/packages/cache')).status, 200);
+    assert.equal((await request('/api/packages/cache')).status, 200);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) =>

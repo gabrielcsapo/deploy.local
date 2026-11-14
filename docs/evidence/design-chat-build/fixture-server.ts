@@ -12,7 +12,7 @@ const root = mkdtempSync(join(tmpdir(), 'design-chat-fixture-'));
 process.env.DEPLOY_DATA_DIR = root;
 const repo = resolve(import.meta.dirname, '../../..');
 const origin = 'http://127.0.0.1:5194';
-const api = '/api/v2/projects/deploy-local/design';
+const api = '/api/projects/deploy-local/design';
 const at = () => new Date().toISOString();
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 const proposer = { id: 'release-notes-writer', name: 'Release notes writer', avatar: null };
@@ -331,7 +331,7 @@ const server = createServer(async (req, res) => {
     }
     if (path === '/api/login') return send({ token: 'fixture' });
     if (path === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
-    if (path === '/api/v2/auth/account')
+    if (path === '/api/auth/account')
       return send({
         username: 'Gabriel',
         welcomed: true,
@@ -340,7 +340,7 @@ const server = createServer(async (req, res) => {
       });
     if (path === '/api/nodes')
       return send({ nodes: [{ id: 'coordinator', name: 'SER', online: true }] });
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return send({
         version: 1,
         cursor: 1,
@@ -350,20 +350,20 @@ const server = createServer(async (req, res) => {
         runs: [],
         adapters: [],
       });
-    if (path === '/api/v2/live')
+    if (path === '/api/live')
       return send({
         summary: { running: 0, failing: 0, warning: 0, checkedAt: at() },
         computers: [],
       });
-    if (path === '/api/v2/agents')
+    if (path === '/api/agents')
       return send({ agents: [{ ...proposer, job: '', computers: [], looksAfter: [] }] });
-    if (path === '/api/v2/inbox')
+    if (path === '/api/inbox')
       return send({
         items: reviews
           .map((r) => r.item)
           .filter((i) => i.state === (url.searchParams.get('state') ?? 'waiting')),
       });
-    if (path === '/api/v2/events' || path.endsWith('/stream')) {
+    if (path === '/api/activity-events' || path.endsWith('/stream')) {
       if (url.searchParams.get('after') === 'latest')
         return send({ events: [], cursor: 1, supportsWait: true });
       const timer = setTimeout(
@@ -373,7 +373,7 @@ const server = createServer(async (req, res) => {
       res.on('close', () => clearTimeout(timer));
       return;
     }
-    if (activeTask && path === `/api/v2/tasks/${activeTask.id}`)
+    if (activeTask && path === `/api/task-snapshots/${activeTask.id}`)
       return send({
         task: activeTask,
         project: { id: 'deploy-local', name: 'deploy.local', kind: 'Web app' },
@@ -389,7 +389,7 @@ const server = createServer(async (req, res) => {
         screenshots: [],
         releases: [],
       });
-    if (activeTask && path === `/api/workspace/tasks/${activeTask.id}`)
+    if (activeTask && path === `/api/tasks/${activeTask.id}`)
       return send({
         task: activeTask,
         messages: (activeTask === task ? events : []).flatMap((event) =>
@@ -409,7 +409,7 @@ const server = createServer(async (req, res) => {
         events: [],
         cursor: 1,
       });
-    if (activeTask && path === `/api/workspace/tasks/${activeTask.id}/diff`)
+    if (activeTask && path === `/api/tasks/${activeTask.id}/diff`)
       return send({
         status: 'ready',
         baseRevision: 'before',
@@ -429,7 +429,7 @@ const server = createServer(async (req, res) => {
       });
     if (path === api) return send({ canvas });
     if (path === `${api}/proposals`) return send({ proposals: reviews.map((r) => r.item) });
-    const answer = path.match(/^\/api\/v2\/inbox\/(.+)\/answer$/);
+    const answer = path.match(/^\/api\/inbox\/(.+)\/answer$/);
     const r = reviews.find(
       (r) =>
         r.item.id ===
@@ -508,13 +508,13 @@ if (process.argv.includes('--dump')) {
   await new Promise<void>((resolve) => server.listen(dumpPort, '127.0.0.1', resolve));
   try {
     const paths = {
-      task: '/api/workspace/tasks/welcome',
-      diff: '/api/workspace/tasks/welcome/diff',
+      task: '/api/tasks/welcome',
+      diff: '/api/tasks/welcome/diff',
       chat: `${api}/review?item=${encodeURIComponent(chat.item.id)}`,
       chatEncoded: `${api.replace('deploy-local', 'deploy%2Dlocal')}/review?item=${encodeURIComponent(chat.item.id)}`,
       sent: `${api}/review?item=${encodeURIComponent(sent.item.id)}`,
-      inbox: '/api/v2/inbox',
-      sentTask: '/api/workspace/tasks/agents',
+      inbox: '/api/inbox',
+      sentTask: '/api/tasks/agents',
     };
     const responses = Object.fromEntries(
       await Promise.all(

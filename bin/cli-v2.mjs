@@ -185,7 +185,7 @@ export async function runInbox(api, args, options, prompt) {
   let unresolved = new Set();
   if (items.some((item) => item.id.startsWith('design:')) && (!options.json || args.length)) {
     try {
-      const reviews = await api('/api/v2/design/reviews');
+      const reviews = await api('/api/design/reviews');
       unresolved = new Set(
         (reviews.proposals ?? []).filter((review) => review.stale).map((review) => review.id),
       );

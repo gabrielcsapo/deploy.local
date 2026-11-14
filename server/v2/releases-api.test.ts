@@ -35,9 +35,11 @@ function call(method: string, path: string) {
 }
 
 test('reads answer while recovery is still waiting; changes wait for it', async () => {
-  assert.equal(await call('GET', '/api/v2/approvals'), 200);
+  assert.equal(await call('GET', '/api/release-approval-rules'), 200);
   let changed = false;
-  const change = call('PUT', '/api/v2/approvals').then((status) => ((changed = true), status));
+  const change = call('PUT', '/api/release-approval-rules').then(
+    (status) => ((changed = true), status),
+  );
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(changed, false);
   finishRecovery();
@@ -69,13 +71,13 @@ test('release detail and project list return parts and still serialize older rel
       },
     });
   const fetch = routeFetch((req, res) => releasesApi(req, res, 'parts-owner'));
-  const detail = await fetch('http://localhost/api/v2/releases/new');
+  const detail = await fetch('http://localhost/api/releases/new');
   assert.equal(detail.status, 200);
   assert.deepEqual((await detail.json()).release.steps[0].parts, parts);
-  const old = await fetch('http://localhost/api/v2/releases/old');
+  const old = await fetch('http://localhost/api/releases/old');
   assert.equal(old.status, 200);
   assert.equal(Object.hasOwn((await old.json()).release.steps[0], 'parts'), false);
-  const list = await fetch('http://localhost/api/v2/projects/parts-project/releases');
+  const list = await fetch('http://localhost/api/projects/parts-project/releases');
   assert.equal(list.status, 200, await list.clone().text());
   const releases = (await list.json()).releases;
   assert.deepEqual(releases.find((row: any) => row.id === 'new').steps[0].parts, parts);

@@ -14,7 +14,7 @@ export function createInboxStore(
   seed?: DataSeed,
 ) {
   const seeded = ['waiting', 'answered'].map(
-    (state) => seed?.data[`/api/v2/inbox?state=${state}`] as InboxResponse | undefined,
+    (state) => seed?.data[`/api/inbox?state=${state}`] as InboxResponse | undefined,
   );
   const serverSnapshot = seeded.every(Boolean)
     ? { items: seeded.flatMap((p) => p!.items), loading: false, error: null }
@@ -107,7 +107,7 @@ export function createInboxStore(
     first = false;
     const pages = await Promise.all(
       ['waiting', 'answered'].map((state) =>
-        read<InboxResponse>(`/api/v2/inbox?state=${state}`, signal),
+        read<InboxResponse>(`/api/inbox?state=${state}`, signal),
       ),
     );
     if (signal.aborted) return;
@@ -185,7 +185,7 @@ export function createInboxStore(
     },
     async answer(itemId: string, actionId: string, note?: string) {
       const signal = controller?.signal;
-      const response = await request(`/api/v2/inbox/${encodeURIComponent(itemId)}/answer`, {
+      const response = await request(`/api/inbox/${encodeURIComponent(itemId)}/answer`, {
         method: 'POST',
         signal,
         headers: { 'Content-Type': 'application/json' },

@@ -8,7 +8,7 @@ import type { TaskView } from './types';
 
 export function useTask(id: string) {
   const seed = useDataSeed();
-  const path = `/api/v2/tasks/${encodeURIComponent(id)}`;
+  const path = `/api/task-snapshots/${encodeURIComponent(id)}`;
   const [view, setView] = useState<TaskView | null>(() => (seed?.data[path] as TaskView) ?? null);
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
@@ -43,7 +43,7 @@ export function useTask(id: string) {
         const project = data.project;
         async function loadReleases() {
           if (!project) return;
-          const releasePath = `/api/v2/projects/${encodeURIComponent(project.id)}/releases`;
+          const releasePath = `/api/projects/${encodeURIComponent(project.id)}/releases`;
           const body = await readSeeded(version === 0 ? seed : undefined, releasePath, async () => {
             const response = await authenticatedFetch(releasePath, { signal });
             return response.ok ? response.json() : { releases: [] };

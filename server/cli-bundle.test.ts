@@ -550,7 +550,7 @@ describe('CLI v1 administration', () => {
       assert.deepEqual(requests, [
         {
           method: 'POST',
-          path: '/api/catalog/volume-app-fixture/1.0.0-validation.1/install',
+          path: '/api/catalog/releases/volume-app-fixture/1.0.0-validation.1/install',
           body: {
             applicationName: 'notes',
             targetSiteId: 'coordinator',

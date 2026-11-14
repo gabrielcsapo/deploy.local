@@ -27,7 +27,7 @@ after(() => {
 });
 test('performance v2 API requires owner auth, validates range and reads rollups', async () => {
   const headers = { authorization: 'Bearer owner' };
-  const base = 'http://localhost/api/v2/apps/';
+  const base = 'http://localhost/api/apps/';
   writeEdgeTelemetry(getRequestsSqlite(), [
     {
       name: 'mine',

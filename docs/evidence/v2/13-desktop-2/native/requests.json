@@ -5,34 +5,34 @@
   },
   {
     "method": "GET",
-    "path": "/api/v2/inbox"
+    "path": "/api/inbox"
   },
   {
     "method": "GET",
-    "path": "/api/v2/live"
+    "path": "/api/live"
   },
   {
     "method": "GET",
-    "path": "/api/v2/computers"
+    "path": "/api/computers"
   },
   {
     "method": "GET",
-    "path": "/api/v2/events"
+    "path": "/api/activity-events"
   },
   {
     "method": "GET",
-    "path": "/api/v2/computers"
+    "path": "/api/computers"
   },
   {
     "method": "PATCH",
-    "path": "/api/v2/computers/worker%3Adesktop-fixture"
+    "path": "/api/computers/worker%3Adesktop-fixture"
   },
   {
     "method": "GET",
-    "path": "/api/v2/computers"
+    "path": "/api/computers"
   },
   {
     "method": "PATCH",
-    "path": "/api/v2/computers/worker%3Adesktop-fixture"
+    "path": "/api/computers/worker%3Adesktop-fixture"
   }
 ]

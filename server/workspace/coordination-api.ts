@@ -21,7 +21,7 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
     const scope = authenticateAgent(String(req.headers['x-deploy-agent-token'] || ''));
     if (!scope) return send({ error: 'Agent run credential expired or invalid' }, 401);
     const url = new URL(req.url!, 'http://localhost');
-    if (req.method === 'POST' && url.pathname === '/api/workspace/agent/attachments') {
+    if (req.method === 'POST' && url.pathname === '/api/agent/attachments') {
       const operationId = String(
         req.headers['x-operation-id'] || url.searchParams.get('operationId') || '',
       );
@@ -37,7 +37,7 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
         200,
       );
     }
-    if (req.method !== 'POST' || req.url !== '/api/workspace/agent/tools')
+    if (req.method !== 'POST' || req.url !== '/api/agent/tools')
       return send({ error: 'Agent credentials only authorize the task tool endpoint' }, 403);
     // A repository checkpoint sends its changed files as base64 JSON, so the cap follows the
     // delta limit rather than the old whole-workspace one.

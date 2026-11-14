@@ -458,7 +458,7 @@ test('HTTP routes return copy address, refuse agents, and enforce restore identi
     }
   }
   assert(port <= 5199);
-  const url = `http://127.0.0.1:${port}/api/v2/backups`;
+  const url = `http://127.0.0.1:${port}/api/backups`;
   try {
     assert.equal((await fetch(url)).status, 200);
     assert.equal((await fetch(url, { headers: { 'x-deploy-agent-token': 'agent' } })).status, 403);
@@ -503,7 +503,7 @@ test('Back up now is owner-only and reports a disabled backup without starting w
     let body: any;
     await backupsApi(
       {
-        url: '/api/v2/backups/run',
+        url: '/api/backups/run',
         method: 'POST',
         headers: {},
       } as import('node:http').IncomingMessage,

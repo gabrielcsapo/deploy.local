@@ -7,7 +7,7 @@ export async function reportHealth(
   report: WorkerReport,
   signal?: AbortSignal,
 ) {
-  const response = await fetch(new URL('/api/v2/health/report', coordinator), {
+  const response = await fetch(new URL('/api/health/report', coordinator), {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(report),

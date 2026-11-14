@@ -33,7 +33,7 @@ const server = createServer(
 );
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
-const origin = `http://127.0.0.1:${(server.address() as any).port}/api/workspace`;
+const origin = `http://127.0.0.1:${(server.address() as any).port}/api`;
 after(() => {
   server.closeAllConnections();
   server.close();

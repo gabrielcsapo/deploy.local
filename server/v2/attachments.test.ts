@@ -43,7 +43,7 @@ const server = createServer(async (req, res) => {
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
 const origin = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}`;
-const base = `${origin}/api/v2`;
+const base = `${origin}/api`;
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -64,7 +64,7 @@ test('upload validates size, declared type, contents and file names', async () =
     [Buffer.from([0]), 'text/plain', 415],
     [Buffer.alloc(0), 'text/plain', 400],
   ] as const) {
-    const response = await fetch(base + '/attachments', {
+    const response = await fetch(base + '/conversation-attachments', {
       method: 'POST',
       headers: { 'Content-Type': type, 'X-File-Name': 'file' },
       body: bytes,
@@ -72,7 +72,7 @@ test('upload validates size, declared type, contents and file names', async () =
     assert.equal(response.status, status, await response.text());
   }
   assert.throws(() => storeAttachment('owner', png, 'image/png', '../secret'), /file name/);
-  const response = await fetch(base + '/attachments', {
+  const response = await fetch(base + '/conversation-attachments', {
     method: 'POST',
     headers: { 'Content-Type': 'image/png', 'X-File-Name': 'picked.png' },
     body: png,

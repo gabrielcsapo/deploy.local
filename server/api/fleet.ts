@@ -820,7 +820,7 @@ const table = [
   }),
   route({
     method: 'GET',
-    path: '/api/computers',
+    path: '/api/computer-roles',
     handler: async ({ context: ctx }) => {
       const { req, res } = ctx;
       try {

@@ -438,8 +438,7 @@ function jobAssignment(owner: string, workerId: string, job: any) {
       base: {
         commit: snapshot.base.commit,
         ref: checkpoint.baseRef || snapshot.base.commit,
-        location:
-          workerId === 'local' ? project.repositoryPath : `/api/workspace/git/${project.id}`,
+        location: workerId === 'local' ? project.repositoryPath : `/api/git/${project.id}`,
       },
     };
   }
@@ -448,7 +447,7 @@ function jobAssignment(owner: string, workerId: string, job: any) {
   return {
     job,
     repository: {
-      location: workerId === 'local' ? project.repositoryPath : `/api/workspace/git/${project.id}`,
+      location: workerId === 'local' ? project.repositoryPath : `/api/git/${project.id}`,
       commit: pipeline.commit,
       ref: pipeline.sourceRef,
     },

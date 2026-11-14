@@ -14,12 +14,12 @@ const labels = { ask: 'Ask', allow: 'Allowed', never: 'Never' };
 export function AgentRules({ agent }: { agent: Agent }) {
   const seed = useDataSeed();
   const [rules, setRules] = useState<Rule[] | null>(
-    () => (seed?.data['/api/v2/approvals'] as { rules: Rule[] } | undefined)?.rules ?? null,
+    () => (seed?.data['/api/approvals'] as { rules: Rule[] } | undefined)?.rules ?? null,
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    readSeeded(seed, '/api/v2/approvals', () => request('/approvals'))
+    readSeeded(seed, '/api/approvals', () => request('/approvals'))
       .then((v) => setRules(v.rules))
       .catch((e) => setError(e.message));
   }, [seed]);
@@ -88,10 +88,10 @@ export function Approvals() {
   const seed = useDataSeed();
   const first = useRef(true);
   const [agents, setAgents] = useState<Agent[] | null>(
-    () => (seed?.data['/api/v2/agents'] as { agents: Agent[] } | undefined)?.agents ?? null,
+    () => (seed?.data['/api/agents'] as { agents: Agent[] } | undefined)?.agents ?? null,
   );
   const [rules, setRules] = useState<Rule[]>(
-    () => (seed?.data['/api/v2/approvals'] as { rules: Rule[] } | undefined)?.rules ?? [],
+    () => (seed?.data['/api/approvals'] as { rules: Rule[] } | undefined)?.rules ?? [],
   );
   const [selected, setSelected] = useState<Agent | null>(null);
   const [error, setError] = useState('');
@@ -99,8 +99,8 @@ export function Approvals() {
     const initial = first.current ? seed : undefined;
     first.current = false;
     Promise.all([
-      readSeeded(initial, '/api/v2/agents', () => request('/agents')),
-      readSeeded(initial, '/api/v2/approvals', () => request('/approvals')),
+      readSeeded(initial, '/api/agents', () => request('/agents')),
+      readSeeded(initial, '/api/approvals', () => request('/approvals')),
     ])
       .then(([a, r]) => {
         setAgents(a.agents);
@@ -162,12 +162,12 @@ export function Approvals() {
 function ReleaseChecks({ onChanged }: { onChanged: (rules: Rule[]) => void }) {
   const seed = useDataSeed();
   const [rules, setRules] = useState<Rule[] | null>(
-    () => (seed?.data['/api/v2/approvals'] as { rules: Rule[] } | undefined)?.rules ?? null,
+    () => (seed?.data['/api/approvals'] as { rules: Rule[] } | undefined)?.rules ?? null,
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    readSeeded(seed, '/api/v2/approvals', () => request('/approvals'))
+    readSeeded(seed, '/api/approvals', () => request('/approvals'))
       .then((v) => setRules(v.rules))
       .catch((e) => setError(e.message));
   }, [seed]);

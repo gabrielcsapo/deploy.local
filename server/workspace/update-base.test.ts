@@ -323,7 +323,7 @@ test('remote clone fetches coordinator merge objects through the authorized Git 
     const result = await executeBaseUpdate(
       cwd,
       op,
-      `http://127.0.0.1:${address.port}/api/workspace/git/${f.project.id}.git`,
+      `http://127.0.0.1:${address.port}/api/git/${f.project.id}.git`,
       (action, body) => baseUpdateWorker('alice', 'remote', action, body),
     );
     assert.equal(result.status, 'succeeded');

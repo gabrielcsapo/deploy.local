@@ -93,7 +93,7 @@ const main = await git(['rev-parse', 'HEAD']);
 save('project', 'alice', { id: 'site', repositoryPath: repo, repositoryStatus: 'ready' });
 
 const call = (path: string, init: RequestInit & { owner?: string } = {}) =>
-  fetch(`${origin}/api/v2/projects/site/design${path}`, {
+  fetch(`${origin}/api/projects/site/design${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -484,7 +484,7 @@ test('approving a design that removes a board works in a bare repository', async
   const bare = join(root, 'bare.git');
   await gitText(root, ['clone', '-q', '--bare', work, bare]);
   save('project', 'alice', { id: 'bare-site', repositoryPath: bare, repositoryStatus: 'ready' });
-  const proposed = await fetch(`${origin}/api/v2/projects/bare-site/design/propose`, {
+  const proposed = await fetch(`${origin}/api/projects/bare-site/design/propose`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-test-owner': 'alice' },
     body: JSON.stringify({
@@ -1136,7 +1136,7 @@ async function reviewFixture(name: string) {
   await run(['commit', '-qam', 'Proposed']);
   const callReview = (suffix: string, body?: object, method = 'POST') =>
     fetch(
-      `${origin}/api/v2/projects/${name}/design${suffix}`,
+      `${origin}/api/projects/${name}/design${suffix}`,
       body
         ? {
             method,
@@ -1184,7 +1184,7 @@ test('review stores proposer summary and plain title, returns actual attribution
   const row = (await import('../workspace/store.ts')).get('v2-inbox-native', 'alice', item.id);
   assert.equal(row.context.summary, review.summary);
   const landing = await (
-    await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`)
+    await fetch(`${origin}/api/design/reviews?project=${f.project.id}`)
   ).json();
   assert.equal(landing.proposals.length, 1);
   assert.equal(landing.proposals[0].title, item.title);
@@ -1244,7 +1244,7 @@ async function assertReviewSummary(
   f: Awaited<ReturnType<typeof reviewFixture>>,
   item: { id: string },
 ) {
-  const response = await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`);
+  const response = await fetch(`${origin}/api/design/reviews?project=${f.project.id}`);
   assert.equal(response.status, 200);
   const { proposals } = await response.json();
   assert.equal(proposals.length, 1);
@@ -1335,7 +1335,7 @@ test('review list preserves missing commit and main check failure behavior', asy
   for (const change of [{ main: 'missing-main' }, { base: '0'.repeat(40) }]) {
     row.context = { ...context, ...change };
     save('v2-inbox-native', 'alice', row);
-    const landing = await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`);
+    const landing = await fetch(`${origin}/api/design/reviews?project=${f.project.id}`);
     const review = await f.call(`/review?item=${encodeURIComponent(item.id)}`);
     assert.equal(landing.status, 409);
     assert.equal(review.status, 409);
@@ -1632,7 +1632,7 @@ test('seen state is owner/revision/screen scoped and round two retains only unch
   assert.equal(
     (
       await fetch(
-        `${origin}/api/v2/projects/${f.project.id}/design/review?item=${encodeURIComponent(item.id)}`,
+        `${origin}/api/projects/${f.project.id}/design/review?item=${encodeURIComponent(item.id)}`,
         { headers: { 'x-test-owner': 'mallory' } },
       )
     ).status,
@@ -2054,7 +2054,7 @@ test('two people approving at once make one commit on main; the other hears it w
   const before = await git(['rev-parse', 'main']);
   const answers = await Promise.all(
     [1, 2].map(() =>
-      fetch(`${origin}/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
+      fetch(`${origin}/api/inbox/${encodeURIComponent(item.id)}/answer`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-test-owner': 'alice' },
         body: JSON.stringify({ actionId: 'approve', on: 'web' }),
@@ -2086,7 +2086,7 @@ test('a review and a proposal of the same commit can overlap its approval', asyn
   ).json();
   // The proposal's reviewer reads while it is decided: never a half-made answer or a server error.
   const [answer, review, proposed] = await Promise.all([
-    fetch(`${origin}/api/v2/inbox/${encodeURIComponent(item.id)}/answer`, {
+    fetch(`${origin}/api/inbox/${encodeURIComponent(item.id)}/answer`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-test-owner': 'alice' },
       body: JSON.stringify({ actionId: 'approve', on: 'web' }),
@@ -2294,8 +2294,7 @@ test('approved designs show build reports and only explicitly requested open bui
   const { designTool } = await import('./design.ts');
   const row = get('v2-inbox-native', 'alice', item.id);
   const readApproved = async () =>
-    (await (await fetch(`${origin}/api/v2/design/reviews?project=${f.project.id}`)).json())
-      .approved;
+    (await (await fetch(`${origin}/api/design/reviews?project=${f.project.id}`)).json()).approved;
   await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
   assert.deepEqual(await readApproved(), []);
   const taskId = 'built-task';
@@ -2464,7 +2463,7 @@ test('build errors leave no build and can be retried; proposer follow-ups are qu
   assert.match(content, /^Keep this earlier request\./);
   assert.equal((content.match(/Build exactly what was approved/g) ?? []).length, 1);
   assert.equal(get('v2-inbox-native', 'alice', item.id).item.taskId, taskId);
-  const foreign = await fetch(`${origin}/api/v2/projects/${f.project.id}/design/review/build`, {
+  const foreign = await fetch(`${origin}/api/projects/${f.project.id}/design/review/build`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-test-owner': 'bob' },
     body: JSON.stringify({ item: item.id, place: 'new' }),

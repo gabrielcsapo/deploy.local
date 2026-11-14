@@ -86,7 +86,7 @@ export async function runPackages(
     projectRc = join(cwd, '.npmrc');
   const command = args[0] || 'list';
   if (command === 'list') {
-    const { packages } = await api('/api/v2/packages');
+    const { packages } = await api('/api/packages');
     if (flags.json) return print(JSON.stringify(packages));
     for (const pkg of packages)
       print(
@@ -96,14 +96,14 @@ export async function runPackages(
   }
   if (command === 'copies') {
     if (args[1] === 'fetch') {
-      const result = await api('/api/v2/packages/cache/warm', {
+      const result = await api('/api/packages/cache/warm', {
         method: 'POST',
         body: JSON.stringify(flags.project ? { projectId: flags.project } : {}),
       });
       print(flags.json ? JSON.stringify(result) : `Queued ${result.queued} projects.`);
       return;
     }
-    const result = await api('/api/v2/packages/cache');
+    const result = await api('/api/packages/cache');
     if (flags.json) return print(JSON.stringify(result));
     for (const source of result.sources)
       print(`${source.name}  ${source.reachable ? 'Reachable' : 'Unreachable · Using copies'}`);
@@ -122,7 +122,7 @@ export async function runPackages(
       throw new Error(
         '~/.npmrc is a symbolic link. Keep package credentials in a private user file.',
       );
-    const key = await api('/api/v2/package-keys', {
+    const key = await api('/api/package-keys', {
       method: 'POST',
       body: JSON.stringify({ label: flags.name || hostname(), scope: 'publish' }),
     });

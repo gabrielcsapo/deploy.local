@@ -354,7 +354,7 @@ export function repositoryClonePath(owner: string, project: { id: string; name: 
   const address = uniqueRepositoryAddress(list('project', owner), project);
   return address
     ? `/${address}.git`
-    : `/api/workspace/git/${project.id}/${repositoryFolderName(project.name)}.git`;
+    : `/api/git/${project.id}/${repositoryFolderName(project.name)}.git`;
 }
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 /** Link seeding needs only the manifest on main, not clone URLs or worker metadata. */

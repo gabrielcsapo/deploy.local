@@ -121,10 +121,7 @@ export async function lookupApplicationProject(
 ): Promise<string | null> {
   const query = `?application=${encodeURIComponent(application)}`;
   try {
-    let response = await request(`/api/application-repositories${query}`, init);
-    // The existing coordinator mounts this resource under /api/workspace.
-    if (response.status === 404)
-      response = await request(`/api/workspace/application-repositories${query}`, init);
+    const response = await request(`/api/application-repositories${query}`, init);
     if (!response.ok) return null;
     const data: unknown = await response.json();
     if (!data || typeof data !== 'object' || !('projects' in data) || !Array.isArray(data.projects))

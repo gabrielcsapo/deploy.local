@@ -34,7 +34,7 @@ test('repository settings are owner-scoped, revision checked and idempotent with
   };
   save('project', 'alice', original);
   const post = async (body: any, owner = 'alice', worker = false) => {
-    const response = await fetch(origin + '/api/workspace/projects/settings/settings', {
+    const response = await fetch(origin + '/api/projects/settings/settings', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ test('repository settings are owner-scoped, revision checked and idempotent with
   assert.equal(first.body.name, 'After');
   assert.equal(first.body.description, 'A real repository');
   assert.equal(first.body.settingsRevision, 1);
-  const persisted = await fetch(origin + '/api/workspace/projects/settings/settings');
+  const persisted = await fetch(origin + '/api/projects/settings/metadata');
   assert.deepEqual(await persisted.json(), {
     id: 'settings',
     name: 'After',
@@ -68,7 +68,7 @@ test('repository settings are owner-scoped, revision checked and idempotent with
   });
   assert.equal(
     (
-      await fetch(origin + '/api/workspace/projects/settings/settings', {
+      await fetch(origin + '/api/projects/settings/settings', {
         headers: { 'x-test-owner': 'bob' },
       })
     ).status,

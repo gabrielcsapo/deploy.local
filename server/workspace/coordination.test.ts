@@ -334,7 +334,7 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
     cwd: task.workspacePath,
     env: {
       PATH: process.env.PATH!,
-      DEPLOY_AGENT_URL: origin + '/api/workspace/agent/tools',
+      DEPLOY_AGENT_URL: origin + '/api/agent/tools',
       DEPLOY_AGENT_TOKEN: token,
     },
   });
@@ -404,11 +404,11 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
     assert.equal(done.digest, cp.digest);
     assert.ok(Date.parse(done.finishedAt) >= Date.parse(done.startedAt));
     assert((await call('deploy_list_jobs')).jobs.some((j: any) => j.id === job.id));
-    const rejected = await fetch(origin + '/api/workspace/state', {
+    const rejected = await fetch(origin + '/api/state', {
       headers: { 'x-deploy-agent-token': token },
     });
     assert.equal(rejected.status, 403);
-    const detailResponse = await fetch(origin + '/api/workspace/tasks/' + task.id, {
+    const detailResponse = await fetch(origin + '/api/tasks/' + task.id, {
       headers: {
         'x-deploy-worker-id': enrollment.workerId,
         'x-deploy-worker-token': enrollment.workerToken,
@@ -422,7 +422,7 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
         cwd: task.workspacePath,
         env: {
           ...process.env,
-          DEPLOY_AGENT_URL: origin + '/api/workspace/agent/tools',
+          DEPLOY_AGENT_URL: origin + '/api/agent/tools',
           DEPLOY_AGENT_TOKEN: token,
         },
         stdio: ['pipe', 'pipe', 'pipe'],

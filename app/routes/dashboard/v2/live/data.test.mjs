@@ -8,9 +8,9 @@ test('project app health uses its seed, skips the first snapshot and refreshes o
     cursor: 4,
     at: Date.now(),
     data: {
-      '/api/v2/live': { computers: [], summary: {} },
-      '/api/v2/live/web': { app: { name: 'web' } },
-      '/api/v2/inbox?state=waiting': { items: [] },
+      '/api/live': { computers: [], summary: {} },
+      '/api/live/web': { app: { name: 'web' } },
+      '/api/inbox?state=waiting': { items: [] },
     },
   };
   let subscriber;

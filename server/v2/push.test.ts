@@ -211,11 +211,11 @@ test('device endpoint requires user auth, rejects worker headers, and supports D
   });
   const origin = await listen(server);
   const body = JSON.stringify({ token: 'ee'.repeat(32), environment: 'sandbox' });
-  assert.equal((await fetch(origin + '/api/v2/devices', { method: 'POST', body })).status, 401);
+  assert.equal((await fetch(origin + '/api/devices', { method: 'POST', body })).status, 401);
   const headers = { 'x-test-user': 'user' };
   assert.equal(
     (
-      await fetch(origin + '/api/v2/devices', {
+      await fetch(origin + '/api/devices', {
         method: 'POST',
         body,
         headers: { ...headers, 'x-deploy-agent-token': 'agent' },
@@ -224,22 +224,22 @@ test('device endpoint requires user auth, rejects worker headers, and supports D
     403,
   );
   assert.equal(
-    (await fetch(origin + '/api/v2/devices', { method: 'POST', body, headers })).status,
+    (await fetch(origin + '/api/devices', { method: 'POST', body, headers })).status,
     200,
   );
   assert.equal(
-    (await fetch(origin + '/api/v2/devices', { method: 'DELETE', body, headers })).status,
+    (await fetch(origin + '/api/devices', { method: 'DELETE', body, headers })).status,
     200,
   );
   assert.equal(list('v2-device', 'user').length, 0);
-  assert.equal((await fetch(origin + '/api/v2/devices', { method: 'GET', headers })).status, 405);
+  assert.equal((await fetch(origin + '/api/devices', { method: 'GET', headers })).status, 405);
   assert.equal(
-    (await fetch(origin + '/api/v2/devices', { method: 'POST', headers, body: 'x'.repeat(4097) }))
+    (await fetch(origin + '/api/devices', { method: 'POST', headers, body: 'x'.repeat(4097) }))
       .status,
     413,
   );
   assert.equal(
-    (await fetch(origin + '/api/v2/devices', { method: 'POST', headers, body: 'not json' })).status,
+    (await fetch(origin + '/api/devices', { method: 'POST', headers, body: 'not json' })).status,
     400,
   );
 });

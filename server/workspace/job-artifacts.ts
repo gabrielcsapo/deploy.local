@@ -260,7 +260,7 @@ export function readJobArtifact(scope: AgentScope, args: any) {
     !String(row.mimeType).startsWith('text/')
   )
     throw new Error(
-      'Only text job artifacts can be read. Show images and videos in your reply as ![caption](/api/workspace/attachments/<attachmentId>).',
+      'Only text job artifacts can be read. Show images and videos in your reply as ![caption](/api/attachments/<attachmentId>).',
     );
   const offset = args.offset ?? 0,
     maxBytes = args.maxBytes ?? 8192;

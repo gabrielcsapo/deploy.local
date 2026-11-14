@@ -21,7 +21,7 @@ export type Ask = {
 export type Change = { status: string; path: string; layers?: LayerChange[] };
 export type OverlayMode = 'mine' | 'overlay' | 'agent';
 
-const api = (projectId: string) => `/api/v2/projects/${encodeURIComponent(projectId)}/design`;
+const api = (projectId: string) => `/api/projects/${encodeURIComponent(projectId)}/design`;
 
 export function useAsks(projectId: string | undefined, version: number) {
   const { data, refresh } = useData<{ asks: Ask[] }>(
@@ -58,7 +58,7 @@ export function AskPopover({
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   // Where the task runs: any free computer, or one that takes tasks and is online.
-  const computers = useData<{ computers: Computer[] }>('/api/v2/computers');
+  const computers = useData<{ computers: Computer[] }>('/api/computers');
   const takers = (computers.data?.computers ?? []).filter(
     (computer) => computer.online && computer.roles.includes('take-tasks') && computer.workerIds[0],
   );

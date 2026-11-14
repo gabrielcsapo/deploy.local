@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { SelfUpdateStatus } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, remember, remembered } from './hooks';
 
-const path = '/api/v2/self-update';
+const path = '/api/self-update';
 const changed = 'deploy:self-update';
 /**
  * The coordinator's own update. Polls slowly, every 3 s while an update runs or the coordinator

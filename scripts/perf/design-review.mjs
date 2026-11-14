@@ -100,7 +100,7 @@ const server = createServer(async (req, res) => {
   };
   if (path.startsWith('/api/')) {
     // The shell's own reads, enough for the pages to load in a browser.
-    if (path === '/api/v2/events' || path.endsWith('/stream')) {
+    if (path === '/api/activity-events' || path.endsWith('/stream')) {
       // The newest cursor answers at once, as the server does; a long poll waits like one.
       if (url.searchParams.get('after') === 'latest')
         return send({ events: [], cursor: 1, supportsWait: true });
@@ -109,11 +109,11 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (path === '/api/user') return send({ username: owner, role: 'admin' });
-    if (path === '/api/v2/auth/account')
+    if (path === '/api/auth/account')
       return send({ username: owner, welcomed: true, firstTaskSeen: true, passkeyOffered: true });
     if (path === '/api/nodes')
       return send({ nodes: [{ id: 'coordinator', name: 'SER', online: true }] });
-    if (path === '/api/workspace/state')
+    if (path === '/api/state')
       return send({
         version: 1,
         cursor: 0,
@@ -123,12 +123,12 @@ const server = createServer(async (req, res) => {
         runs: [],
         adapters: [],
       });
-    if (path === '/api/v2/live')
+    if (path === '/api/live')
       return send({
         summary: { running: 0, failing: 0, warning: 0, checkedAt: new Date().toISOString() },
         computers: [],
       });
-    if (path.startsWith('/api/v2/')) {
+    if (path.startsWith('/api/')) {
       await v2Api(req, res, () => ({ username: owner }));
       if (res.writableEnded || res.headersSent) return;
     }
@@ -152,7 +152,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((ready) => server.listen(0, '127.0.0.1', ready));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const api = `${origin}/api/v2/projects/deploy-local/design`;
+const api = `${origin}/api/projects/deploy-local/design`;
 
 async function get(path) {
   const started = performance.now();
@@ -203,12 +203,12 @@ async function measureApi() {
     `Design review perf: ${changed.length} changed + ${added.length} new boards, scale ${scale}, ${samples} samples (median)`,
   );
   row('', ['time', 'bytes', 'git', '']);
-  await timed('Design page: GET /design/reviews', () => get('/api/v2/design/reviews'));
-  await timed('Design page: GET /design/projects', () => get('/api/v2/design/projects'));
+  await timed('Design page: GET /design/reviews', () => get('/api/design/reviews'));
+  await timed('Design page: GET /design/projects', () => get('/api/design/projects'));
   await timed('Design page: both in parallel (first useful view data)', async () => {
     const started = performance.now();
     const spawnsBefore = gitSpawns;
-    const both = await Promise.all([get('/api/v2/design/reviews'), get('/api/v2/design/projects')]);
+    const both = await Promise.all([get('/api/design/reviews'), get('/api/design/projects')]);
     return {
       ms: performance.now() - started,
       bytes: both[0].bytes + both[1].bytes,

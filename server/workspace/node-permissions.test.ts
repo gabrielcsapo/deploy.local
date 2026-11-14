@@ -270,7 +270,7 @@ test('embedded clients read permissions over the API; worker credentials cannot'
   );
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  const origin = `http://127.0.0.1:${(server.address() as any).port}/api/workspace`;
+  const origin = `http://127.0.0.1:${(server.address() as any).port}/api`;
   const call = async (path: string, init: RequestInit = {}) => {
     const response = await fetch(origin + path, init);
     return { status: response.status, body: await response.json() };

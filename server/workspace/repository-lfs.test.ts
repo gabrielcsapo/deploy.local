@@ -39,7 +39,7 @@ test('LFS validates content, isolates owners/projects, and limits workers to ass
     other = createProject('owner', { name: 'Other' });
   const bytes = Buffer.from('binary\0asset'),
     oid = createHash('sha256').update(bytes).digest('hex');
-  const base = `${origin}/api/workspace/git/${project.id}/info/lfs`;
+  const base = `${origin}/api/git/${project.id}/info/lfs`;
   const json = (value: any, headers = {}) => ({
     method: 'POST',
     headers: { 'Content-Type': 'application/vnd.git-lfs+json', ...headers },
@@ -109,7 +109,7 @@ test(
     await git('add', '.');
     await git('commit', '-m', 'Asset');
     const project = createProject('owner', { name: 'LFS client', sourcePath: source });
-    const remote = `${origin}/api/workspace/git/${project.id}`;
+    const remote = `${origin}/api/git/${project.id}`;
     await git('remote', 'add', 'hosted', remote);
     await git('lfs', 'push', '--all', 'hosted');
     const clone = join(data, 'clone');

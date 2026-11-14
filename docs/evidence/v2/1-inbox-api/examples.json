@@ -2,7 +2,7 @@
   {
     "request": {
       "method": "GET",
-      "path": "/api/v2/inbox?state=waiting"
+      "path": "/api/inbox?state=waiting"
     },
     "response": {
       "status": 200,
@@ -45,7 +45,7 @@
   {
     "request": {
       "method": "POST",
-      "path": "/api/v2/inbox/question%3Achoose-color/answer",
+      "path": "/api/inbox/question%3Achoose-color/answer",
       "body": {
         "actionId": "option:0",
         "on": "iphone"
@@ -96,7 +96,7 @@
   {
     "request": {
       "method": "POST",
-      "path": "/api/v2/inbox/question%3Achoose-color/answer",
+      "path": "/api/inbox/question%3Achoose-color/answer",
       "body": {
         "actionId": "option:1",
         "on": "cli"
@@ -154,7 +154,7 @@
   {
     "request": {
       "method": "GET",
-      "path": "/api/v2/inbox?state=answered"
+      "path": "/api/inbox?state=answered"
     },
     "response": {
       "status": 200,
@@ -203,7 +203,7 @@
   {
     "request": {
       "method": "GET",
-      "path": "/api/v2/events?after=0&waitMs=0"
+      "path": "/api/activity-events?after=0&waitMs=0"
     },
     "response": {
       "status": 200,

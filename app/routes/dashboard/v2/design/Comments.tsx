@@ -28,7 +28,7 @@ function ago(at: string) {
 
 export function useComments(projectId: string | undefined) {
   const { data, refresh } = useData<{ comments: Comment[] }>(
-    projectId ? `/api/v2/projects/${encodeURIComponent(projectId)}/design/comments` : undefined,
+    projectId ? `/api/projects/${encodeURIComponent(projectId)}/design/comments` : undefined,
   );
   return { comments: data?.comments ?? [], refresh };
 }
@@ -75,7 +75,7 @@ export function CommentsPanel({
       ? nameFor(selection.board, selection.layer)
       : boardName(selection.board)
     : null;
-  const path = `/api/v2/projects/${encodeURIComponent(projectId)}/design/comments`;
+  const path = `/api/projects/${encodeURIComponent(projectId)}/design/comments`;
   const send = async () => {
     if (!selection || !text.trim()) return;
     setBusy(true);

@@ -20,7 +20,7 @@ Seed before starting the server. Use an empty directory: the seed creates `owner
 Authenticate Playwright on the server's origin with the printed token. The cookie authenticates server renders; local storage authenticates subsequent browser API calls:
 
 ```js
-await context.request.post(`${origin}/api/v2/auth/session`, {
+await context.request.post(`${origin}/api/auth/session`, {
   headers: { 'x-deploy-username': 'owner', 'x-deploy-token': token },
   data: {},
 });
@@ -84,7 +84,7 @@ After the initial project load, retain references to `header.dl-head` and `.v2-p
 
 At 700, choose a tab beyond the visible edge and resize with that tab selected. It must be revealed without scrolling the page. The trailing fade appears only when content remains beyond the right edge. Scroll to the final tab and check the fade clears. Retained counts must survive a failed refresh, not turn into zero or disappear.
 
-For server-first proof, the initial response must contain the pantry metrics and the browser must skip the fresh seeded `/api/v2/live/pantry` request. Separately test the legacy path without a cookie: delaying that request retains the original skeleton, and rejecting it shows the retry notice, not zero traffic. Subsequent refreshes retain previously known answers. Missing browser timings, ratings and layout-shift values on Performance say Not measured and explain what was not reported; zero-request comparison periods use a dash and “No requests to time”. These partial telemetry cases are covered by component tests; the seed intentionally has no browser telemetry producer.
+For server-first proof, the initial response must contain the pantry metrics and the browser must skip the fresh seeded `/api/live/pantry` request. Separately test the legacy path without a cookie: delaying that request retains the original skeleton, and rejecting it shows the retry notice, not zero traffic. Subsequent refreshes retain previously known answers. Missing browser timings, ratings and layout-shift values on Performance say Not measured and explain what was not reported; zero-request comparison periods use a dash and “No requests to time”. These partial telemetry cases are covered by component tests; the seed intentionally has no browser telemetry producer.
 
 ## Differences from the board
 

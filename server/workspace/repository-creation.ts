@@ -68,7 +68,7 @@ export async function createRepository(scope: AgentScope, args: any) {
         ...get('repository-creation', owner, project.id),
         seed,
       });
-    const cloneUrl = `https://deploy.local/api/workspace/git/${project.id}`;
+    const cloneUrl = `https://deploy.local/api/git/${project.id}`;
     const base = { project: { id: project.id, name: project.name }, cloneUrl, branch: 'main' };
     if (!args.publication) {
       const bundlePath = join(directory, 'seed.bundle');

@@ -51,17 +51,50 @@ const signedIn: FeatureApi<string>[] = [
   performanceApi,
 ];
 
-export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAuth: RequireAuth) {
+const featureApis: Record<string, FeatureApi<RequireAuth> | FeatureApi<string>> = {
+  'v2/screenshots': screenshotsApi,
+  'v2/attachments': screenshotsApi,
+  'v2/auth': authApi,
+  'v2/push': pushApi,
+  'v2/live': liveApi,
+  'packages/api': packagesApi,
+  'v2/design': designApi,
+  'v2/start': startApi,
+  'v2/project-removal': projectRemovalApi,
+  'v2/tasks': tasksApi,
+  'v2/pull-files': pullFilesApi,
+  'v2/computers': computersApi,
+  'v2/self-update': selfUpdateApi,
+  'v2/diagnostics': diagnosticsApi,
+  'v2/backups': backupsApi,
+  'v2/projects-api': projectsApi,
+  'v2/settings': settingsApi,
+  'v2/logs': settingsApi,
+  'v2/agents': agentsApi,
+  'v2/releases-api': releasesApi,
+  'v2/requests': requestsApi,
+  'v2/performance': performanceApi,
+};
+
+export async function v2Api(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requireAuth: RequireAuth,
+  feature?: string,
+) {
   const send = (value: unknown, status = 200) => {
     sendJson(res, value, status, { guard: true });
   };
   try {
-    for (const api of beforeSignIn) if (await api(req, res, requireAuth)) return;
+    for (const api of beforeSignIn)
+      if ((!feature || featureApis[feature] === api) && (await api(req, res, requireAuth))) return;
     const auth = requireAuth(req, res);
     if (!auth) return;
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Agent and worker credentials cannot access client commands' }, 403);
-    for (const api of signedIn) if (await api(req, res, auth.username)) return;
+    for (const api of signedIn)
+      if ((!feature || featureApis[feature] === api) && (await api(req, res, auth.username)))
+        return;
     const route = routes<undefined>();
     if (
       await dispatch(
@@ -87,7 +120,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
           }),
           route({
             method: 'GET',
-            path: '/events',
+            path: '/activity-events',
             handler: async ({ url }) => {
               // A client that has just loaded a snapshot starts at the newest event instead of replaying history.
               if (url.searchParams.get('after') === 'latest')
@@ -141,11 +174,11 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
             },
           }),
         ],
-        { path: (url) => url.pathname.slice('/api/v2'.length) },
+        { path: (url) => url.pathname.slice('/api'.length) },
       )(req, res, undefined)
     )
       return;
-    return send({ error: 'Not found' }, 404);
+    return false;
   } catch (error: any) {
     return send(
       {

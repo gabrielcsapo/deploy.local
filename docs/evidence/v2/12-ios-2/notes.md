@@ -40,7 +40,7 @@ presented as a native capture. See `captures.md` for every destination and comma
    contract is `pairing-contract.md`. The app rejects expired, malformed, unknown-
    version and non-HTTPS codes. It fetches only public `/ca.crt` bytes without any
    credentials, verifies the DER SHA-256 digest against the QR, then uses a separate
-   pinned TLS session for `/api/v2/devices/exchange`. This accommodates servers
+   pinned TLS session for `/api/devices/exchange`. This accommodates servers
    that do not send their root in the TLS chain. Hostname/chain validation remains
    enabled for all credential-bearing requests; redirects are refused. Device
    token, account, origin, certificate and pin are kept in a device-only Keychain

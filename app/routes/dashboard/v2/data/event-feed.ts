@@ -36,7 +36,7 @@ export function createEventFeed(request: typeof fetch) {
 
   async function read(after: number | 'latest', signal: AbortSignal) {
     const response = await request(
-      `/api/v2/events?after=${after}${after === 'latest' ? '' : '&waitMs=10000'}`,
+      `/api/activity-events?after=${after}${after === 'latest' ? '' : '&waitMs=10000'}`,
       { signal },
     );
     if (!response.ok) throw new Error('Live updates unavailable');

@@ -24,7 +24,7 @@ type Changes = {
 
 /** What a task changed in its project's design, and the review request for it. */
 export function useTaskDesign(projectId: string | undefined, taskId: string) {
-  const api = projectId ? `/api/v2/projects/${encodeURIComponent(projectId)}/design` : '';
+  const api = projectId ? `/api/projects/${encodeURIComponent(projectId)}/design` : '';
   const [version, setVersion] = useState(0);
   const changes = useData<Changes>(
     api ? `${api}/changes?task=${encodeURIComponent(taskId)}&v=${version}` : undefined,

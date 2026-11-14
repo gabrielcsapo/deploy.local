@@ -27,7 +27,7 @@ test('deploy follows the upload-to-release receipt and renders real Verify and W
     100,
   );
   assert.deepEqual(result, release);
-  assert.deepEqual(paths, ['/api/v2/releases/uploads/42']);
+  assert.deepEqual(paths, ['/api/releases/uploads/42']);
   const lines: string[] = [];
   const log = console.log;
   console.log = (line) => lines.push(line);

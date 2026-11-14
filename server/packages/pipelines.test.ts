@@ -270,7 +270,7 @@ test('failed jobs publish nothing; Cargo skips; public names need an admin claim
 });
 test('a first publish from a hosted repository belongs to that project', async () => {
   const f = await fixture(['packages/first-publish']);
-  const clone = 'https://deploy.local/api/workspace/git/' + f.project.id;
+  const clone = 'https://deploy.local/api/git/' + f.project.id;
   assert.equal(await packageProject('owner', { type: 'git', url: clone }), f.project.id);
   assert.equal(await packageProject('owner', 'git+' + clone + '.git'), f.project.id);
   assert.equal(await packageProject('someone', clone), null);

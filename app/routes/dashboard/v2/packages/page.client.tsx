@@ -34,7 +34,7 @@ function PackageList({ tab }: { tab: string }) {
   const date = (value: string) =>
     localeDate(value, { month: 'short', day: 'numeric' }, false, 'en-US');
   const setup = tab === 'setup';
-  const { data, error } = useData<any>('/api/v2/packages');
+  const { data, error } = useData<any>('/api/packages');
   return (
     <ListTemplate
       title="Packages"
@@ -171,7 +171,7 @@ function PackagePage({ name }: { name: string }) {
   const { localeDate } = useProjectFormatting();
   const date = (value: string) =>
     localeDate(value, { month: 'short', day: 'numeric' }, false, 'en-US');
-  const path = '/api/v2/packages/npm/' + encodeURIComponent(name);
+  const path = '/api/packages/npm/' + encodeURIComponent(name);
   const { data, error } = useData<any>(path);
   const [all, setAll] = useState(false);
   const [allProjects, setAllProjects] = useState(false);

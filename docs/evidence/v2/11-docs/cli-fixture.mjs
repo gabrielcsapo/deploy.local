@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 const server = createServer((req, res) => {
-  if (req.method !== 'GET' || req.url !== '/api/v2/projects/home-gym/releases') {
+  if (req.method !== 'GET' || req.url !== '/api/projects/home-gym/releases') {
     res.writeHead(404);
     return res.end('{}');
   }

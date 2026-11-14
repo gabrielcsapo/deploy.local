@@ -56,9 +56,9 @@ async function fixture(t, options = {}) {
       requests.push([path, request]);
       if (flags.offline) throw new Error('unreachable');
       if (path === '/cli/version') return manifest;
-      if (path === '/api/v2/computers/enrollment') return { code: 'JOIN-CODE' };
+      if (path === '/api/computers/enrollment') return { code: 'JOIN-CODE' };
       if (path === origin + '/api/agent/enroll') return { ...config };
-      if (path === '/api/v2/live')
+      if (path === '/api/live')
         return {
           computers: [
             {
@@ -69,7 +69,7 @@ async function fixture(t, options = {}) {
             },
           ],
         };
-      if (path === '/api/v2/computers')
+      if (path === '/api/computers')
         return {
           computers: [
             {
@@ -82,7 +82,7 @@ async function fixture(t, options = {}) {
             },
           ],
         };
-      if (path === '/api/v2/computers/node_imac') return {};
+      if (path === '/api/computers/node_imac') return {};
       throw new Error('Unexpected request: ' + path);
     },
     download: async (path, destination, opts) => {
@@ -217,7 +217,7 @@ test('install uses owner join code API, shared redemption, verified download and
   assert.equal(result.install, 'desktop');
   assert.equal(result.service.running, true);
   assert.deepEqual(f.requests[0], [
-    '/api/v2/computers/enrollment',
+    '/api/computers/enrollment',
     { method: 'POST', body: { name: 'iMac' } },
   ]);
   const redemption = f.requests.find(([path]) => path.endsWith('/api/agent/enroll'));
@@ -278,7 +278,7 @@ test('repair verifies checksum before executing, retains enrollment after failur
   assert.equal((await f.manager.detect()).install, 'command-line');
   f.flags.corrupt = false;
   await f.manager.repair();
-  assert.equal(f.requests.filter(([path]) => path === '/api/v2/computers/enrollment').length, 1);
+  assert.equal(f.requests.filter(([path]) => path === '/api/computers/enrollment').length, 1);
   assert.equal((await f.manager.detect()).install, 'desktop');
 });
 
@@ -394,7 +394,7 @@ test('Run apps off only changes coordinator admission, preserves other roles and
   await f.seed({ current: true });
   await f.manager.mark();
   await f.manager.setEnabled(false);
-  assert.deepEqual(f.requests.find(([path]) => path === '/api/v2/computers/node_imac')[1], {
+  assert.deepEqual(f.requests.find(([path]) => path === '/api/computers/node_imac')[1], {
     method: 'PATCH',
     body: { roles: [] },
   });

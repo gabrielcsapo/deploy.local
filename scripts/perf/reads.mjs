@@ -8,15 +8,15 @@ const headers = { 'x-deploy-username': rc.username, 'x-deploy-token': rc.token }
 const base = rc.url.replace(/\/$/, '');
 const samples = Number(process.argv[2] ?? 5);
 const paths = [
-  '/api/v2/self-update',
-  '/api/v2/inbox',
-  '/api/v2/live',
-  '/api/v2/projects',
-  '/api/v2/computers',
-  '/api/v2/agents',
-  '/api/v2/design/reviews',
-  '/api/v2/events?after=0&waitMs=0',
-  '/api/v2/events?after=latest',
+  '/api/self-update',
+  '/api/inbox',
+  '/api/live',
+  '/api/projects',
+  '/api/computers',
+  '/api/agents',
+  '/api/design/reviews',
+  '/api/activity-events?after=0&waitMs=0',
+  '/api/activity-events?after=latest',
   '/api/deployments',
   '/api/nodes',
 ];

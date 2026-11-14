@@ -71,7 +71,7 @@ after(async () => {
 });
 let op = 0;
 async function post(path: string, body: any = {}) {
-  const response = await fetch(origin + '/api/workspace' + path, {
+  const response = await fetch(origin + '/api' + path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ operationId: `test-${++op}`, ...body }),
@@ -79,7 +79,7 @@ async function post(path: string, body: any = {}) {
   return { status: response.status, body: (await response.json()) as any };
 }
 async function read(path: string, owner = 'alice') {
-  const response = await fetch(origin + '/api/workspace' + path, {
+  const response = await fetch(origin + '/api' + path, {
     headers: { 'x-test-owner': owner },
   });
   return { status: response.status, body: (await response.json()) as any };
@@ -164,7 +164,7 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   ).body;
   assert.equal(blob.content, 'original\n');
   const cloned = join(data, 'clone');
-  await gitText(data, ['clone', `${origin}/api/workspace/git/${project.id}`, cloned]);
+  await gitText(data, ['clone', `${origin}/api/git/${project.id}`, cloned]);
   // The advertised clone path is the short address `/<repo>.git`, so a plain `git clone` names
   // the folder after the repository.
   assert.equal(info.clonePath, `/${repositoryFolderName(project.name)}.git`);
@@ -260,7 +260,7 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   ).body;
   assert.equal(remoteTask.baseRevision, git(source, ['rev-parse', 'HEAD']));
   const remoteCopy = join(data, 'pinned-remote-clone');
-  await gitText(data, ['clone', `${origin}/api/workspace/git/${project.id}`, remoteCopy]);
+  await gitText(data, ['clone', `${origin}/api/git/${project.id}`, remoteCopy]);
   await gitText(remoteCopy, ['fetch', 'origin', remoteTask.sourceRef]);
   assert.equal(git(remoteCopy, ['rev-parse', 'FETCH_HEAD']), remoteTask.baseRevision);
 });

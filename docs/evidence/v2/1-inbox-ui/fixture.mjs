@@ -93,9 +93,9 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   let body;
   let status = 200;
-  if (url.pathname === '/api/v2/inbox')
+  if (url.pathname === '/api/inbox')
     body = { items: items.filter((i) => i.state === (url.searchParams.get('state') || 'waiting')) };
-  else if (url.pathname === '/api/v2/events') {
+  else if (url.pathname === '/api/activity-events') {
     const after = Number(url.searchParams.get('after'));
     if (after === cursor) await new Promise((r) => setTimeout(r, 500));
     body = { events: events.filter((e) => e.cursor > after), cursor, supportsWait: true };
@@ -129,7 +129,7 @@ const server = createServer(async (req, res) => {
       }
       body = { item, answer: item.answer };
     }
-  } else if (url.pathname === '/api/workspace/state') body = { tasks, runs: [] };
+  } else if (url.pathname === '/api/state') body = { tasks, runs: [] };
   else if (url.pathname === '/api/user') body = { username: 'Gabriel' };
   else if (url.pathname === '/api/nodes')
     body = {
@@ -139,7 +139,7 @@ const server = createServer(async (req, res) => {
         { name: 'Mac', online: true },
       ],
     };
-  else if (url.pathname === '/api/v2/live')
+  else if (url.pathname === '/api/live')
     body = { summary: { running: 7, failing: answeredBoard ? 0 : 1 } };
   else {
     status = 404;

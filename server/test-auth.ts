@@ -20,7 +20,7 @@ export async function setupTestAccount(
     { env: { ...process.env, DEPLOY_DATA_DIR: dataDirectory }, encoding: 'utf8' },
   );
   const { code } = JSON.parse(output.trim().split('\n').at(-1)!);
-  const response = await fetch(`${origin}/api/v2/setup`, {
+  const response = await fetch(`${origin}/api/setup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, username, password }),

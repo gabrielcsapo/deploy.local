@@ -37,11 +37,11 @@ import { DesktopUpdateRow } from './v2/DesktopUpdate';
 
 function useSidebarData() {
   return {
-    packages: useResource<{ served: boolean; usingCopies: boolean }>('/api/v2/packages?sidebar=1'),
+    packages: useResource<{ served: boolean; usingCopies: boolean }>('/api/packages?sidebar=1'),
     inbox: useInbox(),
-    workspace: useResource<WorkspaceState>('/api/workspace/state'),
-    agents: useResource<{ agents: SidebarAgent[] }>('/api/v2/agents', true),
-    live: useResource<{ summary: LiveSummary }>('/api/v2/live', true),
+    workspace: useResource<WorkspaceState>('/api/state'),
+    agents: useResource<{ agents: SidebarAgent[] }>('/api/agents', true),
+    live: useResource<{ summary: LiveSummary }>('/api/live', true),
     user: useResource<{ username: string }>('/api/user'),
     computers: useResource<{ nodes: { id: string; name?: string; online: boolean }[] }>(
       '/api/nodes',

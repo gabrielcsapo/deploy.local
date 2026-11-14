@@ -34,7 +34,7 @@ function NewProject() {
         open
         onClose={() => window.location.assign('/dashboard/start')}
         onCreated={async (project) => {
-          await api('/api/v2/auth/account', { welcomed: true });
+          await api('/api/auth/account', { welcomed: true });
           window.location.assign(`/dashboard/projects/${encodeURIComponent(project.id)}`);
         }}
       />
@@ -72,7 +72,7 @@ function Welcome() {
               project="New task"
               model="Default"
               onSend={(text) => {
-                void api('/api/workspace/tasks', {
+                void api('/api/tasks', {
                   title: text,
                   prompt: text,
                   operationId: crypto.randomUUID(),
@@ -124,7 +124,7 @@ function InstallApp() {
   const [detail, setDetail] = useState<any>(() =>
     selected
       ? seed?.data[
-          `/api/catalog/${encodeURIComponent(selected.id)}/${encodeURIComponent(selected.release)}`
+          `/api/catalog/releases/${encodeURIComponent(selected.id)}/${encodeURIComponent(selected.release)}`
         ]
       : undefined,
   );
@@ -148,7 +148,7 @@ function InstallApp() {
   }, [pathname, seed]);
   useEffect(() => {
     if (!release) return;
-    const path = `/api/catalog/${encodeURIComponent(release.id)}/${encodeURIComponent(release.release)}`;
+    const path = `/api/catalog/releases/${encodeURIComponent(release.id)}/${encodeURIComponent(release.release)}`;
     setDetail(seed?.data[path]);
     void readSeeded(seed, path, () => api(path))
       .then(setDetail)
@@ -165,11 +165,11 @@ function InstallApp() {
     );
     try {
       const value = await api(
-        `/api/catalog/${encodeURIComponent(release.id)}/${encodeURIComponent(release.release)}/install`,
+        `/api/catalog/releases/${encodeURIComponent(release.id)}/${encodeURIComponent(release.release)}/install`,
         { applicationName: fields.applicationName, targetSiteId: fields.targetSiteId, answers },
       );
       setResult(value);
-      await api('/api/v2/auth/account', { welcomed: true });
+      await api('/api/auth/account', { welcomed: true });
     } catch (error) {
       setError((error as Error).message);
     } finally {

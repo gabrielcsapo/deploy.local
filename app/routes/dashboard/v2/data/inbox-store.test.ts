@@ -56,7 +56,7 @@ test('one feed serves multiple hook subscribers, consumes cursor and aborts on u
   assert.equal(paths.filter((path) => path.includes('state=waiting')).length, 1);
   // The feed starts at the newest event, never replaying history from 0.
   assert.ok(!paths.some((path) => path.includes('after=0&')));
-  assert.ok(paths.includes('/api/v2/events?after=42&waitMs=10000'));
+  assert.ok(paths.includes('/api/activity-events?after=42&waitMs=10000'));
   off();
   assert.equal(eventSignal?.aborted, false);
   off2();
@@ -70,7 +70,7 @@ for (const status of [200, 409])
       if (String(url).includes('after=latest')) return json({ events: [], cursor: 0 });
       if (init?.method === 'POST') {
         sent = init;
-        assert.equal(url, '/api/v2/inbox/question%3Areleases/answer');
+        assert.equal(url, '/api/inbox/question%3Areleases/answer');
         return json({ item: answered, answer: answered.answer }, status);
       }
       if (String(url).includes('state='))
@@ -162,13 +162,13 @@ test('account reset clears private data and ignores late responses from the old 
 
 test('resources feature-detect only 404; failures never become healthy zero counts', async () => {
   const signal = new AbortController().signal;
-  assert.equal(await readResource(async () => json({}, 404), '/api/v2/live', signal, true), null);
-  await assert.rejects(readResource(async () => json({}, 401), '/api/v2/live', signal, true));
+  assert.equal(await readResource(async () => json({}, 404), '/api/live', signal, true), null);
+  await assert.rejects(readResource(async () => json({}, 401), '/api/live', signal, true));
   await assert.rejects(readResource(async () => json({}, 503), '/api/nodes', signal));
   assert.deepEqual(
     await readResource(
       async () => json({ summary: { running: 7, failing: 1 } }),
-      '/api/v2/live',
+      '/api/live',
       signal,
       true,
     ),

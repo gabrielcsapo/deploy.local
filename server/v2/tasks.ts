@@ -159,7 +159,7 @@ const route = routes<string>();
 export const tasksRoutes = [
   route({
     method: 'GET',
-    path: '/api/v2/tasks/:task',
+    path: '/api/task-snapshots/:task',
     handler: ({ res, params, context }) => taskSnapshotRoute(res, context, params.task),
   }),
 ];

@@ -225,7 +225,7 @@ test('owner HTTP route enforces authentication and validates PATCH bodies withou
       build: { version: '1.0.0' },
       agentTools: ['deploy_checkpoint'],
     });
-    const inventory = await call({}, auth, 'GET', '/api/computers');
+    const inventory = await call({}, auth, 'GET', '/api/computer-roles');
     assert.equal(inventory.status, 200);
     assert.equal(
       inventory.body.computers.find((c: any) => c.id === 'old-worker')?.update.state,

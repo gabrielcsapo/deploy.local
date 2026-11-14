@@ -50,7 +50,7 @@ async function api(
   body?: unknown,
   headers: Record<string, string> = {},
 ) {
-  const response = await fetch(`${origin}/api/v2${path}`, {
+  const response = await fetch(`${origin}/api${path}`, {
     method,
     signal: AbortSignal.timeout(10000),
     headers: { 'Content-Type': 'application/json', ...headers },
@@ -436,7 +436,7 @@ test('project removal confirms, stops every app before freeing addresses, and pr
   await assert.rejects(resolveProject('remover', 'remove'), /not found/);
   const receipt = workspace.list('v2-removed-project', 'remover')[0];
   assert.equal(readFileSync(join(receipt.archive, '0/nightly.tar.gz'), 'utf8'), 'backup data');
-  const retained = await api('/projects/removed', 'GET', undefined, { 'x-test-owner': 'remover' });
+  const retained = await api('/removed-projects', 'GET', undefined, { 'x-test-owner': 'remover' });
   assert.equal(retained.body.projects[0].name, 'home-gym');
   const download = await fetch(origin + retained.body.projects[0].backupUrl, {
     headers: { 'x-test-owner': 'remover' },
@@ -664,12 +664,12 @@ test('legacy New project API also joins matching apps and replays creation safel
     method: 'POST',
     body: JSON.stringify({ name: 'legacy-pantry', operationId: 'legacy-create' }),
   };
-  const response = await legacy(`${origin}/api/workspace/projects`, init);
+  const response = await legacy(`${origin}/api/repository-projects`, init);
   assert.equal(response.status, 202);
   const project = await response.json();
   assert.equal((await resolveProject('legacy-create', project.id)).apps[0].name, 'legacy-pantry');
   assert.equal(
-    (await (await legacy(`${origin}/api/workspace/projects`, init)).json()).id,
+    (await (await legacy(`${origin}/api/repository-projects`, init)).json()).id,
     project.id,
   );
   assert.equal((await projectsForOwner('legacy-create')).length, 1);

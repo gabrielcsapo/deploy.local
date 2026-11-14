@@ -180,7 +180,7 @@ const handler: RequestListener = async (req, res) => {
       res.end();
       return;
     }
-    if (url.pathname === '/api/workspace/state')
+    if (url.pathname === '/api/state')
       return send({
         version: 1,
         cursor: 1,
@@ -193,11 +193,11 @@ const handler: RequestListener = async (req, res) => {
     if (url.pathname === '/api/user') return send({ username: owner, role: 'admin' });
     if (url.pathname === '/api/nodes')
       return send({ nodes: [{ id: 'local', name: 'SER', online: true }] });
-    if (url.pathname === '/api/v2/auth/account')
+    if (url.pathname === '/api/auth/account')
       return send({ username: owner, welcomed: true, firstTaskSeen: true, passkeyOffered: true });
-    if (url.pathname === '/api/v2/events')
+    if (url.pathname === '/api/activity-events')
       return send({ events: [], cursor: 0, supportsWait: false });
-    if (url.pathname.startsWith('/api/v2/')) {
+    if (url.pathname.startsWith('/api/')) {
       await v2Api(req, res, () => ({ username: owner }));
       if (res.writableEnded || res.headersSent) return;
     }

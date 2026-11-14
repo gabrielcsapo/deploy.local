@@ -26,7 +26,7 @@ stopped. Test databases and secret keys were created only in temporary directori
   stable `app:<name>` projects. The workspace and coordinator databases are separate,
   so repository-link backfill runs idempotently in the projection, not in SQL.
   Explicit links survive subsequent manifest changes. The existing release API's
-  `GET /api/v2/projects` and release engine use this same projection.
+  `GET /api/projects` and release engine use this same projection.
 - Adding an app rejects cross-owner access, another repository's membership, and
   an active release. A standalone app's configured shared defaults become its app
   overrides when it joins; secret ciphertext is re-encrypted for the new address.
@@ -43,7 +43,7 @@ stopped. Test databases and secret keys were created only in temporary directori
   tombstone prevents fallback to the old per-app secret. Existing declaration
   validation still applies. Writes are fenced during active releases so Verify and
   Activate cannot resolve different settings through this API.
-- App health reads `/api/v2/live/:app`. Release history links to project Releases.
+- App health reads `/api/live/:app`. Release history links to project Releases.
   App Settings provides address/health/computer information, a memory-limit update,
   and a link to project Settings. Restart uses the existing per-app endpoint after
   an explicit UI confirmation.
@@ -60,22 +60,22 @@ stopped. Test databases and secret keys were created only in temporary directori
 Existing `Project` and `AppHealth` contracts are unchanged. Added `ProjectSetting`
 and `ProjectSettings` types. No native files changed; ProjectPhone was read only.
 
-- `GET /api/v2/projects` → `{ projects: Project[] }` (existing release dispatcher).
-- `GET /api/v2/projects/:p/overview` → safe project/repository/task/issue/pull/app
+- `GET /api/projects` → `{ projects: Project[] }` (existing release dispatcher).
+- `GET /api/projects/:p/overview` → safe project/repository/task/issue/pull/app
   metadata for the web page. IDs take precedence over names.
-- `POST /api/v2/projects/:p/apps` with `{ "app": "home-gym-sync" }` attaches an
+- `POST /api/projects/:p/apps` with `{ "app": "home-gym-sync" }` attaches an
   existing owned app. Response: `{ project }`.
-- `GET /api/v2/projects/:p/settings` → `{ values, appliesOn: "next-release" }`.
+- `GET /api/projects/:p/settings` → `{ values, appliesOn: "next-release" }`.
   Each value has `key`, optional `app`, `type`, `set`, `updatedAt`; only non-secrets
   have `value`. Omitted `app` means every app in the project.
-- `PUT /api/v2/projects/:p/settings` with
+- `PUT /api/projects/:p/settings` with
   `{ "values": [{ "key": "NODE_ENV", "value": "production", "app": "home-gym" }] }`
   atomically patches variables; other entries remain unchanged.
-- `PUT /api/v2/projects/:p/secrets/:key` with `{ "value": "…", "app": "…" }`.
+- `PUT /api/projects/:p/secrets/:key` with `{ "value": "…", "app": "…" }`.
   `?app=` is also accepted and takes precedence over the body.
-- `DELETE /api/v2/projects/:p/secrets/:key?app=…` deletes that scope. Omit `app` for
+- `DELETE /api/projects/:p/secrets/:key?app=…` deletes that scope. Omit `app` for
   the shared secret. Responses contain only the redacted settings view.
-- `GET /api/v2/projects/:p/logs?app=…` → `{ sources: [{ app, url }] }`. Clients
+- `GET /api/projects/:p/logs?app=…` → `{ sources: [{ app, url }] }`. Clients
   stream each returned URL with their existing session credentials. Invalid app
   filters return 404 before response headers are sent.
 

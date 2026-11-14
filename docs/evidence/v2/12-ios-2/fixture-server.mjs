@@ -521,18 +521,18 @@ const server = http.createServer(async (req, res) => {
     return send({ error: 'Fixture credentials required' }, 401);
   if (offline) return send({ error: 'Fixture coordinator offline' }, 503);
   if (url.pathname === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
-  if (url.pathname === '/api/v2/notifications')
+  if (url.pathname === '/api/notifications')
     return send({
       decisions: true,
       failingApps: true,
       quietHours: true,
       timeZone: 'America/New_York',
     });
-  if (url.pathname === '/api/v2/devices')
+  if (url.pathname === '/api/devices')
     return send({
       devices: [{ id: 'iphone', name: "Gabriel's iPhone", createdAt: '2026-10-20T18:00:00Z' }],
     });
-  if (/^\/api\/v2\/agents\/[^/]+\/control$/.test(url.pathname))
+  if (/^\/api\/agents\/[^/]+\/control$/.test(url.pathname))
     return send({ paused: false, mutedUntil: null });
   if (url.pathname === '/api/nodes')
     return send({
@@ -544,7 +544,7 @@ const server = http.createServer(async (req, res) => {
         roles: worker.id === 'local' ? ['coordinator', 'run-apps'] : ['take-tasks'],
       })),
     });
-  if (url.pathname === '/api/v2/projects') {
+  if (url.pathname === '/api/projects') {
     const first = ['ReleasesPhone', 'ReleaseFailedPhone'].includes(board)
       ? 'home-gym'
       : 'deploy.local';
@@ -552,9 +552,7 @@ const server = http.createServer(async (req, res) => {
       projects: [...projects].sort((a, b) => Number(b.id === first) - Number(a.id === first)),
     });
   }
-  const work = url.pathname.match(
-    /^\/api\/workspace\/projects\/([^/]+)\/(pulls|issues|repository)$/,
-  );
+  const work = url.pathname.match(/^\/api\/projects\/([^/]+)\/(pulls|issues|repository)$/);
   if (work) {
     if (work[2] === 'repository')
       return send({
@@ -577,7 +575,7 @@ const server = http.createServer(async (req, res) => {
     });
   }
   const projectRelease = url.pathname.match(
-    /^\/api\/v2\/projects\/([^/]+)\/(releases|rollbacks|rollback)$/,
+    /^\/api\/projects\/([^/]+)\/(releases|rollbacks|rollback)$/,
   );
   if (projectRelease) {
     const projectId = decodeURIComponent(projectRelease[1]);
@@ -606,12 +604,12 @@ const server = http.createServer(async (req, res) => {
       visible.sort((a, b) => Number(b.id === 'b81e4c0') - Number(a.id === 'b81e4c0'));
     return send({ releases: visible });
   }
-  const releaseRoute = url.pathname.match(/^\/api\/v2\/releases\/([^/]+)$/);
+  const releaseRoute = url.pathname.match(/^\/api\/releases\/([^/]+)$/);
   if (releaseRoute)
     return send({ release: releases.find((r) => r.id === decodeURIComponent(releaseRoute[1])) });
-  if (url.pathname === '/api/v2/backups') return send({ backups, restores, schedules: [] });
+  if (url.pathname === '/api/backups') return send({ backups, restores, schedules: [] });
   const restoreRoute = url.pathname.match(
-    /^\/api\/v2\/backups\/([^/]+)\/restore(?:\/([^/]+)\/(switch|cancel))?$/,
+    /^\/api\/backups\/([^/]+)\/restore(?:\/([^/]+)\/(switch|cancel))?$/,
   );
   if (restoreRoute) {
     if (!restoreRoute[2]) {
@@ -637,7 +635,7 @@ const server = http.createServer(async (req, res) => {
     }
     return send({ restore });
   }
-  if (url.pathname === '/api/workspace/state')
+  if (url.pathname === '/api/state')
     return send({
       version: 1,
       cursor: events.length,
@@ -647,7 +645,7 @@ const server = http.createServer(async (req, res) => {
       runs: [],
       adapters: [],
     });
-  if (url.pathname === '/api/v2/inbox')
+  if (url.pathname === '/api/inbox')
     return send({
       items: inbox.filter(
         (item) =>
@@ -655,13 +653,13 @@ const server = http.createServer(async (req, res) => {
           (item.id !== 'memory' || board === 'AskPhone'),
       ),
     });
-  if (url.pathname === '/api/v2/live') return send(live);
-  if (url.pathname.startsWith('/api/v2/live/'))
+  if (url.pathname === '/api/live') return send(live);
+  if (url.pathname.startsWith('/api/live/'))
     return send({
       app: apps.find((app) => app.appId === decodeURIComponent(url.pathname.split('/').at(-1))),
       history: [],
     });
-  if (url.pathname === '/api/v2/events') {
+  if (url.pathname === '/api/activity-events') {
     if (board === 'OfflinePhone') {
       offline = true;
       return send({ error: 'Offline fixture' }, 503);
@@ -674,7 +672,7 @@ const server = http.createServer(async (req, res) => {
       supportsWait: true,
     });
   }
-  const answer = url.pathname.match(/^\/api\/v2\/inbox\/([^/]+)\/answer$/);
+  const answer = url.pathname.match(/^\/api\/inbox\/([^/]+)\/answer$/);
   if (answer) {
     const item = inbox.find((item) => item.id === decodeURIComponent(answer[1]));
     if (!item) return send({ error: 'Missing decision' }, 404);
@@ -697,7 +695,7 @@ const server = http.createServer(async (req, res) => {
     });
     return send({ item });
   }
-  const task = url.pathname.match(/^\/api\/workspace\/tasks\/([^/]+)(?:\/(diff|messages))?$/);
+  const task = url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(diff|messages))?$/);
   if (task) {
     const record = tasks.find((taskRecord) => taskRecord.id === task[1]);
     if (!record) return send({ error: 'Missing task' }, 404);
@@ -758,7 +756,7 @@ const server = http.createServer(async (req, res) => {
       cursor: events.length,
     });
   }
-  if (url.pathname === '/api/workspace/tasks' && req.method === 'POST') {
+  if (url.pathname === '/api/tasks' && req.method === 'POST') {
     if (operations.has(input.operationId)) return send(operations.get(input.operationId));
     const task = {
       ...tasks[0],
@@ -772,7 +770,7 @@ const server = http.createServer(async (req, res) => {
     operations.set(input.operationId, task);
     return send(task);
   }
-  if (url.pathname === '/api/v2/devices')
+  if (url.pathname === '/api/devices')
     return send({ id: 'fixture-device', removed: req.method === 'DELETE' });
   return send({ error: 'Fixture endpoint unavailable' }, 404);
 });

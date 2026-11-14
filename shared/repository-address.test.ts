@@ -31,7 +31,7 @@ test('Git smart-HTTP requests on a short address are recognized; pages are not',
     '/home-gym.git/pulls',
     '/docs/info/refs',
     '/dashboard/info/refs',
-    '/api/workspace/git/x/info/refs',
+    '/api/git/x/info/refs',
     '/',
     '/%E0%A4%A',
   ])

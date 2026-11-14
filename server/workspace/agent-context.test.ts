@@ -189,7 +189,7 @@ test('remote assignment captures the live owner snapshot once and exposes the ex
   await workspaceApi(
     Object.assign(Readable.from([]), {
       method: 'GET',
-      url: `/api/workspace/tasks/${task.id}`,
+      url: `/api/tasks/${task.id}`,
       headers: {},
     }) as IncomingMessage,
     {

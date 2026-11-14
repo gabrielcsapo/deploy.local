@@ -2,7 +2,7 @@ import type { PullFile } from './types';
 
 // Pure helpers for a pull request's description: which URLs survive, the Markdown a dropped
 // file inserts, and how its size reads.
-export const ownFile = /^\/api\/v2\/pulls\/[^/]+\/files\/[a-f0-9-]+$/;
+export const ownFile = /^\/api\/pulls\/[^/]+\/files\/[a-f0-9-]+$/;
 /** Only this coordinator's own files and plain web links survive; nothing else is a URL. */
 export function safeUrl(url: string) {
   if (ownFile.test(url)) return url;

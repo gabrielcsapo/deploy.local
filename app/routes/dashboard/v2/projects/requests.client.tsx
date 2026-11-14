@@ -37,7 +37,7 @@ import {
   type RequestSummary,
 } from './requests';
 
-const api = (app: string) => `/api/v2/apps/${projectSegment(app)}/requests`;
+const api = (app: string) => `/api/apps/${projectSegment(app)}/requests`;
 
 function StatusCode({ status, children }: { status: number; children?: string }) {
   return status >= 500 ? (

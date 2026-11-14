@@ -123,7 +123,7 @@ test('one original tool call continues after a client answer; workers cannot ans
   });
   const origin = 'http://127.0.0.1:' + (server.address() as any).port;
   const call = async (args: any) => {
-    const response = await fetch(origin + '/api/workspace/agent/tools', {
+    const response = await fetch(origin + '/api/agent/tools', {
       method: 'POST',
       headers: { 'x-deploy-agent-token': token },
       body: JSON.stringify({ name: 'deploy_ask_user', args }),
@@ -135,7 +135,7 @@ test('one original tool call continues after a client answer; workers cannot ans
   let reads = 0;
   const pending = continueQuestion(q, call, async () => {
     reads++;
-    const path = origin + `/api/workspace/tasks/${s.taskId}/questions/${q.id}/answer`;
+    const path = origin + `/api/tasks/${s.taskId}/questions/${q.id}/answer`;
     const body = JSON.stringify({ operationId: randomUUID(), answer: 'Blue' });
     const denied = await fetch(path, { method: 'POST', headers: { 'x-test-worker': 'yes' }, body });
     assert.equal(denied.status, 403);

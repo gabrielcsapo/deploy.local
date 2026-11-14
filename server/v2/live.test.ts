@@ -32,7 +32,7 @@ const fetch = routeFetch((req, res) =>
     return null;
   }),
 );
-const origin = 'http://localhost/api/v2';
+const origin = 'http://localhost/api';
 after(() => {
   db.close();
   _resetDb();
