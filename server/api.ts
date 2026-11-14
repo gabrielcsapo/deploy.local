@@ -1,3 +1,4 @@
+import { assertReleaseAdmission } from './api/release-admission.ts';
 import { createReadiness } from './readiness.ts';
 import { startIntegrityChecks } from './readiness-integrity.ts';
 import { getSqlite } from './store/connection.ts';
@@ -188,6 +189,7 @@ export function apiMiddleware() {
     try {
       const auth = requireAuth(req, res);
       if (!auth) return;
+      assertReleaseAdmission(req);
       release = beginApplicationMutation(auth.username, decodeURIComponent(app));
       return await handle(req, res, next);
     } catch (err) {
