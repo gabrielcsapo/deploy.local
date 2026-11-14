@@ -1,9 +1,9 @@
 import { finishPackageJob } from './package-publish.ts';
-import { readdir, rm } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import { preparePackageInstall, secretOutput } from '../../shared/package-install.mjs';
 import { repositoryGit } from './repository-git.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { restoreCheckpoint } from './checkpoint.ts';
@@ -20,6 +20,39 @@ export type JobRunnerOptions = {
 const artifactDeadlineMs = 5 * 60000;
 
 // One independent job slot per worker. The agent loop never waits for this slot.
+/**
+ * Removes one job's checkout. A job that ran in a container leaves files owned by root, which
+ * the worker cannot delete itself; the image it ran in can. `<folder>.container` names it.
+ */
+export async function removeJobFolder(folder: string) {
+  const marker = folder + '.container';
+  await rm(folder, { recursive: true, force: true }).catch(() => {});
+  if (existsSync(folder)) {
+    const image = (await readFile(marker, 'utf8').catch(() => '')).trim();
+    if (image)
+      await new Promise<void>((done) =>
+        execFile(
+          'docker',
+          [
+            'run',
+            '--rm',
+            '--entrypoint',
+            '/bin/sh',
+            '--volume',
+            `${folder}:/workspace`,
+            image,
+            '-c',
+            'rm -rf /workspace/* /workspace/.[!.]* /workspace/..?*; true',
+          ],
+          { timeout: 300_000 },
+          () => done(),
+        ),
+      );
+    await rm(folder, { recursive: true, force: true }).catch(() => {});
+  }
+  if (!existsSync(folder)) await rm(marker, { force: true }).catch(() => {});
+}
+
 export class JobRunner {
   private state: any;
   private child: ReturnType<typeof spawn> | null = null;
@@ -50,10 +83,7 @@ export class JobRunner {
       // No job runs while the worker starts, so every folder here was left by an earlier one:
       // a checkout with its installed dependencies is over a gigabyte.
       for (const entry of entries)
-        if (entry.isDirectory())
-          await rm(resolve(directory, entry.name), { recursive: true, force: true }).catch(
-            () => {},
-          );
+        if (entry.isDirectory()) await removeJobFolder(resolve(directory, entry.name));
     });
     this.statePath = resolve(directory, 'job.json');
     this.state = existsSync(this.statePath)
@@ -116,6 +146,7 @@ export class JobRunner {
       if (assignment.repository) {
         this.preparation = new AbortController();
         mkdirSync(cwd);
+        if (job.container) writeFileSync(cwd + '.container', String(job.container));
         const source = assignment.repository;
         const location =
           source.location.startsWith('/api/') && this.authentication
@@ -360,7 +391,7 @@ export class JobRunner {
           this.persist();
           // The coordinator has the result, its output and its artifacts. Keeping the checkout
           // filled a disk with one copy of the repository and its dependencies per job.
-          await rm(finished, { recursive: true, force: true }).catch(() => {});
+          await removeJobFolder(finished);
         } else this.persist();
         return;
       }
