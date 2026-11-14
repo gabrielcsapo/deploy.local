@@ -27,6 +27,8 @@ import { DesignRail } from './v2/design/Rail';
 import { sidebarCollapsed, sidebarPreferenceKey } from './v2/data/sidebar-preference';
 import { FirstTask } from './v2/start/FirstTask';
 import { useInAppLinks } from './v2/data/links';
+import { SearchBox, currentSearchScope } from './v2/search/Search.client';
+import { openSearch } from './v2/search/model.ts';
 import { changeDesktopUpdateNavigation, useDesktopUpdate } from './v2/data/desktop-update';
 import { DesktopUpdateRow } from './v2/DesktopUpdate';
 import { SidebarTasks } from './v2/SidebarTasks';
@@ -83,7 +85,11 @@ export function V2Sidebar({
             </span>
             <span className="dl-wordmark">deploy.local</span>
           </span>
-          <IconButton icon="search" label="Search (coming soon)" disabled />
+          <IconButton
+            icon="search"
+            label="Search"
+            onClick={() => openSearch(currentSearchScope())}
+          />
         </>
       }
       navigation={
@@ -242,6 +248,24 @@ export function V2Sidebar({
       )}
       <SidebarTasks pathname={pathname} workspace={workspace.data} formatTime={formatTime} />
     </Sidebar>
+  );
+}
+
+function LayoutSearch({
+  pathname,
+  data,
+}: {
+  pathname: string;
+  data: ReturnType<typeof useSidebarData>;
+}) {
+  const { formatTime } = useProjectFormatting();
+  return (
+    <SearchBox
+      pathname={pathname}
+      agents={data.agents.data?.agents ?? []}
+      waiting={data.inbox.items.filter((item) => item.state === 'waiting')}
+      formatTime={formatTime}
+    />
   );
 }
 
@@ -415,6 +439,7 @@ function V2Shell() {
         />
         <V2Sidebar pathname={pathname} data={data} />
       </dialog>
+      <LayoutSearch pathname={pathname} data={data} />
       <main className="dl-main">
         <CoordinatorNameProvider nodes={data.computers.data?.nodes}>
           <AgentNamesProvider agents={data.agents.data?.agents}>

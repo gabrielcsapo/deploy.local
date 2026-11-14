@@ -53,3 +53,51 @@ export function sourceMarkdown(file: string, content: string) {
   );
   return `${fence}${languages[extension] || 'text'}\n${sourceLines(content).join('\n')}\n${fence}`;
 }
+
+/** Where `find` occurs in `text`, ignoring case, as [start, end) offsets. */
+export function matchOffsets(text: string, find: string): [number, number][] {
+  const found: [number, number][] = [];
+  if (!find) return found;
+  const lower = text.toLowerCase();
+  const needle = find.toLowerCase();
+  for (let at = lower.indexOf(needle); at >= 0; at = lower.indexOf(needle, at + needle.length))
+    found.push([at, at + needle.length]);
+  return found;
+}
+/**
+ * Marks every occurrence of `find` in a rendered source block, without changing its elements: the
+ * syntax highlighter splits words across spans, so the marks are ranges over the text, drawn by
+ * the browser's highlight registry. Returns a function that removes them.
+ */
+export function markMatches(block: Element | null, find: string) {
+  const registry = typeof CSS !== 'undefined' ? CSS.highlights : undefined;
+  if (!block || !find || !registry || typeof Highlight === 'undefined') return undefined;
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  const nodes: { node: Text; start: number }[] = [];
+  let text = '';
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    nodes.push({ node: node as Text, start: text.length });
+    text += node.nodeValue ?? '';
+  }
+  const locate = (offset: number, end: boolean) => {
+    let low = 0;
+    let high = nodes.length - 1;
+    while (low < high) {
+      const middle = (low + high + 1) >> 1;
+      if (nodes[middle].start < offset || (!end && nodes[middle].start === offset)) low = middle;
+      else high = middle - 1;
+    }
+    return [nodes[low].node, offset - nodes[low].start] as const;
+  };
+  const ranges = matchOffsets(text, find).map(([start, end]) => {
+    const range = new Range();
+    range.setStart(...locate(start, false));
+    range.setEnd(...locate(end, true));
+    return range;
+  });
+  if (!ranges.length) return undefined;
+  registry.set('v2-search-match', new Highlight(...ranges));
+  return () => {
+    registry.delete('v2-search-match');
+  };
+}
