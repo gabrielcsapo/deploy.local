@@ -1,10 +1,11 @@
 import { updateReservation } from '../kernel/computers/reservations.ts';
 export { updateReservation, workerUpdateReserved } from '../kernel/computers/reservations.ts';
-import { db, list, save, remove } from '../workspace/store.ts';
+import { saveComputerUpdateReservation } from '../kernel/jobs/update-reservation.ts';
+export { releaseComputerUpdate } from '../kernel/jobs/update-reservation.ts';
+import { db, list } from '../workspace/store.ts';
 import { readCliManifest } from '../cli-download.ts';
 import { readReleaseConfig, runningRevision } from './self-update-host.ts';
 
-const kind = 'v2-update-reservation';
 /** The coordinator updating itself from main: computers follow once the worker builds it
  * published were built from the very commit it now serves. */
 export function selfUpdateTarget(manifest = readCliManifest()) {
@@ -42,11 +43,8 @@ export function reserveComputerUpdate(nodeId: string, jobId: string) {
     )
       return false;
   }
-  save(kind, 'system', { id: nodeId, jobId, workers, at: Date.now() });
+  saveComputerUpdateReservation(nodeId, jobId, workers);
   return true;
-}
-export function releaseComputerUpdate(nodeId: string, jobId: string) {
-  if (updateReservation(nodeId)?.jobId === jobId) remove(kind, 'system', nodeId);
 }
 
 export function computerUpdateAllowed(payload: { releaseId: string; targetVersion: string }) {
