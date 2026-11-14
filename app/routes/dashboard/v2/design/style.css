@@ -1418,6 +1418,12 @@
   .dz-narrow-menu {
     position: relative;
   }
+  /* Pen marks on the canvas share the class name; the bar's menu button stays in the row. */
+  .dz-narrow-menu > .dz-mark {
+    position: relative;
+    pointer-events: auto;
+    fill: initial;
+  }
   .dz-narrow-menu .dz-menu {
     top: 34px;
     left: 0;
