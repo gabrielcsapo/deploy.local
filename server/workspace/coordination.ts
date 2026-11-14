@@ -356,7 +356,12 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
         const checkpoint = scoped(scope, 'checkpoint', args.checkpointId);
         const requirements = jobRequirements(args.requirements);
         const worker = args.workerId ? computers(owner).find((w) => w.id === args.workerId) : null;
-        if (args.workerId && (!worker || !eligibleForJob(worker, requirements)))
+        if (
+          args.workerId &&
+          (!worker ||
+            !eligibleForJob(worker, requirements) ||
+            !workerRole(owner, worker.id, 'take-tasks'))
+        )
           throw new Error(
             'Choose an online computer with checkpoint-jobs capability matching the job requirements',
           );

@@ -1,3 +1,4 @@
+import { computerRole, computerRoleRecords } from '../kernel/computers/policy.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 import { sendJson } from '../kernel/http.ts';
 import { revokeComputerPackageKey } from '../packages/keys.ts';
@@ -185,7 +186,7 @@ function computersOf(owner: string): Computer[] {
     runs: list('run', owner),
     jobs: list('job', owner),
     tasks: list('task', owner),
-    settings: list('v2-computer-roles', owner),
+    settings: computerRoleRecords(owner),
   });
 }
 function computerFor(owner: string, id: string) {
@@ -231,7 +232,12 @@ export function removalPlan(owner: string, id: string): ComputerRemoval {
   );
   const destinations = computers
     .filter(
-      (c) => c.id !== id && c.nodeId && runtimeOnline.has(c.nodeId) && c.roles.includes('run-apps'),
+      (c) =>
+        c.id !== id &&
+        c.nodeId &&
+        runtimeOnline.has(c.nodeId) &&
+        c.roles.includes('run-apps') &&
+        computerRole(owner, c.nodeId, 'run-apps'),
     )
     .map(({ id, name }) => ({ id, name }));
   // Check every owner's apps before revoking a fleet-wide credential.

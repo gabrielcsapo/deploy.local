@@ -1,3 +1,10 @@
+import {
+  configureComputerNodes,
+  invalidateComputerNodes,
+  onNodeChange,
+} from '../kernel/computers/nodes.ts';
+import { assertDeployRole, deployRoleEnabled } from '../kernel/computers/policy.ts';
+export { onNodeChange, assertDeployRole, deployRoleEnabled };
 import { materialized } from '../kernel/materialized.ts';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { nodes, computerRolePreferences, nodeEnrollments, deployments } from '../schema.ts';
@@ -11,14 +18,10 @@ import { setSystemSetting, getSystemSetting } from './settings.ts';
 
 // Node liveness may age for two seconds; node/role writes invalidate immediately.
 export const NODE_VIEW_CADENCE_MS = 2_000;
-const nodeObservers = new Set<() => void>();
-export function onNodeChange(listener: () => void) {
-  nodeObservers.add(listener);
-}
 function invalidateNode(id: string) {
   nodeView.invalidate(id);
   preferenceView.invalidate(id);
-  for (const listener of nodeObservers) listener();
+  invalidateComputerNodes();
 }
 const nodeView = materialized(readNode, { cadenceMs: NODE_VIEW_CADENCE_MS });
 const preferenceView = materialized(readComputerRolePreferences, {
@@ -129,17 +132,6 @@ export function setComputerRolePreferences(id: string, roles: WantedRoles) {
     .run();
   invalidateNode(id);
   return merged;
-}
-
-export function deployRoleEnabled(id: string) {
-  return getComputerRolePreferences(id).deploy !== false;
-}
-
-export function assertDeployRole(id: string) {
-  if (!deployRoleEnabled(id))
-    throw new Error(
-      'The deploy role is off on this computer. Turn it on in Computers before deploying here.',
-    );
 }
 
 export function getNodes() {
@@ -400,3 +392,5 @@ export function getFleetPlacementState() {
     nodes: allNodes,
   };
 }
+
+configureComputerNodes({ node: getNode, preferences: getComputerRolePreferences });
