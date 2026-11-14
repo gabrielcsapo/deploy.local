@@ -26,6 +26,9 @@ export const terminalRelay = new TerminalRelay({
     if (type === 'terminal.ended') shellEnded(entry);
   },
 });
+export function startTerminalRelay() {
+  terminalRelay.startSweep();
+}
 export function setTerminalPermission(owner: string, workerId: string, enabled: boolean) {
   terminalComputer(owner, workerId);
   save('terminal-permission', owner, { id: workerId, enabled });

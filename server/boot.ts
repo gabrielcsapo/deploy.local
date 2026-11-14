@@ -12,7 +12,7 @@ import { initializeRequestStorage } from './requests-lifecycle.ts';
 import { CopyWarmer, cleanupCopies, queueAllCopies } from './packages/copies.ts';
 import './packages/hooks.ts';
 import { npmRegistry } from './packages/npm.ts';
-import { terminalRelay } from './workspace/terminal-service.ts';
+import { startTerminalRelay, terminalRelay } from './workspace/terminal-service.ts';
 import { startGitSshServer } from './workspace/git-ssh.ts';
 import { createServer } from 'node:http';
 import { handleWebRedirect } from './web-redirects.ts';
@@ -46,6 +46,9 @@ import { emit } from './events.ts';
 import { startApplicationGraphSupervisor } from './application-graph-supervisor.ts';
 import { deployDataDirectory } from './kernel/files/data-directory.ts';
 import { loadOrCreateSecretKey } from './secrets.ts';
+import { startAgentExecExpiry, stopAgentExecExpiry } from './agent-exec.ts';
+import { startRemovedProjectCleanup, stopRemovedProjectCleanup } from './v2/project-removal.ts';
+import { startPush, stopPush } from './v2/push.ts';
 
 /** Serves the pages and assets of the web app: every request the API does not claim. */
 export type ClientHandler = (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
@@ -176,6 +179,9 @@ async function start(options: BootOptions) {
       const readinessStopped = handler.close();
       flushRequestLogs();
       terminalRelay.dispose();
+      stopAgentExecExpiry();
+      stopRemovedProjectCleanup();
+      stopPush();
       stopManagedWorkers();
       // Deployed workloads have an independent lifecycle. A control-plane
       // restart must not stop them or overwrite their observed status.
@@ -300,6 +306,9 @@ async function start(options: BootOptions) {
     const readinessStopped = handler.close();
     flushRequestLogs();
     terminalRelay.dispose();
+    stopAgentExecExpiry();
+    stopRemovedProjectCleanup();
+    stopPush();
     stopManagedWorkers();
     graphSupervisor.stop();
     const mdnsStopped = edgeRuntime.close();
@@ -356,6 +365,12 @@ async function start(options: BootOptions) {
 }
 
 export function bootServer(options: BootOptions) {
+  // Previously started during dependency evaluation, in this order. Keep them before
+  // the heartbeat, storage initialization, client creation and either role's listeners.
+  startTerminalRelay();
+  startAgentExecExpiry();
+  startRemovedProjectCleanup();
+  startPush();
   installCrashGuard();
   startSupervisorHeartbeat();
   return start(options).catch((err) => {

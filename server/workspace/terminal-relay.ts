@@ -51,7 +51,7 @@ const MAX_BUFFER = 1024 * 1024;
 export class TerminalRelay {
   readonly sessions = new Map<string, Session>();
   private waiters = new Map<string, () => void>();
-  private timer: ReturnType<typeof setInterval>;
+  private timer?: ReturnType<typeof setInterval>;
   private deps: {
     computer(owner: string, workerId: string): TerminalComputer;
     audit(type: 'terminal.started' | 'terminal.ended', entry: TerminalAudit): void;
@@ -63,6 +63,9 @@ export class TerminalRelay {
   };
   constructor(deps: TerminalRelay['deps']) {
     this.deps = deps;
+  }
+  startSweep() {
+    if (this.timer) return;
     this.timer = setInterval(() => this.sweep(), 1000);
     this.timer.unref();
   }
@@ -391,6 +394,7 @@ export class TerminalRelay {
   }
   dispose() {
     clearInterval(this.timer);
+    this.timer = undefined;
     for (const id of this.sessions.keys()) this.end(id, null, 'Coordinator stopped');
     for (const wake of this.waiters.values()) wake();
   }

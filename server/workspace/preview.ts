@@ -9,6 +9,7 @@ import { resolve } from 'node:path';
 import { authenticate, registerUser, loginUser, getUser } from '../store.ts';
 import { workspaceApi } from './api.ts';
 import { root } from './store.ts';
+import { startTerminalRelay, terminalRelay } from './terminal-service.ts';
 if (!process.env.DEPLOY_DATA_DIR || !process.env.DEPLOY_DATA_DIR.startsWith('/tmp/'))
   throw new Error('Preview requires explicit disposable /tmp/ DEPLOY_DATA_DIR');
 const credentials = resolve(root, 'preview-credentials.json');
@@ -25,6 +26,8 @@ if (!existsSync(credentials)) {
   const account = registerUser(username, password);
   writeFileSync(credentials, JSON.stringify({ username, password, ...account }), { mode: 0o600 });
 }
+// This API can create shell sessions in its own relay; the main server cannot sweep them.
+startTerminalRelay();
 createServer(async (req, res) => {
   const url = new URL(req.url!, 'http://localhost');
   const send = (data: unknown, status = 200) => {
@@ -107,6 +110,7 @@ const pipelineWorker = spawn(
 );
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
+    terminalRelay.dispose();
     repositoryWorker.kill(signal);
     pipelineWorker.kill(signal);
     process.exit(0);

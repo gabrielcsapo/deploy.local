@@ -253,7 +253,8 @@ export async function deliverPushEvents(owner: string, client: Pick<APNsClient, 
 }
 
 let started = false;
-function startPush() {
+let timer: ReturnType<typeof setInterval> | undefined;
+export function startPush() {
   if (started) return;
   started = true;
   let config: APNsConfiguration | undefined;
@@ -272,7 +273,7 @@ function startPush() {
   const client = new APNsClient(config);
   let running = false;
   const failures = new Map<string, { count: number; retryAt: number }>();
-  const timer = setInterval(async () => {
+  timer = setInterval(async () => {
     if (running) return;
     running = true;
     try {
@@ -299,8 +300,12 @@ function startPush() {
   timer.unref();
 }
 
-// Importing the sub-router starts delivery even when all phones are asleep after a server restart.
-startPush();
+export function stopPush() {
+  clearInterval(timer);
+  timer = undefined;
+  started = false;
+}
+
 export async function pushApi(
   req: IncomingMessage,
   res: ServerResponse,

@@ -571,10 +571,19 @@ export async function projectRemovalApi(req: IncomingMessage, res: ServerRespons
 }
 
 // Expire retained copies even when nobody removes another project.
-const cleanup = setInterval(() => {
-  const owners = db
-    .prepare("SELECT DISTINCT owner FROM records WHERE kind='v2-removed-project'")
-    .all() as { owner: string }[];
-  for (const { owner } of owners) void purgeRemovedProjects(owner).catch(() => {});
-}, 3600_000);
-cleanup.unref();
+let cleanup: ReturnType<typeof setInterval> | undefined;
+export function startRemovedProjectCleanup() {
+  if (cleanup) return;
+  cleanup = setInterval(() => {
+    const owners = db
+      .prepare("SELECT DISTINCT owner FROM records WHERE kind='v2-removed-project'")
+      .all() as { owner: string }[];
+    for (const { owner } of owners) void purgeRemovedProjects(owner).catch(() => {});
+  }, 3600_000);
+  cleanup.unref();
+}
+
+export function stopRemovedProjectCleanup() {
+  clearInterval(cleanup);
+  cleanup = undefined;
+}

@@ -122,12 +122,22 @@ export function closeAgentExecSession(
   return true;
 }
 
-setInterval(() => {
-  const cutoff = Date.now() - 30 * 60_000;
-  for (const state of sessions.values()) {
-    if (state.updatedAt >= cutoff) continue;
-    state.closed = true;
-    state.session.emit('exit', { code: null, error: 'Remote terminal session expired' });
-    sessions.delete(state.id);
-  }
-}, 60_000).unref();
+let expiryTimer: ReturnType<typeof setInterval> | undefined;
+export function startAgentExecExpiry() {
+  if (expiryTimer) return;
+  expiryTimer = setInterval(() => {
+    const cutoff = Date.now() - 30 * 60_000;
+    for (const state of sessions.values()) {
+      if (state.updatedAt >= cutoff) continue;
+      state.closed = true;
+      state.session.emit('exit', { code: null, error: 'Remote terminal session expired' });
+      sessions.delete(state.id);
+    }
+  }, 60_000);
+  expiryTimer.unref();
+}
+
+export function stopAgentExecExpiry() {
+  clearInterval(expiryTimer);
+  expiryTimer = undefined;
+}
