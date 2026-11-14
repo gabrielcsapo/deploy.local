@@ -60,6 +60,13 @@ export function refsFingerprint(repository: string) {
     }
   };
   walk(join(directory, 'refs'), 0);
+  // A linked worktree keeps its own HEAD (a task workspace switching branch or committing).
+  try {
+    for (const entry of readdirSync(join(directory, 'worktrees'), { withFileTypes: true }))
+      if (entry.isDirectory()) parts.push(stamp(join(directory, 'worktrees', entry.name, 'HEAD')));
+  } catch {
+    /* No linked worktrees. */
+  }
   return parts.join('|');
 }
 const fingerprints = new Map<string, string>();

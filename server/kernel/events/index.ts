@@ -1,4 +1,4 @@
-import { readStoredValue as readStoredUrls } from '../read-value.ts';
+import { readStoredJson } from '../read-value.ts';
 import { namedDatabase } from '../db/named-store.ts';
 
 export { createOwnerEventPoller } from './owner-poller.ts';
@@ -26,7 +26,7 @@ export function events(owner: string, after = 0, taskId?: string) {
     .all(...(taskId ? [owner, after, taskId] : [owner, after])) as any[];
   return rows.map(({ owner: _, payload, ...r }) => ({
     ...r,
-    payload: readStoredUrls(JSON.parse(payload)),
+    payload: readStoredJson(payload),
   }));
 }
 export function cursor(owner: string) {

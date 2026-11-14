@@ -1,4 +1,5 @@
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -33,8 +34,47 @@ if (tests.length === 0) {
 }
 
 console.log(`Running ${tests.length} server and ${webTests.length} web test files.`);
-const spawn = (command, args) => {
-  const result = spawnSync(command, args, { stdio: 'inherit', env: process.env });
+// Every run gets one temporary folder, and every test's temporary files go inside it through
+// TMPDIR. The run removes it when it ends, so a test that forgets to clean up leaves nothing
+// behind: each run on SER used to leave about sixty folders in its memory-backed /tmp.
+const systemTemporary = tmpdir();
+const RUN_PREFIX = 'deploy-test-run-';
+for (const name of readdirSync(systemTemporary)) {
+  if (!name.startsWith(RUN_PREFIX)) continue;
+  const folder = join(systemTemporary, name);
+  let alive = false;
+  try {
+    process.kill(Number(readFileSync(join(folder, '.pid'), 'utf8')), 0);
+    alive = true;
+  } catch (error) {
+    alive = error?.code === 'EPERM';
+  }
+  // A run that was killed never cleaned up; one that is still going keeps its folder.
+  if (!alive) rmSync(folder, { recursive: true, force: true, maxRetries: 2 });
+}
+const runTemporary = mkdtempSync(join(systemTemporary, RUN_PREFIX));
+writeFileSync(join(runTemporary, '.pid'), String(process.pid));
+const testEnvironment = {
+  ...process.env,
+  TMPDIR: runTemporary,
+  TMP: runTemporary,
+  TEMP: runTemporary,
+};
+const removeRunTemporary = () => {
+  try {
+    rmSync(runTemporary, { recursive: true, force: true, maxRetries: 2 });
+  } catch {
+    // Files a container wrote as root cannot be removed here; the next run tries again.
+  }
+};
+process.on('exit', removeRunTemporary);
+for (const signal of ['SIGINT', 'SIGTERM'])
+  process.on(signal, () => {
+    removeRunTemporary();
+    process.exit(130);
+  });
+const spawn = (command, args, env = testEnvironment) => {
+  const result = spawnSync(command, args, { stdio: 'inherit', env });
   if (result.error) throw result.error;
   return result.status ?? 1;
 };
@@ -53,7 +93,8 @@ function swift() {
     console.log('Skipping Swift tests: DEPLOY_SKIP_SWIFT_TESTS is set.');
     return 0;
   }
-  return spawn('swift', ['test', '--package-path', 'native/Apple/Packages/DeployKit']);
+  // Swift keeps the system temporary folder: its build and module caches live there.
+  return spawn('swift', ['test', '--package-path', 'native/Apple/Packages/DeployKit'], process.env);
 }
 
 const suites = {

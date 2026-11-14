@@ -1,4 +1,4 @@
-import { readStoredValue as readStoredUrls } from '../read-value.ts';
+import { readStoredJson } from '../read-value.ts';
 import { namedDatabase } from './named-store.ts';
 
 export function commandReplay(
@@ -13,7 +13,7 @@ export function commandReplay(
     .prepare('SELECT result FROM operations WHERE owner=? AND id=?')
     .get(owner, operationId) as any;
   if (!old) return { found: false };
-  const decoded = readStoredUrls(JSON.parse(old.result));
+  const decoded = readStoredJson(old.result);
   if (decoded['__workspaceOperation'] === 1) {
     if (signature && decoded.signature && signature !== decoded.signature)
       throw Object.assign(new Error('operationId was already used for a different command'), {

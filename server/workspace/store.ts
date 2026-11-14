@@ -1,6 +1,6 @@
-import { setStoredValueReader } from '../kernel/read-value.ts';
+import { setStoredTextReader, setStoredValueReader } from '../kernel/read-value.ts';
 import { migrateCoordinatorUrls } from './startup-url-migration.ts';
-import { readStoredUrls } from './stored-urls.ts';
+import { readStoredText, readStoredUrls } from './stored-urls.ts';
 import { workspaceRecords } from '../kernel/db/records.ts';
 export { save, get, list, remove, onRecordChange } from '../kernel/db/records.ts';
 export { command, commandReplay } from '../kernel/db/operations.ts';
@@ -16,6 +16,7 @@ import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { deployDataDirectory } from '../kernel/files/data-directory.ts';
 setStoredValueReader(readStoredUrls);
+setStoredTextReader(readStoredText);
 export const root = resolve(deployDataDirectory(), 'workspace');
 mkdirSync(root, { recursive: true });
 export const db = openWorkspaceDatabase(resolve(root, 'workspace.db'), {
@@ -83,7 +84,7 @@ workspaceRecords.registerAdapter('job', {
       .prepare(`SELECT json_remove(data,'$.output') AS data
       FROM records WHERE kind=? AND owner=? ORDER BY rowid`)
       .all('job', owner) as { data: string }[];
-    return rows.map((row) => readStoredUrls(JSON.parse(row.data)));
+    return rows.map((row) => JSON.parse(readStoredText(row.data)));
   },
   get(owner, recordId) {
     // Read metadata and output in one SQLite snapshot, including legacy inline writes.
@@ -91,7 +92,7 @@ workspaceRecords.registerAdapter('job', {
       | { data: string; output?: string | null }
       | undefined;
     if (!r) throw Object.assign(new Error('Not found'), { status: 404 });
-    return { ...readStoredUrls(JSON.parse(r.data)), output: r.output ?? '' };
+    return { ...JSON.parse(readStoredText(r.data)), output: r.output ?? '' };
   },
 });
 const jobOutputQuery = `CASE WHEN json_type(r.data,'$.output') IS NOT NULL
@@ -106,7 +107,7 @@ export function jobOutput(owner: string, recordId: string): string {
   const row = db.prepare(`SELECT ${jobOutputQuery}`).get(owner, recordId) as
     | { output: string | null }
     | undefined;
-  return readStoredUrls(row?.output ?? '');
+  return readStoredText(row?.output ?? '');
 }
 
 const checkpointFields = [
@@ -139,7 +140,7 @@ export function listCheckpointMetadata(owner: string, taskId?: string): any[] {
     WHERE kind='checkpoint' AND owner=? ${taskId === undefined ? '' : "AND json_extract(data,'$.taskId')=?"}
     ORDER BY rowid`)
       .all(...(taskId === undefined ? [owner] : [owner, taskId])) as { data: string }[]
-  ).map((row) => readStoredUrls(JSON.parse(row.data)));
+  ).map((row) => JSON.parse(readStoredText(row.data)));
 }
 
 export function getCheckpointMetadata(owner: string, recordId: string): any {
@@ -148,7 +149,7 @@ export function getCheckpointMetadata(owner: string, recordId: string): any {
     WHERE kind='checkpoint' AND owner=? AND id=?`)
     .get(owner, recordId) as { data: string } | undefined;
   if (!row) throw Object.assign(new Error('Not found'), { status: 404 });
-  return readStoredUrls(JSON.parse(row.data));
+  return JSON.parse(readStoredText(row.data));
 }
 
 /** Task detail carries a bounded tail of raw events; older ones page via eventsBefore(). */
@@ -188,7 +189,7 @@ export function recentEvents(
     bytes += cost;
     events.push({
       ...row,
-      payload: omitted ? { omitted: true, bytes: size } : readStoredUrls(JSON.parse(payload)),
+      payload: omitted ? { omitted: true, bytes: size } : JSON.parse(readStoredText(payload)),
     });
   }
   events.reverse();
@@ -204,7 +205,7 @@ export function eventsBefore(owner: string, before: number, taskId: string, limi
     .all(owner, taskId, before, limit) as any[];
   return rows
     .reverse()
-    .map(({ owner: _, payload, ...r }) => ({ ...r, payload: readStoredUrls(JSON.parse(payload)) }));
+    .map(({ owner: _, payload, ...r }) => ({ ...r, payload: JSON.parse(readStoredText(payload)) }));
 }
 
 /** Keep tool history independent of high-volume text deltas. Raw replay is unchanged. */
@@ -218,7 +219,7 @@ export function activityEvents(owner: string, taskId: string) {
       .all(owner, taskId) as any[]
   )
     .reverse()
-    .map((r) => ({ ...r, payload: readStoredUrls(JSON.parse(r.payload)) }));
+    .map((r) => ({ ...r, payload: JSON.parse(readStoredText(r.payload)) }));
 }
 export function revise(task: any, revision: number) {
   if (task.revision !== revision)

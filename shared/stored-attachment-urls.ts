@@ -6,6 +6,11 @@ const legacyAttachmentPaths = new Map([
 const storedLink =
   /(?:https?:\/\/[^\s<>"'`()]+)?\/api\/(?:v2|workspace)\/attachments\/[A-Za-z0-9-]+/g;
 
+/** True when text may hold an old stored link. Nearly every record has none. */
+export function hasStoredAttachmentLinks(text: string): boolean {
+  return text.includes('/api/v2/attachments/') || text.includes('/api/workspace/attachments/');
+}
+
 export function convertStoredAttachmentText(
   text: string,
   origins: readonly string[] = ['https://deploy.local'],
