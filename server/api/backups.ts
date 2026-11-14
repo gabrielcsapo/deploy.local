@@ -1,3 +1,4 @@
+import { assertReleaseAdmission } from './release-admission.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 import { requireAuth, error, dispatchAgentCommand, json } from './shared.ts';
 import {
@@ -30,6 +31,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
@@ -88,6 +90,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
@@ -121,6 +124,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const filename = decodeURIComponent(params.part2);
         const d = getDeployment(name);
@@ -159,6 +163,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const filename = decodeURIComponent(params.part2);
         const d = getDeployment(name);

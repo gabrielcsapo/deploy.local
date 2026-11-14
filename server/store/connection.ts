@@ -1,3 +1,4 @@
+import { configureAuthDatabase } from '../kernel/auth/database.ts';
 import { deployDataDirectory, deployDataPath } from '../kernel/files/data-directory.ts';
 import { openDatabase, type Database } from '../kernel/db/sqlite.ts';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
@@ -280,3 +281,9 @@ configureCiFence(
       .immediate();
   },
 );
+
+// Auth uses the same lazy connection, including after _resetDb().
+configureAuthDatabase(() => {
+  getDb();
+  return getSqlite()!;
+});

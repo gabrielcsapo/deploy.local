@@ -2986,6 +2986,46 @@
       "h": 1900,
       "title": "Settings for a project with one app: the app’s and the project’s on one page",
       "expand": "fill"
+    },
+    "TasksByProject.html": {
+      "x": 23210,
+      "y": 11024,
+      "w": 1440,
+      "h": 900,
+      "title": "Tasks in the sidebar, grouped by project",
+      "expand": "fill"
+    },
+    "TasksGroupMenu.html": {
+      "x": 24730,
+      "y": 11024,
+      "w": 1440,
+      "h": 900,
+      "title": "Choosing how the sidebar groups tasks",
+      "expand": "fill"
+    },
+    "TaskRowMenu.html": {
+      "x": 26250,
+      "y": 11024,
+      "w": 1440,
+      "h": 900,
+      "title": "A task’s row in the sidebar offers Delete",
+      "expand": "fill"
+    },
+    "TaskMenuDelete.html": {
+      "x": 27770,
+      "y": 11024,
+      "w": 1440,
+      "h": 900,
+      "title": "A task’s own menu offers Delete",
+      "expand": "fill"
+    },
+    "TaskDelete.html": {
+      "x": 29290,
+      "y": 11024,
+      "w": 1440,
+      "h": 900,
+      "title": "Deleting a task says what goes with it",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3049,6 +3089,11 @@
     "ScreenAsk.html",
     "ScreenWatch.html",
     "CommandPalette.html",
+    "TasksByProject.html",
+    "TasksGroupMenu.html",
+    "TaskRowMenu.html",
+    "TaskMenuDelete.html",
+    "TaskDelete.html",
     "PullRequests.html",
     "Review.html",
     "ReviewPhone.html",
@@ -4819,6 +4864,20 @@
       "x": 21760,
       "y": 8380,
       "text": "For approval. Four things that got in the way on a project.\n\nDiscover has a way back. Its header reads Projects › Discover, like every page under Projects, and the sidebar keeps Projects selected (Discover).\n\nOne settings page for a project with one app. Settings shows the app’s Address and Health and resources, then the project’s Variables and secrets, Repository and Releases, then Remove, on one page (OneAppSettings). There is no second page and no notice sending you to it. A project with several apps keeps Project settings, and each app’s address, health and limits stay on that app’s page under the project.\n\nPipelines on a narrow window. Below 820 px the run you are looking at sits on top as one full-width row that says how many runs there are; tapping it opens the list. Its jobs, packages and release follow directly, so nothing is a long scroll away. The tab row fades at its edge when more tabs follow, and the current tab is scrolled into view (PipelineRun at 700).\n\nNumbers that are not there. “Unavailable” goes. When nothing happened the number is the truth: 0 requests per minute with “No requests in the last hour”, and a dash for a time with “No requests to time” (OneAppQuiet). When something is not measured the row says “Not measured” and why, for example “Traffic is not recorded for this app”. A memory limit that was never set reads “No limit”. Loading still shows a skeleton, never a zero.\n\niPhone: later."
+    },
+    "work-9": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 11024,
+      "text": "Tidying tasks\nWeb app · Desktop app\niPhone: later"
+    },
+    "tasks-group-delete": {
+      "fill": "yellow",
+      "w": 420,
+      "x": 22710,
+      "y": 11224,
+      "text": "Tasks in the sidebar group by date or by project; the first heading carries the choice and the app remembers it. By project: projects in order of their latest task, each with its 5 most recent tasks and “Show N more”; tasks with no project come last under No project. The + on a project starts a task in it.\n\nDelete task… is in a row’s ⋯ (shown in place of the time on hover or keyboard focus, and on right-click in the desktop app) and in the task’s own ⋯ menu. It always asks first and names what goes: the conversation, its checkpoints and its branch. The notice appears only when the branch has commits that are not on main. An open pull request is closed; merged work and releases stay. While a task is running the item is absent: stop it first."
     }
   },
   "starts": {}

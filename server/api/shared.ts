@@ -10,8 +10,6 @@ import {
   getAgentJob,
   cancelQueuedAgentJob,
 } from '../store.ts';
-import { assertNoCiRelease } from '../ci-releases.ts';
-import { assertCiMutation } from '../ci-fence.ts';
 import { createConnection } from 'node:net';
 
 // Pre-container states where Docker has no container yet
@@ -113,15 +111,6 @@ export function requireAuth(
     error(res, 'Unauthorized', 401);
     return null;
   }
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    const app = new URL(req.url || '/', 'https://localhost').pathname.match(
-      /^\/api\/(?:deployments|components)\/([^/]+)/,
-    )?.[1];
-    if (app) {
-      assertNoCiRelease(decodeURIComponent(app));
-      assertCiMutation(decodeURIComponent(app));
-    }
-  }
   return { username: username!, token: token! };
 }
 
@@ -131,6 +120,14 @@ export function requireAdmin(
 ): { username: string; token: string } | null {
   const auth = requireAuth(req, res);
   if (!auth) return null;
+  return requireAdminRole(auth, res);
+}
+
+/** Apply the role check to an already authenticated identity, after route admission. */
+export function requireAdminRole(
+  auth: { username: string; token: string },
+  res: ServerResponse,
+): { username: string; token: string } | null {
   if (!isAdmin(auth.username)) {
     error(res, 'Administrator access required', 403);
     return null;

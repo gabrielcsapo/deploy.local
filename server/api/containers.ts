@@ -1,3 +1,4 @@
+import { assertReleaseAdmission } from './release-admission.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 import {
   requireAuth,
@@ -50,6 +51,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
@@ -77,6 +79,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
@@ -103,6 +106,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
@@ -182,6 +186,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1.toLowerCase();
         const initialDeployment = getDeployment(name);
         if (!initialDeployment || initialDeployment.username !== auth.username) {
@@ -409,6 +414,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = params.part1;
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);

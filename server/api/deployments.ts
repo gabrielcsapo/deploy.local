@@ -1,3 +1,4 @@
+import { assertReleaseAdmission } from './release-admission.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 import { randomUUID } from 'node:crypto';
 import { stopApp } from '../v2/project-removal.ts';
@@ -8,7 +9,7 @@ import {
   MIGRATION_STATES,
   PRE_CONTAINER_STATES,
   localGraphSiteFor,
-  requireAdmin,
+  requireAdminRole,
   CONFIGURATION_REQUIRED_STATUS,
   migrationProgressByDeployment,
   dispatchAgentCommand,
@@ -252,6 +253,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const allDeps = getDeployments(auth.username);
         const statusMap = await getAllContainerStatuses();
         const deps = allDeps.map((d) => ({
@@ -279,6 +281,7 @@ const table = [
       try {
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const placement = getFleetPlacementState();
         return json(res, {
           ...getDeployAdmissionState(auth.username),
@@ -310,6 +313,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = admissionCancelMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (deployment && deployment.username !== auth.username) {
@@ -347,6 +351,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = admissionCancelMatch[1].toLowerCase();
         if (!cancelQueuedDeploy(name, auth.username)) {
           return error(res, 'Queued deploy not found', 404);
@@ -375,6 +380,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = applicationSpecMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username) {
@@ -570,6 +576,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = applicationRebaseMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username) {
@@ -660,6 +667,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = applicationRuntimeMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username) {
@@ -743,6 +751,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = applicationPlanMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username) {
@@ -800,8 +809,10 @@ const table = [
         );
         if (!applicationApplyMatch) return false;
 
-        const auth = requireAdmin(req, res);
+        const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
+        if (!requireAdminRole(auth, res)) return;
         const name = applicationApplyMatch[1].toLowerCase();
         const initial = getDeployment(name);
         if (!initial) return error(res, 'Not found', 404);
@@ -1124,6 +1135,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = deployYamlMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username) {
@@ -1171,6 +1183,7 @@ const table = [
 
             const auth = requireAuth(req, res);
             if (!auth) return;
+            assertReleaseAdmission(req);
             const name = applicationConfigurationMatch[1].toLowerCase();
             const deployment = getDeployment(name);
             if (!deployment || deployment.username !== auth.username) {
@@ -1375,6 +1388,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = deploymentNodeMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username)
@@ -1439,6 +1453,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = deploymentNodeMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username)
@@ -1486,8 +1501,10 @@ const table = [
           );
           if (!(componentActionMatch || instanceReplaceMatch)) return false;
 
-          const auth = requireAdmin(req, res);
+          const auth = requireAuth(req, res);
           if (!auth) return;
+          assertReleaseAdmission(req);
+          if (!requireAdminRole(auth, res)) return;
           const match = componentActionMatch || instanceReplaceMatch!;
           const name = match[1].toLowerCase();
           const component = decodeURIComponent(match[2]);
@@ -1842,8 +1859,10 @@ const table = [
         );
         if (!profileOperationMatch) return false;
 
-        const auth = requireAdmin(req, res);
+        const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
+        if (!requireAdminRole(auth, res)) return;
         const name = profileOperationMatch[1].toLowerCase();
         const component = decodeURIComponent(profileOperationMatch[2]);
         const operation = decodeURIComponent(profileOperationMatch[3]);
@@ -2074,6 +2093,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = migrationProgressMatch[1].toLowerCase();
         const deployment = getDeployment(name);
         if (!deployment || deployment.username !== auth.username)
@@ -2105,6 +2125,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const d = getDeployment(deploymentMatch[1]);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         const status = await resolveStatusAsync(d);
@@ -2132,6 +2153,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = deploymentMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
@@ -2194,6 +2216,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = deploymentMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
@@ -2409,6 +2432,7 @@ const table = [
 
         const auth = requireAuth(req, res);
         if (!auth) return;
+        assertReleaseAdmission(req);
         const name = logsMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
