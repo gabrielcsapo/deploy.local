@@ -212,12 +212,12 @@ export function SearchBox({
         <AgentAvatar
           avatar={agents.find((agent) => agent.id === message.agentId)?.avatar}
           id={message.agentId}
-          size={20}
+          size={28}
         />
       ),
       body: (
         <>
-          <span className="dl-t">
+          <span className="v2-search-t">
             {message.title}
             {meta(
               `${message.taskId ? message.who : message.fromYou ? 'from you' : 'to you'} · ${formatTime(message.at, 'list')}`,
@@ -244,7 +244,7 @@ export function SearchBox({
             key: `line:${group.key}:${item.line}`,
             href: codeHref(item, item.line, query),
             body: (
-              <span className="dl-t v2-search-line">
+              <span className="v2-search-t v2-search-line">
                 <span className="v2-search-n">{item.line}</span>
                 {mark(item.text)}
               </span>
@@ -276,7 +276,7 @@ export function SearchBox({
             : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`,
           lead: <Icon name="attention" className="dl-attn" size={14} />,
           body: (
-            <span className="dl-t">
+            <span className="v2-search-t">
               {mark(item.title)}
               {meta(
                 [agentName.get(item.from ?? ''), formatTime(item.createdAt, 'list')]
@@ -319,7 +319,7 @@ export function SearchBox({
               <Icon name="comment" />
             ),
           body: (
-            <span className="dl-t">
+            <span className="v2-search-t">
               {mark(name.title)}
               {meta(
                 name.kind === 'project'
@@ -353,7 +353,7 @@ export function SearchBox({
           href: codeHref({ projectId: scope.id, ref: names.files!.ref, path: file.path }),
           lead: <Icon name="file" />,
           body: (
-            <span className="dl-t">
+            <span className="v2-search-t">
               {mark(file.name)}
               {meta(file.directory)}
             </span>
@@ -374,7 +374,7 @@ export function SearchBox({
             lead: <Icon name="file" />,
             body: (
               <>
-                <span className="dl-t">
+                <span className="v2-search-t">
                   <span className="v2-search-path">
                     {item.path}:{item.line}
                   </span>
@@ -392,7 +392,7 @@ export function SearchBox({
                   lead: null,
                   body: (
                     <>
-                      <span className="dl-t v2-search-more">
+                      <span className="v2-search-t v2-search-more">
                         Show all {codeNow.lines}
                         {codeNow.truncated ? '+' : ''} in code
                       </span>
@@ -421,7 +421,7 @@ export function SearchBox({
                   lead: null,
                   body: (
                     <>
-                      <span className="dl-t v2-search-more">
+                      <span className="v2-search-t v2-search-more">
                         Show all {names.messages.total} in messages
                       </span>
                       <span className="dl-end">
@@ -445,7 +445,7 @@ export function SearchBox({
             href: `${projectPath(project.id)}/logs`,
             lead: <Icon name="list" />,
             body: (
-              <span className="dl-t">
+              <span className="v2-search-t">
                 Open {'title' in project ? project.title : project.name} logs
               </span>
             ),
@@ -456,7 +456,7 @@ export function SearchBox({
             lead: <Icon name="compose" />,
             body: (
               <>
-                <span className="dl-t">
+                <span className="v2-search-t">
                   New task in {'title' in project ? project.title : project.name}
                 </span>
                 <span className="dl-end">
@@ -481,7 +481,7 @@ export function SearchBox({
           lead: <AgentAvatar avatar={asker.avatar} id={asker.id} size={28} />,
           body: (
             <>
-              <span className="dl-t">
+              <span className="v2-search-t">
                 Ask {asker.name} about "{query}"{scope ? ` in ${scope.name}` : ''}
               </span>
               <span className="dl-end">
