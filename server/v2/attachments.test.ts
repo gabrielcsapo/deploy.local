@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { spawnSync } from 'node:child_process';
 const root = mkdtempSync(join(tmpdir(), 'v2-attachments-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 process.env.DEPLOY_CODEX_BIN = '/usr/bin/false';
 const store = await import('../store.ts');
 const { db, save, get } = await import('../workspace/store.ts');

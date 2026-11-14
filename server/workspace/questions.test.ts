@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-question-test-'));
+await import('../test-ports.ts');
 const { get, save, list, events } = await import('./store.ts');
 const { questionTool, answerQuestion, taskQuestions, tasksWaitingForAnswer } =
   await import('./questions.ts');

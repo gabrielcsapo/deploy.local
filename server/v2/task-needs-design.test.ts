@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-design-needs-'));
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
+await import('../test-ports.ts');
 const { get, save, list, now } = await import('../workspace/store.ts');
 const { createProject, createTask } = await import('../workspace/test-repository.ts');
 const { git } = await import('../workspace/service.ts');

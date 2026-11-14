@@ -16,6 +16,7 @@ import { Readable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 const directory = mkdtempSync(join(tmpdir(), 'deploy-media-test-'));
 process.env.DEPLOY_DATA_DIR = directory;
+await import('../test-ports.ts');
 const { createAttachment, attachmentBytes, taskAttachments } = await import('./attachments.ts');
 const {
   sniffImage,

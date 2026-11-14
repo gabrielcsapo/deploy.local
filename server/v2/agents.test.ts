@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 const root = mkdtempSync(join(tmpdir(), 'v2-agents-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const { db, save, list } = await import('../workspace/store.ts');
 const { v2Api } = await import('./api.ts');
 const { approvalRules, putApprovalRules, isAllowed, ProjectReleaseService } =

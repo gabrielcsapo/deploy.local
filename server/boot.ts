@@ -1,3 +1,8 @@
+import './main/task-workspace-imports.ts';
+import { wireTaskRunStarter } from './main/task-run-starter.ts';
+import { wireQuestionAnswerResumer } from './main/question-answer-resumer.ts';
+import { wireStateRefreshSources } from './main/state-refresh-sources.ts';
+import { wireAgentChatSource } from './main/agent-chat-source.ts';
 import { startTaskPlacement } from './workspace/task-workspace.ts';
 import { startDesignApprovals } from './v2/design.ts';
 import { createTelemetryCollector } from './telemetry-runtime.ts';
@@ -367,6 +372,10 @@ async function start(options: BootOptions) {
 
 export function bootServer(options: BootOptions) {
   wireServerWorkspacePorts();
+  wireTaskRunStarter();
+  wireQuestionAnswerResumer();
+  wireStateRefreshSources();
+  wireAgentChatSource();
   // Previously started during dependency evaluation, in this order. Keep them before
   // the heartbeat, storage initialization, client creation and either role's listeners.
   startTerminalRelay();

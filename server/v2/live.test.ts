@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { routeFetch } from './test-request.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-live-test-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const { saveDeployment, updateDeploymentStatus, registerUser, authenticate, getSqlite, _resetDb } =
   await import('../store.ts');
 const { issueOwnedCiCredential, revokeCiCredential } = await import('../ci-releases.ts');

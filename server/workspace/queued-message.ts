@@ -1,7 +1,7 @@
 import { cancelTaskQuestions } from './question-lifecycle.ts';
 import { validateAttachments } from './attachments.ts';
 import { get, list, save, remove, event, now } from './store.ts';
-import { startRun } from './service.ts';
+import { requireTaskRunStarter } from './task-run-starter-port.ts';
 
 // One follow-up per task may wait for the active turn. It lives on the coordinator so any
 // client (web, iPhone, Mac) sees and can cancel the same message.
@@ -30,7 +30,10 @@ export function queueMessage(owner: string, taskId: string, input: any) {
     throw new Error('Message required (maximum 100000 characters)');
   // The turn may have ended while the client was deciding; send now instead of waiting forever.
   if (!activeRun(owner, taskId))
-    return { sent: true, run: startRun(owner, taskId, { ...input, revision: task.revision }) };
+    return {
+      sent: true,
+      run: requireTaskRunStarter('workspace')(owner, taskId, { ...input, revision: task.revision }),
+    };
   const existing = queuedMessage(owner, taskId);
   if (existing?.status === 'queued')
     throw Object.assign(new Error('A message is already queued for this turn'), { status: 409 });
@@ -71,7 +74,7 @@ export function releaseQueuedMessage(owner: string, taskId: string, status: stri
   };
   if (status !== 'succeeded') return hold(heldReason[status] || heldReason.unknown);
   try {
-    const run = startRun(owner, taskId, {
+    const run = requireTaskRunStarter('workspace')(owner, taskId, {
       ...settings(queued),
       content: queued.content,
       revision: get('task', owner, taskId).revision,
