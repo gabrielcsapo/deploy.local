@@ -1,7 +1,9 @@
 // A new review is drawn in Chromium right after it is proposed. Opening it must not wait for
 // those drawings, and a screen someone is looking at is drawn before the rest.
 // Chromium here is a stand-in that draws only when the test lets it, so the order is visible.
+// Nothing here waits on the clock: each step waits for the queue or the stand-in to say so.
 import test, { after } from 'node:test';
+import { EventEmitter, once } from 'node:events';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,6 +18,7 @@ const store = await import('../store.ts');
 const { db, save } = await import('../workspace/store.ts');
 const { gitText } = await import('../workspace/repository-git.ts');
 const { v2Api } = await import('./api.ts');
+const { designWarmUps, drawingQueueEvents, drawingQueueState } = await import('./design.ts');
 after(() => {
   db.close();
   store._resetDb();
@@ -43,25 +46,27 @@ async function call(path: string, body?: object, project = 'many') {
   return { status, json: JSON.parse(bytes.toString() || 'null') };
 }
 
-/** How many drawings have started once no more start. */
-async function settled(started: string[]) {
-  let count = -1;
-  for (let wait = 0; wait < 400 && (count !== started.length || !count); wait++) {
-    count = started.length;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+/** The next change to the queue or the stand-in (or `also` settling). */
+async function changed(standIn: EventEmitter, also?: Promise<unknown>) {
+  const stop = new AbortController();
+  try {
+    await Promise.race([
+      once(drawingQueueEvents, 'change', { signal: stop.signal }),
+      once(standIn, 'change', { signal: stop.signal }),
+      ...(also ? [also] : []),
+    ]);
+  } finally {
+    stop.abort();
   }
-  return started.length;
 }
-
-function within<T>(ms: number, work: Promise<T>, message: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([
-    work,
-    new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(message)), ms);
-    }),
-  ]).finally(() => clearTimeout(timer));
+/** Wait until `ready` holds, rechecking whenever the queue or the stand-in changes. */
+async function until(ready: () => boolean, standIn: EventEmitter) {
+  while (!ready()) await changed(standIn);
 }
+/** Drawings someone asked for right now that have not started drawing. */
+const askedWaiting = () =>
+  drawingQueueState().drawings.filter((entry) => entry.priority === 0 && entry.phase !== 'running')
+    .length;
 
 /** A 1×1 white PNG, the shape Chromium's screenshots have. */
 function png() {
@@ -87,23 +92,27 @@ function heldChromium() {
   const started: string[] = [];
   /** What each drawing showed, so a drawing made twice is visible. */
   const drawn: string[] = [];
-  const held: (() => void)[] = [];
+  const held: { label: string; finish: () => void }[] = [];
+  const events = new EventEmitter();
   let connected = true;
   const browser = {
     isConnected: () => connected,
     close: async () => {
       connected = false;
     },
-    newContext: async (options: { deviceScaleFactor: number }) => ({
+    newContext: async (options: { deviceScaleFactor: number; viewport: { width: number } }) => ({
       route: async () => {},
       close: async () => {},
       newPage: async () => {
         let evaluated = 0;
         return {
           setContent: async (html: string) => {
-            started.push(`${/>(Many\d+)</.exec(html)?.[1]}@${options.deviceScaleFactor}`);
-            drawn.push(`${html}@${options.deviceScaleFactor}`);
-            await new Promise<void>((resolve) => held.push(resolve));
+            const label = `${/>(Many\d+)</.exec(html)?.[1]}@${options.deviceScaleFactor}`;
+            started.push(label);
+            drawn.push(`${html}@${options.viewport.width}@${options.deviceScaleFactor}`);
+            const finished = new Promise<void>((finish) => held.push({ label, finish }));
+            events.emit('change');
+            await finished;
           },
           evaluate: async () => (evaluated++ ? { boxes: {}, textBoxes: [], words: {} } : undefined),
           screenshot: async () => png(),
@@ -116,23 +125,36 @@ function heldChromium() {
     started,
     drawn,
     held,
-    /** Let the oldest held drawing finish, and wait until the next ones have started. */
+    events,
+    /** Let the oldest held drawing finish, then wait until the next drawing starts. */
     async finishOne() {
       const count = started.length;
-      held.shift()?.();
-      for (let wait = 0; wait < 200 && started.length === count; wait++)
-        await new Promise((resolve) => setTimeout(resolve, 5));
+      held.shift()!.finish();
+      await until(() => started.length > count, events);
     },
-    /** Let every drawing finish, including those that start meanwhile, until none is left. */
-    async finishAll() {
-      for (let idle = 0; idle < 20; idle++) {
-        if (held.length) idle = 0;
-        while (held.length) held.shift()!();
-        await new Promise((resolve) => setTimeout(resolve, 10));
+    /** Let the held drawings of one screen finish. */
+    finishScreen(label: string) {
+      for (const drawing of held.filter((entry) => entry.label === label)) {
+        held.splice(held.indexOf(drawing), 1);
+        drawing.finish();
       }
     },
+    /** Let every drawing finish, until every warm-up has finished and no drawing is left. */
+    async finishAll() {
+      const warmUps = { done: false };
+      const finished = designWarmUps().then(() => {
+        warmUps.done = true;
+      });
+      const busy = () => drawingQueueState().drawings.length > 0;
+      while (!warmUps.done || held.length || busy()) {
+        while (held.length) held.shift()!.finish();
+        if (!warmUps.done || busy()) await changed(events, warmUps.done ? undefined : finished);
+      }
+    },
+    /** After the test, pass or fail: nothing stays held, so no later test inherits busy slots. */
     disconnect() {
       connected = false;
+      while (held.length) held.shift()!.finish();
     },
   };
 }
@@ -157,7 +179,7 @@ async function manyBoards(name: string) {
   };
   writeFileSync(join(repo, 'design/canvas.json'), JSON.stringify(canvas));
   const page = (label: string, board: string) =>
-    `<main data-layer="page"><nav data-layer="sidebar">${label}</nav><h1 data-layer="title">${board.replace('.html', '')}</h1></main>`;
+    `<main data-layer="page" data-fixture="${name}"><nav data-layer="sidebar">${label}</nav><h1 data-layer="title">${board.replace('.html', '')}</h1></main>`;
   for (const board of boards)
     writeFileSync(join(repo, 'design/boards', board), page('Design', board));
   await git(['add', '.']);
@@ -192,45 +214,57 @@ test('opening a many-screen review never waits for its drawings, and a looked-at
   assert.equal(proposed.status, 201);
   const item = proposed.json.item.id;
   // The proposal starts drawing every screen in the background (two sides, then two densities),
-  // a few at a time.
-  const atOnce = await settled(chromiumStandIn.started);
+  // a few at a time: wait until every slot is taken and more wait in line.
+  await until(() => drawingQueueState().queued > 0, chromiumStandIn.events);
+  const atOnce = drawingQueueState().running;
   assert.ok(atOnce >= 3 && atOnce < boards.length, `${atOnce} drawings at a time`);
+  await until(() => chromiumStandIn.started.length === atOnce, chromiumStandIn.events);
 
-  // The canvas opens the review while no drawing has finished.
-  const opened = await within(
-    5000,
-    call(`/review?item=${encodeURIComponent(item)}&evidence=text`),
-    'the review waited for drawings',
-  );
+  // The canvas opens the review while no drawing has finished. (Were it to wait, nothing would
+  // ever finish and the test would not end.)
+  const opened = await call(`/review?item=${encodeURIComponent(item)}&evidence=text`);
   assert.equal(opened.status, 200);
   assert.equal(opened.json.boards.length, boards.length);
-  assert.equal(chromiumStandIn.held.length, atOnce, 'opening it drew nothing and finished nothing');
+  assert.equal(chromiumStandIn.started.length, atOnce, 'opening it started no drawing');
+  assert.equal(chromiumStandIn.held.length, atOnce, 'and finished none');
 
-  // Looking at the last screen asks for its areas; its two drawings go ahead of the rest.
-  const last = opened.json.boards.at(-1);
-  const preview = call(
-    `/review/preview?item=${encodeURIComponent(item)}&board=${last.file}&width=1440&scale=1`,
+  // Looking at the last screen asks for its areas; both its drawings go ahead of everything
+  // waiting, at the width the warm-up draws (shared with it) and at one it never draws (so the
+  // preview's drawings are still reading their board from Git when a slot comes free).
+  // A screen none of whose drawings has started: the warm-up takes screens in whatever order
+  // their files come back from Git.
+  const last = opened.json.boards.findLast(
+    (board: { file: string }) =>
+      !chromiumStandIn.started.includes(`${board.file.replace('.html', '')}@1`),
   );
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const before = chromiumStandIn.started.length;
-  await chromiumStandIn.finishOne();
-  await chromiumStandIn.finishOne();
-  const next = chromiumStandIn.started.slice(before, before + 2);
-  assert.deepEqual(next, [
-    `${last.file.replace('.html', '')}@1`,
-    `${last.file.replace('.html', '')}@1`,
-  ]);
+  const name = `${last.file.replace('.html', '')}@1`;
+  for (const width of last.widths) {
+    const preview = call(
+      `/review/preview?item=${encodeURIComponent(item)}&board=${last.file}&width=${width}&scale=1`,
+    );
+    await until(() => askedWaiting() === 2, chromiumStandIn.events);
+    const before = chromiumStandIn.started.length;
+    await chromiumStandIn.finishOne();
+    await chromiumStandIn.finishOne();
+    assert.deepEqual(chromiumStandIn.started.slice(before, before + 2), [name, name], `${width}px`);
+    // The preview answers once its own two drawings finish.
+    chromiumStandIn.finishScreen(name);
+    assert.equal((await preview).status, 200);
+  }
   await chromiumStandIn.finishAll();
-  assert.equal((await preview).status, 200);
 
   // Without evidence=text the review still waits for its drawings, so iPhone sees what it did.
   const drawn = await call(`/review?item=${encodeURIComponent(item)}`);
   assert.equal(drawn.status, 200);
   assert.deepEqual(drawn.json.boards, opened.json.boards);
   // One drawing per side per screen for the review, two densities more for the warm previews,
-  // and nothing drawn twice.
-  assert.equal(chromiumStandIn.started.length, boards.length * 2 * 3);
-  assert.equal(new Set(chromiumStandIn.started).size, boards.length * 3);
+  // the last screen's sides at its other width, and nothing drawn twice.
+  assert.equal(
+    new Set(chromiumStandIn.drawn).size,
+    chromiumStandIn.drawn.length,
+    'none drawn twice',
+  );
+  assert.equal(chromiumStandIn.drawn.length, boards.length * 2 * 3 + 2);
 });
 
 test('proposing the same branch again drops the earlier warm-up and draws only what changed', async (t) => {
@@ -246,7 +280,18 @@ test('proposing the same branch again drops the earlier warm-up and draws only w
       'again',
     );
   assert.equal((await propose()).status, 201);
-  await settled(chromiumStandIn.started);
+  await until(() => drawingQueueState().queued > 0, chromiumStandIn.events);
+  // Every drawing given a slot has reached the stand-in, so none starts unseen meanwhile.
+  await until(
+    () => chromiumStandIn.started.length === drawingQueueState().running,
+    chromiumStandIn.events,
+  );
+  const changedBoard = boards[23].replace('.html', '');
+  // The first round's own copy of the screen the second round changes: only the second round
+  // differs from it, so once the first round is dropped it is never drawn again.
+  const firstRoundOnly = (drawing: string) =>
+    drawing.includes(`>Artifacts</nav><h1 data-layer="title">${changedBoard}<`);
+  const drawnBefore = chromiumStandIn.drawn.length;
   // A second round changes one screen while the first round's screens are still drawing.
   await git(['checkout', '-q', 'design/many']);
   writeFileSync(join(repo, 'design/boards', boards[23]), page('Artifacts!', boards[23]));
@@ -261,5 +306,15 @@ test('proposing the same branch again drops the earlier warm-up and draws only w
     chromiumStandIn.drawn.length,
     'none drawn twice',
   );
-  assert.equal(chromiumStandIn.drawn.length, boards.length * 2 * 3);
+  const later = chromiumStandIn.drawn.slice(drawnBefore);
+  assert.deepEqual(
+    later.filter(firstRoundOnly),
+    [],
+    'the first round drew nothing more of its own',
+  );
+  assert.equal(
+    chromiumStandIn.drawn.length,
+    boards.length * 2 * 3 +
+      chromiumStandIn.drawn.slice(0, drawnBefore).filter(firstRoundOnly).length,
+  );
 });

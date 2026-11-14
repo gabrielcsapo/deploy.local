@@ -26,6 +26,7 @@ import { homeOf, readReleaseConfig } from './self-update-host.ts';
 import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { EventEmitter } from 'node:events';
 import {
   applyEdits,
   boardLinks,
@@ -2192,6 +2193,8 @@ type DrawingLane = {
   /** Someone is waiting for it at this priority now. */
   promote(priority: number): void;
 };
+/** One drawing: getting ready (reading its board), waiting for Chromium, or drawing. */
+type DrawingTicket = ReturnType<typeof childLane> & { phase: 'preparing' | 'queued' | 'running' };
 const drawingLane = new AsyncLocalStorage<DrawingLane>();
 /** A lane of its own; with a parent it is as urgent as its parent, unless promoted past it. */
 function childLane(
@@ -2210,7 +2213,9 @@ function childLane(
       return promoted === undefined && (cancelled || Boolean(parent?.cancelled));
     },
     promote(to: number) {
+      const before = promoted;
       promoted = Math.min(promoted ?? Infinity, to);
+      if (promoted !== before) drawingsChanged();
     },
     cancel() {
       cancelled = true;
@@ -2223,22 +2228,68 @@ class DrawingCancelled extends Error {
     super('Nobody needs this drawing any more');
   }
 }
-const drawingTickets = new Map<string, DrawingLane>();
+const drawingTickets = new Map<string, DrawingTicket>();
+/** Every drawing someone wants that has not finished, whatever it is doing. */
+const liveDrawings = new Set<DrawingTicket>();
 const buildingLanes = new Map<string, DrawingLane>();
 const drawQueue: {
   start: () => void;
   stop: (error: Error) => void;
   lane: DrawingLane | undefined;
 }[] = [];
+/**
+ * Start what may start. A drawing reads its board from Git before it can wait for Chromium, so
+ * a free slot is kept for a more urgent drawing that is still getting ready rather than given to
+ * a less urgent one already waiting: otherwise the other side of a screen someone asked for
+ * waits behind a drawing nobody asked for.
+ */
 function nextDrawing() {
   for (let at = drawQueue.length - 1; at >= 0; at--)
     if (drawQueue[at].lane?.cancelled) drawQueue.splice(at, 1)[0].stop(new DrawingCancelled());
-  let best = -1;
-  for (let at = 0; at < drawQueue.length; at++)
-    if (best < 0 || (drawQueue[at].lane?.priority ?? 0) < (drawQueue[best].lane?.priority ?? 0))
-      best = at;
-  if (best >= 0) drawQueue.splice(best, 1)[0].start();
+  let readying = Infinity;
+  for (const ticket of liveDrawings)
+    if (ticket.phase === 'preparing' && !ticket.cancelled)
+      readying = Math.min(readying, ticket.priority);
+  while (drawing < drawLimit && drawQueue.length) {
+    let best = 0;
+    for (let at = 1; at < drawQueue.length; at++)
+      if ((drawQueue[at].lane?.priority ?? 0) < (drawQueue[best].lane?.priority ?? 0)) best = at;
+    if ((drawQueue[best].lane?.priority ?? 0) > readying) break;
+    const [next] = drawQueue.splice(best, 1);
+    drawing++;
+    if (next.lane) (next.lane as DrawingTicket).phase = 'running';
+    next.start();
+  }
+  drawingEvents.emit('change');
 }
+/** Changes to what is waiting, for nextDrawing and for tests that follow the queue. */
+const drawingEvents = new EventEmitter();
+drawingEvents.setMaxListeners(0);
+function drawingsChanged() {
+  nextDrawing();
+}
+/** What the queue holds, for tests: the drawing slots in use and each drawing not yet done. */
+export function drawingQueueState() {
+  return {
+    running: drawing,
+    queued: drawQueue.length,
+    drawings: [...liveDrawings].map((ticket) => ({
+      priority: ticket.priority,
+      phase: ticket.phase,
+      cancelled: ticket.cancelled,
+    })),
+  };
+}
+export const drawingQueueEvents = drawingEvents;
+/**
+ * Settles when no warm-up is left, for tests: those running, those a proposal just scheduled
+ * (they start on the next turn of the event loop) and any those start.
+ */
+export async function designWarmUps() {
+  await new Promise((resolve) => setImmediate(resolve));
+  while (warmRuns.size) await Promise.allSettled([...warmRuns]);
+}
+const warmRuns = new Set<Promise<unknown>>();
 /** Warm-ups by review, so a withdrawn or superseded review's warm-up can be stopped. */
 const warmLanes = new Map<string, ReturnType<typeof childLane>>();
 function cancelWarmUps(prefix: string, keep: string) {
@@ -2247,7 +2298,7 @@ function cancelWarmUps(prefix: string, keep: string) {
       lane.cancel();
       warmLanes.delete(itemId);
     }
-  nextDrawing();
+  drawingsChanged();
 }
 let chromiumLaunch: Promise<import('playwright').Browser> | null = null;
 let chromiumIdle: ReturnType<typeof setTimeout> | undefined;
@@ -2257,11 +2308,12 @@ async function withBoardChromium<T>(
 ): Promise<T> {
   const lane = drawingLane.getStore();
   if (lane?.cancelled) throw new DrawingCancelled();
-  if (drawing >= drawLimit)
-    await new Promise<void>((resolve, reject) =>
-      drawQueue.push({ start: resolve, stop: reject, lane }),
-    );
-  drawing++;
+  // Every drawing waits in line, even with a slot free: the slot may be kept for a more urgent one.
+  await new Promise<void>((resolve, reject) => {
+    if (lane) (lane as DrawingTicket).phase = 'queued';
+    drawQueue.push({ start: resolve, stop: reject, lane });
+    nextDrawing();
+  });
   clearTimeout(chromiumIdle);
   try {
     let browser = chromiumLaunch && (await chromiumLaunch.catch(() => null));
@@ -2354,18 +2406,23 @@ export async function renderBoardLayout(
     drawingTickets.get(key)?.promote(askingPriority());
     return pending;
   }
-  const ticket = childLane(drawingLane.getStore());
-  const stored = draw === drawBoard ? await readRender(key, scale) : null;
-  const job = stored
-    ? Promise.resolve(stored)
-    : drawingLane
-        .run(ticket, () => draw(repo, commit, board, width, height, scale))
-        .then((rendered) => {
-          if (draw === drawBoard) writeRender(key, scale, rendered);
-          return rendered;
-        });
+  // Known before anything is read, so a second asker joins it and can move it up the line.
+  const ticket: DrawingTicket = Object.assign(childLane(drawingLane.getStore()), {
+    phase: 'preparing' as const,
+  });
+  const job = (async () => {
+    const stored = draw === drawBoard ? await readRender(key, scale) : null;
+    if (stored) return stored;
+    const rendered = await drawingLane.run(ticket, () =>
+      draw(repo, commit, board, width, height, scale),
+    );
+    if (draw === drawBoard) writeRender(key, scale, rendered);
+    return rendered;
+  })();
   work.set(key, job);
   drawingTickets.set(key, ticket);
+  liveDrawings.add(ticket);
+  drawingsChanged();
   try {
     const rendered = await job;
     renders.set(key, rendered);
@@ -2375,6 +2432,9 @@ export async function renderBoardLayout(
   } finally {
     work.delete(key);
     if (drawingTickets.get(key) === ticket) drawingTickets.delete(key);
+    liveDrawings.delete(ticket);
+    // A slot kept for it is free again.
+    drawingsChanged();
   }
 }
 
@@ -2585,9 +2645,14 @@ export async function reviewPreview(
 function warmReview(owner: string, project: any, repo: string, itemId: string) {
   const lane = childLane(undefined, drawingPriority.warm);
   warmLanes.set(itemId, lane);
-  return drawingLane
+  const run = drawingLane
     .run(lane, () => warmDrawings(owner, project, repo, itemId, lane))
-    .finally(() => warmLanes.get(itemId) === lane && warmLanes.delete(itemId));
+    .finally(() => {
+      if (warmLanes.get(itemId) === lane) warmLanes.delete(itemId);
+      warmRuns.delete(run);
+    });
+  warmRuns.add(run);
+  return run;
 }
 async function warmDrawings(
   owner: string,
