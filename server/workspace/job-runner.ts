@@ -47,9 +47,13 @@ export class JobRunner {
     this.request = request;
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.packageCleanup = readdir(directory, { withFileTypes: true }).then(async (entries) => {
+      // No job runs while the worker starts, so every folder here was left by an earlier one:
+      // a checkout with its installed dependencies is over a gigabyte.
       for (const entry of entries)
-        if (entry.isDirectory() && entry.name.startsWith('package-install-'))
-          await rm(resolve(directory, entry.name), { recursive: true, force: true });
+        if (entry.isDirectory())
+          await rm(resolve(directory, entry.name), { recursive: true, force: true }).catch(
+            () => {},
+          );
     });
     this.statePath = resolve(directory, 'job.json');
     this.state = existsSync(this.statePath)
@@ -351,8 +355,12 @@ export class JobRunner {
         });
         if (result.stopRequested) this.stop();
         if (completing) {
+          const finished = resolve(this.directory, this.state.jobId + '-' + this.state.generation);
           this.state = null;
           this.persist();
+          // The coordinator has the result, its output and its artifacts. Keeping the checkout
+          // filled a disk with one copy of the repository and its dependencies per job.
+          await rm(finished, { recursive: true, force: true }).catch(() => {});
         } else this.persist();
         return;
       }

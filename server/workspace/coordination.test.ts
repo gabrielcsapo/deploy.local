@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, symlinkSync } from 'node:fs';
+import {
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  mkdirSync,
+  symlinkSync,
+  readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -159,6 +166,13 @@ test('run credentials expire at completion and tools cannot cross owners or task
 test('local jobs are isolated, idempotent, cancellable, time bounded, and strip agent credentials', async () => {
   db.prepare('INSERT OR REPLACE INTO worker VALUES(?,?,?)').run('local', process.pid, now());
   const instanceId = operation();
+  // A checkout left by a job from before this worker started.
+  mkdirSync(join(data, 'local-jobs', 'stale-job-1'), { recursive: true });
+  writeFileSync(join(data, 'local-jobs', 'stale-job-1', 'leftover.txt'), 'x');
+  const jobFolders = () =>
+    readdirSync(join(data, 'local-jobs'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
   const runner = new JobRunner(join(data, 'local-jobs'), async (action, body) =>
     jobCommand(owner, 'local', action, { ...body, instanceId }),
   );
@@ -190,6 +204,8 @@ test('local jobs are isolated, idempotent, cancellable, time bounded, and strip 
       return j.status === 'succeeded' && j;
     });
     assert.match(done.output, /checkpoint version/);
+    // A finished job's checkout is removed once the coordinator has its result.
+    await until(() => jobFolders().length === 0);
     assert.ok(Date.parse(done.startedAt) >= Date.parse(done.createdAt));
     assert.ok(Date.parse(done.finishedAt) >= Date.parse(done.startedAt));
     assert.equal(
