@@ -8,6 +8,7 @@ import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 const data = mkdtempSync(join(tmpdir(), 'deploy-project-collaboration-'));
 process.env.DEPLOY_DATA_DIR = data;
+await import('../test-ports.ts');
 const { workspaceApi } = await import('./api.ts');
 const { createProject, createTask } = await import('./test-repository.ts');
 const { git } = await import('./service.ts');

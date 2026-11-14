@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-run-queue-'));
+await import('../test-ports.ts');
 const { save, get, list } = await import('./store.ts');
 const { runQueue, taskQueue, moveQueuedRun, workerLoad } = await import('./run-queue.ts');
 const { workerCommand } = await import('./protocol.ts');

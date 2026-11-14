@@ -2,6 +2,7 @@ import { apiRouteManifest } from '../api/route-manifest.ts';
 import { compilePath } from '../kernel/routes.ts';
 import { sendJson } from '../kernel/http.ts';
 import { spawn } from 'node:child_process';
+import { wirePreviewWorkspaceTools } from '../main/preview-workspace-tools.ts';
 import { coordinationApi } from './coordination-api.ts';
 import { workerAuthentication } from './credentials.ts';
 // Disposable local harness preview; never starts deployment/fleet reconciliation.
@@ -9,9 +10,12 @@ import { createServer } from 'node:http';
 import { writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { authenticate, registerUser, loginUser, getUser } from '../store.ts';
+import { wireRepositoryProjectCreator } from '../main/preview-workspace-projects.ts';
 import { workspaceApi } from './api.ts';
 import { root } from './store.ts';
 import { startTerminalRelay, terminalRelay } from './terminal-service.ts';
+wirePreviewWorkspaceTools();
+wireRepositoryProjectCreator();
 if (!process.env.DEPLOY_DATA_DIR || !process.env.DEPLOY_DATA_DIR.startsWith('/tmp/'))
   throw new Error('Preview requires explicit disposable /tmp/ DEPLOY_DATA_DIR');
 const credentials = resolve(root, 'preview-credentials.json');

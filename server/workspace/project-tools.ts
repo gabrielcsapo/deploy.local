@@ -1,3 +1,4 @@
+import { requireMergePermissionSource } from './merge-permission-port.ts';
 import { createHash } from 'node:crypto';
 import { get, command } from './store.ts';
 import type { AgentScope } from './coordination.ts';
@@ -49,7 +50,7 @@ export async function projectTool(scope: AgentScope, args: any) {
     throw new Error('Unsupported project action');
   if (args.action === 'merge' || args.action === 'retry-merge') {
     // Loaded when used, like deploy_design: the release module is only needed to decide this.
-    const { isAllowed } = await import('../v2/releases.ts');
+    const isAllowed = await requireMergePermissionSource('workspace')();
     // Rules name saved agents and a task keeps its agent across follow-up runs. A conversation a
     // person started has no agent to hold a rule, so its merge stays with that person. People's
     // own merges come through the workspace API and never reach this check.
