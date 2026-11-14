@@ -36,7 +36,8 @@ Apps and computers
 
 Packages
   packages               List private packages
-  packages login         Sign in npm and pnpm
+  packages trust         Install without signing in
+  packages login         Sign in to publish
   packages use           Install this project through deploy.local
   packages use --off     Remove the project's registry setting
   packages publish       Publish this folder (--tag next, --dry-run, --claim)

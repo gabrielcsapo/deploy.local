@@ -80,8 +80,8 @@ function PackageList({ tab }: { tab: string }) {
             ))}
           </Group>
           <p className="dl-list-note">
-            Only people signed in to deploy.local and its computers can install these. A version can
-            be deprecated, never replaced.
+            Any computer on your network can install these. Publishing needs a deploy.local sign-in.
+            A version can be deprecated, never replaced.
           </p>
         </>
       )}
@@ -98,7 +98,7 @@ function Setup() {
           <div className="dl-inset">
             <Setting
               label="Tasks, pipelines and releases"
-              description="Install through deploy.local with each computer’s own key. Nothing to set up."
+              description="Install through deploy.local. Nothing to set up."
             >
               <span className="dl-tag">On</span>
             </Setting>
@@ -127,8 +127,14 @@ function Setup() {
         <Group>
           <div className="dl-inset">
             <Setting
-              label="Sign in npm and pnpm"
-              description={`Makes a package key from your deploy.local sign-in and trusts ${coordinator}’s certificate`}
+              label="Install without signing in"
+              description={`Lets npm and pnpm trust ${coordinator}’s certificate. Any computer on your network can install.`}
+            >
+              <span className="dl-mono">deploy packages trust</span>
+            </Setting>
+            <Setting
+              label="Sign in to publish"
+              description="Makes a publishing key from your deploy.local sign-in"
             >
               <span className="dl-mono">deploy packages login</span>
             </Setting>

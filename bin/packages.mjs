@@ -116,43 +116,38 @@ export async function runPackages(
     );
     return;
   }
-  if (command === 'login') {
-    if (!config.username || !config.token) throw new Error('Run deploy login first.');
+  const registryKey = '//' + origin.host + '/npm/';
+  const ca = join(home, '.deploy', 'packages', 'ca.crt');
+  // Older logins wrote these. A global cafile replaces the public roots, so npmjs.org stops working.
+  const retired = [`cafile=${ca}`, `${registryKey}:always-auth=true`];
+  async function writeUserRc(values) {
     if ((await lstat(userRc).catch(() => null))?.isSymbolicLink())
       throw new Error(
         '~/.npmrc is a symbolic link. Keep package credentials in a private user file.',
       );
-    const key = await api('/api/package-keys', {
-      method: 'POST',
-      body: JSON.stringify({ label: flags.name || hostname(), scope: 'publish' }),
-    });
-    let inKeychain = false;
-    const values = { [authLine]: key.key };
-    const registryKey = '//' + origin.host + '/npm/';
-    const ca = join(home, '.deploy', 'packages', 'ca.crt');
-    // Older logins wrote these. A global cafile replaces the public roots, so npmjs.org stops working.
-    const retired = [`cafile=${ca}`, `${registryKey}:always-auth=true`];
-    // Download the CA over the already-validated coordinator connection, never an insecure bootstrap.
-    if (origin.protocol === 'https:') {
-      const response = await fetch(new URL('/ca.crt', origin));
-      if (!response.ok) throw new Error('Could not read the coordinator certificate.');
-      const certificate = await response.text();
-      if (!certificate.includes('-----BEGIN CERTIFICATE-----'))
-        throw new Error('Invalid coordinator certificate.');
-      inKeychain =
-        process.platform === 'darwin' &&
-        getCACertificates('system').some((root) => root.trim() === certificate.trim());
-      await mkdir(join(home, '.deploy', 'packages'), { recursive: true, mode: 0o700 });
-      await writeFile(ca, certificate, { mode: 0o600 });
-      // Scoped to this registry, like the token. pnpm honors it; npm reads NODE_EXTRA_CA_CERTS.
-      values[`${registryKey}:cafile`] = ca;
-    }
     await writeFile(userRc, updateNpmrc(await optionalRead(userRc), values, retired), {
       mode: 0o600,
     });
     await chmod(userRc, 0o600);
-    print(`  ✓ Package key for ${config.username}         ${key.label} · can publish`);
-    print(`  ✓ npm and pnpm                     ~/.npmrc · ${registry}`);
+  }
+  /** Saves the coordinator's certificate and scopes it to this registry. Needs no sign-in. */
+  async function trustValues() {
+    if (origin.protocol !== 'https:') return { values: {}, inKeychain: false };
+    // Download the CA over the already-validated coordinator connection, never an insecure bootstrap.
+    const response = await fetch(new URL('/ca.crt', origin));
+    if (!response.ok) throw new Error('Could not read the coordinator certificate.');
+    const certificate = await response.text();
+    if (!certificate.includes('-----BEGIN CERTIFICATE-----'))
+      throw new Error('Invalid coordinator certificate.');
+    const inKeychain =
+      process.platform === 'darwin' &&
+      getCACertificates('system').some((root) => root.trim() === certificate.trim());
+    await mkdir(join(home, '.deploy', 'packages'), { recursive: true, mode: 0o700 });
+    await writeFile(ca, certificate, { mode: 0o600 });
+    // Scoped to this registry, like the token. pnpm honors it; npm reads NODE_EXTRA_CA_CERTS.
+    return { values: { [`${registryKey}:cafile`]: ca }, inKeychain };
+  }
+  function printTrust(values, inKeychain) {
     print(
       '  ✓ Trusts the coordinator’s certificate         ' +
         (inKeychain
@@ -171,6 +166,30 @@ export async function runPackages(
       print('  ! npm needs this in your shell profile, pnpm is ready:');
       print(`    export NODE_EXTRA_CA_CERTS=${ca}`);
     }
+  }
+  if (command === 'trust') {
+    const { values, inKeychain } = await trustValues();
+    await writeUserRc(values);
+    printTrust(values, inKeychain);
+    print(`    Installs from ${registry} need no sign-in. To publish: deploy packages login`);
+    return;
+  }
+  if (command === 'login') {
+    if (!config.username || !config.token) throw new Error('Run deploy login first.');
+    if ((await lstat(userRc).catch(() => null))?.isSymbolicLink())
+      throw new Error(
+        '~/.npmrc is a symbolic link. Keep package credentials in a private user file.',
+      );
+    const key = await api('/api/package-keys', {
+      method: 'POST',
+      body: JSON.stringify({ label: flags.name || hostname(), scope: 'publish' }),
+    });
+    const trust = await trustValues();
+    const values = { [authLine]: key.key, ...trust.values };
+    await writeUserRc(values);
+    print(`  ✓ Package key for ${config.username}         ${key.label} · can publish`);
+    print(`  ✓ npm and pnpm                     ~/.npmrc · ${registry}`);
+    printTrust(values, trust.inKeychain);
     return;
   }
   if (command === 'use') {

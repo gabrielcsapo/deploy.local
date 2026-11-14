@@ -26,6 +26,13 @@ export type Identity = {
     pullNumber?: number;
   };
 };
+/** Someone reading without a key. They can install; anything else asks them to sign in. */
+export const ANONYMOUS: Identity = Object.freeze({
+  username: '',
+  publish: false,
+  admin: false,
+  credential: 'anonymous',
+});
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export function audit(identity: Identity, action: string, name: string, req?: IncomingMessage) {
   event(identity.username, '', null, 'package.' + action, {
@@ -105,6 +112,7 @@ export function registryIdentity(req: IncomingMessage): Identity | null {
 }
 export function canPublish(identity: Identity, owner?: string) {
   if (identity.pipeline) return;
+  if (identity === ANONYMOUS) fail('Run deploy packages login.', 401);
   if (identity.computer)
     fail(
       "Tasks can't publish. Set the version in the pull request; the pipeline publishes it when it merges.",

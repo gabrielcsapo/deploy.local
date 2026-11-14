@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { NpmCopy, type RegistrySettings } from './cache.ts';
 import { publishBody, smallBody } from './body.ts';
-import { audit, canPublish, registryIdentity, type Identity } from './keys.ts';
+import { ANONYMOUS, audit, canPublish, registryIdentity, type Identity } from './keys.ts';
 import {
   db,
   MAX_DOC,
@@ -327,7 +327,12 @@ export function createNpmRegistry(settings?: RegistrySettings) {
     const rawPath = (req.url || '').split('?')[0];
     if (!rawPath.startsWith('/npm/') && rawPath !== '/-/v1/search') return false;
     try {
-      const identity = registryIdentity(req);
+      // Reading needs no sign-in: anyone on the network can install. Every write still needs a key.
+      const read =
+        req.method === 'GET' ||
+        req.method === 'HEAD' ||
+        (req.method === 'POST' && rawPath === '/npm/-/npm/v1/security/advisories/bulk');
+      const identity = registryIdentity(req) ?? (read ? ANONYMOUS : null);
       if (!identity) {
         res.setHeader('WWW-Authenticate', 'Basic realm="deploy.local Packages", charset="UTF-8"');
         send(res, { error: 'ENEEDAUTH', reason: 'Run deploy packages login.' }, 401);
@@ -355,6 +360,11 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       )
         fail('Invalid package URL');
       if (path === '-/whoami' && req.method === 'GET') {
+        if (identity === ANONYMOUS) {
+          res.setHeader('WWW-Authenticate', 'Basic realm="deploy.local Packages", charset="UTF-8"');
+          send(res, { error: 'ENEEDAUTH', reason: 'Run deploy packages login.' }, 401);
+          return true;
+        }
         send(res, { username: identity.username });
         return true;
       }

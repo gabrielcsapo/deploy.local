@@ -203,16 +203,17 @@ test('npm protocol, auth, isolation, cache and responsiveness', async (t) => {
         { headers: { ...auth(), 'x-deploy-agent-token': 'agent-token' }, read: 401, publish: 401 },
       ];
       for (const [index, row] of matrix.entries()) {
+        // Reading needs no key: a missing or refused credential still installs. whoami says who signed in.
         for (const path of ['-/ping', '-/whoami', 'auth-matrix', '-/v1/search'])
           assert.equal(
             (await call(path, { headers: row.headers })).response.status,
-            row.read,
+            path === '-/whoami' ? row.read : 200,
             path,
           );
         const tarball = await fetch(origin + '/npm/auth-matrix/-/auth-matrix-1.0.0.tgz', {
           headers: row.headers,
         });
-        assert.equal(tarball.status, row.read);
+        assert.equal(tarball.status, 200);
         await tarball.arrayBuffer();
         const mutationStatus = row.publish === 201 ? 200 : row.publish;
         assert.equal(
@@ -770,6 +771,22 @@ test('CLI preserves user config, never writes keys to projects, uses pnpm pack a
     print: (text: string) => messages.push(text),
     packCommand: 'pnpm',
   };
+  // trust needs no sign-in and makes no key.
+  await runPackages(
+    ['trust'],
+    {},
+    {
+      ...context,
+      config: {},
+      api: async () => {
+        throw new Error('trust must not call the API');
+      },
+    },
+  );
+  assert.ok(messages.some((message) => message.includes('need no sign-in')));
+  const trusted = await readFile(join(home, '.npmrc'), 'utf8');
+  assert.match(trusted, /# keep this\nengine-strict=true/);
+  assert.ok(!trusted.includes('dlp_'));
   await runPackages(['login'], {}, context);
   assert.ok(messages.some((message) => message.includes('Trusts the coordinator’s certificate')));
   const rc = await readFile(join(home, '.npmrc'), 'utf8');
@@ -1430,7 +1447,8 @@ test('attestations pass through from the source, and private names have none', a
   assert.equal(hidden.status, 404);
   assert.equal(upstreamHits, hits);
   const anonymous = await fetch(origin + '/npm/-/npm/v1/attestations/left-pad@1.3.0');
-  assert.equal(anonymous.status, 401);
+  assert.equal(anonymous.status, 200);
+  await anonymous.arrayBuffer();
   upstreamHandlers.delete('/-/npm/v1/attestations/left-pad@1.3.0');
   sourceDown = true;
   const down = await fetch(origin + '/npm/-/npm/v1/attestations/left-pad@1.3.0', { headers });
