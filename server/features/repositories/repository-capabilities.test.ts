@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 const root = mkdtempSync(join(tmpdir(), 'deploy-capabilities-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { gitText } = await import('./repository-git.ts');
+const { gitText } = await import('../../workspace/repository-git.ts');
 const { repositoryInfo } = await import('./repositories.ts');
-const { save, db } = await import('./store.ts');
-const { workspaceApi } = await import('./api.ts');
+const { save, db } = await import('../../workspace/store.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
 after(() => {
   db.close();
   rmSync(root, { recursive: true, force: true });

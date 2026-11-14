@@ -18,10 +18,10 @@ const data = mkdtempSync(join(tmpdir(), 'deploy-repositories-'));
 process.env.DEPLOY_DATA_DIR = data;
 process.env.DEPLOY_CODEX_BIN = '/no-codex-in-this-test';
 process.env.DEPLOY_CLAUDE_BIN = '/no-claude-in-this-test';
-await import('../test-ports.ts');
-const { workspaceApi, shortGitRoute } = await import('./api.ts');
-const { get, save } = await import('./store.ts');
-const { git } = await import('./service.ts');
+await import('../../test-ports.ts');
+const { workspaceApi, shortGitRoute } = await import('../../workspace/api.ts');
+const { get, save } = await import('../../workspace/store.ts');
+const { git } = await import('../../workspace/service.ts');
 const {
   repositorySource,
   queueProject,
@@ -30,9 +30,9 @@ const {
   updateProjectSettings,
   queueDueSyncs,
 } = await import('./repositories.ts');
-const { repositoryFolderName } = await import('../../shared/repository-address.ts');
+const { repositoryFolderName } = await import('../../../shared/repository-address.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
-const { gitText } = await import('./repository-git.ts');
+const { gitText } = await import('../../workspace/repository-git.ts');
 const server = createServer((req, res) => {
   const owner = req.headers['x-test-owner'] === 'bob' ? 'bob' : 'alice';
   // Mirrors the control server: short clone addresses are served as the hosted Git route.

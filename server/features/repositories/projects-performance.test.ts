@@ -8,11 +8,11 @@ import { join } from 'node:path';
 
 const root = mkdtempSync(join(tmpdir(), 'projects-performance-'));
 process.env.DEPLOY_DATA_DIR = root;
-const store = await import('../store.ts');
-const workspace = await import('../workspace/store.ts');
+const store = await import('../../store.ts');
+const workspace = await import('../../workspace/store.ts');
 const { projectsForOwner } = await import('./projects.ts');
-const { repositoryInfo } = await import('../workspace/repositories.ts');
-const { gitStringSync } = await import('../git.ts');
+const { repositoryInfo } = await import('./repositories.ts');
+const { gitStringSync } = await import('../../git.ts');
 after(() => {
   store._resetDb();
   workspace.db.close();

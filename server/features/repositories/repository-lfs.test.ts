@@ -9,12 +9,12 @@ import { once } from 'node:events';
 import { spawnSync } from 'node:child_process';
 const data = mkdtempSync(join(tmpdir(), 'deploy-lfs-test-'));
 process.env.DEPLOY_DATA_DIR = data;
-const { workspaceApi } = await import('./api.ts');
-const { createProject } = await import('./test-repository.ts');
-const { gitText } = await import('./repository-git.ts');
-const { save, db } = await import('./store.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
+const { createProject } = await import('../../workspace/test-repository.ts');
+const { gitText } = await import('../../workspace/repository-git.ts');
+const { save, db } = await import('../../workspace/store.ts');
 const { hydrateLfs } = await import('./lfs-checkout.ts');
-const { pipelineSource } = await import('./pipeline-deployment.ts');
+const { pipelineSource } = await import('../../workspace/pipeline-deployment.ts');
 const { gunzipSync } = await import('node:zlib');
 const server = createServer(
   (req, res) =>

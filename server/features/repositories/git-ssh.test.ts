@@ -10,8 +10,8 @@ import ssh2 from 'ssh2';
 const { utils, Client } = ssh2;
 const data = mkdtempSync(join(tmpdir(), 'deploy-ssh-'));
 process.env.DEPLOY_DATA_DIR = data;
-const { workspaceApi } = await import('./api.ts');
-const { list, get, save } = await import('./store.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
+const { list, get, save } = await import('../../workspace/store.ts');
 const { parsePublicKey, addSshKey, deleteSshKey } = await import('./ssh-keys.ts');
 const { sshHostKey, sshServerInfo, configuredSshPort } = await import('./ssh-host.ts');
 const { startGitSshServer, parseGitCommand } = await import('./git-ssh.ts');
@@ -220,7 +220,7 @@ test('host identity persists with private permissions and disabled configuration
 });
 
 test('both transports queue only successful branch updates', async () => {
-  const { PushResult } = await import('./pipeline-triggers.ts');
+  const { PushResult } = await import('../../workspace/pipeline-triggers.ts');
   const push = new PushResult();
   const commits = ['a'.repeat(40), 'b'.repeat(40)];
   const command = (commit: string, ref: string) => {
