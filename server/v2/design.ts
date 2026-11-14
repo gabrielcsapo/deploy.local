@@ -37,7 +37,7 @@ import {
 } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
-import { keyedSlots, withRepositoryWrites } from '../workspace/repository-lock.ts';
+import { keyedSlots, withRepositoryWrites } from '../kernel/jobs/repository-lock.ts';
 import {
   gitEnvironment,
   gitRead as readGitOutput,

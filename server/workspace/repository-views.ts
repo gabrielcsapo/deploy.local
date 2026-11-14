@@ -8,7 +8,7 @@ import {
 } from '../git-changes.ts';
 import { gitRead, gitText, repositoryGit } from '../kernel/git.ts';
 import { db, get, onRecordChange } from './store.ts';
-import { keyedSlots } from './repository-lock.ts';
+import { keyedSlots } from '../kernel/jobs/repository-lock.ts';
 
 // External pushes, ref deletions and agent workspace edits can be stale for at most two seconds.
 export const REPOSITORY_VIEW_CADENCE_MS = 2_000;
