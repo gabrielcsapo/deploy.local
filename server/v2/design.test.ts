@@ -2523,6 +2523,40 @@ async function mergeFixture(name: string, overlap: boolean, malformed = false) {
   return { ...f, item, choice, baseHTML: base, mainHTML: main, proposalHTML: proposal };
 }
 
+test('a review whose screens main also changed merges them once, not on every read', async () => {
+  // A library change touches most boards, and main's own library change touches the same ones:
+  // reading the review again (its poll, a preview against main) must not merge them all again.
+  const f = await reviewFixture('review-many-overlaps');
+  const boards = Array.from({ length: 30 }, (_, index) => `Many${index}.html`);
+  const page = (label: string, board: string) =>
+    `<main data-layer="page"><nav data-layer="sidebar">${label}</nav><p data-layer="body">${board}</p></main>`;
+  await f.run(['checkout', '-q', 'main']);
+  for (const board of boards)
+    writeFileSync(join(f.path, 'design/boards', board), page('Design', board));
+  await f.commit('Many boards');
+  await f.run(['checkout', '-qB', 'design/review', 'main']);
+  for (const board of boards)
+    writeFileSync(join(f.path, 'design/boards', board), page('Artifacts', board));
+  await f.commit('Rename in every sidebar');
+  const item = await f.propose();
+  await f.run(['checkout', '-q', 'main']);
+  for (const board of boards)
+    writeFileSync(join(f.path, 'design/boards', board), page('Designs', board));
+  await f.commit('Main renames it too');
+  const first = await f.read(item);
+  assert.equal(first.resolutions.length, boards.length);
+  assert.ok(first.resolutions.every((entry: any) => entry.kind === 'same-part'));
+  // Take main's copies of the boards away: a read that merges them again would see none.
+  for (const board of boards) {
+    const blob = await f.run(['rev-parse', `main:design/boards/${board}`]);
+    rmSync(join(f.path, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+  }
+  const again = await f.read(item);
+  assert.deepEqual(again.resolutions, first.resolutions);
+  assert.deepEqual(again.boards, first.boards);
+  assert.deepEqual(again.conflicts, first.conflicts);
+});
+
 test('element-level auto merge is resolved and approval lands both changes', async () => {
   const f = await mergeFixture('elements-both', false);
   const review = await f.read(f.item);

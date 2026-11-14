@@ -759,6 +759,108 @@ const conflictName = (path: string) =>
 const reviewBoardPaths = (context: any) =>
   (context.paths as string[]).filter((path) => path.startsWith('design/boards/'));
 
+type OverlapMerge = Omit<DesignReviewResolution, 'choice'>;
+/**
+ * How each file both main and the proposal changed merges, given the three commits. Commits never
+ * change, so the answer is worked out once and kept: every review read, its 15-second poll and
+ * each main-comparison preview ask it again, and a proposal touching most boards costs a few
+ * hundred file reads and merges each time otherwise. Requests that arrive while it is being
+ * worked out share the one answer.
+ */
+const overlapMergeCache = new Map<string, Promise<OverlapMerge[]>>();
+/** Files merged at once on a first read: enough to keep Git busy, few enough to hold in memory. */
+const overlapMergeWidth = 8;
+function overlapMerges(
+  repo: string,
+  baseCommit: string,
+  mainCommit: string,
+  proposalCommit: string,
+  paths: string[],
+): Promise<OverlapMerge[]> {
+  if (!paths.length) return Promise.resolve([]);
+  const key = JSON.stringify([repo, baseCommit, mainCommit, proposalCommit, paths]);
+  const cached = overlapMergeCache.get(key);
+  if (cached) {
+    // Most recently used last, so the oldest is the one let go.
+    overlapMergeCache.delete(key);
+    overlapMergeCache.set(key, cached);
+    return cached;
+  }
+  const work = (async () => {
+    const merges: (OverlapMerge | null)[] = new Array(paths.length).fill(null);
+    let next = 0;
+    const worker = async () => {
+      while (next < paths.length) {
+        const index = next++;
+        merges[index] = await overlapMerge(
+          repo,
+          [baseCommit, mainCommit, proposalCommit],
+          paths[index],
+        );
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(overlapMergeWidth, paths.length) }, worker));
+    return merges.filter((merge) => merge !== null);
+  })();
+  overlapMergeCache.set(key, work);
+  if (overlapMergeCache.size > 32) overlapMergeCache.delete(overlapMergeCache.keys().next().value!);
+  // A failed read is not an answer; the next request tries again.
+  work.catch(() => overlapMergeCache.delete(key));
+  return work;
+}
+async function overlapMerge(
+  repo: string,
+  commits: [base: string, main: string, proposal: string],
+  path: string,
+): Promise<OverlapMerge | null> {
+  const [base, target, from] = await Promise.all(
+    commits.map((commit) => keptFile(repo, commit, path)),
+  );
+  if (target === from || base === from) return null;
+  const merged = path.startsWith('design/boards/')
+    ? mergeBoard(base, target, from)
+    : (await mergeLines(repo, path, base, target, from)) === null
+      ? {
+          kind: 'same-part' as const,
+          mainChanged: 'File changed',
+          proposalChanged: 'File changed',
+          detail: 'Both changed the same lines of this file.',
+        }
+      : {
+          kind: 'kept-both' as const,
+          mainChanged: 'File changed',
+          proposalChanged: 'File changed',
+          detail: 'Different lines changed. Both are kept. Nothing to choose.',
+        };
+  return {
+    file: conflictName(path),
+    mainExists: Boolean(target),
+    proposalExists: Boolean(from),
+    kind: merged.kind,
+    mainChanged: merged.mainChanged,
+    proposalChanged: merged.proposalChanged,
+    detail: merged.detail,
+  };
+}
+
+/**
+ * A file's text at a commit for an answer that is kept: '' only when the commit has no such file.
+ * showFile also gives '' when Git fails, which is fine for one read but must not be remembered.
+ */
+async function keptFile(repo: string, commit: string, path: string) {
+  try {
+    return (
+      await gitSlots(repo, () =>
+        repositoryGit(repo, ['show', `${commit}:${path}`], { limit: 16 * 1024 * 1024 }),
+      )
+    ).toString();
+  } catch (error) {
+    const entry = await gitSlots(repo, () => repositoryGit(repo, ['ls-tree', commit, '--', path]));
+    if (entry.toString().trim()) throw error;
+    return '';
+  }
+}
+
 /** Compare proposal edits with main by screen, not by main's commit ID. No repository writes.
  * An inbox decision rechecks this with withRepositoryWrites held, immediately before merging. */
 export async function reviewMain(repo: string, context: any, presentation = false) {
@@ -781,45 +883,14 @@ export async function reviewMain(repo: string, context: any, presentation = fals
   if (diff === null) fail('Main could not be checked. Try again.', 409);
   const changed = diff.split('\n');
   const overlapping = conflictPaths(context.paths, changed);
-  const resolutions: DesignReviewResolution[] = [];
   const choiceFor = (file: string): BoardChoice | null => {
     const saved = context.choices?.[file];
     return saved?.main === main && saved?.proposal === context.commit ? saved.choice : null;
   };
-  for (const path of overlapping) {
-    const [base, target, from] = await Promise.all(
-      [context.base, main, context.commit].map((commit) =>
-        showFile(repo, commit, path, presentation),
-      ),
-    );
-    if (target === from || base === from) continue;
-    const file = conflictName(path);
-    const merged = path.startsWith('design/boards/')
-      ? mergeBoard(base, target, from)
-      : (await mergeLines(repo, path, base, target, from)) === null
-        ? {
-            kind: 'same-part' as const,
-            mainChanged: 'File changed',
-            proposalChanged: 'File changed',
-            detail: 'Both changed the same lines of this file.',
-          }
-        : {
-            kind: 'kept-both' as const,
-            mainChanged: 'File changed',
-            proposalChanged: 'File changed',
-            detail: 'Different lines changed. Both are kept. Nothing to choose.',
-          };
-    resolutions.push({
-      file,
-      mainExists: Boolean(target),
-      proposalExists: Boolean(from),
-      kind: merged.kind,
-      mainChanged: merged.mainChanged,
-      proposalChanged: merged.proposalChanged,
-      detail: merged.detail,
-      choice: choiceFor(file),
-    });
-  }
+  // Fresh objects every call: the canvas check below edits them, and callers keep them.
+  const resolutions: DesignReviewResolution[] = (
+    await overlapMerges(repo, context.base, main!, context.commit, overlapping)
+  ).map((merged) => ({ ...merged, choice: choiceFor(merged.file) }));
   if (changed.includes('design/canvas.json') && context.paths.includes('design/canvas.json')) {
     const [base, target, from] = await Promise.all([
       canvasAt(repo, context.base),
