@@ -32,12 +32,20 @@ async function projectForApplication(request: Request, application: string) {
   if (!authenticate(username, token)) return undefined;
   const { list } = await import('./workspace/store.ts');
   const { repositoryInfo } = await import('./workspace/repositories.ts');
-  for (const project of list('project', username)) {
-    const repository = await repositoryInfo(username, project.id);
-    if ('deployment' in repository && repository.deployment.application === application)
-      return project.id as string;
-  }
-  return null;
+  // The repository views answer from memory once warm; reading each repository with git, one
+  // after another, held every old address for about half a second.
+  const projects = list('project', username) as { id: string }[];
+  const found = await Promise.all(
+    projects.map(async (project) => {
+      const repository = await repositoryInfo(username, project.id, true).catch(() => null);
+      return repository &&
+        'deployment' in repository &&
+        repository.deployment.application === application
+        ? project.id
+        : null;
+    }),
+  );
+  return found.find(Boolean) ?? null;
 }
 
 /** Runs after API/proxy routing and before either Vite or production RSC/SSR. */

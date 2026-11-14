@@ -10,8 +10,11 @@ import { gitRead, gitText, repositoryGit } from '../kernel/git.ts';
 import { db, get, onRecordChange } from './store.ts';
 import { keyedSlots } from '../kernel/jobs/repository-lock.ts';
 
-// External pushes, ref deletions and agent workspace edits can be stale for at most two seconds.
-export const REPOSITORY_VIEW_CADENCE_MS = 2_000;
+// Every read compares the refs' file stamps first (noticeRepositoryChange), so a push, a deleted
+// ref, a packed-refs rewrite or a worktree's HEAD shows at once. The cadence only bounds what the
+// stamps can miss, such as a ref nested deeper than the walk. At two seconds it made every page
+// load start two git processes per project, about 18 a second on SER while anyone browsed.
+export const REPOSITORY_VIEW_CADENCE_MS = 30_000;
 export const IMMUTABLE_GIT_MAX_ENTRIES = 512;
 export const IMMUTABLE_GIT_MAX_BYTES = 32 * 1024 * 1024;
 

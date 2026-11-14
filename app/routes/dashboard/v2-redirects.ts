@@ -17,6 +17,7 @@ export const staticRedirects: Record<string, string> = {
 };
 const places = new Set([
   'projects',
+  'start',
   'packages',
   'live',
   'inbox',

@@ -53,3 +53,34 @@ for (const pattern of patterns) {
     }
   });
 }
+
+// Every page the dashboard serves opens as itself. A page missing from the redirect module's list
+// of places is taken for an old application address: the host then looks for an application with
+// that name in every project and sends the browser to Live (which happened to Releases and Pull
+// requests once pages could read the sign-in cookie).
+function served(list: RouteConfig[], prefix = ''): string[] {
+  return list.flatMap((route) => {
+    const path = [prefix, route.path].filter(Boolean).join('/');
+    return [
+      ...(route.redirect || route.path === undefined ? [] : [path]),
+      ...(route.children ? served(route.children, path) : []),
+    ];
+  });
+}
+test('every dashboard page opens as itself without an application lookup', async () => {
+  const pages = served(routes)
+    .filter((path) => path === 'dashboard' || path.startsWith('dashboard/'))
+    // `/dashboard/:name…` are the old application addresses; looking them up is their job.
+    .filter((path) => !path.split('/')[1]?.startsWith(':'))
+    .flatMap(expand);
+  assert.ok(pages.length > 40, `only ${pages.length} dashboard pages found`);
+  const looked: string[] = [];
+  for (const page of pages) {
+    const destination = await legacyDestination('/' + page, async (application) => {
+      looked.push(`/${page} looked up ${application}`);
+      return null;
+    });
+    if (destination) looked.push(`/${page} → ${destination}`);
+  }
+  assert.deepEqual(looked, []);
+});
