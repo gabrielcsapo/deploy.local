@@ -11,6 +11,7 @@ import { routeFetch } from './test-request.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'read-views-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-backups.ts');
 process.env.DEPLOY_RELEASE_CONFIG = join(root, 'release.json');
 const repo = join(root, 'repo');
 mkdirSync(join(repo, 'design/boards'), { recursive: true });

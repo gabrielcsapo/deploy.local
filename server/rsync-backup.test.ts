@@ -67,6 +67,7 @@ before(async () => {
   secrets = await import('./secrets.ts');
   workspace = await import('./workspace/store.ts');
   rsyncBackup = await import('./rsync-backup.ts');
+  await import('./test-backups.ts');
   store.getDb();
   secrets.loadOrCreateSecretKey();
 });

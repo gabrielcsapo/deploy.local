@@ -1,3 +1,5 @@
+import { requireBackupAccess } from './backups/port.ts';
+import { homeBackupSchedule } from './backups/schedules.ts';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Cron } from 'croner';
@@ -61,9 +63,13 @@ export function startRecoveryBoundaryScheduler(): { stop(): void; configured: bo
           `Scheduled Home recovery boundary failed: ${error instanceof Error ? error.message : String(error)}`,
         ),
       );
-  const schedule = process.env.DEPLOY_RECOVERY_SCHEDULE || '30 2 * * *';
+  const registration = homeBackupSchedule(process.env);
+  const schedule = registration.cron!;
   const job = new Cron(schedule, run);
-  const initial = setTimeout(() => void ensureFreshScheduledBoundary(run), 30_000);
+  const initial = setTimeout(
+    () => void ensureFreshScheduledBoundary(run),
+    registration.initialCheckMs!,
+  );
   initial.unref();
   return {
     configured: true,
@@ -110,14 +116,8 @@ function productionDependencies(): ScheduledRecoveryDependencies {
 }
 
 function ensureFreshScheduledBoundary(run: () => Promise<unknown>): void {
-  const maxAgeDays = positiveInteger(Number(process.env.DEPLOY_RECOVERY_MAX_AGE_DAYS), 7);
-  const latest = getSqlite()!
-    .prepare(
-      `SELECT verified_at, rehearsal_status
-         FROM fleet_recovery_bundles
-        WHERE verification_status = 'verified' ORDER BY verified_at DESC LIMIT 1`,
-    )
-    .get() as { verified_at: string | null; rehearsal_status: string | null } | undefined;
+  const maxAgeDays = homeBackupSchedule(process.env).maxAgeDays!;
+  const latest = requireBackupAccess('Home recovery scheduler').latestVerifiedHome();
   const fresh =
     latest?.rehearsal_status === 'passed' &&
     latest.verified_at &&
