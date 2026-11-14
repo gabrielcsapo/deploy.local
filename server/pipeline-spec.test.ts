@@ -121,7 +121,8 @@ test('the repository pipeline checks every main push and PR while retaining the 
   assert.deepEqual(pipeline.branches, ['main']);
   assert.equal(pipeline.paths, undefined);
   assert.equal(pipeline.deploy, undefined, 'CI cannot activate the production coordinator');
-  assert.deepEqual(pipeline.publish, ['packages/react-flight-router']);
+  // react-flight-router is published from its own repository.
+  assert.equal(pipeline.publish, undefined);
   assert.deepEqual(pipeline.jobs['router-test'].paths, [
     'deploy.yaml',
     'packages/react-flight-router/**',
