@@ -19,7 +19,7 @@ import {
 import { request, useData, useBrowserOrigin, type Overview } from './data';
 import { projectPath, projectSegment } from './routing';
 import { fileSize, markMatches, sourceLines, sourceMarkdown, type RepositoryCommit } from './code';
-import { useSearchScope } from '../search/Search.client';
+import { useSearchScope } from '../search/scope.ts';
 import { openSearch } from '../search/model.ts';
 import './code.css';
 
