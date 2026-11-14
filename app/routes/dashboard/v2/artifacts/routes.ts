@@ -7,4 +7,9 @@ export const artifactsRoutes: RouteConfig[] = [
     path: 'artifacts',
     component: () => import('./page.js'),
   },
+  {
+    id: 'v2-artifact',
+    path: 'artifacts/:project/:artifact',
+    component: () => import('./page.js'),
+  },
 ];

@@ -300,9 +300,14 @@ export async function readDocument(owner: string, projectId: string, name: strin
   const commit = branch ? await resolve(repo, `refs/heads/${branch}`) : head;
   const text = commit ? await show(repo, commit, path) : null;
   if (text === null && mainText === null) fail('No such document', 404);
+  // The commit that made a new document is not an edit.
   const edits =
     branch && head
-      ? Number((await gitRead(repo, ['rev-list', '--count', `${head}..${commit}`])) ?? 0)
+      ? Math.max(
+          0,
+          Number((await gitRead(repo, ['rev-list', '--count', `${head}..${commit}`])) ?? 0) -
+            (mainText === null ? 1 : 0),
+        )
       : 0;
   const waiting = list('v2-inbox-native', owner).find(
     (row: any) =>

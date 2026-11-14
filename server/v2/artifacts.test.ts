@@ -221,11 +221,11 @@ test('an artifact design is edited, proposed and approved in its own folder', as
   const onMain = await gitText(plain, ['ls-tree', '-r', '--name-only', 'main', 'artifacts/']);
   assert.match(onMain, /artifacts\/onboarding-flow\/canvas\.json/);
   assert.match(onMain, /artifacts\/onboarding-flow\/boards\/Board1\.html/);
-  const after = (await json(await api('/api/artifacts'))).body.artifacts.find(
+  const approved = (await json(await api('/api/artifacts'))).body.artifacts.find(
     (entry: any) => entry.artifact === 'onboarding-flow',
   );
-  assert.equal(after.branch, null);
-  assert.equal(after.boards, 1);
+  assert.equal(approved.branch, null);
+  assert.equal(approved.boards, 1);
 });
 
 test('a document is created, edited on its branch as you type, and proposed', async () => {
@@ -265,7 +265,8 @@ test('a document is created, edited on its branch as you type, and proposed', as
   assert.equal(stale.status, 409);
   const read = await json(await api(path));
   assert.match(read.body.text, /one server process/);
-  assert.equal(read.body.edits, 2);
+  // Making the document is not an edit; the one save is.
+  assert.equal(read.body.edits, 1);
   const proposed = await json(
     await api('/api/projects/site/artifacts/one-server-plan/design/propose', {
       method: 'POST',
