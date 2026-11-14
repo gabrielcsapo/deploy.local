@@ -343,8 +343,11 @@ test(
       assert.equal(seen.copyWarmer, true);
       assert.match(output(), /\[ssh\] Git SSH listener failed: .*EADDRINUSE/);
     } finally {
-      assert.equal(await stop(child), 0);
+      // Close the listener even when the server did not stop cleanly: a listener left
+      // open keeps this test file running forever and hangs an update's prepare step.
+      const code = await stop(child);
       await new Promise((resolve) => busy.close(resolve));
+      assert.equal(code, 0);
     }
   },
 );
