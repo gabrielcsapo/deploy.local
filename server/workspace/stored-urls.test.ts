@@ -1,3 +1,4 @@
+// Tests the conversion of old stored links: the old paths below are stored data, not routes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readStoredText, readStoredUrls } from './stored-urls.ts';

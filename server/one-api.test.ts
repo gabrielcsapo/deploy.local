@@ -24,6 +24,7 @@ test('source strings and served routes contain no retired API prefixes', () => {
   const exceptions = new Map([
     ['shared/stored-attachment-urls.ts', 'Read-time conversion of stored attachment strings only'],
     ['server/workspace/git-url-migration.ts', 'Git remote rewrite'],
+    ['server/workspace/stored-urls.test.ts', 'Tests the conversion of old stored links'],
     [
       'native/Apple/Packages/DeployKit/Sources/DeployCore/Attachments.swift',
       'Read-time conversion of stored attachment strings only',

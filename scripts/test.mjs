@@ -37,7 +37,9 @@ console.log(`Running ${tests.length} server and ${webTests.length} web test file
 // Every run gets one temporary folder, and every test's temporary files go inside it through
 // TMPDIR. The run removes it when it ends, so a test that forgets to clean up leaves nothing
 // behind: each run on SER used to leave about sixty folders in its memory-backed /tmp.
-const systemTemporary = tmpdir();
+// A Unix socket path is limited to 104 bytes on macOS, and its per-user temporary folder is already
+// about 50; several tests open a fake Docker socket inside their temporary folder.
+const systemTemporary = process.platform === 'darwin' ? '/tmp' : tmpdir();
 const RUN_PREFIX = 'deploy-test-run-';
 for (const name of readdirSync(systemTemporary)) {
   if (!name.startsWith(RUN_PREFIX)) continue;
