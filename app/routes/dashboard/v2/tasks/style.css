@@ -347,6 +347,10 @@
   background: var(--ds-surface);
   box-shadow: var(--ds-shadow-lg);
 }
+/* Menu items read as a list, left-aligned like every other menu. */
+.dl-task-menu .dl-btn {
+  justify-content: flex-start;
+}
 .dl-task-menu .dl-btn.dl-del {
   color: var(--ds-danger);
 }

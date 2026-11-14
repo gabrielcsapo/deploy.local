@@ -17,6 +17,7 @@ import {
   type TaskGrouping,
 } from './data/sidebar-preference';
 import { DeleteTaskDialog } from './tasks/DeleteTaskDialog';
+import { newTaskIn } from './start/chosen-project';
 
 type FormatTime = (value: string, style: 'day' | 'list') => string;
 
@@ -34,8 +35,11 @@ function dismiss(close: () => void, trigger?: { current: HTMLElement | null }) {
     },
   };
 }
-const focusFirst = (node: HTMLElement | null) =>
-  node?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
+/** An opened menu scrolls into the sidebar's view, so one near the bottom is never cut off. */
+function focusFirst(node: HTMLElement | null) {
+  node?.scrollIntoView({ block: 'nearest' });
+  node?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus({ preventScroll: true });
+}
 
 /** The grouping choice, the same in the sidebar and the drawer, remembered by this browser. */
 function useTaskGrouping() {
@@ -100,7 +104,7 @@ export function SidebarTasks({
               <button
                 ref={groupTrigger}
                 type="button"
-                className={`dl-icon-btn sm${groupMenu ? ' on' : ''}`}
+                className="dl-icon-btn sm"
                 aria-label="Group tasks"
                 aria-haspopup="menu"
                 aria-expanded={groupMenu}
@@ -184,7 +188,19 @@ export function SidebarTasks({
           : group.tasks;
       return (
         <div key={key}>
-          {heading(group.project?.name ?? 'No project', index === 0)}
+          {heading(
+            group.project?.name ?? 'No project',
+            index === 0,
+            group.project && (
+              <a
+                href={newTaskIn(group.project.id)}
+                className="dl-icon-btn sm"
+                aria-label={`New task in ${group.project.name}`}
+              >
+                <Icon name="plus" size={14} />
+              </a>
+            ),
+          )}
           {shown.map((task) => row(task, formatTime(task.updatedAt || task.createdAt, 'list')))}
           {shown.length < group.tasks.length && (
             <button
