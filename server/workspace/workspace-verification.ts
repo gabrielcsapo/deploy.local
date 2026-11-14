@@ -23,7 +23,7 @@ const outputTail = /\s*\|\s*(?:tail|head)(?:\s+-(?:n\s*)?\d+)?\s*$/;
 
 /** Package scripts and tools that print only diagnostics, so passing output is empty. */
 const silentScript = /^(?:typecheck|lint|format:check)(?::[\w-]+)?$/;
-const silentTool = /^(?:tsc|vue-tsc|oxlint|eslint|oxfmt|prettier)$/;
+const silentTool = /^(?:tsc|tsrs|vue-tsc|oxlint|eslint|oxfmt|prettier)$/;
 
 /** Deliberately conservative: never recognize a test mentioned in echo, a script body, or a
  * command mixed with writes. Unknown shell commands remain possible workspace mutations. */
@@ -84,7 +84,7 @@ export function verificationRun(command: string): VerificationRun | null {
     const args = words.join(' ');
     const ok =
       (['node', 'tsx'].includes(tool ?? '') && words.includes('--test')) ||
-      /^(?:vitest|jest|mocha|ava|pytest|tsc|vue-tsc|oxlint|eslint)$/.test(tool ?? '') ||
+      /^(?:vitest|jest|mocha|ava|pytest|tsc|tsrs|vue-tsc|oxlint|eslint)$/.test(tool ?? '') ||
       (/^(?:oxfmt|prettier)$/.test(tool ?? '') && words.includes('--check')) ||
       (tool === 'swift' && words[0] === 'test') ||
       (tool === 'cargo' && /^(?:test|check|clippy|build)$/.test(words[0] ?? '')) ||

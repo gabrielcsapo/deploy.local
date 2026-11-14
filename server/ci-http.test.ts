@@ -35,8 +35,8 @@ async function archive(source: string) {
   tar.entry({ name: 'deploy.yaml' }, source);
   tar.entry({ name: 'Dockerfile' }, 'FROM scratch\n');
   tar.finalize();
-  const chunks = [];
-  for await (const b of tar) chunks.push(b);
+  const chunks: Buffer[] = [];
+  for await (const b of tar) chunks.push(b as Buffer);
   const raw = Buffer.concat(chunks);
   return { raw, gzip: gzipSync(raw) };
 }

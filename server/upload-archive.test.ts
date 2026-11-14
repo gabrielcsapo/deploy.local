@@ -5,8 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 import { gzipSync } from 'node:zlib';
-import { pack, type Headers } from 'tar-stream';
+import { pack } from 'tar-stream';
 import { inspectUploadArchive, UploadArchiveError } from './upload-archive.ts';
+
+/** What `pack().entry` accepts: a name plus any other tar header fields. */
+type Header = Parameters<ReturnType<typeof pack>['entry']>[0];
 
 const directories: string[] = [];
 
@@ -17,7 +20,7 @@ afterEach(() => {
 });
 
 async function tarGzip(
-  entries: Array<{ header: Headers; body?: string | Buffer }>,
+  entries: Array<{ header: Header; body?: string | Buffer }>,
 ): Promise<Buffer> {
   const archive = pack();
   for (const entry of entries) {
@@ -25,11 +28,11 @@ async function tarGzip(
   }
   archive.finalize();
   const chunks: Buffer[] = [];
-  for await (const chunk of archive) chunks.push(Buffer.from(chunk));
+  for await (const chunk of archive) chunks.push(Buffer.from(chunk as Uint8Array));
   return gzipSync(Buffer.concat(chunks));
 }
 
-async function archiveFile(entries: Array<{ header: Headers; body?: string | Buffer }>) {
+async function archiveFile(entries: Array<{ header: Header; body?: string | Buffer }>) {
   const directory = mkdtempSync(join(tmpdir(), 'deploy-upload-archive-'));
   directories.push(directory);
   const path = join(directory, 'source.tar.gz');

@@ -128,8 +128,8 @@ widths and the two 390px phone renders. `design/v2` was not changed.
   `pnpm format:check`: passed before each commit. Logs are adjacent to this note.
 - `pnpm build`: passed after correcting the two route wrappers. See `build.log`.
 - Focused `node --test --test-concurrency=1 server/api.test.ts
-server/application-api.test.ts server/catalog-api.test.ts server/cli-v2.test.ts
-server/v2/auth.test.ts`: **62 tests, 61 passed, 1 failed, 0 cancelled, 0 skipped**.
+  server/application-api.test.ts server/catalog-api.test.ts server/cli-v2.test.ts
+  server/v2/auth.test.ts`: **62 tests, 61 passed, 1 failed, 0 cancelled, 0 skipped**.
   The sole failure is the known Home Assistant readiness assertion. All newly
   added tests and all migrated registration/session tests pass. `focused-tests.log`
   records the result. An initial run left the password CLI test's stdin open after

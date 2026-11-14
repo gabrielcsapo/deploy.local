@@ -48,7 +48,7 @@ test('documented Dockerfile shell installs with real npm and pnpm using the gene
   pack.entry({ name: 'package/index.js' }, 'module.exports = 42;');
   pack.finalize();
   const chunks: Buffer[] = [];
-  for await (const chunk of pack) chunks.push(chunk);
+  for await (const chunk of pack) chunks.push(chunk as Buffer);
   const bytes = gzipSync(Buffer.concat(chunks));
   const key = 'dlp_fixture_install_key';
   let requests = 0;

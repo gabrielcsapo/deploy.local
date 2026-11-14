@@ -121,6 +121,14 @@ test('an unpiped command keeps its own exit code, including an agent error flag'
   assert.equal(result('pnpm test', claude(testsPassed, true))?.status, 'failed');
 });
 
+test('tsrs is a type check that prints nothing when it passes, like tsc', () => {
+  for (const command of ['npx tsrs --noEmit', 'tsrs --noEmit -p tsconfig.json 2>&1 | tail -20']) {
+    const run = verificationRun(command);
+    assert.ok(run, command);
+    assert.equal(run.silentOnSuccess, true, command);
+  }
+});
+
 test('only a bounded trailing tail is accepted; other pipes, writes and reads stay rejected', () => {
   for (const command of [
     'pnpm test 2>&1 | tail -60',

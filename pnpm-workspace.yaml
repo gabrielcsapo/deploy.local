@@ -2,8 +2,9 @@ packages:
   - packages/*
 
 # Preserve leading zero bytes in generated Ed25519 client and host keys.
+# Still needed in 1.17.0: lib/keygen.js strips leading zeros from the public key.
 patchedDependencies:
-  ssh2@1.16.0: patches/ssh2@1.16.0.patch
+  ssh2@1.17.0: patches/ssh2@1.17.0.patch
 
 allowBuilds:
   '@playwright/browser-chromium': false
@@ -66,13 +67,13 @@ minimumReleaseAgeExclude:
   - react-flight-router@0.12.0
 
 catalog:
-  'react': '^19.2.8'
-  'react-dom': '^19.2.8'
-  'react-server-dom-webpack': '^19.2.8'
-  'vite': '^8.1.5'
-  '@vitejs/plugin-react': '6.0.4'
-  'hono': '^4.12.32'
-  '@hono/node-server': '^2.0.12'
-  'vitest': '^4.1.7'
-  'playwright': '^1.62.1'
-  '@playwright/test': '^1.62.1'
+  'react': '^19.3.1'
+  'react-dom': '^19.3.1'
+  'react-server-dom-webpack': '^19.3.1'
+  'vite': '^8.3.8'
+  '@vitejs/plugin-react': '6.3.0'
+  'hono': '^4.13.18'
+  '@hono/node-server': '^2.1.8'
+  'vitest': '^5.1.0'
+  'playwright': '^1.65.0'
+  '@playwright/test': '^1.65.0'

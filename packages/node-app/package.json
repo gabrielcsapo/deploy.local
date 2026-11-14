@@ -18,8 +18,8 @@
     "test": "node --test src/*.test.ts"
   },
   "devDependencies": {
-    "electron": "44.5.1",
-    "electron-builder": "26.15.3"
+    "electron": "45.3.1",
+    "electron-builder": "26.18.0"
   },
   "build": {
     "appId": "local.deploy.Node",

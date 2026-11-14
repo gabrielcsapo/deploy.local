@@ -272,7 +272,7 @@ test('listing large jobs never reads job_output or parses output bodies', () => 
   JSON.parse = (text, ...args) => {
     assert.ok(!text.includes('OUTPUT_SENTINEL'));
     parsedBytes += Buffer.byteLength(text);
-    return parse(text, ...args);
+    return Reflect.apply(parse, JSON, [text, ...args]);
   };
   try {
     const jobs = list('job', 'large');

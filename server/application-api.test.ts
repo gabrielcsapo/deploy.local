@@ -16,8 +16,11 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import Database from 'better-sqlite3';
-import { pack, type Headers } from 'tar-stream';
+import { pack } from 'tar-stream';
 import { compileDeployYaml, parseRepositoryBaseDigest } from './application-spec.ts';
+
+/** What `pack().entry` accepts: a name plus any other tar header fields. */
+type Header = Parameters<ReturnType<typeof pack>['entry']>[0];
 
 const APPLICATION_NAME = 'notes';
 const ADMIN_SECRET = 'home-admin-password-do-not-echo';
@@ -183,12 +186,12 @@ async function upload(
   });
 }
 
-async function tarGzip(entries: Array<{ header: Headers; body?: string }>) {
+async function tarGzip(entries: Array<{ header: Header; body?: string }>) {
   const archive = pack();
   for (const entry of entries) archive.entry(entry.header, entry.body || '');
   archive.finalize();
   const chunks: Buffer[] = [];
-  for await (const chunk of archive) chunks.push(Buffer.from(chunk));
+  for await (const chunk of archive) chunks.push(Buffer.from(chunk as Uint8Array));
   return Uint8Array.from(gzipSync(Buffer.concat(chunks)));
 }
 

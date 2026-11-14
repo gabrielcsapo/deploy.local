@@ -20,12 +20,12 @@
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
-    "@tailwindcss/vite": "^4.3.0",
-    "@types/react": "^19.2.15",
-    "@types/react-dom": "^19.2.3",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "catalog:",
-    "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
     "vite": "catalog:"
   }
 }

@@ -88,7 +88,7 @@ export async function pipelineBundle(
             stream.resume();
           } else if (header.type === 'file') {
             const chunks: Buffer[] = [];
-            for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+            for await (const chunk of stream) chunks.push(Buffer.from(chunk as Uint8Array));
             mkdirSync(dirname(target), { recursive: true });
             writeFileSync(target, Buffer.concat(chunks), {
               flag: 'wx',

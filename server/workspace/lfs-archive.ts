@@ -11,7 +11,7 @@ export async function expandLfsArchive(archive: Buffer, repositoryPath: string, 
     total = 0;
   const chunks: Buffer[] = [];
   const result = new Promise<Buffer>((done, fail) => {
-    output.on('data', (chunk: Buffer) => chunks.push(chunk));
+    output.on('data', (chunk) => chunks.push(chunk as Buffer));
     output.on('end', () => done(expanded ? Buffer.concat(chunks) : archive));
     output.on('error', fail);
     input.on('error', fail);
@@ -19,7 +19,7 @@ export async function expandLfsArchive(archive: Buffer, repositoryPath: string, 
     input.on('entry', (header, stream, next) => {
       void (async () => {
         const parts: Buffer[] = [];
-        for await (const chunk of stream) parts.push(chunk);
+        for await (const chunk of stream) parts.push(chunk as Buffer);
         let bytes = Buffer.concat(parts);
         const pointer = header.type === 'file' ? lfsPointer(bytes) : null;
         if (pointer) {

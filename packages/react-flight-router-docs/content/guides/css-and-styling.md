@@ -22,10 +22,7 @@ Import any CSS file in a server component to make it globally available:
 }
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   line-height: 1.6;
   color: #333;
 }

@@ -142,7 +142,7 @@ test('checkpoint bundle selects the app root and reuses CLI excludes with execut
   archive.on('entry', (header, stream, next) => {
     const chunks: Buffer[] = [];
     if (header.name === 'run.sh') assert.ok(header.mode! & 0o100);
-    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.on('data', (chunk) => chunks.push(chunk as Buffer));
     stream.on('end', () => {
       entries[header.name] = Buffer.concat(chunks).toString();
       next();
