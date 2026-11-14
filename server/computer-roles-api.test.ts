@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 import { join } from 'node:path';
 const directory = mkdtempSync(join(tmpdir(), 'computer-roles-api-'));
 process.env.DEPLOY_DATA_DIR = directory;
+await import('./test-ports.ts');
 const store = await import('./store.ts');
 const { patchComputerRoles } = await import('./computer-roles-api.ts');
 const { save, get, now } = await import('./workspace/store.ts');

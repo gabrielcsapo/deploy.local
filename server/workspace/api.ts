@@ -1,6 +1,6 @@
 import { readWorkspaceState } from './read-state.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
-import { createRepositoryProject } from '../v2/projects.ts';
+import { requireRepositoryProjectCreator } from './repository-project-port.ts';
 import { plainPath, sendJson } from '../kernel/http.ts';
 import type { TaskDetail, Message } from '../../shared/v2/contracts.ts';
 import { updateBase, baseUpdateWorker } from './update-base.ts';
@@ -380,7 +380,11 @@ export async function workspaceApi(
                   path: '/repository-projects',
                   handler: async () => {
                     try {
-                      const project = await createRepositoryProject(owner, body, signature);
+                      const project = await requireRepositoryProjectCreator('workspace')(
+                        owner,
+                        body,
+                        signature,
+                      );
                       const stored = get('project', owner, project.id);
                       return send(stored, stored.repositoryStatus === 'ready' ? 200 : 202);
                     } catch (error: any) {

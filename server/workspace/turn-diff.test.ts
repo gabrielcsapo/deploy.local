@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-turn-test-'));
+await import('../test-ports.ts');
 const { get, list, save } = await import('./store.ts');
 const { createProject, createTask } = await import('./test-repository.ts');
 const { startRun, git, turnDiff } = await import('./service.ts');

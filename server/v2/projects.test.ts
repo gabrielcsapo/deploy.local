@@ -13,6 +13,7 @@ import {
 
 const root = mkdtempSync(join(tmpdir(), 'v2-projects-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const store = await import('../store.ts');
 const workspace = await import('../workspace/store.ts');
 const { projectsForOwner, resolveProject, addProjectApplication } = await import('./projects.ts');

@@ -16,6 +16,7 @@ import { probeTool, toolNames } from './worker-capabilities.ts';
 import { captureSnapshot, restoreTaskCheckpoint, recordCheckpointBase } from './checkpoint.ts';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-task-needs-'));
 process.env.DEPLOY_MDNS_ADDRESS = '127.0.0.1';
+await import('../test-ports.ts');
 const { get, save, list, now } = await import('./store.ts');
 const { askTools, recordToolAnswers, toolAnswer, pendingToolProbes, answerLocalTools } =
   await import('./tool-probes.ts');

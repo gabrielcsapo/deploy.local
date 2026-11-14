@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const root = mkdtempSync(join(tmpdir(), 'v2-agent-runs-'));
 process.env.DEPLOY_DATA_DIR = root;
+await import('../test-ports.ts');
 const { db, list, save } = await import('../workspace/store.ts');
 const { agentTracking, createAgent } = await import('./agents.ts');
 const { taskSnapshot } = await import('./tasks.ts');
