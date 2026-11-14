@@ -1,3 +1,4 @@
+import { packageWorkerFile } from '../kernel/files/worker-file.ts';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { readFileSync, lstatSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -174,11 +175,10 @@ function start(owner: string, record: any) {
     return;
   try {
     const identity = workerIdentity();
+    // The bundler may put this module in a shared chunk under dist/assets, one level below the
+    // worker's entry file. The helper looks beside this module and one level up.
     const executable = fileURLToPath(
-      new URL(
-        import.meta.url.endsWith('.ts') ? './remote-worker.ts' : './workspace-remote-worker.js',
-        import.meta.url,
-      ),
+      packageWorkerFile(import.meta.url, 'workspace-remote-worker.js', './remote-worker.ts'),
     );
     const token = decryptSecret(
       record.secret,

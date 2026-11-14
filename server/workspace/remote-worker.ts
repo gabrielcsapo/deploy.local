@@ -81,7 +81,8 @@ process.on('exit', releaseLease);
 // stop the worker from starting; it is reported and tried again on the next start.
 try {
   const stuck: string[] = [];
-  migrateManagedGitCheckouts(localRoot, [new URL(origin).origin], stuck);
+  // Clones made through the public address carry it, not the address this worker dials.
+  migrateManagedGitCheckouts(localRoot, [new URL(origin).origin, 'https://deploy.local'], stuck);
   if (stuck.length) console.error(`[git addresses] ${stuck.length} clone(s) not rewritten yet`);
 } catch (error) {
   console.error('[git addresses] could not rewrite worker clones:', error);
