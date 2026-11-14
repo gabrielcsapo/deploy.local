@@ -8,6 +8,7 @@ import { Readable } from 'node:stream';
 import { computerRoles } from '../computer-roles.ts';
 
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-context-'));
+await import('../test-ports.ts');
 const { assembleAgentContext, operatingManual } = await import('./agent-context.ts');
 const { agentLaunch } = await import('./agent-launch.ts');
 const { coordinationTools } = await import('./coordination-tools.ts');

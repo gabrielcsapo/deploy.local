@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs';
 import { posix } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'node:zlib';
-import { extract, type Headers } from 'tar-stream';
+import { extract, type Header } from 'tar-stream';
 
 const configuredUploadBytes = Number(process.env.DEPLOY_MAX_UPLOAD_ARCHIVE_BYTES);
 export const MAX_UPLOAD_ARCHIVE_BYTES =
@@ -13,8 +13,8 @@ export const MAX_UPLOAD_ARCHIVE_ENTRIES = 100_000;
 export const MAX_UPLOAD_EXPANDED_BYTES = 4 * 1024 * 1024 * 1024;
 
 const MAX_ARCHIVE_PATH_BYTES = 4096;
-const REGULAR_FILE_TYPES = new Set<Headers['type']>(['file', undefined, null]);
-const ALLOWED_ENTRY_TYPES = new Set<Headers['type']>([
+const REGULAR_FILE_TYPES = new Set<Header['type'] | null | undefined>(['file', undefined, null]);
+const ALLOWED_ENTRY_TYPES = new Set<Header['type'] | null | undefined>([
   'file',
   'directory',
   'symlink',
@@ -85,7 +85,7 @@ function safeLinkTarget(entryName: string, target: string, hardLink: boolean): s
   return resolved;
 }
 
-function normalizedEntryType(header: Headers) {
+function normalizedEntryType(header: Header) {
   return REGULAR_FILE_TYPES.has(header.type) ? 'file' : header.type;
 }
 
@@ -157,7 +157,7 @@ export async function inspectUploadArchive(
       }
 
       let streamedBytes = 0;
-      for await (const chunk of entry) streamedBytes += chunk.length;
+      for await (const chunk of entry) streamedBytes += (chunk as Uint8Array).length;
       if (streamedBytes !== declaredSize) {
         throw new UploadArchiveError(`Deployment archive entry "${name}" has inconsistent size`);
       }

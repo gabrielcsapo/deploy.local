@@ -1,12 +1,12 @@
 import { assembleAgentContext } from './agent-context.ts';
 import { allComputerRoles, computers } from './coordination.ts';
 import { get, list, now } from './store.ts';
-import { agentInstructions } from '../v2/agent-instructions.ts';
+import { requireAgentInstructionsSource } from './agent-instructions-port.ts';
 
 /** Coordinator-owned snapshot, captured at assignment/start and carried unchanged to workers. */
 export function runAgentContext(owner: string, run: { taskId: string; workerId?: string }) {
   const task = get('task', owner, run.taskId);
-  const agent = agentInstructions(owner, task);
+  const agent = requireAgentInstructionsSource('workspace')(owner, task);
   const context = assembleAgentContext({
     task,
     project: task.projectId ? get('project', owner, task.projectId) : null,

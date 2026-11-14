@@ -139,8 +139,8 @@ No design source, native code, database schema or other worktree was changed.
 - `pnpm format:check`: passed; `format.log`.
 - `pnpm build`: passed, including worker bundles; `build.log`.
 - Focused `node --test --test-concurrency=1 server/v2/attachments.test.ts
-server/v2/screenshots.test.ts app/routes/dashboard/v2/conversation/render.test.ts
-app/routes/dashboard/v2/conversation/model.test.ts`: 12 passed; `focused-tests.log`.
+  server/v2/screenshots.test.ts app/routes/dashboard/v2/conversation/render.test.ts
+  app/routes/dashboard/v2/conversation/model.test.ts`: 12 passed; `focused-tests.log`.
 - Final `pnpm test`: **744 tests, 726 passed, 5 failed, 13 skipped, 0 cancelled**;
   `full-suite.log`. Four failures were recorded by previous slices: two strict CA /
   same-key SKI assertions with system LibreSSL, Home Assistant readiness with Docker
@@ -155,7 +155,7 @@ app/routes/dashboard/v2/conversation/model.test.ts`: 12 passed; `focused-tests.l
   Only 5192/5193 are allowed; test-file concurrency is one. The harness also avoids
   reusing the same closed probe for HTTP and HTTPS when an API test restarts.
 - Headless Chromium failed before opening a page (`bootstrap_check_in … Permission
-denied (1100)`), so no implementation screenshots, pairs or browser interaction
+  denied (1100)`), so no implementation screenshots, pairs or browser interaction
   verification exist. `captures.md` has exact fixture URLs, dimensions and commands.
   Actual Chromium, simctl and desktop-helper captures were not exercised on live
   apps or simulators. Protocol tests use supplied image bytes, not real capture.

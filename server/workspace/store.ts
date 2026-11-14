@@ -7,6 +7,7 @@ export { command, commandReplay } from '../kernel/db/operations.ts';
 import { registerDatabase } from '../kernel/db/named-store.ts';
 export { event, events, cursor } from '../kernel/events/index.ts';
 import { migrateJobOutput } from './job-output.ts';
+import { ensureMessageSearch } from './message-search.ts';
 import { openWorkspaceDatabase, withWorkspaceDatabaseGate } from '../kernel/db/database-open.ts';
 import { externalizeCheckpoint, materializeCheckpoint } from './checkpoint-storage.ts';
 export { checkpointInfo } from './checkpoint-metadata.ts';
@@ -43,6 +44,7 @@ CREATE INDEX IF NOT EXISTS record_checkpoint_task ON records(owner,json_extract(
 CREATE INDEX IF NOT EXISTS record_job_pipeline ON records(owner,json_extract(data,'$.pipelineId')) WHERE kind='job';
 CREATE INDEX IF NOT EXISTS record_job_status ON records(owner,json_extract(data,'$.status')) WHERE kind='job';`);
   migrateJobOutput(db);
+  ensureMessageSearch(db);
   migrateCoordinatorUrls(db, root);
 });
 // Register only after the existing schema, indexes and inline upgrades finish.

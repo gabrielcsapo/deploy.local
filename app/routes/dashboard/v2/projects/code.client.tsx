@@ -1,6 +1,6 @@
 'use client';
 import { useProjectFormatting } from './formatting.ts';
-import { Fragment, useEffect, useId, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,7 +18,9 @@ import {
 } from '@/components/ui';
 import { request, useData, useBrowserOrigin, type Overview } from './data';
 import { projectPath, projectSegment } from './routing';
-import { fileSize, sourceLines, sourceMarkdown, type RepositoryCommit } from './code';
+import { fileSize, markMatches, sourceLines, sourceMarkdown, type RepositoryCommit } from './code';
+import { useSearchScope } from '../search/scope.ts';
+import { openSearch } from '../search/model.ts';
 import './code.css';
 
 export function CopyButton({ value, label }: { value: string; label: string }) {
@@ -67,13 +69,12 @@ export function ProjectCode({ overview }: { overview: Overview }) {
   const file = params.get('file') || '';
   const ref = params.get('ref') || overview.repository?.defaultBranch || 'HEAD';
   const history = params.has('history');
-  const [filter, setFilter] = useState('');
   const [picker, setPicker] = useState<'branches' | 'tags' | null>(null);
   const [clone, setClone] = useState(false);
   const cloneMenu = useId();
   const [clonePosition, setClonePosition] = useState({ top: 0, right: 0 });
   const [outline, setOutline] = useState(false);
-  const search = useRef<HTMLInputElement>(null);
+  const sourceElement = useRef<HTMLDivElement>(null);
   const readmeElement = useRef<HTMLDivElement>(null);
   const base = `/api/projects/${encodeURIComponent(overview.project.id)}/repository`;
   const page = `${projectPath(overview.project.id)}/code`;
@@ -113,9 +114,6 @@ export function ProjectCode({ overview }: { overview: Overview }) {
       ? `${base}/blob?ref=${pinned}&path=${encodeURIComponent(readmePath)}`
       : undefined,
   );
-  const finder = useData<{ paths: string[]; truncated: boolean }>(
-    filter && pinned ? `${base}/files?ref=${pinned}` : undefined,
-  );
   const commits = useData<{ commits: RepositoryCommit[] }>(
     history && pinned
       ? `${base}/history?ref=${pinned}&path=${encodeURIComponent(file || path)}&limit=100`
@@ -137,10 +135,17 @@ export function ProjectCode({ overview }: { overview: Overview }) {
     setRaw(url);
     return () => URL.revokeObjectURL(url);
   }, [blob.data]);
+  // Search opened from this tab starts inside this project, on the branch being shown.
+  const branch = ref === 'HEAD' ? undefined : ref;
+  const searchScope = useMemo(
+    () => ({ id: overview.project.id, name: overview.project.name, ref: branch }),
+    [overview.project.id, overview.project.name, branch],
+  );
+  useSearchScope(searchScope);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (
-        event.key.toLowerCase() !== 't' ||
+        event.key !== '/' ||
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
@@ -148,11 +153,25 @@ export function ProjectCode({ overview }: { overview: Overview }) {
       )
         return;
       event.preventDefault();
-      search.current?.focus();
+      openSearch(searchScope);
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, []);
+  }, [searchScope]);
+  // A file opened from a search result: its line, and the words that were searched for.
+  const hitLine = Math.floor(Number(params.get('line'))) || 0;
+  const find = params.get('find') || '';
+  const matchingLines = useMemo(
+    () =>
+      find ? lines.filter((line) => line.toLowerCase().includes(find.toLowerCase())).length : 0,
+    [lines, find],
+  );
+  useEffect(() => {
+    const element = sourceElement.current;
+    if (!element || blob.data?.content === undefined) return;
+    if (hitLine) element.querySelector('.v2-code-hit')?.scrollIntoView({ block: 'center' });
+    return markMatches(element.querySelector('pre'), find);
+  }, [blob.data?.content, hitLine, find]);
   const historyHref = href({ path, file, history: true });
   return (
     <>
@@ -205,17 +224,15 @@ export function ProjectCode({ overview }: { overview: Overview }) {
           </>
         )}
         <span className={`v2-repo-end${file ? ' dl-hide-mid' : ''}`}>
-          <label className="dl-field v2-code-search">
-            <span className="dl-sr">Go to file</span>
+          <button
+            type="button"
+            className="dl-field v2-code-search"
+            onClick={() => openSearch(searchScope)}
+          >
             <Icon name="search" size={14} />
-            <input
-              ref={search}
-              placeholder="Go to file"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-            />
-            <span className="dl-kbd">T</span>
-          </label>
+            <span className="v2-code-search-text">Search this project</span>
+            <span className="dl-kbd">/</span>
+          </button>
           {!file && (
             <Action
               popoverTarget={cloneMenu}
@@ -232,34 +249,6 @@ export function ProjectCode({ overview }: { overview: Overview }) {
           )}
         </span>
       </div>
-      {filter && (
-        <Group>
-          {finder.error ? (
-            <Banner title={finder.error} action={<Action onClick={finder.refresh}>Retry</Action>} />
-          ) : !finder.data ? (
-            <Skeleton rows={3} />
-          ) : (
-            <>
-              {finder.data.paths
-                .filter((name) => name.toLowerCase().includes(filter.toLowerCase()))
-                .map((name) => (
-                  <a
-                    key={name}
-                    className="dl-item"
-                    href={href({ file: name })}
-                    onClick={() => setFilter('')}
-                  >
-                    <Icon name="file" />
-                    <span className="dl-t">{name}</span>
-                  </a>
-                ))}
-              {finder.data.truncated && (
-                <p className="dl-meta">File search is limited to the first 10,000 paths.</p>
-              )}
-            </>
-          )}
-        </Group>
-      )}
       {(file ? blob.error : tree.error) && (
         <Banner
           title={file ? blob.error : tree.error}
@@ -332,6 +321,12 @@ export function ProjectCode({ overview }: { overview: Overview }) {
               {blob.data.content !== undefined ? `${lines.length} lines · ` : ''}
               {fileSize(blob.data.size)}
             </span>
+            {find && blob.data.content !== undefined && (
+              <span className="dl-muted">
+                {hitLine ? `· line ${hitLine} ` : ''}· {matchingLines}{' '}
+                {matchingLines === 1 ? 'line matches' : 'lines match'} “{find}”
+              </span>
+            )}
             <span className="dl-end">
               {raw && (
                 <>
@@ -354,7 +349,20 @@ export function ProjectCode({ overview }: { overview: Overview }) {
           {blob.data.omitted ? (
             <p className="v2-code-omitted">{blob.data.omitted}</p>
           ) : (
-            <div className="dl-lines v2-code-lines" role="region" aria-label={file} tabIndex={0}>
+            <div
+              ref={sourceElement}
+              className="dl-lines v2-code-lines"
+              role="region"
+              aria-label={file}
+              tabIndex={0}
+            >
+              {hitLine > 0 && hitLine <= lines.length && (
+                <span
+                  className="v2-code-hit"
+                  aria-hidden="true"
+                  style={{ top: 8 + (hitLine - 1) * 20 }}
+                />
+              )}
               <div className="v2-code-numbers" aria-hidden="true">
                 {lines.map((_, index) => (
                   <span key={index}>{index + 1}</span>

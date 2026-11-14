@@ -2,6 +2,7 @@ import { sweepCheckpointRefs } from './checkpoint-retention.ts';
 import { claimWorker } from './worker-lease.ts';
 import { startSupervisorHeartbeat } from '../supervisor-heartbeat.ts';
 import { db, now } from './store.ts';
+import '../main/repository-workspace-imports.ts';
 import { RepositoryRunner } from './repository-runner.ts';
 import { queueDueSyncs } from './repositories.ts';
 import { closeTasksForMergedPulls } from './project-collaboration.ts';

@@ -36,6 +36,10 @@ export async function componentHarness(entry, stubs, globals = {}) {
     useId() {
       return hooks.useState('fixture-id')[0];
     },
+    // Recomputed on every render: the harness renders once per assertion.
+    useMemo(fn) {
+      return fn();
+    },
     useCallback(fn) {
       return fn;
     },
@@ -52,7 +56,8 @@ export async function componentHarness(entry, stubs, globals = {}) {
     },
     Suspense: 'Suspense',
   };
-  const modules = { react: hooks, ...stubs };
+  // Portals (dialogs, the search box) render their children in place: there is no DOM here.
+  const modules = { react: hooks, 'react-dom': { createPortal: (node) => node }, ...stubs };
   const result = await build({
     entryPoints: [entry],
     bundle: true,

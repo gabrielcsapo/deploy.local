@@ -81,8 +81,8 @@ its actual entry script. HTTP success is not visual verification.
 - `pnpm format:check`: passed (`format.log`).
 - `pnpm build`: passed (`build.log`), including the separately bundled edge.
 - `node --test server/edge/app-pages.test.ts server/edge/proxy.test.ts
-server/edge/response-cache.test.ts app/routes/v2-public/about/changelog.test.ts
-app/routes/v2-public/about/routes.test.ts`: **22 passed, 0 failed** (`focused-tests.log`).
+  server/edge/response-cache.test.ts app/routes/v2-public/about/changelog.test.ts
+  app/routes/v2-public/about/routes.test.ts`: **22 passed, 0 failed** (`focused-tests.log`).
 - Final full `pnpm test`: **726 tests, 698 passed, 15 failed, 13 skipped, 0 cancelled**
   (`full-suite.log`, exit 1). Ten `application-api.test.ts` requests failed with closed/reset
   fixture sockets; `ci-http.test.ts` explicitly exhausted the two permitted test ports. The

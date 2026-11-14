@@ -49,7 +49,7 @@ test(
         tar.entry({ name: 'index.html' }, version);
         tar.finalize();
         const chunks: Buffer[] = [];
-        for await (const b of tar) chunks.push(b);
+        for await (const b of tar) chunks.push(b as Buffer);
         const raw = Buffer.concat(chunks);
         return { raw, gzip: gzipSync(raw) };
       };

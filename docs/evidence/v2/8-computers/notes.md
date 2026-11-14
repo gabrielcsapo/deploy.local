@@ -27,7 +27,7 @@ The only preview servers started were the fixture and Vite on 5190/5191; both we
    Existing desktop apps use password sign-in and `/api/workers/enroll`, as inspected in
    `desktop/src/worker.mjs`; those registrations appear in this list without a second fleet key.
 3. **Remove:** GET `/api/computers/:id/removal` returns `{ computerId, allowed, reasons, apps,
-tasks }`. DELETE rechecks that plan immediately before revoking credentials. It refuses the
+   tasks }`. DELETE rechecks that plan immediately before revoking credentials. It refuses the
    coordinator, apps (including another owner's apps and desired placements), queued/active or
    unknown work, and a reported model-serving role. It lists other online Run apps computers
    without asserting their capacity or data compatibility. Idle removal revokes worker and/or

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-run-recovery-'));
+await import('../test-ports.ts');
 const { workerCommand } = await import('./protocol.ts');
 const { get, list, save, events } = await import('./store.ts');
 const { createTask } = await import('./test-repository.ts');

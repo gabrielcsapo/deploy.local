@@ -18,6 +18,7 @@ import { createServer } from 'node:http';
 import { handleWebRedirect } from './web-redirects.ts';
 import { createSecureServer as createHttp2Server } from 'node:http2';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { wireServerWorkspacePorts } from './main/server-workspace-ports.ts';
 import { apiMiddleware, setHotPathRouteSource } from './api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './ws.ts';
 import { syncContainerStates, startAllContainers } from './lifecycle.ts';
@@ -365,6 +366,7 @@ async function start(options: BootOptions) {
 }
 
 export function bootServer(options: BootOptions) {
+  wireServerWorkspacePorts();
   // Previously started during dependency evaluation, in this order. Keep them before
   // the heartbeat, storage initialization, client creation and either role's listeners.
   startTerminalRelay();

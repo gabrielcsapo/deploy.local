@@ -184,7 +184,7 @@ first full-suite log are collapsed with an explicit repetition count.
 - `pnpm format:check`: passed.
 - `pnpm build`: passed after the final UI changes.
 - `node --test server/v2/projects.test.ts server/application-configuration.test.ts
-server/v2/releases.test.ts server/v2/releases-runtime.test.ts`: **32 passed, 0
+  server/v2/releases.test.ts server/v2/releases-runtime.test.ts`: **32 passed, 0
   failed**, including 7 new project tests. Covers real repository-link migration,
   multi-app attachment, encrypted value migration, standalone-app transfer, shared
   defaults/app overrides/deletion, owner isolation, API redaction, atomic variable

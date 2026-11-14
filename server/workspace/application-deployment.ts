@@ -88,7 +88,7 @@ export async function directoryBundle(directory: string, name?: string) {
   }
   archive.finalize();
   const chunks: Buffer[] = [];
-  for await (const chunk of archive) chunks.push(Buffer.from(chunk));
+  for await (const chunk of archive) chunks.push(Buffer.from(chunk as Uint8Array));
   return {
     body: gzipSync(Buffer.concat(chunks)),
     application,

@@ -91,9 +91,11 @@ export function Composer({
   const busy = disabled || loading || pending;
   // A project heading's + opens the start page with its project chosen (?project=<id>).
   const chosenId = projectParameter(location.pathname, location.search);
+  // Search's "Ask an agent about…" arrives with the words already written, even on the agent's own page.
+  const ask = new URLSearchParams(location.search).get('ask') ?? '';
   useEffect(() => {
     const path = location.pathname;
-    setText('');
+    setText(ask);
     setAttachments([]);
     setOverride(null);
     setError('');
@@ -131,7 +133,7 @@ export function Composer({
     return () => {
       active = false;
     };
-  }, [location.pathname, chosenId, seed]);
+  }, [location.pathname, chosenId, ask, seed]);
   async function perform(action: () => Promise<void>) {
     setPending(true);
     setError('');

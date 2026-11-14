@@ -55,7 +55,7 @@ test('old-only database: task metadata is indexed, owner scoped, and never parse
   JSON.parse = (text, ...args) => {
     assert.ok(!text.includes('BODY_SENTINEL'), 'metadata read parsed a snapshot body');
     parsedBytes += Buffer.byteLength(text);
-    return parse(text, ...args);
+    return Reflect.apply(parse, JSON, [text, ...args]);
   };
   try {
     const rows = listCheckpointMetadata('owner', 'task-0');

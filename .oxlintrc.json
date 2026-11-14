@@ -6,6 +6,14 @@
     "suspicious": "warn"
   },
   "rules": {
-    "react-in-jsx-scope": "off"
+    "react-in-jsx-scope": "off",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    // oxlint 1.9x moved the React Compiler checks into correctness. Existing code predates them;
+    // they warn until each pattern is reworked on its own, since those fixes change behaviour.
+    "react/set-state-in-effect": "warn",
+    "react/refs": "warn",
+    "react/purity": "warn",
+    "react/immutability": "warn",
+    "react/preserve-manual-memoization": "warn"
   }
 }

@@ -1,5 +1,6 @@
 'use client';
 import { useLocation } from 'react-flight-router/client';
+import { openSearch } from './v2/search/model.ts';
 import { Action, Empty, Glyph, Head, IconButton } from '@/components/ui';
 
 export function pageTitle(pathname: string) {
@@ -44,7 +45,7 @@ export default function Placeholder() {
     .map(decodeURIComponent);
   let title = pageTitle(pathname);
   let subtitle: string | undefined;
-  let actions = <IconButton icon="search" label="Search (coming soon)" disabled />;
+  let actions = <IconButton icon="search" label="Search" onClick={() => openSearch()} />;
   if (place === 'settings') {
     title = 'Settings';
     actions = <></>;
@@ -57,7 +58,7 @@ export default function Placeholder() {
         <a className="dl-btn secondary" href="/dashboard">
           New task
         </a>
-        <IconButton icon="search" label="Search (coming soon)" disabled />
+        <IconButton icon="search" label="Search" onClick={() => openSearch()} />
       </>
     );
   }

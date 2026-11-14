@@ -1,4 +1,4 @@
-// List web source files that no route can reach, using the TypeScript compiler's own file list.
+// List web source files that no route can reach, using the type checker's own file list (tsrs).
 // Usage: node scripts/perf/reachable.mjs [--list]
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -15,7 +15,7 @@ writeFileSync(
 );
 let listed;
 try {
-  listed = spawnSync('npx', ['tsc', '-p', config, '--listFilesOnly'], {
+  listed = spawnSync('node_modules/.bin/tsrs', ['-p', config, '--listFilesOnly'], {
     encoding: 'utf8',
     maxBuffer: 1 << 28,
   }).stdout;
