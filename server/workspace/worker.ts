@@ -14,8 +14,8 @@ import { attachmentBytes, createAttachment } from './attachments.ts';
 import { materializeImages, rewriteMedia, readWorkspaceMedia } from './media-files.ts';
 import { basename } from 'node:path';
 import { ScreenshotRunner } from './screenshot-runtime.ts';
-import { screenshotWorker } from '../v2/screenshots.ts';
-import { attachmentBytes as v2AttachmentBytes } from '../v2/attachments.ts';
+import { wireLocalWorkerMedia } from '../main/local-worker-media.ts';
+import { requireScreenshotWorker, requireAttachmentBytesSource } from './media-ports.ts';
 import { prepareAttachmentInput } from './attachment-input.ts';
 import { workerRole } from './computer-roles.ts';
 import { claimWorker } from './worker-lease.ts';
@@ -40,6 +40,10 @@ import { captureTurnCheckpoint } from './turn-checkpoint.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
 import { processGroupAlive } from './restart-recovery.ts';
 import { resolveRestartedRun } from './run-recovery.ts';
+wireLocalWorkerMedia();
+const screenshotWorker = requireScreenshotWorker('local worker');
+const v2AttachmentBytes = requireAttachmentBytesSource('local worker');
+
 const checkpoint = (cwd: string) => {
   try {
     return captureTurnCheckpoint(cwd);
