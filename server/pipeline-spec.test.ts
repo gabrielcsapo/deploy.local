@@ -114,7 +114,7 @@ test('publish-only pipeline accepts confined distinct folders and round trips', 
     );
 });
 
-test('the repository pipeline checks every main push and PR while retaining the router filter', async () => {
+test('the repository pipeline checks every main push and PR', async () => {
   const { readFileSync } = await import('node:fs');
   const pipeline = compileDeployYaml(readFileSync('deploy.yaml', 'utf8')).spec.pipeline!;
   assert.deepEqual(pipeline.on, ['manual', 'pull_request', 'push']);
@@ -123,10 +123,8 @@ test('the repository pipeline checks every main push and PR while retaining the 
   assert.equal(pipeline.deploy, undefined, 'CI cannot activate the production coordinator');
   // react-flight-router is published from its own repository.
   assert.equal(pipeline.publish, undefined);
-  assert.deepEqual(pipeline.jobs['router-test'].paths, [
-    'deploy.yaml',
-    'packages/react-flight-router/**',
-  ]);
+  // react-flight-router is tested in its own repository.
+  assert.equal(pipeline.jobs['router-test'], undefined);
   for (const name of ['typecheck', 'lint', 'test', 'build']) {
     assert.equal(pipeline.jobs[name].paths, undefined);
     assert.ok(pipeline.jobs[name].container, 'automatic PRs require isolation');

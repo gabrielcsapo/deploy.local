@@ -100,12 +100,6 @@ function swift() {
 }
 
 const suites = {
-  // Vitest owns the router's TS/TSX suites; e2e specs and benchmarks are separate.
-  router: spawn('pnpm', ['--filter', 'react-flight-router', 'exec', 'vitest', 'run']),
-  worker: run([
-    'packages/react-flight-router/dist/server/worker-pool.test.js',
-    'packages/react-flight-router/dist/server/action-transport.test.js',
-  ]),
   web: run(['--import', 'tsx', '--import', './scripts/test-css-stub.mjs', ...webTests]),
   server: run(tests),
   swift: swift(),

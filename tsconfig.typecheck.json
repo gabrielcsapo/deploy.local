@@ -1,14 +1,11 @@
 {
-  // `pnpm typecheck` reads react-flight-router from its source, so it needs no build first.
-  // Only typecheck uses this file: tsx, Vite and Node keep resolving the package's built dist.
+  // Only typecheck uses this file. react-flight-router comes from its published package, built in
+  // its own repository; the declarations below cover react-server-dom-webpack, which ships none.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "paths": {
-      "@/*": ["./app/*"],
-      "react-flight-router": ["./packages/react-flight-router/src/index.ts"],
-      "react-flight-router/client/entry": ["./packages/react-flight-router/src/client/entry.tsx"],
-      "react-flight-router/*": ["./packages/react-flight-router/src/*/index.ts"]
+      "@/*": ["./app/*"]
     }
   },
-  "files": ["packages/react-flight-router/src/types.d.ts"]
+  "files": ["types/react-server-dom-webpack.d.ts"]
 }
