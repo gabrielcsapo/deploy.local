@@ -129,7 +129,7 @@ function DesignCardPreview({
   item,
 }: DesignCardProps & { item: InboxItem }) {
   const review = useData<DesignReview>(
-    item ? `${design.api}/review?item=${encodeURIComponent(item.id)}` : undefined,
+    item ? `${design.api}/review?item=${encodeURIComponent(item.id)}&evidence=text` : undefined,
   );
   const refreshReview = useRef(review.refresh);
   refreshReview.current = review.refresh;

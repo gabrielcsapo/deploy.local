@@ -25,6 +25,7 @@ import { deployDataPath } from '../kernel/files/data-directory.ts';
 import { homeOf, readReleaseConfig } from './self-update-host.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   applyEdits,
   boardLinks,
@@ -1152,7 +1153,9 @@ function loadReviewScreens(owner: string, project: any, row: any) {
   if (screens) return screens;
   let loading = reviewScreensLoading.get(key);
   if (!loading) {
-    loading = designReview(owner, project, row)
+    // A screen's metadata never depends on drawings, so a preview never waits for every
+    // screen of the review to be drawn first.
+    loading = designReview(owner, project, row, false, false)
       .then((review) => review.boards)
       .finally(() => reviewScreensLoading.delete(key));
     reviewScreensLoading.set(key, loading);
@@ -1272,6 +1275,11 @@ export async function designReview(
   project: any,
   row: any,
   fullEvidence = false,
+  /**
+   * False leaves Chromium out: the review's `changes` then come from the boards' text alone.
+   * Everything else in the review is the same either way.
+   */
+  drawn = true,
 ): Promise<DesignReview> {
   const { context, item } = row;
   const repo = project.repositoryPath;
@@ -1308,24 +1316,37 @@ export async function designReview(
     ]),
   ].filter((path) => path.startsWith('design/boards/'));
   const seen = list('design-review-seen', owner);
-  const metadataOnly = status.resolutions.length > 0 && !fullEvidence;
+  const metadataOnly = !drawn || (status.resolutions.length > 0 && !fullEvidence);
   const builtKey = `${reviewScreenKey(repo, row)}:${context.commit}:${paths.join(',')}:${metadataOnly}`;
   let built = reviewBuilt.get(builtKey);
   if (!built) {
     let building = reviewBuilding.get(builtKey);
-    if (!building) {
-      building = buildReviewScreens(
-        repo,
-        context,
-        comparison,
-        paths,
-        {
-          canvas,
-          beforeCanvas,
-          originalCanvas,
-        },
-        metadataOnly,
-      ).finally(() => reviewBuilding.delete(builtKey));
+    if (building) {
+      // Someone is waiting for this build now, so its drawings stop giving way to others'.
+      if (!drawingLane.getStore()?.background) buildingLanes.get(builtKey)?.promote();
+    } else {
+      // Its own place in line, so promoting it never promotes the rest of what was drawing ahead.
+      const lane = drawingTicket(drawingLane.getStore());
+      buildingLanes.set(builtKey, lane);
+      building = drawingLane
+        .run(lane, () =>
+          buildReviewScreens(
+            repo,
+            context,
+            comparison,
+            paths,
+            {
+              canvas,
+              beforeCanvas,
+              originalCanvas,
+            },
+            metadataOnly,
+          ),
+        )
+        .finally(() => {
+          reviewBuilding.delete(builtKey);
+          buildingLanes.delete(builtKey);
+        });
       reviewBuilding.set(builtKey, building);
     }
     built = await building;
@@ -1419,7 +1440,7 @@ async function mutateReviewPin(owner: string, project: any, method: string, body
   // true. Whether the review still waits, and its pins, can change meanwhile, so they are read in it.
   const waiting = reviewRow(owner, project.id, body?.item);
   if (waiting.item.state !== 'waiting') fail('This review is no longer waiting', 409);
-  const review = await designReview(owner, project, waiting);
+  const review = await designReview(owner, project, waiting, false, false);
   return db
     .transaction(() => {
       const row = reviewRow(owner, project.id, body?.item);
@@ -2133,14 +2154,53 @@ function pruneRenders() {
 // One Chromium draws every board, a few at a time, and closes after a minute without work.
 const drawLimit = 3;
 let drawing = 0;
-const drawQueue: (() => void)[] = [];
+/**
+ * Drawings someone is waiting for go first. Drawings made ahead of time (a new proposal's
+ * screens, drawn right after it is proposed) give way to them, so a review being looked at
+ * never waits behind a few hundred screens nobody has asked for yet.
+ */
+type DrawingLane = { readonly background: boolean; promote(): void };
+const drawingLane = new AsyncLocalStorage<DrawingLane>();
+function backgroundLane(): DrawingLane {
+  let background = true;
+  return {
+    get background() {
+      return background;
+    },
+    promote() {
+      background = false;
+    },
+  };
+}
+/** One drawing's place in line: behind its lane, unless someone asked for it directly. */
+function drawingTicket(lane: DrawingLane | undefined): DrawingLane {
+  let promoted = false;
+  return {
+    get background() {
+      return !promoted && Boolean(lane?.background);
+    },
+    promote() {
+      promoted = true;
+    },
+  };
+}
+const drawingTickets = new Map<string, DrawingLane>();
+const buildingLanes = new Map<string, DrawingLane>();
+const drawQueue: { start: () => void; lane: DrawingLane | undefined }[] = [];
+function nextDrawing() {
+  const at = drawQueue.findIndex((entry) => !entry.lane?.background);
+  return drawQueue.splice(at < 0 ? 0 : at, 1)[0]?.start();
+}
 let chromiumLaunch: Promise<import('playwright').Browser> | null = null;
 let chromiumIdle: ReturnType<typeof setTimeout> | undefined;
 async function withBoardChromium<T>(
   executablePath: string,
   work: (browser: import('playwright').Browser) => Promise<T>,
 ): Promise<T> {
-  if (drawing >= drawLimit) await new Promise<void>((resolve) => drawQueue.push(resolve));
+  if (drawing >= drawLimit)
+    await new Promise<void>((resolve) =>
+      drawQueue.push({ start: resolve, lane: drawingLane.getStore() }),
+    );
   drawing++;
   clearTimeout(chromiumIdle);
   try {
@@ -2156,7 +2216,7 @@ async function withBoardChromium<T>(
     return await work(browser);
   } finally {
     drawing--;
-    drawQueue.shift()?.();
+    nextDrawing();
     if (!drawing) {
       chromiumIdle = setTimeout(() => {
         const launched = chromiumLaunch;
@@ -2227,15 +2287,23 @@ export async function renderBoardLayout(
     rendererWork.set(draw, work);
   }
   const pending = work.get(key);
-  if (pending) return pending;
+  if (pending) {
+    // Someone is waiting for this drawing now: it goes ahead of drawings made for later.
+    if (!drawingLane.getStore()?.background) drawingTickets.get(key)?.promote();
+    return pending;
+  }
+  const ticket = drawingTicket(drawingLane.getStore());
   const stored = draw === drawBoard ? await readRender(key) : null;
   const job = stored
     ? Promise.resolve(stored)
-    : draw(repo, commit, board, width, height, scale).then((rendered) => {
-        if (draw === drawBoard) writeRender(key, rendered);
-        return rendered;
-      });
+    : drawingLane
+        .run(ticket, () => draw(repo, commit, board, width, height, scale))
+        .then((rendered) => {
+          if (draw === drawBoard) writeRender(key, rendered);
+          return rendered;
+        });
   work.set(key, job);
+  drawingTickets.set(key, ticket);
   try {
     const rendered = await job;
     renders.set(key, rendered);
@@ -2244,6 +2312,7 @@ export async function renderBoardLayout(
     return rendered;
   } finally {
     work.delete(key);
+    if (drawingTickets.get(key) === ticket) drawingTickets.delete(key);
   }
 }
 
@@ -2333,12 +2402,11 @@ export async function reviewPreview(
   render: typeof renderBoardLayout = renderBoardLayout,
   scale = 1,
 ): Promise<DesignReviewPreview> {
-  const before = board.added
-    ? null
-    : await render(repo, board.before, board.file, width, board.h, scale);
-  const after = board.removed
-    ? null
-    : await render(repo, board.after, board.file, width, board.h, scale);
+  // Both sides are asked for at once, so both go ahead of drawings nobody is waiting for.
+  const [before, after] = await Promise.all([
+    board.added ? null : render(repo, board.before, board.file, width, board.h, scale),
+    board.removed ? null : render(repo, board.after, board.file, width, board.h, scale),
+  ]);
   const areas = reviewAreas(board.changes, before?.boxes ?? {}, after?.boxes ?? {}, width, board.h);
   const url = (revision: string) =>
     `/api/v2/projects/${encodeURIComponent(projectId)}/design/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}&scale=${scale}`;
@@ -2362,7 +2430,10 @@ export async function reviewPreview(
  * Draw a new proposal's screens in the background, one at a time, at the densities the web
  * (2×) and iPhone (3×) ask for, so the first look at it is as fast as the second.
  */
-async function warmReview(owner: string, project: any, repo: string, itemId: string) {
+function warmReview(owner: string, project: any, repo: string, itemId: string) {
+  return drawingLane.run(backgroundLane(), () => warmDrawings(owner, project, repo, itemId));
+}
+async function warmDrawings(owner: string, project: any, repo: string, itemId: string) {
   try {
     const row = reviewRow(owner, project.id, itemId);
     for (const board of (await designReview(owner, project, row)).boards)
@@ -3238,11 +3309,14 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         path: '/review',
         handler: async () => {
           const row = reviewRow(owner, project.id, url.searchParams.get('item'));
+          const evidence = url.searchParams.get('evidence');
           const review = await designReview(
             owner,
             project,
             row,
-            url.searchParams.get('evidence') === 'all',
+            evidence === 'all',
+            // The web canvas never shows `changes`; it gets each screen's areas from its preview.
+            evidence !== 'text',
           );
           if (url.searchParams.get('previews') === 'all') {
             for (const board of review.boards) {
@@ -3332,7 +3406,7 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
         handler: async () => {
           const body = await readJson(req);
           const row = reviewRow(owner, project.id, body?.item);
-          const review = await designReview(owner, project, row);
+          const review = await designReview(owner, project, row, false, false);
           const files = body?.boards ?? [body?.board];
           if (
             !Array.isArray(files) ||

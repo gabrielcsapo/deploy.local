@@ -78,7 +78,7 @@ test('approved proposal card offers Build only after landing, then links the rec
     landing: { at: '2026-11-12T12:00:30Z', state: 'landed', commit: '4f05991abcdef' },
   } as unknown as DesignReview;
   const render = (data: DesignReview) => {
-    remember(`${api}/review?item=${encodeURIComponent(item.id)}`, data);
+    remember(`${api}/review?item=${encodeURIComponent(item.id)}&evidence=text`, data);
     return renderToStaticMarkup(
       createElement(
         InboxProvider,

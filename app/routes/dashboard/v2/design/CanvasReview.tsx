@@ -30,9 +30,14 @@ export function useCanvasReview(project: string, item: string | null) {
     const read = ++version.current;
     loading.current = true;
     try {
-      const value = await request<DesignReview>(`${api}/review?item=${encodeURIComponent(item)}`, {
-        signal: next.signal,
-      });
+      // evidence=text: the canvas never shows the review's `changes`, so the server need not draw
+      // every screen in Chromium before answering. Each screen's areas come from its preview.
+      const value = await request<DesignReview>(
+        `${api}/review?item=${encodeURIComponent(item)}&evidence=text`,
+        {
+          signal: next.signal,
+        },
+      );
       if (version.current === read) {
         setData(value);
         setError('');
