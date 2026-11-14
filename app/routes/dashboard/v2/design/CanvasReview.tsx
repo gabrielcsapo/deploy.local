@@ -93,7 +93,20 @@ export function useCanvasReview(project: string, item: string | null) {
     },
     [api, item, data, busy],
   );
-  return { api, item, data, error, setError, busy, setBusy, side, setSide, load, approveFrame };
+  // A review of a design under Artifacts reads its boards from that design's folder.
+  return {
+    api: data?.api ?? api,
+    item,
+    data,
+    error,
+    setError,
+    busy,
+    setBusy,
+    side,
+    setSide,
+    load,
+    approveFrame,
+  };
 }
 export type CanvasReview = ReturnType<typeof useCanvasReview>;
 

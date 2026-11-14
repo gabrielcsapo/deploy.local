@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Action, Icon } from '@/components/ui';
 import { request, useData } from '../projects/data';
 import type { Selection } from './Canvas';
-import { boardName } from './model';
+import { boardName, designApi } from './model';
+import { useDesignArtifact } from './artifact-context';
 
 export type Comment = {
   id: string;
@@ -26,9 +27,9 @@ function ago(at: string) {
   return `${Math.round(minutes / 60 / 24)}d`;
 }
 
-export function useComments(projectId: string | undefined) {
+export function useComments(projectId: string | undefined, artifact: string | null = null) {
   const { data, refresh } = useData<{ comments: Comment[] }>(
-    projectId ? `/api/projects/${encodeURIComponent(projectId)}/design/comments` : undefined,
+    projectId ? `${designApi(projectId, artifact)}/comments` : undefined,
   );
   return { comments: data?.comments ?? [], refresh };
 }
@@ -54,6 +55,7 @@ export function CommentsPanel({
   /** A layer's name in Layers, from its board when the board is loaded. */
   nameFor: (board: string, layer: string) => string;
 }) {
+  const artifact = useDesignArtifact();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -75,7 +77,7 @@ export function CommentsPanel({
       ? nameFor(selection.board, selection.layer)
       : boardName(selection.board)
     : null;
-  const path = `/api/projects/${encodeURIComponent(projectId)}/design/comments`;
+  const path = `${designApi(projectId, artifact)}/comments`;
   const send = async () => {
     if (!selection || !text.trim()) return;
     setBusy(true);

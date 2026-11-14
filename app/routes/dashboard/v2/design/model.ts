@@ -24,10 +24,38 @@ export {
   type Section,
 } from '../../../../../shared/v2/design';
 
+/**
+ * Where a design lives: the project's App design in design/, or a design made under Artifacts in
+ * artifacts/<name>. Its API is /api/projects/<id>/design or …/artifacts/<name>/design.
+ */
+export function designApi(projectId: string, artifact?: string | null) {
+  return `/api/projects/${encodeURIComponent(projectId)}${artifact ? `/artifacts/${encodeURIComponent(artifact)}` : ''}/design`;
+}
+export const designFolderOf = (artifact?: string | null) =>
+  artifact ? `artifacts/${artifact}` : 'design';
+/** The artifact a design API path names; null for the App design. */
+export function apiArtifact(api: string | null | undefined) {
+  return api ? (/\/artifacts\/([^/]+)\/design$/.exec(api)?.[1] ?? null) : null;
+}
+/** The board file a changed path names, in any design's folder; null for anything else. */
+export function boardFile(path: string) {
+  return /^(?:design|artifacts\/[a-z0-9-]+)\/boards\/([^/]+)$/.exec(path)?.[1] ?? null;
+}
+/** Whether edits on this branch are this design's: design/… for the App design, artifact/<name>… for one. */
+export function ownsBranch(branch: string, artifact: string | null) {
+  return artifact ? branchArtifact(branch) === artifact : branch.startsWith('design/');
+}
+/** A branch an artifact's edits are on, artifact/<name> or artifact/<name>--…, names it. */
+export function branchArtifact(branch: string) {
+  return /^artifact\/([a-z0-9]+(?:-[a-z0-9]+)*?)(?:--.*)?$/.exec(branch)?.[1] ?? null;
+}
+
 export type Design = {
   ref: string;
   commit: string;
   canvas: Canvas | null;
+  /** A design made under Artifacts that main does not have yet. */
+  fresh?: boolean;
   branches: { name: string; commit: string; updatedAt: string; by?: string; edits?: number }[];
   openComments: number;
 };

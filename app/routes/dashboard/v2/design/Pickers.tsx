@@ -4,6 +4,7 @@ import { Icon } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { useData } from '../projects/data';
 import type { Design } from './model';
+import type { ArtifactSummary } from '../../../../../shared/v2/artifacts';
 
 /** A popover that closes on a click elsewhere or Escape. */
 function Popover({
@@ -49,7 +50,7 @@ function Choice({
   onClick,
 }: {
   on?: boolean;
-  icon: 'folder' | 'branch' | 'plus';
+  icon: 'folder' | 'branch' | 'plus' | 'layers';
   title: string;
   sub?: string;
   end?: ReactNode;
@@ -175,17 +176,31 @@ export function BranchList({
   );
 }
 
-/** The project name, opening the projects. */
-export function ProjectPicker({
-  projects,
+/** Every project's designs, for the menu at the top of the canvas's left panel. */
+export function useDesigns() {
+  return useData<{ artifacts: ArtifactSummary[] }>('/api/artifacts').data?.artifacts.filter(
+    (entry) => entry.kind === 'design',
+  );
+}
+
+/**
+ * The design's name, opening every design with its project; it ends with New artifact, which
+ * goes to Artifacts to make one. Projects with no design are not listed.
+ */
+export function DesignPicker({
   project,
-  onProject,
+  artifact,
+  name,
+  onDesign,
 }: {
-  projects: Project[];
   project: Project | undefined;
-  onProject: (id: string) => void;
+  artifact: string | null;
+  /** The open design's name: its canvas title, or the project's name for its App design. */
+  name: string | undefined;
+  onDesign: (projectId: string, artifact: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const designs = useDesigns();
   return (
     <span className="dz-picker-wrap">
       <button
@@ -195,19 +210,39 @@ export function ProjectPicker({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {project?.name ?? 'Choose a project'}
+        {name ?? project?.name ?? 'Choose a design'}
         <Icon name="down" size={12} />
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} label="Projects">
-        <div className="dz-picker-label">Projects</div>
-        <ProjectList
-          projects={projects}
-          current={project?.id}
-          onProject={(id) => {
-            setOpen(false);
-            onProject(id);
-          }}
-        />
+      <Popover open={open} onClose={() => setOpen(false)} label="Designs">
+        <div className="dz-picker-label">Designs</div>
+        {designs?.map((entry) => (
+          <Choice
+            key={`${entry.projectId}:${entry.artifact ?? ''}`}
+            on={entry.projectId === project?.id && entry.artifact === artifact}
+            icon="layers"
+            title={entry.name}
+            sub={[
+              entry.project,
+              entry.boards !== undefined
+                ? `${entry.boards} board${entry.boards === 1 ? '' : 's'}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            onClick={() => {
+              setOpen(false);
+              onDesign(entry.projectId, entry.artifact);
+            }}
+          />
+        ))}
+        <hr />
+        <a className="dz-picker-item" role="menuitem" href="/dashboard/artifacts">
+          <span className="dz-picker-check" />
+          <Icon name="layers" size={13} />
+          <span className="dz-picker-text">
+            <b>New artifact</b>
+          </span>
+        </a>
       </Popover>
     </span>
   );
@@ -245,7 +280,11 @@ export function BranchPicker({
         <Icon name="branch" size={11} />
         <span className="dz-t">
           {current === 'HEAD' ? 'main' : current}
-          {changed > 0 && ` · ${changed} changed`}
+          {changed > 0
+            ? ` · ${changed} changed`
+            : current !== 'HEAD' && branches.find((branch) => branch.name === current)?.edits === 0
+              ? ' · no edits yet'
+              : ''}
         </span>
         <Icon name="down" size={10} />
       </button>

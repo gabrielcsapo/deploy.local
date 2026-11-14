@@ -4,7 +4,16 @@ import { Action, Icon } from '@/components/ui';
 import { request, useData } from '../projects/data';
 import type { Computer } from '../../../../../shared/v2/contracts';
 import type { Selection } from './Canvas';
-import { boardName, describeChange, isPhone, type Canvas, type LayerChange } from './model';
+import {
+  boardFile,
+  boardName,
+  describeChange,
+  designApi,
+  isPhone,
+  type Canvas,
+  type LayerChange,
+} from './model';
+import { useDesignArtifact } from './artifact-context';
 
 export type Ask = {
   id: string;
@@ -21,11 +30,13 @@ export type Ask = {
 export type Change = { status: string; path: string; layers?: LayerChange[] };
 export type OverlayMode = 'mine' | 'overlay' | 'agent';
 
-const api = (projectId: string) => `/api/projects/${encodeURIComponent(projectId)}/design`;
-
-export function useAsks(projectId: string | undefined, version: number) {
+export function useAsks(
+  projectId: string | undefined,
+  version: number,
+  artifact: string | null = null,
+) {
   const { data, refresh } = useData<{ asks: Ask[] }>(
-    projectId ? `${api(projectId)}/asks?v=${version}` : undefined,
+    projectId ? `${designApi(projectId, artifact)}/asks?v=${version}` : undefined,
   );
   return { asks: data?.asks ?? [], refresh };
 }
@@ -55,6 +66,7 @@ export function AskPopover({
   onClose: () => void;
   onAsked: (task: string) => void;
 }) {
+  const artifact = useDesignArtifact();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   // Where the task runs: any free computer, or one that takes tasks and is online.
@@ -72,13 +84,16 @@ export function AskPopover({
     setError('');
     try {
       const { task } = await request<{ task: { id: string } }>(
-        `${api(projectId)}/ask?ref=${encodeURIComponent(designRef)}`,
+        `${designApi(projectId, artifact)}/ask?ref=${encodeURIComponent(designRef)}`,
         {
           method: 'POST',
           body: JSON.stringify({
             ...(component
               ? { component: component.id }
-              : { board: selection!.board, layer: selection!.layer }),
+              : selection
+                ? { board: selection.board, layer: selection.layer }
+                : // A design with nothing on it yet is asked about as a whole.
+                  { board: '', layer: null }),
             text,
             workerId: worker || undefined,
           }),
@@ -115,9 +130,11 @@ export function AskPopover({
       <div className="dz-crumb dz-phone-only">
         {component
           ? `${component.name} and every instance`
-          : selection!.layer
-            ? `${boardName(selection!.board)} › ${target}`
-            : boardName(selection!.board)}
+          : !selection
+            ? target
+            : selection.layer
+              ? `${boardName(selection.board)} › ${target}`
+              : boardName(selection.board)}
       </div>
       <textarea
         ref={box}
@@ -138,8 +155,8 @@ export function AskPopover({
         ) : (
           <span className="dz-desk-only">
             <Icon name="text" size={11} />
-            {boardName(selection!.board)}
-            {selection!.layer ? ` › ${target}` : ''}
+            {selection ? boardName(selection.board) : target}
+            {selection?.layer ? ` › ${target}` : ''}
           </span>
         )}
         <span>
@@ -302,8 +319,9 @@ export function AgentPanel({
   select: (selection: Selection) => void;
   nameFor: (board: string, layer: string) => string;
 }) {
+  const artifact = useDesignArtifact();
   const boards = changes
-    .map((change) => change.path.replace(/^design\/boards\//, ''))
+    .map((change) => boardFile(change.path) ?? '')
     .filter((file) => canvas?.boards[file]);
   const kept = changes.filter((change) => !skipped.has(change.path));
   return (
@@ -333,7 +351,7 @@ export function AgentPanel({
         {changes.length ? (
           <div className="dz-list">
             {changes.map((change) => {
-              const file = change.path.replace(/^design\/boards\//, '');
+              const file = boardFile(change.path) ?? change.path;
               const off = skipped.has(change.path);
               return (
                 <div key={change.path} className={`dz-change${off ? ' off' : ''}`}>
@@ -420,14 +438,14 @@ export function AgentPanel({
                 (width) => (
                   <a
                     key={`${file}-${width}`}
-                    href={`${api(projectId)}/render?task=${encodeURIComponent(ask.id)}&board=${encodeURIComponent(file)}&width=${width}`}
+                    href={`${designApi(projectId, artifact)}/render?task=${encodeURIComponent(ask.id)}&board=${encodeURIComponent(file)}&width=${width}`}
                     target="_blank"
                     rel="noreferrer"
                   >
                     <img
                       alt={`${boardName(file)} at ${width}`}
                       loading="lazy"
-                      src={`${api(projectId)}/render?task=${encodeURIComponent(ask.id)}&board=${encodeURIComponent(file)}&width=${width}`}
+                      src={`${designApi(projectId, artifact)}/render?task=${encodeURIComponent(ask.id)}&board=${encodeURIComponent(file)}&width=${width}`}
                     />
                     <span className="dz-meta">
                       {boardName(file)} · {width}

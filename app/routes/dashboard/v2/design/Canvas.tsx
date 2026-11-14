@@ -606,7 +606,8 @@ export function DesignCanvas({
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
       >
         {Object.entries(canvas.notes ?? {})
-          .filter(([id]) => id.startsWith('section-'))
+          // A canvas with nothing on it yet shows no page titles, only the way to start it.
+          .filter(([id]) => id.startsWith('section-') && Object.keys(canvas.boards).length)
           .map(([id, note]) => (
             <div
               key={id}

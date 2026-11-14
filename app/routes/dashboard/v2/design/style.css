@@ -2945,3 +2945,23 @@ button.dz-link-row:hover,
   max-width: 100%;
   height: auto;
 }
+
+/* A new design's canvas: nothing on it yet (board DesignNewEmpty). */
+.dz-stage > .dl-empty.dz-blank {
+  z-index: 5;
+  max-width: 360px;
+  pointer-events: none;
+}
+.dz-blank .dl-actions {
+  pointer-events: auto;
+}
+.dz-layers-none {
+  margin: 0;
+  padding: var(--ds-space-2) var(--ds-space-4);
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-ui);
+}
+/* Propose sits at the end of the narrow bar. */
+.dz-narrow-bar > .dl-grow {
+  flex: 1;
+}

@@ -443,6 +443,7 @@ async function designBranches(repo: string) {
     folderArtifact(folder) ? 'refs/heads/artifact/' : 'refs/heads/design/',
   ]);
   const main = (await gitRead(repo, ['symbolic-ref', '--short', 'HEAD'])) || 'main';
+  const made = await madeOnBranch(repo, main, folder);
   return Promise.all(
     (out ? out.split('\n') : [])
       .filter((line) => ownsBranch(line.split('\t')[0], folder))
@@ -452,7 +453,7 @@ async function designBranches(repo: string) {
         const edits = Number(
           (await gitRead(repo, ['rev-list', '--count', `${main}..${commit}`])) ?? 0,
         );
-        return { name, commit, updatedAt, by, edits };
+        return { name, commit, updatedAt, by, edits: Math.max(0, edits - made) };
       }),
   );
 }
@@ -462,6 +463,7 @@ async function presentedDesignBranches(repo: string) {
   const main = await presentationCommit(repo, snapshot.symbolicHead || 'main').catch(() => null);
   if (!main) return designBranches(repo);
   const folder = designFolder();
+  const made = await madeOnBranch(repo, main, folder);
   const branches = snapshot.refs
     .filter((ref) => ref.name.startsWith('refs/heads/') && ownsBranch(ref.name.slice(11), folder))
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
@@ -472,11 +474,23 @@ async function presentedDesignBranches(repo: string) {
       commit: ref.oid,
       updatedAt: ref.updatedAt,
       by: ref.by,
-      edits: Number(
-        (await optionalCommitText(repo, ['rev-list', '--count', `${main}..${ref.oid}`])) ?? 0,
+      edits: Math.max(
+        0,
+        Number(
+          (await optionalCommitText(repo, ['rev-list', '--count', `${main}..${ref.oid}`])) ?? 0,
+        ) - made,
       ),
     })),
   );
+}
+
+/**
+ * 1 when this design is an artifact main does not have yet: its branch's first commit only made
+ * its files, which is not an edit. 0 otherwise.
+ */
+async function madeOnBranch(repo: string, main: string, folder: string) {
+  if (!folderArtifact(folder)) return 0;
+  return (await gitRead(repo, ['ls-tree', '--name-only', main, `${folder}/`])) ? 0 : 1;
 }
 
 function branchSlug(name: string) {
@@ -3052,6 +3066,8 @@ async function projectDesignApi(
             ref,
             commit,
             canvas,
+            // An artifact made on its branch that main does not have yet.
+            fresh: Boolean(await madeOnBranch(repo, await mainBranch(repo), dir)),
             branches: await presentedDesignBranches(repo),
             openComments: open.length,
           });
@@ -3234,27 +3250,33 @@ async function projectDesignApi(
             '--',
             `${dir}/`,
           ]);
+          // A new artifact's canvas.json only made it; until something is drawn there is no change.
+          const made = folderArtifact()
+            ? !(await gitRead(repo, ['ls-tree', '--name-only', mergeBase, `${dir}/`]))
+            : false;
           const files = await Promise.all(
-            (out ? out.split('\n') : []).map(async (line) => {
-              const [code, path] = line.split('\t');
-              const status = code === 'A' ? 'added' : code === 'D' ? 'removed' : 'changed';
-              // A changed board also says what changed in it, layer by layer.
-              if (
-                status !== 'changed' ||
-                !path.startsWith(`${dir}/boards/`) ||
-                !path.endsWith('.html')
-              )
-                return { status, path };
-              const [before, after] = await Promise.all([
-                readFile(repo, mergeBase, path),
-                readFile(repo, commit, path),
-              ]);
-              return {
-                status,
-                path,
-                layers: before && after ? layerChanges(before.toString(), after.toString()) : [],
-              };
-            }),
+            (out ? out.split('\n') : [])
+              .filter((line) => !(made && line === `A\t${dir}/canvas.json`))
+              .map(async (line) => {
+                const [code, path] = line.split('\t');
+                const status = code === 'A' ? 'added' : code === 'D' ? 'removed' : 'changed';
+                // A changed board also says what changed in it, layer by layer.
+                if (
+                  status !== 'changed' ||
+                  !path.startsWith(`${dir}/boards/`) ||
+                  !path.endsWith('.html')
+                )
+                  return { status, path };
+                const [before, after] = await Promise.all([
+                  readFile(repo, mergeBase, path),
+                  readFile(repo, commit, path),
+                ]);
+                return {
+                  status,
+                  path,
+                  layers: before && after ? layerChanges(before.toString(), after.toString()) : [],
+                };
+              }),
           );
           return sendJson(res, { base: mergeBase, commit, files });
         },

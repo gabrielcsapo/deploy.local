@@ -22,10 +22,15 @@ export function NewArtifact({
   const [project, setProject] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // A fresh dialog each time a kind is picked; the project list may arrive after it opens.
   useEffect(() => {
     if (!kind) return;
     setName('');
     setError('');
+    setBusy(false);
+  }, [kind]);
+  useEffect(() => {
+    if (!kind) return;
     let last: string | null = null;
     try {
       last = localStorage.getItem(`deploy.design.lastProject.${getAuth()?.username ?? ''}`);
@@ -99,7 +104,7 @@ export function NewArtifact({
           <label className="dl-field-label" htmlFor="artifact-project">
             Project
           </label>
-          <label className="dl-field af-select">
+          <div className="dl-field af-select">
             <select
               id="artifact-project"
               value={project}
@@ -112,7 +117,7 @@ export function NewArtifact({
               ))}
             </select>
             <Icon name="down" size={14} />
-          </label>
+          </div>
           {note && <p className="dl-meta af-note">{note}</p>}
         </div>
       </form>

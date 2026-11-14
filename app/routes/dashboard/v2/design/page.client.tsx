@@ -46,6 +46,12 @@ import {
   type Mark,
   type Note,
   type Tokens,
+  apiArtifact,
+  boardFile,
+  ownsBranch,
+  branchArtifact,
+  designApi,
+  designFolderOf,
 } from './model';
 import {
   AssetsPanel,
@@ -56,6 +62,7 @@ import {
   type Placing,
 } from './Assets';
 import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from './Panels';
+import { DesignArtifact } from './artifact-context';
 import { Play } from './Play';
 import { PickSheet } from './Pickers';
 import './style.css';
@@ -103,8 +110,16 @@ export default function DesignPage() {
   // The place is Artifacts now: the old address with nothing in it opens the gallery.
   if (!canvasProject && !params.has('project') && params.get('view') !== 'review')
     return <ToGallery />;
+  // A design under Artifacts: named in the address, or by the branch a review proposes.
+  const canvasArtifact = reviewId
+    ? branchArtifact(reviewBranch(reviewId))
+    : (params.get('artifact') ?? null);
   return canvasProject ? (
-    <DesignCanvasPage key={`${canvasProject}:${reviewId ?? ''}`} initialProject={canvasProject} />
+    <DesignCanvasPage
+      key={`${canvasProject}:${canvasArtifact ?? ''}:${reviewId ?? ''}`}
+      initialProject={canvasProject}
+      initialArtifact={canvasArtifact}
+    />
   ) : (
     <ToReview
       projectId={params.get('project') ?? undefined}
@@ -115,11 +130,23 @@ export default function DesignPage() {
 }
 
 function ToGallery() {
-  useEffect(() => window.location.replace('/dashboard/artifacts'), []);
+  useEffect(() => {
+    // Read the address itself: during a client-side navigation the router's parameters can lag.
+    const now = new URLSearchParams(window.location.search);
+    if (window.location.pathname !== '/dashboard/design') return;
+    if (now.has('project') || now.has('review') || now.get('view') === 'review') return;
+    window.location.replace('/dashboard/artifacts');
+  }, []);
   return <Skeleton block label="Loading artifacts" />;
 }
 
-function DesignCanvasPage({ initialProject }: { initialProject: string }) {
+function DesignCanvasPage({
+  initialProject,
+  initialArtifact,
+}: {
+  initialProject: string;
+  initialArtifact: string | null;
+}) {
   const seed = useDataSeed();
   const [params] = useSearchParams();
   const inbox = useInbox();
@@ -132,6 +159,10 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const project = projects.data?.projects.find((item) => item.id === projectId);
   const reviewId = params.get('review');
   const review = useCanvasReview(projectId, reviewId);
+  const [chosenArtifact, setArtifact] = useState(initialArtifact);
+  // A review names its design's API, which settles which design this is.
+  const artifact = review.data?.api ? apiArtifact(review.data.api) : chosenArtifact;
+  const api = projectId ? designApi(projectId, artifact) : '';
   const [ref, setRef] = useState(reviewId ? reviewBranch(reviewId) : (params.get('ref') ?? 'HEAD'));
   const reviewData = review.data;
   const reviewBoards = useMemo(() => (reviewData ? reviewFrames(reviewData) : []), [reviewData]);
@@ -143,13 +174,11 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   // The design loads from the id in the address, alongside the project list rather than after it.
   const designPath =
     projectId && (!reviewId || reviewData)
-      ? `/api/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(readRef)}`
+      ? `${api}?ref=${encodeURIComponent(readRef)}`
       : undefined;
   const design = useData<Design>(designPath);
   const beforeDesign = useData<Design>(
-    reviewData
-      ? `/api/projects/${encodeURIComponent(projectId)}/design?ref=${encodeURIComponent(reviewData.before)}`
-      : undefined,
+    reviewData ? `${api}?ref=${encodeURIComponent(reviewData.before)}` : undefined,
   );
   useEffect(() => {
     if (!project || !design.data?.canvas || !Object.keys(design.data.canvas.boards).length) return;
@@ -163,7 +192,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   const [taskId, setTaskId] = useState(reviewId ? '' : (params.get('task') ?? ''));
   const [mode, setMode] = useState<OverlayMode>('overlay');
   const [poll, setPoll] = useState(0);
-  const projectApi = projectId ? `/api/projects/${encodeURIComponent(projectId)}/design` : '';
+  const projectApi = api;
   const agentDesign = useData<Design>(
     project && taskId ? `${projectApi}?task=${encodeURIComponent(taskId)}&v=${poll}` : undefined,
   );
@@ -172,7 +201,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
       ? `${projectApi}/changes?task=${encodeURIComponent(taskId)}&v=${poll}`
       : undefined,
   );
-  const { asks } = useAsks(projectId, poll);
+  const { asks } = useAsks(projectId, poll, artifact);
   const ask = asks.find((item) => item.id === taskId);
   useEffect(() => {
     if (!taskId) return;
@@ -215,16 +244,13 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     setFrameCommit(shown.commit);
     setBoardSrc(new Map());
   }, [shown]);
-  const filesAt = (commit: string) =>
-    `/api/projects/${encodeURIComponent(projectId)}/design/files/${commit}`;
+  const filesAt = (commit: string) => `${api}/files/${commit}`;
   const base = projectId && shown && frameCommit ? filesAt(frameCommit) : null;
   const agentBoards = useMemo(
     () =>
       new Set(
         overlay && mode === 'overlay'
-          ? lastChanges
-              .filter((change) => change.path.startsWith('design/boards/'))
-              .map((change) => change.path.slice('design/boards/'.length))
+          ? lastChanges.map((change) => boardFile(change.path)).filter((file) => file !== null)
           : [],
       ),
     [overlay, mode, lastChanges],
@@ -234,9 +260,9 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     const byBoard = new Map<string, LayerChange[]>();
     if (overlay && mode === 'overlay')
       for (const change of lastChanges)
-        if (change.path.startsWith('design/boards/') && change.layers?.length)
+        if (boardFile(change.path) && change.layers?.length)
           byBoard.set(
-            change.path.slice('design/boards/'.length),
+            boardFile(change.path)!,
             change.layers.filter((layer) => layer.change !== 'removed'),
           );
     return byBoard;
@@ -263,7 +289,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   }, [owner]);
   const [tab, setTab] = useState<'edit' | 'prototype' | 'comments'>('edit');
   const [commentFocus, setCommentFocus] = useState(0);
-  const { comments, refresh: refreshComments } = useComments(projectId);
+  const { comments, refresh: refreshComments } = useComments(projectId, artifact);
   const [asking, setAsking] = useState(false);
   // Agents working on this design right now: a light poll of the coordinator's presence.
   const [agents, setAgents] = useState<AgentPresence[]>(
@@ -340,28 +366,36 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     () => (tokensData.data ? readTokens(tokensData.data) : noTokens),
     [tokensData.data],
   );
-  const branchChanges = useChanges(reviewId ? undefined : projectId, ref, design.data?.commit);
+  const branchChanges = useChanges(
+    reviewId ? undefined : projectId,
+    ref,
+    design.data?.commit,
+    artifact,
+  );
   const changes = useMemo(
     () =>
       reviewId
         ? reviewBoards.map((board) => ({
             status: board.status,
-            path: `design/boards/${board.file}`,
+            path: `${designFolderOf(artifact)}/boards/${board.file}`,
             layers: undefined,
           }))
         : branchChanges,
-    [reviewId, reviewBoards, branchChanges],
+    [reviewId, reviewBoards, branchChanges, artifact],
   );
   const changed = useMemo(
-    () =>
-      new Set(
-        changes
-          .filter((change) => change.path.startsWith('design/boards/'))
-          .map((change) => change.path.slice('design/boards/'.length)),
-      ),
+    () => new Set(changes.map((change) => boardFile(change.path)).filter((file) => file !== null)),
     [changes],
   );
-  const sections = useMemo(() => (canvas ? readSections(canvas) : []), [canvas]);
+  const sections = useMemo(() => {
+    if (!canvas) return [];
+    const placed = readSections(canvas);
+    if (placed.length || Object.keys(canvas.boards).length) return placed;
+    // A new design has its pages and nothing on them yet; they still list, empty.
+    return Object.entries(canvas.notes ?? {})
+      .filter(([id, note]) => id.startsWith('section-') && note.text)
+      .map(([id, note]) => ({ id, title: note.text!, x: note.x, y: note.y, boards: [] }));
+  }, [canvas]);
   const [sectionId, setSectionId] = useState(params.get('page') ?? '');
   const section = sections.find((item) => item.id === sectionId) ?? sections[0] ?? null;
   const [selection, setSelection] = useState<Selection>(
@@ -516,7 +550,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
           body: JSON.stringify({
             ...body,
             ref: at.ref,
-            expect: at.ref.startsWith('design/') ? at.commit : undefined,
+            expect: ownsBranch(at.ref, artifact) ? at.commit : undefined,
           }),
         });
         ownCommits.current.add(result.commit);
@@ -894,7 +928,7 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
     if (!name || !project) return;
     try {
       const { branch } = await request<{ branch: { name: string } }>(
-        `/api/projects/${encodeURIComponent(project.id)}/design/branches`,
+        `${designApi(project.id, artifact)}/branches`,
         { method: 'POST', body: JSON.stringify({ name, from: design.data?.commit ?? 'HEAD' }) },
       );
       chooseRef(branch.name);
@@ -993,7 +1027,11 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   ];
 
   const propose =
-    !reviewId && ref.startsWith('design/') && changes.length && project
+    !reviewId &&
+    ownsBranch(ref, artifact) &&
+    // A new design can be proposed as it is: making it is the change.
+    (changes.length || design.data?.fresh) &&
+    project
       ? {
           state: (proposing ? 'busy' : inReview ? 'in-review' : 'ready') as
             | 'ready'
@@ -1007,6 +1045,28 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
           run: () => setProposalOpen(true),
         }
       : null;
+  // A new design: its canvas has nothing on it yet, and an agent can be asked to start it.
+  const blank = Boolean(canvas && !reviewId && !Object.keys(canvas.boards).length);
+  const designName = (artifact ? canvas?.title : project?.name) || artifact || project?.name || '';
+  /** Open another design: a project's App design, or one of its designs under Artifacts. */
+  const openDesign = (id: string, next: string | null) => {
+    if (reviewId) {
+      window.location.assign(
+        `/dashboard/design?${new URLSearchParams({ project: id, ...(next ? { artifact: next } : {}), view: 'canvas' })}`,
+      );
+      return;
+    }
+    setProjectId(id);
+    setArtifact(next);
+    try {
+      localStorage.setItem(`deploy.design.lastProject.${owner}`, id);
+    } catch {
+      /* Storage is optional. */
+    }
+    setRef('HEAD');
+    setSelection(null);
+    remember({ project: id, artifact: next, ref: null, board: null, layer: null, page: null });
+  };
   const nameFor = (board: string, layer: string) =>
     nameOf(frames.current.get(board)?.contentDocument, layer);
   // The ask box opens under the selection, kept inside the canvas.
@@ -1038,721 +1098,717 @@ function DesignCanvasPage({ initialProject }: { initialProject: string }) {
   }
   const empty = projects.data && !projects.data.projects.length;
   return (
-    <div
-      className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${hidden.left ? ' left-hidden' : ''}${hidden.right ? ' right-hidden' : ''}${layersOpen ? ' layers-open' : ''}`}
-      ref={stage}
-    >
-      <Dialog
-        className="dl-propose-dialog"
-        open={proposalOpen}
-        onClose={() => !proposing && setProposalOpen(false)}
-        title="Propose for review"
-        actions={
-          <>
-            <Action disabled={proposing} onClick={() => setProposalOpen(false)}>
-              Cancel
-            </Action>
+    <DesignArtifact.Provider value={artifact}>
+      <div
+        className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${hidden.left ? ' left-hidden' : ''}${hidden.right ? ' right-hidden' : ''}${layersOpen ? ' layers-open' : ''}`}
+        ref={stage}
+      >
+        <Dialog
+          className="dl-propose-dialog"
+          open={proposalOpen}
+          onClose={() => !proposing && setProposalOpen(false)}
+          title="Propose for review"
+          actions={
+            <>
+              <Action disabled={proposing} onClick={() => setProposalOpen(false)}>
+                Cancel
+              </Action>
+              <Action
+                variant="primary"
+                disabled={proposing || !proposalTitle.trim() || !proposalSummary.trim()}
+                onClick={() => void sendProposal()}
+              >
+                Propose
+              </Action>
+            </>
+          }
+        >
+          <form
+            className="dl-propose-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendProposal();
+            }}
+          >
+            <Field
+              label="What is this?"
+              required
+              maxLength={200}
+              value={proposalTitle}
+              onChange={(event) => setProposalTitle(event.target.value)}
+            />
+            <label>
+              What changed, and why?
+              <textarea
+                className="dl-textarea"
+                required
+                maxLength={4000}
+                value={proposalSummary}
+                onChange={(event) => setProposalSummary(event.target.value)}
+              />
+            </label>
+            <p className="dl-meta">The reviewer reads this first.</p>
+            {proposalError && <p role="alert">{proposalError}</p>}
+          </form>
+        </Dialog>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
+        />
+        <div className="dz-phone-bar">
+          <button
+            type="button"
+            className="dl-icon-btn"
+            aria-label="Show sidebar"
+            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+          >
+            <Icon name="menu" />
+          </button>
+          <span className="dz-phone-title">
+            <b>{selection ? boardName(selection.board) : 'Designs'}</b>
+            <button
+              type="button"
+              className="dz-phone-sub"
+              aria-haspopup="dialog"
+              aria-expanded={pickSheet}
+              onClick={() => setPickSheet(true)}
+            >
+              {project?.name ?? ''}
+              {' · '}
+              <Icon name="branch" size={11} />
+              {selection
+                ? ref === 'HEAD'
+                  ? 'main'
+                  : ref
+                : (section?.title.replace(/^[\w]+\s·\s/, '') ?? '')}
+              <Icon name="down" size={10} />
+            </button>
+          </span>
+          <button
+            type="button"
+            className="dl-icon-btn"
+            aria-label="Comments"
+            onClick={() => {
+              setTab('comments');
+              if (!selection && section?.boards[0])
+                select({ board: section.boards[0], layer: null });
+            }}
+          >
+            <Icon name="comment" size={18} />
+          </button>
+          {propose && (
             <Action
               variant="primary"
-              disabled={proposing || !proposalTitle.trim() || !proposalSummary.trim()}
-              onClick={() => void sendProposal()}
+              disabled={propose.state === 'in-review'}
+              loading={propose.state === 'busy'}
+              onClick={propose.run}
             >
-              Propose
+              {propose.state === 'in-review' ? 'In review' : 'Propose'}
             </Action>
-          </>
-        }
-      >
-        <form
-          className="dl-propose-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void sendProposal();
-          }}
-        >
-          <Field
-            label="What is this?"
-            required
-            maxLength={200}
-            value={proposalTitle}
-            onChange={(event) => setProposalTitle(event.target.value)}
-          />
-          <label>
-            What changed, and why?
-            <textarea
-              className="dl-textarea"
-              required
-              maxLength={4000}
-              value={proposalSummary}
-              onChange={(event) => setProposalSummary(event.target.value)}
-            />
-          </label>
-          <p className="dl-meta">The reviewer reads this first.</p>
-          {proposalError && <p role="alert">{proposalError}</p>}
-        </form>
-      </Dialog>
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
-      />
-      <div className="dz-phone-bar">
-        <button
-          type="button"
-          className="dl-icon-btn"
-          aria-label="Show sidebar"
-          onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
-        >
-          <Icon name="menu" />
-        </button>
-        <span className="dz-phone-title">
-          <b>{selection ? boardName(selection.board) : 'Designs'}</b>
-          <button
-            type="button"
-            className="dz-phone-sub"
-            aria-haspopup="dialog"
-            aria-expanded={pickSheet}
-            onClick={() => setPickSheet(true)}
-          >
-            {project?.name ?? ''}
-            {' · '}
-            <Icon name="branch" size={11} />
-            {selection
-              ? ref === 'HEAD'
-                ? 'main'
-                : ref
-              : (section?.title.replace(/^[\w]+\s·\s/, '') ?? '')}
-            <Icon name="down" size={10} />
-          </button>
-        </span>
-        <button
-          type="button"
-          className="dl-icon-btn"
-          aria-label="Comments"
-          onClick={() => {
-            setTab('comments');
-            if (!selection && section?.boards[0]) select({ board: section.boards[0], layer: null });
-          }}
-        >
-          <Icon name="comment" size={18} />
-        </button>
-        {propose && (
-          <Action
-            variant="primary"
-            disabled={propose.state === 'in-review'}
-            loading={propose.state === 'busy'}
-            onClick={propose.run}
-          >
-            {propose.state === 'in-review' ? 'In review' : 'Propose'}
-          </Action>
-        )}
-      </div>
-      <div className="dz-narrow-bar">
-        <a className="dl-icon-btn" aria-label="Back to Artifacts" href="/dashboard/artifacts">
-          <Icon name="back" />
-        </a>
-        <span className="dz-narrow-menu">
-          <button
-            type="button"
-            className="dz-mark"
-            aria-label="deploy.local menu"
-            aria-haspopup="menu"
-            aria-expanded={narrowMenu}
-            onClick={() => setNarrowMenu(!narrowMenu)}
-          >
-            <span className="dz-narrow-title">Artifacts</span>
-            <Icon name="down" size={12} />
-            {waiting.length > 0 && <span className="dz-badge">{waiting.length}</span>}
-          </button>
-          <DesignMenu
-            open={narrowMenu}
-            onClose={() => setNarrowMenu(false)}
-            waiting={waiting}
-            branches={design.data?.branches ?? []}
-            current={ref}
-            onRef={(next) => {
-              setNarrowMenu(false);
-              chooseRef(next);
-            }}
-            onNewBranch={() => {
-              setNarrowMenu(false);
-              void newBranch();
-            }}
-          />
-        </span>
-        <label className="dz-narrow-page">
-          <Icon name="layers" size={13} />
-          <select
-            value={section?.id ?? ''}
-            onChange={(event) => chooseSection(event.target.value)}
-            aria-label="Page"
-          >
-            {sections.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-          <Icon name="down" size={12} />
-        </label>
-        <span className="dl-grow" />
-        {propose && (
-          <Action
-            variant="primary"
-            disabled={propose.state === 'in-review'}
-            loading={propose.state === 'busy'}
-            onClick={propose.run}
-          >
-            {propose.state === 'in-review' ? 'In review' : 'Propose'}
-          </Action>
-        )}
-      </div>
-      <LeftPanel
-        projects={projects.data?.projects ?? []}
-        project={project}
-        onProject={(id) => {
-          if (reviewId) {
-            window.location.assign(
-              `/dashboard/design?project=${encodeURIComponent(id)}&view=canvas`,
-            );
-            return;
-          }
-          setProjectId(id);
-          try {
-            localStorage.setItem(`deploy.design.lastProject.${owner}`, id);
-          } catch {
-            /* Storage is optional. */
-          }
-          setRef('HEAD');
-          setSelection(null);
-          remember({ project: id, ref: null, board: null, layer: null, page: null });
-        }}
-        design={design.data}
-        current={ref}
-        sections={sections}
-        section={section}
-        onSection={chooseSection}
-        selection={selection}
-        select={select}
-        base={base}
-        boardSrc={boardSrc}
-        changed={changed}
-        owner={owner}
-        reviewing={reviewingBranches}
-        onRef={chooseRef}
-        onNewBranch={newBranch}
-        inReview={inReviewBoards}
-        agentAt={agentAt}
-        onHide={() => showPanel('left', false)}
-        onCloseSheet={() => setLayersOpen(false)}
-        loose={loose}
-        mark={mark}
-        onLoose={showLoose}
-        links={tab === 'prototype' || connections ? links : undefined}
-        assets={
-          <AssetsPanel
-            library={assets ? assets.library : undefined}
-            files={base}
-            picked={inAssets?.component.id ?? null}
-            onPick={(component) => {
-              select(null);
-              setPicked({ component, props: {} });
-            }}
-            onDrag={dragComponent}
-          />
-        }
-      />
-      <div className="dz-stage">
-        {reviewId && (
-          <CanvasReviewBar
-            review={review}
-            suggestions={
-              reviewData ? reviewFeedback(reviewData, comments, ref, design.data?.commit) : ''
-            }
-            beforeDecision={async (action) => {
-              await queue.current;
-              if (!reviewData) return '';
-              if (action !== 'changes') return '';
-              const latest = await request<{ comments: Comment[] }>(`${projectApi}/comments`);
-              return reviewFeedback(
-                reviewData,
-                latest.comments,
-                head.current?.ref ?? ref,
-                head.current?.commit ?? design.data?.commit,
-              );
-            }}
-          />
-        )}
-        {!reviewId &&
-          (proposals.data?.proposals.filter((entry) => entry.state === 'waiting').length ?? 0) >
-            0 && (
-            <div className="dl-design-waiting-banner">
-              <span>
-                {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length}{' '}
-                design
-                {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
-                  ? ''
-                  : 's'}{' '}
-                waiting on you
-                {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length === 1
-                  ? ` · ${proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.title}`
-                  : ''}
-              </span>
-              <a
-                href={
-                  proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length ===
-                  1
-                    ? reviewHref(
-                        proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.id,
-                      )
-                    : `/dashboard/design?project=${encodeURIComponent(projectId)}&view=review`
-                }
-              >
-                Review
-              </a>
-            </div>
           )}
-        {(hidden.left || hidden.right) && (
-          <div className="dz-panel-shows">
-            {hidden.left && (
-              <button
-                type="button"
-                className="dz-panel-show left"
-                aria-label="Show left panel"
-                title="Show left panel"
-                onClick={() => showPanel('left', true)}
-              >
-                <Icon name="sidebar" size={15} />
-              </button>
-            )}
-            {hidden.right && (
-              <button
-                type="button"
-                className="dz-panel-show right"
-                aria-label="Show right panel"
-                title="Show right panel"
-                onClick={() => showPanel('right', true)}
-              >
-                <Icon name="panel" size={15} />
-              </button>
-            )}
-          </div>
-        )}
-        {empty ? (
-          <Empty title="No projects yet">
-            Add a project with a design/ folder to see its boards here.
-          </Empty>
-        ) : design.error ? (
-          <Empty title="Couldn’t open the design">{design.error}</Empty>
-        ) : design.data && !canvas ? (
-          <Empty title="This project has no design yet">
-            Add design/canvas.json and boards in design/boards to see them here.
-          </Empty>
-        ) : canvas && base ? (
-          <DesignCanvas
-            canvas={canvas}
-            section={section}
-            base={base}
-            view={view}
-            setView={setView}
-            tool={tool}
-            selection={selection}
-            select={pickWithTool}
-            frames={frames}
-            revision={revision}
-            onFrameLoad={() => setRevision((n) => n + 1)}
-            agentBoards={agentBoards}
-            agentLayers={agentLayers}
-            inReview={inReviewBoards}
-            review={
-              reviewId
-                ? {
-                    api: review.api,
-                    item: reviewId,
-                    boards: reviewByFile,
-                    side: review.side,
-                    approve: review.approveFrame,
-                    busy: review.busy,
-                    waiting: reviewData?.item.state === 'waiting',
-                  }
-                : undefined
-            }
-            onFollow={reviewId ? focusReviewFrame : undefined}
-            agents={agents}
-            boardSrc={boardSrc}
-            onEditText={
-              editable
-                ? (board, layer, text) => edit(board, layer, [{ op: 'text', text }])
-                : undefined
-            }
-            onDraw={editable ? draw : undefined}
-            onNote={editable ? editNote : undefined}
-            retypeNext={retypeNext}
-            onRetyped={() => setRetypeNext(null)}
-            placing={placing}
-            onTarget={(target) => {
-              dropAt.current = target;
-              setDropping(target);
-            }}
-            owner={owner}
-            designFiles={base}
-            mark={mark}
-            onMark={chooseMark}
-            onMoveMark={editable ? (id, x, y) => editMark(id, { x, y }) : undefined}
-            connections={connections ? { links, sidebar: sidebarLinks } : null}
-            prototype={
-              tab === 'prototype'
-                ? {
-                    links,
-                    sidebar: sidebarLinks,
-                    start,
-                    onLink: editable ? (board, layer, to) => setLink(board, layer, to) : undefined,
-                  }
-                : null
-            }
-          />
-        ) : (
-          <Skeleton block label="Loading the design" />
-        )}
-        {overlay && ask && (
-          <OverlayBar
-            ask={ask}
-            mode={mode}
-            setMode={setMode}
-            changes={lastChanges.filter((change) => !skipped.has(change.path)).length}
-            busy={accepting}
-            onAccept={() => {
-              const kept = lastChanges.filter((change) => !skipped.has(change.path));
-              void accept(
-                kept.length === lastChanges.length ? undefined : kept.map((change) => change.path),
-              );
-            }}
-            onDiscard={closeTask}
-          />
-        )}
-        {asking && (selection || inAssets) && project && design.data && (
-          <AskPopover
-            projectId={project.id}
-            designRef={ref}
-            selection={selection}
-            component={
-              !selection && inAssets
-                ? { id: inAssets.component.id, name: inAssets.component.name }
-                : undefined
-            }
-            target={
-              !selection
-                ? `the ${inAssets!.component.name} component`
-                : selection.layer
-                  ? nameFor(selection.board, selection.layer)
-                  : boardName(selection.board)
-            }
-            comments={
-              selection
-                ? comments.filter(
-                    (comment) =>
-                      !comment.resolved &&
-                      comment.board === selection.board &&
-                      (!selection.layer || comment.layer === selection.layer),
-                  ).length
-                : 0
-            }
-            position={askPosition()}
-            onClose={() => setAsking(false)}
-            onAsked={(id) => {
-              setAsking(false);
-              openTask(id);
-            }}
-          />
-        )}
-        <div className="dz-toolbar" role="toolbar" aria-label="Tools">
-          {reviewId && reviewNavigation}
-          {tools.map((item, index) => (
-            <span key={item.id} className="dz-tool-wrap">
-              {index === 6 && <i className="dz-sep" />}
-              <button
-                type="button"
-                className={`dz-tool${item.tool && tool === item.tool ? ' on' : ''}`}
-                aria-label={item.label}
-                aria-pressed={Boolean(item.tool && tool === item.tool)}
-                title={item.label}
-                disabled={!item.ready}
-                onClick={() => {
-                  setShapeMenu(false);
-                  if (item.id === 'ask') return selection && setAsking(true);
-                  if (item.tool) setTool(item.tool);
-                }}
-              >
-                <Icon name={item.icon} size={18} />
-              </button>
-              {item.menu && (
-                <button
-                  type="button"
-                  className="dz-tool-more"
-                  aria-label={
-                    item.id === 'move' ? 'Hand  H' : item.id === 'shape' ? 'Shapes' : item.label
-                  }
-                  aria-expanded={item.id === 'shape' ? shapeMenu : undefined}
-                  title={item.id === 'move' ? 'Hand  H' : undefined}
-                  disabled={item.id === 'shape' ? !editable : item.id !== 'move'}
-                  onClick={() =>
-                    item.id === 'shape'
-                      ? setShapeMenu((open) => !open)
-                      : setTool(tool === 'hand' ? 'move' : 'hand')
+        </div>
+        <div className="dz-narrow-bar">
+          <a className="dl-icon-btn" aria-label="Back to Artifacts" href="/dashboard/artifacts">
+            <Icon name="back" />
+          </a>
+          <span className="dz-narrow-menu">
+            <button
+              type="button"
+              className="dz-mark"
+              aria-label="deploy.local menu"
+              aria-haspopup="menu"
+              aria-expanded={narrowMenu}
+              onClick={() => setNarrowMenu(!narrowMenu)}
+            >
+              <span className="dz-narrow-title">Artifacts</span>
+              <Icon name="down" size={12} />
+              {waiting.length > 0 && <span className="dz-badge">{waiting.length}</span>}
+            </button>
+            <DesignMenu
+              open={narrowMenu}
+              onClose={() => setNarrowMenu(false)}
+              waiting={waiting}
+              branches={design.data?.branches ?? []}
+              current={ref}
+              onRef={(next) => {
+                setNarrowMenu(false);
+                chooseRef(next);
+              }}
+              onNewBranch={() => {
+                setNarrowMenu(false);
+                void newBranch();
+              }}
+            />
+          </span>
+          <label className="dz-narrow-page">
+            <Icon name="layers" size={13} />
+            <select
+              value={section?.id ?? ''}
+              onChange={(event) => chooseSection(event.target.value)}
+              aria-label="Page"
+            >
+              {sections.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+            <Icon name="down" size={12} />
+          </label>
+          <span className="dl-grow" />
+          {propose && (
+            <Action
+              variant="primary"
+              disabled={propose.state === 'in-review'}
+              loading={propose.state === 'busy'}
+              onClick={propose.run}
+            >
+              {propose.state === 'in-review' ? 'In review' : 'Propose'}
+            </Action>
+          )}
+        </div>
+        <LeftPanel
+          project={project}
+          onDesign={openDesign}
+          design={design.data}
+          current={ref}
+          sections={sections}
+          section={section}
+          onSection={chooseSection}
+          selection={selection}
+          select={select}
+          base={base}
+          boardSrc={boardSrc}
+          changed={changed}
+          owner={owner}
+          reviewing={reviewingBranches}
+          onRef={chooseRef}
+          onNewBranch={newBranch}
+          inReview={inReviewBoards}
+          agentAt={agentAt}
+          onHide={() => showPanel('left', false)}
+          onCloseSheet={() => setLayersOpen(false)}
+          loose={loose}
+          mark={mark}
+          onLoose={showLoose}
+          links={tab === 'prototype' || connections ? links : undefined}
+          assets={
+            <AssetsPanel
+              library={assets ? assets.library : undefined}
+              files={base}
+              picked={inAssets?.component.id ?? null}
+              onPick={(component) => {
+                select(null);
+                setPicked({ component, props: {} });
+              }}
+              onDrag={dragComponent}
+            />
+          }
+        />
+        <div className="dz-stage">
+          {reviewId && (
+            <CanvasReviewBar
+              review={review}
+              suggestions={
+                reviewData ? reviewFeedback(reviewData, comments, ref, design.data?.commit) : ''
+              }
+              beforeDecision={async (action) => {
+                await queue.current;
+                if (!reviewData) return '';
+                if (action !== 'changes') return '';
+                const latest = await request<{ comments: Comment[] }>(`${projectApi}/comments`);
+                return reviewFeedback(
+                  reviewData,
+                  latest.comments,
+                  head.current?.ref ?? ref,
+                  head.current?.commit ?? design.data?.commit,
+                );
+              }}
+            />
+          )}
+          {!reviewId &&
+            (proposals.data?.proposals.filter((entry) => entry.state === 'waiting').length ?? 0) >
+              0 && (
+              <div className="dl-design-waiting-banner">
+                <span>
+                  {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length}{' '}
+                  design
+                  {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length ===
+                  1
+                    ? ''
+                    : 's'}{' '}
+                  waiting on you
+                  {proposals.data!.proposals.filter((entry) => entry.state === 'waiting').length ===
+                  1
+                    ? ` · ${proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.title}`
+                    : ''}
+                </span>
+                <a
+                  href={
+                    proposals.data!.proposals.filter((entry) => entry.state === 'waiting')
+                      .length === 1
+                      ? reviewHref(
+                          proposals.data!.proposals.find((entry) => entry.state === 'waiting')!.id,
+                        )
+                      : `/dashboard/design?project=${encodeURIComponent(projectId)}&view=review`
                   }
                 >
-                  <Icon name={item.id === 'move' && tool === 'hand' ? 'hand' : 'down'} size={10} />
+                  Review
+                </a>
+              </div>
+            )}
+          {(hidden.left || hidden.right) && (
+            <div className="dz-panel-shows">
+              {hidden.left && (
+                <button
+                  type="button"
+                  className="dz-panel-show left"
+                  aria-label="Show left panel"
+                  title="Show left panel"
+                  onClick={() => showPanel('left', true)}
+                >
+                  <Icon name="sidebar" size={15} />
                 </button>
               )}
-              {item.id === 'shape' && shapeMenu && (
-                <div className="dz-shape-menu" role="menu" aria-label="Shapes">
-                  {(['rectangle', 'ellipse', 'line'] as const).map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={shape === name}
-                      className={shape === name ? 'on' : ''}
-                      onClick={() => {
-                        setShape(name);
-                        setTool(name);
-                        setShapeMenu(false);
-                      }}
-                    >
-                      <Icon name={name === 'rectangle' ? 'shape' : name} size={14} />
-                      {shapes[name]}
-                      <kbd>{shapeKeys[name]}</kbd>
-                    </button>
-                  ))}
-                </div>
+              {hidden.right && (
+                <button
+                  type="button"
+                  className="dz-panel-show right"
+                  aria-label="Show right panel"
+                  title="Show right panel"
+                  onClick={() => showPanel('right', true)}
+                >
+                  <Icon name="panel" size={15} />
+                </button>
               )}
-            </span>
-          ))}
-          <i className="dz-sep" />
-          <a
-            className={`dz-tool${selection ? '' : ' disabled'}`}
-            aria-label="View the board’s HTML"
-            title="View the board’s HTML"
-            href={
-              selection && base
-                ? `${boardSrc.get(selection.board)?.base ?? base}/boards/${encodeURIComponent(selection.board)}`
-                : undefined
-            }
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Icon name="code" size={18} />
-          </a>
-          <button
-            type="button"
-            className={`dz-tool dz-connections-toggle${connections ? ' on' : ''}`}
-            aria-label="Connections"
-            title="Connections ⇧C"
-            aria-pressed={connections}
-            onClick={toggleConnections}
-          >
-            <Icon name="connections" size={18} />
-          </button>
-        </div>
-        <div className="dz-phone-hud">
-          <span className="dz-phone-zoom">{Math.round(view.z * 100)}%</span>
-          {!selection && <span className="dz-phone-hint">Pinch to zoom · double-tap a board</span>}
-        </div>
-        <div className="dz-phone-tools" role="toolbar" aria-label="Tools">
-          {reviewId && reviewNavigation}
-          {(
-            [
-              ['move', 'move', 'Move'],
-              ['pen', 'pen', 'Pen'],
-              ['text', 'text', 'Text'],
-              ['sticky', 'sticky', 'Sticky note'],
-              ['comment', 'comment', 'Comment'],
-            ] as const
-          ).map(([id, icon, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`dz-tool${tool === id ? ' on' : ''}`}
-              aria-label={label}
-              aria-pressed={tool === id}
-              disabled={id !== 'move' && id !== 'comment' && !editable}
-              onClick={() => setTool(id)}
-            >
-              <Icon name={icon} size={18} />
-            </button>
-          ))}
-          <button
-            type="button"
-            className={`dz-tool${layersOpen ? ' on' : ''}`}
-            aria-label="Layers"
-            aria-pressed={layersOpen}
-            onClick={() => setLayersOpen(!layersOpen)}
-          >
-            <Icon name="layers" size={18} />
-          </button>
-          <button
-            type="button"
-            className={`dz-tool dz-connections-toggle${connections ? ' on' : ''}`}
-            aria-label="Connections"
-            title="Connections ⇧C"
-            aria-pressed={connections}
-            onClick={toggleConnections}
-          >
-            <Icon name="connections" size={18} />
-          </button>
-        </div>
-      </div>
-      <RightPanel
-        onHide={() => showPanel('right', false)}
-        project={project}
-        design={design.data}
-        canvas={canvas}
-        section={section}
-        selection={selection}
-        frames={frames}
-        tokens={tokens}
-        revision={revision}
-        view={view}
-        onZoom={(zoom) => {
-          const host = stage.current?.querySelector('.dz-canvas');
-          if (zoom === 'fit') return section && fitTo(section.boards);
-          if (!host) return;
-          const cx = host.clientWidth / 2;
-          const cy = host.clientHeight / 2;
-          setView((current) => ({
-            z: zoom,
-            x: cx - ((cx - current.x) * zoom) / current.z,
-            y: cy - ((cy - current.y) * zoom) / current.z,
-          }));
-        }}
-        changes={changes}
-        select={
-          reviewId
-            ? (next) => {
-                if (next) {
-                  focusReviewFrame(next.board);
-                  if (next.layer) select(next);
-                } else select(null);
-              }
-            : select
-        }
-        owner={owner}
-        tab={tab}
-        setTab={setTab}
-        commentCount={comments.filter((comment) => !comment.resolved).length}
-        onAsk={() => setAsking(true)}
-        propose={propose}
-        review={reviewData}
-        reviewing={Boolean(reviewId)}
-        reviewSide={review.side}
-        agents={agents}
-        onComment={() => {
-          setTab('comments');
-          setCommentFocus((n) => n + 1);
-        }}
-        htmlHref={
-          selection && base
-            ? `${boardSrc.get(selection.board)?.base ?? base}/boards/${encodeURIComponent(selection.board)}`
-            : null
-        }
-        onEdit={editable ? edit : undefined}
-        mark={shownMark}
-        onMark={editable && shownMark ? (patch) => editMark(shownMark.id, patch) : undefined}
-        onRemoveMark={editable && shownMark ? () => removeMark(shownMark.id) : undefined}
-        connections={connections}
-        onConnections={toggleConnections}
-        onConnection={(board) => {
-          const page = sections.find((item) => item.boards.includes(board));
-          if (!page) return;
-          setSectionId(page.id);
-          select({ board, layer: null });
-          remember({ page: page.id });
-          requestAnimationFrame(() => fitTo([board]));
-        }}
-        prototype={{
-          links,
-          sidebar: sidebarLinks,
-          setSidebar: setSidebarLinks,
-          start,
-          onStart: editable ? setStart : undefined,
-          onLink: editable ? setLink : undefined,
-        }}
-        onPlay={start && canvas ? () => setPlaying(start) : undefined}
-        component={componentPanel}
-        comments={
-          project ? (
-            <CommentsPanel
-              projectId={project.id}
-              commit={reviewData?.after ?? shown?.commit}
-              selection={selection}
-              select={select}
-              comments={comments}
-              refresh={refreshComments}
-              focus={commentFocus}
-              nameFor={nameFor}
-            />
-          ) : null
-        }
-        agent={
-          overlay && ask && project ? (
-            <AgentPanel
-              projectId={project.id}
-              ask={ask}
-              changes={lastChanges}
+            </div>
+          )}
+          {empty ? (
+            <Empty title="No projects yet">
+              Add a project with a design/ folder to see its boards here.
+            </Empty>
+          ) : design.error ? (
+            <Empty title="Couldn’t open the design">{design.error}</Empty>
+          ) : design.data && !canvas ? (
+            <Empty title="This project has no design yet">
+              Add design/canvas.json and boards in design/boards to see them here.
+            </Empty>
+          ) : canvas && base ? (
+            <DesignCanvas
               canvas={canvas}
-              skipped={skipped}
-              setSkipped={setSkipped}
-              busy={accepting}
-              onAccept={(paths) => void accept(paths)}
-              onDiscard={closeTask}
-              select={select}
-              nameFor={nameFor}
+              section={section}
+              base={base}
+              view={view}
+              setView={setView}
+              tool={tool}
+              selection={selection}
+              select={pickWithTool}
+              frames={frames}
+              revision={revision}
+              onFrameLoad={() => setRevision((n) => n + 1)}
+              agentBoards={agentBoards}
+              agentLayers={agentLayers}
+              inReview={inReviewBoards}
+              review={
+                reviewId
+                  ? {
+                      api: review.api,
+                      item: reviewId,
+                      boards: reviewByFile,
+                      side: review.side,
+                      approve: review.approveFrame,
+                      busy: review.busy,
+                      waiting: reviewData?.item.state === 'waiting',
+                    }
+                  : undefined
+              }
+              onFollow={reviewId ? focusReviewFrame : undefined}
+              agents={agents}
+              boardSrc={boardSrc}
+              onEditText={
+                editable
+                  ? (board, layer, text) => edit(board, layer, [{ op: 'text', text }])
+                  : undefined
+              }
+              onDraw={editable ? draw : undefined}
+              onNote={editable ? editNote : undefined}
+              retypeNext={retypeNext}
+              onRetyped={() => setRetypeNext(null)}
+              placing={placing}
+              onTarget={(target) => {
+                dropAt.current = target;
+                setDropping(target);
+              }}
+              owner={owner}
+              designFiles={base}
+              mark={mark}
+              onMark={chooseMark}
+              onMoveMark={editable ? (id, x, y) => editMark(id, { x, y }) : undefined}
+              connections={connections ? { links, sidebar: sidebarLinks } : null}
+              prototype={
+                tab === 'prototype'
+                  ? {
+                      links,
+                      sidebar: sidebarLinks,
+                      start,
+                      onLink: editable
+                        ? (board, layer, to) => setLink(board, layer, to)
+                        : undefined,
+                    }
+                  : null
+              }
             />
-          ) : null
-        }
-      />
-      <div className={`dz-sheet-scrim${selection ? ' on' : ''}`} onClick={() => select(null)} />
-      <PickSheet
-        open={pickSheet}
-        onClose={() => setPickSheet(false)}
-        first={selection ? 'branch' : 'page'}
-        projects={projects.data?.projects ?? []}
-        project={project}
-        onProject={(id) => {
-          if (reviewId) {
-            window.location.assign(
-              `/dashboard/design?project=${encodeURIComponent(id)}&view=canvas`,
-            );
-            return;
-          }
-          setProjectId(id);
-          try {
-            localStorage.setItem(`deploy.design.lastProject.${owner}`, id);
-          } catch {
-            /* Storage is optional. */
-          }
-          setRef('HEAD');
-          setSelection(null);
-          remember({ project: id, ref: null, board: null, layer: null, page: null });
-        }}
-        branches={design.data?.branches ?? []}
-        current={ref}
-        owner={owner}
-        reviewing={reviewingBranches}
-        onRef={chooseRef}
-        onNewBranch={() => void newBranch()}
-        sections={sections}
-        section={section}
-        onSection={chooseSection}
-      />
-      {playing && canvas && base && (
-        <Play
+          ) : (
+            <Skeleton block label="Loading the design" />
+          )}
+          {blank && !asking && (
+            <Empty
+              className="dz-blank"
+              title="Nothing on this canvas yet"
+              actions={
+                <Action variant="primary" onClick={() => setAsking(true)}>
+                  Ask an agent
+                </Action>
+              }
+            >
+              Draw the first frame with the tools, or ask an agent to start {designName}.
+            </Empty>
+          )}
+          {overlay && ask && (
+            <OverlayBar
+              ask={ask}
+              mode={mode}
+              setMode={setMode}
+              changes={lastChanges.filter((change) => !skipped.has(change.path)).length}
+              busy={accepting}
+              onAccept={() => {
+                const kept = lastChanges.filter((change) => !skipped.has(change.path));
+                void accept(
+                  kept.length === lastChanges.length
+                    ? undefined
+                    : kept.map((change) => change.path),
+                );
+              }}
+              onDiscard={closeTask}
+            />
+          )}
+          {asking && (selection || inAssets || blank) && project && design.data && (
+            <AskPopover
+              projectId={project.id}
+              designRef={ref}
+              selection={selection}
+              component={
+                !selection && inAssets
+                  ? { id: inAssets.component.id, name: inAssets.component.name }
+                  : undefined
+              }
+              target={
+                !selection && !inAssets
+                  ? designName
+                  : !selection
+                    ? `the ${inAssets!.component.name} component`
+                    : selection.layer
+                      ? nameFor(selection.board, selection.layer)
+                      : boardName(selection.board)
+              }
+              comments={
+                selection
+                  ? comments.filter(
+                      (comment) =>
+                        !comment.resolved &&
+                        comment.board === selection.board &&
+                        (!selection.layer || comment.layer === selection.layer),
+                    ).length
+                  : 0
+              }
+              position={askPosition()}
+              onClose={() => setAsking(false)}
+              onAsked={(id) => {
+                setAsking(false);
+                openTask(id);
+              }}
+            />
+          )}
+          <div className="dz-toolbar" role="toolbar" aria-label="Tools">
+            {reviewId && reviewNavigation}
+            {tools.map((item, index) => (
+              <span key={item.id} className="dz-tool-wrap">
+                {index === 6 && <i className="dz-sep" />}
+                <button
+                  type="button"
+                  className={`dz-tool${item.tool && tool === item.tool ? ' on' : ''}`}
+                  aria-label={item.label}
+                  aria-pressed={Boolean(item.tool && tool === item.tool)}
+                  title={item.label}
+                  disabled={!item.ready}
+                  onClick={() => {
+                    setShapeMenu(false);
+                    if (item.id === 'ask') return (selection || blank) && setAsking(true);
+                    if (item.tool) setTool(item.tool);
+                  }}
+                >
+                  <Icon name={item.icon} size={18} />
+                </button>
+                {item.menu && (
+                  <button
+                    type="button"
+                    className="dz-tool-more"
+                    aria-label={
+                      item.id === 'move' ? 'Hand  H' : item.id === 'shape' ? 'Shapes' : item.label
+                    }
+                    aria-expanded={item.id === 'shape' ? shapeMenu : undefined}
+                    title={item.id === 'move' ? 'Hand  H' : undefined}
+                    disabled={item.id === 'shape' ? !editable : item.id !== 'move'}
+                    onClick={() =>
+                      item.id === 'shape'
+                        ? setShapeMenu((open) => !open)
+                        : setTool(tool === 'hand' ? 'move' : 'hand')
+                    }
+                  >
+                    <Icon
+                      name={item.id === 'move' && tool === 'hand' ? 'hand' : 'down'}
+                      size={10}
+                    />
+                  </button>
+                )}
+                {item.id === 'shape' && shapeMenu && (
+                  <div className="dz-shape-menu" role="menu" aria-label="Shapes">
+                    {(['rectangle', 'ellipse', 'line'] as const).map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={shape === name}
+                        className={shape === name ? 'on' : ''}
+                        onClick={() => {
+                          setShape(name);
+                          setTool(name);
+                          setShapeMenu(false);
+                        }}
+                      >
+                        <Icon name={name === 'rectangle' ? 'shape' : name} size={14} />
+                        {shapes[name]}
+                        <kbd>{shapeKeys[name]}</kbd>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </span>
+            ))}
+            <i className="dz-sep" />
+            <a
+              className={`dz-tool${selection ? '' : ' disabled'}`}
+              aria-label="View the board’s HTML"
+              title="View the board’s HTML"
+              href={
+                selection && base
+                  ? `${boardSrc.get(selection.board)?.base ?? base}/boards/${encodeURIComponent(selection.board)}`
+                  : undefined
+              }
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Icon name="code" size={18} />
+            </a>
+            <button
+              type="button"
+              className={`dz-tool dz-connections-toggle${connections ? ' on' : ''}`}
+              aria-label="Connections"
+              title="Connections ⇧C"
+              aria-pressed={connections}
+              onClick={toggleConnections}
+            >
+              <Icon name="connections" size={18} />
+            </button>
+          </div>
+          <div className="dz-phone-hud">
+            <span className="dz-phone-zoom">{Math.round(view.z * 100)}%</span>
+            {!selection && (
+              <span className="dz-phone-hint">Pinch to zoom · double-tap a board</span>
+            )}
+          </div>
+          <div className="dz-phone-tools" role="toolbar" aria-label="Tools">
+            {reviewId && reviewNavigation}
+            {(
+              [
+                ['move', 'move', 'Move'],
+                ['pen', 'pen', 'Pen'],
+                ['text', 'text', 'Text'],
+                ['sticky', 'sticky', 'Sticky note'],
+                ['comment', 'comment', 'Comment'],
+              ] as const
+            ).map(([id, icon, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`dz-tool${tool === id ? ' on' : ''}`}
+                aria-label={label}
+                aria-pressed={tool === id}
+                disabled={id !== 'move' && id !== 'comment' && !editable}
+                onClick={() => setTool(id)}
+              >
+                <Icon name={icon} size={18} />
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`dz-tool${layersOpen ? ' on' : ''}`}
+              aria-label="Layers"
+              aria-pressed={layersOpen}
+              onClick={() => setLayersOpen(!layersOpen)}
+            >
+              <Icon name="layers" size={18} />
+            </button>
+            <button
+              type="button"
+              className={`dz-tool dz-connections-toggle${connections ? ' on' : ''}`}
+              aria-label="Connections"
+              title="Connections ⇧C"
+              aria-pressed={connections}
+              onClick={toggleConnections}
+            >
+              <Icon name="connections" size={18} />
+            </button>
+          </div>
+        </div>
+        <RightPanel
+          onHide={() => showPanel('right', false)}
+          project={project}
+          design={design.data}
           canvas={canvas}
-          start={playing}
-          src={(board) =>
-            `${boardSrc.get(board)?.base ?? base}/boards/${encodeURIComponent(board)}`
+          section={section}
+          selection={selection}
+          frames={frames}
+          tokens={tokens}
+          revision={revision}
+          view={view}
+          onZoom={(zoom) => {
+            const host = stage.current?.querySelector('.dz-canvas');
+            if (zoom === 'fit') return section && fitTo(section.boards);
+            if (!host) return;
+            const cx = host.clientWidth / 2;
+            const cy = host.clientHeight / 2;
+            setView((current) => ({
+              z: zoom,
+              x: cx - ((cx - current.x) * zoom) / current.z,
+              y: cy - ((cy - current.y) * zoom) / current.z,
+            }));
+          }}
+          changes={changes}
+          select={
+            reviewId
+              ? (next) => {
+                  if (next) {
+                    focusReviewFrame(next.board);
+                    if (next.layer) select(next);
+                  } else select(null);
+                }
+              : select
           }
-          onClose={() => setPlaying(null)}
+          owner={owner}
+          tab={tab}
+          setTab={setTab}
+          commentCount={comments.filter((comment) => !comment.resolved).length}
+          onAsk={() => setAsking(true)}
+          propose={propose}
+          review={reviewData}
+          reviewing={Boolean(reviewId)}
+          reviewSide={review.side}
+          agents={agents}
+          onComment={() => {
+            setTab('comments');
+            setCommentFocus((n) => n + 1);
+          }}
+          htmlHref={
+            selection && base
+              ? `${boardSrc.get(selection.board)?.base ?? base}/boards/${encodeURIComponent(selection.board)}`
+              : null
+          }
+          onEdit={editable ? edit : undefined}
+          mark={shownMark}
+          onMark={editable && shownMark ? (patch) => editMark(shownMark.id, patch) : undefined}
+          onRemoveMark={editable && shownMark ? () => removeMark(shownMark.id) : undefined}
+          connections={connections}
+          onConnections={toggleConnections}
+          onConnection={(board) => {
+            const page = sections.find((item) => item.boards.includes(board));
+            if (!page) return;
+            setSectionId(page.id);
+            select({ board, layer: null });
+            remember({ page: page.id });
+            requestAnimationFrame(() => fitTo([board]));
+          }}
+          prototype={{
+            links,
+            sidebar: sidebarLinks,
+            setSidebar: setSidebarLinks,
+            start,
+            onStart: editable ? setStart : undefined,
+            onLink: editable ? setLink : undefined,
+          }}
+          onPlay={start && canvas ? () => setPlaying(start) : undefined}
+          component={componentPanel}
+          comments={
+            project ? (
+              <CommentsPanel
+                projectId={project.id}
+                commit={reviewData?.after ?? shown?.commit}
+                selection={selection}
+                select={select}
+                comments={comments}
+                refresh={refreshComments}
+                focus={commentFocus}
+                nameFor={nameFor}
+              />
+            ) : null
+          }
+          agent={
+            overlay && ask && project ? (
+              <AgentPanel
+                projectId={project.id}
+                ask={ask}
+                changes={lastChanges}
+                canvas={canvas}
+                skipped={skipped}
+                setSkipped={setSkipped}
+                busy={accepting}
+                onAccept={(paths) => void accept(paths)}
+                onDiscard={closeTask}
+                select={select}
+                nameFor={nameFor}
+              />
+            ) : null
+          }
         />
-      )}
-    </div>
+        <div className={`dz-sheet-scrim${selection ? ' on' : ''}`} onClick={() => select(null)} />
+        <PickSheet
+          open={pickSheet}
+          onClose={() => setPickSheet(false)}
+          first={selection ? 'branch' : 'page'}
+          projects={projects.data?.projects ?? []}
+          project={project}
+          onProject={(id) => openDesign(id, null)}
+          branches={design.data?.branches ?? []}
+          current={ref}
+          owner={owner}
+          reviewing={reviewingBranches}
+          onRef={chooseRef}
+          onNewBranch={() => void newBranch()}
+          sections={sections}
+          section={section}
+          onSection={chooseSection}
+        />
+        {playing && canvas && base && (
+          <Play
+            canvas={canvas}
+            start={playing}
+            src={(board) =>
+              `${boardSrc.get(board)?.base ?? base}/boards/${encodeURIComponent(board)}`
+            }
+            onClose={() => setPlaying(null)}
+          />
+        )}
+      </div>
+    </DesignArtifact.Provider>
   );
 }

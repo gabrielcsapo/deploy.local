@@ -131,6 +131,14 @@ test('creating a design writes artifacts/<name> on its own branch and opens an e
     design.body.branches.map((branch: any) => branch.name),
     ['artifact/onboarding-flow'],
   );
+  // Making the files is not an edit: the new canvas has no edits and changes nothing yet.
+  assert.equal(design.body.branches[0].edits, 0);
+  const changes = await json(
+    await api(
+      '/api/projects/plain/artifacts/onboarding-flow/design/changes?ref=artifact/onboarding-flow',
+    ),
+  );
+  assert.deepEqual(changes.body.files, []);
   // The same name twice is refused rather than overwritten.
   const again = await api('/api/artifacts', {
     method: 'POST',
