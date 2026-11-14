@@ -2277,7 +2277,7 @@
       "y": 73720,
       "w": 1440,
       "h": 760,
-      "title": "CLI — packages: sign in once, publish from a folder",
+      "title": "CLI — packages: npm login once, publish from a folder",
       "expand": "fill"
     },
     "PackagesPhone.html": {
@@ -3180,6 +3180,22 @@
       "h": 900,
       "title": "A new design opens on an empty canvas, on its own branch",
       "expand": "fill"
+    },
+    "NpmSignIn.html": {
+      "x": 2020,
+      "y": 75300,
+      "w": 1440,
+      "h": 900,
+      "title": "npm login in the browser: sign in npm on this computer",
+      "expand": "fill"
+    },
+    "NpmSignInDone.html": {
+      "x": 3540,
+      "y": 75300,
+      "w": 1440,
+      "h": 900,
+      "title": "npm login in the browser: npm is signed in",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3561,6 +3577,8 @@
     "TaskPublish.html",
     "PipelineRun.html",
     "CliPackages.html",
+    "NpmSignIn.html",
+    "NpmSignInDone.html",
     "PackagesPhone.html",
     "PackageVersionsPhone.html",
     "PackagesEmptyPhone.html",
