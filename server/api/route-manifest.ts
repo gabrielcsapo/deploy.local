@@ -534,6 +534,16 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
     handler: 'auth',
   },
   {
+    method: 'GET',
+    path: '/api/search',
+    handler: 'v2:v2/search',
+  },
+  {
+    method: 'GET',
+    path: '/api/search/code',
+    handler: 'v2:v2/search',
+  },
+  {
     method: 'POST',
     path: '/api/upload',
     handler: 'upload',

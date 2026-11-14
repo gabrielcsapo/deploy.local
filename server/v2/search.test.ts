@@ -43,7 +43,8 @@ function repository(name: string, files: Record<string, string | Buffer>) {
   return bare;
 }
 const homeGym = repository('home-gym', {
-  'worker/sync.ts': 'const a = 1;\n  .where(gte(workouts.started, since))\nconst last = max(Workouts.Started);\n',
+  'worker/sync.ts':
+    'const a = 1;\n  .where(gte(workouts.started, since))\nconst last = max(Workouts.Started);\n',
   'app/routes/history.tsx': '.orderBy(desc(workouts.started))\n',
   'db/started.sql': '-- nothing here\n',
   'logo.bin': Buffer.from([0, 1, 2, ...Buffer.from('workouts.started')]),
@@ -52,7 +53,13 @@ const tally = repository('tally', { 'README.md': 'tally counts things\n' });
 save('project', 'owner', { id: 'p1', name: 'home-gym', repositoryPath: homeGym });
 save('project', 'owner', { id: 'p2', name: 'tally', repositoryPath: tally });
 save('project', 'other', { id: 'p9', name: 'home-secrets', repositoryPath: homeGym });
-save('agent', 'owner', { id: 'a1', name: 'Code reviewer', job: '', computers: [], createdBy: 'owner' });
+save('agent', 'owner', {
+  id: 'a1',
+  name: 'Code reviewer',
+  job: '',
+  computers: [],
+  createdBy: 'owner',
+});
 save('task', 'owner', {
   id: 't1',
   projectId: 'p1',
@@ -61,7 +68,12 @@ save('task', 'owner', {
   status: 'done',
   createdAt: '2026-11-01T00:00:00.000Z',
 });
-save('task', 'owner', { id: 't2', projectId: 'p2', title: 'Count faster', createdAt: '2026-11-02T00:00:00.000Z' });
+save('task', 'owner', {
+  id: 't2',
+  projectId: 'p2',
+  title: 'Count faster',
+  createdAt: '2026-11-02T00:00:00.000Z',
+});
 save('message', 'owner', {
   id: 'm1',
   taskId: 't1',
@@ -77,12 +89,30 @@ save('message', 'owner', {
   isProgress: true,
   createdAt: '2026-11-03T00:00:01.000Z',
 });
-save('message', 'owner', { id: 'm3', taskId: 't2', role: 'user', content: 'make it quick', createdAt: '2026-11-04T00:00:00.000Z' });
-save('message', 'other', { id: 'm4', taskId: 'x', role: 'user', content: 'workouts.started is mine', createdAt: '' });
+save('message', 'owner', {
+  id: 'm3',
+  taskId: 't2',
+  role: 'user',
+  content: 'make it quick',
+  createdAt: '2026-11-04T00:00:00.000Z',
+});
+save('message', 'other', {
+  id: 'm4',
+  taskId: 'x',
+  role: 'user',
+  content: 'workouts.started is mine',
+  createdAt: '',
+});
 save('agent-message', 'owner', {
   id: 'am1',
   agentId: 'a1',
-  event: { kind: 'reply', id: 'e1', at: '2026-11-05T00:00:00.000Z', agent: 'a1', paragraphs: ['First.', 'The worker still reads workouts.started.'] },
+  event: {
+    kind: 'reply',
+    id: 'e1',
+    at: '2026-11-05T00:00:00.000Z',
+    agent: 'a1',
+    paragraphs: ['First.', 'The worker still reads workouts.started.'],
+  },
 });
 
 const read = async (path: string, owner = 'owner') => {
@@ -102,7 +132,10 @@ test('names match projects, apps, tasks and agents, and stay inside the owner', 
     [['task', 'Rename workouts.started safely', 'Code reviewer', 'home-gym']],
   );
   const agents = (await read('/api/search?q=review')).body.names;
-  assert.deepEqual(agents.map((name: any) => [name.kind, name.title]), [['agent', 'Code reviewer']]);
+  assert.deepEqual(
+    agents.map((name: any) => [name.kind, name.title]),
+    [['agent', 'Code reviewer']],
+  );
   assert.deepEqual((await read('/api/search?q=')).body.names, []);
 });
 
@@ -121,14 +154,22 @@ test('messages match text in task and agent chats, ignoring case and progress no
   assert.equal((await read('/api/search?q=wo')).body.messages.total, 0);
   // Inside a project only that project's task chats answer.
   assert.deepEqual(
-    (await read('/api/search?q=workouts.started&project=p1')).body.messages.items.map((item: any) => item.id),
+    (await read('/api/search?q=workouts.started&project=p1')).body.messages.items.map(
+      (item: any) => item.id,
+    ),
     ['m1'],
   );
   assert.equal((await read('/api/search?q=workouts.started&project=p2')).body.messages.total, 0);
 });
 
 test('the message index follows edits and deletions', async () => {
-  save('message', 'owner', { id: 'm3', taskId: 't2', role: 'user', content: 'make it zippy', createdAt: '2026-11-04T00:00:00.000Z' });
+  save('message', 'owner', {
+    id: 'm3',
+    taskId: 't2',
+    role: 'user',
+    content: 'make it zippy',
+    createdAt: '2026-11-04T00:00:00.000Z',
+  });
   assert.equal((await read('/api/search?q=quick')).body.messages.total, 0);
   assert.equal((await read('/api/search?q=zippy')).body.messages.total, 1);
   remove('message', 'owner', 'm3');
@@ -143,8 +184,22 @@ test('code matches lines on each project’s main branch and skips binary files'
   assert.equal(body.projects, 1);
   assert.equal(body.truncated, false);
   assert.deepEqual(body.items, [
-    { projectId: 'p1', project: 'home-gym', ref: 'main', path: 'app/routes/history.tsx', line: 1, text: '.orderBy(desc(workouts.started))' },
-    { projectId: 'p1', project: 'home-gym', ref: 'main', path: 'worker/sync.ts', line: 2, text: '.where(gte(workouts.started, since))' },
+    {
+      projectId: 'p1',
+      project: 'home-gym',
+      ref: 'main',
+      path: 'app/routes/history.tsx',
+      line: 1,
+      text: '.orderBy(desc(workouts.started))',
+    },
+    {
+      projectId: 'p1',
+      project: 'home-gym',
+      ref: 'main',
+      path: 'worker/sync.ts',
+      line: 2,
+      text: '.where(gte(workouts.started, since))',
+    },
   ]);
   assert.equal((await read('/api/search/code?q=workouts.started&project=p2')).body.lines, 0);
   assert.equal((await read('/api/search/code?q=wo')).body.lines, 0);
@@ -169,7 +224,10 @@ test('a broad code search stops at its limit and says so', async () => {
 
 test('file names rank a leading match first, and snippets keep the match in view', () => {
   assert.deepEqual(
-    matchFileNames(['server/reclone.ts', 'server/clone.test.ts', 'server/clone.ts', 'clone/readme.md'], 'clone').items.map((item) => item.path),
+    matchFileNames(
+      ['server/reclone.ts', 'server/clone.test.ts', 'server/clone.ts', 'clone/readme.md'],
+      'clone',
+    ).items.map((item) => item.path),
     ['server/clone.ts', 'server/clone.test.ts', 'server/reclone.ts'],
   );
   const long = `${'a '.repeat(200)}needle ${'b '.repeat(200)}`;

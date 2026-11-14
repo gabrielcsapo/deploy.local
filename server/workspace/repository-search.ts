@@ -64,7 +64,7 @@ export function searchRepositoryCode(
     );
     const result: CodeSearch = { items: [], lines: 0, files: 0, truncated: false };
     const prefix = `${commit}:`;
-    let pending = Buffer.alloc(0);
+    let pending: Buffer = Buffer.alloc(0);
     let lastPath: string | undefined;
     let stderr = '';
     let failure: Error | undefined;
@@ -153,7 +153,11 @@ export function matchFileNames(paths: string[], query: string, keep = 20) {
     total: scored.length,
     items: scored.slice(0, keep).map(({ path }): FileMatch => {
       const slash = path.lastIndexOf('/');
-      return { path, name: path.slice(slash + 1), directory: slash < 0 ? '' : path.slice(0, slash) };
+      return {
+        path,
+        name: path.slice(slash + 1),
+        directory: slash < 0 ? '' : path.slice(0, slash),
+      };
     }),
   };
 }

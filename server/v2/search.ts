@@ -5,11 +5,7 @@ import { fail } from '../kernel/errors.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 import { repositoryGit } from '../kernel/git.ts';
 import { resolveCommit } from '../workspace/repositories.ts';
-import {
-  MESSAGE_SEARCH_MIN,
-  searchMessageRecords,
-  snippet,
-} from '../workspace/message-search.ts';
+import { MESSAGE_SEARCH_MIN, searchMessageRecords, snippet } from '../workspace/message-search.ts';
 import {
   matchFileNames,
   searchRepositoryCode,
@@ -62,7 +58,14 @@ export type SearchCodeResponse = {
   truncated: boolean;
   /** The branch searched, when the search was inside one project. */
   ref?: string;
-  items: { projectId: string; project: string; ref: string; path: string; line: number; text: string }[];
+  items: {
+    projectId: string;
+    project: string;
+    ref: string;
+    path: string;
+    line: number;
+    text: string;
+  }[];
 };
 
 const NAME_LIMIT = 6;
@@ -102,16 +105,23 @@ export async function readSearch(owner: string, url: URL): Promise<SearchRespons
 
   const names: SearchName[] = [];
   if (!projectId) {
-    for (const project of rank(projects, needle, (p) => p.name, (p) => p.name).slice(0, NAME_LIMIT))
+    for (const project of rank(
+      projects,
+      needle,
+      (p) => p.name,
+      (p) => p.name,
+    ).slice(0, NAME_LIMIT))
       names.push({ kind: 'project', id: project.id, title: project.name });
   }
   const apps = projects
     .filter((project) => !projectId || project.id === projectId)
     .flatMap((project) => project.apps.map((app) => ({ app, project })));
-  for (const { app, project } of rank(apps, needle, (a) => a.app.name, (a) => a.app.name).slice(
-    0,
-    NAME_LIMIT,
-  ))
+  for (const { app, project } of rank(
+    apps,
+    needle,
+    (a) => a.app.name,
+    (a) => a.app.name,
+  ).slice(0, NAME_LIMIT))
     names.push({
       kind: 'app',
       id: app.id,
@@ -121,10 +131,10 @@ export async function readSearch(owner: string, url: URL): Promise<SearchRespons
       appKind: app.kind,
     });
   for (const task of rank(
-    tasks.filter((task) => task.title && inProject(task)),
+    tasks.filter((item) => item.title && inProject(item)),
     needle,
-    (task) => String(task.title),
-    (task) => String(task.updatedAt ?? task.createdAt ?? ''),
+    (item) => String(item.title),
+    (item) => String(item.updatedAt ?? item.createdAt ?? ''),
   ).slice(0, NAME_LIMIT))
     names.push({
       kind: 'task',
@@ -137,12 +147,19 @@ export async function readSearch(owner: string, url: URL): Promise<SearchRespons
       at: task.updatedAt ?? task.createdAt,
     });
   if (!projectId) {
-    for (const agent of rank(agents, needle, (a) => a.name, (a) => a.name).slice(0, NAME_LIMIT))
+    for (const agent of rank(
+      agents,
+      needle,
+      (a) => a.name,
+      (a) => a.name,
+    ).slice(0, NAME_LIMIT))
       names.push({ kind: 'agent', id: agent.id, title: agent.name });
-    for (const computer of rank(getComputers(owner), needle, (c) => c.name, (c) => c.name).slice(
-      0,
-      NAME_LIMIT,
-    ))
+    for (const computer of rank(
+      getComputers(owner),
+      needle,
+      (c) => c.name,
+      (c) => c.name,
+    ).slice(0, NAME_LIMIT))
       names.push({ kind: 'computer', id: computer.id, title: computer.name });
   }
   for (const [kind, record] of [
@@ -150,10 +167,10 @@ export async function readSearch(owner: string, url: URL): Promise<SearchRespons
     ['issue', 'issue'],
   ] as const)
     for (const row of rank(
-      list(record, owner).filter((row) => row.title && inProject(row)),
+      list(record, owner).filter((item) => item.title && inProject(item)),
       needle,
-      (row) => `${row.title} #${row.number ?? ''}`,
-      (row) => String(row.updatedAt ?? row.createdAt ?? ''),
+      (item) => `${item.title} #${item.number ?? ''}`,
+      (item) => String(item.updatedAt ?? item.createdAt ?? ''),
     ).slice(0, NAME_LIMIT))
       names.push({
         kind,
@@ -239,7 +256,13 @@ async function searchTarget(owner: string, projectId: string, ref: string | null
       )
         .toString()
         .trim();
-    return { id: project.id as string, name: project.name as string, repo: project.repositoryPath as string, commit, ref: name || 'main' };
+    return {
+      id: project.id as string,
+      name: project.name as string,
+      repo: project.repositoryPath as string,
+      commit,
+      ref: name || 'main',
+    };
   } catch {
     // An empty repository has nothing to search.
     return null;
@@ -298,7 +321,12 @@ export async function readSearchCode(
     response.truncated ||= result.truncated;
     for (const item of result.items)
       if (response.items.length < keep)
-        response.items.push({ projectId: target.id, project: target.name, ref: target.ref, ...item });
+        response.items.push({
+          projectId: target.id,
+          project: target.name,
+          ref: target.ref,
+          ...item,
+        });
   });
   return response;
 }
@@ -308,7 +336,8 @@ const searchDispatch = dispatch([
   makeRoute({
     method: 'GET',
     path: '/api/search',
-    handler: async ({ res, context }) => sendJson(res, await readSearch(context.owner, context.url)),
+    handler: async ({ res, context }) =>
+      sendJson(res, await readSearch(context.owner, context.url)),
   }),
   makeRoute({
     method: 'GET',
