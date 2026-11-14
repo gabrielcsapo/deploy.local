@@ -1,6 +1,5 @@
 'use client';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { AgentAvatar } from '@/components/ui/v2/AgentAvatar';
 import { Icon } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
@@ -24,23 +23,8 @@ import {
   type SearchResponse,
   type SearchScope,
 } from './model.ts';
+import { currentSearchScope } from './scope.ts';
 import './search.css';
-
-// The project page being looked at, so ⌘K and the magnifier start inside it.
-let pageScope: SearchScope | null = null;
-/** A project page says where it is; search opened from it starts in that project. */
-export function useSearchScope(scope: SearchScope | null) {
-  const { id, name, ref } = scope ?? {};
-  useEffect(() => {
-    if (!id || !name) return;
-    const mine = { id, name, ref };
-    pageScope = mine;
-    return () => {
-      if (pageScope === mine) pageScope = null;
-    };
-  }, [id, name, ref]);
-}
-export const currentSearchScope = () => pageScope;
 
 type Row = {
   key: string;
@@ -99,8 +83,6 @@ export function SearchBox({
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   const query = text.trim();
   const searchesText = [...query].length >= TEXT_MIN;
@@ -122,7 +104,7 @@ export function SearchBox({
       // On the Design page ⌘K asks an agent about the canvas.
       if (window.location.pathname === '/dashboard/design') return;
       event.preventDefault();
-      show(new CustomEvent(searchEvent, { detail: { scope: pageScope ?? undefined } }));
+      show(new CustomEvent(searchEvent, { detail: { scope: currentSearchScope() ?? undefined } }));
     };
     window.addEventListener(searchEvent, show);
     window.addEventListener('keydown', shortcut);
@@ -139,7 +121,7 @@ export function SearchBox({
       element.showModal();
       input.current?.focus();
     } else if (!open && element.open) element.close();
-  }, [open, mounted]);
+  }, [open]);
 
   // Names, files and messages answer from what is stored, so they are asked for on every pause.
   useEffect(() => {
@@ -515,9 +497,9 @@ export function SearchBox({
     )?.click();
   };
 
-  if (!mounted) return null;
   let index = -1;
-  return createPortal(
+  // A modal dialog draws in the top layer wherever it sits, so it needs no portal.
+  return (
     <dialog
       ref={dialog}
       className="dl-dialog dl-modal v2-search"
@@ -628,7 +610,6 @@ export function SearchBox({
           </span>
         </div>
       </div>
-    </dialog>,
-    document.body,
+    </dialog>
   );
 }

@@ -36,6 +36,10 @@ export async function componentHarness(entry, stubs, globals = {}) {
     useId() {
       return hooks.useState('fixture-id')[0];
     },
+    // Recomputed on every render: the harness renders once per assertion.
+    useMemo(fn) {
+      return fn();
+    },
     useCallback(fn) {
       return fn;
     },
