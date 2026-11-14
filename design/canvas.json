@@ -795,7 +795,7 @@
       "x": 18510,
       "y": 23864,
       "w": 390,
-      "h": 1348,
+      "h": 1412,
       "title": "iPhone — the Settings tab: roomy groups, every row works"
     },
     "SettingsApprovalsPhone.html": {
@@ -823,7 +823,7 @@
     },
     "RestorePhone.html": {
       "x": 18510,
-      "y": 25228,
+      "y": 25292,
       "w": 390,
       "h": 844,
       "title": "iPhone — restoring data, with undo"
@@ -1296,7 +1296,7 @@
       "y": 52200,
       "w": 1440,
       "h": 960,
-      "title": "The project menu: switch to another project’s design",
+      "title": "The design menu: switch to another design, or make an artifact",
       "expand": "fill"
     },
     "DesignPickPhone.html": {
@@ -3081,6 +3081,105 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Search"
+    },
+    "ArtifactsEmptyPhone.html": {
+      "x": 19380,
+      "y": 53100,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Artifacts with none yet"
+    },
+    "ArtifactsEmpty.html": {
+      "x": 18440,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "No artifacts yet",
+      "expand": "fill"
+    },
+    "SettingsArtifactsRowPhone.html": {
+      "x": 18440,
+      "y": 53100,
+      "w": 390,
+      "h": 760,
+      "title": "iPhone — the Settings row for Artifacts, in every state"
+    },
+    "ArtifactsPhone.html": {
+      "x": 18910,
+      "y": 53100,
+      "w": 390,
+      "h": 1010,
+      "title": "iPhone — Artifacts, a sheet from Settings: make one, or open one"
+    },
+    "DesignPanelsClosed.html": {
+      "x": 16920,
+      "y": 50884,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review with both panels closed: the canvas has the window",
+      "expand": "fill"
+    },
+    "ArtifactsNew.html": {
+      "x": 16920,
+      "y": 49684,
+      "w": 1440,
+      "h": 980,
+      "title": "New design: name it and choose the project",
+      "expand": "fill"
+    },
+    "ArtifactDocumentEdit.html": {
+      "x": 16920,
+      "y": 54300,
+      "w": 1440,
+      "h": 900,
+      "title": "Editing a document: type in the page, on its own branch",
+      "expand": "fill"
+    },
+    "ArtifactDocumentPhone.html": {
+      "x": 18440,
+      "y": 54300,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a document artifact, read in a sheet"
+    },
+    "Artifacts.html": {
+      "x": 15400,
+      "y": 49684,
+      "w": 1440,
+      "h": 980,
+      "title": "Artifacts: every project’s designs and documents, as a gallery",
+      "expand": "fill"
+    },
+    "DesignPanelLeftClosed.html": {
+      "x": 15400,
+      "y": 50884,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review with the left panel closed, the right one open",
+      "expand": "fill"
+    },
+    "ArtifactsNewPhone.html": {
+      "x": 19850,
+      "y": 53100,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — New design: name it and choose the project"
+    },
+    "ArtifactDocument.html": {
+      "x": 16920,
+      "y": 53100,
+      "w": 1440,
+      "h": 900,
+      "title": "A document artifact, read on a page",
+      "expand": "fill"
+    },
+    "DesignNewEmpty.html": {
+      "x": 15400,
+      "y": 53100,
+      "w": 1440,
+      "h": 900,
+      "title": "A new design opens on an empty canvas, on its own branch",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3492,7 +3591,20 @@
     "TemplateListPhone.html",
     "TemplateDetailPhone.html",
     "TemplateConversationPhone.html",
-    "TemplateSettingsPhone.html"
+    "TemplateSettingsPhone.html",
+    "Artifacts.html",
+    "ArtifactsNew.html",
+    "ArtifactsEmpty.html",
+    "DesignPanelLeftClosed.html",
+    "DesignPanelsClosed.html",
+    "DesignNewEmpty.html",
+    "ArtifactDocument.html",
+    "SettingsArtifactsRowPhone.html",
+    "ArtifactsPhone.html",
+    "ArtifactsEmptyPhone.html",
+    "ArtifactsNewPhone.html",
+    "ArtifactDocumentEdit.html",
+    "ArtifactDocumentPhone.html"
   ],
   "notes": {
     "intro": {
@@ -4947,6 +5059,20 @@
       "x": 22710,
       "y": 10004,
       "text": "One search, everywhere\n• One box. The magnifier in the sidebar, ⌘K, a project’s Code tab and Search on iPhone all open it. There is no separate search page and no second search.\n• Names first: projects, apps, tasks, agents, computers, packages, pull requests and issues match by name as you type.\n• Text second, from three characters: lines of code, and messages in tasks and agent chats. Plain text, ignoring case.\n• Opened inside a project, it starts in that project, shown as a token before the words; Backspace searches everywhere. Show all narrows to one kind the same way.\n• Code is searched on each project’s main branch, or on the branch the Code tab is showing.\n• A code result opens the file at that line, with every match marked. A message opens its chat at that message.\n• Names never wait for code: the Code heading says Searching… until its lines arrive.\n• The Code tab’s Go to file box becomes Search this project ( / ); file names are the first group there."
+    },
+    "artifacts": {
+      "fill": "purple",
+      "w": 440,
+      "x": 19960,
+      "y": 49684,
+      "text": "For approval: Design becomes Artifacts\n\nThe sidebar place Design is renamed Artifacts and opens a gallery of every project’s artifacts. A design is one kind of artifact; a document is the second. More kinds are added only when they exist.\n\n• Make something new sits at the top: one tile per kind. A tile asks for a name and the project, then deploy.local creates the files on a new branch and opens it. Nobody adds canvas.json by hand.\n• Below, one card per artifact with a preview, its project and when it last changed. A card says In review or Not proposed only while its newest work is not on main. All, Designs and Documents filter the cards.\n• The grid is three cards wide at 1440 and two at 700.\n• A project can hold several. Each lives in its own folder, artifacts/<name>, in the project’s repository. The design a project already has in design/ stays where it is and is listed as App design.\n• Opening a design goes to the canvas. Review, Before and After, and approval onto main are unchanged and apply to every kind.\n• On the canvas, the project menu’s line about design/canvas.json becomes New artifact.\n\n• Create opens the new design’s canvas straight away: empty, on its own branch, with the tools ready and one button to ask an agent to start it.\n• A document opens as a page under Artifacts, in the reading column. Edit starts a branch for it; proposing and approving work as they do for a design.\n\n• On iPhone, Artifacts is a row in Settings beside Packages and opens as a sheet: Make something new first, then each project’s artifacts as rows. A design opens the canvas the phone already has.\n\n• On the canvas, the menu at the top of the left panel lists designs, each with its project, and ends with New artifact. Projects with no design are no longer listed there. At narrow widths the bar reads Artifacts and goes back to the gallery.\n• On iPhone a kind opens a short sheet: Name, Project, Cancel and Create.\n\n• Editing a document is typing in the page. Edit starts a branch for it; the header then shows the branch, how many blocks changed and Propose. A small bar gives text style, bold, italic, lists, link and code. Each changed block gets a dot in the margin, and every edit is saved to the branch as you type.\n• On iPhone a document opens in a sheet to read. Editing a document on iPhone is not drawn.\n\nNot drawn yet: the design menu in the iPhone picker sheet, and Before and After for a document in review."
+    },
+    "design-panels": {
+      "fill": "purple",
+      "w": 440,
+      "x": 18440,
+      "y": 50884,
+      "text": "For approval: each panel on the canvas closes on its own\n\nThe canvas can have three columns beside it: the app’s sidebar, the left panel (pages and layers) and the right panel (edit and comments). Until now one button hid both panels together, so a review in a normal window was cramped.\n\n• The button at the top of the left panel is now Hide left panel. The right panel gets its own Hide right panel button at the end of its top row.\n• A closed panel leaves one small button at that top corner of the canvas to bring it back. The review bar, the tools and the frames stay where they are and the canvas takes the room.\n• Each panel’s state is remembered on this device, separately, like the app sidebar’s. Opening a review never changes them.\n• The app sidebar keeps its own Collapse button and ⌘\\. Below 820 px nothing changes: the left panel is already folded and the right one is a sheet."
     }
   },
   "starts": {}

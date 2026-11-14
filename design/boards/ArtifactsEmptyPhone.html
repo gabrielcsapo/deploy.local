@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=390,height=844">
+<title>iPhone — Artifacts with none yet</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:var(--paper)}
+.dl-phone{height:auto;min-height:844px}
+.pk-phone{padding-top:54px;background:var(--selection);display:flex;flex-direction:column}
+.pk-sheet{flex:1;display:flex;flex-direction:column;min-height:790px;box-sizing:border-box;border-radius:var(--radius-dialog) var(--radius-dialog) 0 0;background:var(--paper);padding-bottom:32px}
+.pk-head{display:grid;grid-template-columns:64px 1fr 64px;align-items:center;min-height:52px;padding:0 8px}
+.pk-title{grid-column:2;margin:0;font-size:17px;line-height:22px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-done{grid-column:3;justify-self:end;width:auto;min-width:44px;color:var(--ink);font-size:16px}
+.dl-ph-label{padding:20px 32px 8px}
+.dl-ph-row{min-height:64px;padding:10px 16px;gap:14px}
+.dl-ph-group .dl-ph-row:last-child{border-bottom:0}
+.dl-ph-row .dl-t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.dl-phone .dl-ph-row .dl-t>span{white-space:normal;overflow:visible;text-overflow:clip}
+.dl-ph-row .dl-t>span:first-child{font-size:17px;line-height:22px;font-weight:500}
+.dl-ph-row .dl-t>span+span{font-size:13px;line-height:18px;color:var(--muted)}
+.dl-ph-row .dl-t .dl-mono{font-size:15px;line-height:22px}
+button.dl-ph-row{width:100%;border-top:0;border-right:0;border-left:0;background:transparent;text-align:left;cursor:pointer}
+.dl-ph-note{margin:8px 32px 0}
+.pk-empty{padding:4px 32px 8px;display:flex;flex-direction:column;gap:4px}
+.pk-empty>span:first-child{font-size:15px;line-height:24px;font-weight:600;color:var(--ink)}
+.pk-empty>span+span{font-size:13px;line-height:20px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div data-layer="phone" class="dl-phone pk-phone"><section data-layer="sheet" class="dl-sheet pk-sheet" role="dialog" aria-modal="true"><header data-layer="pk-head" class="pk-head"><h1 data-layer="artifacts" class="pk-title">Artifacts</h1><a data-layer="done" href="SettingsPhone.html" class="dl-ph-btn pk-done">Done</a></header><div data-layer="ph-body" class="dl-ph-body" style="overflow:visible"><div data-layer="make-something-new" class="dl-ph-label">Make something new</div><div data-layer="ph-group" class="dl-ph-group"><a data-layer="ph-row" href="ArtifactsNewPhone.html" class="dl-ph-row"><span data-layer="tile" class="dl-tile"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></svg></span><span data-layer="t" class="dl-t"><span data-layer="design">Design</span><span data-layer="boards-on-a">Boards on a canvas</span></span><svg data-layer="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="dl-chev"><path d="M9 6l6 6-6 6"/></svg></a><a data-layer="ph-row-2" href="ArtifactsNewPhone.html" class="dl-ph-row"><span data-layer="tile-2" class="dl-tile"><svg data-layer="svg-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span><span data-layer="t-2" class="dl-t"><span data-layer="document">Document</span><span data-layer="writing-with-headings">Writing with headings</span></span><svg data-layer="chev-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="dl-chev"><path d="M9 6l6 6-6 6"/></svg></a></div><div data-layer="yours" class="dl-ph-label">Yours</div><div data-layer="pk-empty" class="pk-empty"><span data-layer="no-artifacts-yet">No artifacts yet</span><span data-layer="an-artifact-is">An artifact is a design or a document kept in a project’s repository. Pick a kind above to make the first one.</span></div></div></section></div>
+</body>
+</html>
