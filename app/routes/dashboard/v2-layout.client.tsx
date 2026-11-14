@@ -21,12 +21,7 @@ import {
   useInbox,
   useResource,
 } from './v2/data/hooks';
-import {
-  taskState,
-  type WorkspaceState,
-  type SidebarAgent,
-  type LiveSummary,
-} from './v2/data/sidebar';
+import { type WorkspaceState, type SidebarAgent, type LiveSummary } from './v2/data/sidebar';
 import './v2-shell.css';
 import { DesignRail } from './v2/design/Rail';
 import { sidebarCollapsed, sidebarPreferenceKey } from './v2/data/sidebar-preference';
@@ -34,6 +29,7 @@ import { FirstTask } from './v2/start/FirstTask';
 import { useInAppLinks } from './v2/data/links';
 import { changeDesktopUpdateNavigation, useDesktopUpdate } from './v2/data/desktop-update';
 import { DesktopUpdateRow } from './v2/DesktopUpdate';
+import { SidebarTasks } from './v2/SidebarTasks';
 
 function useSidebarData() {
   return {
@@ -67,15 +63,11 @@ export function V2Sidebar({
   >;
 }) {
   const { formatTime } = useProjectFormatting();
-  const dayLabel = (value: string) => formatTime(value, 'day');
   const { inbox, workspace, live, user, computers } = data;
   const agents = data.agents.data?.agents ?? [];
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
   // Design approvals waiting, counted on the Design item like Live counts what runs.
   const designReviews = waiting.filter((item) => item.id.startsWith('design:')).length;
-  const tasks = [...(workspace.data?.tasks ?? [])].sort(
-    (a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt),
-  );
   const summary = live.data?.summary;
   const username = user.data?.username || 'Account';
   const online = computers.data?.nodes.filter((computer) => computer.online).length;
@@ -248,71 +240,7 @@ export function V2Sidebar({
           Tasks unavailable · retrying
         </p>
       )}
-      {['Today', 'Yesterday'].map((day) => {
-        const items = tasks.filter((task) => dayLabel(task.updatedAt || task.createdAt) === day);
-        return (
-          items.length > 0 && (
-            <div key={day}>
-              <div className="dl-side-label">
-                <span>{day}</span>
-                {day === 'Today' && (
-                  <a href="/dashboard" className="dl-icon-btn sm" aria-label="New task">
-                    <Icon name="plus" size={14} />
-                  </a>
-                )}
-              </div>
-              {items.map((task) => {
-                const state = taskState(task, workspace.data?.runs ?? []);
-                return (
-                  <Nav
-                    key={task.id}
-                    href={`/dashboard/tasks/${encodeURIComponent(task.id)}`}
-                    active={pathname.startsWith(`/dashboard/tasks/${encodeURIComponent(task.id)}`)}
-                    lead={
-                      state === 'idle' ? undefined : (
-                        <span
-                          aria-label={
-                            state === 'stalled'
-                              ? 'Stalled'
-                              : state === 'ready'
-                                ? 'Ready'
-                                : 'Running'
-                          }
-                        >
-                          <Icon
-                            name={
-                              state === 'running'
-                                ? 'running'
-                                : state === 'ready'
-                                  ? 'check'
-                                  : 'clock'
-                            }
-                            className={
-                              state === 'running'
-                                ? 'dl-run dl-spin'
-                                : state === 'ready'
-                                  ? 'dl-ok'
-                                  : 'dl-stalled'
-                            }
-                            size={14}
-                          />
-                        </span>
-                      )
-                    }
-                    end={
-                      day === 'Today'
-                        ? formatTime(task.updatedAt || task.createdAt, 'list')
-                        : undefined
-                    }
-                  >
-                    {task.title}
-                  </Nav>
-                );
-              })}
-            </div>
-          )
-        );
-      })}
+      <SidebarTasks pathname={pathname} workspace={workspace.data} formatTime={formatTime} />
     </Sidebar>
   );
 }

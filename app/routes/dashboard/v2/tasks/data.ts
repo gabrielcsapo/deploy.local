@@ -76,6 +76,12 @@ export function useTask(id: string) {
     const unsubscribe = eventFeed.subscribe({
       snapshot: start,
       events(events) {
+        // Deleted elsewhere: the page is Not found, as a fresh load of it would be.
+        if (events.some((event) => event.type === 'task-deleted' && event.taskId === id)) {
+          setView(null);
+          setError('Not found');
+          return;
+        }
         setView((old) =>
           old
             ? updateTaskFromEvents(

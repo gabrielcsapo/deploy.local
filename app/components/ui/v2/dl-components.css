@@ -1758,6 +1758,16 @@ a.dl-item:hover {
     animation: none;
   }
 }
+.side-anchor > .dl-menu {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 184px;
+  z-index: 5;
+}
+.dl-nav.side-more .dl-t {
+  color: var(--ds-muted);
+}
 .dl-menu-item.danger {
   color: var(--ds-danger);
 }

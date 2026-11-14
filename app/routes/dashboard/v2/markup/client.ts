@@ -23,10 +23,15 @@ export async function uploadFile(file: Blob, name: string) {
   if (!response.ok) throw new Error(value.error || 'Upload failed. Try again.');
   return value.attachment as Attachment;
 }
-export async function submitMessage(message: ComposerMessage, taskId?: string, agentId?: string) {
+export async function submitMessage(
+  message: ComposerMessage,
+  taskId?: string,
+  agentId?: string,
+  projectId?: string,
+) {
   return mediaRequest(
     agentId ? `/composer/agents/${encodeURIComponent(agentId)}/messages` : '/composer/messages',
     'POST',
-    { ...message, taskId },
+    { ...message, taskId, ...(projectId ? { projectId } : {}) },
   );
 }
