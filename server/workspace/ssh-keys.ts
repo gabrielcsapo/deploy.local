@@ -1,6 +1,8 @@
-import { createHash, createPublicKey } from 'node:crypto';
+import { createPublicKey } from 'node:crypto';
 import ssh2 from 'ssh2';
 const { utils } = ssh2;
+import { findSshKey, sshFingerprint } from '../kernel/auth/ssh.ts';
+export { findSshKey, sshFingerprint, verifySshSignature } from '../kernel/auth/ssh.ts';
 import { db, event, get, id, now, remove, save } from './store.ts';
 
 const allowed = new Set([
@@ -11,9 +13,6 @@ const allowed = new Set([
   'ssh-rsa',
 ]);
 const invalid = (message: string) => Object.assign(new Error(message), { status: 400 });
-export const sshFingerprint = (blob: Buffer) =>
-  'SHA256:' + createHash('sha256').update(blob).digest('base64').replace(/=+$/, '');
-
 export function parsePublicKey(input: unknown) {
   if (typeof input !== 'string' || input.length > 16384) throw invalid('Enter an SSH public key');
   if (/PRIVATE KEY/.test(input))
@@ -39,15 +38,6 @@ export function parsePublicKey(input: unknown) {
     type: key.type,
     comment: match[3]?.trim() || '',
   };
-}
-
-export function findSshKey(fingerprint: string): { owner: string; key: any } | null {
-  const row = db
-    .prepare(
-      "SELECT owner,data FROM records WHERE kind='ssh-key' AND json_extract(data,'$.fingerprint')=?",
-    )
-    .get(fingerprint) as { owner: string; data: string } | undefined;
-  return row ? { owner: row.owner, key: JSON.parse(row.data) } : null;
 }
 
 export function addSshKey(owner: string, input: { name?: unknown; publicKey?: unknown }) {

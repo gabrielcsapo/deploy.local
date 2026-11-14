@@ -10,7 +10,7 @@ export type Principal =
   | { kind: 'grant'; grantKind: string; owner: string }
   | { kind: 'node-enrollment'; enrollmentId: string; name: string }
   | { kind: 'ssh'; owner: string; keyId: string }
-  | { kind: 'package-key'; username: string; credential: string; publish: boolean; admin: boolean }
+  | { kind: 'package-key'; username: string; credential: string; scope: string }
   | { kind: 'package-computer'; username: string; computerId: string }
   | {
       kind: 'package-pipeline';

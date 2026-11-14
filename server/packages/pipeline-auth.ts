@@ -1,5 +1,13 @@
+import {
+  readPipelinePackageCredential,
+  verifyPipelinePackageCredential,
+} from '../kernel/auth/packages.ts';
+export {
+  readPipelinePackageCredential,
+  verifyPipelinePackageCredential,
+} from '../kernel/auth/packages.ts';
 import { createHash, randomBytes } from 'node:crypto';
-import { db, get, save, now } from '../workspace/store.ts';
+import { get, save, now } from '../workspace/store.ts';
 
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
 export function assertPublishRun(owner: string, run: any) {
@@ -40,13 +48,10 @@ export function issuePipelinePackageToken(owner: string, job: any) {
   return token;
 }
 export function pipelinePackageIdentity(token: string) {
-  const row = db
-    .prepare("SELECT data FROM records WHERE kind='pipeline-package-token' AND id=? AND owner=''")
-    .get(digest(token)) as any;
-  if (!row) return null;
-  const scope = JSON.parse(row.data);
+  const scope = readPipelinePackageCredential(token);
+  if (!scope) return null;
   try {
-    if (scope.expiresAt <= Date.now()) return null;
+    if (!verifyPipelinePackageCredential(scope)) return null;
     const run = get('pipeline-run', scope.owner, scope.pipelineId);
     assertPublishRun(scope.owner, run);
     const job = get('job', scope.owner, scope.jobId);

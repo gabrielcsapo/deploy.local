@@ -6,7 +6,13 @@ import {
 import { assertDeployRole, deployRoleEnabled } from '../kernel/computers/policy.ts';
 export { onNodeChange, assertDeployRole, deployRoleEnabled };
 import { materialized } from '../kernel/materialized.ts';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import {
+  configureNodeCredentials,
+  hashNodeSecret,
+  verifyNodeEnrollment,
+} from '../kernel/auth/nodes.ts';
+export { authenticateNode, verifyNode, verifyNodeEnrollment } from '../kernel/auth/nodes.ts';
 import { nodes, computerRolePreferences, nodeEnrollments, deployments } from '../schema.ts';
 import { getDb, getSqlite, refreshDeploymentInCache } from './connection.ts';
 import { hostname, platform, arch, cpus, totalmem } from 'node:os';
@@ -36,9 +42,11 @@ const ENROLLMENT_TTL_MS = 10 * 60_000;
 
 const DEFAULT_NODE_SETTING = 'default_node_id';
 
-function hashNodeSecret(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
-}
+configureNodeCredentials({
+  node: (id) => getDb().select().from(nodes).where(eq(nodes.id, id)).get(),
+  enrollment: (hash) =>
+    getDb().select().from(nodeEnrollments).where(eq(nodeEnrollments.codeHash, hash)).get(),
+});
 
 function publicNode<T extends typeof nodes.$inferSelect>(node: T) {
   const { credentialHash: _, ...safe } = node;
@@ -193,13 +201,8 @@ export function redeemNodeEnrollment(input: {
 }) {
   if (input.roles) parseWantedRoles(input.roles);
   const db = getDb();
-  const codeHash = hashNodeSecret(input.code.trim().toUpperCase());
-  const enrollment = db
-    .select()
-    .from(nodeEnrollments)
-    .where(eq(nodeEnrollments.codeHash, codeHash))
-    .get();
-  if (!enrollment || enrollment.usedAt || enrollment.expiresAt < Date.now()) {
+  const enrollment = verifyNodeEnrollment(input.code);
+  if (!enrollment) {
     return { error: 'Enrollment code is invalid or expired' as const };
   }
 
@@ -251,11 +254,14 @@ export function redeemNodeEnrollment(input: {
     }
     tx.update(nodeEnrollments)
       .set({ usedAt: now })
-      .where(eq(nodeEnrollments.id, enrollment.id))
+      .where(eq(nodeEnrollments.id, enrollment.enrollmentId))
       .run();
   });
   invalidateNode(nodeId);
-  const roles = { ...getComputerRolePreferences(`enrollment:${enrollment.id}`), ...input.roles };
+  const roles = {
+    ...getComputerRolePreferences(`enrollment:${enrollment.enrollmentId}`),
+    ...input.roles,
+  };
   if (Object.keys(roles).length) setComputerRolePreferences(nodeId, roles);
   return {
     nodeId,
@@ -264,16 +270,6 @@ export function redeemNodeEnrollment(input: {
     enrollmentOwner: enrollment.createdBy,
     roles: getAgentRoles(nodeId),
   };
-}
-
-export function authenticateNode(nodeId: string | undefined, secret: string | undefined) {
-  if (!nodeId || !secret) return false;
-  const db = getDb();
-  const node = db.select().from(nodes).where(eq(nodes.id, nodeId)).get();
-  if (!node?.credentialHash || node.revokedAt) return false;
-  const actual = Buffer.from(hashNodeSecret(secret));
-  const expected = Buffer.from(node.credentialHash);
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 export function heartbeatNode(

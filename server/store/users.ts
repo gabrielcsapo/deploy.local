@@ -1,39 +1,28 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { getDb, getSqlite } from './connection.ts';
 import { sessions, users } from '../schema.ts';
 import { eq, sql, and } from 'drizzle-orm';
 
-// ── Password hashing ─────────────────────────────────────────────────────────
-// scrypt with a per-user random salt, stored as `scrypt:<salt>:<hash>`.
-// Accounts created before this change hold a bare unsalted sha256 hex digest;
-// verifyPassword still accepts those and loginUser transparently rehashes on
-// the next successful login.
+import {
+  configurePersonCredentials,
+  hashPassword,
+  verifyPersonPassword,
+} from '../kernel/auth/person.ts';
+export { authenticate, verifyPersonPassword, verifyPersonSession } from '../kernel/auth/person.ts';
 
-function legacySha256(password: string) {
-  return createHash('sha256').update(password).digest('hex');
-}
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(16);
-  const hash = scryptSync(password, salt, 64);
-  return `scrypt:${salt.toString('hex')}:${hash.toString('hex')}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  try {
-    if (stored.startsWith('scrypt:')) {
-      const [, saltHex, hashHex] = stored.split(':');
-      const expected = Buffer.from(hashHex, 'hex');
-      const actual = scryptSync(password, Buffer.from(saltHex, 'hex'), expected.length);
-      return expected.length > 0 && timingSafeEqual(actual, expected);
-    }
-    const expected = Buffer.from(stored, 'hex');
-    const actual = Buffer.from(legacySha256(password), 'hex');
-    return expected.length === actual.length && timingSafeEqual(actual, expected);
-  } catch {
-    return false;
-  }
-}
+// The feature retains its schema/connection; the kernel only sees credential records.
+configurePersonCredentials({
+  password: (username) => getDb().select().from(users).where(eq(users.username, username)).get(),
+  replacePassword(username, password) {
+    getDb().update(users).set({ password }).where(eq(users.username, username)).run();
+  },
+  session: (username, token) =>
+    getDb()
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.username, username), eq(sessions.token, token)))
+      .get(),
+});
 
 function generateToken() {
   return randomBytes(32).toString('hex');
@@ -82,38 +71,11 @@ export function registerUser(username: string, password: string) {
 }
 
 export function loginUser(username: string, password: string) {
-  const db = getDb();
-  const user = db.select().from(users).where(eq(users.username, username)).get();
-  if (!user || !verifyPassword(password, user.password)) {
+  getDb();
+  if (!verifyPersonPassword(username, password, true)) {
     return { error: 'Invalid credentials' as const, status: 401 as const };
   }
-  // Transparent upgrade: legacy sha256 hashes are replaced with scrypt the
-  // first time the password is presented and verified.
-  if (!user.password.startsWith('scrypt:')) {
-    db.update(users)
-      .set({ password: hashPassword(password) })
-      .where(eq(users.username, username))
-      .run();
-  }
   return { token: createSession(username) };
-}
-
-export function authenticate(
-  username: string | null | undefined,
-  token: string | null | undefined,
-) {
-  if (!username || !token) return false;
-  const db = getDb();
-  const session = db
-    .select()
-    .from(sessions)
-    .where(and(eq(sessions.username, username), eq(sessions.token, token)))
-    .get();
-  if (!session) return false;
-  // Sessions created before TTLs existed have no expiry — accept them; the
-  // maintenance pruner ages them out by createdAt instead.
-  if (session.expiresAt != null && session.expiresAt < Date.now()) return false;
-  return true;
 }
 
 /** Delete expired sessions (and pre-TTL sessions older than the TTL). */
@@ -141,8 +103,7 @@ export function logoutUser(username: string, token: string) {
 
 export function changePassword(username: string, currentPassword: string, newPassword: string) {
   const db = getDb();
-  const user = db.select().from(users).where(eq(users.username, username)).get();
-  if (!user || !verifyPassword(currentPassword, user.password)) {
+  if (!verifyPersonPassword(username, currentPassword)) {
     return { error: 'Invalid current password' as const, status: 401 as const };
   }
   db.update(users)

@@ -1,3 +1,5 @@
+import { verifyCi } from './kernel/auth/ci.ts';
+export { verifyCi } from './kernel/auth/ci.ts';
 import { assertAgentApplication } from './agent-upload.ts';
 import { db as workspaceDb, save as saveWorkspaceRecord } from './workspace/store.ts';
 import { assertApplicationReleaseIdle } from './v2/releases.ts';
@@ -123,15 +125,15 @@ export function issueOwnedCiCredential(username: string, application: string, tt
   return { id, application, expiresAt, token };
 }
 export function authenticateCi(token: unknown): CiCredential {
-  if (typeof token !== 'string' || !/^ci_[a-f0-9]{64}$/.test(token)) ciError('Unauthorized', 401);
-  const c = sql()
-    .prepare(
-      'SELECT id,username,application,expires_at FROM ci_credentials WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?',
-    )
-    .get(hash(token), Date.now()) as CiCredential | undefined;
-  if (!c || readDeploymentRecord(c.application)?.username !== c.username)
+  const principal = verifyCi(token);
+  if (readDeploymentRecord(principal.application)?.username !== principal.username)
     ciError('Unauthorized', 401);
-  return c;
+  return {
+    id: principal.credentialId,
+    username: principal.username,
+    application: principal.application,
+    expires_at: principal.expiresAt,
+  };
 }
 export function revokeCiCredential(id: string, username: string) {
   const result = sql()

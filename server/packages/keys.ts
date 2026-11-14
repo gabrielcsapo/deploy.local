@@ -1,3 +1,5 @@
+import { verifyComputerPackageKey, verifyPackageKey } from '../kernel/auth/packages.ts';
+export { verifyComputerPackageKey, verifyPackageKey } from '../kernel/auth/packages.ts';
 import { pipelinePackageIdentity } from './pipeline-auth.ts';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
@@ -66,11 +68,9 @@ export function registryIdentity(req: IncomingMessage): Identity | null {
   if (/^dlp_[A-Za-z0-9_-]{43}$/.test(token)) {
     const pipeline = pipelinePackageIdentity(token);
     if (pipeline) return pipeline;
-    const computer = db()
-      .prepare('SELECT username,computer_id,last_used_at FROM package_computer_keys WHERE hash=?')
-      .get(hash(token)) as any;
+    const computer = verifyComputerPackageKey(token);
     if (computer) {
-      if (!recentlyUsed(computer.last_used_at))
+      if (!recentlyUsed(computer.lastUsedAt))
         db()
           .prepare('UPDATE package_computer_keys SET last_used_at=? WHERE hash=?')
           .run(now(), hash(token));
@@ -78,23 +78,19 @@ export function registryIdentity(req: IncomingMessage): Identity | null {
         username: computer.username,
         publish: false,
         admin: false,
-        credential: 'computer:' + computer.computer_id,
+        credential: 'computer:' + computer.computerId,
         computer: true,
       };
     }
-    const key = db()
-      .prepare('SELECT id,username,scope,last_used_at FROM package_keys WHERE hash=?')
-      .get(hash(token)) as
-      | { id: string; username: string; scope: string; last_used_at: string | null }
-      | undefined;
+    const key = verifyPackageKey(token);
     if (!key) return null;
-    if (!recentlyUsed(key.last_used_at))
-      db().prepare('UPDATE package_keys SET last_used_at=? WHERE id=?').run(now(), key.id);
+    if (!recentlyUsed(key.lastUsedAt))
+      db().prepare('UPDATE package_keys SET last_used_at=? WHERE id=?').run(now(), key.keyId);
     return {
       username: key.username,
       publish: key.scope === 'publish',
       admin: isAdmin(key.username),
-      credential: 'package-key:' + key.id,
+      credential: key.credential,
     };
   }
   if (authorization.startsWith('Basic ')) {

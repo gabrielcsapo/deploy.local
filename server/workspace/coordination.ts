@@ -1,3 +1,5 @@
+import { readRunCredential, verifyRunCredential } from '../kernel/auth/run.ts';
+export { readRunCredential, verifyRunCredential } from '../kernel/auth/run.ts';
 import { computerView } from './computer-view.ts';
 import { packageHooks } from './package-hooks.ts';
 import { terminalRelay } from './terminal-service.ts';
@@ -51,16 +53,12 @@ export function issueAgentToken(scope: AgentScope) {
   return token;
 }
 export function authenticateAgent(token: string): AgentScope | null {
-  if (!token || token.length > 200) return null;
-  const row = db
-    .prepare("SELECT owner,data FROM records WHERE kind='agent-credential' AND id=?")
-    .get(createHash('sha256').update(token).digest('hex')) as any;
-  if (!row) return null;
-  const credential = JSON.parse(row.data),
-    run = get('run', row.owner, credential.runId);
-  if (credential.expiresAt < Date.now() || !live.includes(run.status) || run.stopRequested)
-    return null;
-  return { owner: row.owner, taskId: credential.taskId, runId: credential.runId };
+  const record = readRunCredential(token);
+  if (!record) return null;
+  const run = get('run', record.owner, record.credential.runId);
+  const principal = verifyRunCredential(record);
+  if (!principal || !live.includes(run.status) || run.stopRequested) return null;
+  return { owner: principal.owner, taskId: principal.taskId, runId: principal.runId };
 }
 // Every heartbeat lives in the database, so a coordinator restart leaves them all stale until
 // each worker registers again — about a second for a reachable one, longer for a computer that

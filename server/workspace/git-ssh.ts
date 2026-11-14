@@ -6,7 +6,7 @@ const { Server, utils } = ssh2;
 import { findRepository } from './repositories.ts';
 import { gitEnvironment } from './repository-git.ts';
 import { PushResult } from './pipeline-triggers.ts';
-import { findSshKey, sshFingerprint } from './ssh-keys.ts';
+import { findSshKey, sshFingerprint, verifySshSignature } from './ssh-keys.ts';
 import { configuredSshPort, setSshServerState, sshHostKey } from './ssh-host.ts';
 import { now, save } from './store.ts';
 
@@ -86,9 +86,15 @@ export function createGitSshTransport(privateKey: Buffer) {
       const key = utils.parseKey(found.key.publicKey);
       if (key instanceof Error || Array.isArray(key)) return context.reject(['publickey']);
       if (!context.signature) return context.accept(); // Public-key probe; not authenticated yet.
-      if (!context.blob || key.verify(context.blob, context.signature, context.hashAlgo) !== true)
-        return context.reject(['publickey']);
-      owner = found.owner;
+      const principal = verifySshSignature(
+        found,
+        key,
+        context.blob,
+        context.signature,
+        context.hashAlgo,
+      );
+      if (!principal) return context.reject(['publickey']);
+      owner = principal.owner;
       save('ssh-key', owner, { ...found.key, lastUsedAt: now() });
       context.accept();
     });
