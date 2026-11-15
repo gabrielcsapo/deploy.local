@@ -422,8 +422,17 @@ function DesignCanvasPage({
     [],
   );
   const showPanel = useCallback((panel: DesignPanel, show: boolean) => {
+    // The button pressed goes away with its panel. From the keyboard, focus moves to the button
+    // that undoes it rather than falling back to the page.
+    const keyboard = document.activeElement?.matches(':focus-visible') ?? false;
     rememberDesignPanel(panel, !show);
     setHidden((state) => ({ ...state, [panel]: !show }));
+    if (keyboard)
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLElement>(`[aria-label="${show ? 'Hide' : 'Show'} ${panel} panel"]`)
+          ?.focus(),
+      );
   }, []);
   const [revision, setRevision] = useState(0);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
