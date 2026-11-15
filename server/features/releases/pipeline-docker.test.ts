@@ -59,12 +59,12 @@ test(
       const { pipelineSource, advancePipelineDeployment } =
         await import('./pipeline-deployment.ts');
       const { pipelineStart, reconcilePipelines } = await import('./pipelines.ts');
-      const { createProject } = await import('./test-repository.ts');
-      const { JobRunner } = await import('./job-runner.ts');
-      const { jobCommand } = await import('./coordination.ts');
-      const { refreshCapabilities } = await import('./worker-capabilities.ts');
+      const { createProject } = await import('../../workspace/test-repository.ts');
+      const { JobRunner } = await import('../../workspace/job-runner.ts');
+      const { jobCommand } = await import('../../workspace/coordination.ts');
+      const { refreshCapabilities } = await import('../../workspace/worker-capabilities.ts');
       await refreshCapabilities();
-      workspace = await import('./store.ts');
+      workspace = await import('../../workspace/store.ts');
       const { get, db, now } = workspace;
       const source = join(data, 'source');
       mkdirSync(source);
@@ -159,7 +159,7 @@ test(
         await (await fetch(`http://127.0.0.1:${deployed.port}`)).text(),
         'pipeline-version',
       );
-      const { getSqlite, _resetDb } = await import('../store.ts');
+      const { getSqlite, _resetDb } = await import('../../store.ts');
       assert.equal(
         (
           getSqlite()!

@@ -44,7 +44,7 @@ const exceptions: Record<string, string> = {
     'Existing pull check projection used for collaboration admission.',
   'project-tools.ts -> server/features/agents/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
-  'project-tools.ts -> server/workspace/pipelines.ts':
+  'project-tools.ts -> server/features/releases/pipelines.ts':
     'Existing project tool pipeline commands; needs a later release-command port.',
   'project-tools.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',

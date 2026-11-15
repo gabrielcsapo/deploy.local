@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'fleet-updates-'));
 process.env.DEPLOY_DATA_DIR = root;
-const store = await import('../store.ts');
-const { db, save, list } = await import('../workspace/store.ts');
+const store = await import('../../store.ts');
+const { db, save, list } = await import('../../workspace/store.ts');
 const fleet = await import('./fleet-updates.ts');
 const { updateReservation } = await import('./update-admission.ts');
-const { workerRole } = await import('../workspace/computer-roles.ts');
-const { workerCommand } = await import('../workspace/protocol.ts');
+const { workerRole } = await import('../../workspace/computer-roles.ts');
+const { workerCommand } = await import('../../workspace/protocol.ts');
 const { createAgentExecSession, closeAgentExecSession, claimAgentExecSession } =
-  await import('../agent-exec.ts');
+  await import('../../agent-exec.ts');
 store.registerUser('owner', 'test-password');
 store.registerUser('other', 'test-password');
 after(() => {

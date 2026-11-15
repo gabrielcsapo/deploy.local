@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Computer, Release } from '../../shared/v2/contracts.ts';
+import type { Computer, Release } from '../../../shared/v2/contracts.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-updates-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { db, save } = await import('../workspace/store.ts');
+const { db, save } = await import('../../workspace/store.ts');
 const { followRelease, getUpdates, updateState, UPDATE_INTERVAL_MS } = await import('./updates.ts');
-const { restartingHtml, controlRestartingPage } = await import('../edge/restarting.ts');
+const { restartingHtml, controlRestartingPage } = await import('../../edge/restarting.ts');
 after(() => {
   db.close();
   rmSync(root, { recursive: true, force: true });

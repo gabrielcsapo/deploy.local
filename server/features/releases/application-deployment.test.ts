@@ -9,13 +9,13 @@ import { gunzipSync } from 'node:zlib';
 import type { IncomingMessage, ServerResponse, RequestListener } from 'node:http';
 import { Readable } from 'node:stream';
 import { extract } from 'tar-stream';
-import { captureSnapshot } from './checkpoint.ts';
+import { captureSnapshot } from '../../workspace/checkpoint.ts';
 
 const data = mkdtempSync(join(tmpdir(), 'deploy-agent-application-test-'));
 process.env.DEPLOY_DATA_DIR = data;
-const store = await import('../store.ts');
-const workspace = await import('./store.ts');
-const { registerApplicationIdentity } = await import('../local-site.ts');
+const store = await import('../../store.ts');
+const workspace = await import('../../workspace/store.ts');
+const { registerApplicationIdentity } = await import('../../local-site.ts');
 const { checkpointBundle, deployApplication, waitForApplication, redactDeploymentLog } =
   await import('./application-deployment.ts');
 const {
@@ -24,9 +24,9 @@ const {
   assertAgentApplication,
   recordAgentUpload,
   finishAgentUpload,
-} = await import('../agent-upload.ts');
-const { coordinationInstructions } = await import('./agent-launch.ts');
-const { coordinationTools } = await import('./coordination-tools.ts');
+} = await import('../../agent-upload.ts');
+const { coordinationInstructions } = await import('../../workspace/agent-launch.ts');
+const { coordinationTools } = await import('../../workspace/coordination-tools.ts');
 const owner = 'agent-owner';
 const scope = { owner, taskId: 'task-one', runId: 'run-one' };
 workspace.save('task', owner, { id: scope.taskId, title: 'Deploy a test application' });
@@ -450,11 +450,11 @@ test('deployment instructions and tool schema teach the complete deploy and cros
 });
 
 test('actual upload handler enforces scoped fields, placement and destructive confirmation before deployment', async () => {
-  const { apiMiddleware } = await import('../api.ts');
-  const { stopMetricsCollector } = await import('../metrics-collector.ts');
-  const { stopDockerEventStream } = await import('../docker.ts');
-  const { stopStatsMonitor } = await import('../docker-api.ts');
-  const { compileDeployYaml } = await import('../application-spec.ts');
+  const { apiMiddleware } = await import('../../api.ts');
+  const { stopMetricsCollector } = await import('../../metrics-collector.ts');
+  const { stopDockerEventStream } = await import('../../docker.ts');
+  const { stopStatsMonitor } = await import('../../docker-api.ts');
+  const { compileDeployYaml } = await import('../../application-spec.ts');
   const api = apiMiddleware();
   try {
     await listen((req, res) => {
@@ -567,7 +567,7 @@ test('actual upload handler enforces scoped fields, placement and destructive co
 });
 
 test('provider continuation waits through pending results and transient outages using the identical operation', async () => {
-  const { continueApplication } = await import('./application-continuation.ts');
+  const { continueApplication } = await import('../../workspace/application-continuation.ts');
   const args = { operationId: 'same-reservation', checkpointId: 'same-checkpoint' };
   let calls = 0;
   const result = {

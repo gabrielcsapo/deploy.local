@@ -10,13 +10,13 @@ process.env.DEPLOY_DATA_DIR = root;
 // Nothing here may reach a real daemon, so even an unfaked call lands on a socket this file owns.
 const socket = join(root, 'docker.sock');
 process.env.DOCKER_HOST = `unix://${socket}`;
-const store = await import('../store.ts');
-const workspace = await import('../workspace/store.ts');
-const specs = await import('../application-spec.ts');
-const localSite = await import('../local-site.ts');
-const { graphNetworkName, graphVolumeName } = await import('../graph-docker-adapter.ts');
-const { DockerApiError } = await import('../docker-api.ts');
-const { resolveProject } = await import('./projects.ts');
+const store = await import('../../store.ts');
+const workspace = await import('../../workspace/store.ts');
+const specs = await import('../../application-spec.ts');
+const localSite = await import('../../local-site.ts');
+const { graphNetworkName, graphVolumeName } = await import('../../graph-docker-adapter.ts');
+const { DockerApiError } = await import('../../docker-api.ts');
+const { resolveProject } = await import('../../v2/projects.ts');
 const { removeProject, stopApp, ProjectRemovalDocker } = await import('./project-removal.ts');
 
 after(() => {
@@ -200,7 +200,7 @@ async function workerFinishes(
 
 async function withApi<T>(run: (origin: string) => Promise<T>) {
   // Only the routes under test: the whole API starts schedulers that would outlive this file.
-  const { deploymentsRoutes } = await import('../api/deployments.ts');
+  const { deploymentsRoutes } = await import('../../api/deployments.ts');
   const server = createServer((req, res) => {
     const url = new URL(req.url!, 'http://localhost');
     void deploymentsRoutes({ req, res, url, path: url.pathname, method: req.method! } as any);

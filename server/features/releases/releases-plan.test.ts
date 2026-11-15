@@ -7,12 +7,13 @@ const root = mkdtempSync(join(tmpdir(), 'release-plan-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { releaseChoices, validateReleaseChoices } = await import('./releases-plan.ts');
 const { CoordinatorReleaseRuntime } = await import('./releases-runtime.ts');
-const { saveDeployment, getSqlite, _resetDb } = await import('../store.ts');
-const { db, save } = await import('../workspace/store.ts');
-const { ProjectReleaseService, assertApplicationReleaseIdle } = await import('./releases.ts');
+const { saveDeployment, getSqlite, _resetDb } = await import('../../store.ts');
+const { db, save } = await import('../../workspace/store.ts');
+const { ProjectReleaseService, assertApplicationReleaseIdle } =
+  await import('../../v2/releases.ts');
 const { beginApplicationMutation, withinProjectRelease, assertReleaseMutation } =
   await import('./releases-fence.ts');
-const { assertCiMutation } = await import('../ci-fence.ts');
+const { assertCiMutation } = await import('../../ci-fence.ts');
 after(() => {
   _resetDb();
   db.close();

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { ReleaseNodePayload } from './releases-worker.ts';
+import type { ReleaseNodePayload } from '../../v2/releases-worker.ts';
 const root = mkdtempSync(join(tmpdir(), 'release-dispatch-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { dispatchReleaseNodeJob } = await import('./releases-remote.ts');
 const { ensureCoordinatorNode, getSqlite, getAgentJob, completeAgentJob, _resetDb } =
-  await import('../store.ts');
+  await import('../../store.ts');
 after(() => {
   _resetDb();
   rmSync(root, { recursive: true, force: true });
@@ -63,7 +63,7 @@ test('a failed Verify stays failed for the same release', async () => {
 });
 
 const { createReleaseNodeTransport } = await import('./releases-remote.ts');
-const { recordReleaseJobProgress, claimAgentJob, enqueueAgentJob } = await import('../store.ts');
+const { recordReleaseJobProgress, claimAgentJob, enqueueAgentJob } = await import('../../store.ts');
 const minute = 60_000;
 const timeoutMessage =
   'Computer release job has not completed; recovery will follow its durable receipt';

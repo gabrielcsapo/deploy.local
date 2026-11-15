@@ -9,13 +9,13 @@ const data = mkdtempSync(join(tmpdir(), 'deploy-pipeline-release-'));
 process.env.DEPLOY_DATA_DIR = data;
 const { advancePipelineDeployment, pipelineSource, pipelineBundle } =
   await import('./pipeline-deployment.ts');
-const { get, save, db } = await import('./store.ts');
-const { git } = await import('./service.ts');
-const { createProject } = await import('./test-repository.ts');
-const store = await import('../store.ts');
-const { registerApplicationIdentity } = await import('../local-site.ts');
+const { get, save, db } = await import('../../workspace/store.ts');
+const { git } = await import('../../workspace/service.ts');
+const { createProject } = await import('../../workspace/test-repository.ts');
+const store = await import('../../store.ts');
+const { registerApplicationIdentity } = await import('../../local-site.ts');
 const { consumeAgentUpload, assertAgentApplication, recordAgentUpload, recordApplicationOrigin } =
-  await import('../agent-upload.ts');
+  await import('../../agent-upload.ts');
 afterEach(() => mock.restoreAll());
 after(() => {
   db.close();

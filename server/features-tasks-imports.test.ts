@@ -97,7 +97,7 @@ const exceptions: Record<string, string> = {
     'Existing worker projection and AgentScope type; preserve admission and placement.',
   'task-workspace.ts -> server/features/agents/coordination.ts':
     'Existing worker projection and AgentScope type; preserve admission and placement.',
-  'job-artifacts.ts -> server/workspace/application-deployment.ts':
+  'job-artifacts.ts -> server/features/releases/application-deployment.ts':
     'Existing deployment log redaction; preserve artifact secret filtering.',
   'job-runner.ts -> server/workspace/git-url-migration.ts':
     'Existing managed Git URL compatibility; preserve job checkout behavior.',

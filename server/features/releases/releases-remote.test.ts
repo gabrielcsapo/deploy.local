@@ -13,15 +13,16 @@ import {
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import type { AgentGraphDocker, AgentGraphExecutionInput } from '../agent-graph-runtime.ts';
+import type { AgentGraphDocker, AgentGraphExecutionInput } from '../../agent-graph-runtime.ts';
 import type { WorkerReleasePart } from './release-progress.ts';
 import type { ReleaseNodeTransport } from './releases-remote.ts';
 const root = mkdtempSync(join(tmpdir(), 'release-nodes-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { executeReleaseAgentJob } = await import('./releases-worker.ts');
+const { executeReleaseAgentJob } = await import('../../v2/releases-worker.ts');
 const { CoordinatorReleaseRuntime } = await import('./releases-runtime.ts');
-const { saveDeployment, getSqlite, readDeploymentRecord, _resetDb } = await import('../store.ts');
-const { db } = await import('../workspace/store.ts');
+const { saveDeployment, getSqlite, readDeploymentRecord, _resetDb } =
+  await import('../../store.ts');
+const { db } = await import('../../workspace/store.ts');
 after(() => {
   _resetDb();
   db.close();
@@ -624,7 +625,7 @@ test('a failed Verify includes the ended operation in its final error receipt', 
 });
 
 test('remote worker timings reach the persisted project release steps', async () => {
-  const { ProjectReleaseService, releaseById } = await import('./releases.ts');
+  const { ProjectReleaseService, releaseById } = await import('../../v2/releases.ts');
   const f = fixture();
   const service = new ProjectReleaseService(f.runtime, { watchMs: 0 });
   const release = service.ship('owner', f.project, { source: { kind: 'ship', ref: 'main' } });
@@ -680,7 +681,7 @@ ${resources.map((name) => `  ${name}: {type: volume${empty.includes(name) ? ', v
     const plan = await f.runtime.plan(f.project);
     await f.runtime.prepare(plan);
     const backup = mode === 'backup' ? await f.runtime.backup(plan) : undefined;
-    const step: import('../../shared/v2/contracts.ts').Release['steps'][number] = {
+    const step: import('../../../shared/v2/contracts.ts').Release['steps'][number] = {
       name: 'verify',
       state: 'running',
     };
@@ -737,7 +738,7 @@ ${resources.map((name) => `  ${name}: {type: volume${empty.includes(name) ? ', v
 }
 
 test('Verify stores empty resource names beside parts in the release record', async () => {
-  const { ProjectReleaseService, releaseById } = await import('./releases.ts');
+  const { ProjectReleaseService, releaseById } = await import('../../v2/releases.ts');
   const f = fixture();
   for (const name of f.names) {
     const path = join(root, name, 'deploy.yaml');

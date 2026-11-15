@@ -8,10 +8,10 @@ import { randomUUID } from 'node:crypto';
 const data = mkdtempSync(join(tmpdir(), 'pipeline-paths-'));
 process.env.DEPLOY_DATA_DIR = data;
 const { pipelineTrigger, pipelineStart, scanPipelineTriggers } = await import('./pipelines.ts');
-const { queuePushTrigger } = await import('./pipeline-triggers.ts');
-const { createProject } = await import('./test-repository.ts');
-const { git } = await import('./service.ts');
-const { save, list, db } = await import('./store.ts');
+const { queuePushTrigger } = await import('../../workspace/pipeline-triggers.ts');
+const { createProject } = await import('../../workspace/test-repository.ts');
+const { git } = await import('../../workspace/service.ts');
+const { save, list, db } = await import('../../workspace/store.ts');
 const owner = 'paths-owner';
 after(() => {
   db.close();

@@ -9,12 +9,13 @@ import type {
   GraphDockerAdapter,
   GraphContainerCreateRequest,
   GraphContainerInspection,
-} from '../graph-docker-adapter.ts';
+} from '../../graph-docker-adapter.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-release-runtime-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { CoordinatorReleaseRuntime } = await import('./releases-runtime.ts');
-const { getSqlite, saveDeployment, readDeploymentRecord, _resetDb } = await import('../store.ts');
-const { db, save } = await import('../workspace/store.ts');
+const { getSqlite, saveDeployment, readDeploymentRecord, _resetDb } =
+  await import('../../store.ts');
+const { db, save } = await import('../../workspace/store.ts');
 after(() => {
   _resetDb();
   db.close();
@@ -386,7 +387,7 @@ test('coordinator Verify skips empty resources while rollback still restores the
     );
   }
   const plan = await f.runtime.plan(f.project);
-  const { graphVolumeName } = await import('../graph-docker-adapter.ts');
+  const { graphVolumeName } = await import('../../graph-docker-adapter.ts');
   const apps = (plan.runtime as { apps: { applicationId: string }[] }).apps;
   for (const app of apps)
     for (const name of ['media', 'database'])

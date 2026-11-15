@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'release-build-log-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { db, save } = await import('../workspace/store.ts');
+const { db, save } = await import('../../workspace/store.ts');
 const { releaseBuildLogId, releaseBuildOutput, releaseJobBuildLogId } =
   await import('./release-build-log.ts');
-const { buildLogFilePath } = await import('../store.ts');
-const { releasesApi } = await import('./releases-api.ts');
-const { routeFetch } = await import('./test-request.ts');
+const { buildLogFilePath } = await import('../../store.ts');
+const { releasesApi } = await import('../../v2/releases-api.ts');
+const { routeFetch } = await import('../../v2/test-request.ts');
 const request = (owner: string) => routeFetch((req, res) => releasesApi(req, res, owner));
 
 after(() => {
