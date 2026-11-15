@@ -16,20 +16,20 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import type { coordinationTools } from './coordination-tools.ts';
-import { captureSnapshot, validateSnapshot, restoreSnapshot } from './checkpoint.ts';
-import { JobRunner } from './job-runner.ts';
+import { captureSnapshot, validateSnapshot, restoreSnapshot } from '../../workspace/checkpoint.ts';
+import { JobRunner } from '../../workspace/job-runner.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 
 const data = mkdtempSync(join(tmpdir(), 'deploy-coordination-test-'));
 process.env.DEPLOY_DATA_DIR = data;
-const { db, get, save, list, now } = await import('./store.ts');
+const { db, get, save, list, now } = await import('../../workspace/store.ts');
 const { coordinationTool, issueAgentToken, authenticateAgent, jobCommand } =
   await import('./coordination.ts');
-const { coordinationApi } = await import('./coordination-api.ts');
-const { enrollWorker, workerAuthentication } = await import('./credentials.ts');
-const { workspaceApi } = await import('./api.ts');
-const { createTask } = await import('./test-repository.ts');
-const { startRun } = await import('./service.ts');
+const { coordinationApi } = await import('../../workspace/coordination-api.ts');
+const { enrollWorker, workerAuthentication } = await import('../../workspace/credentials.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
+const { createTask } = await import('../../workspace/test-repository.ts');
+const { startRun } = await import('../../workspace/service.ts');
 const owner = 'coordination-test';
 const task = createTask(owner, { title: 'One conversation, multiple computers' });
 writeFileSync(join(task.workspacePath, 'source.txt'), 'checkpoint version\n');
@@ -470,7 +470,7 @@ test('OS requirements queue until an eligible worker claims once, without changi
     for (const worker of previousWorkers) save('worker', owner, worker);
     if (local) db.prepare("UPDATE worker SET heartbeat=? WHERE id='local'").run(local.heartbeat);
   });
-  const { workerCommand } = await import('./protocol.ts');
+  const { workerCommand } = await import('../../workspace/protocol.ts');
   const job = tool('deploy_run_job', {
     checkpointId: checkpoint.checkpointId,
     requirements: {
@@ -614,7 +614,7 @@ process.stdin.on('end', () => console.log(JSON.stringify({type:'result',is_error
   assert.match(output, /Subscription default/);
 });
 test('agent MCP servers inherit the worker TLS trust for private coordinator CAs', async () => {
-  const { trustEnvironment } = await import('./tls-trust.ts');
+  const { trustEnvironment } = await import('../../workspace/tls-trust.ts');
   assert.deepEqual(trustEnvironment({ PATH: '/bin', DEPLOY_WORKER_TOKEN: 'secret' }, []), {});
   assert.deepEqual(
     trustEnvironment({ NODE_EXTRA_CA_CERTS: '/etc/deploy/ca.crt', NODE_USE_SYSTEM_CA: '1' }, []),
@@ -639,7 +639,7 @@ test('agent MCP servers inherit the worker TLS trust for private coordinator CAs
 });
 
 test('stopping a task timestamps queued job cancellation without inventing a start', async () => {
-  const { stopRun } = await import('./service.ts');
+  const { stopRun } = await import('../../workspace/service.ts');
   const waitingTask = createTask(owner, { title: 'Stop queued job' });
   const waitingRun = startRun(owner, waitingTask.id, {
     revision: 0,

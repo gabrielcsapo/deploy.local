@@ -34,7 +34,7 @@ const exceptions: Record<string, string> = {
     'Existing task baseline adoption/refresh after pull merges.',
   'project-collaboration.ts -> server/workspace/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
-  'project-collaboration.ts -> server/workspace/question-lifecycle.ts':
+  'project-collaboration.ts -> server/features/decisions/question-lifecycle.ts':
     'Existing cancellation of task questions after collaboration closes work.',
   'project-collaboration.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
@@ -42,7 +42,7 @@ const exceptions: Record<string, string> = {
     'Existing task creation from issues and pulls; needs a later task-command port.',
   'project-collaboration.ts -> server/features/tasks/workspace-checks.ts':
     'Existing pull check projection used for collaboration admission.',
-  'project-tools.ts -> server/workspace/coordination.ts':
+  'project-tools.ts -> server/features/agents/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
   'project-tools.ts -> server/workspace/pipelines.ts':
     'Existing project tool pipeline commands; needs a later release-command port.',
@@ -62,7 +62,7 @@ const exceptions: Record<string, string> = {
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
   'repository-creation-worker.ts -> server/features/tasks/checkpoint.ts':
     'Existing task snapshot/base restoration during repository creation and recovery.',
-  'repository-creation.ts -> server/workspace/coordination.ts':
+  'repository-creation.ts -> server/features/agents/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
   'repository-creation.ts -> server/workspace/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',

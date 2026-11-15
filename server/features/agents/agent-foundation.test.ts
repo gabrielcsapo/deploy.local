@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const root = mkdtempSync(join(tmpdir(), 'agents-foundation-'));
 process.env.DEPLOY_DATA_DIR = root;
-await import('../test-ports.ts');
-const { db, save, list, events, event } = await import('../workspace/store.ts');
+await import('../../test-ports.ts');
+const { db, save, list, events, event } = await import('../../workspace/store.ts');
 const {
   agentsForOwner,
   createAgent,
@@ -18,10 +18,10 @@ const {
 } = await import('./agents.ts');
 const { validateAvatar, validateItem, nextItemAt, itemProjects } =
   await import('./agent-foundation.ts');
-const { agentColors, agentGlyphs, avatarFromId } = await import('../../shared/v2/agents.ts');
-const { tickAgentSchedules, agentRuns } = await import('./agent-runs.ts');
-const { sendAgentMessage } = await import('./attachments.ts');
-const { saveProviderConnection } = await import('../workspace/provider-connections.ts');
+const { agentColors, agentGlyphs, avatarFromId } = await import('../../../shared/v2/agents.ts');
+const { tickAgentSchedules, agentRuns } = await import('../../v2/agent-runs.ts');
+const { sendAgentMessage } = await import('../../v2/attachments.ts');
+const { saveProviderConnection } = await import('../../workspace/provider-connections.ts');
 after(() => {
   db.close();
   rmSync(root, { recursive: true, force: true });

@@ -91,11 +91,11 @@ const exceptions: Record<string, string> = {
     'Existing media storage retained to satisfy the runtime port order guard.',
   'task-delete.ts -> server/workspace/attachments.ts':
     'Existing media storage retained to satisfy the runtime port order guard.',
-  'interactive.ts -> server/workspace/coordination.ts':
+  'interactive.ts -> server/features/agents/coordination.ts':
     'Existing worker projection and AgentScope type; preserve admission and placement.',
-  'job-artifacts.ts -> server/workspace/coordination.ts':
+  'job-artifacts.ts -> server/features/agents/coordination.ts':
     'Existing worker projection and AgentScope type; preserve admission and placement.',
-  'task-workspace.ts -> server/workspace/coordination.ts':
+  'task-workspace.ts -> server/features/agents/coordination.ts':
     'Existing worker projection and AgentScope type; preserve admission and placement.',
   'job-artifacts.ts -> server/workspace/application-deployment.ts':
     'Existing deployment log redaction; preserve artifact secret filtering.',
@@ -133,9 +133,9 @@ const exceptions: Record<string, string> = {
     'Existing shared task title formatting; preserve visible text.',
   'update-base.ts -> shared/task-title.ts':
     'Existing shared task title formatting; preserve visible text.',
-  'queued-message.ts -> server/workspace/question-lifecycle.ts':
+  'queued-message.ts -> server/features/decisions/question-lifecycle.ts':
     'Existing cancellation of task questions when a queued message is sent.',
-  'read-state.ts -> server/workspace/questions.ts':
+  'read-state.ts -> server/features/decisions/questions.ts':
     'Existing waiting-for-answer projection; preserve task read state.',
   'read-state.ts -> server/workspace/run-queue.ts':
     'Existing run queue retained to satisfy the runtime port order guard.',

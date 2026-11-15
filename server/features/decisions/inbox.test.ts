@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { InboxItem } from '../../shared/v2/contracts.ts';
+import type { InboxItem } from '../../../shared/v2/contracts.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-inbox-producers-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { db, list, save } = await import('../workspace/store.ts');
+const { db, list, save } = await import('../../workspace/store.ts');
 const { createInboxItem, registerInboxAction, answerInbox, syncInbox, withdrawInboxItems } =
   await import('./inbox.ts');
 after(() => {
@@ -16,7 +16,7 @@ after(() => {
 const owner = 'gabriel';
 
 test('design differences replace one decision, answers resume the same task, and matches withdraws it', async () => {
-  const { reportDesignBuild, taskDesignCheck } = await import('./design-check.ts');
+  const { reportDesignBuild, taskDesignCheck } = await import('../../v2/design-check.ts');
   const who = 'design-owner';
   const taskId = 'tally-builder';
   save('task', who, { id: taskId, projectId: 'tally', status: 'running', revision: 1 });

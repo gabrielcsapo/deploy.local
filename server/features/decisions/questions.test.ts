@@ -7,19 +7,19 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-question-test-'));
-await import('../test-ports.ts');
-const { get, save, list, events } = await import('./store.ts');
+await import('../../test-ports.ts');
+const { get, save, list, events } = await import('../../workspace/store.ts');
 const { questionTool, answerQuestion, taskQuestions, tasksWaitingForAnswer } =
   await import('./questions.ts');
-const { startRun, setTaskOutcome } = await import('./service.ts');
-const { queueMessage } = await import('./queued-message.ts');
-const { workerCommand } = await import('./protocol.ts');
-const { resolveRestartedRun } = await import('./run-recovery.ts');
-const { closeMergedTasks } = await import('./project-collaboration.ts');
+const { startRun, setTaskOutcome } = await import('../../workspace/service.ts');
+const { queueMessage } = await import('../../workspace/queued-message.ts');
+const { workerCommand } = await import('../../workspace/protocol.ts');
+const { resolveRestartedRun } = await import('../../workspace/run-recovery.ts');
+const { closeMergedTasks } = await import('../../workspace/project-collaboration.ts');
 const { continueQuestion } = await import('./question-continuation.ts');
-const { coordinationApi } = await import('./coordination-api.ts');
-const { workspaceApi } = await import('./api.ts');
-const { issueAgentToken } = await import('./coordination.ts');
+const { coordinationApi } = await import('../../workspace/coordination-api.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
+const { issueAgentToken } = await import('../../workspace/coordination.ts');
 function fixture() {
   const scope = { owner: randomUUID(), taskId: randomUUID(), runId: randomUUID() };
   save('task', scope.owner, { id: scope.taskId, status: 'running', revision: 1 });
@@ -201,7 +201,7 @@ test('coordinator outage retries only reads and an unanswered wait stays bounded
 });
 
 test('HTML authorization failures end the original question call without retrying', async (t) => {
-  const { callCoordinationTool } = await import('./coordination-tools.ts');
+  const { callCoordinationTool } = await import('../../workspace/coordination-tools.ts');
   let requests = 0;
   const server = createServer((_req, res) => {
     if (++requests === 1) {

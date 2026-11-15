@@ -10,9 +10,9 @@ import { prepareAgentInstall, agentEnvironment, agentShellEnvironment } from './
 import { agentLaunch } from './agent-launch.ts';
 const root = await mkdtemp(join(tmpdir(), 'agent-packages-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { save, get, db } = await import('./store.ts');
-await import('../packages/hooks.ts');
-const { registerUser, _resetDb } = await import('../store.ts');
+const { save, get, db } = await import('../../workspace/store.ts');
+await import('../../packages/hooks.ts');
+const { registerUser, _resetDb } = await import('../../store.ts');
 registerUser('owner', 'test-password-long');
 const key = 'dlp_' + 'r'.repeat(43);
 after(async () => {
@@ -115,7 +115,7 @@ test('agent runtime and native shell environment keep install config without enr
 });
 
 test('queued local checks use project config, preserve personal scopes and clean up', async () => {
-  const { tickChecks } = await import('./check-runner.ts');
+  const { tickChecks } = await import('../../workspace/check-runner.ts');
   const cwd = join(root, 'check');
   await mkdir(cwd);
   const home = join(root, 'home');
@@ -171,7 +171,7 @@ for (const [adapter, mode] of [
     `remote ${adapter} agent shells receive config and output is redacted (${mode})`,
     { timeout: 30000 },
     async () => {
-      const { initializeScratchWorkspace } = await import('./scratch.ts');
+      const { initializeScratchWorkspace } = await import('../../workspace/scratch.ts');
       const directory = await mkdtemp(join(root, 'remote-'));
       const baseRevision = initializeScratchWorkspace(join(directory, 'baseline'));
       const binary = join(directory, 'codex-stub');
@@ -412,7 +412,7 @@ test(
   'local agent launch retains config through its native shell environment and cleans up after concurrent queued runs',
   { timeout: 15000 },
   async () => {
-    const { createTask } = await import('./test-repository.ts');
+    const { createTask } = await import('../../workspace/test-repository.ts');
     const directory = await mkdtemp(join(root, 'local-'));
     for (const command of ['codex', 'claude', 'docker', 'swift', 'xcodebuild'])
       await writeFile(join(directory, command), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
@@ -498,9 +498,9 @@ console.log(JSON.stringify({ type: 'provider.output', text: fs.readFileSync(path
 );
 
 test('container job and removal receive only install environment; secrets and host npmrc never enter the image', async () => {
-  const { JobRunner } = await import('./job-runner.ts');
-  const { captureSnapshot } = await import('./checkpoint.ts');
-  const { initializeScratchWorkspace } = await import('./scratch.ts');
+  const { JobRunner } = await import('../../workspace/job-runner.ts');
+  const { captureSnapshot } = await import('../../workspace/checkpoint.ts');
+  const { initializeScratchWorkspace } = await import('../../workspace/scratch.ts');
   const directory = await mkdtemp(join(root, 'container-job-'));
   const source = join(directory, 'source');
   initializeScratchWorkspace(source);

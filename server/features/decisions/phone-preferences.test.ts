@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { IncomingMessage } from 'node:http';
 const root = mkdtempSync(join(tmpdir(), 'v2-phone-preferences-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { db, list, save, event } = await import('../workspace/store.ts');
+const { db, list, save, event } = await import('../../workspace/store.ts');
 const {
   notificationPreferences,
   putNotificationPreferences,
@@ -14,10 +14,10 @@ const {
   putAgentControl,
   shouldNotify,
 } = await import('./phone-preferences.ts');
-const { registerDevice, deliverPushEvents } = await import('./push.ts');
-const { authDb, session } = await import('./auth-store.ts');
-const { removeDevice, pairedDeviceForRequest } = await import('./devices.ts');
-const { _resetDb, registerUser } = await import('../store.ts');
+const { registerDevice, deliverPushEvents } = await import('../../v2/push.ts');
+const { authDb, session } = await import('../../v2/auth-store.ts');
+const { removeDevice, pairedDeviceForRequest } = await import('../../v2/devices.ts');
+const { _resetDb, registerUser } = await import('../../store.ts');
 after(() => {
   _resetDb();
   db.close();
@@ -54,7 +54,7 @@ test('preferences are owner scoped, typed, and support quiet hours with rollback
 });
 
 test('mute expires after an hour and pause blocks unattended execution even with an allow rule', async () => {
-  const { isAllowed } = await import('./releases.ts');
+  const { isAllowed } = await import('../../v2/releases.ts');
   const time = Date.now();
   putAgentControl('controls', 'warden', { muteMinutes: 60, paused: true }, time);
   save('v2-approval', 'controls', {

@@ -8,13 +8,13 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 const root = mkdtempSync(join(tmpdir(), 'v2-agents-'));
 process.env.DEPLOY_DATA_DIR = root;
-await import('../test-ports.ts');
-const { db, save, list } = await import('../workspace/store.ts');
-const { v2Api } = await import('./api.ts');
+await import('../../test-ports.ts');
+const { db, save, list } = await import('../../workspace/store.ts');
+const { v2Api } = await import('../../v2/api.ts');
 const { approvalRules, putApprovalRules, isAllowed, ProjectReleaseService } =
-  await import('./releases.ts');
+  await import('../../v2/releases.ts');
 const { agentApprovalActions: approvalActions } = await import('./agents.ts');
-const { saveProviderConnection } = await import('../workspace/provider-connections.ts');
+const { saveProviderConnection } = await import('../../workspace/provider-connections.ts');
 let providerReply: unknown = {
   name: 'Keeper',
   job: 'Watch disk space. Ask before acting.',
@@ -203,7 +203,7 @@ test('rollback consults the common gate before touching runtime', () => {
 });
 
 test('a later Never rule blocks an already pending rollback decision', async () => {
-  const { createInboxItem, answerInbox, syncInbox } = await import('./inbox.ts');
+  const { createInboxItem, answerInbox, syncInbox } = await import('../../v2/inbox.ts');
   const owner = randomUUID();
   const project = { id: 'gym', name: 'home-gym', apps: [] };
   const service = new ProjectReleaseService({} as any);

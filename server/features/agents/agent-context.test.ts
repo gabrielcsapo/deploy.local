@@ -5,18 +5,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { computerRoles } from '../computer-roles.ts';
+import { computerRoles } from '../../computer-roles.ts';
 
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-context-'));
-await import('../test-ports.ts');
+await import('../../test-ports.ts');
 const { assembleAgentContext, operatingManual } = await import('./agent-context.ts');
 const { agentLaunch } = await import('./agent-launch.ts');
 const { coordinationTools } = await import('./coordination-tools.ts');
-const { get, save, now } = await import('./store.ts');
-const { workerCommand } = await import('./protocol.ts');
-const { createTask } = await import('./test-repository.ts');
-const { startRun } = await import('./service.ts');
-const { workspaceApi } = await import('./api.ts');
+const { get, save, now } = await import('../../workspace/store.ts');
+const { workerCommand } = await import('../../workspace/protocol.ts');
+const { createTask } = await import('../../workspace/test-repository.ts');
+const { startRun } = await import('../../workspace/service.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
 
 const workers = [
   {
