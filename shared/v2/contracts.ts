@@ -92,6 +92,8 @@ export type InboxItem = {
   state: 'waiting' | 'answered' | 'expired' | 'withdrawn';
   outcome?: { text: string; tone: 'ok' | 'failed' | 'neutral' };
   designCheck?: DesignBuildDecision;
+  /** Set on a design review of a document: the document's folder name under artifacts/. */
+  document?: string;
   answer?: {
     actionId: string;
     by: UserId;

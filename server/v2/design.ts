@@ -51,7 +51,7 @@ import { computers } from '../workspace/coordination.ts';
 import { assertWorkerRole } from '../workspace/computer-role-policy.ts';
 import { onlineTaskWorker } from './task-computer.ts';
 import { readJson, sendJson } from './attachments.ts';
-import { createInboxItem, registerInboxSource, syncInbox } from './inbox.ts';
+import { createInboxItem, documentReview, registerInboxSource, syncInbox } from './inbox.ts';
 import { fail } from '../kernel/errors.ts';
 import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
 import { queueMessage, queuedMessage } from '../workspace/queued-message.ts';
@@ -83,6 +83,7 @@ import {
   sections,
   type Canvas,
 } from '../../shared/v2/design.ts';
+import { approveLabel, reviewedDocument } from '../../shared/v2/artifacts.ts';
 
 /**
  * Where the design being read lives in its repository: design/, the project's App design, or
@@ -109,6 +110,22 @@ export function ownsBranch(branch: string, folder = designFolder()) {
   return artifact
     ? branch === `artifact/${artifact}` || branch.startsWith(`artifact/${artifact}--`)
     : branch.startsWith('design/');
+}
+/** The artifacts a diff's paths change, each with its kind and the files changed in it. */
+export function changedArtifacts(names: string) {
+  const found = new Map<string, string[]>();
+  for (const path of names.split('\n').filter(Boolean)) {
+    const match = /^artifacts\/([^/]+)\/(.+)$/.exec(path);
+    if (!match || !artifactNamePattern.test(match[1])) continue;
+    found.set(match[1], [...(found.get(match[1]) ?? []), path]);
+  }
+  return [...found].map(([artifact, files]) => ({
+    artifact,
+    kind: files.includes(`artifacts/${artifact}/document.md`)
+      ? ('document' as const)
+      : ('design' as const),
+    files,
+  }));
 }
 /** The API path for this design: /api/projects/<id>/design, or …/artifacts/<name>/design. */
 export function designApiPath(projectId: string, folder = designFolder()) {
@@ -1387,7 +1404,8 @@ async function readDesignReview(
   fullEvidence: boolean,
   drawn: boolean,
 ): Promise<DesignReview> {
-  const { context, item } = row;
+  const { context } = row;
+  const item = documentReview(row);
   const dir = designFolder();
   const repo = project.repositoryPath;
   const status = await reviewMain(repo, context);
@@ -1758,18 +1776,22 @@ function recordProposal(
       !path.startsWith(`${dir}/boards/`) &&
       !(path === `${dir}/canvas.json` && (notes.length || marks || boards.length)),
   ).length;
+  const document = reviewedDocument(proposal);
   const item: InboxItem = {
     id: designItemId(project.id, proposal.branch, proposal.commit),
     kind: 'other',
     title: title ?? previous?.item.title ?? screenName(proposal.name.replaceAll('-', ' ')),
-    text: changeSummary(proposal.branch, { boards, notes, marks, others }),
+    text: document
+      ? `The document changed on ${proposal.branch}.`
+      : changeSummary(proposal.branch, { boards, notes, marks, others }),
     from: proposer.id ?? owner,
     projectId: project.id,
     ...(proposal.taskId ? { taskId: proposal.taskId } : {}),
+    ...(document ? { document } : {}),
     createdAt: now(),
     state: 'waiting',
     actions: [
-      { id: 'approve', label: 'Approve design', primary: true },
+      { id: 'approve', label: approveLabel(document), primary: true },
       { id: 'changes', label: 'Ask for changes' },
       { id: 'update', label: 'Ask to update' },
     ],
@@ -3286,7 +3308,22 @@ async function projectDesignApi(
                 };
               }),
           );
-          return sendJson(res, { base: mergeBase, commit, files });
+          // A task can work on an artifact rather than design/: name each one it changed, so its
+          // Design tab can open that artifact's review.
+          const artifacts = folderArtifact()
+            ? []
+            : changedArtifacts(
+                (await gitRead(repo, [
+                  'diff',
+                  '--name-only',
+                  '--no-renames',
+                  mergeBase,
+                  commit,
+                  '--',
+                  'artifacts/',
+                ])) ?? '',
+              );
+          return sendJson(res, { base: mergeBase, commit, files, artifacts });
         },
       }),
       makeRoute({

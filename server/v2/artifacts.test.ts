@@ -279,6 +279,32 @@ test('a document is created, edited on its branch as you type, and proposed', as
   );
   assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
   assert.equal((await json(await api(path))).body.review.id, proposed.body.item.id);
+  // A document is approved as a document, and its review says which one it is.
+  assert.equal(proposed.body.item.document, 'one-server-plan');
+  assert.equal(
+    proposed.body.item.actions.find((action: any) => action.id === 'approve').label,
+    'Approve document',
+  );
+  assert.equal(proposed.body.item.text, 'The document changed on artifact/one-server-plan.');
+  // Its review reads After as proposed and Before on main, where a new document has none.
+  const reviewed = await json(
+    await api(`${path}?review=${encodeURIComponent(proposed.body.item.id)}`),
+  );
+  assert.equal(reviewed.status, 200, JSON.stringify(reviewed.body));
+  assert.match(reviewed.body.text, /one server process/);
+  assert.equal(reviewed.body.main, null);
+  assert.deepEqual(reviewed.body.review, {
+    id: proposed.body.item.id,
+    branch: 'artifact/one-server-plan',
+    state: 'waiting',
+  });
+  const canvasReview = await json(
+    await api(
+      `/api/projects/site/design/review?item=${encodeURIComponent(proposed.body.item.id)}&evidence=text`,
+    ),
+  );
+  assert.equal(canvasReview.body.item.document, 'one-server-plan');
+  assert.equal((await api(`${path}?review=missing`)).status, 404);
   await answerInboxAsync('alice', proposed.body.item.id, { actionId: 'approve', on: 'web' });
   const onMain = await gitText(repo, ['show', 'main:artifacts/one-server-plan/document.md']);
   assert.match(onMain, /one server process/);
@@ -299,6 +325,21 @@ test('a document is created, edited on its branch as you type, and proposed', as
   );
   assert.equal(listed.kind, 'document');
   assert.equal(listed.state, 'unproposed');
+  // The App design's changes name the artifact a branch changed, for a task's Design tab.
+  const changes = await json(
+    await api(
+      `/api/projects/site/design/changes?ref=${encodeURIComponent(edit.body.branch)}&base=main`,
+    ),
+  );
+  assert.equal(changes.status, 200, JSON.stringify(changes.body));
+  assert.deepEqual(changes.body.files, []);
+  assert.deepEqual(changes.body.artifacts, [
+    {
+      artifact: 'one-server-plan',
+      kind: 'document',
+      files: ['artifacts/one-server-plan/document.md'],
+    },
+  ]);
 });
 
 test('artifact names are checked', async () => {
@@ -313,4 +354,55 @@ test('artifact names are checked', async () => {
     );
   assert.equal((await api('/api/projects/site/artifacts/Bad_Name/document')).status, 404);
   assert.equal((await api('/api/projects/site/artifacts/missing/document')).status, 404);
+});
+
+test('a task that changes an artifact names it, with its kind', async () => {
+  const { changedArtifacts } = await import('./design.ts');
+  assert.deepEqual(
+    changedArtifacts(
+      'artifacts/onboarding/boards/Welcome.html\nartifacts/onboarding/canvas.json\nartifacts/plan/document.md\nartifacts/Bad_Name/x\nREADME.md\n',
+    ),
+    [
+      {
+        artifact: 'onboarding',
+        kind: 'design',
+        files: ['artifacts/onboarding/boards/Welcome.html', 'artifacts/onboarding/canvas.json'],
+      },
+      { artifact: 'plan', kind: 'document', files: ['artifacts/plan/document.md'] },
+    ],
+  );
+});
+
+test('a review proposed before documents were named is named when it is read', async () => {
+  const { documentReview } = await import('./inbox.ts');
+  const item = {
+    id: 'design:site:artifact~plan:abc',
+    kind: 'other' as const,
+    title: 'Plan',
+    text: '',
+    from: 'alice',
+    createdAt: new Date().toISOString(),
+    state: 'waiting' as const,
+    actions: [
+      { id: 'approve', label: 'Approve design', primary: true },
+      { id: 'changes', label: 'Ask for changes' },
+    ],
+  };
+  const named = documentReview({
+    item,
+    context: { source: 'design', folder: 'artifacts/plan', paths: ['artifacts/plan/document.md'] },
+  });
+  assert.equal(named.document, 'plan');
+  assert.equal(named.actions[0].label, 'Approve document');
+  assert.equal(
+    documentReview({
+      item,
+      context: {
+        source: 'design',
+        folder: 'artifacts/plan',
+        paths: ['artifacts/plan/canvas.json'],
+      },
+    }),
+    item,
+  );
 });

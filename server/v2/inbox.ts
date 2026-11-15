@@ -1,6 +1,7 @@
 import { stateRefresh } from './state-refresh.ts';
 import { fail } from '../kernel/errors.ts';
 import type { InboxItem } from '../../shared/v2/contracts.ts';
+import { approveLabel, reviewedDocument } from '../../shared/v2/artifacts.ts';
 import { db, event, get, id, list, now, save } from '../workspace/store.ts';
 import { answerQuestion, taskQuestions } from '../workspace/questions.ts';
 import { interactiveOperator, interactiveRead } from '../workspace/interactive.ts';
@@ -139,12 +140,29 @@ export function syncInbox(owner: string, invalidateRefresh = true): InboxItem[] 
           }
         }
       }
-      items.push(...native.map((row) => present(row.item)));
+      items.push(...native.map((row) => present(documentReview(row))));
       return items.sort(
         (a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id),
       );
     })
     .immediate();
+}
+
+/**
+ * A design review of a document says so, and its approve action reads Approve document. Reviews
+ * proposed before documents were named this way are named when they are read.
+ */
+export function documentReview(row: { item: InboxItem; context?: any }): InboxItem {
+  if (row.context?.source !== 'design' || row.item.document) return row.item;
+  const document = reviewedDocument(row.context);
+  if (!document) return row.item;
+  return {
+    ...row.item,
+    document,
+    actions: row.item.actions.map((action) =>
+      action.id === 'approve' ? { ...action, label: approveLabel(document) } : action,
+    ),
+  };
 }
 
 /** The item an answer is for, or why that answer cannot be given. */

@@ -5,6 +5,10 @@ import { gitRead } from '../workspace/repository-git.ts';
 import { withRepositoryWrites } from '../kernel/jobs/repository-lock.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { list } from '../workspace/store.ts';
+import {
+  optionalCommitText,
+  presentationCommit,
+} from '../features/repositories/repository-views.ts';
 import { readJson, sendJson } from './attachments.ts';
 import {
   appDesignFolder,
@@ -268,6 +272,8 @@ export async function readDocument(owner: string, projectId: string, name: strin
   const repo = project.repositoryPath as string;
   const folder = folderOf(name);
   const path = `${folder}/${documentFile}`;
+  const reviewId = url.searchParams.get('review');
+  if (reviewId) return readReviewedDocument(owner, project, name, reviewId);
   const main = await mainBranch(repo);
   const head = await gitRead(repo, [
     'rev-parse',
@@ -327,7 +333,51 @@ export async function readDocument(owner: string, projectId: string, name: strin
     commit,
     edits,
     changedAt: commit ? await changedAt(repo, commit, folder) : null,
-    review: waiting ? { id: waiting.id, branch: waiting.context.branch } : null,
+    review: waiting
+      ? { id: waiting.id, branch: waiting.context.branch, state: waiting.item.state }
+      : null,
+  };
+}
+
+/**
+ * A document as one review proposed it: After is the commit proposed, Before is the document on
+ * main now. The review page reads it while it waits and after it is decided, so this reads only
+ * cached views and starts no Git process once warm.
+ */
+async function readReviewedDocument(owner: string, project: any, name: string, reviewId: string) {
+  const repo = project.repositoryPath as string;
+  const folder = folderOf(name);
+  const path = `${folder}/${documentFile}`;
+  const row = list('v2-inbox-native', owner).find(
+    (entry: any) =>
+      entry.id === reviewId &&
+      entry.context?.source === 'design' &&
+      entry.context.projectId === project.id &&
+      entry.context.folder === folder,
+  );
+  if (!row) fail('No such review of this document', 404);
+  const { context, item } = row as any;
+  const head = await presentationCommit(repo, `refs/heads/${context.main || 'main'}`).catch(
+    () => null,
+  );
+  const [text, mainText, mainAt] = await Promise.all([
+    optionalCommitText(repo, ['show', `${context.commit}:${path}`]),
+    head ? optionalCommitText(repo, ['show', `${head}:${path}`]) : null,
+    head ? optionalCommitText(repo, ['log', '-1', '--format=%cI', head, '--', `${folder}/`]) : null,
+  ]);
+  if (text === null && mainText === null) fail('No such document', 404);
+  return {
+    projectId: project.id,
+    project: project.name ?? project.id,
+    artifact: name,
+    title: documentTitle(text ?? mainText ?? ''),
+    text: text ?? '',
+    main: mainText,
+    branch: context.branch as string,
+    commit: context.commit as string,
+    edits: 0,
+    changedAt: mainAt || null,
+    review: { id: row!.id, branch: context.branch as string, state: item.state as string },
   };
 }
 

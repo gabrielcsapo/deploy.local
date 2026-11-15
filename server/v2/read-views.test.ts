@@ -53,6 +53,13 @@ writeFileSync(join(repo, 'design/boards/Welcome.html'), '<h1 data-layer="title">
 git('commit', '-am', 'Design');
 const proposal = git('rev-parse', 'HEAD');
 git('checkout', 'main');
+git('checkout', '-b', 'artifact/plan');
+mkdirSync(join(repo, 'artifacts/plan'), { recursive: true });
+writeFileSync(join(repo, 'artifacts/plan/document.md'), '# Plan\n\nOne server.\n');
+git('add', '.');
+git('commit', '-m', 'Plan');
+const documentProposal = git('rev-parse', 'HEAD');
+git('checkout', 'main');
 const current = join(root, 'current');
 mkdirSync(current);
 writeFileSync(join(current, '.deploy-release.json'), JSON.stringify({ revision: first }));
@@ -131,6 +138,27 @@ workspace.save('v2-inbox-native', 'owner', {
     summary: 'Welcome',
   },
 });
+// A document's review that was already decided: its page still reads Before and After.
+workspace.save('v2-inbox-native', 'owner', {
+  id: 'document-review',
+  item: {
+    id: 'document-review',
+    title: 'Plan',
+    state: 'answered',
+    createdAt: new Date().toISOString(),
+    actions: [{ id: 'approve', label: 'Approve document' }],
+  },
+  context: {
+    source: 'design',
+    projectId: 'p',
+    folder: 'artifacts/plan',
+    main: 'main',
+    branch: 'artifact/plan',
+    base: main,
+    commit: documentProposal,
+    paths: ['artifacts/plan/document.md'],
+  },
+});
 const fetch = routeFetch((req, res) =>
   apiRouteManifest.some(
     (r) =>
@@ -180,6 +208,7 @@ const paths = [
   '/api/projects/unlinked-apps',
   '/api/projects/p/repository',
   '/api/design/reviews',
+  '/api/projects/p/artifacts/plan/document?review=document-review',
 ];
 for (const path of paths)
   test(`warm GET ${path} starts no child process`, async (t) => {
@@ -192,6 +221,10 @@ for (const path of paths)
       assert.deepEqual(result.comparison, { ahead: 1, behind: 0 });
     if (path === '/api/self-update') assert.equal(result.ahead, 1);
     if (path === '/api/design/reviews') assert.equal(result.proposals.length, 1);
+    if (path.includes('/document?review=')) {
+      assert.match(result.text, /One server/);
+      assert.equal(result.main, null);
+    }
     starts = [];
     await request(path);
     assert.deepEqual(starts, [], 'first request after warm-up also reuses the view');

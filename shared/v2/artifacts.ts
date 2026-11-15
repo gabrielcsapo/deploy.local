@@ -18,6 +18,22 @@ export type ArtifactSummary = {
   state: 'review' | 'unproposed' | null;
 };
 
+/**
+ * The document a design review is of, by its folder name, or null when it reviews a design. A
+ * document is an artifacts/<name> folder whose proposal changes its document.md.
+ */
+export function reviewedDocument(
+  context: { folder?: unknown; paths?: unknown } | null | undefined,
+) {
+  const folder = typeof context?.folder === 'string' ? context.folder : '';
+  if (!folder.startsWith('artifacts/') || !Array.isArray(context?.paths)) return null;
+  return context.paths.includes(`${folder}/document.md`) ? folder.slice('artifacts/'.length) : null;
+}
+
+/** The approve action's words: a document is approved as a document. */
+export const approveLabel = (document: string | null | undefined) =>
+  document ? 'Approve document' : 'Approve design';
+
 /** The folder name for a new artifact: "Onboarding flow" is artifacts/onboarding-flow. */
 export function artifactSlug(name: string) {
   return name
