@@ -9,7 +9,7 @@ import { authenticatedFetch } from '../data/hooks';
 import { useData } from '../projects/data';
 import { layerElement, type Frames, type Selection, type View } from './Canvas';
 import { boardConnections } from './connections';
-import { BranchPicker, ProjectPicker } from './Pickers';
+import { BranchPicker, DesignPicker } from './Pickers';
 import {
   boardName,
   colorToken,
@@ -31,7 +31,10 @@ import {
   type Note,
   type Section,
   type Tokens,
+  boardFile,
+  designApi,
 } from './model';
+import { useDesignArtifact } from './artifact-context';
 
 type LayerNode = { id: string; label: string; kind: IconName; children: LayerNode[] };
 
@@ -417,9 +420,8 @@ export function DesignMenu({
 }
 
 export function LeftPanel({
-  projects,
   project,
-  onProject,
+  onDesign,
   design,
   current,
   sections,
@@ -444,9 +446,9 @@ export function LeftPanel({
   onLoose,
   links,
 }: {
-  projects: Project[];
   project: Project | undefined;
-  onProject: (id: string) => void;
+  /** Open another design: a project's App design (artifact null) or one under Artifacts. */
+  onDesign: (projectId: string, artifact: string | null) => void;
   design: Design | undefined;
   current: string;
   sections: Section[];
@@ -481,6 +483,7 @@ export function LeftPanel({
   /** On Prototype, the links between boards, shown beside the layers that make them. */
   links?: DesignLink[];
 }) {
+  const artifact = useDesignArtifact();
   const [tab, setTab] = useState<'file' | 'assets'>('file');
   const [allPages, setAllPages] = useState(false);
   const [finding, setFinding] = useState(false);
@@ -496,16 +499,21 @@ export function LeftPanel({
     <aside className="dz-left" aria-label="Design navigation">
       <div className="dz-left-top">
         <div className="dz-left-head">
-          <ProjectPicker projects={projects} project={project} onProject={onProject} />
+          <DesignPicker
+            project={project}
+            artifact={artifact}
+            name={artifact ? design?.canvas?.title || artifact : project?.name}
+            onDesign={onDesign}
+          />
           <span className="dl-grow" />
           <button
             type="button"
             className="dl-icon-btn dz-hide"
-            aria-label="Hide panels"
-            title="Hide panels"
+            aria-label="Hide left panel"
+            title="Hide left panel"
             onClick={onHide}
           >
-            <Icon name="panel" size={15} />
+            <Icon name="sidebar" size={15} />
           </button>
         </div>
         <BranchPicker
@@ -628,6 +636,9 @@ export function LeftPanel({
             Layers
           </div>
           <div className="dz-layers" role="tree" aria-label="Layers">
+            {section && !section.boards.length && !loose.length && (
+              <p className="dz-layers-none">No frames yet</p>
+            )}
             {base &&
               boards.map((file) => (
                 <BoardLayers
@@ -2054,7 +2065,10 @@ export function RightPanel({
   review,
   reviewSide,
   reviewing,
+  onHide,
 }: {
+  /** Closes this panel; the canvas then shows one button to bring it back. */
+  onHide: () => void;
   review?: DesignReview;
   reviewing?: boolean;
   reviewSide?: ReviewSide;
@@ -2101,6 +2115,7 @@ export function RightPanel({
   /** Opens Play on this page; absent while there is nothing to play. */
   onPlay?: () => void;
 }) {
+  const artifact = useDesignArtifact();
   const [zoomMenu, setZoomMenu] = useState(false);
   const [moreMenu, setMoreMenu] = useState(false);
   void revision;
@@ -2221,6 +2236,15 @@ export function RightPanel({
             {propose?.state === 'in-review' ? 'In review' : 'Propose'}
           </Action>
         )}
+        <button
+          type="button"
+          className="dl-icon-btn dz-hide"
+          aria-label="Hide right panel"
+          title="Hide right panel"
+          onClick={onHide}
+        >
+          <Icon name="panel" size={15} />
+        </button>
       </div>
       <div className="dz-right-tabs">
         <div className="dz-tabs" role="tablist">
@@ -2475,7 +2499,7 @@ export function RightPanel({
               onEdit={onEdit && ((edits) => onEdit(selection!.board, selection!.layer!, edits))}
               change={
                 changes
-                  .find((file) => file.path === `design/boards/${selection!.board}`)
+                  .find((file) => boardFile(file.path) === selection!.board)
                   ?.layers?.find((layer) => layer.layer === selection!.layer) ?? null
               }
             />
@@ -2531,7 +2555,7 @@ export function RightPanel({
                   {(board.w <= 500 ? [board.w] : [1440, 700]).map((width) => (
                     <a
                       key={width}
-                      href={`/api/projects/${encodeURIComponent(project.id)}/design/render?ref=${design.commit}&board=${encodeURIComponent(selection.board)}&width=${width}`}
+                      href={`${designApi(project.id, artifact)}/render?ref=${design.commit}&board=${encodeURIComponent(selection.board)}&width=${width}`}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -2560,8 +2584,8 @@ export function RightPanel({
                 {changes.length ? (
                   <div className="dz-list">
                     {changes.map((change) => {
-                      const file = change.path.replace(/^design\/boards\//, '');
-                      const isBoard = change.path.startsWith('design/boards/');
+                      const file = boardFile(change.path) ?? change.path;
+                      const isBoard = boardFile(change.path) !== null;
                       return (
                         <button
                           key={change.path}
@@ -2581,8 +2605,9 @@ export function RightPanel({
                   </div>
                 ) : (
                   <span className="dz-meta">
-                    Nothing yet. This is the design on{' '}
-                    {design?.ref === 'HEAD' ? 'main' : design?.ref}.
+                    {design?.fresh
+                      ? 'Nothing yet. This branch matches main.'
+                      : `Nothing yet. This is the design on ${design?.ref === 'HEAD' ? 'main' : design?.ref}.`}
                   </span>
                 )}
               </Prop>
@@ -2616,12 +2641,17 @@ export function RightPanel({
   );
 }
 
-export function useChanges(projectId: string | undefined, ref: string, commit: string | undefined) {
+export function useChanges(
+  projectId: string | undefined,
+  ref: string,
+  commit: string | undefined,
+  artifact: string | null = null,
+) {
   const { data } = useData<{
     files: { status: string; path: string; layers?: LayerChange[] }[];
   }>(
     projectId && commit
-      ? `/api/projects/${encodeURIComponent(projectId)}/design/changes?ref=${encodeURIComponent(ref)}&v=${commit}`
+      ? `${designApi(projectId, artifact)}/changes?ref=${encodeURIComponent(ref)}&v=${commit}`
       : undefined,
   );
   return data?.files ?? [];

@@ -8,12 +8,16 @@ import DeployCore
 struct V2DesignView: View {
     let connection: Connection
     let projectId: String
+    /// A design under Artifacts, in artifacts/<name>; nil for the project's App design.
+    var artifact: String? = nil
+    /// The branch to open, like a new design's artifact/<name>; nil for main.
+    var ref: String? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     @Environment(\.horizontalSizeClass) private var width
     var body: some View {
         // Full screen on iPad reaches the bottom edge; on iPhone the page ends at the tab bar.
-        V2DesignWebView(connection: connection, projectId: projectId, leave: { dismiss() })
+        V2DesignWebView(connection: connection, projectId: projectId, artifact: artifact, ref: ref, leave: { dismiss() })
             .ignoresSafeArea(.container, edges: width == .compact ? [] : .bottom)
             .background(WorkspaceStyle.canvas(scheme).ignoresSafeArea())
     }
@@ -22,6 +26,8 @@ struct V2DesignView: View {
 struct V2DesignWebView: UIViewRepresentable {
     let connection: Connection
     let projectId: String
+    var artifact: String? = nil
+    var ref: String? = nil
     let leave: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(connection: connection, leave: leave) }
@@ -42,7 +48,7 @@ struct V2DesignWebView: UIViewRepresentable {
         view.scrollView.contentInsetAdjustmentBehavior = .never
         view.allowsBackForwardNavigationGestures = false
         context.coordinator.watch(view)
-        guard let url = Self.address(connection.origin, projectId), let host = url.host else { return view }
+        guard let url = Self.address(connection.origin, projectId, artifact: artifact, ref: ref), let host = url.host else { return view }
         var cookie: [HTTPCookiePropertyKey: Any] = [
             .domain: host, .path: "/", .name: "deploy-sh-auth",
             .value: "\(connection.username):\(connection.token)".addingPercentEncoding(withAllowedCharacters: Self.cookieSafe) ?? "",
@@ -59,10 +65,13 @@ struct V2DesignWebView: UIViewRepresentable {
 
     /// The project's canvas on the coordinator. Without view=canvas the page opens To review
     /// whenever a design waits, which the app already shows natively.
-    static func address(_ origin: String, _ projectId: String) -> URL? {
+    static func address(_ origin: String, _ projectId: String, artifact: String? = nil, ref: String? = nil) -> URL? {
         var parts = URLComponents(string: origin)
         parts?.path = "/dashboard/design"
-        parts?.queryItems = [URLQueryItem(name: "project", value: projectId), URLQueryItem(name: "view", value: "canvas")]
+        parts?.queryItems = [URLQueryItem(name: "project", value: projectId)]
+            + (artifact.map { [URLQueryItem(name: "artifact", value: $0)] } ?? [])
+            + [URLQueryItem(name: "view", value: "canvas")]
+            + (ref.map { [URLQueryItem(name: "ref", value: $0)] } ?? [])
         return parts?.url
     }
     /// What encodeURIComponent leaves alone, as the server's own cookie writes it.

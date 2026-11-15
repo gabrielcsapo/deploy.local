@@ -151,3 +151,22 @@ describe('describing layer changes', () => {
     );
   });
 });
+
+it('each design has its own folder and API', async () => {
+  const { apiArtifact, boardFile, branchArtifact, designApi, designFolderOf } =
+    await import('./model');
+  assert.equal(designApi('forma'), '/api/projects/forma/design');
+  assert.equal(
+    designApi('forma', 'podcasts-page'),
+    '/api/projects/forma/artifacts/podcasts-page/design',
+  );
+  assert.equal(apiArtifact('/api/projects/forma/artifacts/podcasts-page/design'), 'podcasts-page');
+  assert.equal(apiArtifact('/api/projects/forma/design'), null);
+  assert.equal(designFolderOf('podcasts-page'), 'artifacts/podcasts-page');
+  assert.equal(boardFile('design/boards/Welcome.html'), 'Welcome.html');
+  assert.equal(boardFile('artifacts/podcasts-page/boards/Board1.html'), 'Board1.html');
+  assert.equal(boardFile('artifacts/podcasts-page/canvas.json'), null);
+  assert.equal(branchArtifact('artifact/podcasts-page'), 'podcasts-page');
+  assert.equal(branchArtifact('artifact/podcasts-page--welcome-edits'), 'podcasts-page');
+  assert.equal(branchArtifact('design/title-size'), null);
+});

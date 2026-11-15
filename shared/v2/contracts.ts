@@ -476,6 +476,8 @@ export type DesignReviewSummary = {
   resolutions?: DesignReviewResolution[];
 };
 export type DesignReview = DesignReviewSummary & {
+  /** The design's API path: /api/projects/<id>/design, or …/artifacts/<name>/design. */
+  api?: string;
   item: InboxItem;
   task: string | null;
   /** Available original proposer task; absent for a person or a cancelled/archived task. */

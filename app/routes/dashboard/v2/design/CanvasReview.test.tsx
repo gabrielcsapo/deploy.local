@@ -187,6 +187,7 @@ test('sent and approved confirmations remain reachable after another client answ
 test('the existing right panel owns the layer change list and hides Propose throughout review', () => {
   const html = renderToStaticMarkup(
     <RightPanel
+      onHide={() => {}}
       project={undefined}
       design={undefined}
       canvas={canvas}
@@ -235,6 +236,7 @@ test('the existing right panel owns the layer change list and hides Propose thro
   assert.match(html, /Changed › Greeting/);
   assert.match(html, /Gap 8 → 12/);
   assert.doesNotMatch(html, />Propose<|dl-rv-rail|dl-rv-dock/);
+  assert.match(html, /aria-label="Hide right panel"/);
 });
 
 test('landed approval offers the board’s split Build action until a build is recorded', () => {

@@ -35,7 +35,11 @@ export function DesignRail({
   const waiting = inbox.items.filter((item) => item.state === 'waiting').length;
   const failing = live.data?.summary.failing ?? 0;
   const place = (href: string, icon: IconName, label: string, mark?: 'dot' | number) => {
-    const on = pathname === href || pathname.startsWith(`${href}/`);
+    const on =
+      pathname === href ||
+      pathname.startsWith(`${href}/`) ||
+      // A design's canvas is part of Artifacts.
+      (href === '/dashboard/artifacts' && pathname === '/dashboard/design');
     return (
       <a
         href={href}
@@ -77,7 +81,7 @@ export function DesignRail({
       )}
       {place('/dashboard/computers', 'computer', 'Computers')}
       {packages.data?.served && place('/dashboard/packages', 'package', 'Packages')}
-      {place('/dashboard/design', 'layers', 'Design')}
+      {place('/dashboard/artifacts', 'layers', 'Artifacts')}
       <span className="dz-rail-sep" />
       {place(
         '/dashboard/inbox',

@@ -825,6 +825,16 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/artifacts',
+    handler: 'v2:v2/artifacts',
+  },
+  {
+    method: 'POST',
+    path: '/api/artifacts',
+    handler: 'v2:v2/artifacts',
+  },
+  {
+    method: 'GET',
     path: '/api/design/projects',
     handler: 'v2:v2/design',
   },
@@ -982,6 +992,156 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
     method: 'POST',
     path: '/api/projects/:project/apps',
     handler: 'v2:v2/settings',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/accept',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/ask',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/asks',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/branches',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/canvas',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/changes',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/comments',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/comments',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/projects/:project/artifacts/:artifact/design/comments/:id([A-Za-z0-9-]+)',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/components',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/edit',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/files/:commit([0-9a-f]+)/:kind(boards|ds)/:file*',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'HEAD',
+    path: '/api/projects/:project/artifacts/:artifact/design/files/:commit([0-9a-f]+)/:kind(boards|ds)/:file*',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/links',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/presence',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/proposals',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/propose',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/render',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/review',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/build',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/choice',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'DELETE',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/pins',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/pins',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/pins',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/preview',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/seen',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/undo',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/document',
+    handler: 'v2:v2/artifacts',
+  },
+  {
+    method: 'PUT',
+    path: '/api/projects/:project/artifacts/:artifact/document',
+    handler: 'v2:v2/artifacts',
   },
   {
     method: 'GET',
