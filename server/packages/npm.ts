@@ -351,7 +351,9 @@ export function createNpmRegistry(settings?: RegistrySettings) {
       }
       if (
         identity.pipeline &&
-        (req.method !== 'PUT' || decodeURIComponent(rawPath) !== '/npm/' + identity.pipeline.name)
+        ((identity.pipeline.ecosystem || 'npm') !== 'npm' ||
+          req.method !== 'PUT' ||
+          decodeURIComponent(rawPath) !== '/npm/' + identity.pipeline.name)
       )
         fail('Pipeline tokens can only publish their assigned package version.', 403);
       // Decode once. Never normalize dot segments before validating a registry path.

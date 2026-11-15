@@ -38,6 +38,7 @@ export function issuePipelinePackageToken(owner: string, job: any) {
     projectId: run.projectId,
     jobId: job.id,
     generation: job.generation,
+    ecosystem: entry.ecosystem || 'npm',
     name: entry.name,
     version: entry.version,
     commit: run.commit,

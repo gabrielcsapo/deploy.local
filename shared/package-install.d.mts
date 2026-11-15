@@ -10,6 +10,8 @@ export type PreparedInstall = {
   args: string[];
   key: string;
   secrets: string[];
+  cargoConfig?: string;
+  cargoHome?: string;
   npmrc?: string;
   ca?: string;
   directory?: string;

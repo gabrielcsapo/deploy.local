@@ -14,6 +14,7 @@ import { startDockerEventStream } from './docker.ts';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { error, json, requireAuth } from './api/shared.ts';
 import { shortGitRoute } from './workspace/api.ts';
+import { cargoRegistry } from './packages/cargo.ts';
 import { npmRegistry } from './packages/npm.ts';
 import { certsExist, getCaCertBuffer } from './certs.ts';
 import { RequestBodyTooLargeError } from './kernel/http.ts';
@@ -93,6 +94,7 @@ export function apiMiddleware() {
     const path = url.pathname;
 
     if (!shortGitRoute(rawUrl, method) && (await npmRegistry.handle(req, res))) return;
+    if (!shortGitRoute(rawUrl, method) && (await cargoRegistry.handle(req, res))) return;
 
     // CORS preflight
     if (method === 'OPTIONS') {

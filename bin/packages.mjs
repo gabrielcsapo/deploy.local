@@ -1,3 +1,10 @@
+import { parse as parseToml } from 'smol-toml';
+import {
+  cargoConfig,
+  updateCargoSetting,
+  cargoMetadata,
+  cargoPublishBody,
+} from '../shared/cargo.mjs';
 import {
   readFile,
   writeFile,
@@ -84,13 +91,28 @@ export async function runPackages(
   const authLine = '//' + origin.host + '/npm/:_authToken';
   const userRc = join(home, '.npmrc'),
     projectRc = join(cwd, '.npmrc');
+  const cargoHome = join(home, '.cargo');
+  const cargoRc = join(cargoHome, 'config.toml');
+  const cargoIndex = `sparse+${origin.origin}/cargo/index/`;
+  async function cargoSetting(file, section, key, value) {
+    if (
+      (await lstat(cargoHome).catch(() => null))?.isSymbolicLink() ||
+      (await lstat(file).catch(() => null))?.isSymbolicLink()
+    )
+      throw new Error('Keep Cargo credentials in private user files, not symbolic links.');
+    await mkdir(cargoHome, { recursive: true, mode: 0o700 });
+    await writeFile(file, updateCargoSetting(await optionalRead(file), section, key, value), {
+      mode: 0o600,
+    });
+    await chmod(file, 0o600);
+  }
   const command = args[0] || 'list';
   if (command === 'list') {
-    const { packages } = await api('/api/packages');
+    const { packages } = await api('/api/packages?ecosystem=all');
     if (flags.json) return print(JSON.stringify(packages));
     for (const pkg of packages)
       print(
-        `${pkg.name}  ${pkg.latest?.version || ''}  npm · from ${pkg.project || pkg.created_by}`,
+        `${pkg.name}  ${pkg.latest?.version || ''}  ${pkg.ecosystem === 'cargo' ? 'Cargo crate' : 'npm'} · from ${pkg.project || pkg.created_by}`,
       );
     return;
   }
@@ -144,6 +166,7 @@ export async function runPackages(
       getCACertificates('system').some((root) => root.trim() === certificate.trim());
     await mkdir(join(home, '.deploy', 'packages'), { recursive: true, mode: 0o700 });
     await writeFile(ca, certificate, { mode: 0o600 });
+    await cargoSetting(cargoRc, 'http', 'cainfo', ca);
     // Scoped to this registry, like the token. pnpm honors it; npm reads NODE_EXTRA_CA_CERTS.
     return { values: { [`${registryKey}:cafile`]: ca }, inKeychain };
   }
@@ -187,6 +210,14 @@ export async function runPackages(
     const trust = await trustValues();
     const values = { [authLine]: key.key, ...trust.values };
     await writeUserRc(values);
+    await cargoSetting(cargoRc, 'registries.deploy-local', 'index', cargoIndex);
+    await cargoSetting(
+      join(cargoHome, 'credentials.toml'),
+      'registries.deploy-local',
+      'token',
+      key.key,
+    );
+    print('  ✓ Cargo                            ~/.cargo/credentials.toml');
     print(`  ✓ Package key for ${config.username}         ${key.label} · can publish`);
     print(`  ✓ npm and pnpm                     ~/.npmrc · ${registry}`);
     printTrust(values, trust.inKeychain);
@@ -194,6 +225,24 @@ export async function runPackages(
   }
   if (command === 'use') {
     if (resolve(projectRc) === resolve(userRc)) throw new Error('Run this in a project folder.');
+    const projectCargo = join(cwd, '.cargo', 'config.toml');
+    const cargoText = await optionalRead(projectCargo);
+    const marker = '# deploy packages use';
+    const managedCargo = `${marker}\n${cargoConfig(origin.origin)}# end deploy packages use\n`;
+    const withoutCargo = cargoText.replace(
+      /^# deploy packages use\n[\s\S]*?^# end deploy packages use\n?/m,
+      '',
+    );
+    const existingCargo = parseToml(withoutCargo);
+    if (
+      !flags.off &&
+      (existingCargo.registries?.['deploy-local'] ||
+        existingCargo.source?.['crates-io'] ||
+        existingCargo.source?.['deploy-local-crates-io'])
+    )
+      throw new Error(
+        '.cargo/config.toml already configures these sources. Keep or remove those settings before running deploy packages use.',
+      );
     const text = await optionalRead(projectRc),
       line = `registry=${registry}`;
     if (flags.off) {
@@ -203,7 +252,9 @@ export async function runPackages(
         .join('\n');
       if (next.trim()) await writeFile(projectRc, next);
       else await rm(projectRc, { force: true });
-      print('  ✓ Removed deploy.local from .npmrc');
+      if (withoutCargo.trim()) await writeFile(projectCargo, withoutCargo);
+      else await rm(projectCargo, { force: true });
+      print('  ✓ Removed deploy.local from .npmrc and .cargo/config.toml');
       return;
     }
     if (
@@ -214,7 +265,12 @@ export async function runPackages(
         '.npmrc already chooses another registry. Remove that line before running deploy packages use.',
       );
     await writeFile(projectRc, updateNpmrc(text, { registry }));
-    print('  ✓ Wrote .npmrc');
+    await mkdir(join(cwd, '.cargo'), { recursive: true });
+    await writeFile(
+      projectCargo,
+      withoutCargo + (withoutCargo.endsWith('\n') || !withoutCargo ? '' : '\n') + managedCargo,
+    );
+    print('  ✓ Wrote .npmrc and .cargo/config.toml');
     print('    Commit it so everyone installs from deploy.local.');
     print('    Anyone who can’t reach deploy.local can’t install this project.');
     print('    Undo: deploy packages use --off');
@@ -256,11 +312,73 @@ export async function runPackages(
     print(`  ✓ Deprecated ${args[1]}`);
     return;
   }
+  if (command === 'yank') {
+    const match = args[1]?.match(/^([a-zA-Z][a-zA-Z0-9_-]*)@([^/]+)$/);
+    if (!match) throw new Error('deploy packages yank <crate>@<version> [--undo]');
+    const response = await fetch(
+      new URL(
+        `/cargo/api/v1/crates/${match[1]}/${encodeURIComponent(match[2])}/${flags.undo ? 'unyank' : 'yank'}`,
+        origin,
+      ),
+      {
+        method: flags.undo ? 'PUT' : 'DELETE',
+        headers: { Authorization: authorization },
+        redirect: 'error',
+      },
+    );
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.errors?.[0]?.detail || 'Cargo yank failed');
+    print(`  ✓ ${flags.undo ? 'Unyanked' : 'Yanked'} ${args[1]}`);
+    return;
+  }
   if (command !== 'publish') throw new Error('Unknown packages command. Run deploy --help.');
   const packageText = await optionalRead(join(cwd, 'package.json'));
   if (!packageText) {
-    if (await optionalRead(join(cwd, 'Cargo.toml'))) throw new Error("Cargo isn't available yet.");
-    throw new Error('Run this in a folder with package.json.');
+    if (!(await optionalRead(join(cwd, 'Cargo.toml'))))
+      throw new Error('Run this in a folder with package.json or Cargo.toml.');
+    const work = await mkdtemp(join(cwd, '.deploy-package-'));
+    try {
+      const env = {
+        ...process.env,
+        CARGO_HOME: cargoHome,
+        CARGO_REGISTRIES_DEPLOY_LOCAL_INDEX: cargoIndex,
+      };
+      await run(
+        'cargo',
+        ['package', '--registry', 'deploy-local', '--allow-dirty', '--target-dir', work],
+        { cwd, env },
+      );
+      const directory = join(work, 'package');
+      const filename = (await readdir(directory)).find((file) => file.endsWith('.crate'));
+      if (!filename) throw new Error('cargo package did not write a crate.');
+      const file = join(directory, filename),
+        size = (await stat(file)).size;
+      if (size > 200 * 1024 * 1024) throw new Error('Crate exceeds 200 MB.');
+      const text = await run('tar', ['-xOf', file, filename.slice(0, -6) + '/Cargo.toml']);
+      const metadata = cargoMetadata(text, cargoIndex);
+      if (!metadata.repository)
+        metadata.repository = await run('git', ['remote', 'get-url', 'origin'], { cwd }).catch(
+          () => null,
+        );
+      print(`${metadata.name} · Cargo crate · ${metadata.vers}`);
+      if (flags['dry-run']) {
+        print('  ✓ Dry run. Nothing published.');
+        return;
+      }
+      const response = await fetch(new URL('/cargo/api/v1/crates/new', origin), {
+        method: 'PUT',
+        headers: { Authorization: authorization, 'Content-Type': 'application/octet-stream' },
+        body: Readable.from(cargoPublishBody(metadata, file, size)),
+        duplex: 'half',
+        redirect: 'error',
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.errors?.[0]?.detail || 'Cargo publish failed');
+      print(`✓ ${metadata.name} ${metadata.vers} is on deploy.local`);
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+    return;
   }
   const pkg = JSON.parse(packageText);
   if (pkg.private) throw new Error('This package is marked private.');

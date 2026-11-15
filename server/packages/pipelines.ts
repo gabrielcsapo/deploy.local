@@ -1,3 +1,6 @@
+import { parse as parseToml } from 'smol-toml';
+import { cargoPackage } from '../../shared/cargo.mjs';
+import { crateName } from './cargo-copy.ts';
 // Runs in the existing pipeline service process, never on a request's main thread.
 import { db as workspace, get, save, id, now } from '../workspace/store.ts';
 import { gitText } from '../workspace/repository-git.ts';
@@ -15,14 +18,21 @@ export async function packageAtCommit(repository: string, commit: string, path: 
     () => null,
   );
   if (text === null) {
-    if (
-      await gitText(repository, ['show', prefix + 'Cargo.toml'], { limit: 65536 }).then(
-        () => true,
-        () => false,
-      )
-    )
-      return { path, status: 'skipped', reason: "Cargo isn't available yet" };
-    throw new Error(`${path}: package.json was not found at this commit`);
+    const cargo = await gitText(repository, ['show', prefix + 'Cargo.toml'], {
+      limit: 65536,
+    }).catch(() => null);
+    if (!cargo) throw new Error(`${path}: package.json or Cargo.toml was not found at this commit`);
+    const root = await gitText(repository, ['show', `${commit}:Cargo.toml`], {
+      limit: 65536,
+    }).catch(() => '');
+    const manifest = cargoPackage(cargo, (parseToml(root).workspace as any)?.package);
+    return {
+      path,
+      ecosystem: 'cargo',
+      name: crateName(manifest.name).toLowerCase(),
+      version: versionOf(manifest.version),
+      status: 'waiting',
+    };
   }
   const manifest = JSON.parse(text);
   if (manifest.private) throw new Error(`${path}: This package is marked private.`);
@@ -49,7 +59,7 @@ async function pnpmForCheck(repository: string, commit: string) {
   return version ? `pnpm@${version}` : 'pnpm';
 }
 export async function checkPipelinePackage(projectId: string, item: any, copy: NpmCopy) {
-  const pkg = packageByName(item.name);
+  const pkg = packageByName(item.name, item.ecosystem || 'npm');
   if (pkg && pkg.project_id !== projectId)
     throw new Error(
       `${item.name}: This package belongs to another project. Publish it once from this repository with your CLI sign-in.`,
@@ -65,7 +75,7 @@ export async function checkPipelinePackage(projectId: string, item: any, copy: N
       .get(pkg.id) as any;
     return { exists: !!existing, previousVersion: previous?.version };
   }
-  if (!item.name.startsWith('@deploy.local/')) {
+  if (item.ecosystem !== 'cargo' && !item.name.startsWith('@deploy.local/')) {
     const doc = await copy.document(item.name, true);
     if (copy.failures)
       throw new Error(
@@ -162,7 +172,7 @@ export async function advancePipelinePackages(
         }
         // Another run may have published while this one was packing, or the upload
         // may have committed before its response was lost. Never retry that version.
-        const pkg = !checkOnly && packageByName(item.name);
+        const pkg = !checkOnly && packageByName(item.name, item.ecosystem || 'npm');
         const published =
           pkg && pkg.project_id === project.id
             ? (db()
@@ -184,7 +194,7 @@ export async function advancePipelinePackages(
           const result = await checkPipelinePackage(project.id, item, copy);
           if (result.exists)
             throw new Error(
-              `${item.version} is already published. Set a new version in package.json.`,
+              `${item.version} is already published. Set a new version in the package manifest.`,
             );
           item.status = 'checked';
         } else {
@@ -200,7 +210,7 @@ export async function advancePipelinePackages(
       if (result.exists) {
         if (checkOnly)
           throw new Error(
-            `${item.version} is already published. Set a new version in package.json.`,
+            `${item.version} is already published. Set a new version in the package manifest.`,
           );
         item.status = 'skipped';
         item.reason = 'this version is already published';
@@ -220,11 +230,15 @@ export async function advancePipelinePackages(
       const jobId = id();
       // A fresh checkout needs its dependencies; pnpm pack resolves workspace: ranges.
       // prepublishOnly is a publish hook, not a pack hook, so invoke it explicitly.
-      const destination = '.deploy-pipeline-package';
-      const setup = checkOnly
-        ? `npm install --global ${await pnpmForCheck(project.repositoryPath, run.commit)} --silent --no-audit --no-fund && `
-        : '';
-      const command = `${setup}pnpm install --frozen-lockfile && cd ${quote(item.path)} && pnpm run --if-present prepublishOnly && pnpm pack --pack-destination ${quote(destination)}`;
+      const cargo = item.ecosystem === 'cargo';
+      const destination = cargo ? '.deploy-pipeline-package/package' : '.deploy-pipeline-package';
+      const setup =
+        checkOnly && !cargo
+          ? `npm install --global ${await pnpmForCheck(project.repositoryPath, run.commit)} --silent --no-audit --no-fund && `
+          : '';
+      const command = cargo
+        ? `cd ${quote(item.path)} && cargo package --registry deploy-local --allow-dirty --target-dir .deploy-pipeline-package`
+        : `${setup}pnpm install --frozen-lockfile && cd ${quote(item.path)} && pnpm run --if-present prepublishOnly && pnpm pack --pack-destination ${quote(destination)}`;
       item.status = 'running';
       item.jobId = jobId;
       workspace.transaction(() => {
@@ -238,12 +252,12 @@ export async function advancePipelinePackages(
           needs: [],
           requirements: {
             os: 'linux',
-            capabilities: ['node', 'package-publish-v1', ...(checkOnly ? ['docker'] : [])],
+            capabilities: ['node', 'package-publish-v1', ...(checkOnly || cargo ? ['docker'] : [])],
           },
           workerId: null,
           command,
           // Pull request code only ever runs in a container, like the run's other jobs.
-          container: checkOnly ? 'node:26' : null,
+          container: cargo ? 'rust:1' : checkOnly ? 'node:26' : null,
           timeoutMs: 30 * 60_000,
           digest: run.commit,
           status: 'queued',
@@ -251,6 +265,7 @@ export async function advancePipelinePackages(
           createdAt: now(),
           updatedAt: now(),
           packagePublish: {
+            ecosystem: item.ecosystem || 'npm',
             path: item.path,
             name: item.name,
             version: item.version,

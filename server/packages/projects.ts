@@ -32,7 +32,7 @@ export async function packageProject(owner: string, repository: unknown): Promis
   return matches.length === 1 ? matches[0].id : null;
 }
 /** Read only main. No warming, pins, or Ready-state inference in this slice. */
-export async function usedBy(owner: string, name: string, cache = usageCache) {
+export async function usedBy(owner: string, name: string, cache = usageCache, ecosystem = 'npm') {
   const result: { id: string; name: string; versions: string[]; sameRepository: boolean }[] = [];
   for (const project of list('project', owner)) {
     if (!project.repositoryPath) continue;
@@ -51,7 +51,9 @@ export async function usedBy(owner: string, name: string, cache = usageCache) {
     }
     const found = new Set<string>();
     let sameRepository = false;
-    for (const file of ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock']) {
+    for (const file of ecosystem === 'cargo'
+      ? ['Cargo.lock']
+      : ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock']) {
       const index = await cache.read(project.repositoryPath, commit, file);
       const parsed = Object.hasOwn(index, name) ? index[name] : { versions: [], links: [] };
       for (const version of parsed.versions) found.add(version);

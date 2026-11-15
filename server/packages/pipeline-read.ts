@@ -53,7 +53,7 @@ export async function mergingPackages(owner: string, project: any, pull: any) {
   return run.packages.items
     .filter((item: any) => {
       if (item.status !== 'checked') return false;
-      const pkg = packageByName(item.name);
+      const pkg = packageByName(item.name, item.ecosystem || 'npm');
       return (
         !pkg ||
         (pkg.project_id === project.id &&

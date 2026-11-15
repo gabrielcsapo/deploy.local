@@ -5,7 +5,7 @@ import { tmpdir, platform } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 const exec = promisify(execFile);
 const root = await mkdtemp(join(tmpdir(), 'pipeline-packages-'));
@@ -18,6 +18,8 @@ const { pipelineStart, reconcilePipelines, pipelineRead } =
 const { advancePipelinePackages } = await import('./pipelines.ts');
 const { packageProject } = await import('./projects.ts');
 const { createNpmRegistry } = await import('./npm.ts');
+const { createCargoRegistry } = await import('./cargo.ts');
+const { cargoConfig } = await import('../../shared/cargo.mjs');
 const { packageByName, versions } = await import('./store.ts');
 const { issuePipelinePackageToken, pipelinePackageIdentity } = await import('./pipeline-auth.ts');
 const { mergingPackages } = await import('./pipeline-read.ts');
@@ -49,8 +51,13 @@ const upstream = createServer((req, res) => {
   }
 });
 await new Promise<void>((done) => upstream.listen(0, '127.0.0.1', done));
-const server = createServer((req, res) => {
-  void registry.handle(req, res);
+const cargoRegistry = createCargoRegistry({
+  upstreamBase: `http://127.0.0.1:${(upstream.address() as any).port}/`,
+  downloadBase: `http://127.0.0.1:${(upstream.address() as any).port}/`,
+});
+const server = createServer(async (req, res) => {
+  if (await cargoRegistry.handle(req, res)) return;
+  await registry.handle(req, res);
 });
 await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${(server.address() as any).port}`;
@@ -60,6 +67,7 @@ const registry = createNpmRegistry({
 });
 after(async () => {
   registry.copy.close();
+  cargoRegistry.copy.close();
   for (const s of [server, upstream]) {
     s.closeAllConnections();
     await new Promise<void>((done) => s.close(() => done()));
@@ -238,7 +246,7 @@ test('concurrent publications skip an existing version even when the losing uplo
   assert.equal(get('pipeline-run', 'owner', second.id).packages.items[0].status, 'skipped');
   assert.equal(get('pipeline-run', 'owner', second.id).packages.status, 'succeeded');
 });
-test('failed jobs publish nothing; Cargo skips; public names need an admin claim; foreign owner refused', async () => {
+test('failed jobs publish nothing; Cargo queues a Rust publish job; public names need an admin claim; foreign owner refused', async () => {
   const f = await fixture(['packages/a']);
   const failed = await start(f);
   pass(failed, 'failed');
@@ -251,10 +259,12 @@ test('failed jobs publish nothing; Cargo skips; public names need an admin claim
   const cargo = await start(f);
   pass(cargo);
   await advancePipelinePackages('owner', cargo.id, registry.copy);
-  assert.equal(
-    get('pipeline-run', 'owner', cargo.id).packages.items[0].reason,
-    "Cargo isn't available yet",
-  );
+  const cargoItem = get('pipeline-run', 'owner', cargo.id).packages.items[0];
+  assert.equal(cargoItem.ecosystem, 'cargo');
+  const cargoJob = get('job', 'owner', cargoItem.jobId);
+  assert.equal(cargoJob.container, 'rust:1');
+  assert.match(cargoJob.command, /cargo package --registry deploy-local/);
+  assert.equal(cargoJob.packagePublish.ecosystem, 'cargo');
   await writeFile(
     join(f.source, 'packages/a/package.json'),
     '{"name":"public-name","version":"2.0.0"}',
@@ -464,3 +474,71 @@ test('a real worker registering keeps the publish capability', async () => {
   });
   assert.ok(worker.capabilities.includes('package-publish-v1'));
 });
+
+test(
+  'Cargo publish entries upload new versions, skip existing versions, and fence ecosystem and version',
+  { skip: spawnSync('cargo', ['--version']).status !== 0, timeout: 60000 },
+  async () => {
+    const f = await fixture(['crates/library']);
+    const directory = join(f.source, 'crates/library');
+    await rm(join(directory, 'package.json'));
+    const name = 'pipeline_' + f.project.id.replaceAll('-', '_');
+    await mkdir(join(directory, 'src'));
+    await writeFile(
+      join(directory, 'Cargo.toml'),
+      `[package]\nname="${name}"\nversion="1.0.0"\nedition="2021"\n`,
+    );
+    await writeFile(join(directory, 'src/lib.rs'), 'pub fn value() -> u32 { 1 }');
+    await f.git(['add', '.']);
+    await f.git(['commit', '-m', 'Publish a Cargo crate']);
+    const run = await start(f);
+    pass(run);
+    await advancePipelinePackages('owner', run.id, registry.copy);
+    const job = claim(run);
+    assert.equal(job.packagePublish.ecosystem, 'cargo');
+    const home = join(root, 'cargo-home-' + f.project.id);
+    await mkdir(home);
+    await writeFile(join(home, 'config.toml'), cargoConfig(origin) + '\n[net]\noffline=true\n');
+    await exec(
+      'cargo',
+      [
+        'package',
+        '--registry',
+        'deploy-local',
+        '--allow-dirty',
+        '--target-dir',
+        '.deploy-pipeline-package',
+      ],
+      { cwd: directory, env: { ...process.env, CARGO_HOME: home } },
+    );
+    const token = issuePipelinePackageToken('owner', job);
+    const forbiddenNpm = await fetch(origin + '/npm/' + name, {
+      method: 'PUT',
+      headers: { Authorization: token },
+      body: '{}',
+    });
+    assert.equal(forbiddenNpm.status, 403);
+    assert.equal(
+      (
+        await fetch(origin + `/cargo/api/v1/crates/${name}/1.0.0/yank`, {
+          method: 'DELETE',
+          headers: { Authorization: token },
+        })
+      ).status,
+      403,
+    );
+    await finishPackageJob(job, f.source, async () => ({ registry: origin + '/npm/', key: token }));
+    const pkg = packageByName(name, 'cargo')!;
+    assert.equal(pkg.project_id, f.project.id);
+    assert.equal(versions(pkg.id)[0].published_via, 'release');
+    assert.equal(JSON.parse(versions(pkg.id)[0].manifest)._deployPipeline.id, run.id);
+    save('job', 'owner', { ...job, status: 'succeeded' });
+    await advancePipelinePackages('owner', run.id, registry.copy);
+    assert.equal(get('pipeline-run', 'owner', run.id).packages.items[0].status, 'published');
+    const again = await start(f);
+    pass(again);
+    await advancePipelinePackages('owner', again.id, registry.copy);
+    assert.equal(get('pipeline-run', 'owner', again.id).packages.items[0].status, 'skipped');
+    assert.equal(pipelinePackageIdentity(token), null);
+  },
+);

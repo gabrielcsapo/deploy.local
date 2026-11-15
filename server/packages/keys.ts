@@ -18,6 +18,7 @@ export type Identity = {
   credential: string;
   computer?: boolean;
   pipeline?: {
+    ecosystem?: string;
     projectId: string;
     pipelineId: string;
     name: string;

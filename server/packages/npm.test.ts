@@ -821,13 +821,6 @@ test('CLI preserves user config, never writes keys to projects, uses pnpm pack a
     (await call('@deploy.local%2fcli-test')).body.versions['1.0.0'].deprecated,
     'Use 2.0.0',
   );
-  const cargo = join(root, 'cargo-only');
-  await mkdir(cargo);
-  await writeFile(join(cargo, 'Cargo.toml'), '[package]\nname="later"');
-  await assert.rejects(
-    runPackages(['publish'], {}, { ...context, cwd: cargo }),
-    /Cargo isn't available yet/,
-  );
   assert.ok((await fetch(origin + '/api/packages?sidebar=1').then((r) => r.json())).served);
 });
 
