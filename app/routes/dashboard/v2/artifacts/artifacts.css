@@ -352,6 +352,10 @@
   color: var(--ds-tertiary);
   font-size: var(--ds-type-caption);
 }
+.ad-review-page .dz-review-heading svg {
+  display: inline;
+  vertical-align: middle;
+}
 .ad-review-page .dz-review-bar .dl-btn {
   white-space: nowrap;
 }

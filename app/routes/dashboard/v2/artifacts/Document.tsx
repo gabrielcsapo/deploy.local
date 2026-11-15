@@ -505,7 +505,8 @@ function DocumentReview({
       <article className="ad">
         <h1>{doc.title}</h1>
         <span className="dl-meta">
-          {marks.side === 'before'
+          {/* Once approved, main holds the proposal: nothing differs and it reads as on main. */}
+          {marks.side === 'before' || (!marks.isNew && marks.count === 0)
             ? documentLine(doc.project, 'main', changedWhen(doc.changedAt))
             : documentLine(doc.project, marks.isNew ? 'new' : 'branch', '', marks.count)}
         </span>
