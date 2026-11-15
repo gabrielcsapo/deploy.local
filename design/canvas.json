@@ -3220,6 +3220,22 @@
       "h": 1100,
       "title": "One package in the copy: its versions, which projects need them, removing the unused ones",
       "expand": "fill"
+    },
+    "ArtifactsNewDocument.html": {
+      "x": 20480,
+      "y": 49684,
+      "w": 1440,
+      "h": 980,
+      "title": "New document: the same dialog from the Document tile",
+      "expand": "fill"
+    },
+    "ArtifactsNewTaken.html": {
+      "x": 22000,
+      "y": 49684,
+      "w": 1440,
+      "h": 980,
+      "title": "New design: the name is already taken",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3639,6 +3655,8 @@
     "TemplateSettingsPhone.html",
     "Artifacts.html",
     "ArtifactsNew.html",
+    "ArtifactsNewDocument.html",
+    "ArtifactsNewTaken.html",
     "ArtifactsEmpty.html",
     "DesignPanelLeftClosed.html",
     "DesignPanelsClosed.html",
@@ -5110,7 +5128,7 @@
       "w": 440,
       "x": 19960,
       "y": 49684,
-      "text": "For approval: Design becomes Artifacts\n\nThe sidebar place Design is renamed Artifacts and opens a gallery of every project’s artifacts. A design is one kind of artifact; a document is the second. More kinds are added only when they exist.\n\n• Make something new sits at the top: one tile per kind. A tile asks for a name and the project, then deploy.local creates the files on a new branch and opens it. Nobody adds canvas.json by hand.\n• Below, one card per artifact with a preview, its project and when it last changed. A card says In review or Not proposed only while its newest work is not on main. All, Designs and Documents filter the cards.\n• The grid is three cards wide at 1440 and two at 700.\n• A project can hold several. Each lives in its own folder, artifacts/<name>, in the project’s repository. The design a project already has in design/ stays where it is and is listed as App design.\n• Opening a design goes to the canvas. Review, Before and After, and approval onto main are unchanged and apply to every kind.\n• On the canvas, the project menu’s line about design/canvas.json becomes New artifact.\n\n• Create opens the new design’s canvas straight away: empty, on its own branch, with the tools ready and one button to ask an agent to start it.\n• A document opens as a page under Artifacts, in the reading column. Edit starts a branch for it; proposing and approving work as they do for a design.\n\n• On iPhone, Artifacts is a row in Settings beside Packages and opens as a sheet: Make something new first, then each project’s artifacts as rows. A design opens the canvas the phone already has.\n\n• On the canvas, the menu at the top of the left panel lists designs, each with its project, and ends with New artifact. Projects with no design are no longer listed there. At narrow widths the bar reads Artifacts and goes back to the gallery.\n• On iPhone a kind opens a short sheet: Name, Project, Cancel and Create.\n\n• Editing a document is typing in the page. Edit starts a branch for it; the header then shows the branch, how many blocks changed and Propose. A small bar gives text style, bold, italic, lists, link and code. Each changed block gets a dot in the margin, and every edit is saved to the branch as you type.\n• On iPhone a document opens in a sheet to read. Editing a document on iPhone is not drawn.\n\nNot drawn yet: the design menu in the iPhone picker sheet, and Before and After for a document in review."
+      "text": "For approval: Design becomes Artifacts\n\nThe sidebar place Design is renamed Artifacts and opens a gallery of every project’s artifacts. A design is one kind of artifact; a document is the second. More kinds are added only when they exist.\n\n• Make something new sits at the top: one tile per kind. A tile asks for a name and the project, then deploy.local creates the files on a new branch and opens it. Nobody adds canvas.json by hand.\n• Below, one card per artifact with a preview, its project and when it last changed. A card says In review or Not proposed only while its newest work is not on main. All, Designs and Documents filter the cards.\n• The grid is three cards wide at 1440 and two at 700.\n• A project can hold several. Each lives in its own folder, artifacts/<name>, in the project’s repository. The design a project already has in design/ stays where it is and is listed as App design.\n• Opening a design goes to the canvas. Review, Before and After, and approval onto main are unchanged and apply to every kind.\n• On the canvas, the project menu’s line about design/canvas.json becomes New artifact.\n\n• Create opens the new design’s canvas straight away: empty, on its own branch, with the tools ready and one button to ask an agent to start it.\n• A document opens as a page under Artifacts, in the reading column. Edit starts a branch for it; proposing and approving work as they do for a design.\n\n• On iPhone, Artifacts is a row in Settings beside Packages and opens as a sheet: Make something new first, then each project’s artifacts as rows. A design opens the canvas the phone already has.\n\n• On the canvas, the menu at the top of the left panel lists designs, each with its project, and ends with New artifact. Projects with no design are no longer listed there. At narrow widths the bar reads Artifacts and goes back to the gallery.\n• On iPhone a kind opens a short sheet: Name, Project, Cancel and Create.\n\n• Editing a document is typing in the page. Edit starts a branch for it; the header then shows the branch, how many blocks changed and Propose. A small bar gives bold, italic, lists, link and code; Link asks for the address in the browser’s own prompt. Text styles are not drawn, so the bar has none. Each changed block gets a dot in the margin, and every edit is saved to the branch as you type.\n• On iPhone a document opens in a sheet to read. Editing a document on iPhone is not drawn.\n\nAs built:\n• The Document tile opens the same dialog, titled New document. When Create is refused, the reason shows under Name.\n• Ask an agent on an empty canvas opens the ask box the canvas already has, headed with the design’s name.\n• New artifact in the design menu goes to the gallery.\n• On iPhone a document’s back button is the system chevron, and a project’s artifacts are listed newest first.\n\nNot drawn yet: the design menu in the iPhone picker sheet, and Before and After for a document in review."
     },
     "design-panels": {
       "fill": "purple",
@@ -5124,7 +5142,7 @@
       "w": 440,
       "x": 6580,
       "y": 78900,
-      "text": "Everything kept, other states. Kind filter: one button, \"npm and Cargo\", opens a menu with both ticked; search always covers what is ticked. Untick one and the button reads \"npm only\" or \"Cargo only\"; the last ticked kind can\u2019t be unticked. Empty: \"Nothing kept yet. The first install through deploy.local appears here.\" No match: \"No package or crate matches left-pad\" with Clear. Nothing idle: the Copies row reads \"Everything was installed in the last 30 days\" with no chevron. Loading: the count line reads \"Counting…\". After removing: a notice, \"Removed 1.9 GB. 4.3 GB kept.\" While a source is unreachable the removal dialog adds that removed packages can’t be fetched again until it’s back. iPhone: the same three pages as pushed screens from Packages › Copies, search in the navigation bar, filters as a menu."
+      "text": "Everything kept, other states. Kind filter: one button, \"npm and Cargo\", opens a menu with both ticked; search always covers what is ticked. Untick one and the button reads \"npm only\" or \"Cargo only\"; the last ticked kind can’t be unticked. Empty: \"Nothing kept yet. The first install through deploy.local appears here.\" No match: \"No package or crate matches left-pad\" with Clear. Nothing idle: the Copies row reads \"Everything was installed in the last 30 days\" with no chevron. Loading: the count line reads \"Counting…\". After removing: a notice, \"Removed 1.9 GB. 4.3 GB kept.\" While a source is unreachable the removal dialog adds that removed packages can’t be fetched again until it’s back. iPhone: the same three pages as pushed screens from Packages › Copies, search in the navigation bar, filters as a menu."
     }
   },
   "starts": {}
