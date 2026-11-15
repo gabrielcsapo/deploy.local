@@ -6,25 +6,25 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { gitText } from './repository-git.ts';
+import { gitText } from '../../workspace/repository-git.ts';
 import { continueRepositoryCreation } from './repository-creation-worker.ts';
-import { initializeScratchWorkspace } from './scratch.ts';
-import { repositoryAddress } from '../../shared/repository-address.ts';
+import { initializeScratchWorkspace } from '../../workspace/scratch.ts';
+import { repositoryAddress } from '../../../shared/repository-address.ts';
 
 const directory = mkdtempSync(join(tmpdir(), 'deploy-repository-creation-test-'));
 process.env.DEPLOY_DATA_DIR = directory;
-const { db, get, list, save, now } = await import('./store.ts');
+const { db, get, list, save, now } = await import('../../workspace/store.ts');
 const { createRepository } = await import('./repository-creation.ts');
-const { createTask } = await import('./test-repository.ts');
+const { createTask } = await import('../../workspace/test-repository.ts');
 const { queueProject } = await import('./repositories.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
-const { workerCommand } = await import('./protocol.ts');
-const { coordinationApi } = await import('./coordination-api.ts');
-const { issueAgentToken } = await import('./coordination.ts');
-const { coordinationTools } = await import('./coordination-tools.ts');
-const { coordinationInstructions } = await import('./agent-launch.ts');
-const { publishTask } = await import('./publish.ts');
-const { inspectWorkspace } = await import('./review.ts');
+const { workerCommand } = await import('../../workspace/protocol.ts');
+const { coordinationApi } = await import('../../workspace/coordination-api.ts');
+const { issueAgentToken } = await import('../../workspace/coordination.ts');
+const { coordinationTools } = await import('../../workspace/coordination-tools.ts');
+const { coordinationInstructions } = await import('../../workspace/agent-launch.ts');
+const { publishTask } = await import('../../workspace/publish.ts');
+const { inspectWorkspace } = await import('../../workspace/review.ts');
 const owner = 'repository-owner';
 
 after(() => {

@@ -1,3 +1,4 @@
+import { cargoMetadata, cargoPublishBody } from '../../shared/cargo.mjs';
 // Worker-only pack inspection and upload. Project commands have already exited before a
 // publish token is requested; the token is never put in an environment, job file or log.
 import { createReadStream } from 'node:fs';
@@ -23,20 +24,33 @@ export async function finishPackageJob(
   const directory = await realpath(resolve(root, spec.path, spec.destination));
   if (!directory.startsWith(root + sep))
     throw new Error('Packed package escapes the job directory');
-  const files = (await readdir(directory)).filter((name) => name.endsWith('.tgz'));
-  if (files.length !== 1) throw new Error('pnpm pack must produce exactly one tarball');
+  const cargo = spec.ecosystem === 'cargo';
+  const files = (await readdir(directory)).filter((name) =>
+    name.endsWith(cargo ? '.crate' : '.tgz'),
+  );
+  if (files.length !== 1) throw new Error('Package command must produce exactly one archive');
   const file = await realpath(resolve(directory, files[0]));
   if (!file.startsWith(directory + sep))
     throw new Error('Packed package must not be an external link');
   const size = (await stat(file)).size;
   if (size > 200 * 1024 * 1024) throw new Error('Tarball exceeds 200 MB.');
-  const { stdout } = await exec('tar', ['-xOf', file, 'package/package.json'], {
-    maxBuffer: 65536,
-    timeout: 10000,
-    signal,
-  });
-  const manifest = JSON.parse(stdout);
-  if (manifest.name !== spec.name || manifest.version !== spec.version || manifest.private)
+  const { stdout } = await exec(
+    'tar',
+    ['-xOf', file, cargo ? `${files[0].slice(0, -6)}/Cargo.toml` : 'package/package.json'],
+    {
+      maxBuffer: 65536,
+      timeout: 10000,
+      signal,
+    },
+  );
+  const manifest = cargo
+    ? cargoMetadata(stdout, 'sparse+https://deploy.local/cargo/index/')
+    : JSON.parse(stdout);
+  if (
+    (cargo ? manifest.name.toLowerCase() : manifest.name) !== spec.name ||
+    (cargo ? manifest.vers : manifest.version) !== spec.version ||
+    manifest.private
+  )
     throw new Error('The packed name and version do not match package.json at the pipeline commit');
   for (const field of [
     'dependencies',
@@ -83,6 +97,8 @@ export async function finishPackageJob(
   }
   const config = await credential();
   const registry = new URL(config.registry);
+  if (cargo)
+    Object.assign(manifest, cargoMetadata(stdout, `sparse+${registry.origin}/cargo/index/`));
   if (
     registry.pathname !== '/npm/' ||
     registry.username ||
@@ -96,12 +112,15 @@ export async function finishPackageJob(
   // No redirect support: a credential cannot follow a package-controlled URL.
   await new Promise<void>((done, reject) => {
     const request = (registry.protocol === 'https:' ? httpsRequest : httpRequest)(
-      new URL(encodeURIComponent(spec.name), registry),
+      new URL(cargo ? '/cargo/api/v1/crates/new' : encodeURIComponent(spec.name), registry),
       {
         method: 'PUT',
         signal,
         ...(config.ca || ca ? { ca: [...getCACertificates('default'), config.ca || ca] } : {}),
-        headers: { Authorization: 'Bearer ' + config.key, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: 'Bearer ' + config.key,
+          'Content-Type': cargo ? 'application/octet-stream' : 'application/json',
+        },
       },
       (response) => {
         let text = '';
@@ -110,11 +129,11 @@ export async function finishPackageJob(
         });
         response.on('error', () => reject(new Error('Package upload response was interrupted')));
         response.on('end', () => {
-          if (response.statusCode === 201) return done();
+          if (response.statusCode === (cargo ? 200 : 201)) return done();
           // Only registry errors, scrubbed before they can become durable job output.
           let reason = `Package publish failed (${response.statusCode})`;
           try {
-            reason = JSON.parse(text).reason || reason;
+            reason = JSON.parse(text).errors?.[0]?.detail || JSON.parse(text).reason || reason;
           } catch {}
           reject(
             new Error(
@@ -134,7 +153,7 @@ export async function finishPackageJob(
         ),
       ),
     );
-    Readable.from(body())
+    Readable.from(cargo ? cargoPublishBody(manifest, file, size) : body())
       .on('error', () => request.destroy())
       .pipe(request);
   });

@@ -1,3 +1,4 @@
+import { cargoRegistry } from './cargo.ts';
 import { randomUUID } from 'node:crypto';
 import { setImmediate as yieldThread, setTimeout as pause } from 'node:timers/promises';
 import { rm } from 'node:fs/promises';
@@ -90,6 +91,13 @@ export function copiesStatus(owner: string, copy: NpmCopy) {
         downSince: copy.downSince,
         copiesServed: copy.copiesServed,
       },
+      {
+        name: 'crates.io',
+        reachable: cargoRegistry.copy.reachable,
+        checkedAt: cargoRegistry.copy.checkedAt,
+        downSince: cargoRegistry.copy.downSince,
+        copiesServed: cargoRegistry.copy.copiesServed,
+      },
     ],
     projects,
     storage: storageStatus(),
@@ -154,22 +162,20 @@ export async function cleanupCopies(clock = Date.now()) {
         .transaction(() => {
           const eligible = db()
             .prepare(
-              `SELECT 1 FROM package_cache_entries e WHERE ecosystem='npm' AND kind=? AND key=? AND last_used_at=? AND NOT EXISTS(SELECT 1 FROM package_pins p WHERE p.ecosystem=e.ecosystem AND p.key=e.key)`,
+              `SELECT 1 FROM package_cache_entries e WHERE ecosystem=? AND kind=? AND key=? AND last_used_at=? AND NOT EXISTS(SELECT 1 FROM package_pins p WHERE p.ecosystem=e.ecosystem AND p.key=e.key)`,
             )
-            .get(row.kind, row.key, row.last_used_at);
+            .get(row.ecosystem, row.kind, row.key, row.last_used_at);
           if (!eligible) return false;
           if (row.removed_at)
             db()
               .prepare(
-                "UPDATE package_cache_entries SET size=0 WHERE ecosystem='npm' AND kind=? AND key=?",
+                'UPDATE package_cache_entries SET size=0 WHERE ecosystem=? AND kind=? AND key=?',
               )
-              .run(row.kind, row.key);
+              .run(row.ecosystem, row.kind, row.key);
           else
             db()
-              .prepare(
-                "DELETE FROM package_cache_entries WHERE ecosystem='npm' AND kind=? AND key=?",
-              )
-              .run(row.kind, row.key);
+              .prepare('DELETE FROM package_cache_entries WHERE ecosystem=? AND kind=? AND key=?')
+              .run(row.ecosystem, row.kind, row.key);
           return true;
         })
         .immediate();

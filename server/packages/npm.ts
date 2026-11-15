@@ -1,3 +1,5 @@
+import { npmRegistryUrl, startNpmLogin, pollNpmLogin } from './npm-login.ts';
+import { sendJson } from '../kernel/http.ts';
 import { pinComputerInstall } from './copies.ts';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -251,7 +253,8 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         imported.reduce((sum, old) => sum + Buffer.byteLength(JSON.stringify(old.manifest)), 0) +
         1024 * (prior.count + imported.length + 1);
       if (documentBytes > MAX_DOC) fail('Packument exceeds 10 MB.', 413);
-      if (!registryIdentity(req)) fail('Run deploy packages login.', 401);
+      if (!registryIdentity(req))
+        fail(`Run npm login --registry ${npmRegistryUrl(req, copy.settings.publicBase)}`, 401);
       const projectId =
         identity.pipeline?.projectId ?? (await packageProject(identity.username, value.repository));
       if (!registryIdentity(req)) fail('Pipeline credential expired or run ended.', 401);
@@ -268,6 +271,10 @@ export function createNpmRegistry(settings?: RegistrySettings) {
               "INSERT INTO packages(id,ecosystem,name,project_id,created_by,created_at) VALUES(?,'npm',?,?,?,?)",
             )
             .run(id, name, projectId, identity.username, now());
+        // A package first published without a repository joins the project the first time a
+        // signed-in publish names one, so its pipeline can publish it from then on.
+        else if (!pkg.project_id && projectId)
+          db().prepare('UPDATE packages SET project_id=? WHERE id=?').run(projectId, id);
         const insert = db().prepare(
           'INSERT INTO package_versions(package_id,version,sha256,integrity,size,manifest,published_by,published_via,"commit",deprecated,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
         );
@@ -327,20 +334,30 @@ export function createNpmRegistry(settings?: RegistrySettings) {
     const rawPath = (req.url || '').split('?')[0];
     if (!rawPath.startsWith('/npm/') && rawPath !== '/-/v1/search') return false;
     try {
-      // Reading needs no sign-in: anyone on the network can install. Every write still needs a key.
+      // Installing and starting browser sign-in need no key. Every package write still needs one.
       const read =
         req.method === 'GET' ||
         req.method === 'HEAD' ||
-        (req.method === 'POST' && rawPath === '/npm/-/npm/v1/security/advisories/bulk');
+        (req.method === 'POST' &&
+          (rawPath === '/npm/-/npm/v1/security/advisories/bulk' || rawPath === '/npm/-/v1/login'));
       const identity = registryIdentity(req) ?? (read ? ANONYMOUS : null);
       if (!identity) {
         res.setHeader('WWW-Authenticate', 'Basic realm="deploy.local Packages", charset="UTF-8"');
-        send(res, { error: 'ENEEDAUTH', reason: 'Run deploy packages login.' }, 401);
+        send(
+          res,
+          {
+            error: 'ENEEDAUTH',
+            reason: `Run npm login --registry ${npmRegistryUrl(req, copy.settings.publicBase)}`,
+          },
+          401,
+        );
         return true;
       }
       if (
         identity.pipeline &&
-        (req.method !== 'PUT' || decodeURIComponent(rawPath) !== '/npm/' + identity.pipeline.name)
+        ((identity.pipeline.ecosystem || 'npm') !== 'npm' ||
+          req.method !== 'PUT' ||
+          decodeURIComponent(rawPath) !== '/npm/' + identity.pipeline.name)
       )
         fail('Pipeline tokens can only publish their assigned package version.', 403);
       // Decode once. Never normalize dot segments before validating a registry path.
@@ -359,10 +376,29 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         path.split('/').some((v) => v === '.' || v === '..')
       )
         fail('Invalid package URL');
+      if (path === '-/v1/login' && req.method === 'POST') {
+        await smallBody(req);
+        sendJson(res, startNpmLogin(req, npmRegistryUrl(req, copy.settings.publicBase)));
+        return true;
+      }
+      const done = path.match(/^-\/v1\/login\/done\/([A-Za-z0-9_-]{43})$/);
+      if (done && req.method === 'GET') {
+        const result = pollNpmLogin(done[1]);
+        if (!result) res.setHeader('Retry-After', '1');
+        sendJson(res, result ?? { pending: true }, result ? 200 : 202);
+        return true;
+      }
       if (path === '-/whoami' && req.method === 'GET') {
         if (identity === ANONYMOUS) {
           res.setHeader('WWW-Authenticate', 'Basic realm="deploy.local Packages", charset="UTF-8"');
-          send(res, { error: 'ENEEDAUTH', reason: 'Run deploy packages login.' }, 401);
+          send(
+            res,
+            {
+              error: 'ENEEDAUTH',
+              reason: `Run npm login --registry ${npmRegistryUrl(req, copy.settings.publicBase)}`,
+            },
+            401,
+          );
           return true;
         }
         send(res, { username: identity.username });
@@ -373,7 +409,11 @@ export function createNpmRegistry(settings?: RegistrySettings) {
         return true;
       }
       if (path.startsWith('-/user/')) {
-        send(res, { error: 'Run deploy packages login.' }, 403);
+        send(
+          res,
+          { error: `Run npm login --registry ${npmRegistryUrl(req, copy.settings.publicBase)}` },
+          403,
+        );
         return true;
       }
       if (path === '-/npm/v1/security/advisories/bulk' && req.method === 'POST') {

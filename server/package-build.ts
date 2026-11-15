@@ -60,12 +60,12 @@ export function registryBuildDocker(
       try {
         const registryArgs = options.registryArgs
           ? await options.registryArgs(install)
-          : install.npmrc
+          : install.npmrc || install.cargoConfig
             ? [
-                '--secret',
-                `id=npmrc,src=${install.npmrc}`,
+                ...(install.npmrc ? ['--secret', `id=npmrc,src=${install.npmrc}`] : []),
                 '--secret',
                 `id=ca,src=${install.ca}`,
+                ...(install.cargoConfig ? ['--secret', `id=cargo,src=${install.cargoConfig}`] : []),
                 ...(install.args.includes('--add-host')
                   ? ['--add-host', install.args[install.args.indexOf('--add-host') + 1]]
                   : []),

@@ -84,7 +84,8 @@ export class JobRunner {
       // No job runs while the worker starts, so every folder here was left by an earlier one:
       // a checkout with its installed dependencies is over a gigabyte.
       for (const entry of entries)
-        if (entry.isDirectory()) await removeJobFolder(resolve(directory, entry.name));
+        if (entry.isDirectory() && entry.name !== 'cargo-home')
+          await removeJobFolder(resolve(directory, entry.name));
     });
     this.statePath = resolve(directory, 'job.json');
     this.state = existsSync(this.statePath)
@@ -247,7 +248,8 @@ export class JobRunner {
             ...install.args,
             job.container,
             '/bin/sh',
-            '-lc',
+            // Keep the image's PATH (rust images put cargo in /usr/local/cargo/bin).
+            '-c',
             job.command,
           ]
         : ['-lc', job.command];

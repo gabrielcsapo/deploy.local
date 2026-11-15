@@ -575,6 +575,7 @@ if (npmrc) process.stdout.write(fs.readFileSync(npmrc, 'utf8'));
       .split('\n')
       .map((line) => JSON.parse(line));
     assert.equal(invocations.length, 2);
+    assert.equal(invocations[0].args.at(-2), '-c', 'container commands retain the image PATH');
     assert.deepEqual(invocations[1].args, ['rm', '-f', 'deploy-job-job-g']);
     for (const call of invocations) {
       assert.equal(call.config, '/run/deploy-packages/npmrc');

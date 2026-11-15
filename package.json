@@ -68,6 +68,7 @@
     "react-server-dom-webpack": "catalog:",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
+    "smol-toml": "^1.9.1",
     "ssh2": "1.17.0",
     "tar-stream": "^3.2.2",
     "ws": "^8.23.0",

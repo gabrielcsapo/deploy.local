@@ -8,18 +8,18 @@ import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 const data = mkdtempSync(join(tmpdir(), 'deploy-project-collaboration-'));
 process.env.DEPLOY_DATA_DIR = data;
-await import('../test-ports.ts');
-const { workspaceApi } = await import('./api.ts');
-const { createProject, createTask } = await import('./test-repository.ts');
-const { git } = await import('./service.ts');
-const { gitText } = await import('./repository-git.ts');
-const { db, get, list, save } = await import('./store.ts');
+await import('../../test-ports.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
+const { createProject, createTask } = await import('../../workspace/test-repository.ts');
+const { git } = await import('../../workspace/service.ts');
+const { gitText } = await import('../../workspace/repository-git.ts');
+const { db, get, list, save } = await import('../../workspace/store.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
 const { executePullMerge } = await import('./project-collaboration.ts');
 const { projectTool } = await import('./project-tools.ts');
-const { coordinationApi } = await import('./coordination-api.ts');
-const { issueAgentToken } = await import('./coordination.ts');
-const { putAgentControl } = await import('../v2/phone-preferences.ts');
+const { coordinationApi } = await import('../../workspace/coordination-api.ts');
+const { issueAgentToken } = await import('../../workspace/coordination.ts');
+const { putAgentControl } = await import('../../v2/phone-preferences.ts');
 after(() => {
   db.close();
   rmSync(data, { recursive: true, force: true });
@@ -586,7 +586,7 @@ test('a deleted source branch can still be closed without inventing history', as
 });
 
 test('pull presentation uses account names while preserving actor identifiers', async () => {
-  const { authDb, updatePreferences } = await import('../v2/auth-store.ts');
+  const { authDb, updatePreferences } = await import('../../v2/auth-store.ts');
   authDb()
     .prepare('INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)')
     .run('alice', '', 'admin', new Date().toISOString());

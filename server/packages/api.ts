@@ -1,3 +1,6 @@
+import { cargoRegistry, yankCrate } from './cargo.ts';
+import { crateName } from './cargo-copy.ts';
+import { readNpmLogin, finishNpmLogin, requireNpmLoginOrigin } from './npm-login.ts';
 import { copiesStatus, queueCopies } from './copies.ts';
 import { npmRegistry } from './npm.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -24,18 +27,36 @@ function served() {
 
 /** Sidebar status never inspects a repository or probes the registry. */
 export function packageSidebar(copy = npmRegistry.copy) {
-  return { served: served(), usingCopies: !copy.reachable };
+  return { served: served(), usingCopies: !copy.reachable || !cargoRegistry.copy.reachable };
 }
 
 /** The package a `/api/packages/npm/<name>` path names, or 404. */
-function packageAt(encoded: string) {
-  const name = nameOf(decodeURIComponent(encoded)),
-    pkg = packageByName(name);
+function packageAt(encoded: string, ecosystem = 'npm') {
+  const name =
+      ecosystem === 'cargo'
+        ? crateName(decodeURIComponent(encoded)).toLowerCase()
+        : nameOf(decodeURIComponent(encoded)),
+    pkg = packageByName(name, ecosystem);
   if (!pkg) fail('Package not found', 404);
   return { name, pkg };
 }
 
 export const packagesRoutes = [
+  route({
+    method: 'GET',
+    path: '/api/packages/npm-login/:id',
+    handler: ({ res, params, context }) => send(res, readNpmLogin(params.id, context.username)),
+  }),
+  route({
+    method: 'POST',
+    path: '/api/packages/npm-login/:id',
+    input: async (req) => {
+      requireNpmLoginOrigin(req);
+      return smallBody(req);
+    },
+    handler: ({ req, res, params, input, context }) =>
+      send(res, finishNpmLogin(params.id, input.action, context.identity, req)),
+  }),
   route({
     method: 'GET',
     path: '/api/packages/cache',
@@ -92,8 +113,31 @@ export const packagesRoutes = [
     handler: async ({ res, url, context }) => {
       const { username, copy } = context;
       if (url.searchParams.has('sidebar')) return send(res, packageSidebar(copy));
-      return send(res, await readPackages(username, copy));
+      const ecosystem = url.searchParams.get('ecosystem') || 'npm';
+      if (!['npm', 'cargo', 'all'].includes(ecosystem)) fail('Unknown package ecosystem');
+      return send(res, await readPackages(username, copy, ecosystem));
     },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/packages/cargo/:name/versions/:version/yank',
+    input: smallBody,
+    handler: ({ req, res, params, input, context }) => {
+      yankCrate(
+        context.identity,
+        packageAt(params.name, 'cargo').pkg,
+        decodeURIComponent(params.version),
+        !input.undo,
+        req,
+      );
+      send(res, { ok: true });
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/packages/cargo/:name',
+    handler: async ({ res, params, context }) =>
+      send(res, await readPackage(context.username, params.name, context.identity.admin, 'cargo')),
   }),
   // The package is looked up before the method is checked, so a wrong method on a missing
   // package is still a 404, and the body is read only once the package exists.
@@ -145,10 +189,10 @@ export async function packagesApi(
   });
 }
 
-export async function readPackages(username: string, copy = npmRegistry.copy) {
+export async function readPackages(username: string, copy = npmRegistry.copy, ecosystem = 'npm') {
   const rows = db()
-    .prepare("SELECT * FROM packages WHERE ecosystem='npm' ORDER BY created_at,name")
-    .all() as Package[];
+    .prepare("SELECT * FROM packages WHERE (?='all' OR ecosystem=?) ORDER BY created_at,name")
+    .all(ecosystem, ecosystem) as Package[];
   const projects = list('project', username);
   const packages = [];
   for (const pkg of rows) {
@@ -165,14 +209,23 @@ export async function readPackages(username: string, copy = npmRegistry.copy) {
           }
         : null,
       project: projects.find((p) => p.id === pkg.project_id)?.name || null,
-      usedBy: (await usedBy(username, pkg.name)).length,
+      usedBy: (await usedBy(username, pkg.name, undefined, pkg.ecosystem)).length,
     });
   }
-  return { packages, served: served(), usingCopies: !copy.reachable };
+  return {
+    packages,
+    served: served(),
+    usingCopies: !copy.reachable || !cargoRegistry.copy.reachable,
+  };
 }
 
-export async function readPackage(username: string, encoded: string, admin = isAdmin(username)) {
-  const { name, pkg } = packageAt(encoded);
+export async function readPackage(
+  username: string,
+  encoded: string,
+  admin = isAdmin(username),
+  ecosystem = 'npm',
+) {
+  const { name, pkg } = packageAt(encoded, ecosystem);
   const rows = versions(pkg.id);
   const tags = db().prepare('SELECT tag,version FROM package_tags WHERE package_id=?').all(pkg.id);
   const project = list('project', username).find((p) => p.id === pkg.project_id);
@@ -184,6 +237,7 @@ export async function readPackage(username: string, encoded: string, admin = isA
       version: v.version,
       size: v.size,
       deprecated: v.deprecated,
+      yanked: !!v.yanked,
       publishedBy: v.published_by,
       publishedByYou: v.published_by === username,
       publishedVia: v.published_via,
@@ -193,7 +247,7 @@ export async function readPackage(username: string, encoded: string, admin = isA
       createdAt: v.created_at,
     })),
     tags,
-    usedBy: await usedBy(username, name),
+    usedBy: await usedBy(username, name, undefined, ecosystem),
     canPublish: admin || pkg.created_by === username,
   };
 }

@@ -176,6 +176,11 @@ export const routes: RouteConfig[] = [
         ],
       },
       {
+        id: 'npm-login',
+        path: 'packages/npm-login/:id',
+        component: () => import('./routes/npm-login/page.js'),
+      },
+      {
         id: 'packages-short',
         path: 'packages',
         redirect: declaredRedirect,

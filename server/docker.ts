@@ -313,12 +313,12 @@ async function hasBuildx(): Promise<boolean> {
  * not this process's DNS address. An unavailable bridge disables registry secrets entirely. */
 export async function buildRegistryArgs(
   driver: string,
-  install: { npmrc?: string; ca?: string; key: string },
+  install: { npmrc?: string; ca?: string; cargoConfig?: string; key: string },
   inspect: () => Promise<{ stdout: string }> = () =>
     execFileAsync('docker', ['network', 'inspect', 'bridge'], { timeout: 3000 }),
   resolvedAddress?: string,
 ): Promise<string[]> {
-  if (!install.npmrc) return [];
+  if (!install.npmrc && !install.cargoConfig) return [];
   let address = resolvedAddress || 'host-gateway';
   if (install.key && !resolvedAddress && driver !== 'docker') {
     try {
@@ -332,10 +332,10 @@ export async function buildRegistryArgs(
     }
   }
   return [
-    '--secret',
-    `id=npmrc,src=${install.npmrc}`,
+    ...(install.npmrc ? ['--secret', `id=npmrc,src=${install.npmrc}`] : []),
     '--secret',
     `id=ca,src=${install.ca}`,
+    ...(install.cargoConfig ? ['--secret', `id=cargo,src=${install.cargoConfig}`] : []),
     ...(install.key ? ['--add-host', `deploy.local:${address}`] : []),
   ];
 }

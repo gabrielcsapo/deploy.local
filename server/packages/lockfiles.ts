@@ -1,3 +1,4 @@
+import { parse as parseToml } from 'smol-toml';
 import { parse } from 'yaml';
 export type LockfileIndex = Record<
   string,
@@ -21,7 +22,19 @@ export function lockfileIndex(file: string, text: string, strict = false): Lockf
   const link = (name: string, path: string) => get(name).links.push(path);
   const identity = (key: string) => key.match(/^(@[^/]+\/[^@/]+|[^@/]+)[@/](.+)$/);
   try {
-    if (file === 'package-lock.json') {
+    if (file === 'Cargo.lock') {
+      const doc = parseToml(text);
+      for (const pkg of (doc.package || []) as any[]) {
+        if (
+          typeof pkg.name === 'string' &&
+          typeof pkg.source === 'string' &&
+          /^(?:registry\+(?:sparse\+)?|sparse\+)https:\/\/deploy\.local\/cargo\/index\/?$/.test(
+            pkg.source,
+          )
+        )
+          add(pkg.name.toLowerCase(), pkg.version);
+      }
+    } else if (file === 'package-lock.json') {
       const doc = JSON.parse(text);
       for (const [path, value] of Object.entries(doc.packages || {}) as [string, any][]) {
         const name = path.match(/(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/)?.[1];

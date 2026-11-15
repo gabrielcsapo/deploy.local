@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { routeFetch } from '../v2/test-request.ts';
+import { routeFetch } from '../../v2/test-request.ts';
 import { randomUUID } from 'node:crypto';
 const directory = mkdtempSync(join(tmpdir(), 'repository-settings-'));
 process.env.DEPLOY_DATA_DIR = directory;
-const { workspaceApi } = await import('./api.ts');
-const { save, get, db, events } = await import('./store.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
+const { save, get, db, events } = await import('../../workspace/store.ts');
 const fetch = routeFetch((req, res) =>
   workspaceApi(
     req,

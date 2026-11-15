@@ -945,6 +945,16 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/packages/npm-login/:id',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'POST',
+    path: '/api/packages/npm-login/:id',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'GET',
     path: '/api/packages/cache',
     handler: 'v2:packages/api',
   },

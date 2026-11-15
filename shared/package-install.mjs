@@ -1,7 +1,8 @@
+import { cargoConfig } from './cargo.mjs';
 // Shared by workers and the out-of-release updater. No enrollment credentials enter here.
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { lookup } from 'node:dns/promises';
 import { homedir } from 'node:os';
@@ -44,7 +45,7 @@ export async function projectRegistry(cwd) {
     /^\s*registry\s*=/m.test(bun)
   );
 }
-export async function preparePackageInstall(
+async function prepareNpmInstall(
   config,
   {
     cwd,
@@ -146,6 +147,71 @@ export async function preparePackageInstall(
     await cleanup().catch(() => {});
     fallback();
     return { ...empty, env: { NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org/' } };
+  }
+}
+/** Cargo reads stay anonymous. Its persistent cache survives individual jobs. */
+export async function preparePackageInstall(config, options = {}) {
+  const install = await prepareNpmInstall(config, options);
+  // Only Rust projects get Cargo settings, so npm-only jobs and builds keep their single
+  // registry check and leave nothing behind.
+  if (!options.cwd || !(await optional(join(options.cwd, 'Cargo.toml')))) return install;
+  if (!config?.key || (!install.key && !(await projectRegistry(options.cwd)))) return install;
+  if (!install.key && !(await (options.ping || registryPing)(config).catch(() => false)))
+    return install;
+  const { root, container = false } = options;
+  const home = join(root, 'cargo-home');
+  await mkdir(home, { recursive: true, mode: 0o700 });
+  const directory = install.directory || (await mkdtemp(join(root, 'package-install-')));
+  try {
+    const hostCa = join(home, 'ca.crt');
+    await writeFile(join(directory, 'cargo-ca.crt'), config.ca || '', { mode: 0o600 });
+    await rename(join(directory, 'cargo-ca.crt'), hostCa);
+    await writeFile(
+      join(directory, 'cargo-host.toml'),
+      cargoConfig(config.registry, config.ca ? hostCa : undefined),
+      { mode: 0o600 },
+    );
+    await rename(join(directory, 'cargo-host.toml'), join(home, 'config.toml'));
+    const cargoConfigFile = join(directory, 'cargo.toml');
+    await writeFile(
+      cargoConfigFile,
+      cargoConfig(config.registry, config.ca ? '/run/deploy-packages/ca.crt' : undefined),
+      { mode: 0o600 },
+    );
+    const env = { ...install.env, CARGO_HOME: container ? '/run/deploy-cargo' : home };
+    const args = [...install.args];
+    if (container) {
+      args.push(
+        '--volume',
+        `${home}:/run/deploy-cargo`,
+        '--volume',
+        `${cargoConfigFile}:/run/deploy-cargo/config.toml:ro`,
+        '--env',
+        'CARGO_HOME',
+      );
+      if (!install.ca) args.push('--volume', `${hostCa}:/run/deploy-packages/ca.crt:ro`);
+      if (!args.includes('--add-host')) {
+        const address = config.address || (await lookup(new URL(config.registry).hostname)).address;
+        args.push('--add-host', `deploy.local:${address}`);
+      }
+    }
+    return {
+      ...install,
+      key: install.key || config.key,
+      ca: install.ca || hostCa,
+      env,
+      args,
+      cargoConfig: cargoConfigFile,
+      cargoHome: home,
+      cleanup: async () => {
+        await install.cleanup();
+        if (!install.directory) await rm(directory, { recursive: true, force: true });
+      },
+    };
+  } catch (error) {
+    await install.cleanup();
+    if (!install.directory) await rm(directory, { recursive: true, force: true });
+    throw error;
   }
 }
 /** Withhold an incomplete credential suffix across chunks. Never persist a partial token. */

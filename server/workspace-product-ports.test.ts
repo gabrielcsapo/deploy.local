@@ -146,7 +146,7 @@ test('repository entry retains auth bootstrap without wiring or reading preferen
   assert.ok(graph.visited.has('server/v2/auth-store.ts'));
   assert.ok(graph.visited.has('server/main/repository-workspace-imports.ts'));
   assert.ok(!graph.visited.has('server/main/workspace-collaboration-preferences.ts'));
-  const collaboration = source('server/workspace/project-collaboration.ts');
+  const collaboration = source('server/features/repositories/project-collaboration.ts');
   const presentation = collaboration.slice(
     collaboration.indexOf('async function presentPull'),
     collaboration.indexOf('async function presentPull') + 4000,

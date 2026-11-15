@@ -132,6 +132,7 @@ async function main() {
         pathname === '/api' ||
         pathname.startsWith('/api/') ||
         pathname.startsWith('/npm/') ||
+        pathname.startsWith('/cargo/') ||
         isControlSocketPath(pathname) ||
         pathname === '/install' ||
         pathname === '/install.ps1' ||
@@ -164,7 +165,8 @@ async function main() {
         req.url?.startsWith('/cli') ||
         isDesktopDownloadPath(req.url) ||
         req.url?.startsWith('/api/') ||
-        req.url?.startsWith('/npm/')
+        req.url?.startsWith('/npm/') ||
+        req.url?.startsWith('/cargo/')
       ) {
         forwardToControl(req, res);
         return;

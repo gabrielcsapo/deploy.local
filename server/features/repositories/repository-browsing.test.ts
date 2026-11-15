@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'deploy-repository-browsing-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { gitText } = await import('./repository-git.ts');
+const { gitText } = await import('../../workspace/repository-git.ts');
 const { repositoryRead } = await import('./repositories.ts');
-const { save, db } = await import('./store.ts');
+const { save, db } = await import('../../workspace/store.ts');
 after(() => {
   db.close();
   rmSync(root, { recursive: true, force: true });

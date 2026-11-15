@@ -4,23 +4,24 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { routeFetch } from './test-request.ts';
+import { routeFetch } from '../../v2/test-request.ts';
 import {
   projectDocumentUrl,
   projectPath,
   projectTabs,
-} from '../../app/routes/dashboard/v2/projects/routing.ts';
+} from '../../../app/routes/dashboard/v2/projects/routing.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'v2-projects-'));
 process.env.DEPLOY_DATA_DIR = root;
-await import('../test-ports.ts');
-const store = await import('../store.ts');
-const workspace = await import('../workspace/store.ts');
+await import('../../test-ports.ts');
+const store = await import('../../store.ts');
+const workspace = await import('../../workspace/store.ts');
 const { projectsForOwner, resolveProject, addProjectApplication } = await import('./projects.ts');
-const { readProjectSettings, putProjectSettings, putProjectSecret } = await import('./settings.ts');
-const configuration = await import('../application-configuration.ts');
-const { projectLogSources } = await import('./logs.ts');
-const { v2Api } = await import('./api.ts');
+const { readProjectSettings, putProjectSettings, putProjectSecret } =
+  await import('../../v2/settings.ts');
+const configuration = await import('../../application-configuration.ts');
+const { projectLogSources } = await import('../../v2/logs.ts');
+const { v2Api } = await import('../../v2/api.ts');
 const repo = join(root, 'repo');
 mkdirSync(repo);
 const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe' });
@@ -399,8 +400,8 @@ test('project release preferences validate, persist, isolate owners and refuse a
 });
 
 test('project removal confirms, stops every app before freeing addresses, and preserves backups for 30 days', async () => {
-  const { removeProject, purgeRemovedProjects } = await import('./project-removal.ts');
-  const { getBackupDir } = await import('../volumes.ts');
+  const { removeProject, purgeRemovedProjects } = await import('../../v2/project-removal.ts');
+  const { getBackupDir } = await import('../../volumes.ts');
   const { existsSync, readFileSync } = await import('node:fs');
   workspace.save('project', 'remover', {
     id: 'remove',
@@ -458,8 +459,8 @@ test('project removal confirms, stops every app before freeing addresses, and pr
 });
 
 test('failed removal keeps membership, addresses and a durable retry receipt', async () => {
-  const { removeProject, removeProjectContainer } = await import('./project-removal.ts');
-  const { DockerApiError } = await import('../docker-api.ts');
+  const { removeProject, removeProjectContainer } = await import('../../v2/project-removal.ts');
+  const { DockerApiError } = await import('../../docker-api.ts');
   await removeProjectContainer('missing', async () => {
     throw new DockerApiError(404, 'missing');
   });
@@ -597,7 +598,7 @@ test('Add repository keeps configuration, encrypted secrets, releases, package r
     ).project_id,
     project.id,
   );
-  const { getLive } = await import('./live.ts');
+  const { getLive } = await import('../../v2/live.ts');
   assert.equal(
     (await getLive(owner)).computers.flatMap((computer) => computer.apps)[0].project,
     project.id,
@@ -658,7 +659,7 @@ test('New project attaches a matching folder app, leaves other names alone and r
 });
 
 test('legacy New project API also joins matching apps and replays creation safely', async () => {
-  const { workspaceApi } = await import('../workspace/api.ts');
+  const { workspaceApi } = await import('../../workspace/api.ts');
   const legacy = routeFetch((req, res) => workspaceApi(req, res, 'legacy-create'));
   store.saveDeployment({ name: 'legacy-pantry', username: 'legacy-create' });
   const init = {
@@ -699,7 +700,7 @@ test('joining an app preserves both current releases when the destination alread
     workspace.save('v2-project-current', owner, { id: project.id, releaseId: name });
     await addProjectApplication(owner, 'two-project', name);
   }
-  const { currentProjectReleases, projectReleases } = await import('./releases.ts');
+  const { currentProjectReleases, projectReleases } = await import('../../v2/releases.ts');
   assert.equal(currentProjectReleases(owner).length, 2);
   assert.equal(projectReleases(owner, 'two-project').length, 2);
   assert.deepEqual(

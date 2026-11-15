@@ -42,6 +42,7 @@ export function verifyPackageKey(
 }
 
 export type PipelinePackageCredential = {
+  ecosystem?: string;
   owner: string;
   projectId: string;
   pipelineId: string;

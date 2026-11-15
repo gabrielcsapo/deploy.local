@@ -10,6 +10,9 @@ export async function prepareAgentInstall(
 }
 
 export const packageEnvironmentNames = [
+  'CARGO_HOME',
+  'CARGO_HTTP_CAINFO',
+  'CARGO_REGISTRIES_DEPLOY_LOCAL_INDEX',
   'NPM_CONFIG_USERCONFIG',
   'NPM_CONFIG_REGISTRY',
   'YARN_NPM_REGISTRY_SERVER',
@@ -34,6 +37,7 @@ export function agentEnvironment(
     Object.entries(source).filter(
       ([key]) =>
         !/^DEPLOY_(WORKER|WORKSPACE|PACKAGE)_/.test(key) &&
+        !/^CARGO_(?:REGISTRIES_.*_TOKEN|REGISTRY_TOKEN)$/.test(key) &&
         (!configured ||
           !/^(?:npm_config_(?:registry|userconfig|cafile|token)|bun_config_(?:registry|token)|yarn_(?:npm_registry_server|npm_auth_token|npm_always_auth|https_ca_file_path))$/i.test(
             key,

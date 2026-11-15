@@ -95,6 +95,18 @@ function copyHeaders(source: IncomingMessage['headers'], skipPseudo: boolean) {
   return headers;
 }
 
+/** Only the edge's socket supplies forwarding metadata; never pass through a client's claims. */
+export function controlRequestHeaders(req: IncomingMessage) {
+  const headers = copyHeaders(req.headers, true);
+  const authority = req.headers.host || req.headers[':authority'];
+  if (typeof authority === 'string') headers.host = authority;
+  headers['x-forwarded-proto'] = (req.socket as { encrypted?: boolean }).encrypted
+    ? 'https'
+    : 'http';
+  headers['x-forwarded-for'] = req.socket.remoteAddress;
+  return headers;
+}
+
 /**
  * Pooled sockets to control. Node's agent only honors the server's
  * `Keep-Alive: timeout=N` hint (closing an idle socket a second before
@@ -133,7 +145,7 @@ export function createControlForwarder(options: ControlForwarderOptions) {
     // req.url/req.method are getters backed by headers[':path']/[':method'].
     const path = req.url || '/';
     const method = req.method || 'GET';
-    const headers = copyHeaders(req.headers, true);
+    const headers = controlRequestHeaders(req);
     const replayable = method === 'GET' || method === 'HEAD';
 
     let current: ClientRequest | null = null;

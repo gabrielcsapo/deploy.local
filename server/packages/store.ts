@@ -128,6 +128,10 @@ export async function sendFile(
     ETag: etag,
     'Cache-Control': 'private, no-cache',
   });
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
   await pipeline(
     handle ? handle.createReadStream() : createReadStream(objectPath(area, file.sha256)),
     res,
@@ -149,13 +153,14 @@ export type Version = {
   integrity: string;
   manifest: string;
   deprecated: string | null;
+  yanked: number;
   published_by: string;
   published_via: string;
   commit: string | null;
   created_at: string;
 };
-export const packageByName = (name: string) =>
-  db().prepare("SELECT * FROM packages WHERE ecosystem='npm' AND name=?").get(name) as
+export const packageByName = (name: string, ecosystem = 'npm') =>
+  db().prepare('SELECT * FROM packages WHERE ecosystem=? AND name=?').get(ecosystem, name) as
     | Package
     | undefined;
 export const versions = (id: string) =>

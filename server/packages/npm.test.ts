@@ -328,7 +328,7 @@ test('npm protocol, auth, isolation, cache and responsiveness', async (t) => {
       );
       assert.equal(
         (await call('-/user/org.couchdb.user:a', { method: 'PUT', body: '{}' })).body.error,
-        'Run deploy packages login.',
+        `Run npm login --registry ${origin}/npm/`,
       );
       assert.ok(
         (await call('-/v1/search?text=test')).body.objects.some(
@@ -821,13 +821,6 @@ test('CLI preserves user config, never writes keys to projects, uses pnpm pack a
     (await call('@deploy.local%2fcli-test')).body.versions['1.0.0'].deprecated,
     'Use 2.0.0',
   );
-  const cargo = join(root, 'cargo-only');
-  await mkdir(cargo);
-  await writeFile(join(cargo, 'Cargo.toml'), '[package]\nname="later"');
-  await assert.rejects(
-    runPackages(['publish'], {}, { ...context, cwd: cargo }),
-    /Cargo isn't available yet/,
-  );
   assert.ok((await fetch(origin + '/api/packages?sidebar=1').then((r) => r.json())).served);
 });
 
@@ -843,6 +836,32 @@ test('reserved existing projects keep identity, settings and clone access', asyn
     updateProjectSettings('alice', project.id, { name, description: '', settingsRevision: 0 });
     assert.equal(findRepository('alice', name).name, name);
   }
+});
+
+test('a package first published without a repository joins the project a later publish names', async () => {
+  const name = '@deploy.local/link-later';
+  const projectOf = () =>
+    (
+      getSqlite()!
+        .prepare("SELECT project_id FROM packages WHERE name=? AND ecosystem='npm'")
+        .get(name) as { project_id: string | null }
+    ).project_id;
+  assert.equal((await publish(name, publishDoc(name, '1.0.0'))).response.status, 201);
+  assert.equal(projectOf(), null);
+  save('project', 'alice', { id: 'link-later', name: 'link-later', owner: 'alice' });
+  const doc: any = publishDoc(name, '1.0.1', Buffer.from('second tarball'));
+  doc.versions['1.0.1'].repository = {
+    type: 'git',
+    url: 'https://deploy.local/api/git/link-later',
+  };
+  assert.equal((await publish(name, doc)).response.status, 201);
+  assert.equal(projectOf(), 'link-later');
+  // Once linked, a publish naming no repository leaves the link alone.
+  assert.equal(
+    (await publish(name, publishDoc(name, '1.0.2', Buffer.from('third tarball')))).response.status,
+    201,
+  );
+  assert.equal(projectOf(), 'link-later');
 });
 
 test('scheduled rsync includes hosted packages and excludes the copy and unfinished writes', async () => {

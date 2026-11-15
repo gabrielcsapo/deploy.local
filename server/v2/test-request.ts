@@ -9,7 +9,11 @@ export function routeFetch(
   return async (url: string, init: RequestInit = {}) => {
     const parsed = new URL(url);
     const request = Object.assign(
-      Readable.from(init.body === undefined ? [] : [Buffer.from(String(init.body))]),
+      Readable.from(
+        init.body === undefined
+          ? []
+          : [Buffer.isBuffer(init.body) ? init.body : Buffer.from(String(init.body))],
+      ),
       {
         url: parsed.pathname + parsed.search,
         method: init.method || 'GET',
@@ -47,6 +51,9 @@ export function routeFetch(
     await handle(request as unknown as IncomingMessage, response as unknown as ServerResponse);
     if (sent && !response.writableEnded) await finished(response);
     if (!response.writableEnded) throw new Error(`Route did not end its response: ${url}`);
-    return new Response(Buffer.concat(chunks), { status, headers });
+    return new Response(
+      status === 204 || status === 304 || request.method === 'HEAD' ? null : Buffer.concat(chunks),
+      { status, headers },
+    );
   };
 }
