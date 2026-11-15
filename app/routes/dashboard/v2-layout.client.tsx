@@ -1,6 +1,6 @@
 'use client';
 import { useDataSeed } from './v2/data/seeds';
-import { reviewHref } from './v2/design/review-model';
+import { inboxItemHref } from './v2/design/review-model';
 import { useProjectFormatting } from './v2/projects/formatting.ts';
 import {
   Suspense,
@@ -231,11 +231,7 @@ export function V2Sidebar({
       {waiting.map((item) => (
         <Nav
           key={item.id}
-          href={
-            item.id.startsWith('design:')
-              ? reviewHref(item.id)
-              : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`
-          }
+          href={inboxItemHref(item)}
           lead={<Icon name="attention" className="dl-attn" size={14} />}
           end={formatTime(item.createdAt, 'list')}
         >

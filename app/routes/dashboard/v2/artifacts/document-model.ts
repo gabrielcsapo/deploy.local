@@ -1,4 +1,5 @@
 import type { DocumentBlock } from '../../../../../shared/v2/artifacts';
+import { changedBlocks, documentBlocks, documentBody } from '../../../../../shared/v2/artifacts';
 
 /** A document as the page reads it from the server. */
 export type DocumentPage = {
@@ -15,7 +16,7 @@ export type DocumentPage = {
   commit: string | null;
   edits: number;
   changedAt: string | null;
-  review: { id: string; branch: string } | null;
+  review: { id: string; branch: string; state?: string } | null;
 };
 
 const escape = (text: string) =>
@@ -105,4 +106,52 @@ export function readBlocks(root: Node): DocumentBlock[] {
 /** How many blocks differ from main, in words for the page's line. */
 export function changedLine(count: number) {
   return `${count} block${count === 1 ? '' : 's'} changed on this branch`;
+}
+
+/**
+ * A document's line under its title. On main: "deploy.local · Document · on main · changed 3 days
+ * ago". On a branch: how many blocks it changed. Not on main at all: "not on main yet".
+ */
+export function documentLine(
+  project: string,
+  where: 'main' | 'branch' | 'new',
+  when = '',
+  changed = 0,
+) {
+  const place =
+    where === 'main'
+      ? ['on main', when ? `changed ${when}` : null]
+      : where === 'new'
+        ? ['not on main yet']
+        : [changed ? changedLine(changed) : null];
+  return [project, 'Document', ...place].filter(Boolean).join(' · ');
+}
+
+/**
+ * What a review shows on one side: After is the proposal with a dot on each block main lacks;
+ * Before is main with a dot on each block the proposal changes or removes. A document not on main
+ * has no Before and no dots, since every block is new.
+ */
+export function reviewMarks(main: string | null, proposed: string, side: 'before' | 'after') {
+  const after = documentBlocks(documentBody(proposed));
+  if (main === null)
+    return {
+      isNew: true,
+      side: 'after' as const,
+      blocks: after,
+      marked: after.map(() => false),
+      count: after.length,
+      progress: 'new document',
+    };
+  const before = documentBlocks(documentBody(main));
+  const changed = changedBlocks(before, after);
+  const count = changed.filter(Boolean).length;
+  return {
+    isNew: false,
+    side,
+    blocks: side === 'after' ? after : before,
+    marked: side === 'after' ? changed : changedBlocks(after, before),
+    count,
+    progress: `${count} block${count === 1 ? '' : 's'} changed`,
+  };
 }

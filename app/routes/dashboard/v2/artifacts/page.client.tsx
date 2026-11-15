@@ -19,6 +19,7 @@ export default function ArtifactsPage() {
         projectId={projectId}
         artifact={artifact}
         initialRef={params.get('ref')}
+        reviewId={params.get('review')}
       />
     );
   return <Gallery />;

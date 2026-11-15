@@ -272,3 +272,33 @@ test('landed approval offers the board’s split Build action until a build is r
   assert.match(building, /href="\/dashboard\/tasks\/build-task">Builder is building it<\/a>/);
   assert.doesNotMatch(building, />Build<|Where to build|not built yet/);
 });
+
+test('a document’s review is approved as a document, counts blocks and builds nothing', () => {
+  const document: DesignReview = { ...data, boards: [], item: { ...data.item, document: 'plan' } };
+  const waiting = renderToStaticMarkup(
+    <InboxProvider>
+      <CanvasReviewBar
+        review={controller(document)}
+        suggestions=""
+        beforeDecision={async () => ''}
+        progress="new document"
+        noBefore
+      />
+    </InboxProvider>,
+  );
+  assert.match(waiting, /from Designer · new document/);
+  assert.match(waiting, />Approve document<\/button>/);
+  assert.doesNotMatch(waiting, /Approve design|of 0 approved/);
+  assert.match(waiting, /disabled="" class=""[^>]*>Before/);
+  const landed = bar({
+    ...document,
+    item: {
+      ...document.item,
+      state: 'answered',
+      answer: { actionId: 'approve', at: '2026-11-12T12:00:00Z', by: 'owner', on: 'web' },
+    },
+    landing: { at: '2026-11-12T12:00:30Z', state: 'landed', commit: '4f05991abcdef' },
+  });
+  assert.match(landed, /Approved · on main as 4f05991/);
+  assert.doesNotMatch(landed, /not built yet|>Build</);
+});

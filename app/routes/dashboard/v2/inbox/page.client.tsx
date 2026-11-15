@@ -17,7 +17,7 @@ import {
 } from '@/components/ui';
 import { useAgentName, useInbox } from '../data/hooks';
 import { useProjectFormatting } from '../projects/formatting';
-import { reviewHref } from '../design/review-model';
+import { inboxItemHref } from '../design/review-model';
 import { ReviewRedirect } from '../design/ReviewRedirect';
 import { answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
 
@@ -131,11 +131,7 @@ export default function Inbox() {
                               title={item.title}
                               description={`${item.fromName || agentName(item.from)} asked · ${answerDetails(item)}`}
                               lead={<SavedAgentAvatar id={item.from} />}
-                              href={
-                                item.id.startsWith('design:')
-                                  ? reviewHref(item.id)
-                                  : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`
-                              }
+                              href={inboxItemHref(item)}
                             >
                               <Outcome item={item} />
                               <span className="dl-tag">{answerLabel(item)}</span>

@@ -1,4 +1,8 @@
-import type { DesignReview, DesignReviewSummary } from '../../../../../shared/v2/contracts';
+import type {
+  DesignReview,
+  DesignReviewSummary,
+  InboxItem,
+} from '../../../../../shared/v2/contracts';
 export { reviewCrop } from '../../../../../shared/v2/design-review';
 export const counted = (count: number, noun: 'pin' | 'change' | 'screen') =>
   `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -13,6 +17,18 @@ export function conflictCount(conflicts: string[]) {
   return `${parts.join(' and ')} conflict${conflicts.length === 1 ? 's' : ''} with main`;
 }
 export const reviewHref = (id: string) => `/dashboard/design?review=${encodeURIComponent(id)}`;
+/** A document's review opens on the document's page; a design's on the canvas. */
+export function documentReviewHref(projectId: string, document: string, id: string) {
+  return `/dashboard/artifacts/${encodeURIComponent(projectId)}/${encodeURIComponent(document)}?review=${encodeURIComponent(id)}`;
+}
+/** Where a Waiting on you item opens: its review, or the decision in Waiting on you. */
+export function inboxItemHref(item: Pick<InboxItem, 'id' | 'projectId' | 'document'>) {
+  if (item.document && item.projectId)
+    return documentReviewHref(item.projectId, item.document, item.id);
+  return item.id.startsWith('design:')
+    ? reviewHref(item.id)
+    : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`;
+}
 export const ago = (at: string) => {
   const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(at)) / 60000));
   return minutes < 1

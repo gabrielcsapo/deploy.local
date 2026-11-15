@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Action, Dialog, Icon, Seg, Skeleton } from '@/components/ui';
 import type {
   DesignReview,
@@ -8,7 +8,8 @@ import type {
 } from '../../../../../shared/v2/contracts';
 import { useAgentName, useInbox } from '../data/hooks';
 import { authenticatedFetch, request, useData } from '../projects/data';
-import { approvalRecord, buildLine, resolutionProgress, reviewHref } from './review-model';
+import { approvalRecord, buildLine, inboxItemHref, resolutionProgress } from './review-model';
+import { approveLabel } from '../../../../../shared/v2/artifacts';
 import { reviewFrames, seenFrame, type ReviewSide } from './canvas-review-model';
 import { BuildDesign } from './BuildDesign';
 import { DesignBuildDecision } from '../inbox/DesignBuildDecision';
@@ -180,10 +181,16 @@ export function CanvasReviewBar({
   review,
   suggestions,
   beforeDecision,
+  progress,
+  noBefore = false,
 }: {
   review: CanvasReview;
   suggestions: string;
   beforeDecision: (action: 'approve' | 'changes' | 'update') => Promise<string>;
+  /** What the heading counts instead of approved frames: a document's changed blocks. */
+  progress?: ReactNode;
+  /** Nothing on main to compare with: Before cannot be chosen. */
+  noBefore?: boolean;
 }) {
   const { data, busy, setBusy, setError, load, api, item } = review;
   const inbox = useInbox();
@@ -217,10 +224,13 @@ export function CanvasReviewBar({
   const unticked = frames.filter((board) => !board.seen);
   const open = data?.pins.filter((pin) => !pin.resolved) ?? [];
   const resolutions = data?.resolutions ?? [];
-  const progress = resolutionProgress(resolutions);
+  const resolved = resolutionProgress(resolutions);
   const waiting = data?.item.state === 'waiting';
   const approved = data?.item.answer?.actionId === 'approve';
   const pending = data?.landing?.state === 'pending';
+  // A document is approved as a document, and has no screens to build.
+  const document = data?.item.document;
+  const approve = approveLabel(document);
   const record = data ? approvalRecord(data, clock, (at) => new Date(at).toLocaleString()) : null;
   const building = data && approved ? buildLine(data) : null;
   const build = inbox.items.find((entry) => entry.designCheck?.reviewId === item);
@@ -293,8 +303,12 @@ export function CanvasReviewBar({
           {data && !approved && (
             <span>
               {' '}
-              · from {data.proposer.name} · {frames.filter((board) => board.seen).length} of{' '}
-              {frames.length} approved
+              · from {data.proposer.name} ·{' '}
+              {progress ?? (
+                <>
+                  {frames.filter((board) => board.seen).length} of {frames.length} approved
+                </>
+              )}
             </span>
           )}
           {data && approved && (
@@ -303,8 +317,9 @@ export function CanvasReviewBar({
               · <Icon name="check" size={14} className="text-success align-middle" />{' '}
               {pending
                 ? `Approved · on main in ${record?.seconds} s`
-                : `Approved · on main${data.landing?.commit ? ` as ${data.landing.commit.slice(0, 7)}` : ''} · `}
+                : `Approved · on main${data.landing?.commit ? ` as ${data.landing.commit.slice(0, 7)}` : ''}${document ? '' : ' · '}`}
               {!pending &&
+                !document &&
                 (building?.taskId ? (
                   <a href={`/dashboard/tasks/${encodeURIComponent(building.taskId)}`}>
                     {building.text}
@@ -319,7 +334,7 @@ export function CanvasReviewBar({
           label="Review version"
           value={review.side}
           options={[
-            { value: 'before', label: 'Before' },
+            { value: 'before', label: 'Before', disabled: noBefore },
             { value: 'after', label: 'After' },
           ]}
           onChange={(value) => review.setSide(value as ReviewSide)}
@@ -329,7 +344,7 @@ export function CanvasReviewBar({
         ) : waiting ? (
           <>
             {resolutions.length > 0 && (
-              <Action onClick={() => setDialog('conflicts')}>{progress.label}</Action>
+              <Action onClick={() => setDialog('conflicts')}>{resolved.label}</Action>
             )}
             <Action variant="secondary" disabled={busy} onClick={() => setDialog('send')}>
               Ask for changes
@@ -337,9 +352,9 @@ export function CanvasReviewBar({
             <Action
               variant="primary"
               disabled={busy}
-              onClick={() => setDialog(!progress.canContinue ? 'conflicts' : 'approve')}
+              onClick={() => setDialog(!resolved.canContinue ? 'conflicts' : 'approve')}
             >
-              Approve design
+              {approve}
             </Action>
           </>
         ) : (
@@ -351,7 +366,7 @@ export function CanvasReviewBar({
                   : 'Asked to update'}
               </span>
             )}
-            {approved && (
+            {approved && !document && (
               <BuildDesign key={data.id} review={data} api={api} refresh={() => void load()} />
             )}
             {pending && (
@@ -359,7 +374,9 @@ export function CanvasReviewBar({
                 Undo
               </Action>
             )}
-            {build && <Action onClick={() => setDialog('build')}>Built design differs</Action>}
+            {build && !document && (
+              <Action onClick={() => setDialog('build')}>Built design differs</Action>
+            )}
             {!approved && data.item.taskId && (
               <a
                 className="dl-btn quiet"
@@ -371,7 +388,7 @@ export function CanvasReviewBar({
             {!pending && !approved && (
               <a
                 className="dl-btn quiet"
-                href={next ? reviewHref(next.id) : '/dashboard/design?view=review'}
+                href={next ? inboxItemHref(next) : '/dashboard/design?view=review'}
               >
                 {next ? 'Next review' : 'Done'}
               </a>
@@ -391,13 +408,13 @@ export function CanvasReviewBar({
       )}
       <Dialog
         open={dialog === 'approve'}
-        title="Approve design"
+        title={approve}
         onClose={() => setDialog(null)}
         actions={
           <>
             <Action onClick={() => setDialog(null)}>Cancel</Action>
             <Action variant="primary" disabled={busy} onClick={() => void decide('approve')}>
-              {unticked.length || open.length || suggestions ? 'Approve anyway' : 'Approve design'}
+              {unticked.length || open.length || suggestions ? 'Approve anyway' : approve}
             </Action>
           </>
         }
@@ -472,7 +489,7 @@ export function CanvasReviewBar({
             </Action>
             <Action
               variant="primary"
-              disabled={busy || !progress.canContinue}
+              disabled={busy || !resolved.canContinue}
               onClick={() => setDialog(null)}
             >
               Continue review

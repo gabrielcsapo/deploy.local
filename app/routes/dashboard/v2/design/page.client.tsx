@@ -67,7 +67,7 @@ import { Play } from './Play';
 import { PickSheet } from './Pickers';
 import './style.css';
 import { ToReview } from './ToReview';
-import { reviewHref } from './review-model';
+import { documentReviewHref, reviewHref } from './review-model';
 import { CanvasReviewBar, useCanvasReview } from './CanvasReview';
 import {
   reviewProject,
@@ -159,6 +159,12 @@ function DesignCanvasPage({
   const project = projects.data?.projects.find((item) => item.id === projectId);
   const reviewId = params.get('review');
   const review = useCanvasReview(projectId, reviewId);
+  // A document has no canvas: its review opens on the document's page.
+  const reviewedDocument = review.data?.item.document;
+  useEffect(() => {
+    if (reviewedDocument && reviewId)
+      window.location.replace(documentReviewHref(projectId, reviewedDocument, reviewId));
+  }, [projectId, reviewedDocument, reviewId]);
   const [chosenArtifact, setArtifact] = useState(initialArtifact);
   // A review names its design's API, which settles which design this is.
   const artifact = review.data?.api ? apiArtifact(review.data.api) : chosenArtifact;

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  inboxItemHref,
   resolutionProgress,
   conflictCount,
   initialDesignProject,
@@ -194,4 +195,16 @@ test('Build waits for landing and remembers a valid destination without inventin
     canBuildDesign({ item, landing: { state: 'landed', at: '', build: { at: '', taskId: 'b' } } }),
     false,
   );
+});
+
+test('a document’s review opens on its page; other decisions where they always did', () => {
+  assert.equal(
+    inboxItemHref({ id: 'design:site:artifact~plan:abc', projectId: 'site', document: 'plan' }),
+    '/dashboard/artifacts/site/plan?review=design%3Asite%3Aartifact~plan%3Aabc',
+  );
+  assert.equal(
+    inboxItemHref({ id: 'design:site:design~a:abc', projectId: 'site' }),
+    '/dashboard/design?review=design%3Asite%3Adesign~a%3Aabc',
+  );
+  assert.equal(inboxItemHref({ id: 'q1' }), '/dashboard/inbox?item=q1');
 });

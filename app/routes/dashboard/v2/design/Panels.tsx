@@ -1,6 +1,6 @@
 'use client';
 import type { DesignReview } from '../../../../../shared/v2/contracts';
-import { reviewHref } from './review-model';
+import { inboxItemHref } from './review-model';
 import type { ReviewSide } from './canvas-review-model';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Skeleton, Action, Icon, type IconName } from '@/components/ui';
@@ -323,16 +323,7 @@ export function DesignMenu({
       </a>
       <div className="dz-menu-label">Waiting on you · {waiting.length}</div>
       {waiting.slice(0, 5).map((item) => (
-        <a
-          key={item.id}
-          className="dl-menu-item"
-          role="menuitem"
-          href={
-            item.id.startsWith('design:')
-              ? reviewHref(item.id)
-              : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`
-          }
-        >
+        <a key={item.id} className="dl-menu-item" role="menuitem" href={inboxItemHref(item)}>
           <span className="dz-attn" />
           <span className="dz-t">{item.title}</span>
           <span className="dz-menu-end">{since(item.createdAt)}</span>

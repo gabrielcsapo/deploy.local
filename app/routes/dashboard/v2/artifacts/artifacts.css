@@ -327,3 +327,43 @@
 .ad-body ol {
   list-style: decimal;
 }
+
+/* Reviewing a document (boards ArtifactDocumentReview*): the design review's bar above the column. */
+.ad-review-page .dz-review-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-height: 52px;
+  padding: var(--ds-space-2) var(--ds-space-4);
+  box-sizing: border-box;
+  background: var(--ds-canvas);
+  border-bottom: 1px solid var(--ds-line);
+  font-size: var(--ds-type-ui);
+}
+.ad-review-page .dz-review-heading {
+  flex: 1;
+  min-width: 160px;
+}
+.ad-review-page .dz-review-heading > span {
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+}
+.ad-review-page .dz-review-bar .dl-btn {
+  white-space: nowrap;
+}
+.ad-review-page .dz-error,
+.ad-review-page .dz-review-record {
+  padding: var(--ds-space-2) var(--ds-space-4);
+}
+@media (max-width: 820px) {
+  .ad-review-page .dz-review-heading {
+    flex-basis: 100%;
+  }
+  .ad-review-page .dz-review-bar .dl-seg {
+    margin-right: auto;
+  }
+}

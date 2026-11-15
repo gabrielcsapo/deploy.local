@@ -9,14 +9,23 @@ import {
   documentBody,
   type DocumentBlock,
 } from '../../../../../shared/v2/artifacts';
-import { request } from '../projects/data';
+import { request, useData } from '../projects/data';
 import { designApi } from '../design/model';
+import { CanvasReviewBar, useCanvasReview } from '../design/CanvasReview';
 import { galleryPath } from './model';
-import { changedLine, inlineHtml, readBlocks, type DocumentPage } from './document-model';
+import {
+  changedLine,
+  documentLine,
+  inlineHtml,
+  readBlocks,
+  reviewMarks,
+  type DocumentPage,
+} from './document-model';
 import '../design/review.css';
 
-/** Blocks as page elements; consecutive list items share one list. */
-function blocksHtml(blocks: DocumentBlock[]) {
+/** Blocks as page elements; consecutive list items share one list. A marked block gets a dot. */
+function blocksHtml(blocks: DocumentBlock[], marked: boolean[] = []) {
+  const mark = (index: number) => (marked[index] ? ' data-changed' : '');
   let html = '';
   for (let index = 0; index < blocks.length; index++) {
     const block = blocks[index];
@@ -24,14 +33,14 @@ function blocksHtml(blocks: DocumentBlock[]) {
       const tag = block.kind === 'bullet' ? 'ul' : 'ol';
       html += `<${tag}>`;
       for (; index < blocks.length && blocks[index].kind === block.kind; index++)
-        html += `<li>${inlineHtml(blocks[index].text)}</li>`;
+        html += `<li${mark(index)}>${inlineHtml(blocks[index].text)}</li>`;
       index--;
       html += `</${tag}>`;
     } else if (block.kind === 'heading')
-      html += `<h${block.level}>${inlineHtml(block.text)}</h${block.level}>`;
+      html += `<h${block.level}${mark(index)}>${inlineHtml(block.text)}</h${block.level}>`;
     else if (block.kind === 'code')
-      html += `<pre><code>${inlineHtml(block.text).replace(/<\/?[^>]+>/g, '')}</code></pre>`;
-    else html += `<p>${inlineHtml(block.text)}</p>`;
+      html += `<pre${mark(index)}><code>${inlineHtml(block.text).replace(/<\/?[^>]+>/g, '')}</code></pre>`;
+    else html += `<p${mark(index)}>${inlineHtml(block.text)}</p>`;
   }
   return html;
 }
@@ -130,6 +139,22 @@ const tools: { label: string; run: () => void; glyph: ReactNode }[] = [
  * the page is typed in, each change is saved to the branch, and Propose asks for review.
  */
 export function DocumentView({
+  projectId,
+  artifact,
+  initialRef,
+  reviewId = null,
+}: {
+  projectId: string;
+  artifact: string;
+  initialRef: string | null;
+  reviewId?: string | null;
+}) {
+  if (reviewId)
+    return <DocumentReview projectId={projectId} artifact={artifact} reviewId={reviewId} />;
+  return <DocumentPageView projectId={projectId} artifact={artifact} initialRef={initialRef} />;
+}
+
+function DocumentPageView({
   projectId,
   artifact,
   initialRef,
@@ -357,10 +382,15 @@ export function DocumentView({
         <h1>{doc.title}</h1>
         <span className="dl-meta">
           {editing
-            ? [doc.project, 'Document', changed ? changedLine(changed) : null]
+            ? [
+                doc.project,
+                'Document',
+                // Every block of a document not on main is new; counting them says nothing.
+                doc.main === null ? 'not on main yet' : changed ? changedLine(changed) : null,
+              ]
                 .filter(Boolean)
                 .join(' · ')
-            : `${doc.project} · Document · on main · changed ${changedWhen(doc.changedAt)}`}
+            : documentLine(doc.project, 'main', changedWhen(doc.changedAt))}
         </span>
         {editing ? (
           <div
@@ -425,6 +455,65 @@ export function DocumentView({
           {proposalError && <p role="alert">{proposalError}</p>}
         </form>
       </Dialog>
+    </DetailTemplate>
+  );
+}
+
+/**
+ * A proposed document, reviewed in its reading column with the design review's bar: Before is
+ * the document on main, After the proposal, and each block that differs gets a dot.
+ */
+function DocumentReview({
+  projectId,
+  artifact,
+  reviewId,
+}: {
+  projectId: string;
+  artifact: string;
+  reviewId: string;
+}) {
+  const page = useData<DocumentPage>(
+    `/api/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifact)}/document?review=${encodeURIComponent(reviewId)}`,
+  );
+  const review = useCanvasReview(projectId, reviewId);
+  const doc = page.data;
+  const crumbTitle = doc?.title || artifact;
+  if (!doc)
+    return (
+      <DetailTemplate title={crumbTitle} parent={{ label: 'Artifacts', href: galleryPath }}>
+        {page.error ? (
+          <Banner kind="danger" title={page.error} />
+        ) : (
+          <Skeleton rows={6} label="Loading the document" />
+        )}
+      </DetailTemplate>
+    );
+  const marks = reviewMarks(doc.main, doc.text, review.side);
+  return (
+    <DetailTemplate
+      title={crumbTitle}
+      parent={{ label: 'Artifacts', href: galleryPath }}
+      className="ad-page ad-review-page"
+    >
+      <CanvasReviewBar
+        review={review}
+        suggestions=""
+        beforeDecision={async () => ''}
+        progress={marks.progress}
+        noBefore={marks.isNew}
+      />
+      <article className="ad">
+        <h1>{doc.title}</h1>
+        <span className="dl-meta">
+          {marks.side === 'before'
+            ? documentLine(doc.project, 'main', changedWhen(doc.changedAt))
+            : documentLine(doc.project, marks.isNew ? 'new' : 'branch', '', marks.count)}
+        </span>
+        <div
+          className="ad-body"
+          dangerouslySetInnerHTML={{ __html: blocksHtml(marks.blocks, marks.marked) }}
+        />
+      </article>
     </DetailTemplate>
   );
 }

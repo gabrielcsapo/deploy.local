@@ -5,7 +5,7 @@ import { Icon } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch } from '../data/hooks';
 import type { SidebarAgent } from '../data/sidebar';
-import { reviewHref } from '../design/review-model';
+import { inboxItemHref } from '../design/review-model';
 import { projectPath } from '../projects/routing.ts';
 import { newTaskIn } from '../start/chosen-project';
 import {
@@ -253,9 +253,7 @@ export function SearchBox({
         label: 'Waiting on you',
         rows: decisions.slice(0, 4).map((item) => ({
           key: `waiting:${item.id}`,
-          href: item.id.startsWith('design:')
-            ? reviewHref(item.id)
-            : `/dashboard/inbox?item=${encodeURIComponent(item.id)}`,
+          href: inboxItemHref(item),
           lead: <Icon name="attention" className="dl-attn" size={14} />,
           body: (
             <span className="v2-search-t">
