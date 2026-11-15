@@ -27,6 +27,8 @@ const exceptions: Record<string, string> = {
     'Existing product dependency retained from v2; preserve projection and evaluation order.',
   'inbox.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'inbox.ts -> shared/v2/artifacts.ts':
+    'Shared artifact names with no imports of their own; a document review is named the same on server and clients.',
   'inbox.ts -> shared/v2/contracts.ts':
     'Existing shared provider or public contract; preserve worker and client behavior.',
   'phone-preferences.ts -> server/workspace/store.ts':
