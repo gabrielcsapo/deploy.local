@@ -28,9 +28,9 @@ const exceptions: Record<string, string> = {
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
   'project-collaboration.ts -> server/application-spec.ts':
     'Existing release manifest compiler/decoder; preserve validation and error text.',
-  'project-collaboration.ts -> server/workspace/checkpoint-retention.ts':
+  'project-collaboration.ts -> server/features/tasks/checkpoint-retention.ts':
     'Existing cleanup of task checkpoint refs when closing merged work.',
-  'project-collaboration.ts -> server/workspace/follow-up.ts':
+  'project-collaboration.ts -> server/features/tasks/follow-up.ts':
     'Existing task baseline adoption/refresh after pull merges.',
   'project-collaboration.ts -> server/workspace/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
@@ -38,9 +38,9 @@ const exceptions: Record<string, string> = {
     'Existing cancellation of task questions after collaboration closes work.',
   'project-collaboration.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
-  'project-collaboration.ts -> server/workspace/task-workspace.ts':
+  'project-collaboration.ts -> server/features/tasks/task-workspace.ts':
     'Existing task creation from issues and pulls; needs a later task-command port.',
-  'project-collaboration.ts -> server/workspace/workspace-checks.ts':
+  'project-collaboration.ts -> server/features/tasks/workspace-checks.ts':
     'Existing pull check projection used for collaboration admission.',
   'project-tools.ts -> server/workspace/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
@@ -60,7 +60,7 @@ const exceptions: Record<string, string> = {
     'Existing release manifest compiler/decoder; preserve validation and error text.',
   'repositories.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
-  'repository-creation-worker.ts -> server/workspace/checkpoint.ts':
+  'repository-creation-worker.ts -> server/features/tasks/checkpoint.ts':
     'Existing task snapshot/base restoration during repository creation and recovery.',
   'repository-creation.ts -> server/workspace/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
@@ -70,11 +70,11 @@ const exceptions: Record<string, string> = {
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
   'repository-lfs.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
-  'repository-runner.ts -> server/workspace/checkpoint.ts':
+  'repository-runner.ts -> server/features/tasks/checkpoint.ts':
     'Existing task snapshot/base restoration during repository creation and recovery.',
   'repository-runner.ts -> server/workspace/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
-  'repository-runner.ts -> server/workspace/scratch.ts':
+  'repository-runner.ts -> server/features/tasks/scratch.ts':
     'Existing task scratch-workspace initialization during repository operations.',
   'repository-runner.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
