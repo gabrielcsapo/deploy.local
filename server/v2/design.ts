@@ -3067,7 +3067,15 @@ async function projectDesignApi(
             commit,
             canvas,
             // An artifact made on its branch that main does not have yet.
-            fresh: Boolean(await madeOnBranch(repo, await mainBranch(repo), dir)),
+            fresh:
+              folderArtifact(dir) &&
+              Boolean(
+                await madeOnBranch(
+                  repo,
+                  (await repositoryRefs.read(repo)).symbolicHead || 'main',
+                  dir,
+                ),
+              ),
             branches: await presentedDesignBranches(repo),
             openComments: open.length,
           });
