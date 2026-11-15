@@ -56,4 +56,39 @@ struct V2ArtifactsTests {
         #expect(V2Artifacts.changedWhen(at(5), now: now, calendar: calendar) == "Monday")
         #expect(V2Artifacts.changedWhen(nil, now: now, calendar: calendar) == "")
     }
+
+    @Test func aDocumentNotOnMainSaysSo() throws {
+        let json = ##"{"projectId":"p","project":"deploy.local","artifact":"plan","title":"Plan","text":"# Plan\n","main":null,"branch":"artifact/plan","commit":"abc","edits":0,"changedAt":"2026-11-14T09:00:00Z","review":null}"##
+        let document = try JSONDecoder().decode(V2ArtifactDocument.self, from: Data(json.utf8))
+        #expect(document.meta(now: now, calendar: calendar) == "deploy.local · not on main yet · changed today")
+    }
+
+    @Test func aReviewMarksWhatDiffersOnEachSide() throws {
+        let json = ##"{"projectId":"p","project":"deploy.local","artifact":"plan","title":"Plan","text":"# Plan\n\nOne.\n\n- Keep\n- Added\n\nNew order.\n","main":"# Plan\n\nOne.\n\n- Keep\n\nOld order.\n","branch":"artifact/plan","commit":"abc","edits":0,"changedAt":"2026-11-11T09:00:00Z","review":{"id":"design:p:artifact~plan:abc","branch":"artifact/plan","state":"waiting"}}"##
+        let document = try JSONDecoder().decode(V2ArtifactDocument.self, from: Data(json.utf8))
+        #expect(document.review?.id == "design:p:artifact~plan:abc")
+        let after = V2DocumentReview(document: document, side: .after)
+        #expect(after.marked == [false, false, true, true])
+        #expect(after.progress == "2 blocks changed")
+        #expect(V2DocumentReview.meta(document, side: .after, review: after) == "deploy.local · 2 blocks changed on this branch")
+        let before = V2DocumentReview(document: document, side: .before)
+        #expect(before.marked == [false, false, true])
+        #expect(V2DocumentReview.meta(document, side: .before, review: before, now: now, calendar: calendar) == "deploy.local · on main · changed 3 days ago")
+        var made = document
+        made.main = nil
+        let new = V2DocumentReview(document: made, side: .before)
+        #expect(new.isNew && new.marked.allSatisfy { !$0 })
+        #expect(new.progress == "new document")
+        #expect(V2DocumentReview.meta(made, side: .after, review: new) == "deploy.local · not on main yet")
+    }
+
+    @Test func renumberingAListChangesNothing() {
+        #expect(V2Artifacts.changed(before: [.number(1, "A"), .number(2, "B")], after: [.number(1, "B"), .number(2, "A")]) == [false, false])
+    }
+
+    @Test func aDocumentReviewNamesItsDocument() throws {
+        let json = ##"{"id":"design:p:artifact~plan:abc","kind":"other","title":"Plan","text":"","from":"alice","createdAt":"2026-11-14T09:00:00Z","actions":[{"id":"approve","label":"Approve document","primary":true}],"state":"waiting","document":"plan"}"##
+        let item = try JSONDecoder().decode(InboxItem.self, from: Data(json.utf8))
+        #expect(item.document == "plan")
+    }
 }

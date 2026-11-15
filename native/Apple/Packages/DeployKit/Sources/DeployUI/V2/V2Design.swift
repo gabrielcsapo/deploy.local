@@ -207,11 +207,11 @@ struct V2DesignWaitingRow: View {
             Image(systemName: "exclamationmark.circle").foregroundStyle(WorkspaceStyle.warning(scheme)).frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(summary?.title ?? item.title).font(.body).foregroundStyle(WorkspaceStyle.text(scheme))
-                Text(summary?.inboxSubtitle ?? "Design · \(V2Labels.agentName(item))").font(.footnote).foregroundStyle(.secondary)
+                Text(item.document != nil ? "Document · \(V2Labels.agentName(item))" : summary?.inboxSubtitle ?? "Design · \(V2Labels.agentName(item))").font(.footnote).foregroundStyle(.secondary)
             }.fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
         }.multilineTextAlignment(.leading).padding(.horizontal, 14).padding(.vertical, 12).frame(minHeight: 64).contentShape(Rectangle())
             .task(id: store.snapshot.cursor) {
-                guard let project = item.projectId ?? V2DesignReview.project(of: item.id) else { return }
+                guard item.document == nil, let project = item.projectId ?? V2DesignReview.project(of: item.id) else { return }
                 summary = try? await store.client.designReviews(project: project).first { $0.id == item.id }
             }
     }

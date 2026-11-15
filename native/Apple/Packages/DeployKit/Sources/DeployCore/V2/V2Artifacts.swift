@@ -74,17 +74,81 @@ public struct V2ArtifactDocument: Decodable, Sendable, Equatable {
     public var main: String?
     public var branch: String?
     public var changedAt: String?
+    public var review: Review?
+    public struct Review: Decodable, Sendable, Equatable {
+        public var id: String
+        public var branch: String
+        public var state: String?
+    }
 
-    /// "deploy.local · on main · changed 3 days ago"
+    /// "deploy.local · on main · changed 3 days ago"; "deploy.local · not on main yet · changed
+    /// today" while it is only on its branch; its branch while one is edited.
     public func meta(now: Date = Date(), calendar: Calendar = .current) -> String {
         let when = V2Artifacts.changedWhen(changedAt, now: now, calendar: calendar)
-        return [project, branch ?? "on main", when.isEmpty ? nil : "changed \(when)"]
+        return [project, main == nil ? "not on main yet" : branch ?? "on main", when.isEmpty ? nil : "changed \(when)"]
             .compactMap { $0 }.joined(separator: " · ")
     }
     public var blocks: [V2Artifacts.Block] { V2Artifacts.blocks(V2Artifacts.body(text)) }
 }
 
+/// A proposed document, as its review shows it: After is the proposal with a dot on each block
+/// main lacks; Before is main with a dot on each block the proposal changes or removes. A document
+/// not on main has no Before and no dots, since every block is new.
+public struct V2DocumentReview: Equatable, Sendable {
+    public enum Side: String, CaseIterable, Sendable { case before, after }
+    public var isNew: Bool
+    public var blocks: [V2Artifacts.Block]
+    public var marked: [Bool]
+    /// Blocks in After that main lacks.
+    public var count: Int
+
+    public init(document: V2ArtifactDocument, side: Side) {
+        let after = V2Artifacts.blocks(V2Artifacts.body(document.text))
+        guard let main = document.main else {
+            isNew = true; blocks = after; marked = after.map { _ in false }; count = after.count
+            return
+        }
+        let before = V2Artifacts.blocks(V2Artifacts.body(main))
+        isNew = false
+        count = V2Artifacts.changed(before: before, after: after).filter { $0 }.count
+        blocks = side == .after ? after : before
+        marked = side == .after ? V2Artifacts.changed(before: before, after: after) : V2Artifacts.changed(before: after, after: before)
+    }
+    /// "2 blocks changed" or "new document", after who it is from.
+    public var progress: String { isNew ? "new document" : "\(count) block\(count == 1 ? "" : "s") changed" }
+    /// The line under the title on each side.
+    public static func meta(_ document: V2ArtifactDocument, side: Side, review: V2DocumentReview, now: Date = Date(), calendar: Calendar = .current) -> String {
+        if review.isNew { return "\(document.project) · not on main yet" }
+        if side == .before {
+            let when = V2Artifacts.changedWhen(document.changedAt, now: now, calendar: calendar)
+            return [document.project, "on main", when.isEmpty ? nil : "changed \(when)"].compactMap { $0 }.joined(separator: " · ")
+        }
+        return review.count == 0 ? document.project : "\(document.project) · \(review.count) block\(review.count == 1 ? "" : "s") changed on this branch"
+    }
+}
+
 public enum V2Artifacts {
+    /// Which of `after`'s blocks are not in `before`, matched regardless of position; a numbered
+    /// item is matched by its text, so renumbering a list changes nothing.
+    public static func changed(before: [Block], after: [Block]) -> [Bool] {
+        func key(_ block: Block) -> String {
+            switch block {
+            case .paragraph(let text): "p\u{0}\(text)"
+            case .heading(let text): "h\u{0}\(text)"
+            case .bullet(let text): "b\u{0}\(text)"
+            case .number(_, let text): "n\u{0}\(text)"
+            case .code(let text): "c\u{0}\(text)"
+            }
+        }
+        var pool: [String: Int] = [:]
+        for block in before { pool[key(block), default: 0] += 1 }
+        return after.map { block in
+            let left = pool[key(block)] ?? 0
+            if left > 0 { pool[key(block)] = left - 1; return false }
+            return true
+        }
+    }
+
     /// A document's blocks, as the web page shows them.
     public enum Block: Equatable, Sendable {
         case paragraph(String)
@@ -208,5 +272,9 @@ extension V2Client {
     }
     public func artifactDocument(project: String, artifact: String) async throws -> V2ArtifactDocument {
         try await client.request("/api/projects/\(Self.segment(project))/artifacts/\(Self.segment(artifact))/document")
+    }
+    /// A document as one review proposed it, beside the document on main.
+    public func artifactDocument(project: String, artifact: String, review: String) async throws -> V2ArtifactDocument {
+        try await client.request("/api/projects/\(Self.segment(project))/artifacts/\(Self.segment(artifact))/document?review=\(Self.segment(review))")
     }
 }

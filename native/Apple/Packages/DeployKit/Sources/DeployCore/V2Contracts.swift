@@ -182,8 +182,10 @@ public struct InboxItem: Codable, Equatable, Sendable {
     public var state: InboxState
     public var answer: InboxAnswer?
     public var outcome: InboxOutcome?
+    /// Set on a design review of a document: the document's folder name under artifacts/.
+    public var document: String?
 
-    public init(id: String, kind: InboxKind, title: String, text: String, from: AgentId, fromName: String? = nil, context: InboxContext? = nil, projectName: String? = nil, projectId: String? = nil, taskId: String? = nil, createdAt: String, actions: [InboxAction], state: InboxState, answer: InboxAnswer? = nil, outcome: InboxOutcome? = nil) {
+    public init(id: String, kind: InboxKind, title: String, text: String, from: AgentId, fromName: String? = nil, context: InboxContext? = nil, projectName: String? = nil, projectId: String? = nil, taskId: String? = nil, createdAt: String, actions: [InboxAction], state: InboxState, answer: InboxAnswer? = nil, outcome: InboxOutcome? = nil, document: String? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -199,6 +201,7 @@ public struct InboxItem: Codable, Equatable, Sendable {
         self.state = state
         self.answer = answer
         self.outcome = outcome
+        self.document = document
     }
 }
 

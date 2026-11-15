@@ -676,7 +676,13 @@ private struct V2DesignReviewPresentation: ViewModifier {
         content.fullScreenCover(isPresented: Binding(get: { item != nil }, set: { if !$0 { item = nil } }), onDismiss: {
             Task { await store.refresh() }
         }) {
-            if let item { NavigationStack { V2DesignReviewView(store: store, item: item) } }
+            if let item {
+                NavigationStack {
+                    // A document has no screens: its review is the document, Before and After.
+                    if item.document != nil { V2DocumentReviewView(store: store, item: item) }
+                    else { V2DesignReviewView(store: store, item: item) }
+                }
+            }
         }
     }
 }
@@ -686,7 +692,7 @@ extension View {
     }
 }
 
-private struct V2ReviewActionStyle: ButtonStyle {
+struct V2ReviewActionStyle: ButtonStyle {
     let primary: Bool
     @Environment(\.colorScheme) private var scheme
     @Environment(\.isEnabled) private var enabled

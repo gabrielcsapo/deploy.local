@@ -214,11 +214,31 @@ struct V2ArtifactDocumentView: View {
                 .accessibilityAddTraits(.isHeader)
             Text(document.meta()).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                 .padding(.top, 4).padding(.bottom, 20)
-            ForEach(Array(document.blocks.enumerated()), id: \.offset) { _, block in blockView(block) }
+            ForEach(Array(document.blocks.enumerated()), id: \.offset) { _, block in V2DocumentBlockView(block: block) }
         }.textSelection(.enabled)
     }
 
-    @ViewBuilder private func blockView(_ block: V2Artifacts.Block) -> some View {
+    private func load() async {
+        guard let name = artifact.artifact else { return }
+        await read.load(store: store, key: key) { try await store.client.artifactDocument(project: artifact.projectId, artifact: name) }
+    }
+}
+/// One block of a document, as the web page shows it; a marked block gets a dot in the margin.
+struct V2DocumentBlockView: View {
+    let block: V2Artifacts.Block
+    var marked = false
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        content.overlay(alignment: .topLeading) {
+            if marked {
+                Circle().fill(WorkspaceStyle.accent(scheme)).frame(width: 6, height: 6)
+                    .offset(x: -14, y: 10).accessibilityLabel("Changed")
+            }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
         let body = Font.system(size: 17)
         switch block {
         case .paragraph(let text):
@@ -248,10 +268,114 @@ struct V2ArtifactDocumentView: View {
         let styled = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
         return Text(styled).foregroundStyle(WorkspaceStyle.text(scheme))
     }
+}
+
+/// A proposed document, reviewed on iPhone: Before and After at the top, the document below with a
+/// dot beside each block that differs, Approve document and Ask for changes at the bottom.
+/// Editing a document on iPhone is not drawn.
+struct V2DocumentReviewView: View {
+    @Bindable var store: V2Store
+    let item: InboxItem
+    @State private var read = V2Read<V2ArtifactDocument>()
+    @State private var side: V2DocumentReview.Side = .after
+    @State private var asking = false
+    @State private var note = ""
+    @State private var deciding = false
+    @State private var error: String?
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var scheme
+
+    private var key: String { "artifact-review:\(item.id)" }
+    private var current: InboxItem { store.snapshot.inbox.first { $0.id == item.id } ?? item }
+    private var canDecide: Bool { current.state == .waiting && store.online && !deciding }
+
+    var body: some View {
+        let document = read.value
+        let review = document.map { V2DocumentReview(document: $0, side: side) }
+        VStack(spacing: 0) {
+            Picker("Before or after", selection: $side) {
+                Text("Before").tag(V2DocumentReview.Side.before)
+                Text("After").tag(V2DocumentReview.Side.after)
+            }
+            .pickerStyle(.segmented)
+            .disabled(review?.isNew ?? true)
+            .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
+            Divider()
+            ScrollView {
+                V2LoadRegion(state: read.state, copy: .resource("Document", plural: false), lastHeard: store.readDates[key], rows: 4, icons: false, retry: { await load() }) {
+                    if let document, let review { page(document, review) }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 32)
+            }
+            if let error { Text(error).font(.footnote).foregroundStyle(WorkspaceStyle.danger(scheme)).padding(.horizontal, 24).padding(.top, 8) }
+            if current.state == .waiting {
+                VStack(spacing: 6) {
+                    Button("Approve document") { answer("approve") }
+                        .buttonStyle(V2ReviewActionStyle(primary: true)).disabled(!canDecide)
+                    Button("Ask for changes") { asking = true }
+                        .font(.system(size: 17)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                        .frame(maxWidth: .infinity, minHeight: 44).disabled(!canDecide)
+                }
+                .padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 8)
+                .overlay(alignment: .top) { Divider() }
+            }
+        }
+        .background(WorkspaceStyle.canvas(scheme))
+        .tint(WorkspaceStyle.text(scheme))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden()
+        .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { dismiss() } label: { Image(systemName: "chevron.left").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("Back")
+            }
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 2) {
+                    Text("Document review").font(.headline)
+                    Text(["from \(V2Labels.agentName(current))", review?.progress].compactMap { $0 }.joined(separator: " · "))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }.accessibilityElement(children: .combine)
+            }
+        }
+        .alert("Ask for changes", isPresented: $asking) {
+            TextField("What should change?", text: $note)
+            Button("Send") { answer("changes", note: note) }.disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !canDecide)
+            Button("Cancel", role: .cancel) {}
+        }
+        .task { await load() }.refreshable { await load() }
+        .onDisappear { read.leave() }
+    }
+
+    @ViewBuilder private func page(_ document: V2ArtifactDocument, _ review: V2DocumentReview) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(document.title).font(.system(size: 22, weight: .semibold)).foregroundStyle(WorkspaceStyle.text(scheme))
+                .accessibilityAddTraits(.isHeader)
+            Text(V2DocumentReview.meta(document, side: side, review: review)).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                .padding(.top, 4).padding(.bottom, 20)
+            ForEach(Array(review.blocks.enumerated()), id: \.offset) { index, block in
+                V2DocumentBlockView(block: block, marked: review.marked.indices.contains(index) && review.marked[index])
+            }
+        }.textSelection(.enabled)
+    }
 
     private func load() async {
-        guard let name = artifact.artifact else { return }
-        await read.load(store: store, key: key) { try await store.client.artifactDocument(project: artifact.projectId, artifact: name) }
+        guard let project = item.projectId, let name = item.document else { return }
+        await read.load(store: store, key: key) { try await store.client.artifactDocument(project: project, artifact: name, review: item.id) }
+        if read.value?.main == nil { side = .after }
+    }
+
+    /// The decision is made here and lands at once; the review then closes, as the list it came from
+    /// shows what was decided.
+    private func answer(_ action: String, note: String? = nil) {
+        guard canDecide else { return }
+        deciding = true
+        Task {
+            defer { deciding = false }
+            do {
+                _ = try await store.client.answer(item.id, action: action, note: note)
+                await store.refresh()
+                dismiss()
+            } catch { self.error = coordinatorErrorDescription(error) }
+        }
     }
 }
 #endif
