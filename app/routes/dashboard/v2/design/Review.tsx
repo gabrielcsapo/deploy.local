@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BuildDesign } from './BuildDesign';
 import { approvalRecord, buildLine } from './review-model';
 import { ReviewRedirect } from './ReviewRedirect';
-import { alsoChanged, reviewCrop, reviewHref, counted } from './review-model';
+import { alsoChanged, reviewCrop, reviewHref, counted, documentReviewHref } from './review-model';
 import { previewKey, useReviewPreviews, type Preview } from './ReviewPreviews';
 import type {
   DesignReview,
@@ -13,44 +13,61 @@ import type {
   InboxItem,
 } from '../../../../../shared/v2/contracts';
 import { useData } from '../projects/data';
-import { type Canvas, type LayerChange } from './model';
+import { designApi, designFolderOf, type Canvas, type LayerChange } from './model';
 import './review.css';
 
 type Changes = {
   base: string;
   commit: string;
   files: { status: string; path: string; layers?: LayerChange[] }[];
+  /** The artifacts the task changed instead of design/, each with its kind. */
+  artifacts?: { artifact: string; kind: 'design' | 'document'; files: string[] }[];
 };
 
 /** What a task changed in its project's design, and the review request for it. */
 export function useTaskDesign(projectId: string | undefined, taskId: string) {
-  const api = projectId ? `/api/projects/${encodeURIComponent(projectId)}/design` : '';
+  const appApi = projectId ? designApi(projectId) : '';
   const [version, setVersion] = useState(0);
   const changes = useData<Changes>(
-    api ? `${api}/changes?task=${encodeURIComponent(taskId)}&v=${version}` : undefined,
+    appApi ? `${appApi}/changes?task=${encodeURIComponent(taskId)}&v=${version}` : undefined,
   );
-  const canvas = useData<{ canvas: Canvas | null }>(
-    api && changes.data ? `${api}?ref=${changes.data.commit}` : undefined,
-  );
-  const beforeCanvas = useData<{ canvas: Canvas | null }>(
-    api && changes.data ? `${api}?ref=${changes.data.base}` : undefined,
-  );
-  const proposals = useData<{ proposals: InboxItem[] }>(
-    api ? `${api}/proposals?v=${version}` : undefined,
-  );
-  const boards = (changes.data?.files ?? [])
+  const appBoards = (changes.data?.files ?? [])
     .filter((file) => file.path.startsWith('design/boards/'))
     .map((file) => file.path.slice('design/boards/'.length));
+  // A task that works on an artifact instead of design/ shows that artifact here.
+  const target = appBoards.length ? undefined : changes.data?.artifacts?.[0];
+  const artifact = target?.artifact ?? null;
+  const document = target?.kind === 'document' ? target.artifact : null;
+  const api = projectId ? designApi(projectId, artifact) : '';
+  const canvas = useData<{ canvas: Canvas | null }>(
+    api && changes.data && !document ? `${api}?ref=${changes.data.commit}` : undefined,
+  );
+  const beforeCanvas = useData<{ canvas: Canvas | null }>(
+    api && changes.data && !document ? `${api}?ref=${changes.data.base}` : undefined,
+  );
+  const proposals = useData<{ proposals: InboxItem[] }>(
+    api && changes.data ? `${api}/proposals?v=${version}` : undefined,
+  );
+  const boardsDir = `${designFolderOf(artifact)}/boards/`;
+  const boards = target
+    ? target.files
+        .filter((path) => path.startsWith(boardsDir))
+        .map((path) => path.slice(boardsDir.length))
+    : appBoards;
   const proposal = proposals.data?.proposals.find(
     (item) => item.taskId === taskId && item.state !== 'withdrawn',
   );
   return {
     api,
+    artifact,
+    document,
     changes: changes.data,
     canvas: canvas.data?.canvas ?? null,
     beforeCanvas: beforeCanvas.data?.canvas ?? null,
     boards,
     proposal,
+    /** What the Design tab counts: changed boards, or the document once it is proposed. */
+    count: document ? (proposal ? 1 : 0) : boards.length,
     refresh: () => setVersion((n) => n + 1),
   };
 }
@@ -58,7 +75,7 @@ type TaskDesign = ReturnType<typeof useTaskDesign>;
 
 /** The task bar's line while a design decision is open or made. */
 export function designStatus(design: TaskDesign) {
-  const count = `${design.boards.length} board${design.boards.length === 1 ? '' : 's'} changed in design/`;
+  const count = `${design.boards.length} board${design.boards.length === 1 ? '' : 's'} changed in ${designFolderOf(design.artifact)}/`;
   const answer = design.proposal?.state === 'answered' ? design.proposal.answer?.actionId : null;
   if (answer === 'approve') return `${count} · approved`;
   if (answer === 'changes') return `${count} · changes asked`;
@@ -75,12 +92,22 @@ export function DesignReview({
   taskId: string;
   design: TaskDesign;
 }) {
-  if (design.proposal) return <ReviewRedirect item={design.proposal.id} />;
+  if (design.proposal)
+    return (
+      <ReviewRedirect
+        item={design.proposal.id}
+        href={
+          design.document
+            ? documentReviewHref(projectId, design.document, design.proposal.id)
+            : undefined
+        }
+      />
+    );
   return (
     <div className="dzr-empty">
       <a
         className="dl-btn secondary"
-        href={`/dashboard/design?project=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`}
+        href={`/dashboard/design?project=${encodeURIComponent(projectId)}${design.artifact ? `&artifact=${encodeURIComponent(design.artifact)}` : ''}&task=${encodeURIComponent(taskId)}`}
       >
         Open in Design
       </a>

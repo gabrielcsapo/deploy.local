@@ -210,9 +210,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
       href: `${base}/checks`,
       count: currentChecks.length + (view.designCheck ? 1 : 0) || undefined,
     },
-    ...(design.boards.length
-      ? [{ label: 'Design', href: `${base}/design`, count: design.boards.length }]
-      : []),
+    ...(design.count ? [{ label: 'Design', href: `${base}/design`, count: design.count }] : []),
   ];
 
   return (
