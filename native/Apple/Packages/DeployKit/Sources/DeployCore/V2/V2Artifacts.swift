@@ -128,6 +128,11 @@ public struct V2DocumentReview: Equatable, Sendable {
 }
 
 public enum V2Artifacts {
+    /// Who proposed a review, as the review says it: "You" for your own, else the agent's name.
+    public static func proposer(_ item: InboxItem, username: String) -> String {
+        item.from == username ? "You" : V2Labels.agentName(item)
+    }
+
     /// Which of `after`'s blocks are not in `before`, matched regardless of position; a numbered
     /// item is matched by its text, so renumbering a list changes nothing.
     public static func changed(before: [Block], after: [Block]) -> [Bool] {

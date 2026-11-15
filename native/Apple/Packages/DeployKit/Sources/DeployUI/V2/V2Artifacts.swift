@@ -331,7 +331,7 @@ struct V2DocumentReviewView: View {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {
                     Text("Document review").font(.headline)
-                    Text(["from \(V2Labels.agentName(current))", review?.progress].compactMap { $0 }.joined(separator: " · "))
+                    Text(["from \(V2Artifacts.proposer(current, username: store.connection.username))", review?.progress].compactMap { $0 }.joined(separator: " · "))
                         .font(.footnote).foregroundStyle(.secondary)
                 }.accessibilityElement(children: .combine)
             }

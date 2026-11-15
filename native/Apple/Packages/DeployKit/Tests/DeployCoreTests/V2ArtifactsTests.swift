@@ -90,5 +90,7 @@ struct V2ArtifactsTests {
         let json = ##"{"id":"design:p:artifact~plan:abc","kind":"other","title":"Plan","text":"","from":"alice","createdAt":"2026-11-14T09:00:00Z","actions":[{"id":"approve","label":"Approve document","primary":true}],"state":"waiting","document":"plan"}"##
         let item = try JSONDecoder().decode(InboxItem.self, from: Data(json.utf8))
         #expect(item.document == "plan")
+        #expect(V2Artifacts.proposer(item, username: "alice") == "You")
+        #expect(V2Artifacts.proposer(item, username: "gabriel") == "An agent")
     }
 }
