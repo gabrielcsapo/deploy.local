@@ -838,6 +838,32 @@ test('reserved existing projects keep identity, settings and clone access', asyn
   }
 });
 
+test('a package first published without a repository joins the project a later publish names', async () => {
+  const name = '@deploy.local/link-later';
+  const projectOf = () =>
+    (
+      getSqlite()!
+        .prepare("SELECT project_id FROM packages WHERE name=? AND ecosystem='npm'")
+        .get(name) as { project_id: string | null }
+    ).project_id;
+  assert.equal((await publish(name, publishDoc(name, '1.0.0'))).response.status, 201);
+  assert.equal(projectOf(), null);
+  save('project', 'alice', { id: 'link-later', name: 'link-later', owner: 'alice' });
+  const doc: any = publishDoc(name, '1.0.1', Buffer.from('second tarball'));
+  doc.versions['1.0.1'].repository = {
+    type: 'git',
+    url: 'https://deploy.local/api/git/link-later',
+  };
+  assert.equal((await publish(name, doc)).response.status, 201);
+  assert.equal(projectOf(), 'link-later');
+  // Once linked, a publish naming no repository leaves the link alone.
+  assert.equal(
+    (await publish(name, publishDoc(name, '1.0.2', Buffer.from('third tarball')))).response.status,
+    201,
+  );
+  assert.equal(projectOf(), 'link-later');
+});
+
 test('scheduled rsync includes hosted packages and excludes the copy and unfinished writes', async () => {
   const { maintenance } = await import('../maintenance.ts');
   const { listBackupCopies } = await import('../../shared/backup-copies.ts');

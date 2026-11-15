@@ -245,6 +245,10 @@ export function createCargoRegistry(settings: CargoSettings = {}) {
                   "INSERT INTO packages(id,ecosystem,name,project_id,created_by,created_at) VALUES(?,'cargo',?,?,?,?)",
                 )
                 .run(id, name, projectId, identity!.username, now());
+            // A crate first published without a repository joins the project the first time a
+            // signed-in publish names one, so its pipeline can publish it from then on.
+            else if (!pkg.project_id && projectId)
+              db().prepare('UPDATE packages SET project_id=? WHERE id=?').run(projectId, id);
             const manifest = {
               ...input.metadata,
               index: line,

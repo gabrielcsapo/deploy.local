@@ -271,6 +271,10 @@ export function createNpmRegistry(settings?: RegistrySettings) {
               "INSERT INTO packages(id,ecosystem,name,project_id,created_by,created_at) VALUES(?,'npm',?,?,?,?)",
             )
             .run(id, name, projectId, identity.username, now());
+        // A package first published without a repository joins the project the first time a
+        // signed-in publish names one, so its pipeline can publish it from then on.
+        else if (!pkg.project_id && projectId)
+          db().prepare('UPDATE packages SET project_id=? WHERE id=?').run(projectId, id);
         const insert = db().prepare(
           'INSERT INTO package_versions(package_id,version,sha256,integrity,size,manifest,published_by,published_via,"commit",deprecated,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
         );
