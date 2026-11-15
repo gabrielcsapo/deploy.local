@@ -3236,6 +3236,51 @@
       "h": 980,
       "title": "New design: the name is already taken",
       "expand": "fill"
+    },
+    "ArtifactDocumentReview.html": {
+      "x": 23520,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "Reviewing a document: After, a dot beside each changed block, Approve document",
+      "expand": "fill"
+    },
+    "ArtifactDocumentReviewBefore.html": {
+      "x": 25040,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "Reviewing a document: Before is the document on main",
+      "expand": "fill"
+    },
+    "ArtifactDocumentReviewNew.html": {
+      "x": 26560,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "Reviewing a new document: no Before, not on main yet",
+      "expand": "fill"
+    },
+    "ArtifactDocumentReviewPhone.html": {
+      "x": 28080,
+      "y": 49684,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — reviewing a document"
+    },
+    "ArtifactDocumentReviewNewPhone.html": {
+      "x": 28550,
+      "y": 49684,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — reviewing a new document: no Before"
+    },
+    "ArtifactDocumentNewPhone.html": {
+      "x": 29020,
+      "y": 49684,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a document not on main yet, read in a sheet"
     }
   },
   "order": [
@@ -3667,7 +3712,13 @@
     "ArtifactsEmptyPhone.html",
     "ArtifactsNewPhone.html",
     "ArtifactDocumentEdit.html",
-    "ArtifactDocumentPhone.html"
+    "ArtifactDocumentPhone.html",
+    "ArtifactDocumentReview.html",
+    "ArtifactDocumentReviewBefore.html",
+    "ArtifactDocumentReviewNew.html",
+    "ArtifactDocumentReviewPhone.html",
+    "ArtifactDocumentReviewNewPhone.html",
+    "ArtifactDocumentNewPhone.html"
   ],
   "notes": {
     "intro": {
@@ -5128,7 +5179,7 @@
       "w": 440,
       "x": 19960,
       "y": 49684,
-      "text": "For approval: Design becomes Artifacts\n\nThe sidebar place Design is renamed Artifacts and opens a gallery of every project’s artifacts. A design is one kind of artifact; a document is the second. More kinds are added only when they exist.\n\n• Make something new sits at the top: one tile per kind. A tile asks for a name and the project, then deploy.local creates the files on a new branch and opens it. Nobody adds canvas.json by hand.\n• Below, one card per artifact with a preview, its project and when it last changed. A card says In review or Not proposed only while its newest work is not on main. All, Designs and Documents filter the cards.\n• The grid is three cards wide at 1440 and two at 700.\n• A project can hold several. Each lives in its own folder, artifacts/<name>, in the project’s repository. The design a project already has in design/ stays where it is and is listed as App design.\n• Opening a design goes to the canvas. Review, Before and After, and approval onto main are unchanged and apply to every kind.\n• On the canvas, the project menu’s line about design/canvas.json becomes New artifact.\n\n• Create opens the new design’s canvas straight away: empty, on its own branch, with the tools ready and one button to ask an agent to start it.\n• A document opens as a page under Artifacts, in the reading column. Edit starts a branch for it; proposing and approving work as they do for a design.\n\n• On iPhone, Artifacts is a row in Settings beside Packages and opens as a sheet: Make something new first, then each project’s artifacts as rows. A design opens the canvas the phone already has.\n\n• On the canvas, the menu at the top of the left panel lists designs, each with its project, and ends with New artifact. Projects with no design are no longer listed there. At narrow widths the bar reads Artifacts and goes back to the gallery.\n• On iPhone a kind opens a short sheet: Name, Project, Cancel and Create.\n\n• Editing a document is typing in the page. Edit starts a branch for it; the header then shows the branch, how many blocks changed and Propose. A small bar gives bold, italic, lists, link and code; Link asks for the address in the browser’s own prompt. Text styles are not drawn, so the bar has none. Each changed block gets a dot in the margin, and every edit is saved to the branch as you type.\n• On iPhone a document opens in a sheet to read. Editing a document on iPhone is not drawn.\n\nAs built:\n• The Document tile opens the same dialog, titled New document. When Create is refused, the reason shows under Name.\n• Ask an agent on an empty canvas opens the ask box the canvas already has, headed with the design’s name.\n• New artifact in the design menu goes to the gallery.\n• On iPhone a document’s back button is the system chevron, and a project’s artifacts are listed newest first.\n\nNot drawn yet: the design menu in the iPhone picker sheet, and Before and After for a document in review."
+      "text": "For approval: Design becomes Artifacts\n\nThe sidebar place Design is renamed Artifacts and opens a gallery of every project’s artifacts. A design is one kind of artifact; a document is the second. More kinds are added only when they exist.\n\n• Make something new sits at the top: one tile per kind. A tile asks for a name and the project, then deploy.local creates the files on a new branch and opens it. Nobody adds canvas.json by hand.\n• Below, one card per artifact with a preview, its project and when it last changed. A card says In review or Not proposed only while its newest work is not on main. All, Designs and Documents filter the cards.\n• The grid is three cards wide at 1440 and two at 700.\n• A project can hold several. Each lives in its own folder, artifacts/<name>, in the project’s repository. The design a project already has in design/ stays where it is and is listed as App design.\n• Opening a design goes to the canvas. Review, Before and After, and approval onto main are unchanged and apply to every kind.\n• On the canvas, the project menu’s line about design/canvas.json becomes New artifact.\n\n• Create opens the new design’s canvas straight away: empty, on its own branch, with the tools ready and one button to ask an agent to start it.\n• A document opens as a page under Artifacts, in the reading column. Edit starts a branch for it; proposing and approving work as they do for a design.\n\n• On iPhone, Artifacts is a row in Settings beside Packages and opens as a sheet: Make something new first, then each project’s artifacts as rows. A design opens the canvas the phone already has.\n\n• On the canvas, the menu at the top of the left panel lists designs, each with its project, and ends with New artifact. Projects with no design are no longer listed there. At narrow widths the bar reads Artifacts and goes back to the gallery.\n• On iPhone a kind opens a short sheet: Name, Project, Cancel and Create.\n\n• Editing a document is typing in the page. Edit starts a branch for it; the header then shows the branch, how many blocks changed and Propose. A small bar gives bold, italic, lists, link and code; Link asks for the address in the browser’s own prompt. Text styles are not drawn, so the bar has none. Each changed block gets a dot in the margin, and every edit is saved to the branch as you type.\n• On iPhone a document opens in a sheet to read. Editing a document on iPhone is not drawn.\n\nAs built:\n• The Document tile opens the same dialog, titled New document. When Create is refused, the reason shows under Name.\n• Ask an agent on an empty canvas opens the ask box the canvas already has, headed with the design’s name.\n• New artifact in the design menu goes to the gallery.\n• On iPhone a document’s back button is the system chevron, and a project’s artifacts are listed newest first.\n\nReviewing a document:\n• A proposed document opens on its own page under Artifacts, in the reading column, not on the canvas. The review bar from the design review sits at the top of the page: the proposal’s title, who it is from and how many blocks changed, then Before and After, Ask for changes and Approve document. Approving, undo and Ask for changes work as they do for a design.\n• After shows the document as proposed, with a dot beside each block that is not on main. Before shows the document on main, with a dot beside each block the proposal changes or removes.\n• A document that is not on main yet has no Before: Before is dimmed and cannot be chosen, the bar says new document, and no block has a dot.\n• Wherever a document’s line would say on main while it is only on its branch, it says not on main yet: reading, editing and reviewing, on web and iPhone. A document on main that is being edited keeps its branch on that line.\n• The approve action for a document reads Approve document everywhere Approve design would: Waiting on you, the review bar and iPhone.\n• On iPhone a document review opens from Waiting on you as Document review: Before and After at the top, the document below, Approve document and Ask for changes at the bottom. Editing a document on iPhone is not drawn.\n• A task that changes an artifact design gets the Design tab as it does for design/, and it opens that artifact’s review or canvas. A task that changes a document gets the tab once it is proposed, and it opens the document’s review.\n\nReviewing a document, as built:\n• Approving and asking for changes on web use the design review’s dialogs, the 30-second undo and its Approved · on main line; a document has no Build.\n• While a document not on main yet is edited, no block has a dot either.\n• On iPhone a new document’s Before and After control is dimmed as a whole, as iOS dims a control it turns off; deciding lands at once and the review closes.\n\nNot drawn yet: the design menu in the iPhone picker sheet."
     },
     "design-panels": {
       "fill": "purple",
