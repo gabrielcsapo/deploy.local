@@ -155,3 +155,15 @@ export function reviewMarks(main: string | null, proposed: string, side: 'before
     progress: `${count} block${count === 1 ? '' : 's'} changed`,
   };
 }
+
+/**
+ * Which blocks being edited differ from main, for their dots. A document not on main yet is new
+ * throughout, so no block is marked: its line says not on main yet instead.
+ */
+export function editedBlocks(
+  main: string | null,
+  mainBlocks: DocumentBlock[],
+  blocks: DocumentBlock[],
+) {
+  return main === null ? blocks.map(() => false) : changedBlocks(mainBlocks, blocks);
+}

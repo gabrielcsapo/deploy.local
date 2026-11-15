@@ -3,7 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { Action, Banner, DetailTemplate, Dialog, Field, Icon, Skeleton } from '@/components/ui';
 import {
   blocksMarkdown,
-  changedBlocks,
   changedWhen,
   documentBlocks,
   documentBody,
@@ -16,6 +15,7 @@ import { galleryPath } from './model';
 import {
   changedLine,
   documentLine,
+  editedBlocks,
   inlineHtml,
   readBlocks,
   reviewMarks,
@@ -199,7 +199,7 @@ function DocumentPageView({
   const mark = useCallback(() => {
     const root = editor.current;
     if (!root) return;
-    const flags = changedBlocks(mainBlocks, readBlocks(root));
+    const flags = editedBlocks(doc?.main ?? null, mainBlocks, readBlocks(root));
     blockElements(root).forEach((element, index) => {
       if (flags[index]) element.dataset.changed = '';
       else delete element.dataset.changed;

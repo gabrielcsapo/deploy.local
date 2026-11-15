@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   changedLine,
   documentLine,
+  editedBlocks,
   inlineHtml,
   inlineMarkdown,
   readBlocks,
@@ -86,4 +87,13 @@ test('a review marks the blocks that differ on each side, and a new document has
   assert.equal(made.side, 'after');
   assert.deepEqual(made.marked, [false, false, false, false]);
   assert.equal(made.progress, 'new document');
+});
+
+test('editing a document not on main marks no block; one on main marks what differs', () => {
+  const blocks = [
+    { kind: 'paragraph' as const, text: 'One.' },
+    { kind: 'bullet' as const, text: 'Two' },
+  ];
+  assert.deepEqual(editedBlocks(null, [], blocks), [false, false]);
+  assert.deepEqual(editedBlocks('# Plan\n\nOne.\n', [blocks[0]], blocks), [false, true]);
 });
