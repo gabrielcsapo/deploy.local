@@ -2252,8 +2252,8 @@
       "x": 3540,
       "y": 73720,
       "w": 1440,
-      "h": 1160,
-      "title": "Copies: npmjs.org is down, installs use the copies, and two projects need attention",
+      "h": 1500,
+      "title": "Copies: npmjs.org is down, installs use the copies; what is kept, how big, and what is unused",
       "expand": "fill"
     },
     "PackagesSetup.html": {
@@ -3183,7 +3183,7 @@
     },
     "NpmSignIn.html": {
       "x": 2020,
-      "y": 75300,
+      "y": 76100,
       "w": 1440,
       "h": 900,
       "title": "npm login in the browser: sign in npm on this computer",
@@ -3191,10 +3191,34 @@
     },
     "NpmSignInDone.html": {
       "x": 3540,
-      "y": 75300,
+      "y": 76100,
       "w": 1440,
       "h": 900,
       "title": "npm login in the browser: npm is signed in",
+      "expand": "fill"
+    },
+    "PackagesKept.html": {
+      "x": 2020,
+      "y": 78900,
+      "w": 1440,
+      "h": 1100,
+      "title": "Everything kept: every package and crate in the copy, searchable, 50 a page, with size and whether a project needs it",
+      "expand": "fill"
+    },
+    "PackagesKeptIdle.html": {
+      "x": 3540,
+      "y": 78900,
+      "w": 1440,
+      "h": 1100,
+      "title": "Everything kept, filtered to not installed in 30 days, confirming removal",
+      "expand": "fill"
+    },
+    "PackageKept.html": {
+      "x": 5060,
+      "y": 78900,
+      "w": 1440,
+      "h": 1100,
+      "title": "One package in the copy: its versions, which projects need them, removing the unused ones",
       "expand": "fill"
     }
   },
@@ -3573,6 +3597,9 @@
     "Packages.html",
     "Package.html",
     "PackagesCache.html",
+    "PackagesKept.html",
+    "PackagesKeptIdle.html",
+    "PackageKept.html",
     "PackagesSetup.html",
     "TaskPublish.html",
     "PipelineRun.html",
@@ -5091,6 +5118,13 @@
       "x": 18440,
       "y": 50884,
       "text": "For approval: each panel on the canvas closes on its own\n\nThe canvas can have three columns beside it: the app’s sidebar, the left panel (pages and layers) and the right panel (edit and comments). Until now one button hid both panels together, so a review in a normal window was cramped.\n\n• The button at the top of the left panel is now Hide left panel. The right panel gets its own Hide right panel button at the end of its top row.\n• A closed panel leaves one small button at that top corner of the canvas to bring it back. The review bar, the tools and the frames stay where they are and the canvas takes the room.\n• Each panel’s state is remembered on this device, separately, like the app sidebar’s. Opening a review never changes them.\n• The app sidebar keeps its own Collapse button and ⌘\\. Below 820 px nothing changes: the left panel is already folded and the right one is a sheet."
+    },
+    "packages-kept": {
+      "fill": "yellow",
+      "w": 440,
+      "x": 6580,
+      "y": 78900,
+      "text": "Everything kept, other states. Kind filter: one button, \"npm and Cargo\", opens a menu with both ticked; search always covers what is ticked. Untick one and the button reads \"npm only\" or \"Cargo only\"; the last ticked kind can\u2019t be unticked. Empty: \"Nothing kept yet. The first install through deploy.local appears here.\" No match: \"No package or crate matches left-pad\" with Clear. Nothing idle: the Copies row reads \"Everything was installed in the last 30 days\" with no chevron. Loading: the count line reads \"Counting…\". After removing: a notice, \"Removed 1.9 GB. 4.3 GB kept.\" While a source is unreachable the removal dialog adds that removed packages can’t be fetched again until it’s back. iPhone: the same three pages as pushed screens from Packages › Copies, search in the navigation bar, filters as a menu."
     }
   },
   "starts": {}
