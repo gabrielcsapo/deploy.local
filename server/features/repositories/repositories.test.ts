@@ -584,3 +584,59 @@ test('a ZIP is named after the repository and the branch, tag or short commit', 
   assert.equal(repositoryArchiveName('forma', 'HEAD', commit), 'forma-a1b2c3d');
   assert.equal(repositoryArchiveName('forma', commit, commit), 'forma-a1b2c3d');
 });
+
+test('the default branch can be any existing branch; it moves HEAD and what releases follow', async () => {
+  const created = await post('/repository-projects', { name: 'Branches' });
+  await ready(created.body.id);
+  const id = created.body.id;
+  const repo = created.body.repositoryPath;
+  const work = join(data, 'branches-work');
+  git(data, ['clone', repo, work]);
+  git(work, ['config', 'user.name', 'Test']);
+  git(work, ['config', 'user.email', 'test@example.invalid']);
+  git(work, ['checkout', '-b', 'develop']);
+  writeFileSync(join(work, 'deploy.yaml'), 'name: branches\n');
+  git(work, ['add', '.']);
+  git(work, ['commit', '-m', 'Develop']);
+  git(work, ['push', 'origin', 'develop', 'develop:task/abcd1234']);
+
+  let listed = await read(`/projects/${id}/repository/branches`);
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.defaultBranch, 'main');
+  assert.deepEqual(
+    listed.body.branches.map((branch: any) => branch.name),
+    ['main', 'develop'],
+    'the default comes first and task branches are left out',
+  );
+  assert.ok(Date.parse(listed.body.branches[1].committedAt));
+  assert.equal((await read(`/projects/${id}/repository/branches`, 'bob')).status, 404);
+
+  assert.equal((await post(`/projects/${id}/repository/default-branch`, {})).status, 400);
+  assert.equal(
+    (await post(`/projects/${id}/repository/default-branch`, { branch: 'task/abcd1234' })).status,
+    400,
+  );
+  const missing = await post(`/projects/${id}/repository/default-branch`, { branch: 'nope' });
+  assert.equal(missing.status, 404);
+  assert.match(missing.body.error, /nope is not a branch/);
+
+  const changed = await post(`/projects/${id}/repository/default-branch`, { branch: 'develop' });
+  assert.equal(changed.status, 200);
+  assert.deepEqual(changed.body, { defaultBranch: 'develop' });
+  assert.equal(git(repo, ['symbolic-ref', 'HEAD']), 'refs/heads/develop');
+  assert.equal(get('project', 'alice', id).defaultBranch, 'develop');
+  assert.equal(git(repo, ['rev-parse', 'main']), git(work, ['rev-parse', 'main']), 'main stays');
+  const info = (await read(`/projects/${id}/repository`)).body;
+  assert.equal(info.defaultBranch, 'develop');
+  assert.equal(info.deployment.branch, 'develop');
+  assert.equal(info.deployment.commit, git(work, ['rev-parse', 'develop']));
+  listed = await read(`/projects/${id}/repository/branches`);
+  assert.deepEqual(
+    listed.body.branches.map((branch: any) => branch.name),
+    ['develop', 'main'],
+  );
+  // A clone now checks out the new default.
+  const fresh = join(data, 'branches-fresh');
+  git(data, ['clone', repo, fresh]);
+  assert.equal(git(fresh, ['branch', '--show-current']), 'develop');
+});

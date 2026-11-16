@@ -1,5 +1,7 @@
 import { immutable } from '../../kernel/materialized.ts';
 import { repositoryRefs, commitText } from './repository-views.ts';
+import { withRepositoryWrites } from '../../kernel/jobs/repository-lock.ts';
+import { repositoryChanged } from '../../git-changes.ts';
 import { sshServerInfo } from './ssh-host.ts';
 import { isAbsolute, resolve } from 'node:path';
 import { db, root, id, now, get, save, event, list } from '../../workspace/store.ts';
@@ -359,7 +361,7 @@ export function repositoryClonePath(owner: string, project: { id: string; name: 
     : `/api/git/${project.id}/${repositoryFolderName(project.name)}.git`;
 }
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
-/** Link seeding needs only the manifest on main, not clone URLs or worker metadata. */
+/** Link seeding needs only the manifest on the default branch, not clone URLs or worker metadata. */
 export async function repositoryApplication(
   owner: string,
   projectId: string,
@@ -373,10 +375,17 @@ export async function repositoryApplication(
       : await gitText(project.repositoryPath, [
           'for-each-ref',
           '--format=%(refname)%00%(objectname)',
-          'refs/heads/main',
+          `refs/heads/${project.defaultBranch || 'main'}`,
         ]);
   return (
-    (await repositoryDeployment(project.repositoryPath, refs, presentation)).application || null
+    (
+      await repositoryDeployment(
+        project.repositoryPath,
+        refs,
+        presentation,
+        project.defaultBranch || 'main',
+      )
+    ).application || null
   );
 }
 export async function repositoryInfo(owner: string, projectId: string, presentation = false) {
@@ -423,7 +432,12 @@ export async function repositoryInfo(owner: string, projectId: string, presentat
     // A new hosted repository starts with one empty commit; it is empty until code arrives.
     empty: tree === EMPTY_TREE,
     sync: project.sync ?? null,
-    deployment: await repositoryDeployment(project.repositoryPath, refs, presentation),
+    deployment: await repositoryDeployment(
+      project.repositoryPath,
+      refs,
+      presentation,
+      project.defaultBranch || snapshot?.symbolicHead || 'main',
+    ),
     defaultBranch:
       project.defaultBranch ||
       snapshot?.symbolicHead ||
@@ -438,7 +452,7 @@ export async function repositoryInfo(owner: string, projectId: string, presentat
   };
 }
 
-// Capabilities follow the committed main branch, not a worker checkout, HEAD,
+// Capabilities follow the committed default branch, not a worker checkout, HEAD,
 // an upstream tracking branch, or a proposed configuration in a pull request.
 type RepositoryDeployment = {
   configured: boolean;
@@ -450,8 +464,8 @@ type RepositoryDeployment = {
   error?: string;
 };
 const deploymentView = immutable(async (key: string): Promise<RepositoryDeployment> => {
-  const [repositoryPath, main] = JSON.parse(key);
-  const result = await readRepositoryDeployment(repositoryPath, main, true);
+  const [repositoryPath, main, branch = 'main'] = JSON.parse(key);
+  const result = await readRepositoryDeployment(repositoryPath, main, true, branch);
   if (result.error) deploymentView.invalidate(key);
   return result;
 });
@@ -459,26 +473,27 @@ export async function repositoryDeployment(
   repositoryPath: string,
   refs: string,
   presentation = false,
+  branch = 'main',
 ): Promise<RepositoryDeployment> {
   const main = refs
     .split('\n')
-    .find((line) => line.startsWith('refs/heads/main\0'))
+    .find((line) => line.startsWith(`refs/heads/${branch}\0`))
     ?.split('\0')[1];
-  if (!main) return { configured: false, branch: 'main' };
+  if (!main) return { configured: false, branch };
   if (presentation && !db.inTransaction)
-    return deploymentView.read(JSON.stringify([resolve(repositoryPath), main]));
-  return readRepositoryDeployment(repositoryPath, main, false);
+    return deploymentView.read(JSON.stringify([resolve(repositoryPath), main, branch]));
+  return readRepositoryDeployment(repositoryPath, main, false, branch);
 }
 async function readRepositoryDeployment(
   repositoryPath: string,
   main: string,
   presentation: boolean,
+  branch = 'main',
 ): Promise<RepositoryDeployment> {
   const read = presentation ? commitText : gitText;
   const entry = await read(repositoryPath, ['ls-tree', main, '--', 'deploy.yaml']);
-  if (!/^100(?:644|755) blob /.test(entry))
-    return { configured: false, branch: 'main', commit: main };
-  const base = { configured: true, branch: 'main', commit: main, path: 'deploy.yaml' };
+  if (!/^100(?:644|755) blob /.test(entry)) return { configured: false, branch, commit: main };
+  const base = { configured: true, branch, commit: main, path: 'deploy.yaml' };
   try {
     const manifest = await read(repositoryPath, ['show', `${main}:deploy.yaml`], {
       limit: 256 * 1024,
@@ -498,7 +513,7 @@ async function readRepositoryDeployment(
     return {
       ...base,
       pipeline: false,
-      error: 'Fix deploy.yaml on main to enable deployment actions.',
+      error: `Fix deploy.yaml on ${branch} to enable deployment actions.`,
     };
   }
 }
@@ -736,4 +751,64 @@ export function filePreview(content: Buffer) {
   if (content.includes(0) || !content.equals(Buffer.from(content.toString('utf8'))))
     return { omitted: 'Binary file' };
   return { content: content.toString('utf8') };
+}
+
+// Task and sync branches are working branches, not somewhere to release from.
+const workingBranch = (name: string) => /^(task|sync)\//.test(name);
+
+/** The branches a project could make its default, the current one first, then newest first. */
+export async function repositoryBranches(owner: string, projectId: string) {
+  const project = requireRepository(owner, projectId);
+  const snapshot = await repositoryRefs.read(project.repositoryPath);
+  const current = project.defaultBranch || snapshot.symbolicHead || 'main';
+  const time = (value: string | null) => (value ? Date.parse(value) || 0 : 0);
+  const branches = snapshot.refs
+    .filter((ref) => ref.name.startsWith('refs/heads/'))
+    .map((ref) => ({
+      name: ref.name.slice('refs/heads/'.length),
+      commit: ref.oid,
+      committedAt: ref.updatedAt || null,
+    }))
+    .filter((branch) => branch.name === current || !workingBranch(branch.name))
+    .sort((a, b) =>
+      a.name === current ? -1 : b.name === current ? 1 : time(b.committedAt) - time(a.committedAt),
+    );
+  return { defaultBranch: current, branches };
+}
+
+/**
+ * Make another existing branch the default: tasks start from and merge into it, and merges to it
+ * become releases. Nothing is released or moved; only HEAD and the project's record change.
+ */
+export async function setDefaultBranch(owner: string, projectId: string, input: any) {
+  const branch = typeof input?.branch === 'string' ? input.branch.trim() : '';
+  const project = requireRepository(owner, projectId);
+  if (!branch || workingBranch(branch) || hasControls(branch))
+    throw Object.assign(new Error("Choose one of the repository's branches"), { status: 400 });
+  const operation = repositoryOperation(owner, projectId);
+  if (operation && ['queued', 'running'].includes(operation.status))
+    throw Object.assign(new Error('The repository is busy syncing. Try again when it finishes.'), {
+      status: 409,
+    });
+  const repo = project.repositoryPath;
+  return withRepositoryWrites(repo, async () => {
+    const commit = await gitText(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${branch}^{commit}`,
+    ]).catch(() => '');
+    if (!commit)
+      throw Object.assign(new Error(`${branch} is not a branch in this repository`), {
+        status: 404,
+      });
+    await gitText(repo, ['symbolic-ref', 'HEAD', `refs/heads/${branch}`]);
+    repositoryChanged(repo);
+    const current = get('project', owner, projectId);
+    if (current.defaultBranch !== branch) {
+      save('project', owner, { ...current, defaultBranch: branch, head: commit, updatedAt: now() });
+      event(owner, '', null, 'project.updated', { projectId });
+    }
+    return { defaultBranch: branch };
+  });
 }

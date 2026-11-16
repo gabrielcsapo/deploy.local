@@ -1,6 +1,6 @@
 import { queueCopies } from '../../packages/copies.ts';
 import { createHash } from 'node:crypto';
-import { save, now } from '../../workspace/store.ts';
+import { get, save, now } from '../../workspace/store.ts';
 export function queuePushTrigger(
   owner: string,
   projectId: string,
@@ -16,7 +16,14 @@ export function queuePushTrigger(
     return;
   if (previousCommit !== undefined && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(previousCommit))
     throw new Error('Invalid previous push commit');
-  if (ref === 'refs/heads/main') queueCopies(owner, projectId);
+  const branch = (() => {
+    try {
+      return get('project', owner, projectId).defaultBranch || 'main';
+    } catch {
+      return 'main';
+    }
+  })();
+  if (ref === `refs/heads/${branch}`) queueCopies(owner, projectId);
   save('pipeline-trigger-request', owner, {
     id: createHash('sha256')
       .update(JSON.stringify([projectId, ref, commit]))

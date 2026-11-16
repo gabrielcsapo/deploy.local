@@ -230,7 +230,7 @@ export class CopyWarmer {
     if (!commit) {
       try {
         commit = (
-          await repositoryGit(project.repositoryPath, ['rev-parse', 'refs/heads/main'], {
+          await repositoryGit(project.repositoryPath, ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`], {
             limit: 1024,
             timeout: 5000,
           })
@@ -239,7 +239,7 @@ export class CopyWarmer {
           .trim();
       } catch {
         return true;
-      } // A project without main must not block the rest of the queue.
+      } // A project without its default branch must not block the rest of the queue.
     }
     const needed = new Map<string, Needed>();
     const platforms = enrolledPlatforms();

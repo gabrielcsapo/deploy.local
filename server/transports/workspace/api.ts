@@ -46,6 +46,8 @@ import {
   updateProjectSettings,
   updateProjectControlPolicy,
   addProjectRemote,
+  repositoryBranches,
+  setDefaultBranch,
   repositoryCommand,
   repositoryInfo,
   repositoryRead,
@@ -546,6 +548,17 @@ export async function workspaceApi(
                     },
                   }),
                 ),
+                route({
+                  method: 'POST',
+                  path: '/projects/:project/repository/default-branch',
+                  handler: async ({ params }) => {
+                    try {
+                      return send(await setDefaultBranch(owner, params.project, body));
+                    } catch (error: any) {
+                      return respondError(error);
+                    }
+                  },
+                }),
                 route({
                   method: 'POST',
                   path: '/projects/:project/repository/remote-pull',
@@ -1155,6 +1168,19 @@ export async function workspaceApi(
                   projects.push({ id: project.id, name: project.name });
               }
               return send({ projects });
+            } catch (error: any) {
+              return respondError(error);
+            }
+          },
+        }),
+        route({
+          method: 'GET',
+          path: '/projects/:project/repository/branches',
+          handler: async ({ params }) => {
+            try {
+              return send(
+                await repositoryBranches(owner, (params as Record<string, string>).project),
+              );
             } catch (error: any) {
               return respondError(error);
             }
