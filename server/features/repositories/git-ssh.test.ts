@@ -455,7 +455,10 @@ for (const mode of ['tcp', 'stdio'] as const)
     const unknownArgs = sshArgs.map((arg) => (arg === key ? unknown : arg));
     const rejected = await run('ssh', [...unknownArgs, 'git@127.0.0.1', 'whoami']);
     assert.notEqual(rejected.code, 0);
-    assert.match(rejected.stderr, /Add this computer's SSH key/);
+    assert.match(
+      rejected.stderr,
+      /Add this computer's SSH key in deploy\.local Settings > SSH keys/,
+    );
     save('project', 'alice', {
       ...get('project', 'alice', project.id),
       repositoryStatus: 'preparing',

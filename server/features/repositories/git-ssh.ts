@@ -81,7 +81,8 @@ export function createGitSshTransport(privateKey: Buffer) {
         return authenticationFailure(
           client,
           socket,
-          "Add this computer's SSH key in deploy.local Settings → SSH keys",
+          // ASCII only: OpenSSH escapes every other byte of a disconnect message.
+          "Add this computer's SSH key in deploy.local Settings > SSH keys",
         );
       const key = utils.parseKey(found.key.publicKey);
       if (key instanceof Error || Array.isArray(key)) return context.reject(['publickey']);
