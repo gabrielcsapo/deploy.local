@@ -18,7 +18,7 @@ process.env.DEPLOY_DATA_DIR = root;
 const { db, save, list, get, remove } = await import('../../../server/workspace/store.ts');
 const { v2Api } = await import('../../../server/v2/api.ts');
 const { proposeDesign, designReview, startDesignApprovals } =
-  await import('../../../server/v2/design.ts');
+  await import('../../../server/features/design/design.ts');
 const { layerSnippet } = await import('../../../server/design/board-html.ts');
 const owner = 'resolve-conflicts-fixture';
 const repo = join(root, 'repository');

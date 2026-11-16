@@ -18,6 +18,7 @@ test('every observability compatibility path exposes the same module bindings', 
       ['v2/measurements.ts', 'features/observability/measurements.ts'],
       ['v2/live.ts', 'features/observability/live.ts'],
       ['v2/health-report.ts', 'features/observability/health-report.ts'],
+      ['workspace/health-event-retention.ts', 'features/observability/health-event-retention.ts'],
     ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);

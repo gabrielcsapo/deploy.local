@@ -1,4 +1,4 @@
-import type { NodeStatus } from '../../../server/workspace/node-status.ts';
+import type { NodeStatus } from '../../../server/features/computers/node-status.ts';
 export type HelperAction =
   | 'capture'
   | 'capture-stop'

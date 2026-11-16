@@ -14,10 +14,10 @@ if (process.env.DEPLOY_TEST_NO_BROWSER === '1') {
 }
 const root = mkdtempSync(join(tmpdir(), 'v2-design-'));
 process.env.DEPLOY_DATA_DIR = root;
-const store = await import('../store.ts');
-const { db, save } = await import('../workspace/store.ts');
-const { gitText } = await import('../workspace/repository-git.ts');
-const { v2Api } = await import('./api.ts');
+const store = await import('../../store.ts');
+const { db, save } = await import('../../workspace/store.ts');
+const { gitText } = await import('../../workspace/repository-git.ts');
+const { v2Api } = await import('../../v2/api.ts');
 const { askPrompt, componentPrompt } = await import('./design.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'alice') }));
@@ -364,7 +364,7 @@ test('accepting an agent’s changes puts them on a design branch, never straigh
 });
 
 test('proposing asks in Waiting on you; approving puts the design on main, asking for changes notes it', async () => {
-  const { answerInboxAsync: answerInbox, syncInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox, syncInbox } = await import('../../v2/inbox.ts');
   assert.equal(
     (
       await call('/propose', {
@@ -455,7 +455,7 @@ test('proposing asks in Waiting on you; approving puts the design on main, askin
 });
 
 test('approving a design that removes a board works in a bare repository', async () => {
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   const work = join(root, 'bare-source');
   mkdirSync(join(work, 'design/boards'), { recursive: true });
   const inWork = (args: string[]) => gitText(work, args);
@@ -739,7 +739,7 @@ test('the pen draws marks on the canvas, beside the boards, and they change a pr
 
 test('Assets lists the library and its use, and approving a library change updates every instance', async () => {
   const { spawnSync } = await import('node:child_process');
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   // Commit files onto a branch without touching the checkout.
   const commitFiles = (branch: string, from: string, files: Record<string, string>) => {
     const env = {
@@ -815,7 +815,7 @@ test('Assets lists the library and its use, and approving a library change updat
 });
 
 test('approving one design branch keeps what another approval added to main since it started', async () => {
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   // Two branches from the same main: one adds a board, the other a note.
   const board = await (
     await call('/canvas', {
@@ -849,7 +849,7 @@ test('approving one design branch keeps what another approval added to main sinc
 });
 
 test('approving stops when main rewrote the same lines of a board since the branch started', async () => {
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   const edit = async (text: string) =>
     (
       await call('/edit', {
@@ -1181,7 +1181,7 @@ test('review stores proposer summary and plain title, returns actual attribution
     'Keep the source beside each preference. Let suggestions wrap so they can be read in full.',
   );
   assert.equal(review.proposer.name, 'You');
-  const row = (await import('../workspace/store.ts')).get('v2-inbox-native', 'alice', item.id);
+  const row = (await import('../../workspace/store.ts')).get('v2-inbox-native', 'alice', item.id);
   assert.equal(row.context.summary, review.summary);
   const landing = await (
     await fetch(`${origin}/api/design/reviews?project=${f.project.id}`)
@@ -1191,7 +1191,7 @@ test('review stores proposer summary and plain title, returns actual attribution
   assert.deepEqual(landing.proposals[0].counts, { screens: 2, changed: 2, new: 0, removed: 0 });
   const other = await reviewFixture('review-legacy');
   const legacy = await other.propose();
-  const legacyRow = (await import('../workspace/store.ts')).get(
+  const legacyRow = (await import('../../workspace/store.ts')).get(
     'v2-inbox-native',
     'alice',
     legacy.id,
@@ -1323,7 +1323,7 @@ test('review list agrees with the full review for canvas placement and note conf
 test('review list preserves missing commit and main check failure behavior', async () => {
   const f = await reviewFixture('review-list-failures');
   const item = await f.propose();
-  const { get } = await import('../workspace/store.ts');
+  const { get } = await import('../../workspace/store.ts');
   const row = get('v2-inbox-native', 'alice', item.id);
   const context = { ...row.context };
   row.context.commit = '0'.repeat(40);
@@ -1437,7 +1437,7 @@ test('preview payload merges changed regions for all clients and suppresses scre
     assert.deepEqual(rootOnly.areas, []);
     assert.equal(rootOnly.crop.y, 0);
   }
-  const { reviewAreas } = await import('../../shared/v2/design-review.ts');
+  const { reviewAreas } = await import('../../../shared/v2/design-review.ts');
   const rect = { x: 10, y: 20, w: 50, h: 40 };
   assert.deepEqual(
     reviewAreas(
@@ -1478,7 +1478,7 @@ test('unrelated main screens update automatically; overlapping edits block both 
   let review = await f.read(item);
   assert.equal(review.stale, false);
   assert.ok(review.updatedWithMainAt);
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   writeFileSync(
     join(f.path, 'design/boards/Alpha.html'),
     '<h1 data-layer="title">Main rewrote this screen</h1>',
@@ -1495,7 +1495,7 @@ test('unrelated main screens update automatically; overlapping edits block both 
   assert.deepEqual(review.conflicts, ['Alpha.html']);
   assert.equal(review.stale, true);
   await answerInbox('alice', item.id, { actionId: 'update', on: 'web' });
-  const feedback = (await import('../workspace/store.ts')).get(
+  const feedback = (await import('../../workspace/store.ts')).get(
     'design-review-feedback',
     'alice',
     item.id,
@@ -1593,10 +1593,10 @@ test('pins persist as board comments, edits retain positions, deletion never reu
   const taskId = 'review-pin-task';
   save('task', 'alice', { id: taskId, projectId: f.project.id, revision: 1 });
   save('run', 'alice', { id: 'review-pin-run', taskId, status: 'running' });
-  const store = await import('../workspace/store.ts');
+  const store = await import('../../workspace/store.ts');
   const row = store.get('v2-inbox-native', 'alice', item.id);
   save('v2-inbox-native', 'alice', { ...row, context: { ...row.context, taskId } });
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   const answer = await answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
   assert.equal(answer.answer?.actionId, 'changes');
   const message = store.get('queued-message', 'alice', taskId).content;
@@ -1660,7 +1660,7 @@ test('seen state is owner/revision/screen scoped and round two retains only unch
       ],
     },
   });
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   await answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
   const pin = (await f.read(item)).pins[0];
   save('task', 'alice', { id: 'review-resolve-task', projectId: f.project.id });
@@ -1752,7 +1752,7 @@ test('round two sends only still-open requests and keeps addressed requests with
       200,
     );
   }
-  const { answerInboxAsync: answerInbox } = await import('./inbox.ts');
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   await answerInbox('alice', item.id, { actionId: 'changes', on: 'web' });
   const pins = (await f.read(item)).pins;
   save('task', 'alice', { id: 'addressed-task', projectId: f.project.id });
@@ -1772,7 +1772,7 @@ test('round two sends only still-open requests and keeps addressed requests with
   await f.commit('Added the source');
   const next = await f.propose();
   await answerInbox('alice', next.id, { actionId: 'changes', on: 'web' });
-  const feedback = (await import('../workspace/store.ts')).get(
+  const feedback = (await import('../../workspace/store.ts')).get(
     'design-review-feedback',
     'alice',
     next.id,
@@ -2180,7 +2180,7 @@ test('web and agent proposals require both meaningful fields', async () => {
 test('delayed approval persists, undo restores waiting, and a fresh worker lands it once', async () => {
   const f = await reviewFixture('review-delayed');
   const item = await f.propose();
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   const { landDesignApprovals } = await import('./design.ts');
   const before = await f.run(['rev-parse', 'main']);
   await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web', delay: true });
@@ -2204,7 +2204,7 @@ test('delayed approval persists, undo restores waiting, and a fresh worker lands
       'tsx',
       '--input-type=module',
       '-e',
-      `const { landDesignApprovals } = await import('./server/v2/design.ts'); await landDesignApprovals(${Date.parse(pending.landing.at) + 1});`,
+      `const { landDesignApprovals } = await import('./server/features/design/design.ts'); await landDesignApprovals(${Date.parse(pending.landing.at) + 1});`,
     ],
     {
       cwd: process.cwd(),
@@ -2222,7 +2222,7 @@ test('delayed approval persists, undo restores waiting, and a fresh worker lands
 test('a conflict at delayed landing returns the review to waiting', async () => {
   const f = await reviewFixture('review-delayed-conflict');
   const item = await f.propose();
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   const { landDesignApprovals } = await import('./design.ts');
   await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web', delay: true });
   const pending = await f.read(item);
@@ -2289,8 +2289,8 @@ test('a group can be seen together and anchored area notes accept a dragged widt
 test('approved designs show build reports and only explicitly requested open builds', async () => {
   const f = await reviewFixture('review-built');
   const item = await f.propose();
-  const { get } = await import('../workspace/store.ts');
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { get } = await import('../../workspace/store.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   const { designTool } = await import('./design.ts');
   const row = get('v2-inbox-native', 'alice', item.id);
   const readApproved = async () =>
@@ -2340,8 +2340,8 @@ test('approved designs show build reports and only explicitly requested open bui
 test('approval and boot never build; an explicit ask starts one build and links its task', async () => {
   const f = await reviewFixture('review-build-loop');
   const item = await f.propose();
-  const { get, list } = await import('../workspace/store.ts');
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { get, list } = await import('../../workspace/store.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   const { landDesignApprovals, designBuildBrief } = await import('./design.ts');
   for (const worker of list('worker', 'alice'))
     save('worker', 'alice', { ...worker, heartbeat: '2000-01-01T00:00:00Z' });
@@ -2405,8 +2405,8 @@ test('approval and boot never build; an explicit ask starts one build and links 
 test('build errors leave no build and can be retried; proposer follow-ups are queued exactly once', async () => {
   const f = await reviewFixture('review-build-request');
   const item = await f.propose();
-  const { get, list } = await import('../workspace/store.ts');
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { get, list } = await import('../../workspace/store.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   const taskId = 'build-proposer';
   const row = get('v2-inbox-native', 'alice', item.id);
   save('task', 'alice', {
@@ -2475,8 +2475,8 @@ for (const status of ['cancelled', 'archived'])
   test(`${status} proposers can only build in a new task`, async () => {
     const f = await reviewFixture(`review-build-${status}`);
     const item = await f.propose();
-    const { get } = await import('../workspace/store.ts');
-    const { answerInboxAsync } = await import('./inbox.ts');
+    const { get } = await import('../../workspace/store.ts');
+    const { answerInboxAsync } = await import('../../v2/inbox.ts');
     const row = get('v2-inbox-native', 'alice', item.id);
     const taskId = `proposer-${status}`;
     save('task', 'alice', { id: taskId, status, projectId: f.project.id });
@@ -2564,7 +2564,7 @@ test('element-level auto merge is resolved and approval lands both changes', asy
   assert.match(review.resolutions[0].mainChanged, /release list/);
   assert.match(review.resolutions[0].proposalChanged, /header row/);
   assert.equal(review.boards[0].main, review.main);
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   await answerInboxAsync('alice', f.item.id, { actionId: 'approve', on: 'cli' });
   const landed = await f.run(['show', 'main:design/boards/Alpha.html']);
   assert.match(landed, />Two</);
@@ -2589,7 +2589,7 @@ test('a stylesheet both sides added rules to keeps both and never blocks the rev
   const review = await f.read(item);
   assert.equal(review.stale, false);
   assert.equal(review.resolutions.find((r: any) => r.file === 'ds/sheet.css').kind, 'kept-both');
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'cli' });
   const landed = await f.run(['show', 'main:design/ds/sheet.css']);
   assert.match(landed, /\.main\{gap:4px\}\n\.proposal\{gap:8px\}/);
@@ -2598,7 +2598,7 @@ test('a stylesheet both sides added rules to keeps both and never blocks the rev
 for (const value of ['main', 'proposal'] as const)
   test(`overlapping elements require a choice; ${value} keeps independent changes too`, async () => {
     const f = await mergeFixture(`elements-${value}`, true);
-    const { answerInboxAsync } = await import('./inbox.ts');
+    const { answerInboxAsync } = await import('../../v2/inbox.ts');
     for (const actionId of ['approve', 'changes'])
       await assert.rejects(
         () => answerInboxAsync('alice', f.item.id, { actionId, on: 'web', note: 'Adjust' }),
@@ -2643,9 +2643,9 @@ test('unparseable boards use a whole-screen choice and main moves invalidate sav
   review = await f.read(f.item);
   assert.equal(review.resolutions[0].choice, null);
   assert.equal(review.stale, true);
-  const { get } = await import('../workspace/store.ts');
+  const { get } = await import('../../workspace/store.ts');
   assert.deepEqual(get('v2-inbox-native', 'alice', f.item.id).context.choices, {});
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   await assert.rejects(
     () => answerInboxAsync('alice', f.item.id, { actionId: 'approve', on: 'web' }),
     /Resolve them/,
@@ -2657,8 +2657,8 @@ test('unparseable boards use a whole-screen choice and main moves invalidate sav
 
 test('owner Ask to update creates and links a task, once, with the conflicting screens', async () => {
   const f = await mergeFixture('elements-owner', true);
-  const { answerInboxAsync } = await import('./inbox.ts');
-  const { get, list } = await import('../workspace/store.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
+  const { get, list } = await import('../../workspace/store.ts');
   const before = list('task', 'alice').length;
   await answerInboxAsync('alice', f.item.id, { actionId: 'update', on: 'web' });
   const review = await f.read(f.item);
@@ -2706,7 +2706,7 @@ test('different canvas notes merge, the same note takes a reversible choice', as
     ).status,
     200,
   );
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web' });
   const landed = JSON.parse(await f.run(['show', 'main:design/canvas.json']));
   assert.equal(landed.notes['section-agents'].text, 'Main agent note');
@@ -2731,7 +2731,7 @@ test('a new proposal commit never inherits a choice made for the previous commit
 
 test('Ask to update retains the proposer task and appends its update brief', async () => {
   const f = await mergeFixture('elements-agent-update', true);
-  const { get, list } = await import('../workspace/store.ts');
+  const { get, list } = await import('../../workspace/store.ts');
   const taskId = 'elements-agent-task';
   save('task', 'alice', { id: taskId, projectId: f.project.id, revision: 1 });
   save('run', 'alice', { id: 'elements-agent-run', taskId, status: 'running' });
@@ -2748,7 +2748,7 @@ test('Ask to update retains the proposer task and appends its update brief', asy
     context: { ...row.context, taskId },
   });
   const before = list('task', 'alice').length;
-  const { answerInboxAsync } = await import('./inbox.ts');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
   await answerInboxAsync('alice', f.item.id, { actionId: 'update', on: 'web' });
   assert.equal(list('task', 'alice').length, before);
   assert.equal((await f.read(f.item)).item.taskId, taskId);

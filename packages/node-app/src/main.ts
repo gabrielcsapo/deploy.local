@@ -26,8 +26,14 @@ import { installChromium } from '../../../bin/browser-install.mjs';
 import type { BrowserInstallStatus } from './bridge.ts';
 import { runDesktopHelper } from '../../../bin/desktop-helper.mjs';
 import { desktopRequest } from '../../../server/workspace/linux-desktop.ts';
-import { readNodeSnapshot, readNodeStatus } from '../../../server/workspace/node-status.ts';
-import { controlPaused, setControlPaused } from '../../../server/workspace/node-control.ts';
+import {
+  readNodeSnapshot,
+  readNodeStatus,
+} from '../../../server/features/computers/node-status.ts';
+import {
+  controlPaused,
+  setControlPaused,
+} from '../../../server/features/computers/node-control.ts';
 import tokens from '../../../app/design-tokens.json' with { type: 'json' };
 import { trayModel } from './tray-model.ts';
 import type { TrayAction, TrayItem } from './tray-model.ts';

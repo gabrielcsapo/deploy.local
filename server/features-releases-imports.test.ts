@@ -102,8 +102,6 @@ const exceptions: Record<string, string> = {
     'Existing public release and update types; preserve client contracts.',
   'releases-remote.ts -> server/store.ts':
     'Existing engine records and bootstrap; preserve database evaluation order.',
-  'releases-remote.ts -> server/v2/releases-worker.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-runtime.ts -> server/agent-graph-payload.ts':
     'Existing worker graph payload construction; preserve remote release jobs.',
   'releases-runtime.ts -> server/agent-graph-recording.ts':
@@ -130,8 +128,6 @@ const exceptions: Record<string, string> = {
     'Existing engine records and bootstrap; preserve database evaluation order.',
   'releases-runtime.ts -> server/upload-archive.ts':
     'Existing source archive inspection; preserve release source validation.',
-  'releases-runtime.ts -> server/v2/releases-worker.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-runtime.ts -> server/v2/releases.ts':
     'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-runtime.ts -> server/volumes.ts':
@@ -140,6 +136,12 @@ const exceptions: Record<string, string> = {
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'releases-runtime.ts -> shared/v2/contracts.ts':
     'Existing public release and update types; preserve client contracts.',
+  'releases-worker.ts -> server/agent-graph-runtime.ts':
+    'Existing worker graph execution; preserve remote release jobs and receipts.',
+  'releases-worker.ts -> server/secrets.ts':
+    'Existing secret key and encryption; preserve encrypted release worker state.',
+  'releases-worker.ts -> server/upload-archive.ts':
+    'Existing source archive inspection; preserve release source validation.',
   'releases-upload.ts -> server/v2/releases-api.ts':
     'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-upload.ts -> server/v2/releases.ts':

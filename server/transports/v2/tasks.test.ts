@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 const root = mkdtempSync(join(tmpdir(), 'v2-task-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { db, save, event } = await import('../workspace/store.ts');
+const { db, save, event } = await import('../../workspace/store.ts');
 const { taskSnapshot } = await import('./tasks.ts');
-const { mapConversationEvent } = await import('./events.ts');
+const { mapConversationEvent } = await import('../../v2/events.ts');
 after(() => {
   db.close();
   rmSync(root, { recursive: true, force: true });
@@ -135,7 +135,7 @@ test('Existing task, checkpoint, check and job events become stable typed conver
 });
 
 test('Task route passes through owner authentication and refuses agent credentials', async () => {
-  const { v2Api } = await import('./api.ts');
+  const { v2Api } = await import('../../v2/api.ts');
   async function request(owner: string | null, headers = {}) {
     let status = 0,
       body = '';
@@ -297,7 +297,7 @@ test('task route reads branch distance and linked app facts without exposing a r
     targetBranch: 'main',
     status: 'open',
   });
-  const { saveDeployment } = await import('../store.ts');
+  const { saveDeployment } = await import('../../store.ts');
   saveDeployment({ name: 'tally', username: 'facts-owner', port: 3000 });
   const { tasksApi } = await import('./tasks.ts');
   let body: any;

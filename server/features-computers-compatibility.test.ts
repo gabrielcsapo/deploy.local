@@ -12,7 +12,13 @@ test('every computers compatibility path exposes the same module bindings', asyn
   const data = mkdtempSync(join(tmpdir(), 'computers-compatibility-'));
   process.env.DEPLOY_DATA_DIR = data;
   try {
-    for (const [oldPath, newPath] of [['v2/computers.ts', 'features/computers/computers.ts']]) {
+    for (const [oldPath, newPath] of [
+      ['v2/computers.ts', 'features/computers/computers.ts'],
+      ['workspace/node-status.ts', 'features/computers/node-status.ts'],
+      ['workspace/node-control.ts', 'features/computers/node-control.ts'],
+      ['workspace/node-permissions.ts', 'features/computers/node-permissions.ts'],
+      ['workspace/credentials.ts', 'features/computers/credentials.ts'],
+    ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);
       assert.deepEqual(Object.keys(oldModule), Object.keys(newModule), oldPath);

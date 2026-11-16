@@ -103,7 +103,7 @@ test('Mac capabilities use detected helper permissions; missing information rema
 });
 
 test('CLI and Node enrollment share the same request and private credential storage without exposing tokens', async () => {
-  const { joinAgent, readAgentConfig } = await import('../../bin/agent-enrollment.mjs');
+  const { joinAgent, readAgentConfig } = await import('../../../bin/agent-enrollment.mjs');
   const directory = mkdtempSync(join(tmpdir(), 'node-enrollment-'));
   try {
     const path = join(directory, 'agent.json');
@@ -142,8 +142,8 @@ test('CLI and Node enrollment share the same request and private credential stor
 });
 
 test('Electron-backed coding tools explicitly keep their MCP subprocesses in headless Node mode', async () => {
-  const { agentLaunch } = await import('./agent-launch.ts');
-  const { nodeRuntimeEnvironment } = await import('./node-runtime.ts');
+  const { agentLaunch } = await import('../../workspace/agent-launch.ts');
+  const { nodeRuntimeEnvironment } = await import('../../workspace/node-runtime.ts');
   assert.deepEqual(nodeRuntimeEnvironment({}), {});
   assert.deepEqual(nodeRuntimeEnvironment({ ELECTRON_RUN_AS_NODE: '1' }), {
     ELECTRON_RUN_AS_NODE: '1',
@@ -163,7 +163,7 @@ test('Electron-backed coding tools explicitly keep their MCP subprocesses in hea
 });
 
 test('SEA workers launch embedded adapters and MCP commands, while source workers retain scripts', async () => {
-  const { workerEntry } = await import('./worker-entry.ts');
+  const { workerEntry } = await import('../../workspace/worker-entry.ts');
   for (const name of ['mcp', 'claude-agent', 'compatible-agent']) {
     assert.deepEqual(workerEntry(name, true), ['worker', name]);
     assert.deepEqual(workerEntry(name, false, 'file:///repo/server/workspace/worker-entry.ts'), [
@@ -176,7 +176,7 @@ test('SEA workers launch embedded adapters and MCP commands, while source worker
 });
 
 test('git subprocesses retain worker CA trust while rejecting repository redirects and disabled verification', async () => {
-  const { gitEnvironment } = await import('./repository-git.ts');
+  const { gitEnvironment } = await import('../../workspace/repository-git.ts');
   const saved = {
     GIT_SSL_CAINFO: process.env.GIT_SSL_CAINFO,
     GIT_DIR: process.env.GIT_DIR,

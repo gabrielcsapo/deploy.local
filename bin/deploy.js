@@ -40,7 +40,7 @@ import {
   reportedApps,
   runtimeStartCommand,
 } from './agent-relays.mjs';
-import { readNodeStatus } from '../server/workspace/node-status.ts';
+import { readNodeStatus } from '../server/features/computers/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
@@ -127,7 +127,7 @@ import { compileDeployYaml, parseRepositoryBaseDigest } from '../server/applicat
 import { planApplicationChange } from '../server/application-plan.ts';
 import { inspectUploadArchive } from '../server/upload-archive.ts';
 import { resolveAgentContainerName } from '../server/agent-container-target.ts';
-import { executeReleaseAgentJob } from '../server/v2/releases-worker.ts';
+import { executeReleaseAgentJob } from '../server/features/releases/releases-worker.ts';
 import { executeAgentApplicationGraph } from '../server/agent-graph-runtime.ts';
 import { startTelemetryRelay } from '../server/telemetry-relay.ts';
 import { configureRemoteTelemetry } from '../server/telemetry-runtime.ts';

@@ -31,6 +31,8 @@ test('every transports compatibility path exposes the same module bindings', asy
       ['v2/requests.ts', 'transports/v2/requests.ts'],
       ['v2/search.ts', 'transports/v2/search.ts'],
       ['v2/start.ts', 'transports/v2/start.ts'],
+      ['v2/tasks.ts', 'transports/v2/tasks.ts'],
+      ['v2/screenshots.ts', 'transports/v2/screenshots.ts'],
     ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);

@@ -16,8 +16,19 @@ function imports(source: string) {
 }
 
 // Exact exceptions retained by the pure move. An edge disappearing also requires review.
-const workspaceOrigins = new Set<string>([]);
+const workspaceOrigins = new Set<string>([
+  'node-status.ts',
+  'node-control.ts',
+  'node-permissions.ts',
+  'credentials.ts',
+]);
 const exceptions: Record<string, string> = {
+  'credentials.ts -> server/packages/keys.ts':
+    'Package hooks deliberately have optional behavior in CLI/remote workers; leave the package credential policy together until its process-specific composition is extracted.',
+  'credentials.ts -> server/workspace/computer-role-policy.ts':
+    'Existing effective worker-role policy and its owning-store bootstrap; preserve enrollment refusals and evaluation order.',
+  'credentials.ts -> server/workspace/store.ts':
+    'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'computers.ts -> server/packages/keys.ts':
     'Existing computer package-key revocation; preserve removal cleanup.',
   'computers.ts -> server/store.ts':

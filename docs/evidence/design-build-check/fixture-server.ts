@@ -16,9 +16,10 @@ const root = mkdtempSync(join(tmpdir(), 'design-build-check-fixture-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { db, save, get, list, remove } = await import('../../../server/workspace/store.ts');
 const { v2Api } = await import('../../../server/v2/api.ts');
-const { designTool, renderBoard } = await import('../../../server/v2/design.ts');
-const { taskSnapshot } = await import('../../../server/v2/tasks.ts');
-const { queueScreenshots, screenshotWorker } = await import('../../../server/v2/screenshots.ts');
+const { designTool, renderBoard } = await import('../../../server/features/design/design.ts');
+const { taskSnapshot } = await import('../../../server/transports/v2/tasks.ts');
+const { queueScreenshots, screenshotWorker } =
+  await import('../../../server/transports/v2/screenshots.ts');
 const { answerInbox } = await import('../../../server/v2/inbox.ts');
 const owner = 'design-build-fixture';
 const repo = join(root, 'repository');

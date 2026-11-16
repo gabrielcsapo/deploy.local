@@ -71,12 +71,6 @@ const exceptions: Record<string, string> = {
     'Existing patch/digest implementation retained to satisfy the runtime port order guard.',
   'turn-checkpoint.ts -> server/workspace/review.ts':
     'Existing patch/digest implementation retained to satisfy the runtime port order guard.',
-  'interactive-runtime.ts -> server/workspace/node-control.ts':
-    'Existing worker pause policy; moving computer control is outside this task move.',
-  'interactive-runtime.ts -> server/workspace/node-permissions.ts':
-    'Existing worker capability policy; preserve interactive admission.',
-  'interactive.ts -> server/workspace/node-permissions.ts':
-    'Existing worker capability policy; preserve interactive admission.',
   'interactive-runtime.ts -> server/workspace/linux-desktop.ts':
     'Existing Linux desktop adapter; preserve computer-control execution.',
   'interactive.ts -> server/workspace/computer-role-policy.ts':
@@ -97,6 +91,12 @@ const exceptions: Record<string, string> = {
     'Existing worker projection and AgentScope type; preserve admission and placement.',
   'task-workspace.ts -> server/features/agents/coordination.ts':
     'Existing worker projection and AgentScope type; preserve admission and placement.',
+  'interactive-runtime.ts -> server/features/computers/node-control.ts':
+    'Existing worker pause policy; moving computer control is outside this task move.',
+  'interactive-runtime.ts -> server/features/computers/node-permissions.ts':
+    'Existing worker capability policy; preserve interactive admission.',
+  'interactive.ts -> server/features/computers/node-permissions.ts':
+    'Existing worker capability policy; preserve interactive admission.',
   'job-artifacts.ts -> server/features/releases/application-deployment.ts':
     'Existing deployment log redaction; preserve artifact secret filtering.',
   'job-runner.ts -> server/workspace/git-url-migration.ts':

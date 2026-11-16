@@ -44,7 +44,7 @@ const root = mkdtempSync(join(tmpdir(), 'design-perf-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { get: read, save } = await import('../../server/workspace/store.ts');
 const { v2Api } = await import('../../server/v2/api.ts');
-const { designReview, proposeDesign } = await import('../../server/v2/design.ts');
+const { designReview, proposeDesign } = await import('../../server/features/design/design.ts');
 
 // The fixture: this repository cloned, main at this commit, design/perf changing 20 boards and adding 2.
 const source = resolve(import.meta.dirname, '../..');

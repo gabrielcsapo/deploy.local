@@ -22,6 +22,33 @@ const exceptions: Record<string, string> = {
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'design-check.ts -> shared/v2/contracts.ts':
     'Existing public design check and inbox types; preserve client contracts.',
+  'design.ts ->  on top of ':
+    'Not an import: the scanner matches the doc comment "`from` on top of `target`"; the moved source is unchanged.',
+  'design.ts -> playwright':
+    'Existing optional board-rendering browser runtime and types; preserve lazy browser startup.',
+  'design.ts -> server/design/board-html.ts':
+    'Existing board HTML reader; preserve board rendering and layer identities.',
+  'design.ts -> server/design/board-merge.ts': 'Existing board merge; preserve merged board bytes.',
+  'design.ts -> server/design/review-evidence.ts':
+    'Existing review evidence reader; preserve Before and After evidence.',
+  'design.ts -> server/v2/attachments.ts':
+    'Existing product dependency retained from v2; preserve design review and evaluation order.',
+  'design.ts -> server/v2/task-computer.ts':
+    'Existing product dependency retained from v2; preserve design review and evaluation order.',
+  'design.ts -> server/workspace/computer-role-policy.ts':
+    'Existing effective worker-role checks; preserve refusals and placement.',
+  'design.ts -> server/workspace/store.ts':
+    'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'design.ts -> server/workspace/tool-probes.ts':
+    'Existing tool probes; preserve design build checks.',
+  'design.ts -> shared/v2/artifacts.ts':
+    'Shared artifact names with no imports of their own; a document review is named the same on server and clients.',
+  'design.ts -> shared/v2/contracts.ts':
+    'Existing public design, task and inbox types; preserve client contracts.',
+  'design.ts -> shared/v2/design-review.ts':
+    'Existing shared design review model; preserve review areas on server and clients.',
+  'design.ts -> shared/v2/design.ts':
+    'Existing shared canvas model; preserve canvas parsing on server and clients.',
 };
 
 test('design preserve origin boundaries and allow only reviewed dependencies', () => {

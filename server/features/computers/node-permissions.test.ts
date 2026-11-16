@@ -8,11 +8,11 @@ import { once } from 'node:events';
 import { nodePermissions, type PermissionInputs } from './node-permissions.ts';
 
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-node-permissions-test-'));
-const { save, list, id, now } = await import('./store.ts');
-const { interactiveWorker, interactiveOperator } = await import('./interactive.ts');
-const { computers, revokeWorker } = await import('./coordination.ts');
+const { save, list, id, now } = await import('../../workspace/store.ts');
+const { interactiveWorker, interactiveOperator } = await import('../../workspace/interactive.ts');
+const { computers, revokeWorker } = await import('../../workspace/coordination.ts');
 const { enrollWorker } = await import('./credentials.ts');
-const { workspaceApi } = await import('./api.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
 
 const linuxDesktop = (status: any = {}) => ({
   id: 'desktop',
@@ -313,7 +313,7 @@ test('embedded clients read permissions over the API; worker credentials cannot'
 });
 
 test('worker registration and control heartbeat carry the shared capability shape into Computers fix lines', async () => {
-  const { workerCommand } = await import('./protocol.ts');
+  const { workerCommand } = await import('../../workspace/protocol.ts');
   const { nodeCapabilities } = await import('./node-permissions.ts');
   const owner = 'capability-computer';
   const capabilities = nodeCapabilities(

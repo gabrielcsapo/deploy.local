@@ -1,5 +1,5 @@
-import type { NodeStatus } from '../../../server/workspace/node-status.ts';
-import { nodePermissions } from '../../../server/workspace/node-permissions.ts';
+import type { NodeStatus } from '../../../server/features/computers/node-status.ts';
+import { nodePermissions } from '../../../server/features/computers/node-permissions.ts';
 
 export type CoordinatorStatus = {
   present: boolean;

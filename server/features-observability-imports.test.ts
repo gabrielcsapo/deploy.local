@@ -16,7 +16,7 @@ function imports(source: string) {
 }
 
 // Exact exceptions retained by the pure move. An edge disappearing also requires review.
-const workspaceOrigins = new Set<string>(['event-clip.ts']);
+const workspaceOrigins = new Set<string>(['event-clip.ts', 'health-event-retention.ts']);
 const exceptions: Record<string, string> = {
   'health.ts -> shared/v2/contracts.ts':
     'Existing public health and Live types; preserve client contracts.',

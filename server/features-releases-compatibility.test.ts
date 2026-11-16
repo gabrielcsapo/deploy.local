@@ -33,6 +33,7 @@ test('every releases compatibility path exposes the same module bindings', async
         'features/releases/application-deployment-instructions.ts',
       ],
       ['workspace/pipeline-triggers.ts', 'features/releases/pipeline-triggers.ts'],
+      ['v2/releases-worker.ts', 'features/releases/releases-worker.ts'],
     ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);

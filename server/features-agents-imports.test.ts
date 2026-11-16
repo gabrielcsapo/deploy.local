@@ -78,8 +78,6 @@ const exceptions: Record<string, string> = {
     'Existing effective worker-role policy; preserve admission refusals.',
   'coordination.ts -> server/workspace/computer-view.ts':
     'Existing cached computer projection; preserve worker visibility.',
-  'coordination.ts -> server/workspace/node-permissions.ts':
-    'Existing node permission policy; preserve control admission.',
   'coordination.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'coordination.ts -> server/workspace/worker-capabilities.ts':

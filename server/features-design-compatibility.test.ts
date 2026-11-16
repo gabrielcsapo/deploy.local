@@ -12,7 +12,10 @@ test('every design compatibility path exposes the same module bindings', async (
   const data = mkdtempSync(join(tmpdir(), 'design-compatibility-'));
   process.env.DEPLOY_DATA_DIR = data;
   try {
-    for (const [oldPath, newPath] of [['v2/design-check.ts', 'features/design/design-check.ts']]) {
+    for (const [oldPath, newPath] of [
+      ['v2/design-check.ts', 'features/design/design-check.ts'],
+      ['v2/design.ts', 'features/design/design.ts'],
+    ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);
       assert.deepEqual(Object.keys(oldModule), Object.keys(newModule), oldPath);

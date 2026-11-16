@@ -8,9 +8,9 @@ import { once } from 'node:events';
 const root = mkdtempSync(join(tmpdir(), 'v2-screenshots-'));
 process.env.DEPLOY_DATA_DIR = root;
 process.env.DEPLOY_CODEX_BIN = '/usr/bin/false';
-const store = await import('../store.ts');
-const { db, get, save, events, list } = await import('../workspace/store.ts');
-const { v2Api } = await import('./api.ts');
+const store = await import('../../store.ts');
+const { db, get, save, events, list } = await import('../../workspace/store.ts');
+const { v2Api } = await import('../../v2/api.ts');
 const {
   queueScreenshots,
   screenshotWorker,
@@ -19,8 +19,9 @@ const {
   validateTarget,
   sendTaskMessage,
 } = await import('./screenshots.ts');
-const { storeAttachment, attachmentRecord, mapMediaEvent } = await import('./attachments.ts');
-const { enrollWorker } = await import('../workspace/credentials.ts');
+const { storeAttachment, attachmentRecord, mapMediaEvent } =
+  await import('../../v2/attachments.ts');
+const { enrollWorker } = await import('../../workspace/credentials.ts');
 const server = createServer(
   (req, res) =>
     void v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') })),
