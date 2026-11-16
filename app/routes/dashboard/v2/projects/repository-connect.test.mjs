@@ -187,3 +187,40 @@ test('empty repository push commands use its hosted address and the add-app line
     .props.onClick({ preventDefault() {} });
   assert.equal(opened, 1);
 });
+
+test('empty repository push commands offer SSH when the server runs it', async () => {
+  let protocol = 'https';
+  const h = await componentHarness('app/routes/dashboard/v2/projects/project-start.client.tsx', {
+    '@/components/ui': uiStubs,
+    './data': { useBrowserOrigin: () => 'https://deploy.local', request() {} },
+    './code.client': { CopyButton: 'CopyButton' },
+    './clone.client': {
+      CloneTabs: 'CloneTabs',
+      SshKeyHint: 'SshKeyHint',
+      useCloneProtocol: (ssh) => ({ shown: ssh ? protocol : 'https', choose() {} }),
+    },
+  });
+  const repository = {
+    clonePath: '/recipes.git',
+    sshClonePath: '/recipes.git',
+    defaultBranch: 'main',
+  };
+  let tree = h.render(h.exports.ProjectPushCode, { project, overview: { repository } });
+  assert.equal(elements(tree, 'CloneTabs').length, 0, 'no tabs without an SSH port');
+
+  const withSsh = { project, overview: { repository: { ...repository, sshPort: 2222 } } };
+  tree = h.render(h.exports.ProjectPushCode, withSsh);
+  assert.equal(elements(tree, 'CloneTabs')[0].props.label, 'Push with');
+  assert.equal(elements(tree, 'SshKeyHint').length, 0);
+  protocol = 'ssh';
+  tree = h.render(h.exports.ProjectPushCode, withSsh);
+  assert.equal(
+    elements(tree, 'pre')[0].props.children,
+    'git remote add deploy ssh://git@deploy.local:2222/recipes.git\ngit push deploy main',
+  );
+  assert.equal(
+    elements(tree, 'CopyButton')[0].props.value,
+    elements(tree, 'pre')[0].props.children,
+  );
+  assert.equal(elements(tree, 'SshKeyHint').length, 1);
+});

@@ -326,7 +326,8 @@
   right: 8px;
 }
 .v2-project-start-push > .dl-meta {
-  margin: 10px 0 0;
+  /* With the section's 12px gap: 10px under the commands. */
+  margin: -2px 0 0;
 }
 .v2-project-start-push a {
   color: var(--ds-accent);
@@ -365,4 +366,12 @@
   .v2-project-page .dl-tabs[data-more='true'] {
     mask-image: linear-gradient(90deg, var(--ds-ink) calc(100% - 32px), transparent);
   }
+}
+.v2-project-start-push > .v2-clone-tabs {
+  /* 8px above the commands. */
+  margin-bottom: -4px;
+}
+.v2-project-start-push > .dl-meta + .dl-meta {
+  /* 6px between the notes. */
+  margin-top: -6px;
 }
