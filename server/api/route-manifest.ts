@@ -1680,6 +1680,16 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/projects/:project/repository/branches',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/repository/default-branch',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
     path: '/api/projects/:project/repository/:action(tree|blob|history|diff|files|entry)',
     handler: 'workspace',
   },

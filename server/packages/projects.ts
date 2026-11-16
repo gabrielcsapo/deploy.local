@@ -31,7 +31,7 @@ export async function packageProject(owner: string, repository: unknown): Promis
   );
   return matches.length === 1 ? matches[0].id : null;
 }
-/** Read only main. No warming, pins, or Ready-state inference in this slice. */
+/** Read only the default branch. No warming, pins, or Ready-state inference in this slice. */
 export async function usedBy(owner: string, name: string, cache = usageCache, ecosystem = 'npm') {
   const result: { id: string; name: string; versions: string[]; sameRepository: boolean }[] = [];
   for (const project of list('project', owner)) {
@@ -39,7 +39,7 @@ export async function usedBy(owner: string, name: string, cache = usageCache, ec
     let commit: string;
     try {
       commit = (
-        await repositoryGit(project.repositoryPath, ['rev-parse', 'refs/heads/main'], {
+        await repositoryGit(project.repositoryPath, ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`], {
           limit: 1024,
           timeout: 5000,
         })

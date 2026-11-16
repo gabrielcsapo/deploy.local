@@ -8,6 +8,7 @@ import { useCoordinatorName } from '../data/hooks';
 import { pullHref } from '../tasks/pull-presentation';
 import { request, useData, useBrowserHost, type Overview } from './data';
 import { projectSegment } from './routing';
+import { DefaultBranchDialog } from './default-branch.client';
 
 type Repository = NonNullable<Overview['repository']> & {
   operation?: {
@@ -26,6 +27,7 @@ export function RepositorySettings({ project }: { project: Project }) {
   const base = `/api/projects/${projectSegment(project.id)}/repository`;
   const repository = useData<Repository>(base);
   const [adding, setAdding] = useState(false);
+  const [changingBranch, setChangingBranch] = useState(false);
   const [remote, setRemote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -137,8 +139,16 @@ export function RepositorySettings({ project }: { project: Project }) {
             <span className="dl-tag">{both ? 'Both ways' : 'Fetch only'}</span>
           </Setting>
         )}
-        <Setting label="Releases from" description="Merges to this branch become releases">
+        <Setting
+          label="Default branch"
+          description="Tasks merge into it, and its merges become releases"
+        >
           <code>{data.defaultBranch || 'Unavailable'}</code>
+          {data.defaultBranch && (
+            <Action variant="quiet" onClick={() => setChangingBranch(true)}>
+              Change
+            </Action>
+          )}
         </Setting>
         <Setting label="Deploy file">deploy.yaml</Setting>
       </Group>
@@ -148,6 +158,13 @@ export function RepositorySettings({ project }: { project: Project }) {
           {project.name} lives only on deploy.local.
         </p>
       )}
+      <DefaultBranchDialog
+        open={changingBranch}
+        onClose={() => setChangingBranch(false)}
+        base={base}
+        remote={location}
+        onChanged={repository.refresh}
+      />
       <Dialog
         open={adding}
         onClose={() => {

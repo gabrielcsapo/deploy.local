@@ -122,6 +122,8 @@ const exceptions: Record<string, string> = {
     'Existing graph Docker adapter and types; preserve container and volume identities.',
   'releases-runtime.ts -> server/graph-runtime-store.ts':
     'Existing durable graph state; preserve instance and endpoint publication order.',
+  'releases-runtime.ts -> server/certs.ts':
+    'A released app with a route needs its <name>.local on the shared certificate, as an upload gets.',
   'releases-runtime.ts -> server/ipc.ts':
     'Existing route-change notification; preserve activation publication timing.',
   'releases-runtime.ts -> server/store.ts':
