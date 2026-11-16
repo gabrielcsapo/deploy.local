@@ -15,7 +15,7 @@ if (process.env.DEPLOY_TEST_NO_BROWSER === '1') {
 const root = mkdtempSync(join(tmpdir(), 'v2-design-'));
 process.env.DEPLOY_DATA_DIR = root;
 const store = await import('../../store.ts');
-const { db, save } = await import('../../workspace/store.ts');
+const { db, save, get: getRecord } = await import('../../workspace/store.ts');
 const { gitText } = await import('../../workspace/repository-git.ts');
 const { v2Api } = await import('../../v2/api.ts');
 const { askPrompt, componentPrompt } = await import('./design.ts');
@@ -2757,3 +2757,127 @@ test('Ask to update retains the proposer task and appends its update brief', asy
     /Keep this existing request\.[\s\S]*Alpha.html[\s\S]*propose again/,
   );
 });
+
+test('an agent lists designs, starts a named one in a project with none, and proposes it there', async () => {
+  const freshRepo = join(root, 'fresh');
+  mkdirSync(freshRepo, { recursive: true });
+  const run = (args: string[]) => gitText(freshRepo, args);
+  await run(['init', '--initial-branch=main']);
+  await run(['config', 'user.name', 'Design Test']);
+  await run(['config', 'user.email', 'test@example.invalid']);
+  writeFileSync(join(freshRepo, 'README.md'), '# Drop\n');
+  mkdirSync(join(freshRepo, 'artifacts/notes'), { recursive: true });
+  writeFileSync(join(freshRepo, 'artifacts/notes/document.md'), '# Notes\n');
+  await run(['add', '.']);
+  await run(['commit', '-q', '-m', 'Start']);
+  const head = await run(['rev-parse', 'HEAD']);
+  save('project', 'alice', {
+    id: 'fresh',
+    name: 'Drop',
+    repositoryPath: freshRepo,
+    repositoryStatus: 'ready',
+  });
+  const taskId = 'cafe0001-0000';
+  save('task', 'alice', {
+    id: taskId,
+    projectId: 'fresh',
+    title: 'Elevate Drop',
+    baseRevision: head,
+  });
+  const { designTool } = await import('./design.ts');
+  const tool = designTool as (scope: object, args: object) => Promise<any>;
+  const scope = { owner: 'alice', taskId };
+
+  const listed = await tool(scope, { action: 'list' });
+  assert.equal(listed.main, 'main');
+  assert.deepEqual(listed.designs, [
+    { name: 'notes', folder: 'artifacts/notes', kind: 'document' },
+  ]);
+  assert.equal(listed.using, null);
+
+  await assert.rejects(
+    () => tool(scope, { action: 'use', artifact: 'Drop Redesign' }),
+    /artifact must be/,
+  );
+  await assert.rejects(() => tool(scope, { action: 'use', artifact: 'notes' }), /is a document/);
+
+  const used = await tool(scope, { action: 'use', artifact: 'drop-redesign' });
+  assert.equal(used.folder, 'artifacts/drop-redesign');
+  assert.equal(used.exists, false);
+  assert.equal(used.starter[0].path, 'artifacts/drop-redesign/canvas.json');
+  assert.deepEqual(JSON.parse(used.starter[0].content), {
+    title: 'drop-redesign',
+    boards: {},
+    order: [],
+    notes: {},
+  });
+  assert.match(used.boardTemplate, /<meta name="design-board" content="width=1440,height=900">/);
+  assert.match(used.guide, /Work only in artifacts\/drop-redesign\//);
+  const bound = store_get('task', taskId).design;
+  assert.equal(bound.folder, 'artifacts/drop-redesign');
+  assert.equal(bound.commit, head);
+  assert.equal((await tool(scope, { action: 'list' })).using, 'artifacts/drop-redesign');
+
+  // The agent writes the starter and a board on its task branch, then proposes.
+  await run(['checkout', '-q', '-b', 'task/cafe0001']);
+  mkdirSync(join(freshRepo, 'artifacts/drop-redesign/boards'), { recursive: true });
+  writeFileSync(
+    join(freshRepo, 'artifacts/drop-redesign/canvas.json'),
+    JSON.stringify({
+      title: 'drop-redesign',
+      boards: { 'Upload.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Upload' } },
+      order: ['Upload.html'],
+      notes: {},
+    }),
+  );
+  writeFileSync(
+    join(freshRepo, 'artifacts/drop-redesign/boards/Upload.html'),
+    used.boardTemplate.replace('<body>', '<body><h1 data-layer="title">Drop a file</h1>'),
+  );
+  await run(['add', '.']);
+  await run(['commit', '-q', '-m', 'Upload board']);
+  await run(['checkout', '-q', 'main']);
+  const { item } = await tool(scope, {
+    action: 'propose',
+    title: 'A calmer Drop',
+    summary: 'One drop zone, one button.',
+  });
+  assert.match(item.text, /Upload/);
+  assert.equal(item.title, 'A calmer Drop');
+  // Approving it puts the named design on main, in its own folder.
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web' });
+  assert.match(
+    await run(['show', 'main:artifacts/drop-redesign/boards/Upload.html']),
+    /data-layer="title"/,
+  );
+  assert.equal(
+    await run(['ls-tree', '--name-only', 'main', '--', 'design']),
+    '',
+    'the App design is untouched',
+  );
+
+  // Back to the App design: the binding drops its folder.
+  const app = await tool(scope, { action: 'use' });
+  assert.equal(app.folder, 'design');
+  assert.equal(store_get('task', taskId).design.folder, undefined);
+
+  // A project with no design system of its own gets deploy.local's.
+  const css = await fetch(
+    `${origin}/api/projects/fresh/design/files/${head}/ds/deploy-local/tokens.css`,
+    {
+      headers: { 'x-test-owner': 'alice' },
+    },
+  );
+  assert.equal(css.status, 200);
+  assert.match(await css.text(), /--paper/);
+  const escape = await fetch(
+    `${origin}/api/projects/fresh/design/files/${head}/ds/..%2F..%2Fpackage.json`,
+    { headers: { 'x-test-owner': 'alice' } },
+  );
+  assert.notEqual(escape.status, 200);
+});
+
+function store_get(kind: string, id: string) {
+  return getRecord(kind, 'alice', id);
+}

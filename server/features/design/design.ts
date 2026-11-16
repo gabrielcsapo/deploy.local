@@ -24,7 +24,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } f
 import { deployDataPath } from '../../kernel/files/data-directory.ts';
 import { homeOf, readReleaseConfig } from '../../v2/self-update-host.ts';
 import { availableParallelism, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { EventEmitter } from 'node:events';
 import {
@@ -225,6 +225,27 @@ async function resolveCommit(
       ]);
   if (!commit) fail(`No commit named ${ref} in this project`, 404);
   return { ref, commit };
+}
+
+/**
+ * A file of the design system, ds/..., at a commit. A project with no design/ds of its own gets
+ * deploy.local's, from this release, so a new project's boards can use the tokens and dl-* classes.
+ */
+async function designSystemFile(repo: string, commit: string, path: string, presentation = false) {
+  const own = await readFile(
+    repo,
+    commit,
+    `${appDesignFolder}/${path}`,
+    2 * 1024 * 1024,
+    presentation,
+  );
+  if (own) return own;
+  if (!/^ds\/[\w.-]+(?:\/[\w.-]+)*$/.test(path) || path.split('/').includes('..')) return null;
+  try {
+    return await readDiskFile(resolve(process.cwd(), appDesignFolder, path));
+  } catch {
+    return null;
+  }
 }
 
 async function readFile(
@@ -2681,7 +2702,7 @@ async function drawBoard(
   // Inline the design system so the page needs nothing from this server.
   let page = html.toString();
   for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
-    const css = await readFile(repo, commit, `${appDesignFolder}/${match[1]}`);
+    const css = await designSystemFile(repo, commit, match[1]);
     page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
   }
   const { chromium } = await import('playwright');
@@ -2879,15 +2900,15 @@ export function askPrompt(input: {
       : []),
     '',
     'How to work:',
-    `- Change only files in ${dir}/. Keep every existing data-layer ID; after adding elements, run \`node scripts/design-layers.mjs\` on the boards you changed.`,
+    `- Change only files in ${dir}/. Keep every existing data-layer ID, and give new elements unique ones (\`node scripts/design-layers.mjs\` names them, if this project has it).`,
     ...(dir === appDesignFolder
       ? []
       : [
           `- Place each new board in ${dir}/canvas.json, with its title, position and size, and keep its file in ${dir}/boards/.`,
-          '- Link the design system from a board as ../ds/deploy-local/…, as the boards in design/boards do; deploy.local serves it from design/ds.',
+          '- Link the design system from a board as ../ds/deploy-local/…; deploy.local serves the project’s design/ds, or its own when the project has none.',
         ]),
-    '- Use only the design system in design/ds (the dl-* classes and the tokens). Follow design/ds/README.md.',
-    '- Render each board you change with `node design/tools/render.mjs <Board>` and look at every width before you finish.',
+    '- Use the design system (the dl-* classes and the tokens) and follow design/ds/README.md when the project has one.',
+    '- Look at each board you change at every width before you finish: with `node design/tools/render.mjs <Board>` if the project has it, otherwise by opening the file in a browser at that width.',
     '- Before you change a board or a layer, call deploy_design with action presence (board, layer, a short note) so the person watching sees where you work.',
     '- Commit as you go with deploy_checkpoint and deploy_commit, so the Design page shows your changes while you work. Do not build the change in the app: this task is the design only.',
     '- Read open comments with deploy_design action comments, and resolve the ones you addressed.',
@@ -3023,9 +3044,134 @@ async function runDesignTool(scope: { owner: string; taskId: string; runId?: str
       setImmediate(() => void warmReview(scope.owner, project, project.repositoryPath, item.id));
       return { item };
     }
+    case 'list':
+      return listDesigns(project, task);
+    case 'use':
+      return useDesign(scope.owner, project, task, args.artifact);
     default:
-      fail('action must be presence, comments, comment, resolve, propose or built');
+      fail('action must be list, use, presence, comments, comment, resolve, propose or built');
   }
+}
+
+/** The commit main points at, or a failure for a repository with no commits yet. */
+async function mainHead(repo: string) {
+  const main = await mainBranch(repo);
+  const head = await gitRead(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${main}^{commit}`,
+  ]);
+  if (!head) fail(`${main} has no commits yet`, 409);
+  return { main, head: head! };
+}
+
+/** The project's designs and documents on main, and the one this task works on. */
+async function listDesigns(project: any, task: any) {
+  const repo = project.repositoryPath as string;
+  const { main, head } = await mainHead(repo);
+  const files = (
+    (await gitRead(repo, [
+      'ls-tree',
+      '-r',
+      '--name-only',
+      head,
+      '--',
+      appDesignFolder,
+      'artifacts',
+    ])) ?? ''
+  )
+    .split('\n')
+    .filter(Boolean);
+  const boards = (folder: string) =>
+    files.filter((path) => path.startsWith(`${folder}/boards/`) && path.endsWith('.html')).length;
+  const designs: { name: string; folder: string; kind: 'design' | 'document'; boards?: number }[] =
+    [];
+  if (files.includes(`${appDesignFolder}/canvas.json`))
+    designs.push({
+      name: 'App design',
+      folder: appDesignFolder,
+      kind: 'design',
+      boards: boards(appDesignFolder),
+    });
+  for (const path of files) {
+    const match = path.match(
+      /^artifacts\/([a-z0-9]+(?:-[a-z0-9]+)*)\/(canvas\.json|document\.md)$/,
+    );
+    if (!match) continue;
+    const folder = `artifacts/${match[1]}`;
+    designs.push(
+      match[2] === 'canvas.json'
+        ? { name: match[1], folder, kind: 'design', boards: boards(folder) }
+        : { name: match[1], folder, kind: 'document' },
+    );
+  }
+  return {
+    main,
+    designs,
+    using: task.design ? (task.design.folder ?? appDesignFolder) : null,
+  };
+}
+
+/**
+ * Point this task at a design: the App design (design/) or a named one (artifacts/<name>/).
+ * Proposals from the task then go to that design's review. A design that is not on main yet
+ * starts from an empty canvas the agent writes into its workspace.
+ */
+async function useDesign(owner: string, project: any, task: any, artifact: unknown) {
+  const name = artifact == null || artifact === '' ? null : String(artifact);
+  if (name !== null && !artifactNamePattern.test(name))
+    fail('artifact must be a name like drop-redesign: lowercase letters, numbers and dashes');
+  const folder = name ? `artifacts/${name}` : appDesignFolder;
+  const repo = project.repositoryPath as string;
+  const { main, head } = await mainHead(repo);
+  const on = (path: string) => gitRead(repo, ['ls-tree', '--name-only', head, '--', path]);
+  if (name && (await on(`${folder}/document.md`)))
+    fail(`${folder} is a document; deploy_design works on designs`, 409);
+  const exists = Boolean(await on(`${folder}/canvas.json`));
+  const { folder: _previous, ...design } = task.design ?? {};
+  save('task', owner, {
+    ...get('task', owner, task.id),
+    design: {
+      ...design,
+      board: '',
+      layer: null,
+      ref: main,
+      commit: head,
+      askedAt: now(),
+      ...(name ? { folder } : {}),
+    },
+  });
+  const title = name ?? String(project.name ?? 'App design');
+  return {
+    folder,
+    exists,
+    ...(exists
+      ? {}
+      : {
+          starter: [
+            {
+              path: `${folder}/canvas.json`,
+              content: `${JSON.stringify({ title, boards: {}, order: [], notes: {} }, null, 2)}\n`,
+            },
+          ],
+          boardTemplate: blankBoard('Board title', 1440, 900),
+        }),
+    guide: designGuide(folder),
+  };
+}
+
+/** How a design is laid out, for an agent in a project that may have no design yet. */
+export function designGuide(folder: string) {
+  return [
+    `Work only in ${folder}/.`,
+    `${folder}/canvas.json: { "title", "boards": { "<Name>.html": { "x", "y", "w", "h", "title" } }, "order": ["<Name>.html"], "notes": { "<id>": { "x", "y", "text" } } }. Place boards apart on the canvas; web boards are usually 1440 wide (check them at 700 too) and phone boards 390.`,
+    `${folder}/boards/<Name>.html: one standalone page per board, with <meta name="design-board" content="width=W,height=H">. Give every element a person might point at a data-layer ID unique in its board, and keep those IDs when you change an element.`,
+    'Boards render with JavaScript off and load nothing but Google Fonts: no scripts, no remote images (inline small SVG instead).',
+    "Style: link ../ds/deploy-local/tokens.css and ../ds/deploy-local/components/bundle.css for deploy.local's tokens and dl-* classes (the project's design/ds if it has one, otherwise deploy.local's), or style the board in its own <style>.",
+    'deploy.local draws the boards for review itself. To look at one, open the file in a browser at its width. node design/tools/render.mjs exists only if this project has it.',
+    'Call presence before you change a board, commit as you go with deploy_checkpoint and deploy_commit, then propose. Change no app code until the owner approves the design and asks you to build it.',
+  ].join('\n');
 }
 
 export async function designApi(req: IncomingMessage, res: ServerResponse, owner: string) {
@@ -3113,13 +3259,9 @@ async function projectDesignApi(
           const type = fileTypes[path.split('.').pop()!];
           if (!type) fail('Not found', 404);
           // Boards are the design's own; the design system is the project's, in design/ds.
-          const bytes = await readFile(
-            repo,
-            commit,
-            `${path.startsWith('ds/') ? appDesignFolder : dir}/${path}`,
-            2 * 1024 * 1024,
-            true,
-          );
+          const bytes = path.startsWith('ds/')
+            ? await designSystemFile(repo, commit, path, true)
+            : await readFile(repo, commit, `${dir}/${path}`, 2 * 1024 * 1024, true);
           if (!bytes) fail('Not found', 404);
           res.writeHead(200, {
             'Content-Type': type,
