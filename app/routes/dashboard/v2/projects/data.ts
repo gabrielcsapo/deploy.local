@@ -109,6 +109,9 @@ export type Overview = {
       syncPolicy?: string;
     };
     clonePath?: string;
+    /** `/<address>.git` on this server's SSH port; the port is null when SSH is off. */
+    sshClonePath?: string;
+    sshPort?: number | null;
     /** No code on the default branch yet. */
     empty?: boolean;
     sync?: { state: string; at: string; changedAt: string; error?: string | null } | null;

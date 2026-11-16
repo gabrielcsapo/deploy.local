@@ -16,10 +16,11 @@ import {
   Item,
   Skeleton,
 } from '@/components/ui';
-import { request, useData, useBrowserOrigin, type Overview } from './data';
+import { request, useData, type Overview } from './data';
 import { projectPath, projectSegment } from './routing';
 import { fileSize, markMatches, sourceLines, sourceMarkdown, type RepositoryCommit } from './code';
 import { useSearchScope } from '../search/scope.ts';
+import { CloneUrls, archiveLabel } from './clone.client';
 import { openSearch } from '../search/model.ts';
 import './code.css';
 
@@ -63,7 +64,6 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
 }
 export function ProjectCode({ overview }: { overview: Overview }) {
   const { repositoryTime, formatCount } = useProjectFormatting();
-  const origin = useBrowserOrigin();
   const [params, setParams] = useSearchParams();
   const path = params.get('path') || '';
   const file = params.get('file') || '';
@@ -435,24 +435,19 @@ export function ProjectCode({ overview }: { overview: Overview }) {
         aria-label="Clone repository"
         onToggle={(event) => setClone(event.newState === 'open')}
       >
-        <div className="dl-menu-label">Clone</div>
-        {clone && (
-          <label className="dl-field">
-            <input
-              aria-label="Clone URL"
-              readOnly
-              value={
-                new URL(overview.repository?.clonePath || base, origin || 'http://localhost').href
-              }
-            />
-            <CopyButton
-              label="Copy clone URL"
-              value={
-                new URL(overview.repository?.clonePath || base, origin || 'http://localhost').href
-              }
-            />
-          </label>
+        <div className="v2-clone-head">
+          <Icon name="terminal" size={16} />
+          Clone
+        </div>
+        {clone && overview.repository && (
+          <CloneUrls repository={overview.repository} projectId={overview.project.id} />
         )}
+        <div className="v2-clone-sep" role="separator" />
+        <a className="dl-menu-item" href={`${base}/archive?${query}`} download>
+          <Icon name="download" size={16} />
+          Download ZIP
+          <span className="dl-end">{archiveLabel(ref)}</span>
+        </a>
       </div>
       <Dialog
         open={history}

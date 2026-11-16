@@ -20,6 +20,7 @@ import { useData, type Overview, type Work } from './data';
 import { appPath, appTabItems, projectPath, projectSegment, projectTabItems } from './routing';
 import { AppOverview, AppSettings, Health, ReleaseList } from './app.client';
 import { ProjectCode, ProjectIssues } from './code.client';
+import { CloneUrls } from './clone.client';
 import { ProjectConfiguration } from './settings.client';
 import { ProjectPipelines } from './pipelines.client';
 import { ProjectLogs } from './logs.client';
@@ -620,6 +621,14 @@ function ProjectPage({
                       </section>
                       <ReleaseList project={project} releases={releases} />
                     </div>
+                    {data.repository && (
+                      <section className="dl-section">
+                        <h2 className="dl-section-title">Clone</h2>
+                        <div className="dl-group v2-clone-card">
+                          <CloneUrls repository={data.repository} projectId={project.id} />
+                        </div>
+                      </section>
+                    )}
                     {project.apps.length < 2 && data.repository && (
                       <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
                     )}

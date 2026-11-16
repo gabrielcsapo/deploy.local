@@ -1,0 +1,62 @@
+/* Settings → SSH keys: keys, this server, and the Add key dialog. */
+.v2-ssh-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.v2-ssh-keys .dl-item > .dl-btn {
+  flex: none;
+}
+.v2-ssh-wrap {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.v2-ssh-note {
+  margin: 8px 0 0;
+  font-size: var(--ds-type-meta);
+  line-height: 16px;
+  color: var(--ds-muted);
+}
+.v2-ssh-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.v2-ssh-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-ssh-step .dl-field-label,
+.v2-ssh-step .dl-meta,
+.v2-ssh-step .dl-hint,
+.v2-ssh-step .dl-field-error {
+  margin: 0;
+}
+.v2-ssh-command {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.v2-ssh-command .dl-term {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.v2-ssh-command .dl-icon-btn {
+  width: 40px;
+  height: auto;
+  border: 1px solid var(--ds-edge);
+  background: var(--ds-surface);
+}
+.v2-ssh-key {
+  min-height: 88px;
+  resize: vertical;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-code);
+  line-height: 18px;
+}
+.v2-ssh-key.invalid {
+  border-color: var(--ds-danger);
+}

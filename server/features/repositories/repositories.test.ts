@@ -29,6 +29,7 @@ const {
   repositoryAtAddress,
   updateProjectSettings,
   queueDueSyncs,
+  repositoryArchiveName,
 } = await import('./repositories.ts');
 const { repositoryFolderName } = await import('../../../shared/repository-address.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
@@ -164,6 +165,24 @@ test('durable import stays responsive, preserves dirty source and isolates autho
     await read(`/projects/${project.id}/repository/blob?ref=${original}&path=README.md`)
   ).body;
   assert.equal(blob.content, 'original\n');
+  // Download ZIP: the commit as a ZIP, named after the repository and the ref, owner-only.
+  const zip = await fetch(
+    `${origin}/api/projects/${project.id}/repository/archive?ref=${original}`,
+    {
+      headers: { 'x-test-owner': 'alice' },
+    },
+  );
+  assert.equal(zip.status, 200);
+  assert.equal(zip.headers.get('content-type'), 'application/zip');
+  const zipName = repositoryArchiveName(project.name, original, original);
+  assert.equal(zip.headers.get('content-disposition'), `attachment; filename="${zipName}.zip"`);
+  const zipBody = Buffer.from(await zip.arrayBuffer());
+  assert.equal(zipBody.subarray(0, 4).toString('latin1'), 'PK\x03\x04');
+  assert.ok(zipBody.includes(`${zipName}/README.md`));
+  const otherOwner = await fetch(`${origin}/api/projects/${project.id}/repository/archive`, {
+    headers: { 'x-test-owner': 'bob' },
+  });
+  assert.equal(otherOwner.status, 404);
   const cloned = join(data, 'clone');
   await gitText(data, ['clone', `${origin}/api/git/${project.id}`, cloned]);
   // The advertised clone path is the short address `/<repo>.git`, so a plain `git clone` names
@@ -552,4 +571,16 @@ test('remotes given with a new project sync both ways; earlier remotes and folde
   assert.equal(folder.source.syncPolicy, 'manual-fetch');
   repositoryCommand(owner, folder.id, 'cancel');
   assert.equal(repositorySource('git@example.invalid:x/y.git').syncPolicy, 'manual-fetch');
+});
+
+test('a ZIP is named after the repository and the branch, tag or short commit', () => {
+  const commit = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+  assert.equal(repositoryArchiveName('forma', 'main', commit), 'forma-main');
+  assert.equal(repositoryArchiveName('forma', 'refs/tags/v1.2', commit), 'forma-v1.2');
+  assert.equal(
+    repositoryArchiveName('forma', 'feature/csv export', commit),
+    'forma-feature-csv-export',
+  );
+  assert.equal(repositoryArchiveName('forma', 'HEAD', commit), 'forma-a1b2c3d');
+  assert.equal(repositoryArchiveName('forma', commit, commit), 'forma-a1b2c3d');
 });

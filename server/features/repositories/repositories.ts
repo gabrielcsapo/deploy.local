@@ -3,7 +3,9 @@ import { repositoryRefs, commitText } from './repository-views.ts';
 import { sshServerInfo } from './ssh-host.ts';
 import { isAbsolute, resolve } from 'node:path';
 import { db, root, id, now, get, save, event, list } from '../../workspace/store.ts';
-import { gitText, repositoryGit } from '../../workspace/repository-git.ts';
+import { gitEnvironment, gitText, repositoryGit } from '../../workspace/repository-git.ts';
+import { spawn } from 'node:child_process';
+import type { ServerResponse } from 'node:http';
 import { compileDeployYaml } from '../../application-spec.ts';
 import {
   projectAtAddress,
@@ -514,6 +516,50 @@ export async function resolveCommit(repositoryPath: string, ref: string) {
   if (!ref || ref.length > 250 || ref.startsWith('-') || hasControls(ref) || ref.includes(' '))
     throw new Error('Invalid Git revision');
   return gitText(repositoryPath, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
+}
+/** The ZIP's name and folder: the repository's folder name and the branch or tag, or the short commit. */
+export function repositoryArchiveName(projectName: string, ref: string, commit: string) {
+  const label = /^(HEAD|[a-f0-9]{7,40})$/.test(ref)
+    ? commit.slice(0, 7)
+    : ref.replace(/^refs\/(heads|tags)\//, '');
+  return `${repositoryFolderName(projectName)}-${label.replace(/[^A-Za-z0-9._-]+/g, '-')}`;
+}
+/** Streams `git archive --format=zip` of a ref to the response, as `<repository>-<ref>.zip`. */
+export async function streamRepositoryArchive(
+  owner: string,
+  projectId: string,
+  ref: string,
+  res: ServerResponse,
+) {
+  const project = requireRepository(owner, projectId);
+  const commit = await resolveCommit(project.repositoryPath, ref || 'HEAD');
+  const name = repositoryArchiveName(project.name, ref || 'HEAD', commit);
+  const child = spawn(
+    'git',
+    [
+      '-c',
+      'core.hooksPath=/dev/null',
+      '-C',
+      project.repositoryPath,
+      'archive',
+      '--format=zip',
+      `--prefix=${name}/`,
+      commit,
+    ],
+    { env: gitEnvironment(), stdio: ['ignore', 'pipe', 'ignore'] },
+  );
+  res.writeHead(200, {
+    'Content-Type': 'application/zip',
+    'Content-Disposition': `attachment; filename="${name}.zip"`,
+    'Cache-Control': 'private, no-store',
+  });
+  child.stdout.pipe(res);
+  // A download stopped partway stops Git; Git failing partway must not look like a whole ZIP.
+  res.once('close', () => child.kill());
+  child.once('close', (code) => {
+    if (code) res.destroy();
+  });
+  child.once('error', () => res.destroy());
 }
 async function latestCommit(repo: string, commit: string, path: string) {
   const raw = await gitText(repo, [

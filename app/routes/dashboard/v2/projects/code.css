@@ -296,8 +296,9 @@
   margin: 0;
   left: auto;
   bottom: auto;
-  width: min(360px, calc(100vw - 32px));
-  padding: 12px;
+  width: min(448px, calc(100vw - 32px));
+  padding: 14px 16px 16px;
+  gap: 10px;
 }
 .v2-code-clone:not(:popover-open) {
   display: none;

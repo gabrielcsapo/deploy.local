@@ -50,6 +50,7 @@ import {
   repositoryInfo,
   repositoryRead,
   findRepository,
+  streamRepositoryArchive,
 } from './repositories.ts';
 import { shortGitRequest } from '../../shared/repository-address.ts';
 import {
@@ -1142,6 +1143,23 @@ export async function workspaceApi(
                   projects.push({ id: project.id, name: project.name });
               }
               return send({ projects });
+            } catch (error: any) {
+              return respondError(error);
+            }
+          },
+        }),
+        route({
+          method: 'GET',
+          path: '/projects/:project/repository/archive',
+          handler: async ({ params }) => {
+            try {
+              await streamRepositoryArchive(
+                owner,
+                (params as Record<string, string>).project,
+                url.searchParams.get('ref') || 'HEAD',
+                res,
+              );
+              return;
             } catch (error: any) {
               return respondError(error);
             }

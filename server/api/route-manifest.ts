@@ -1675,6 +1675,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/projects/:project/repository/archive',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
     path: '/api/projects/:project/repository/:action(tree|blob|history|diff|files|entry)',
     handler: 'workspace',
   },

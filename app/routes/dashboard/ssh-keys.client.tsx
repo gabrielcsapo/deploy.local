@@ -1,17 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
-import {
-  Button,
-  TextField,
-  TextArea,
-  CopyButton,
-  ConfirmDialog,
-  LoadingState,
-  ErrorBanner,
-} from '@/components/ui';
+import { useEffect, useId, useState } from 'react';
+import { Action, Banner, Dialog, Field, Group, Icon, Item, Skeleton } from '@/components/ui';
 import { useDataSeed, freshSeed } from './v2/data/seeds';
 import { useProjectFormatting } from './v2/projects/formatting';
+import { useBrowserOrigin } from './v2/projects/data';
 import { getAuth } from './detail/shared';
+import './ssh-keys.css';
+import { keyNameFromComment, shortFingerprint } from './ssh-keys.ts';
 
 type Key = {
   id: string;
@@ -46,18 +41,164 @@ export async function sshKeyRequest(path = '', body?: object): Promise<any> {
   if (!response.ok) throw new Error(result.error || 'SSH keys unavailable');
   return result;
 }
+function CopyText({
+  value,
+  label,
+  children,
+}: {
+  value: string;
+  label: string;
+  children?: React.ReactNode;
+}) {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const said =
+    state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed. Try again.' : label;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setState('copied');
+    } catch {
+      setState('failed');
+    }
+  };
+  return children ? (
+    <button type="button" className="dl-btn quiet" onClick={copy} aria-label={said}>
+      {state === 'copied' ? 'Copied' : children}
+    </button>
+  ) : (
+    <button type="button" className="dl-icon-btn sm" onClick={copy} aria-label={said} title={said}>
+      <Icon name={state === 'copied' ? 'check' : 'copy'} size={14} />
+    </button>
+  );
+}
+
+function AddKeyDialog({
+  open,
+  onClose,
+  onAdded,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdded: () => Promise<void>;
+}) {
+  const form = useId();
+  const keyField = useId();
+  const [publicKey, setPublicKey] = useState('');
+  const [name, setName] = useState('');
+  const [named, setNamed] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const command = 'pbcopy < ~/.ssh/id_ed25519.pub';
+  const close = () => {
+    setPublicKey('');
+    setName('');
+    setNamed(false);
+    setError('');
+    onClose();
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={close}
+      title="Add an SSH key"
+      className="v2-ssh-add"
+      actions={
+        <>
+          <Action onClick={close}>Cancel</Action>
+          <Action variant="primary" type="submit" form={form} loading={busy}>
+            Add key
+          </Action>
+        </>
+      }
+    >
+      <form
+        id={form}
+        className="v2-ssh-add-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (/PRIVATE KEY/.test(publicKey)) {
+            setError('That is a private key. Paste the public key, the .pub file, instead.');
+            return;
+          }
+          setBusy(true);
+          setError('');
+          void sshKeyRequest('', { name: name.trim(), publicKey: publicKey.trim() })
+            .then(async () => {
+              await onAdded();
+              close();
+            })
+            .catch((failure) => setError((failure as Error).message))
+            .finally(() => setBusy(false));
+        }}
+      >
+        <div className="v2-ssh-step">
+          <span className="dl-field-label">1. Copy this computer's public key</span>
+          <div className="v2-ssh-command">
+            <pre className="dl-term">{command}</pre>
+            <CopyText value={command} label="Copy command" />
+          </div>
+          <p className="dl-meta">
+            On Linux or Windows, open that file and copy its one line. No key yet? Run{' '}
+            <span className="dl-mono">ssh-keygen -t ed25519</span> first.
+          </p>
+        </div>
+        <div className="v2-ssh-step">
+          <label className="dl-field-label" htmlFor={keyField}>
+            2. Paste it here
+          </label>
+          <textarea
+            id={keyField}
+            className={`dl-textarea v2-ssh-key${error ? ' invalid' : ''}`}
+            required
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="ssh-ed25519 AAAA… you@computer"
+            value={publicKey}
+            aria-invalid={error ? true : undefined}
+            onChange={(event) => {
+              const next = event.target.value;
+              setPublicKey(next);
+              setError('');
+              if (!named) setName(keyNameFromComment(next));
+            }}
+          />
+          {error ? (
+            <p className="dl-field-error">{error}</p>
+          ) : (
+            <span className="dl-hint">
+              Public keys start with ssh-ed25519, ecdsa-sha2 or ssh-rsa. Never paste the private
+              key.
+            </span>
+          )}
+        </div>
+        <div className="v2-ssh-step">
+          <Field
+            label="Name"
+            maxLength={80}
+            value={name}
+            placeholder="MacBook Pro"
+            onChange={(event) => {
+              setName(event.target.value);
+              setNamed(true);
+            }}
+          />
+          <span className="dl-hint">Name it after the computer the key is on.</span>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 export default function SshKeysSettings() {
   const seed = useDataSeed();
-  const { localeDate } = useProjectFormatting();
+  const { localeDate, repositoryTime } = useProjectFormatting();
   const [data, setData] = useState<KeySettings | undefined>(
     () => seed?.data['/api/ssh-keys'] as KeySettings | undefined,
   );
-  const [name, setName] = useState('');
-  const [publicKey, setPublicKey] = useState('');
   const [error, setError] = useState('');
-  const [formError, setFormError] = useState('');
+  const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [deleting, setDeleting] = useState<Key | null>(null);
+  const [removing, setRemoving] = useState<Key | null>(null);
   async function refresh() {
     try {
       setData(await sshKeyRequest());
@@ -69,137 +210,126 @@ export default function SshKeysSettings() {
   useEffect(() => {
     if (!freshSeed(seed, '/api/ssh-keys')) void refresh();
   }, [seed]);
+  // The page's own host name, read the same way on the server and while hydrating.
+  const origin = useBrowserOrigin();
+  const host = origin ? new URL(origin).hostname : 'deploy.local';
+  const port = data?.server.port;
+  const address = port ? `ssh://git@${host}${port === 22 ? '' : `:${port}`}` : '';
+  const added = (at: string) => localeDate(at, { month: 'short', day: 'numeric' });
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="v2-ssh-keys">
       {error && (
-        <ErrorBanner
-          message={error}
-          action={<Button onClick={() => void refresh()}>Retry</Button>}
-        />
+        <Banner title={error} action={<Action onClick={() => void refresh()}>Retry</Action>} />
       )}
       {!data ? (
-        <LoadingState />
+        <Skeleton rows={3} />
       ) : (
         <>
-          {data.keys.length === 0 && (
-            <p className="text-sm text-text-secondary">
-              No SSH keys yet. Add this computer’s public key to clone and push repositories.
-            </p>
-          )}
-          {data.keys.map((key) => (
-            <div key={key.id} className="min-w-0 space-y-2 border-b border-border pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <strong className="min-w-0 break-words">{key.name}</strong>
-                <Button variant="danger" disabled={busy} onClick={() => setDeleting(key)}>
-                  Delete
-                </Button>
-              </div>
-              <p className="text-sm text-text-secondary">{key.type}</p>
-              <p className="font-mono text-xs break-all">{key.fingerprint}</p>
-              <p className="text-xs text-text-secondary">
-                Added {localeDate(key.createdAt)} · Last used{' '}
-                {key.lastUsedAt ? localeDate(key.lastUsedAt, undefined, true) : 'Never'}
-              </p>
-            </div>
-          ))}
-          <form
-            className="min-w-0 space-y-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setFormError('');
-              if (/PRIVATE KEY/.test(publicKey)) {
-                setFormError('Paste your public key (.pub file), never your private key.');
-                return;
-              }
-              setBusy(true);
-              void sshKeyRequest('', { name, publicKey })
-                .then(async () => {
-                  setName('');
-                  setPublicKey('');
-                  await refresh();
-                })
-                .catch((failure) => setFormError(failure.message))
-                .finally(() => setBusy(false));
-            }}
+          <Group
+            title="Keys"
+            end={
+              <Action variant="quiet" onClick={() => setAdding(true)}>
+                Add key
+              </Action>
+            }
           >
-            <TextField
-              label="Key name (optional)"
-              maxLength={80}
-              value={name}
-              placeholder="Defaults to the key comment"
-              onChange={(event) => setName(event.target.value)}
-            />
-            <TextArea
-              label="Public key"
-              value={publicKey}
-              required
-              spellCheck={false}
-              autoComplete="off"
-              placeholder="ssh-ed25519 AAAA… computer"
-              error={formError}
-              onChange={(event) => {
-                setPublicKey(event.target.value);
-                setFormError('');
-              }}
-            />
-            <Button variant="primary" type="submit" disabled={busy}>
-              {busy ? 'Saving…' : 'Add SSH key'}
-            </Button>
-          </form>
-          <section aria-label="Connect" className="min-w-0 space-y-3 border-t border-border pt-4">
-            <h3 className="text-sm font-medium">Connect</h3>
-            {data.server.enabled ? (
-              <>
-                <p className="text-sm text-text-secondary">
-                  Compare this host fingerprint before trusting deploy.local, or copy the line below
-                  into ~/.ssh/known_hosts.
-                </p>
-                {data.server.hostFingerprints.map((fingerprint) => (
-                  <p key={fingerprint} className="font-mono text-xs break-all">
-                    {fingerprint}
-                  </p>
-                ))}
-                <div className="flex min-w-0 items-end gap-2">
-                  <TextField
-                    className="min-w-0 flex-1"
-                    label="known_hosts line"
-                    readOnly
-                    value={data.server.knownHostsLine}
-                    onFocus={(event) => event.target.select()}
-                  />
-                  <CopyButton label="Copy known_hosts line" text={data.server.knownHostsLine} />
-                </div>
-                <p className="text-xs font-mono break-all">
-                  git clone ssh://git@deploy.local:{data.server.port}/home-gym.git
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-text-secondary">
-                SSH is unavailable. The server administrator can enable it with DEPLOY_SSH_PORT=2222
-                and restart the control service.
+            {data.keys.map((key) => (
+              <Item
+                key={key.id}
+                lead={<Icon name="key" />}
+                title={key.name}
+                description={
+                  <span title={key.fingerprint}>
+                    {key.type} · {shortFingerprint(key.fingerprint)} · added {added(key.createdAt)}
+                  </span>
+                }
+                end={key.lastUsedAt ? `Used ${repositoryTime(key.lastUsedAt)}` : 'Never used'}
+              >
+                <Action variant="quiet" disabled={busy} onClick={() => setRemoving(key)}>
+                  Remove
+                </Action>
+              </Item>
+            ))}
+            {!data.keys.length && (
+              <Item
+                lead={<Icon name="key" />}
+                title="No SSH keys yet"
+                description="Add this computer's key to clone and push over SSH."
+              />
+            )}
+          </Group>
+          <div>
+            <Group title="This server">
+              {data.server.enabled && port ? (
+                <>
+                  <Item
+                    lead={<Icon name="server" />}
+                    title="Address"
+                    description={<span className="dl-mono">{address}</span>}
+                  >
+                    <CopyText value={address} label="Copy SSH address" />
+                  </Item>
+                  {data.server.hostFingerprints.map((fingerprint) => (
+                    <Item
+                      key={fingerprint}
+                      lead={<Icon name="key" />}
+                      title="Host fingerprint"
+                      description={<span className="dl-mono v2-ssh-wrap">{fingerprint}</span>}
+                    >
+                      {data.server.knownHostsLine && (
+                        <CopyText value={data.server.knownHostsLine} label="Copy known_hosts line">
+                          Copy known_hosts line
+                        </CopyText>
+                      )}
+                    </Item>
+                  ))}
+                </>
+              ) : (
+                <Item
+                  lead={<Icon name="server" />}
+                  title="SSH is off on this server"
+                  description="Clone over HTTPS for now. Whoever runs this server can turn SSH on with DEPLOY_SSH_PORT."
+                />
+              )}
+            </Group>
+            {data.server.enabled && port && (
+              <p className="v2-ssh-note">
+                The first time you connect, SSH asks whether to trust {host}. Say yes only if the
+                fingerprint it shows matches this one, or add the known_hosts line to skip the
+                question.
               </p>
             )}
-          </section>
+          </div>
         </>
       )}
-      <ConfirmDialog
-        open={!!deleting}
-        title="Delete SSH key?"
-        message={`“${deleting?.name || ''}” will no longer be able to open new SSH connections.`}
-        confirmLabel="Delete key"
-        danger
-        onCancel={() => setDeleting(null)}
-        onConfirm={() => {
-          const key = deleting;
-          setDeleting(null);
-          if (!key) return;
-          setBusy(true);
-          void sshKeyRequest(`/${key.id}/delete`, {})
-            .then(refresh)
-            .catch((failure) => setError(failure.message))
-            .finally(() => setBusy(false));
-        }}
-      />
+      <AddKeyDialog open={adding} onClose={() => setAdding(false)} onAdded={refresh} />
+      <Dialog
+        open={!!removing}
+        onClose={() => setRemoving(null)}
+        title="Remove this SSH key?"
+        actions={
+          <>
+            <Action onClick={() => setRemoving(null)}>Cancel</Action>
+            <Action
+              variant="danger"
+              onClick={() => {
+                const key = removing;
+                setRemoving(null);
+                if (!key) return;
+                setBusy(true);
+                void sshKeyRequest(`/${key.id}/delete`, {})
+                  .then(refresh)
+                  .catch((failure) => setError((failure as Error).message))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              Remove key
+            </Action>
+          </>
+        }
+      >
+        <p>“{removing?.name}” will no longer be able to clone or push over SSH.</p>
+      </Dialog>
     </div>
   );
 }
