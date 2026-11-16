@@ -83,6 +83,7 @@ const allowed: Record<string, { reason: string; edges: string[] }> = {
       'v2/project-page.ts -> server/workspace/store.ts',
       'v2/pull-files.ts -> server/workspace/store.ts',
       'v2/push.ts -> server/workspace/store.ts',
+      'v2/releases-api.ts -> server/workspace/store.ts',
       'v2/requests.ts -> server/workspace/store.ts',
       'v2/screenshots.ts -> server/workspace/store.ts',
       'v2/search.ts -> server/workspace/store.ts',
@@ -142,10 +143,16 @@ const allowed: Record<string, { reason: string; edges: string[] }> = {
       'v2/projects-api.ts -> server/v2/settings.ts',
       'v2/pull-files.ts -> server/v2/attachments.ts',
       'v2/push.ts -> server/v2/devices.ts',
+      'v2/releases-api.ts -> server/v2/releases.ts',
       'v2/screenshots.ts -> server/v2/attachments.ts',
       'v2/search.ts -> server/v2/attachments.ts',
       'v2/tasks.ts -> server/v2/events.ts',
     ],
+  },
+  agentEventsOrder: {
+    reason:
+      'Agents reached v2 events before the conversation mapping moved to features/agents; preserve its evaluation slot.',
+    edges: ['v2/search.ts -> server/v2/events.ts'],
   },
   packageReads: {
     reason: 'Existing package pipeline read model; preserve merging packages in task snapshots.',

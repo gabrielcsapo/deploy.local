@@ -1,6 +1,6 @@
 import { save } from '../../workspace/store.ts';
 import { setTimeout as delay } from 'node:timers/promises';
-import { projectReleaseService } from '../../v2/releases-api.ts';
+import { projectReleaseService } from './project-release-service.ts';
 import { projectsForOwner } from '../../v2/projects.ts';
 import { releaseById } from '../../v2/releases.ts';
 import { fail } from '../../kernel/errors.ts';

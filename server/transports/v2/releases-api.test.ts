@@ -8,8 +8,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 const root = mkdtempSync(join(tmpdir(), 'v2-releases-api-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { projectReleaseService, releasesApi } = await import('./releases-api.ts');
-const { _resetDb } = await import('../store.ts');
-const { db } = await import('../workspace/store.ts');
+const { _resetDb } = await import('../../store.ts');
+const { db } = await import('../../workspace/store.ts');
 after(() => {
   _resetDb();
   db.close();
@@ -48,8 +48,8 @@ test('reads answer while recovery is still waiting; changes wait for it', async 
 });
 
 test('release detail and project list return parts and still serialize older releases', async () => {
-  const { routeFetch } = await import('./test-request.ts');
-  const { save } = await import('../workspace/store.ts');
+  const { routeFetch } = await import('../../v2/test-request.ts');
+  const { save } = await import('../../workspace/store.ts');
   // A project without a checkout is enough for these read-only routes.
   save('project', 'parts-owner', {
     id: 'parts-project',

@@ -143,6 +143,7 @@ test('CLI and Node enrollment share the same request and private credential stor
 
 test('Electron-backed coding tools explicitly keep their MCP subprocesses in headless Node mode', async () => {
   const { agentLaunch } = await import('../../workspace/agent-launch.ts');
+  (await import('../../main/worker-entry.ts')).wireWorkerEntry();
   const { nodeRuntimeEnvironment } = await import('../../workspace/node-runtime.ts');
   assert.deepEqual(nodeRuntimeEnvironment({}), {});
   assert.deepEqual(nodeRuntimeEnvironment({ ELECTRON_RUN_AS_NODE: '1' }), {

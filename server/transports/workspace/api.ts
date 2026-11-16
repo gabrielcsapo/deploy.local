@@ -25,6 +25,8 @@ import { taskAttachments, uploadAttachment, serveAttachment } from '../../worksp
 import { taskPullSummary, taskPublishDefaults } from '../../workspace/task-presentation.ts';
 import { publishTask } from '../../workspace/publish.ts';
 import { deleteTask, taskDeletion } from '../../workspace/task-delete.ts';
+// Task files reached managed-worker before; keep its evaluation ahead of them.
+import { managedWorkerStatus, enableManagedWorker } from '../../workspace/managed-worker.ts';
 import { taskFiles } from '../../workspace/task-files.ts';
 import {
   interactiveRead,
@@ -96,7 +98,6 @@ import {
   queuedMessage,
 } from '../../workspace/queued-message.ts';
 import { markRunStopped, presentRun } from '../../workspace/run-recovery.ts';
-import { managedWorkerStatus, enableManagedWorker } from '../../workspace/managed-worker.ts';
 import {
   providerConnections,
   saveProviderConnection,

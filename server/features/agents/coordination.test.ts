@@ -19,6 +19,9 @@ import type { coordinationTools } from './coordination-tools.ts';
 import { captureSnapshot, validateSnapshot, restoreSnapshot } from '../../workspace/checkpoint.ts';
 import { JobRunner } from '../../workspace/job-runner.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
+import { wireWorkerEntry } from '../../main/worker-entry.ts';
+
+wireWorkerEntry();
 
 const data = mkdtempSync(join(tmpdir(), 'deploy-coordination-test-'));
 process.env.DEPLOY_DATA_DIR = data;

@@ -50,17 +50,11 @@ const exceptions: Record<string, string> = {
     'Existing worker Node runtime environment; preserve child runtime selection.',
   'agent-launch.ts -> server/workspace/tls-trust.ts':
     'Existing worker TLS trust environment; preserve provider trust.',
-  'agent-launch.ts -> server/workspace/worker-entry.ts':
-    'Existing source and bundle entry lookup; preserve process paths.',
   'agent-packages.ts -> server/workspace/shell-environment.ts':
     'Existing shell environment policy; preserve executable lookup.',
   'agent-packages.ts -> shared/package-install.mjs':
     'Existing shared provider or public contract; preserve worker and client behavior.',
   'agents.ts -> server/v2/agent-runs.ts':
-    'Existing product dependency retained from v2; preserve projection and evaluation order.',
-  'agents.ts -> server/v2/attachments.ts':
-    'Existing product dependency retained from v2; preserve projection and evaluation order.',
-  'agents.ts -> server/v2/events.ts':
     'Existing product dependency retained from v2; preserve projection and evaluation order.',
   'agents.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
@@ -86,6 +80,18 @@ const exceptions: Record<string, string> = {
     'Existing secret key and encryption; preserve encrypted provider credentials.',
   'provider-connections.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'agent-chat.ts -> server/content-store.ts':
+    'Split from v2/attachments: existing attachment artifact store; preserve stored bytes.',
+  'agent-chat.ts -> server/v2/agent-chat-source-port.ts':
+    'Split from v2/attachments: existing dependency-free agent chat port; preserve lazy agent loading.',
+  'agent-chat.ts -> server/workspace/store.ts':
+    'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'agent-chat.ts -> shared/v2/contracts.ts':
+    'Existing shared provider or public contract; preserve worker and client behavior.',
+  'conversation-events.ts -> shared/v2/contracts.ts':
+    'Existing shared provider or public contract; preserve worker and client behavior.',
+  'media-event.ts -> shared/v2/contracts.ts':
+    'Existing shared provider or public contract; preserve worker and client behavior.',
 };
 
 test('agents preserve origin boundaries and allow only reviewed dependencies', () => {

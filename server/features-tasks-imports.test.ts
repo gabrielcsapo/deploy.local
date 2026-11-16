@@ -71,8 +71,6 @@ const exceptions: Record<string, string> = {
     'Existing patch/digest implementation retained to satisfy the runtime port order guard.',
   'turn-checkpoint.ts -> server/workspace/review.ts':
     'Existing patch/digest implementation retained to satisfy the runtime port order guard.',
-  'interactive-runtime.ts -> server/workspace/linux-desktop.ts':
-    'Existing Linux desktop adapter; preserve computer-control execution.',
   'interactive.ts -> server/workspace/computer-role-policy.ts':
     'Existing effective worker-role checks; preserve refusals and placement.',
   'task-workspace.ts -> server/workspace/computer-role-policy.ts':
@@ -143,8 +141,6 @@ const exceptions: Record<string, string> = {
     'Existing run queue retained to satisfy the runtime port order guard.',
   'task-workspace.ts -> server/workspace/run-queue.ts':
     'Existing run queue retained to satisfy the runtime port order guard.',
-  'task-files.ts -> server/workspace/managed-worker.ts':
-    'Existing managed-worker root lookup; preserve task file scope.',
   'task-presentation.ts -> shared/check-label.ts':
     'Existing shared check labels; preserve visible verification text.',
   'workspace-checks.ts -> shared/check-label.ts':

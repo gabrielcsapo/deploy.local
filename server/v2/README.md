@@ -211,7 +211,7 @@ Live's cache. Older receipts fall back to their Activate step timestamps. There 
 health-release store. Only apps in the current release receive that project's metadata.
 
 A failing worker in a release aged `0 <= age < 1 hour`, with a complete prior release,
-asks `requestWorkerRollback` in `releases-api.ts`. It uses the persisted project snapshot
+asks `requestWorkerRollback` in `features/releases/project-release-service.ts`. It uses the persisted project snapshot
 (or resolves older projects asynchronously before creating a decision), then calls
 `projectReleaseService.requestAutoRollback`. A changed pointer invalidates stale evidence.
 Warden's approval rules apply: never does nothing, unrestricted allow starts the project

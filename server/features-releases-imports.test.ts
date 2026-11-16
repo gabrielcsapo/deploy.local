@@ -142,12 +142,14 @@ const exceptions: Record<string, string> = {
     'Existing secret key and encryption; preserve encrypted release worker state.',
   'releases-worker.ts -> server/upload-archive.ts':
     'Existing source archive inspection; preserve release source validation.',
-  'releases-upload.ts -> server/v2/releases-api.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-upload.ts -> server/v2/releases.ts':
     'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-upload.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'project-release-service.ts -> server/v2/releases.ts':
+    'Split from v2/releases-api: existing release service class; preserve release policy and evaluation order.',
+  'project-release-service.ts -> shared/v2/contracts.ts':
+    'Existing public release and update types; preserve client contracts.',
 };
 
 test('releases preserve origin boundaries and allow only reviewed dependencies', () => {

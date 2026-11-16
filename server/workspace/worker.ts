@@ -26,6 +26,7 @@ import { refreshCapabilities, workerCapabilities } from './worker-capabilities.t
 import { recoverChecks, tickChecks, stopChecks } from './check-runner.ts';
 import { createServer } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
+import { wireWorkerEntry } from '../main/worker-entry.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { recordCheckpointBase } from './checkpoint.ts';
 import { wireLocalWorkerTools } from '../main/local-worker-tools.ts';
@@ -46,6 +47,7 @@ wireLocalWorkerTaskRuns();
 wireAgentInstructionsSource();
 wireLocalWorkerTools();
 wireLocalWorkerMedia();
+wireWorkerEntry();
 const screenshotWorker = requireScreenshotWorker('local worker');
 const v2AttachmentBytes = requireAttachmentBytesSource('local worker');
 

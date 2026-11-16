@@ -26,8 +26,6 @@ const exceptions: Record<string, string> = {
     'Existing in-memory restart counts; preserve Live health state.',
   'live.ts -> server/store.ts':
     'Existing engine records and bootstrap; preserve database evaluation order.',
-  'live.ts -> server/v2/releases-api.ts':
-    'Existing product dependency retained from v2; preserve Live presentation and evaluation order.',
   'live.ts -> server/v2/releases.ts':
     'Existing product dependency retained from v2; preserve Live presentation and evaluation order.',
   'live.ts -> server/v2/state-refresh.ts':

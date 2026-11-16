@@ -32,6 +32,7 @@ import {
 } from './provider-runtime.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
 import { restoreTaskCheckpoint, recordCheckpointBase } from './checkpoint.ts';
+import { wireWorkerEntry } from '../main/worker-entry.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
 import { inspectWorkspace, summaryPatchLimit, workspaceFilePatches } from './review.ts';
@@ -66,6 +67,7 @@ if (!origin || !token || !workerId || workerId === 'local' || !process.env.DEPLO
   throw new Error(
     'Set DEPLOY_COORDINATOR_URL, DEPLOY_WORKER_TOKEN, DEPLOY_WORKER_ID, DEPLOY_WORKER_ROOT',
   );
+wireWorkerEntry();
 configureMacDesktopHelper();
 void refreshCapabilities();
 const capabilityTimer = setInterval(() => void refreshCapabilities(), 60000);

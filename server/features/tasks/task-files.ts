@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { get, list } from '../../workspace/store.ts';
-import { managedWorkerRoot } from '../../workspace/managed-worker.ts';
+import { managedWorkerRoot } from './managed-worker-root.ts';
 import { repositoryGit } from '../../workspace/repository-git.ts';
 import { filePreview, repositoryPreviewLimit, sourcePath } from '../../workspace/repositories.ts';
 

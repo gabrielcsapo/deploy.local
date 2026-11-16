@@ -16,6 +16,8 @@ import {
   type FileMatch,
 } from '../../workspace/repository-search.ts';
 import { projectsForOwner } from '../../v2/projects.ts';
+// Agents reached v2 events before; keep its evaluation ahead of them.
+import '../../v2/events.ts';
 import { agentsForOwner } from '../../v2/agents.ts';
 import { getComputers } from '../../v2/computers.ts';
 

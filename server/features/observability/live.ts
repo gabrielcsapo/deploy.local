@@ -31,7 +31,7 @@ import { db, event, list, save } from '../../workspace/store.ts';
 import { createInboxItem } from '../../v2/inbox.ts';
 import { fail } from '../../kernel/errors.ts';
 import { currentProjectReleases, projectRollbacks, releaseById } from '../../v2/releases.ts';
-import { requestWorkerRollback } from '../../v2/releases-api.ts';
+import { requestWorkerRollback } from '../releases/project-release-service.ts';
 import {
   recordWorker,
   validateReport,

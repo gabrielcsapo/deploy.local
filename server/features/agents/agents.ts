@@ -18,7 +18,7 @@ import { providerConnections } from '../../workspace/provider-connections.ts';
 import { syncInbox } from '../../v2/inbox.ts';
 import { fail } from '../../kernel/errors.ts';
 
-import { mapConversationEvent } from '../../v2/events.ts';
+import { mapConversationEvent } from './conversation-events.ts';
 import {
   migrateAgent,
   validateAvatar,
@@ -708,7 +708,7 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
                   if (agentControl(owner, agentId).paused)
                     fail('This agent is paused. Resume it before sending a message.', 409);
                   const content = text((await read())?.text, 'Message', 12000);
-                  const { sendAgentMessage } = await import('../../v2/attachments.ts');
+                  const { sendAgentMessage } = await import('./agent-chat.ts');
                   return send(await sendAgentMessage(owner, agentId, { text: content }));
                 },
               }),

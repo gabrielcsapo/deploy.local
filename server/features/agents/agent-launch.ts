@@ -2,7 +2,7 @@ import { agentShellEnvironment } from './agent-packages.ts';
 import { nodeRuntimeEnvironment } from '../../workspace/node-runtime.ts';
 import { coordinationTools } from './coordination-tools.ts';
 import { trustEnvironment } from '../../workspace/tls-trust.ts';
-import { workerEntry } from '../../workspace/worker-entry.ts';
+import { requireWorkerEntry } from '../../workspace/worker-entry-port.ts';
 // The worker's configured model belongs only to its compatible endpoint. Subscription
 // defaults must be left unset so the provider chooses its own entitled default.
 export function agentModelEnvironment(run: any, environment: NodeJS.ProcessEnv = process.env) {
@@ -18,14 +18,14 @@ export function agentLaunch(run: any, packages: NodeJS.ProcessEnv = {}) {
   if (run.adapter === 'compatible')
     return {
       executable: process.execPath,
-      args: workerEntry('compatible-agent'),
+      args: requireWorkerEntry('agent launch')('compatible-agent'),
       env,
       instructionDelivery: 'compatible-system-message',
     };
   if (run.adapter === 'claude')
     return {
       executable: process.execPath,
-      args: workerEntry('claude-agent'),
+      args: requireWorkerEntry('agent launch')('claude-agent'),
       env,
       instructionDelivery: 'claude-append-system-prompt',
     };
@@ -52,7 +52,7 @@ export function agentLaunch(run: any, packages: NodeJS.ProcessEnv = {}) {
     '-c',
     `mcp_servers.deploy.command=${JSON.stringify(process.execPath)}`,
     '-c',
-    `mcp_servers.deploy.args=${JSON.stringify(workerEntry('mcp'))}`,
+    `mcp_servers.deploy.args=${JSON.stringify(requireWorkerEntry('agent launch')('mcp'))}`,
     '-c',
     'mcp_servers.deploy.env_vars=["DEPLOY_AGENT_URL","DEPLOY_AGENT_TOKEN"]',
     ...(trust.length

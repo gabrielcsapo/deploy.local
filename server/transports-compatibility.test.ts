@@ -28,6 +28,7 @@ test('every transports compatibility path exposes the same module bindings', asy
       ['v2/projects-api.ts', 'transports/v2/projects-api.ts'],
       ['v2/pull-files.ts', 'transports/v2/pull-files.ts'],
       ['v2/push.ts', 'transports/v2/push.ts'],
+      ['v2/releases-api.ts', 'transports/v2/releases-api.ts'],
       ['v2/requests.ts', 'transports/v2/requests.ts'],
       ['v2/search.ts', 'transports/v2/search.ts'],
       ['v2/start.ts', 'transports/v2/start.ts'],
