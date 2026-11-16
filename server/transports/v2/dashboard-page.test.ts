@@ -26,15 +26,15 @@ for (const method of [
   };
 }
 syncBuiltinESMExports();
-const store = await import('../store.ts');
-const workspace = await import('../workspace/store.ts');
+const store = await import('../../store.ts');
+const workspace = await import('../../workspace/store.ts');
 const { loadDashboardPage, loadProjectPage, dashboardPageURL } = await import('./project-page.ts');
-const { buildAuthCookie } = await import('../auth-cookie.ts');
-const { routeFetch } = await import('./test-request.ts');
-const { v2Api } = await import('./api.ts');
-const { apiRoutes } = await import('../api/registry.ts');
-const { createAgent } = await import('./agents.ts');
-const { updatePreferences } = await import('./auth-store.ts');
+const { buildAuthCookie } = await import('../../auth-cookie.ts');
+const { routeFetch } = await import('../../v2/test-request.ts');
+const { v2Api } = await import('../../v2/api.ts');
+const { apiRoutes } = await import('../../api/registry.ts');
+const { createAgent } = await import('../../v2/agents.ts');
+const { updatePreferences } = await import('../../v2/auth-store.ts');
 store.registerUser('admin', 'test-password');
 const alice = store.registerUser('alice', 'test-password');
 const bob = store.registerUser('bob', 'test-password');

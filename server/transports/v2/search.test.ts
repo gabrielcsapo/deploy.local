@@ -8,11 +8,12 @@ import { once } from 'node:events';
 import { execFileSync } from 'node:child_process';
 const root = mkdtempSync(join(tmpdir(), 'v2-search-'));
 process.env.DEPLOY_DATA_DIR = root;
-const store = await import('../store.ts');
-const { db, save, remove } = await import('../workspace/store.ts');
-const { v2Api } = await import('./api.ts');
-const { matchFileNames, searchRepositoryCode } = await import('../workspace/repository-search.ts');
-const { snippet } = await import('../workspace/message-search.ts');
+const store = await import('../../store.ts');
+const { db, save, remove } = await import('../../workspace/store.ts');
+const { v2Api } = await import('../../v2/api.ts');
+const { matchFileNames, searchRepositoryCode } =
+  await import('../../workspace/repository-search.ts');
+const { snippet } = await import('../../workspace/message-search.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') }));
 });

@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 const root = await mkdtemp(join(tmpdir(), 'v2-start-test-'));
 process.env.DEPLOY_DATA_DIR = join(root, 'data');
 const { inspectRepository } = await import('./start.ts');
-const { db } = await import('../workspace/store.ts');
+const { db } = await import('../../workspace/store.ts');
 test.after(async () => {
   db.close();
   await rm(root, { recursive: true, force: true });

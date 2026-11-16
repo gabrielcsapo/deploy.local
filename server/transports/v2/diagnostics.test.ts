@@ -4,11 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
-import { routeFetch } from './test-request.ts';
+import { routeFetch } from '../../v2/test-request.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'v2-diagnostics-'));
 process.env.DEPLOY_DATA_DIR = root;
-const store = await import('../store.ts');
+const store = await import('../../store.ts');
 const { diagnosticsApi, observeRequest, profileSelf, routeName, summarizeProfile } =
   await import('./diagnostics.ts');
 after(() => rmSync(root, { recursive: true, force: true }));

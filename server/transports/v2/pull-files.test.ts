@@ -7,12 +7,12 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 const root = mkdtempSync(join(tmpdir(), 'v2-pull-files-'));
 process.env.DEPLOY_DATA_DIR = root;
-const store = await import('../store.ts');
-const { db, save, get } = await import('../workspace/store.ts');
-const { v2Api } = await import('./api.ts');
+const store = await import('../../store.ts');
+const { db, save, get } = await import('../../workspace/store.ts');
+const { v2Api } = await import('../../v2/api.ts');
 const { classify, pullFileLimit, videoDuration } = await import('./pull-files.ts');
-const { taskSnapshot } = await import('./tasks.ts');
-const { collaborationCommand } = await import('../workspace/project-collaboration.ts');
+const { taskSnapshot } = await import('../../v2/tasks.ts');
+const { collaborationCommand } = await import('../../workspace/project-collaboration.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') }));
 });

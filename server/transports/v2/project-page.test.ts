@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'server-first-'));
 process.env.DEPLOY_DATA_DIR = root;
-const store = await import('../store.ts');
-const workspace = await import('../workspace/store.ts');
+const store = await import('../../store.ts');
+const workspace = await import('../../workspace/store.ts');
 const { loadProjectPage, projectPageOwner, loadProjectTab } = await import('./project-page.ts');
-const { buildAuthCookie } = await import('../auth-cookie.ts');
+const { buildAuthCookie } = await import('../../auth-cookie.ts');
 const alice = store.registerUser('alice', 'test-password');
 const bob = store.registerUser('bob', 'test-password');
 for (const owner of ['alice', 'bob'])

@@ -12,7 +12,7 @@ const root = mkdtempSync(join(tmpdir(), 'deploy-v2-push-'));
 process.env.DEPLOY_DATA_DIR = root;
 for (const key of ['KEY_PATH', 'KEY_ID', 'TEAM_ID', 'TOPIC'])
   delete process.env['DEPLOY_APNS_' + key];
-const { db, list, save, event } = await import('../workspace/store.ts');
+const { db, list, save, event } = await import('../../workspace/store.ts');
 const {
   APNsClient,
   pushConfiguration,
