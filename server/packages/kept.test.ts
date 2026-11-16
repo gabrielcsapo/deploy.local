@@ -27,6 +27,8 @@ test('lists both ecosystems with bounded paging, literal search, kind filters an
   assert.equal(listKept('owner', query({ q: '%' }), clock).packages, 0);
   assert.equal(listKept('owner', query({ kind: 'cargo' }), clock).entries[0].name, 'pkg-cargo');
   assert.equal(listKept('owner', query({ kind: 'npm' }), clock).packages, 56);
+  // The Show menu counts each kind on its own, whichever kind is ticked.
+  assert.deepEqual(listKept('owner', query({ kind: 'npm' }), clock).kinds, { npm: 56, cargo: 1 });
   assert.equal(listKept('owner', query({ sort: 'name' }), clock).entries[0].name, '@scope/pkg');
   assert.equal(listKept('owner', query({ sort: 'installed' }), clock).entries[0].name, 'pkg-00');
   assert.equal(listKept('owner', query({ page: '999' }), clock).page, 2);

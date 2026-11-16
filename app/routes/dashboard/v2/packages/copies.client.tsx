@@ -1,5 +1,5 @@
 'use client';
-import { bytes, count, keptPath } from './kept-model';
+import { bytes, keptPath, many } from './kept-model';
 import { useEffect, useRef } from 'react';
 import { Banner, Group, Icon, Setting } from '@/components/ui';
 import { useData } from '../projects/data';
@@ -134,7 +134,7 @@ export function Copies() {
               <a className="dl-setting" href={keptPath + '?time=idle'}>
                 <span className="dl-t">
                   <span>Not installed in 30 days</span>
-                  <span>{count(kept.idle.versions)} versions no project needs</span>
+                  <span>{many(kept.idle.versions, 'version')} no project needs</span>
                 </span>
                 <span className="dl-v">
                   {bytes(kept.idle.bytes)}
@@ -154,10 +154,10 @@ export function Copies() {
             <a className="dl-setting" href={keptPath}>
               <span className="dl-t">
                 <span>Everything kept</span>
-                <span>{count(kept.versions)} versions. Search, sort and filter them.</span>
+                <span>{many(kept.versions, 'version')}. Search, sort and filter them.</span>
               </span>
               <span className="dl-v">
-                {count(kept.packages)} packages
+                {many(kept.packages, 'package')}
                 <span className="dl-chev">
                   <Icon name="chevron" size={14} />
                 </span>

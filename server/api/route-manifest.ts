@@ -965,6 +965,36 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/packages/cache/kept',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'POST',
+    path: '/api/packages/cache/kept/remove',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'GET',
+    path: '/api/packages/cache/entry/:ecosystem/:name*',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'POST',
+    path: '/api/packages/cache/remove/:ecosystem/:name*',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'GET',
+    path: '/api/packages/cargo/:name',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'POST',
+    path: '/api/packages/cargo/:name/versions/:version/yank',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'GET',
     path: '/api/packages/npm/:name*',
     handler: 'v2:packages/api',
   },

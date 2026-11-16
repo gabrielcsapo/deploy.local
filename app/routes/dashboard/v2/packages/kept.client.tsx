@@ -17,6 +17,7 @@ import {
   bytes,
   count,
   countLine,
+  many,
   changeQuery,
   keptPath,
   keptEntryPath,
@@ -352,8 +353,9 @@ export function KeptList() {
               <span className="dl-mono">{entry.name}</span>
               <span>
                 {entry.ecosystem === 'npm' ? 'npm' : 'Cargo crate'} · {count(entry.versions)}{' '}
-                {idle && entry.allVersions > entry.versions ? 'unused versions' : 'versions'} · last
-                installed {installed(entry.lastInstalled)}
+                {idle && entry.allVersions > entry.versions ? 'unused ' : ''}
+                {entry.versions === 1 ? 'version' : 'versions'} · last installed{' '}
+                {installed(entry.lastInstalled)}
               </span>
             </span>
             <span className="packages-end">
@@ -420,7 +422,7 @@ export function KeptList() {
               packages={data.packages}
               size={data.bytes}
               idle
-              label={`Remove ${count(data.versions)} versions · ${bytes(data.bytes)}…`}
+              label={`Remove ${many(data.versions, 'version')} · ${bytes(data.bytes)}…`}
               onRemoved={(value) => {
                 setNotice(value);
                 refresh();
@@ -477,7 +479,7 @@ export function KeptPackage({ ecosystem, name }: { ecosystem: string; name: stri
               <div className="dl-inset">
                 <Setting
                   label="Kept"
-                  description={`${count(total)} versions, fetched from ${ecosystem === 'npm' ? 'npmjs.org' : 'crates.io'}`}
+                  description={`${many(total, 'version')}, fetched from ${ecosystem === 'npm' ? 'npmjs.org' : 'crates.io'}`}
                 >
                   {bytes(data.bytes)}
                 </Setting>
@@ -490,7 +492,7 @@ export function KeptPackage({ ecosystem, name }: { ecosystem: string; name: stri
                         : '') || (data.cargoProtected ? 'Projects' : 'No projects')
                   }
                 >
-                  {count(data.neededVersions)} versions
+                  {many(data.neededVersions, 'version')}
                 </Setting>
               </div>
             </Group>
@@ -531,7 +533,7 @@ export function KeptPackage({ ecosystem, name }: { ecosystem: string; name: stri
             )}
             <div className="packages-foot">
               <p className="packages-summary">
-                {count(data.unusedVersions)} versions no project needs · {bytes(data.unusedBytes)}
+                {many(data.unusedVersions, 'version')} no project needs · {bytes(data.unusedBytes)}
               </p>
               {data.canRemove && data.unusedVersions > 0 && (
                 <RemoveCopies

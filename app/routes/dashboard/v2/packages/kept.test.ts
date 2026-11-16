@@ -8,6 +8,7 @@ import Packages from './page.client';
 import {
   changeQuery,
   countLine,
+  many,
   toggleKind,
   kindLabel,
   removalDescription,
@@ -116,7 +117,7 @@ test('idle count, footer and remove action match PackagesKeptIdle and admins alo
   const html = render('/dashboard/packages/kept?time=idle', {
     '/api/packages/cache/kept?time=idle': idle,
   });
-  assert.ok(html.includes('3 versions of 1 packages · 1 KB'));
+  assert.ok(html.includes('3 versions of 1 package · 1 KB'));
   assert.ok(html.includes('Versions a project needs are never listed here.'));
   assert.ok(html.includes('Remove 3 versions · 1 KB…'));
   assert.ok(!html.includes('Needed by forma'));
@@ -252,4 +253,17 @@ test('PackagesCache shows physical storage, protected bytes, idle drill-in and t
   });
   assert.ok(empty.includes('Everything was installed in the last 30 days'));
   assert.ok(!empty.includes('/dashboard/packages/kept?time=idle'));
+});
+
+test('a single version or package is worded in the singular', () => {
+  assert.equal(many(1, 'version'), '1 version');
+  assert.equal(many(1204, 'version'), '1,204 versions');
+  assert.equal(
+    countLine({ packages: 1, versions: 1, bytes: 1024 }, false),
+    '1 package · 1 version · 1 KB',
+  );
+  assert.equal(
+    removalDescription(1, 1, true),
+    '1 version of 1 package or crate that nothing has installed in 30 days.',
+  );
 });

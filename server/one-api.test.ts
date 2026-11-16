@@ -463,6 +463,7 @@ test('every route a handler declares is in the manifest, so a new route cannot s
   const manifest = apiRouteManifest.map((route) => names(route.path));
   const sources = [
     'server/transports/workspace/api.ts',
+    'server/packages/api.ts',
     ...['server/v2/', 'server/transports/v2/'].flatMap((folder) =>
       readdirSync(folder)
         .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))

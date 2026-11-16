@@ -2,6 +2,9 @@ export const keptPath = '/dashboard/packages/kept';
 export const keptEntryPath = (kind: string, name: string) =>
   `${keptPath}/${kind}/${encodeURIComponent(name)}`;
 export const count = (value: number) => value.toLocaleString('en-US');
+/** "1 version", "2 versions": a package kept once is the common case. */
+export const many = (value: number, word: string) =>
+  `${count(value)} ${word}${value === 1 ? '' : 's'}`;
 export function bytes(value: number) {
   if (value < 1024) return `${value} B`;
   const unit = Math.min(3, Math.floor(Math.log(value) / Math.log(1024)));
@@ -31,8 +34,8 @@ export function countLine(
   idle: boolean,
 ) {
   return idle
-    ? `${count(data.versions)} versions of ${count(data.packages)} packages · ${bytes(data.bytes)}`
-    : `${count(data.packages)} packages · ${count(data.versions)} versions · ${bytes(data.bytes)}`;
+    ? `${many(data.versions, 'version')} of ${many(data.packages, 'package')} · ${bytes(data.bytes)}`
+    : `${many(data.packages, 'package')} · ${many(data.versions, 'version')} · ${bytes(data.bytes)}`;
 }
 export function removalNotice(data: { bytes: number; keptBytes: number }) {
   return `Removed ${bytes(data.bytes)}. ${bytes(data.keptBytes)} kept.`;
@@ -40,7 +43,7 @@ export function removalNotice(data: { bytes: number; keptBytes: number }) {
 export const removalPromise =
   'Versions locked by a project on main or in a live release stay. Anything removed is fetched again the next time something installs it.';
 export function removalDescription(versions: number, packages: number, idle: boolean) {
-  return `${count(versions)} versions of ${count(packages)} packages and crates ${idle ? 'that nothing has installed in 30 days' : 'that no project needs'}.`;
+  return `${many(versions, 'version')} of ${packages === 1 ? '1 package or crate' : `${count(packages)} packages and crates`} ${idle ? 'that nothing has installed in 30 days' : 'that no project needs'}.`;
 }
 
 export function projectNames(names: string[]) {

@@ -111,7 +111,7 @@ export function listKept(owner: string, query: KeptQuery, clock = Date.now()) {
     .get(...where.args) as KeptTotals;
   const kinds = db()
     .prepare(
-      `${files} SELECT ecosystem,COUNT(DISTINCT name) AS packages FROM files WHERE ${where.sql}`,
+      `${files} SELECT ecosystem,COUNT(DISTINCT name) AS packages FROM files WHERE ${where.sql} GROUP BY ecosystem`,
     )
     .all(...filter({ ...query, kind: 'all' }, clock).args) as {
     ecosystem: string;
