@@ -1,3 +1,4 @@
+import { keptTotals, neededCopy } from './kept.ts';
 import { cargoRegistry } from './cargo.ts';
 import { randomUUID } from 'node:crypto';
 import { setImmediate as yieldThread, setTimeout as pause } from 'node:timers/promises';
@@ -101,6 +102,7 @@ export function copiesStatus(owner: string, copy: NpmCopy) {
     ],
     projects,
     storage: storageStatus(),
+    kept: keptTotals(),
   };
 }
 export function storageStatus() {
@@ -114,18 +116,32 @@ export function storageStatus() {
       db()
         .prepare(`SELECT COALESCE(SUM(size),0) n FROM (
     SELECT area,hash,MAX(size) size FROM (
-      SELECT CASE WHEN kind='file' THEN 'file' ELSE 'doc' END area,sha256 hash,size FROM package_cache_entries e ${pinned ? 'WHERE EXISTS(SELECT 1 FROM package_pins p WHERE p.ecosystem=e.ecosystem AND p.key=e.key)' : ''}
-      UNION ALL SELECT 'doc',abbreviated_sha256,abbreviated_size FROM package_cache_entries e WHERE abbreviated_sha256 IS NOT NULL ${pinned ? 'AND EXISTS(SELECT 1 FROM package_pins p WHERE p.ecosystem=e.ecosystem AND p.key=e.key)' : ''}
-      UNION ALL SELECT 'doc',index_sha256,index_size FROM package_cache_entries e WHERE index_sha256 IS NOT NULL ${pinned ? 'AND EXISTS(SELECT 1 FROM package_pins p WHERE p.ecosystem=e.ecosystem AND p.key=e.key)' : ''}
+      SELECT CASE WHEN kind='file' THEN 'file' ELSE 'doc' END area,sha256 hash,size FROM package_cache_entries e ${pinned ? `WHERE ${neededCopy}` : ''}
+      UNION ALL SELECT 'doc',abbreviated_sha256,abbreviated_size FROM package_cache_entries e WHERE abbreviated_sha256 IS NOT NULL ${pinned ? `AND ${neededCopy}` : ''}
+      UNION ALL SELECT 'doc',index_sha256,index_size FROM package_cache_entries e WHERE index_sha256 IS NOT NULL ${pinned ? `AND ${neededCopy}` : ''}
     ) GROUP BY area,hash)
   `)
         .get() as any
     ).n;
+  const ecosystems = Object.fromEntries(
+    (
+      db()
+        .prepare(`SELECT ecosystem,SUM(size) bytes FROM (
+    SELECT ecosystem,area,hash,MAX(size) size FROM (
+      SELECT ecosystem,kind area,sha256 hash,size FROM package_cache_entries
+      UNION ALL SELECT ecosystem,'doc',abbreviated_sha256,abbreviated_size FROM package_cache_entries WHERE abbreviated_sha256 IS NOT NULL
+      UNION ALL SELECT ecosystem,'doc',index_sha256,index_size FROM package_cache_entries WHERE index_sha256 IS NOT NULL
+    ) GROUP BY ecosystem,area,hash
+  ) GROUP BY ecosystem`)
+        .all() as { ecosystem: string; bytes: number }[]
+    ).map((row) => [row.ecosystem, row.bytes]),
+  );
   const bytes = sum(false),
     pinned = sum(true);
   const limit = setting('packages.cache.limitBytes', 20 * 1024 ** 3);
   return {
     bytes,
+    ecosystems,
     pinned,
     limit,
     days: setting('packages.cache.days', 90),
@@ -162,7 +178,7 @@ export async function cleanupCopies(clock = Date.now()) {
         .transaction(() => {
           const eligible = db()
             .prepare(
-              `SELECT 1 FROM package_cache_entries e WHERE ecosystem=? AND kind=? AND key=? AND last_used_at=? AND NOT EXISTS(SELECT 1 FROM package_pins p WHERE p.ecosystem=e.ecosystem AND p.key=e.key)`,
+              `SELECT 1 FROM package_cache_entries e WHERE ecosystem=? AND kind=? AND key=? AND last_used_at=? AND NOT ${neededCopy}`,
             )
             .get(row.ecosystem, row.kind, row.key, row.last_used_at);
           if (!eligible) return false;

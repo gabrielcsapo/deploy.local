@@ -33,3 +33,73 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.packages-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+.packages-summary {
+  margin: 0;
+  font-size: var(--ds-type-ui);
+  line-height: var(--ds-space-5);
+  color: var(--ds-secondary);
+}
+.packages-tools,
+.packages-end {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+.packages-tools {
+  flex-wrap: wrap;
+}
+.packages-end {
+  flex: none;
+}
+.packages-pager,
+.packages-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  font-size: var(--ds-type-ui);
+  color: var(--ds-muted);
+}
+.packages-pager {
+  padding-inline: var(--ds-space-4);
+}
+.packages-foot {
+  flex-wrap: wrap;
+}
+.packages-kind-menu {
+  position: fixed;
+  margin: 0;
+  inset: auto;
+  width: calc(var(--ds-size-popover) - var(--ds-space-10));
+}
+.packages-kind-menu .dl-menu-item {
+  width: 100%;
+}
+.packages-check {
+  display: inline-flex;
+  width: var(--ds-space-4);
+  flex: none;
+}
+@media (width < 820px) {
+  .packages-end {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 45%;
+  }
+}
+
+.packages-kind-menu:not(:popover-open) {
+  display: none;
+}
+.packages-detail .packages-board-section {
+  margin-bottom: calc(var(--ds-space-6) + var(--ds-space-1));
+}
+/* The approved confirmation has Cancel in its footer and no separate close control. */
+.packages-remove-dialog .dl-dialog-head .dl-icon-btn {
+  display: none;
+}

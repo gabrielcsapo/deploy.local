@@ -118,8 +118,13 @@ for (const boundary of [
     const schemaQuery =
       "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
     assert.deepEqual(upgrade.prepare(schemaQuery).all(), fresh.prepare(schemaQuery).all());
+    // Later migrations may add tables and indexes; the fresh-install comparison above covers
+    // those. This one is only about what the retirement took away.
+    const before = new Set(beforeSchema.map((item) => item.name));
     assert.deepEqual(
-      upgrade.prepare(schemaQuery).all(),
+      (upgrade.prepare(schemaQuery).all() as Array<{ name: string }>).filter((item) =>
+        before.has(item.name),
+      ),
       beforeSchema.filter((item) => !droppedTables.includes(item.tbl_name)),
       'only the retired tables and their indexes are removed',
     );
