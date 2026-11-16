@@ -3305,6 +3305,21 @@
       "h": 1380,
       "title": "Change a project’s default branch",
       "expand": "fill"
+    },
+    "TaskDeploy.html": {
+      "x": 26250,
+      "y": 7604,
+      "w": 1440,
+      "h": 900,
+      "title": "A task deploys its app: each deploy and job is one step that says how it went",
+      "expand": "fill"
+    },
+    "TaskDeployPhone.html": {
+      "x": 28400,
+      "y": 7604,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — deploys and jobs in a running task: one line each, open a failure for the reason"
     }
   },
   "order": [
@@ -3363,6 +3378,8 @@
     "TaskStalled.html",
     "TaskNeedsComputer.html",
     "TaskFailed.html",
+    "TaskDeploy.html",
+    "TaskDeployPhone.html",
     "OfflinePhone.html",
     "Offline.html",
     "ScreenAsk.html",
