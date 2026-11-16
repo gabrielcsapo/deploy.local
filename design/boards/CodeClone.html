@@ -53,6 +53,9 @@ body{margin:0;background:#fafafb}
 .clone-menu{position:absolute;top:40px;right:0;z-index:5;width:448px;max-width:calc(100vw - 32px);padding:14px 16px 16px;gap:10px}
 .clone-head{display:flex;align-items:center;gap:8px;font-size:15px;line-height:20px;font-weight:600;color:var(--ink)}
 .clone-head svg{color:var(--ink-soft)}
+.clone-sep{height:1px;margin:4px -16px;background:var(--line)}
+.clone-menu .dl-menu-item{margin:0 -10px -8px;color:var(--ink)}
+.clone-menu .dl-menu-item svg{color:var(--ink-soft)}
 </style>
 </head>
 <body>
@@ -98,6 +101,8 @@ body{margin:0;background:#fafafb}
       <nav data-layer="clone-with" class="clone-tabs" role="tablist" aria-label="Clone with"><a data-layer="https" href="#" role="tab" aria-selected="false">HTTPS</a><a data-layer="ssh" href="#" role="tab" aria-selected="true" class="on">SSH</a></nav>
       <div data-layer="clone-row" class="clone-row"><label data-layer="field-2" class="dl-field"><span data-layer="ssh-git-deploy" class="clone-url dl-mono">ssh://git@deploy.local:2222/deploy.local.git</span></label><button data-layer="copy-ssh-url" type="button" class="dl-btn secondary clone-copy" aria-label="Copy SSH URL"><svg data-layer="svg-54" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div>
       <p data-layer="uses-an-ssh" class="clone-hint">Uses an SSH key you added in <a data-layer="ssh-keys" href="Settings.html" class="dl-link">SSH keys</a>.</p>
+      <div data-layer="clone-sep" class="clone-sep" role="separator"></div>
+      <a data-layer="menu-item" href="#" class="dl-menu-item"><svg data-layer="svg-55" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download ZIP<span data-layer="main-2" class="dl-end">main</span></a>
     </div></span>
   </span>
 </div>

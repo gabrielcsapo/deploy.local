@@ -787,7 +787,7 @@
       "x": 15310,
       "y": 23864,
       "w": 1440,
-      "h": 1100,
+      "h": 1300,
       "title": "Settings",
       "expand": "fill"
     },
@@ -3289,6 +3289,14 @@
       "h": 900,
       "title": "Project code with the Clone menu open: HTTPS and SSH",
       "expand": "fill"
+    },
+    "SshKeyAdd.html": {
+      "x": 16870,
+      "y": 26024,
+      "w": 1440,
+      "h": 1300,
+      "title": "Settings: adding an SSH key, with how to copy your public key",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3428,6 +3436,7 @@
     "AgentAvatarPicker.html",
     "SettingsAgents.html",
     "Settings.html",
+    "SshKeyAdd.html",
     "SettingsPhone.html",
     "SettingsApprovalsPhone.html",
     "AgentRulesPhone.html",
