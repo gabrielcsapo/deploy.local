@@ -1,7 +1,6 @@
 import { immutable } from '../../kernel/materialized.ts';
 import { repositoryRefs, commitText } from './repository-views.ts';
 import { withRepositoryWrites } from '../../kernel/jobs/repository-lock.ts';
-import { repositoryChanged } from '../../git-changes.ts';
 import { sshServerInfo } from './ssh-host.ts';
 import { isAbsolute, resolve } from 'node:path';
 import { db, root, id, now, get, save, event, list } from '../../workspace/store.ts';
@@ -803,7 +802,6 @@ export async function setDefaultBranch(owner: string, projectId: string, input: 
         status: 404,
       });
     await gitText(repo, ['symbolic-ref', 'HEAD', `refs/heads/${branch}`]);
-    repositoryChanged(repo);
     const current = get('project', owner, projectId);
     if (current.defaultBranch !== branch) {
       save('project', owner, { ...current, defaultBranch: branch, head: commit, updatedAt: now() });
