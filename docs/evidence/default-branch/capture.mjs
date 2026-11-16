@@ -12,20 +12,36 @@ const browser = await chromium.launch();
 async function open(width, height) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: 'light' });
   await context.addCookies([{ name: 'deploy-sh-auth', value: cookie, url: origin }]);
-  await context.addInitScript(([u, t]) => localStorage.setItem('deploy-sh-auth', JSON.stringify({ username: u, token: t })), [username, token]);
+  await context.addInitScript(
+    ([u, t]) => localStorage.setItem('deploy-sh-auth', JSON.stringify({ username: u, token: t })),
+    [username, token],
+  );
   const page = await context.newPage();
   page.on('pageerror', (e) => console.error('page error:', e.message));
-  page.on('console', (m) => m.type() === 'error' && console.error('console:', m.text().slice(0, 200)));
+  page.on(
+    'console',
+    (m) => m.type() === 'error' && console.error('console:', m.text().slice(0, 200)),
+  );
   await page.goto(origin + `/dashboard/projects/${project}/settings`, { waitUntil: 'load' });
-  await page.locator('.dl-setting', { hasText: 'Default branch' }).first().waitFor({ state: 'attached' });
+  await page
+    .locator('.dl-setting', { hasText: 'Default branch' })
+    .first()
+    .waitFor({ state: 'attached' });
   await page.waitForTimeout(1500);
   return { context, page };
 }
 for (const width of [1440, 700]) {
   let { context, page } = await open(width, 1380);
-  await page.locator('.dl-setting', { hasText: 'Default branch' }).first().scrollIntoViewIfNeeded().catch(() => {});
+  await page
+    .locator('.dl-setting', { hasText: 'Default branch' })
+    .first()
+    .scrollIntoViewIfNeeded()
+    .catch(() => {});
   await page.screenshot({ path: join(out, `ProjectSettings-${width}.png`) });
-  await page.locator('.dl-setting', { hasText: 'Default branch' }).getByRole('button', { name: 'Change' }).click();
+  await page
+    .locator('.dl-setting', { hasText: 'Default branch' })
+    .getByRole('button', { name: 'Change' })
+    .click();
   await page.getByRole('option', { name: /develop/ }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(out, `ProjectDefaultBranch-${width}.png`) });
@@ -35,7 +51,10 @@ for (const width of [1440, 700]) {
     await page.getByRole('button', { name: 'Use develop' }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.waitForTimeout(800);
-    console.log('row after', await page.locator('.dl-setting', { hasText: 'Default branch' }).textContent());
+    console.log(
+      'row after',
+      await page.locator('.dl-setting', { hasText: 'Default branch' }).textContent(),
+    );
   }
   await context.close();
 }

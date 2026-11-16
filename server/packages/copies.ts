@@ -230,10 +230,14 @@ export class CopyWarmer {
     if (!commit) {
       try {
         commit = (
-          await repositoryGit(project.repositoryPath, ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`], {
-            limit: 1024,
-            timeout: 5000,
-          })
+          await repositoryGit(
+            project.repositoryPath,
+            ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`],
+            {
+              limit: 1024,
+              timeout: 5000,
+            },
+          )
         )
           .toString()
           .trim();

@@ -39,10 +39,14 @@ export async function usedBy(owner: string, name: string, cache = usageCache, ec
     let commit: string;
     try {
       commit = (
-        await repositoryGit(project.repositoryPath, ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`], {
-          limit: 1024,
-          timeout: 5000,
-        })
+        await repositoryGit(
+          project.repositoryPath,
+          ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`],
+          {
+            limit: 1024,
+            timeout: 5000,
+          },
+        )
       )
         .toString()
         .trim();
