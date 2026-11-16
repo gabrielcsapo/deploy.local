@@ -64,6 +64,7 @@ struct V2WorkStepRow: View {
     }
     private var symbol: String {
         if step.glyph == "deploy" { return "tray.and.arrow.up" }
+        if V2WorkLog.isNote(step) { return "text.bubble" }
         switch step.icon {
         case .file: return "doc"
         case .edit: return "pencil"
@@ -82,9 +83,20 @@ struct V2WorkStepRow: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityValue(open ? "Expanded" : "Collapsed")
                     .accessibilityAction { open.toggle() }
-            } else { line }
+            } else if V2WorkLog.isNote(step) { note } else { line }
             if open && opens { detail }
         }
+    }
+
+    /// What the agent said while it worked: wraps instead of truncating, with no outcome.
+    private var note: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                .frame(width: 16, height: 22)
+            Text(step.text).font(.system(size: 15)).lineSpacing(4).foregroundStyle(WorkspaceStyle.secondary(scheme))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 2)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var line: some View {

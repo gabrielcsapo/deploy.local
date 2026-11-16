@@ -1,35 +1,55 @@
 import Foundation
 
-/// The steps an agent takes between messages read as one work log, "Worked for 14m",
-/// instead of a row each. Mirrors `workLogs` in app/routes/dashboard/v2/conversation/model.ts.
+/// One turn's work reads as one log, "Worked for 14m", instead of a row per step. What the agent
+/// says while it works becomes a note in that log; what it says after its last step stays a reply.
+/// Mirrors `workLogs` in app/routes/dashboard/v2/conversation/model.ts.
 public enum V2WorkLog {
-    /// Joins each run of consecutive worklog events into one. A run of one keeps its own summary.
+    /// A turn is a run of worklogs and replies between any other kind of event. Everything up to
+    /// and including its last worklog becomes one log, replies in it becoming notes. A turn
+    /// without a worklog, or whose work is a single worklog, is left as it is.
     public static func group(_ events: [ConversationEvent]) -> [ConversationEvent] {
         var result: [ConversationEvent] = []
-        var run: [WorkLogEvent] = []
+        var turn: [ConversationEvent] = []
         func flush() {
-            if run.count == 1 { result.append(.worklog(run[0])) }
-            else if let first = run.first, let last = run.last {
-                let live = run.contains(where: \.live)
-                let steps = run.flatMap { event in
-                    event.steps.map { step -> WorkStep in
-                        var step = step
-                        step.live = step.live ?? event.live
-                        return step
+            defer { turn = [] }
+            guard let last = turn.lastIndex(where: { if case .worklog = $0 { true } else { false } }) else {
+                result.append(contentsOf: turn); return
+            }
+            let work = Array(turn[...last])
+            let logs = work.compactMap { event -> WorkLogEvent? in if case .worklog(let value) = event { value } else { nil } }
+            if work.count == 1 { result.append(work[0]) }
+            else if let firstLog = logs.first, let first = work.first, let end = work.last {
+                let live = logs.contains(where: \.live)
+                let steps = work.flatMap { event -> [WorkStep] in
+                    switch event {
+                    case .worklog(let value):
+                        return value.steps.map { step in
+                            var step = step
+                            step.live = step.live ?? value.live
+                            return step
+                        }
+                    case .reply(let value):
+                        return [WorkStep(icon: .pulse, text: value.paragraphs.joined(separator: " "), glyph: "note")]
+                    default: return []
                     }
                 }
-                let summary = "\(live ? "Working for" : "Worked for") \(took(from: first.at, to: last.at))"
-                result.append(.worklog(WorkLogEvent(id: first.id, at: first.at, summary: summary, steps: steps, live: live)))
+                let summary = "\(live ? "Working for" : "Worked for") \(took(from: first.v2Date, to: end.v2Date))"
+                result.append(.worklog(WorkLogEvent(id: firstLog.id, at: first.v2Date, summary: summary, steps: steps, live: live)))
             }
-            run = []
+            result.append(contentsOf: turn[(last + 1)...])
         }
         for event in events {
-            if case .worklog(let value) = event { run.append(value) }
-            else { flush(); result.append(event) }
+            switch event {
+            case .worklog, .reply: turn.append(event)
+            default: flush(); result.append(event)
+            }
         }
         flush()
         return result
     }
+
+    /// A note: what the agent said while it worked.
+    public static func isNote(_ step: WorkStep) -> Bool { step.glyph == "note" }
 
     /// "45s", "14m", "1h 5m".
     public static func took(from: String, to: String) -> String {
@@ -51,9 +71,9 @@ public enum V2WorkLog {
         log.live || log.steps.contains { $0.live == true || $0.tone == "fail" }
     }
 
-    /// A step opens when it has a reason or log lines to show.
+    /// A step opens when it has a reason or log lines to show. Notes never open.
     public static func opens(_ step: WorkStep) -> Bool {
-        !(step.reason ?? "").isEmpty || !(step.tail ?? []).isEmpty
+        !isNote(step) && (!(step.reason ?? "").isEmpty || !(step.tail ?? []).isEmpty)
     }
 
     /// Failed steps start open.

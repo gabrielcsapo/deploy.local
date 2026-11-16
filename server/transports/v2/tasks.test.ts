@@ -103,7 +103,8 @@ test('Existing task, checkpoint, check and job events become stable typed conver
       createdAt: '2026-10-27T12:00:00Z',
     });
   assert.equal(map('task.created', { id: 'task' })?.kind, 'task');
-  assert.equal(map('checkpoint.created', { checkpointId: 'c', digest: 'sha' })?.id, 'checkpoint:c');
+  // Its deploy_checkpoint call is the step; the event would repeat it as a raw digest.
+  assert.equal(map('checkpoint.created', { checkpointId: 'c', digest: 'sha' }), undefined);
   for (const [type, live] of [
     ['queued', true],
     ['running', true],

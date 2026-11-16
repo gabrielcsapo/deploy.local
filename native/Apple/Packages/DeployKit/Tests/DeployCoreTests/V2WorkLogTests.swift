@@ -46,30 +46,65 @@ import Foundation
     private func log(_ id: String, _ at: String, live: Bool = false, _ steps: [WorkStep]) -> ConversationEvent {
         .worklog(WorkLogEvent(id: id, at: at, summary: "Step \(id)", steps: steps, live: live))
     }
-    private func reply(_ id: String, _ at: String) -> ConversationEvent {
-        .reply(ReplyEvent(id: id, at: at, agent: "scout", paragraphs: ["Done"]))
+    private func reply(_ id: String, _ at: String) -> ConversationEvent { reply(id, at, ["Done"]) }
+
+    private func you(_ id: String, _ at: String) -> ConversationEvent {
+        .you(YouEvent(id: id, at: at, text: "Ship it", attachments: []))
+    }
+    private func reply(_ id: String, _ at: String, _ paragraphs: [String]) -> ConversationEvent {
+        .reply(ReplyEvent(id: id, at: at, agent: "scout", paragraphs: paragraphs))
     }
 
-    @Test func joinsConsecutiveWorkLogsBetweenMessages() {
+    @Test func joinsATurnsWorkLogsAndKeepsTheFinalReply() {
         let events = [
+            you("ask", "2026-11-16T09:59:00.000Z"),
             log("a", "2026-11-16T10:00:00.000Z", [WorkStep(icon: .edit, text: "Edited 3 files", added: 48, removed: 2)]),
             log("b", "2026-11-16T10:05:00.000Z", [WorkStep(icon: .terminal, text: "Ran tests on SER", outcome: "13 passed")]),
             log("c", "2026-11-16T10:14:00.000Z", [WorkStep(icon: .terminal, text: "Deployed tally", glyph: "deploy", outcome: "Live at tally.local")]),
             reply("r", "2026-11-16T10:15:00.000Z"),
-            log("d", "2026-11-16T10:16:00.000Z", [WorkStep(icon: .file, text: "Read README")]),
+            you("next", "2026-11-16T10:20:00.000Z"),
+            log("d", "2026-11-16T10:21:00.000Z", [WorkStep(icon: .file, text: "Read README")]),
         ]
         let grouped = V2WorkLog.group(events)
-        #expect(grouped.count == 3)
-        guard case .worklog(let first) = grouped[0] else { Issue.record("expected a work log"); return }
-        #expect(first.id == "a")
+        #expect(grouped.map(\.v2Id) == ["ask", "a", "r", "next", "d"])
+        guard case .worklog(let first) = grouped[1] else { Issue.record("expected a work log"); return }
         #expect(first.summary == "Worked for 14m")
         #expect(!first.live)
         #expect(first.steps.map(\.text) == ["Edited 3 files", "Ran tests on SER", "Deployed tally"])
         #expect(!V2WorkLog.startsOpen(first))
-        guard case .reply = grouped[1] else { Issue.record("expected the reply"); return }
         // A log on its own keeps the summary it came with.
-        guard case .worklog(let last) = grouped[2] else { Issue.record("expected a work log"); return }
+        guard case .worklog(let last) = grouped[4] else { Issue.record("expected a work log"); return }
         #expect(last.summary == "Step d")
+    }
+
+    @Test func narrationBetweenWorkLogsBecomesANote() {
+        let grouped = V2WorkLog.group([
+            you("ask", "2026-11-16T09:59:00Z"),
+            reply("r1", "2026-11-16T10:00:00Z", ["Checking the verify path."]),
+            log("a", "2026-11-16T10:01:00Z", [WorkStep(icon: .file, text: "Read server.mjs")]),
+            reply("r2", "2026-11-16T10:02:00Z", ["The files are root-only.", "Fixing the Dockerfile."]),
+            log("b", "2026-11-16T10:06:00Z", [WorkStep(icon: .edit, text: "Edited Dockerfile")]),
+            reply("done", "2026-11-16T10:07:00Z", ["Done."]),
+        ])
+        #expect(grouped.map(\.v2Id) == ["ask", "a", "done"])
+        guard case .worklog(let value) = grouped[1] else { Issue.record("expected a work log"); return }
+        #expect(value.at == "2026-11-16T10:00:00Z")
+        #expect(value.summary == "Worked for 6m")
+        #expect(value.steps.map(\.text) == ["Checking the verify path.", "Read server.mjs", "The files are root-only. Fixing the Dockerfile.", "Edited Dockerfile"])
+        #expect(value.steps.map(V2WorkLog.isNote) == [true, false, true, false])
+        let note = value.steps[0]
+        #expect(note.icon == .pulse && note.glyph == "note" && note.outcome == nil)
+        #expect(!V2WorkLog.opens(WorkStep(icon: .pulse, text: "Note", glyph: "note", reason: "ignored")))
+    }
+
+    @Test func aTurnWithOnlyRepliesIsUntouched() {
+        let events = [you("ask", "2026-11-16T10:00:00Z"), reply("r1", "2026-11-16T10:01:00Z"), reply("r2", "2026-11-16T10:02:00Z")]
+        #expect(V2WorkLog.group(events) == events)
+    }
+
+    @Test func aSingleWorkLogBeforeTheReplyStaysAsItIs() {
+        let events = [log("a", "2026-11-16T10:00:00Z", [WorkStep(icon: .file, text: "Read README")]), reply("r", "2026-11-16T10:01:00Z")]
+        #expect(V2WorkLog.group(events) == events)
     }
 
     @Test func aRunningLogSaysWorkingAndStartsOpen() {

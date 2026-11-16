@@ -92,15 +92,8 @@ export function mapConversationEvent(
     };
   if (row.type === 'task.created' && typeof payload.id === 'string')
     return { kind: 'task', id: `task:${payload.id}`, at, taskId: payload.id };
-  if (row.type === 'checkpoint.created' && typeof payload.checkpointId === 'string')
-    return {
-      kind: 'worklog',
-      id: `checkpoint:${payload.checkpointId}`,
-      at,
-      summary: 'Checkpoint saved',
-      live: false,
-      steps: [{ icon: 'file', text: payload.digest || payload.checkpointId }],
-    };
+  // The deploy_checkpoint call that wrote this is already a step, "Saved a checkpoint".
+  if (row.type === 'checkpoint.created') return;
   if (
     [
       'check.queued',

@@ -333,6 +333,7 @@ test('deploy_application returns real build identity, shares concurrent retries,
   ]);
   assert.ok(Number(result.deploymentId) > 0);
   assert.equal(result.logTail, undefined);
+  assert.equal(result.unchanged, undefined);
   assert.deepEqual(await deployApplication(scope, args), result);
   assert.equal(uploads, 1);
   await assert.rejects(
@@ -352,6 +353,39 @@ test('deploy_application returns real build identity, shares concurrent retries,
     deployApplication({ ...scope, taskId: 'wrong-task' }, { ...args, operationId: randomUUID() }),
     /another task/,
   );
+});
+
+test('a deploy of unchanged source says the running release answered for it', async () => {
+  store.ensureCoordinatorNode();
+  store.setDefaultNode('coordinator');
+  const source = checkpoint('same-app');
+  const { port } = await listen(async (req, res) => {
+    try {
+      const context = consumeAgentUpload(req)!;
+      for await (const _ of req);
+      store.registerDeploymentStart(context.application, owner, 'application-graph');
+      registerApplicationIdentity(context.application);
+      const build = store.createBuildLog(context.application);
+      store.updateCurrentBuildLogId(context.application, build);
+      recordAgentUpload(context, build);
+      store.updateDeploymentStatus(context.application, 'running');
+      store.completeBuildLog(build, { success: true, duration: 1 });
+      finishAgentUpload(context);
+      // The source matched the running release: no new build.
+      res.writeHead(202, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ accepted: true, unchanged: true }));
+    } catch (error) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: String(error) }));
+    }
+  });
+  process.env.CONTROL_PORT = String(port);
+  const result = await deployApplication(scope, {
+    operationId: randomUUID(),
+    checkpointId: source.id,
+  });
+  assert.equal(result.status, 'running');
+  assert.equal(result.unchanged, true);
 });
 
 test('admission and confirmation failures are surfaced without confirmations or credential exposure', async () => {

@@ -78,8 +78,31 @@ test('a deploy reads Deploying, then Live at its address or Failed with the reas
   assert.equal(failed?.outcome, 'Failed: health check');
   assert.equal(failed?.tone, 'fail');
   assert.match(failed?.reason || '', /failed its health gate/);
-  // The reason is shown once, above the lines that led to it.
-  assert.deepEqual(failed?.tail, ['Source artifact accepted by the coordinator']);
+  // The reason is shown once, and lines every deploy log has are no tail at all.
+  assert.equal(failed?.tail, undefined);
+  const withOutput = toolStep(
+    {
+      ...deploy,
+      output: output({
+        status: 'failed',
+        url: 'https://tally.local',
+        logTail:
+          '[t] Source artifact accepted by the coordinator\n[t] Triggered by gabrielcsapo via task Ship it\n[t] web  Error: EACCES: permission denied, open \'/app/server.mjs\'\n[t] Deployment failed: Component "web" failed its health gate',
+      }),
+    },
+    true,
+  );
+  assert.deepEqual(withOutput?.tail, [
+    "web  Error: EACCES: permission denied, open '/app/server.mjs'",
+  ]);
+  const unchanged = toolStep(
+    {
+      ...deploy,
+      output: output({ status: 'running', url: 'https://drop.local', unchanged: true }),
+    },
+    true,
+  );
+  assert.equal(unchanged?.outcome, 'Already live at drop.local');
 });
 
 test('a deploy the tool stopped waiting for is not called a failure', () => {

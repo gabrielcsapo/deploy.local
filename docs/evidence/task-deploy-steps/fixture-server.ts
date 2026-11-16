@@ -10,7 +10,8 @@ import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'task-deploy-fixture-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { save, event, events, list } = await import('../../../server/workspace/store.ts');
-const { mapConversationEvent } = await import('../../../server/features/agents/conversation-events.ts');
+const { mapConversationEvent } =
+  await import('../../../server/features/agents/conversation-events.ts');
 const { v2Api } = await import('../../../server/v2/api.ts');
 const { workspaceApi } = await import('../../../server/workspace/api.ts');
 
@@ -101,7 +102,19 @@ add('message', {
     'In Tally, add a reset button under the count, then deploy it and check tally.local works from another computer',
 });
 tool('read', 0.5, 'Read', { file_path: '/w/web/server.mjs' }, 'ok');
+add('message', {
+  id: 'narration',
+  role: 'assistant',
+  createdAt: at(0.8),
+  content: 'The count lives in web/server.mjs. Adding a reset route and a button under the count.',
+});
 tool('edit', 1, 'Edit', { file_path: '/w/web/index.html' }, 'ok');
+tool('checkpoint', 1.5, 'mcp__deploy__deploy_checkpoint', { operationId: 'c1' }, 'ok');
+add('checkpoint.created', {
+  checkpointId: 'c1',
+  digest: '39bd298647bb1d1ec42a42ece7d4c7f9',
+  createdAt: at(1.5),
+});
 add('job.queued', { id: 'tests', name: 'Run tests', createdAt: at(2) });
 add('job.succeeded', { jobId: 'tests', workerId: 'w-ser', exitCode: 0, createdAt: at(2.2) });
 tool(
@@ -140,7 +153,8 @@ const user = () => ({ username: owner });
 const server = createServer(async (req, res) => {
   const url = new URL(req.url!, 'http://127.0.0.1:5192');
   const path = url.pathname;
-  if (process.env.FIXTURE_LOG) res.on('finish', () => console.log(res.statusCode, req.method, req.url));
+  if (process.env.FIXTURE_LOG)
+    res.on('finish', () => console.log(res.statusCode, req.method, req.url));
   const send = (value: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(value));
@@ -154,7 +168,10 @@ const server = createServer(async (req, res) => {
       const after = Number(url.searchParams.get('after'));
       const rows = Number.isFinite(after) ? events(owner, after) : [];
       if (!rows.length) {
-        const timer = setTimeout(() => send({ events: [], cursor: after || 0, supportsWait: true }), 10000);
+        const timer = setTimeout(
+          () => send({ events: [], cursor: after || 0, supportsWait: true }),
+          10000,
+        );
         res.on('close', () => clearTimeout(timer));
         return;
       }
@@ -169,7 +186,16 @@ const server = createServer(async (req, res) => {
       const feed = rows.flatMap((row: any) => {
         const mapped = mapConversationEvent(row, runs.get(row.runId), context);
         return mapped
-          ? [{ type: 'conversation', cursor: row.cursor, taskId: row.taskId, runId: row.runId, at: row.createdAt, event: mapped }]
+          ? [
+              {
+                type: 'conversation',
+                cursor: row.cursor,
+                taskId: row.taskId,
+                runId: row.runId,
+                at: row.createdAt,
+                event: mapped,
+              },
+            ]
           : [];
       });
       return send({ events: feed, cursor: rows.at(-1).cursor, supportsWait: true });

@@ -781,6 +781,15 @@
 .dl-step .dl-x.warn {
   color: var(--ds-warning);
 }
+.dl-step.note {
+  align-items: flex-start;
+}
+.dl-step.note .dl-i {
+  padding-top: 3px;
+}
+.dl-step.note .dl-t {
+  white-space: normal;
+}
 .dl-step .dl-step-end {
   margin-left: auto;
   display: flex;

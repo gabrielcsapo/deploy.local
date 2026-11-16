@@ -29,6 +29,8 @@ import type { AgentScope } from '../../workspace/coordination.ts';
 
 export type ApplicationResult = {
   status: 'running' | 'failed';
+  /** The source matched what was already running, so nothing was rebuilt. */
+  unchanged?: boolean;
   url: string;
   routes: { name: string; url: string; to: string }[];
   deploymentId: string | null;
@@ -280,7 +282,8 @@ export async function deployApplication(
   const deadline = Date.now() + 600000;
   const execute = async (): Promise<ApplicationResult> => {
     let buildLogId = record.buildLogId,
-      waiting = false;
+      waiting = false,
+      unchanged = false;
     let routes: ApplicationResult['routes'] = record.routes || [],
       secrets: string[] = [];
     let spec: Awaited<ReturnType<typeof checkpointBundle>>['spec'] | undefined;
@@ -316,6 +319,7 @@ export async function deployApplication(
           bundle,
           deadline - Date.now(),
         );
+        unchanged = Boolean(receipt.unchanged && !receipt.buildLogId);
         buildLogId =
           receipt.buildLogId ||
           (receipt.unchanged ? getDeployment(application)?.currentBuildLogId : null);
@@ -334,7 +338,13 @@ export async function deployApplication(
       await waitForApplication(application, buildLogId, {
         timeoutMs: Math.max(0, deadline - Date.now()),
       });
-      return finish({ status: 'running', url, routes, deploymentId: String(buildLogId) });
+      return finish({
+        status: 'running',
+        url,
+        routes,
+        deploymentId: String(buildLogId),
+        ...(unchanged ? { unchanged } : {}),
+      });
     } catch (error: any) {
       // recordAgentUpload persists the identity even if the HTTP response was lost.
       buildLogId ||= get('application-deployment', owner, record.id).buildLogId;

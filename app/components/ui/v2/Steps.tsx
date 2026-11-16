@@ -13,6 +13,8 @@ export type WorkStep = {
   outcome?: string;
   outcomeHref?: string;
   tone?: 'fail' | 'warn';
+  /** What the agent said while it worked: a line that wraps instead of truncating. */
+  note?: boolean;
   /** Still running: the icon becomes a spinner. */
   live?: boolean;
   seconds?: number;
@@ -48,7 +50,7 @@ function Step({ step, index, numbered }: { step: WorkStep; index: number; number
   const [open, setOpen] = useState(step.tone === 'fail');
   return (
     <>
-      <li className="dl-step">
+      <li className={`dl-step${step.note ? ' note' : ''}`}>
         <span className="dl-i" aria-hidden={numbered || undefined}>
           {numbered ? (
             index + 1

@@ -35,3 +35,15 @@ that open keep a 44 pt tap area without looking taller. The deploy glyph is SF S
 Not in this capture because the fixture's task is finished: the live header and spinner, and the
 Interrupted step's warning colour (both covered by Swift tests). A long outcome truncates
 ("Passed on baz…").
+
+## Follow-up after release (real Drop task)
+
+Seen on the real task after `58408a83` shipped, and fixed:
+
+- One log per turn: what the agent says between steps ("The count lives in web/server.mjs…") is a
+  note line in the log (speech bubble, wraps) instead of splitting the work into many small logs.
+  Its last message after the last step stays a reply. The boards now show a note line.
+- A checkpoint is one step, "Saved a checkpoint", no longer followed by its raw digest.
+- A failed deploy's tail leaves out lines every deploy log has ("Source artifact accepted…",
+  "Triggered by…"); with nothing else to show, it shows only the reason.
+- A deploy of unchanged source says "Already live at drop.local": the running release answered.

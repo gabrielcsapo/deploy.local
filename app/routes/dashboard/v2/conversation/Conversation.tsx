@@ -88,14 +88,17 @@ export function ConversationItem({
       const steps = event.steps.map((step) => ({
         ...step,
         live: step.live ?? event.live,
+        note: step.glyph === 'note',
         icon:
           step.glyph === 'deploy'
             ? ('deploy' as const)
-            : step.icon === 'edit'
-              ? ('compose' as const)
-              : step.icon === 'logs'
-                ? ('terminal' as const)
-                : step.icon,
+            : step.glyph === 'note'
+              ? ('comment' as const)
+              : step.icon === 'edit'
+                ? ('compose' as const)
+                : step.icon === 'logs'
+                  ? ('terminal' as const)
+                  : step.icon,
       }));
       return (
         <WorkLog

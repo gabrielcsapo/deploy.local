@@ -141,6 +141,49 @@ test('Conversation renders every typed variant, folds work and retains decision 
     assert.match(deploy, /<strong><a href="https:\/\/drop.local">drop.local<\/a><\/strong>/);
     assert.match(deploy, /<code>server.js<\/code>/);
     assert.doesNotMatch(deploy, /\*\*/);
+
+    // What the agent says between steps is part of the log; its last word stays a reply.
+    const turn = render(
+      [
+        { kind: 'you', id: 'ask2', at, text: 'Fix it', attachments: [] },
+        {
+          kind: 'worklog',
+          id: 'w1',
+          at,
+          summary: 'Read',
+          live: false,
+          steps: [{ icon: 'file', text: 'Read server.js' }],
+        },
+        {
+          kind: 'reply',
+          id: 'narration',
+          at: '2026-10-27T12:01:00Z',
+          agent: 'scout',
+          paragraphs: ['Checking the verify path.'],
+        },
+        {
+          kind: 'worklog',
+          id: 'w2',
+          at: '2026-10-27T12:02:00Z',
+          summary: 'Edited',
+          live: false,
+          steps: [{ icon: 'edit', text: 'Edited server.js' }],
+        },
+        {
+          kind: 'reply',
+          id: 'final',
+          at: '2026-10-27T12:03:00Z',
+          agent: 'scout',
+          paragraphs: ['Fixed.'],
+        },
+      ],
+      {},
+    );
+    assert.equal(turn.match(/class="dl-worklog"/g)?.length, 1);
+    assert.match(turn, /Worked for 2m/);
+    assert.match(turn, /class="dl-step note">.*Checking the verify path\./);
+    assert.equal(turn.match(/class="dl-reply"/g)?.length, 1);
+    assert.match(turn, /<p>Fixed\.<\/p>/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

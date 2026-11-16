@@ -74,7 +74,7 @@ export type WorkStep = {
   added?: number;
   removed?: number;
   /** A closer picture than `icon`, for clients that know it; `icon` stays for the rest. */
-  glyph?: 'deploy';
+  glyph?: 'deploy' | 'note';
   /** How it went: "Live at drop.local", "Passed on SER", "Failed: health check". */
   outcome?: string;
   /** Where the outcome points, such as the app a deploy made live. */

@@ -88,6 +88,17 @@ function json(value: string): Record<string, unknown> | undefined {
   }
 }
 
+/**
+ * Lines every deploy log has, which say nothing about why this one failed. The reason is shown
+ * above the tail, so it is left out of the tail too.
+ */
+const BOILERPLATE = [
+  /^Deployment stopped\./,
+  /deployment failed:/i,
+  /^Source artifact accepted by the coordinator$/,
+  /^Triggered by .+ via task /,
+];
+
 /** A deploy log line without its timestamp. */
 const logLine = (line: string) => line.replace(/^\[[^\]]+\]\s*/, '').trimEnd();
 
@@ -123,13 +134,20 @@ function deployStep(item: ToolItem, done: boolean): WorkStep {
       icon: 'pulse',
       glyph: 'deploy',
       text: `Deployed ${name}`,
-      outcome: `Live at ${host}`,
+      // Nothing changed since the last deploy, so the running release answered for it.
+      outcome: `${result.unchanged === true ? 'Already live' : 'Live'} at ${host}`,
       outcomeHref: result.url,
       links: [logs],
     };
   }
   const log = typeof result?.logTail === 'string' ? result.logTail : output;
   const { outcome, reason } = deployFailure(log);
+  // The reason is shown above the tail; the tail is what led to it, if the log says.
+  const tail = log
+    .split('\n')
+    .map(logLine)
+    .filter((line) => line && !BOILERPLATE.some((pattern) => pattern.test(line)))
+    .slice(-3);
   // A timeout is not a failure the platform saw: the deploy may still finish.
   const waiting = /timed out waiting/i.test(log);
   return {
@@ -139,14 +157,7 @@ function deployStep(item: ToolItem, done: boolean): WorkStep {
     outcome: waiting ? 'Still deploying after 10 minutes' : outcome,
     tone: waiting ? 'warn' : 'fail',
     reason,
-    // The reason is already shown above the tail; the tail is what led to it.
-    tail: log
-      .split('\n')
-      .map(logLine)
-      .filter(
-        (line) => line && !/^Deployment stopped\./.test(line) && !/deployment failed:/i.test(line),
-      )
-      .slice(-3),
+    ...(tail.length ? { tail } : {}),
     links: [logs],
   };
 }

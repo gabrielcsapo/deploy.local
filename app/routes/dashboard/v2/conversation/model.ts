@@ -1,5 +1,5 @@
 import { formatTime } from '../data/time.ts';
-import type { ConversationEvent } from '../../../../../shared/v2/contracts.ts';
+import type { ConversationEvent, WorkStep } from '../../../../../shared/v2/contracts.ts';
 
 /** Stable ids replace streamed work updates without moving their position in the chat. */
 export function mergeEvents(current: ConversationEvent[], incoming: ConversationEvent[]) {
@@ -38,33 +38,48 @@ function took(from: string, to: string) {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
+type Worklog = Extract<ConversationEvent, { kind: 'worklog' }>;
+type Reply = Extract<ConversationEvent, { kind: 'reply' }>;
+
 /**
- * The steps an agent takes between messages read as one work log, "Worked for 14m", instead of
- * a row each. A log that is still running says so.
+ * One turn's work reads as one log, "Worked for 14m", instead of a row per step. What the agent
+ * says while it works ("Checking the verify path") becomes a note in that log; what it says after
+ * its last step stays a reply. A log that is still running says so.
  */
 export function workLogs(events: ConversationEvent[]): ConversationEvent[] {
   const result: ConversationEvent[] = [];
-  let run: Extract<ConversationEvent, { kind: 'worklog' }>[] = [];
+  let turn: (Worklog | Reply)[] = [];
   const flush = () => {
-    if (run.length === 1) result.push(run[0]);
-    else if (run.length > 1) {
-      const live = run.some((event) => event.live);
-      const steps = run.flatMap((event) =>
-        event.steps.map((step) => ({ ...step, live: step.live ?? event.live })),
+    const last = turn.findLastIndex((event) => event.kind === 'worklog');
+    if (last < 0) {
+      result.push(...turn);
+      turn = [];
+      return;
+    }
+    const work = turn.slice(0, last + 1);
+    const logs = work.filter((event): event is Worklog => event.kind === 'worklog');
+    if (work.length === 1) result.push(work[0]);
+    else {
+      const live = logs.some((event) => event.live);
+      const steps = work.flatMap((event): WorkStep[] =>
+        event.kind === 'worklog'
+          ? event.steps.map((step) => ({ ...step, live: step.live ?? event.live }))
+          : [{ icon: 'pulse', glyph: 'note', text: event.paragraphs.join(' ') }],
       );
       result.push({
         kind: 'worklog',
-        id: run[0].id,
-        at: run[0].at,
+        id: logs[0].id,
+        at: work[0].at,
         live,
         steps,
-        summary: `${live ? 'Working for' : 'Worked for'} ${took(run[0].at, run.at(-1)!.at)}`,
+        summary: `${live ? 'Working for' : 'Worked for'} ${took(work[0].at, work.at(-1)!.at)}`,
       });
     }
-    run = [];
+    result.push(...turn.slice(last + 1));
+    turn = [];
   };
   for (const event of events) {
-    if (event.kind === 'worklog') run.push(event);
+    if (event.kind === 'worklog' || event.kind === 'reply') turn.push(event);
     else {
       flush();
       result.push(event);
