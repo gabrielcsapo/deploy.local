@@ -1892,7 +1892,10 @@ export class ApplicationGraphExecutor {
         const publishedPort = hostNetwork
           ? service.containerPort
           : inspection.hostPorts[service.containerPort];
-        if (publishedServices.has(service.id) && !publishedPort) {
+        // Release verification runs on an internal network, where Docker publishes no ports; the
+        // endpoint is then the component's address on that network.
+        const isolated = context.validation?.denyExternalNetwork === true;
+        if (publishedServices.has(service.id) && !publishedPort && !isolated) {
           throw new Error(
             `Ready instance ${JSON.stringify(instance.containerName)} has no published port for ${service.id}`,
           );
