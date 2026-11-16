@@ -465,12 +465,19 @@ export function agentConversation(owner: string, agentId: string): ConversationE
   const result: ConversationEvent[] = list('agent-message', owner)
     .filter((row) => row.agentId === agentId)
     .map((row) => row.event);
+  const jobs = new Map(list('job', owner).map((job) => [job.id, job]));
+  const workers = new Map(list('worker', owner).map((worker) => [worker.id, worker.name]));
+  const context = {
+    calls: new Map(),
+    job: (id: string) => jobs.get(id),
+    computer: (id: string) => workers.get(id),
+  };
   let cursor = 0;
   for (;;) {
     const rows = events(owner, cursor);
     for (const row of rows) {
       if (runs.has(row.runId)) {
-        const event = mapConversationEvent(row, runs.get(row.runId));
+        const event = mapConversationEvent(row, runs.get(row.runId), context);
         if (event) result.push(event);
       }
       cursor = row.cursor;

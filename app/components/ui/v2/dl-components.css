@@ -770,6 +770,63 @@
   color: var(--ds-muted);
   flex: none;
 }
+.dl-step .dl-x a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dl-step .dl-x.fail {
+  color: var(--ds-danger);
+}
+.dl-step .dl-x.warn {
+  color: var(--ds-warning);
+}
+.dl-step .dl-step-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  font-size: var(--ds-type-meta);
+  color: var(--ds-muted);
+}
+.dl-step .dl-step-end a {
+  color: var(--ds-secondary);
+}
+.dl-step-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ds-muted);
+  cursor: pointer;
+}
+.dl-step-open {
+  list-style: none;
+  margin: 2px 0 6px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  color: var(--ds-secondary);
+}
+.dl-step-open p {
+  margin: 0;
+}
+.dl-step-tail {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-meta);
+  line-height: 20px;
+  color: var(--ds-muted);
+  white-space: pre;
+  overflow-x: auto;
+}
 .dl-who-line {
   display: flex;
   align-items: center;
@@ -1332,6 +1389,10 @@ a.dl-item:hover {
   line-height: 26px;
 }
 .dl-phone .dl-step {
+  font-size: var(--ds-type-body);
+  line-height: 22px;
+}
+.dl-phone .dl-step-open {
   font-size: var(--ds-type-body);
   line-height: 22px;
 }

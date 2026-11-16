@@ -90,6 +90,8 @@ const exceptions: Record<string, string> = {
     'Existing shared provider or public contract; preserve worker and client behavior.',
   'conversation-events.ts -> shared/v2/contracts.ts':
     'Existing shared provider or public contract; preserve worker and client behavior.',
+  'work-steps.ts -> shared/v2/contracts.ts':
+    'Readable work steps use the shared WorkStep contract the clients decode.',
   'media-event.ts -> shared/v2/contracts.ts':
     'Existing shared provider or public contract; preserve worker and client behavior.',
 };

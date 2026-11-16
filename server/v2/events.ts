@@ -4,7 +4,10 @@ import { list } from '../workspace/store.ts';
 import { cursor as eventCursor, events, createOwnerEventPoller } from '../kernel/events/index.ts';
 import './inbox.ts';
 import { stateRefresh } from './state-refresh.ts';
-import { mapConversationEvent } from '../features/agents/conversation-events.ts';
+import {
+  type ConversationContext,
+  mapConversationEvent,
+} from '../features/agents/conversation-events.ts';
 export { mapConversationEvent } from '../features/agents/conversation-events.ts';
 
 const poller = createOwnerEventPoller({ head: eventCursor, refresh: stateRefresh.read });
@@ -20,6 +23,7 @@ export async function waitForV2Events(
   let cursor = after;
   let firstPass = true;
   let runs: Map<string, any> | undefined;
+  let context: ConversationContext | undefined;
   for (;;) {
     signal.throwIfAborted();
     if (firstPass) {
@@ -49,7 +53,8 @@ export async function waitForV2Events(
       else if (row.type === 'task.deleted') result.push({ ...base, type: 'task-deleted' });
       else {
         runs ??= new Map(list('run', owner).map((run) => [run.id, run]));
-        const event = mapConversationEvent(row, runs.get(row.runId));
+        context ??= conversationContext(owner);
+        const event = mapConversationEvent(row, runs.get(row.runId), context);
         if (event) result.push({ ...base, type: 'conversation', event });
       }
       cursor = row.cursor;
@@ -60,5 +65,20 @@ export async function waitForV2Events(
     if (rows.length === 1000) continue;
     await poller.wait(owner, cursor, deadline, signal);
     runs = undefined;
+    context = undefined;
   }
+}
+
+/** Jobs and computers for naming steps; a tool result names its own tool. */
+function conversationContext(owner: string): ConversationContext {
+  let jobs: Map<string, any> | undefined;
+  let workers: Map<string, string> | undefined;
+  return {
+    calls: new Map(),
+    job: (id) => (jobs ??= new Map(list('job', owner).map((job) => [job.id, job]))).get(id),
+    computer: (id) =>
+      (workers ??= new Map(list('worker', owner).map((worker) => [worker.id, worker.name]))).get(
+        id,
+      ),
+  };
 }

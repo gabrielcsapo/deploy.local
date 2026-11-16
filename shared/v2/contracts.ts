@@ -73,6 +73,21 @@ export type WorkStep = {
   text: string;
   added?: number;
   removed?: number;
+  /** A closer picture than `icon`, for clients that know it; `icon` stays for the rest. */
+  glyph?: 'deploy';
+  /** How it went: "Live at drop.local", "Passed on SER", "Failed: health check". */
+  outcome?: string;
+  /** Where the outcome points, such as the app a deploy made live. */
+  outcomeHref?: string;
+  tone?: 'fail' | 'warn';
+  /** Still running. */
+  live?: boolean;
+  seconds?: number;
+  /** Where to look next, such as View logs or Output. */
+  links?: { label: string; href: string }[];
+  /** Why it failed or stopped, and the last lines of its log, shown when the step is opened. */
+  reason?: string;
+  tail?: string[];
 };
 
 // Waiting on you. The only thing that shows "!".

@@ -206,6 +206,7 @@ struct V2Tabs: View {
         case "SearchPhone": search = true
         case "NewAgentPhone", "NewAgentDraftPhone": newAgent = true
         case "TaskPhone", "TaskLoadingPhone": task = "sync"
+        case "TaskDeployPhone": task = "tally-reset"
         case "NewProductPhone", "TaskInfoPhone", "ShipPhone": task = "meal"
         case "AskPhone": task = "ask"
         case "ChangesPhone", "AttachPhone", "AttachedPhone", "ModelPhone": task = "meal"

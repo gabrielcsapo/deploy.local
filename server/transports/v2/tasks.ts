@@ -30,11 +30,22 @@ export function taskSnapshot(owner: string, id: string) {
   const runs = list('run', owner).filter((run) => run.taskId === id);
   const byRun = new Map(runs.map((run) => [run.id, run]));
   const conversation = new Map<string, ConversationEvent>();
+  const taskJobs = new Map(
+    list('job', owner)
+      .filter((job) => job.taskId === id)
+      .map((job) => [job.id, job]),
+  );
+  const workerNames = new Map(list('worker', owner).map((worker) => [worker.id, worker.name]));
+  const context = {
+    calls: new Map(),
+    job: (jobId: string) => taskJobs.get(jobId),
+    computer: (workerId: string) => workerNames.get(workerId),
+  };
   let after = 0;
   for (;;) {
     const rows = events(owner, after, id);
     for (const row of rows) {
-      const mapped = mapConversationEvent(row, byRun.get(row.runId));
+      const mapped = mapConversationEvent(row, byRun.get(row.runId), context);
       // The task-created link belongs in its parent conversation, not its own transcript.
       if (mapped && !(mapped.kind === 'task' && mapped.taskId === id))
         conversation.set(mapped.id, mapped);

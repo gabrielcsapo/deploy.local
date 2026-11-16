@@ -1,6 +1,19 @@
 import { mapMediaEvent } from './media-event.ts';
 import type { ConversationEvent, WorkStep } from '../../../shared/v2/contracts.ts';
 import { agentId } from '../decisions/inbox.ts';
+import { jobStep, toolStep, type ToolItem } from './work-steps.ts';
+
+/**
+ * What a mapper remembers between rows. A tool result names neither its tool nor its arguments,
+ * and a finished job event carries only its id, so both are read from what came before.
+ */
+export type ConversationContext = {
+  calls?: Map<string, ToolItem>;
+  job?: (id: string) => Record<string, any> | undefined;
+  computer?: (id: string) => string | undefined;
+};
+
+const ENDED_RUN = new Set(['interrupted', 'failed', 'cancelled', 'stopped']);
 
 const workIcons = new Map<string, WorkStep['icon']>([
   ['command_execution', 'terminal'],
@@ -11,7 +24,11 @@ const workIcons = new Map<string, WorkStep['icon']>([
   ['mcp_tool_call', 'pulse'],
 ]);
 
-export function mapConversationEvent(row: any, run?: any): ConversationEvent | undefined {
+export function mapConversationEvent(
+  row: any,
+  run?: any,
+  context: ConversationContext = {},
+): ConversationEvent | undefined {
   const media = mapMediaEvent(row);
   if (media) return media;
   const payload = row.payload ?? {};
@@ -33,6 +50,13 @@ export function mapConversationEvent(row: any, run?: any): ConversationEvent | u
       : typeof payload.providerItemId === 'string'
         ? `${row.runId}:item:${payload.providerItemId}`
         : `event:${row.cursor}`;
+  // A deploy is shown as a step; its stored Markdown summary would repeat it as a reply.
+  if (
+    row.type === 'message' &&
+    typeof payload.id === 'string' &&
+    payload.id.startsWith('deployment:')
+  )
+    return;
   if (row.type === 'message' && typeof payload.content === 'string') {
     if (payload.role === 'user')
       return {
@@ -114,27 +138,62 @@ export function mapConversationEvent(row: any, run?: any): ConversationEvent | u
     ].includes(row.type)
   ) {
     const jobId = payload.jobId || payload.id;
-    if (typeof jobId === 'string')
+    if (typeof jobId === 'string') {
+      const job = context.job?.(jobId);
+      const workerId = payload.workerId || job?.workerId;
+      const step = jobStep(job, row.type, payload, {
+        computer: typeof workerId === 'string' ? context.computer?.(workerId) : undefined,
+        taskId: row.taskId || job?.taskId,
+      });
       return {
         kind: 'worklog',
         id: `job:${jobId}`,
         at,
-        summary: `Work ${row.type.slice(4)}`,
-        steps: [
-          {
-            icon: 'terminal',
-            text:
-              typeof payload.command === 'string' ? payload.command : `Work ${row.type.slice(4)}`,
-          },
-        ],
-        live: ['job.queued', 'job.running', 'job.progress'].includes(row.type),
+        summary: step.text,
+        steps: [step],
+        live: step.live === true,
       };
+    }
   }
   const item = payload.item;
   if (
     ['item.started', 'item.updated', 'item.completed'].includes(row.type) &&
     typeof item?.id === 'string'
   ) {
+    if (['tool_call', 'tool_result', 'mcp_tool_call'].includes(item.type)) {
+      const call = context.calls?.get(item.id);
+      const merged: ToolItem = {
+        ...call,
+        ...item,
+        name: item.name ?? item.tool ?? call?.name,
+        arguments: item.arguments ?? call?.arguments,
+        startedAt:
+          item.startedAt ?? call?.startedAt ?? (item.type === 'tool_result' ? undefined : at),
+      };
+      if (item.type !== 'tool_result') context.calls?.set(item.id, merged);
+      const done = row.type === 'item.completed';
+      let step = merged.name
+        ? toolStep(merged, done, at)
+        : { icon: 'pulse' as const, text: 'Used a tool', ...(done ? {} : { live: true }) };
+      if (!step) return;
+      // A run that ended before this step did leaves it stopped, not spinning.
+      if (step.live && ENDED_RUN.has(run?.status))
+        step = {
+          ...step,
+          live: false,
+          outcome: 'Interrupted',
+          tone: 'warn',
+          ...(typeof run?.error === 'string' && run.error ? { reason: run.error } : {}),
+        };
+      return {
+        kind: 'worklog',
+        id: `work:${row.runId}:${item.id}`,
+        at,
+        summary: step.text,
+        steps: [step],
+        live: step.live === true,
+      };
+    }
     const icon = workIcons.get(item.type);
     if (!icon) return;
     const text =

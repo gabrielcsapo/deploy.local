@@ -171,16 +171,17 @@ struct V2ConversationView: View {
         }
     }
     private var conversationEvents: [ConversationEvent] {
-        if agent != nil { return agentEvents.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) } }
+        if agent != nil { return V2WorkLog.group(agentEvents.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) }) }
         guard let id = currentId else { return [] }
         var events = store.conversation(id)
         // Old coordinators expose message snapshots; adapt only explicit user/assistant roles.
         let known = Set(events.map(\.v2Id))
-        for message in detail?.messages ?? [] where !known.contains(message.id) && message.isProgress != true {
+        // A stored deploy summary ("> **drop** · failed") is told by the work log now; never show it.
+        for message in detail?.messages ?? [] where !known.contains(message.id) && message.isProgress != true && !V2WorkLog.isDeploySummary(message) {
             if message.role == "user" { events.append(.you(YouEvent(id: message.id, at: message.createdAt, text: message.content, attachments: []))) }
             else if message.role == "assistant" { events.append(.reply(ReplyEvent(id: message.id, at: message.createdAt, agent: agent ?? "", paragraphs: message.content.components(separatedBy: "\n\n")))) }
         }
-        return events.sorted { $0.v2Date < $1.v2Date }.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) }
+        return V2WorkLog.group(events.sorted { $0.v2Date < $1.v2Date }.filter { search.isEmpty || String(describing: $0).localizedCaseInsensitiveContains(search) })
     }
     @ViewBuilder private var conversation: some View {
         ForEach(savedAgent?.looksAfter?.filter { $0.confirmedAt != nil } ?? []) { item in
@@ -247,7 +248,7 @@ struct V2ConversationView: View {
             if let savedAgent { HStack { AgentAvatar(glyph: savedAgent.identity.glyph, color: savedAgent.identity.color); Text(savedAgent.name).font(.system(size: 13)).lineLimit(1) } }
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(Array(value.paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                    Text(.init(paragraph + (paragraph.contains("outside this agent’s project access") || paragraph.contains("outside this agent's project access") ? " [Review access](deploy-agent://access)" : "")))
+                    Text(Self.markdown(paragraph + (paragraph.contains("outside this agent’s project access") || paragraph.contains("outside this agent's project access") ? " [Review access](deploy-agent://access)" : "")))
                         .font(.system(size: 17)).lineSpacing(5).textSelection(.enabled)
                         .environment(\.openURL, OpenURLAction { url in
                             if url.scheme == "deploy-agent" { info = true; return .handled }
@@ -268,9 +269,7 @@ struct V2ConversationView: View {
                 }
             }
         case .worklog(let value):
-            DisclosureGroup(value.summary) {
-                VStack(alignment: .leading, spacing: 10) { ForEach(Array(value.steps.enumerated()), id: \.offset) { _, step in Label(step.text, systemImage: step.icon == .terminal ? "terminal" : "doc").font(.system(size: 13)) } }
-            }.font(.system(size: 13)).foregroundStyle(.secondary)
+            V2WorkLogView(log: value, origin: store.connection.origin)
         case .decision(let value):
             if let item = store.snapshot.inbox.first(where: { $0.id == value.inboxItemId }) { decisionView(item) }
             else { Text("Decision unavailable. Refresh Waiting on you.").font(.system(size: 13)) }
@@ -285,6 +284,10 @@ struct V2ConversationView: View {
         case .report(let value):
             VStack(alignment: .leading, spacing: 12) { Text(value.title).font(.system(size: 17, weight: .medium)); ForEach(Array(value.sections.enumerated()), id: \.offset) { _, section in Text(section.title).font(.system(size: 15, weight: .medium)); Text(section.body).font(.system(size: 17)) } }
         }
+    }
+    /// Links, bold and inline code in a reply paragraph; plain text if it is not Markdown.
+    private static func markdown(_ paragraph: String) -> AttributedString {
+        (try? AttributedString(markdown: paragraph, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(paragraph)
     }
     @ViewBuilder private var changes: some View {
         if let diff {

@@ -1,11 +1,13 @@
 'use client';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { SavedAgentAvatar } from '../agents/identity';
 import { Glyph, Icon, WorkLog } from '@/components/ui';
 import type { ConversationEvent, Release, Screenshot } from '../../../../../shared/v2/contracts';
 import { InboxDecision } from '../inbox/InboxDecision';
 import { useAgentName } from '../data/hooks';
 import { useProjectFormatting } from '../projects/formatting';
-import { conversationDays, safeResourceUrl } from './model';
+import { conversationDays, safeResourceUrl, workLogs } from './model';
 import { AttachmentImage, ScreenshotEvent } from './Media';
 import './style.css';
 
@@ -79,22 +81,31 @@ export function ConversationItem({
               {agentName(event.agent)} <span className="dl-meta">· {formatTime(event.at)}</span>
             </div>
           )}
-          {event.paragraphs.map((paragraph, i) => (
-            <p key={i}>{paragraph}</p>
-          ))}
+          <Markdown remarkPlugins={[remarkGfm]}>{event.paragraphs.join('\n\n')}</Markdown>
         </div>
       );
-    case 'worklog':
+    case 'worklog': {
+      const steps = event.steps.map((step) => ({
+        ...step,
+        live: step.live ?? event.live,
+        icon:
+          step.glyph === 'deploy'
+            ? ('deploy' as const)
+            : step.icon === 'edit'
+              ? ('compose' as const)
+              : step.icon === 'logs'
+                ? ('terminal' as const)
+                : step.icon,
+      }));
       return (
         <WorkLog
           summary={event.summary}
           live={event.live}
-          steps={event.steps.map((step) => ({
-            ...step,
-            icon: step.icon === 'edit' ? 'compose' : step.icon === 'logs' ? 'terminal' : step.icon,
-          }))}
+          steps={steps}
+          defaultOpen={steps.some((step) => step.live || step.tone === 'fail')}
         />
       );
+    }
     case 'decision':
       return <InboxDecision itemId={event.inboxItemId} />;
     case 'task':
@@ -145,7 +156,7 @@ function ConversationItems({
   resources?: ConversationResources;
 }) {
   const groups: ConversationEvent[][] = [];
-  for (const event of events) {
+  for (const event of workLogs(events)) {
     const previous = groups.at(-1);
     if (event.kind === 'screenshot' && previous?.[0].kind === 'screenshot') previous.push(event);
     else groups.push([event]);

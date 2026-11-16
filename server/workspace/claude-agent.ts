@@ -52,6 +52,7 @@ for await (const chunk of process.stdin) prompt += chunk;
 child.stdin!.end(JSON.stringify(claudeImageMessage(prompt, environmentImages())) + '\n');
 let buffer = '',
   failed = false;
+const tools = new Map<string, { name: string; arguments: unknown; startedAt: string }>();
 child.stdout!.on('data', (chunk) => {
   buffer += chunk;
   let end;
@@ -65,10 +66,16 @@ child.stdout!.on('data', (chunk) => {
         emit('thread.started', { thread_id: value.session_id });
       if (value.type === 'assistant')
         for (const block of value.message?.content || []) {
-          if (block.type === 'tool_use')
+          if (block.type === 'tool_use') {
+            tools.set(block.id, {
+              name: block.name,
+              arguments: block.input,
+              startedAt: new Date().toISOString(),
+            });
             emit('item.started', {
               item: { type: 'tool_call', id: block.id, name: block.name, arguments: block.input },
             });
+          }
         }
       if (value.type === 'user')
         for (const block of value.message?.content || []) {
@@ -77,6 +84,8 @@ child.stdout!.on('data', (chunk) => {
               item: {
                 type: 'tool_result',
                 id: block.tool_use_id,
+                // A result replaces its call on the page, so it carries the call's name.
+                ...tools.get(block.tool_use_id),
                 output: block.content,
                 isError: block.is_error || false,
               },

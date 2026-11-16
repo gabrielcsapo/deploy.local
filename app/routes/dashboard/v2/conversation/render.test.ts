@@ -85,6 +85,62 @@ test('Conversation renders every typed variant, folds work and retains decision 
     );
     assert.match(older, /<details class="dl-chat-history">/);
     assert.ok(older.indexOf('Loading decision') > older.indexOf('</details>'));
+
+    // Steps between messages read as one log; a failed deploy opens to its reason.
+    const deploy = render(
+      [
+        { kind: 'you', id: 'ask', at, text: 'Ship it', attachments: [] },
+        {
+          kind: 'worklog',
+          id: 'job:j',
+          at,
+          summary: 'Run tests',
+          live: false,
+          steps: [{ icon: 'terminal', text: 'Run tests', outcome: 'Passed on SER', seconds: 12 }],
+        },
+        {
+          kind: 'worklog',
+          id: 'work:r:1',
+          at: '2026-10-27T12:14:00Z',
+          summary: 'Deployed drop',
+          live: false,
+          steps: [
+            {
+              icon: 'pulse',
+              glyph: 'deploy',
+              text: 'Deployed drop',
+              outcome: 'Failed: health check',
+              tone: 'fail',
+              reason: 'Component "web" failed its health gate',
+              tail: ['Deployment failed: Component "web" failed its health gate'],
+              links: [{ label: 'View logs', href: '/dashboard/drop/build' }],
+            },
+          ],
+        },
+        {
+          kind: 'reply',
+          id: 'done',
+          at: '2026-10-27T12:15:00Z',
+          agent: 'scout',
+          paragraphs: ['Live at **[drop.local](https://drop.local)**, see `server.js`.'],
+        },
+      ],
+      {},
+    );
+    assert.equal(deploy.match(/class="dl-worklog"/g)?.length, 1);
+    assert.match(deploy, /Worked for 14m/);
+    assert.match(deploy, /aria-expanded="true"/);
+    assert.match(deploy, /Passed on SER/);
+    assert.match(deploy, /12s/);
+    assert.match(deploy, /class="dl-x fail">Failed: health check/);
+    assert.match(
+      deploy,
+      /class="dl-step-open"><p>Component &quot;web&quot; failed its health gate/,
+    );
+    assert.match(deploy, /href="\/dashboard\/drop\/build">View logs/);
+    assert.match(deploy, /<strong><a href="https:\/\/drop.local">drop.local<\/a><\/strong>/);
+    assert.match(deploy, /<code>server.js<\/code>/);
+    assert.doesNotMatch(deploy, /\*\*/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
