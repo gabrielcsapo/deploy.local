@@ -101,7 +101,7 @@ const exceptions: Record<string, string> = {
     'Existing deployment log redaction; preserve artifact secret filtering.',
   'job-runner.ts -> server/workspace/git-url-migration.ts':
     'Existing managed Git URL compatibility; preserve job checkout behavior.',
-  'job-runner.ts -> server/workspace/package-publish.ts':
+  'job-runner.ts -> server/features/packages/package-publish.ts':
     'Existing package-job completion; preserve publication acknowledgments.',
   'job-runner.ts -> shared/package-install.mjs':
     'Existing package install and secret-output handling shared with workers.',

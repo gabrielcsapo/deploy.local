@@ -120,7 +120,7 @@ test('check latency is never presented as request p95 and redirects do not prove
 });
 
 test('restart counts expose measured deltas and discard stale observations', async () => {
-  const { setRestartCount, recentRestarts, forgetApp } = await import('../crash-tracker.ts');
+  const { setRestartCount, recentRestarts, forgetApp } = await import('../../crash-tracker.ts');
   const clock = Date.now;
   let time = start;
   Date.now = () => time;

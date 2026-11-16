@@ -3,21 +3,21 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { routeFetch } from './test-request.ts';
+import { routeFetch } from '../../v2/test-request.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-live-test-'));
 process.env.DEPLOY_DATA_DIR = root;
-await import('../test-ports.ts');
+await import('../../test-ports.ts');
 const { saveDeployment, updateDeploymentStatus, registerUser, authenticate, getSqlite, _resetDb } =
-  await import('../store.ts');
-const { issueOwnedCiCredential, revokeCiCredential } = await import('../ci-releases.ts');
-const { db, save } = await import('../workspace/store.ts');
+  await import('../../store.ts');
+const { issueOwnedCiCredential, revokeCiCredential } = await import('../../ci-releases.ts');
+const { db, save } = await import('../../workspace/store.ts');
 const { acceptWorkerReport, getLive, publishHealth } = await import('./live.ts');
-const { projectReleaseService, requestWorkerRollback } = await import('./releases-api.ts');
+const { projectReleaseService, requestWorkerRollback } = await import('../../v2/releases-api.ts');
 const { putApprovalRules, projectRollbacks, currentProjectReleases } =
-  await import('./releases.ts');
-const { syncInbox, answerInbox } = await import('./inbox.ts');
-const { waitForV2Events } = await import('./events.ts');
-const { v2Api } = await import('./api.ts');
+  await import('../../v2/releases.ts');
+const { syncInbox, answerInbox } = await import('../../v2/inbox.ts');
+const { waitForV2Events } = await import('../../v2/events.ts');
+const { v2Api } = await import('../../v2/api.ts');
 const owner = 'gabriel';
 const token = registerUser(owner, 'test-password').token!;
 const headers = { 'x-deploy-username': owner, 'x-deploy-token': token };
@@ -207,7 +207,7 @@ for (const mode of ['ask', 'allow', 'never'] as const) {
 }
 
 test('computer credentials report only their assigned apps and cannot read client commands', async () => {
-  const { createNodeEnrollment, redeemNodeEnrollment, revokeNode } = await import('../store.ts');
+  const { createNodeEnrollment, redeemNodeEnrollment, revokeNode } = await import('../../store.ts');
   const enrollment = createNodeEnrollment('bazzite', owner);
   const node = redeemNodeEnrollment({ code: enrollment.code });
   assert.ok(node.nodeId && node.secret);
@@ -228,7 +228,7 @@ test('computer credentials report only their assigned apps and cannot read clien
 });
 
 test('rollback decisions can enqueue through an available release handler with first-answer-wins', async () => {
-  const { createInboxItem, registerInboxAction } = await import('./inbox.ts');
+  const { createInboxItem, registerInboxAction } = await import('../../v2/inbox.ts');
   const item = createInboxItem(
     owner,
     {
@@ -269,9 +269,9 @@ test('rollback decisions can enqueue through an available release handler with f
 
 test('rollback outcomes require continuous health and retain rule provenance', async () => {
   const { updateRollbackOutcomes } = await import('./live.ts');
-  const { createInboxItem } = await import('./inbox.ts');
+  const { createInboxItem } = await import('../../v2/inbox.ts');
   const projectId = 'outcome-project';
-  const rollback: import('../../shared/v2/contracts.ts').Rollback = {
+  const rollback: import('../../../shared/v2/contracts.ts').Rollback = {
     id: 'observed-rollback',
     projectId,
     from: 'bad',
@@ -280,7 +280,7 @@ test('rollback outcomes require continuous health and retain rule provenance', a
     approvedBy: 'rule',
     steps: [{ name: 'activate', state: 'done', endedAt: new Date(0).toISOString() }],
   };
-  const app: import('../../shared/v2/contracts.ts').LiveApp = {
+  const app: import('../../../shared/v2/contracts.ts').LiveApp = {
     appId: 'outcome-app',
     name: 'Worker',
     kind: 'worker',
@@ -399,7 +399,7 @@ test('Live exposes project membership, catalog origin and immutable source metad
   assert.equal(apps.find((app: any) => app.appId === 'photos').fromDiscover, true);
   assert.equal(apps.find((app: any) => app.appId === 'unlinked').project, 'app:unlinked');
   assert.equal(apps.find((app: any) => app.appId === 'unlinked').fromDiscover, undefined);
-  const { projectsForOwner, unlinkedProjectApps } = await import('./projects.ts');
+  const { projectsForOwner, unlinkedProjectApps } = await import('../../v2/projects.ts');
   const projects = await projectsForOwner(username);
   assert.equal(projects.find((project) => project.id === 'app:photos')?.stage, 'maintained');
   assert.equal(projects.find((project) => project.id === 'forma-project')?.stage, 'active');
@@ -467,8 +467,8 @@ test('heartbeat-only reports save fresh records without emitting health; rendere
 });
 
 test('inbox list responses carry their authoritative event cursor, including withdrawn absence', async () => {
-  const { createInboxItem, withdrawInboxItems } = await import('./inbox.ts');
-  const { cursor } = await import('../workspace/store.ts');
+  const { createInboxItem, withdrawInboxItems } = await import('../../v2/inbox.ts');
+  const { cursor } = await import('../../workspace/store.ts');
   createInboxItem(
     owner,
     {

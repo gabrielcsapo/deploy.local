@@ -6,26 +6,26 @@ import { join, dirname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import type { Project } from '../../shared/v2/contracts.ts';
+import type { Project } from '../../../shared/v2/contracts.ts';
 import type { BackupRuntime } from './backups.ts';
-import type { ReleaseRuntime } from './releases.ts';
+import type { ReleaseRuntime } from '../../v2/releases.ts';
 import type {
   GraphDockerAdapter,
   GraphContainerCreateRequest,
   GraphContainerInspection,
-} from '../graph-docker-adapter.ts';
+} from '../../graph-docker-adapter.ts';
 const root = mkdtempSync(join(tmpdir(), 'v2-backups-'));
 process.env.DEPLOY_DATA_DIR = root;
-await import('../test-backups.ts');
+await import('../../test-backups.ts');
 const { BackupService, CoordinatorBackupRuntime, backupSources, backupsApi } =
   await import('./backups.ts');
-const { CoordinatorReleaseRuntime } = await import('./releases-runtime.ts');
-const { ProjectReleaseService } = await import('./releases.ts');
-const { db, save, get, list } = await import('../workspace/store.ts');
+const { CoordinatorReleaseRuntime } = await import('../../v2/releases-runtime.ts');
+const { ProjectReleaseService } = await import('../../v2/releases.ts');
+const { db, save, get, list } = await import('../../workspace/store.ts');
 const { registerUser, saveDeployment, saveBackup, readDeploymentRecord, getSqlite, _resetDb } =
-  await import('../store.ts');
-const { createRecoveryBundle } = await import('../recovery-bundle.ts');
-const { graphVolumeName } = await import('../graph-docker-adapter.ts');
+  await import('../../store.ts');
+const { createRecoveryBundle } = await import('../../recovery-bundle.ts');
+const { graphVolumeName } = await import('../../graph-docker-adapter.ts');
 after(() => {
   _resetDb();
   db.close();
@@ -296,7 +296,7 @@ class FakeDocker implements GraphDockerAdapter {
 }
 
 test('real graph runtime restores isolated data, switches checked edits, and retains original live data', async () => {
-  const { ensureCerts, getTlsOptions } = await import('../certs.ts');
+  const { ensureCerts, getTlsOptions } = await import('../../certs.ts');
   const { X509Certificate } = await import('node:crypto');
   ensureCerts();
   const owner = randomUUID();
@@ -383,7 +383,7 @@ test('real graph runtime restores isolated data, switches checked edits, and ret
   assert.deepEqual(receipt.copies[0].context.runtime.componentEnvironment, {});
   const retained = get('v2-release', owner, restored.releaseId!).backup;
   const entry = retained.runtime[0];
-  const { getBackupDir } = await import('../volumes.ts');
+  const { getBackupDir } = await import('../../volumes.ts');
   const manifest = JSON.parse(
     readFileSync(join(getBackupDir(name), entry.backup.filename, 'recovery-manifest.json'), 'utf8'),
   );
@@ -414,9 +414,9 @@ test('real listing includes scheduled app backups and admin recovery bundles; re
   });
   const bundlePath = join(root, `recovery-${randomUUID()}.json`);
   const passphrase = 'temporary rehearsal passphrase';
-  const { loadOrCreateSecretKey } = await import('../secrets.ts');
+  const { loadOrCreateSecretKey } = await import('../../secrets.ts');
   loadOrCreateSecretKey();
-  const { ensureCerts } = await import('../certs.ts');
+  const { ensureCerts } = await import('../../certs.ts');
   ensureCerts();
   const bundle = await createRecoveryBundle({ outputPath: bundlePath, passphrase });
   const service = new BackupService();
@@ -497,7 +497,7 @@ test('Back up now is owner-only and reports a disabled backup without starting w
     username: string;
   };
   const member = fixture().owner;
-  const { getBackupSettings } = await import('../store.ts');
+  const { getBackupSettings } = await import('../../store.ts');
   assert.equal(getBackupSettings().enabled, false);
   async function run(owner: string) {
     let status = 0;

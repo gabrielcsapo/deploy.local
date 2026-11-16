@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const root = mkdtempSync(join(tmpdir(), 'measurements-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { saveDeployment, getDeployment, _resetDb } = await import('../store.ts');
-const { getRequestsSqlite } = await import('../requests-db.ts');
+const { saveDeployment, getDeployment, _resetDb } = await import('../../store.ts');
+const { getRequestsSqlite } = await import('../../requests-db.ts');
 const { appMeasurements } = await import('./measurements.ts');
 after(() => {
   _resetDb();
