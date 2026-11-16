@@ -3297,6 +3297,14 @@
       "h": 1300,
       "title": "Settings: adding an SSH key, with how to copy your public key",
       "expand": "fill"
+    },
+    "ProjectDefaultBranch.html": {
+      "x": 21480,
+      "y": 17764,
+      "w": 1440,
+      "h": 1380,
+      "title": "Change a project’s default branch",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3416,6 +3424,7 @@
     "LogsDisconnected.html",
     "LogsConnecting.html",
     "ProjectSettings.html",
+    "ProjectDefaultBranch.html",
     "SecretEdit.html",
     "Compute.html",
     "Computer.html",
