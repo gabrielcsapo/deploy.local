@@ -29,6 +29,7 @@ test('every agents compatibility path exposes the same module bindings', async (
       ['v2/agent-foundation.ts', 'features/agents/agent-foundation.ts'],
       ['v2/agent-instructions.ts', 'features/agents/agent-instructions.ts'],
       ['v2/agents.ts', 'features/agents/agents.ts'],
+      ['workspace/provider-connections.ts', 'features/agents/provider-connections.ts'],
     ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);

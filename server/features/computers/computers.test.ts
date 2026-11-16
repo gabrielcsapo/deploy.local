@@ -7,9 +7,9 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 const root = mkdtempSync(join(tmpdir(), 'v2-computers-'));
 process.env.DEPLOY_DATA_DIR = root;
-await import('../test-ports.ts');
-const store = await import('../store.ts');
-const { db, save, list } = await import('../workspace/store.ts');
+await import('../../test-ports.ts');
+const store = await import('../../store.ts');
+const { db, save, list } = await import('../../workspace/store.ts');
 const {
   mergeComputers,
   getComputers,
@@ -19,9 +19,9 @@ const {
   getModels,
   setModelDefaults,
 } = await import('./computers.ts');
-const { workerCommand } = await import('../workspace/protocol.ts');
-const { enrollWorker, workerAuthentication } = await import('../workspace/credentials.ts');
-const { v2Api } = await import('./api.ts');
+const { workerCommand } = await import('../../workspace/protocol.ts');
+const { enrollWorker, workerAuthentication } = await import('../../workspace/credentials.ts');
+const { v2Api } = await import('../../v2/api.ts');
 store.registerUser('owner', 'test-password');
 store.registerUser('other', 'test-password');
 const timestamp = new Date().toISOString();

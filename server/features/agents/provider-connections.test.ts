@@ -8,11 +8,12 @@ import { once } from 'node:events';
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-provider-settings-'));
 process.env.DEPLOY_DATA_DIR = root;
-const { save, db } = await import('./store.ts');
+const { save, db } = await import('../../workspace/store.ts');
 const { providerConnections, saveProviderConnection, requestProviderLogin, updateProviderLogin } =
   await import('./provider-connections.ts');
-const { managedWorkerLaunch, managedWorkerExec } = await import('./managed-worker.ts');
-const { workspaceApi } = await import('./api.ts');
+const { managedWorkerLaunch, managedWorkerExec } =
+  await import('../../workspace/managed-worker.ts');
+const { workspaceApi } = await import('../../workspace/api.ts');
 save('worker', 'alice', { id: 'ser-a', name: 'SER', heartbeat: new Date().toISOString() });
 save('worker', 'alice', { id: 'ser-b', name: 'Other', heartbeat: new Date().toISOString() });
 save('worker', 'alice', {

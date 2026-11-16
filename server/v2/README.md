@@ -167,7 +167,7 @@ session token when an app-scoped token is available.
 The dependency-free helper can be imported by Node/TypeScript apps:
 
 ```ts
-import { reportHealth } from './server/v2/health-report.ts';
+import { reportHealth } from './server/features/observability/health-report.ts';
 await reportHealth(process.env.DEPLOY_COORDINATOR!, process.env.DEPLOY_APP_TOKEN!, {
   appId: 'home-gym-sync',
   jobs: 100,

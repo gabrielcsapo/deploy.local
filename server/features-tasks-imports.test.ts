@@ -123,7 +123,7 @@ const exceptions: Record<string, string> = {
     'Existing task/run service retained to satisfy the runtime port order guard.',
   'update-base.ts -> server/workspace/service.ts':
     'Existing task/run service retained to satisfy the runtime port order guard.',
-  'publish.ts -> server/workspace/pipeline-triggers.ts':
+  'publish.ts -> server/features/releases/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger; preserve publication event ordering.',
   'publish.ts -> shared/task-title.ts':
     'Existing shared task title formatting; preserve visible text.',

@@ -16,7 +16,7 @@ function imports(source: string) {
 }
 
 // Exact exceptions retained by the pure move. An edge disappearing also requires review.
-const workspaceOrigins = new Set<string>([]);
+const workspaceOrigins = new Set<string>(['worker-update.ts']);
 const exceptions: Record<string, string> = {
   'fleet-updates.ts -> bin/launcher-protocol.mjs':
     'Existing worker launcher compatibility; preserve update job selection.',
@@ -54,6 +54,8 @@ const exceptions: Record<string, string> = {
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'updates.ts -> shared/v2/contracts.ts':
     'Existing public release and update types; preserve client contracts.',
+  'worker-update.ts -> server/workspace/worker-build.ts':
+    'Existing worker build identity; preserve reported versions and update instructions.',
 };
 
 test('updates preserve origin boundaries and allow only reviewed dependencies', () => {

@@ -16,7 +16,7 @@ function imports(source: string) {
 }
 
 // Exact exceptions retained by the pure move. An edge disappearing also requires review.
-const workspaceOrigins = new Set<string>(['package-publish.ts']);
+const workspaceOrigins = new Set<string>(['package-hooks.ts', 'package-publish.ts']);
 const exceptions: Record<string, string> = {
   'package-publish.ts -> shared/cargo.mjs':
     'Existing Cargo metadata and publish body shared with the CLI; preserve published crate bytes.',

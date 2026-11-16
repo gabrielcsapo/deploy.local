@@ -43,7 +43,6 @@ const remainingV2: string[] = [];
 const remainingPackages = [
   'check-runner.ts -> ../packages/builds.ts',
   'credentials.ts -> ../packages/keys.ts',
-  'pipeline-triggers.ts -> ../packages/copies.ts',
   'pipeline-worker.ts -> ../packages/pipelines.ts',
   'worker.ts -> ../packages/builds.ts',
   'worker.ts -> ../packages/hooks.ts',

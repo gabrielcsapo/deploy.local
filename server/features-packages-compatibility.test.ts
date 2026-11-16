@@ -14,6 +14,7 @@ test('every packages compatibility path exposes the same module bindings', async
   try {
     for (const [oldPath, newPath] of [
       ['workspace/package-publish.ts', 'features/packages/package-publish.ts'],
+      ['workspace/package-hooks.ts', 'features/packages/package-hooks.ts'],
     ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);

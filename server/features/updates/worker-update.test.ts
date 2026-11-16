@@ -6,10 +6,10 @@ import { join } from 'node:path';
 
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-worker-update-'));
 const { workerUpdate, workerBuild, agentTools } = await import('./worker-update.ts');
-const { workerCommand } = await import('./protocol.ts');
-const { get } = await import('./store.ts');
-const { computers } = await import('./coordination.ts');
-const { capabilities } = await import('./service.ts');
+const { workerCommand } = await import('../../workspace/protocol.ts');
+const { get } = await import('../../workspace/store.ts');
+const { computers } = await import('../../workspace/coordination.ts');
+const { capabilities } = await import('../../workspace/service.ts');
 const tools = ['deploy_checkpoint', 'deploy_commit', 'deploy_application'];
 
 test('version and tool reports independently detect outdated workers', () => {
