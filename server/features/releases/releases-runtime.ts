@@ -42,6 +42,7 @@ import {
   restoreCoordinatorApplicationBackup,
 } from '../../application-backups.ts';
 import {
+  getAllDeployments,
   getSqlite,
   getNode,
   readDeploymentRecord,
@@ -49,7 +50,8 @@ import {
   saveDesiredApplicationSpec,
 } from '../../store.ts';
 import { deployDataPath } from '../../kernel/files/data-directory.ts';
-import { notifyRouteChanged } from '../../ipc.ts';
+import { notifyCertReload, notifyRouteChanged } from '../../ipc.ts';
+import { certsExist, ensureCertCoversHost } from '../../certs.ts';
 import type { ApplicationSpec } from '../../application-spec.ts';
 import type { ReleaseBackup, ReleasePlan, ReleaseRuntime } from '../../v2/releases.ts';
 import { fail } from '../../kernel/errors.ts';
@@ -791,6 +793,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         refreshDeploymentInCache(app.name);
         notifyRouteChanged(app.name);
       }
+      coverReleasedHosts(runtime.apps);
     } catch (error) {
       const remoteRecovery = await Promise.allSettled(
         remoteApps.map((app) =>
@@ -1134,5 +1137,29 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     }
     this.staged.delete((plan.runtime as RuntimePlan).id);
     // Immutable source and image receipts are retained for subsequent rollback.
+  }
+}
+
+/**
+ * A routed app needs its <name>.local on the shared certificate, as an uploaded app gets. The
+ * release is already live here, so a certificate problem is logged rather than rolling it back.
+ */
+export function coverReleasedHosts(apps: readonly { name: string; spec: ApplicationSpec }[]) {
+  if (!certsExist()) return;
+  try {
+    const routed = apps.filter((app) => Object.keys(app.spec.routes ?? {}).length > 0);
+    const names = [
+      ...new Set([
+        ...getAllDeployments().map((deployment) => deployment.name),
+        ...routed.map((app) => app.name),
+      ]),
+    ];
+    let changed = false;
+    for (const app of routed) {
+      if (ensureCertCoversHost(app.name, names)) changed = true;
+    }
+    if (changed) notifyCertReload();
+  } catch (error) {
+    console.error('Could not add released apps to the certificate:', error);
   }
 }
