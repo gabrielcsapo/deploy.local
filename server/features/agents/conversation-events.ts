@@ -133,6 +133,8 @@ export function mapConversationEvent(
     const jobId = payload.jobId || payload.id;
     if (typeof jobId === 'string') {
       const job = context.job?.(jobId);
+      // A pipeline's job belongs to no conversation; its ticks would reach every open page.
+      if (!row.taskId && !job?.taskId) return;
       const workerId = payload.workerId || job?.workerId;
       const step = jobStep(job, row.type, payload, {
         computer: typeof workerId === 'string' ? context.computer?.(workerId) : undefined,

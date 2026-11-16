@@ -245,3 +245,16 @@ test('the stored deploy summary message is not repeated as a reply', () => {
     undefined,
   );
 });
+
+test("a pipeline's job ticks are no conversation's", () => {
+  const ticks = mapConversationEvent(
+    { ...row('job.progress', { jobId: 'lint' }), taskId: null, runId: null },
+    undefined,
+    { job: () => ({ id: 'lint', name: 'lint' }) },
+  );
+  assert.equal(ticks, undefined);
+  const taskJob = mapConversationEvent(row('job.progress', { jobId: 'tests' }), undefined, {
+    job: () => ({ id: 'tests', name: 'Run tests', taskId: 'task' }),
+  });
+  assert.equal(taskJob?.kind, 'worklog');
+});

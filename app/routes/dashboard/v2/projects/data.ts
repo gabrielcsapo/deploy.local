@@ -12,6 +12,13 @@ export async function request<T = any>(path: string, init: RequestInit = {}): Pr
   if (!response.ok) throw new Error(body.error || 'Request failed');
   return body;
 }
+/**
+ * Whether an event can change what a page reads. A running step's progress ticks every second
+ * and changes nothing on it; refreshing on each made every open page fetch again, every second.
+ */
+export function changesData(event: { type?: string; event?: { kind?: string; live?: boolean } }) {
+  return !(event.type === 'conversation' && event.event?.kind === 'worklog' && event.event.live);
+}
 /** Data for a path; a path read before shows its last answer at once while it refreshes. */
 export function useData<T>(path: string | undefined) {
   const seed = useDataSeed();
@@ -78,7 +85,7 @@ export function useData<T>(path: string | undefined) {
         first = false;
       },
       events(events) {
-        if (events.length) refresh((n) => n + 1);
+        if (events.some(changesData)) refresh((n) => n + 1);
       },
       error() {},
     });

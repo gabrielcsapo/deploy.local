@@ -100,6 +100,8 @@ test('Existing task, checkpoint, check and job events become stable typed conver
       payload,
       cursor: 1,
       runId: 'r',
+      // A task's events; a pipeline's jobs (no task) are no conversation's.
+      taskId: 't',
       createdAt: '2026-10-27T12:00:00Z',
     });
   assert.equal(map('task.created', { id: 'task' })?.kind, 'task');
