@@ -78,7 +78,7 @@ export function ProjectPushCode({
   );
   const { shown, choose } = useCloneProtocol(ssh);
   const clone = shown === 'ssh' && ssh ? ssh : https;
-  const commands = `git remote add deploy ${clone}\ngit push deploy ${overview.repository?.defaultBranch || 'main'}`;
+  const commands = `git remote add origin ${clone}\ngit push -u origin ${overview.repository?.defaultBranch || 'main'}`;
   return (
     <section className="dl-section v2-project-start-push">
       <h2 className="dl-section-title">Or push code you have</h2>

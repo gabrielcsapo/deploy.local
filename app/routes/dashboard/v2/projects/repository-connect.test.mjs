@@ -177,7 +177,7 @@ test('empty repository push commands use its hosted address and the add-app line
   let tree = h.render(h.exports.ProjectPushCode, props);
   assert.equal(
     elements(tree, 'pre')[0].props.children,
-    'git remote add deploy https://deploy.local/recipes.git\ngit push deploy main',
+    'git remote add origin https://deploy.local/recipes.git\ngit push -u origin main',
   );
   assert.doesNotMatch(text(tree), /Already running it/);
   tree = h.render(h.exports.ProjectPushCode, { ...props, addApp: () => opened++ });
@@ -216,7 +216,7 @@ test('empty repository push commands offer SSH when the server runs it', async (
   tree = h.render(h.exports.ProjectPushCode, withSsh);
   assert.equal(
     elements(tree, 'pre')[0].props.children,
-    'git remote add deploy ssh://git@deploy.local:2222/recipes.git\ngit push deploy main',
+    'git remote add origin ssh://git@deploy.local:2222/recipes.git\ngit push -u origin main',
   );
   assert.equal(
     elements(tree, 'CopyButton')[0].props.value,
