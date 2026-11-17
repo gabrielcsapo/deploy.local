@@ -556,6 +556,29 @@ test('a hosted repository starts empty and syncs both ways with a remote, pausin
   assert.equal(get('repository-operation', 'alice', due).kind, 'sync');
 });
 
+test('an existing repository pushes to a new project over HTTP without pulling or forcing', async () => {
+  const created = await post('/repository-projects', { name: 'Existing' });
+  assert.equal((await ready(created.body.id)).body.empty, true);
+  const repo = created.body.repositoryPath;
+  const work = join(data, 'existing-work');
+  git(data, ['init', '--initial-branch=main', work]);
+  git(work, ['config', 'user.name', 'Test']);
+  git(work, ['config', 'user.email', 'test@example.invalid']);
+  writeFileSync(join(work, 'README.md'), 'already written\n');
+  git(work, ['add', '.']);
+  git(work, ['commit', '-m', 'Existing work']);
+  git(work, ['remote', 'add', 'origin', `${origin}/api/git/${created.body.id}`]);
+  await gitText(work, ['push', '-u', 'origin', 'main']);
+  assert.equal(git(repo, ['log', '--format=%s', 'main']), 'Existing work');
+  assert.equal(git(repo, ['for-each-ref', '--format=%(refname)']), 'refs/heads/main');
+  assert.equal(git(repo, ['symbolic-ref', 'HEAD']), 'refs/heads/main');
+  const info = await until(
+    () => read(`/projects/${created.body.id}/repository`),
+    (r) => r.body.empty === false,
+  );
+  assert.equal(info.body.empty, false);
+});
+
 test('remotes given with a new project sync both ways; earlier remotes and folders only fetch', () => {
   const owner = 'sync-policy';
   const remote = queueProject(owner, {

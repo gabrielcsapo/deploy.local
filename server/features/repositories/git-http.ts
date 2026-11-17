@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { dirname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { gitEnvironment } from '../../workspace/repository-git.ts';
+import { openFirstPush } from './first-push.ts';
 
 export function serveRepositoryGit(
   req: IncomingMessage,
@@ -21,6 +22,12 @@ export function serveRepositoryGit(
   const rpc = req.method === 'POST' && ['/git-upload-pack', '/git-receive-pack'].includes(suffix);
   if (!discovery && !rpc)
     throw Object.assign(new Error('Unsupported Git transport route'), { status: 404 });
+  // Both halves of a push, the ref listing and the transfer, must see the same empty project.
+  const receiving =
+    suffix === '/git-receive-pack' || url.searchParams.get('service') === 'git-receive-pack';
+  const firstPush = receiving
+    ? openFirstPush(project.repositoryPath, project.defaultBranch || 'main')
+    : null;
   const child = spawn('git', ['-c', 'core.hooksPath=/dev/null', 'http-backend'], {
     env: {
       ...gitEnvironment(),
@@ -105,8 +112,12 @@ export function serveRepositoryGit(
     if (!res.write(chunk)) child.stdout.pause();
   });
   res.on('drain', () => child.stdout.resume());
-  child.once('error', () => fail('Git unavailable', 503));
+  child.once('error', () => {
+    firstPush?.();
+    fail('Git unavailable', 503);
+  });
   child.once('close', (code) => {
+    firstPush?.();
     if (push) repositoryChanged(project.repositoryPath);
     clearTimeout(timeout);
     if (completed) return;

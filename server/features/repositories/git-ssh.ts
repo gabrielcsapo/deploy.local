@@ -2,6 +2,7 @@ import { repositoryChanged } from '../../git-changes.ts';
 import { spawn } from 'node:child_process';
 import { createServer, type Socket } from 'node:net';
 import ssh2, { type AuthenticationType, type Connection, type ServerChannel } from 'ssh2';
+import { openFirstPush } from './first-push.ts';
 const { Server, utils } = ssh2;
 import { findRepository } from './repositories.ts';
 import { gitEnvironment } from '../../workspace/repository-git.ts';
@@ -160,6 +161,10 @@ export function createGitSshTransport(privateKey: Buffer) {
         } catch (error: any) {
           return fail(channel, error.status === 409 ? error.message : 'repository not found');
         }
+        const firstPush =
+          command.service === 'receive-pack'
+            ? openFirstPush(project.repositoryPath, project.defaultBranch || 'main')
+            : null;
         const child = spawn(
           'git',
           ['-c', 'core.hooksPath=/dev/null', command.service, project.repositoryPath],
@@ -196,8 +201,12 @@ export function createGitSshTransport(privateKey: Buffer) {
         channel.pipe(child.stdin);
         child.stdout.pipe(channel, { end: false });
         child.stderr.pipe(channel.stderr, { end: false });
-        child.once('error', () => fail(channel, 'Git unavailable'));
+        child.once('error', () => {
+          firstPush?.();
+          fail(channel, 'Git unavailable');
+        });
         child.once('close', (code) => {
+          firstPush?.();
           if (push) repositoryChanged(project.repositoryPath);
           clearTimeout(timeout);
           socket.removeListener('close', kill);

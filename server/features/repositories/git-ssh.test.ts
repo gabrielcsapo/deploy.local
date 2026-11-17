@@ -410,7 +410,9 @@ for (const mode of ['tcp', 'stdio'] as const)
     };
     const project = queueProject('alice', { name: `home-gym-${mode}` });
     const other = queueProject('bob', { name: `private-bob-${mode}` });
+    const fresh = queueProject('alice', { name: `existing-${mode}` });
     const runner = new RepositoryRunner();
+    await runner.tick();
     await runner.tick();
     await runner.tick();
     assert.equal(get('project', 'alice', project.id).repositoryStatus, 'ready');
@@ -477,6 +479,23 @@ for (const mode of ['tcp', 'stdio'] as const)
       rejected.stderr,
       /Add this computer's SSH key in deploy\.local Settings > SSH keys/,
     );
+    // A repository someone already has goes to a new project with a plain first push.
+    const existing = join(data, `existing-${mode}`);
+    await ok('git', ['init', '--initial-branch=main', existing]);
+    await ok('git', ['config', 'user.name', 'SSH test'], existing);
+    await ok('git', ['config', 'user.email', 'ssh@example.invalid'], existing);
+    writeFileSync(join(existing, 'README.md'), 'already written\n');
+    await ok('git', ['add', '.'], existing);
+    await ok('git', ['commit', '-m', 'Existing work'], existing);
+    await ok('git', ['remote', 'add', 'origin', `${url}/existing-${mode}.git`], existing);
+    await ok('git', ['push', '-u', 'origin', 'main'], existing, env);
+    const hosted = get('project', 'alice', fresh.id).repositoryPath;
+    assert.equal(await ok('git', ['log', '--format=%s', 'main'], hosted), 'Existing work');
+    assert.equal(
+      await ok('git', ['for-each-ref', '--format=%(refname)'], hosted),
+      'refs/heads/main',
+    );
+    assert.equal(await ok('git', ['symbolic-ref', 'HEAD'], hosted), 'refs/heads/main');
     save('project', 'alice', {
       ...get('project', 'alice', project.id),
       repositoryStatus: 'preparing',
