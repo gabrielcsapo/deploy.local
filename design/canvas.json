@@ -615,8 +615,8 @@
       "x": 16920,
       "y": 13104,
       "w": 1440,
-      "h": 1240,
-      "title": "Projects: deployed first with health and where they run, then repositories by last change",
+      "h": 1440,
+      "title": "Projects: live apps as cards with health and traffic, repositories with their last commit, archived hidden",
       "expand": "fill"
     },
     "ProjectPhone.html": {
@@ -628,7 +628,7 @@
     },
     "Project.html": {
       "x": 16920,
-      "y": 14444,
+      "y": 14844,
       "w": 1440,
       "h": 900,
       "title": "Project overview",
@@ -652,7 +652,7 @@
     },
     "App.html": {
       "x": 16920,
-      "y": 15384,
+      "y": 15784,
       "w": 1440,
       "h": 900,
       "title": "An app and how it's running",
@@ -668,7 +668,7 @@
     },
     "Logs.html": {
       "x": 16920,
-      "y": 16624,
+      "y": 17024,
       "w": 1440,
       "h": 900,
       "title": "Logs",
@@ -676,7 +676,7 @@
     },
     "ProjectSettings.html": {
       "x": 16920,
-      "y": 17764,
+      "y": 18164,
       "w": 1440,
       "h": 1380,
       "title": "Project settings: variables, secrets, repository, remote sync and releases",
@@ -1316,7 +1316,7 @@
     },
     "CodeFile.html": {
       "x": 16920,
-      "y": 19164,
+      "y": 19564,
       "w": 1440,
       "h": 900,
       "title": "A file in the code",
@@ -1344,6 +1344,14 @@
       "w": 1440,
       "h": 900,
       "title": "Projects with the sidebar collapsed to the rail",
+      "expand": "fill"
+    },
+    "ProjectsShow.html": {
+      "x": 19960,
+      "y": 13104,
+      "w": 1440,
+      "h": 900,
+      "title": "Projects with the Show menu open and only Archived ticked",
       "expand": "fill"
     },
     "DesignConnections.html": {
@@ -2777,7 +2785,7 @@
     },
     "LogsDisconnected.html": {
       "x": 16920,
-      "y": 20244,
+      "y": 20644,
       "w": 1440,
       "h": 900,
       "title": "Logs: the stream has stopped",
@@ -2785,7 +2793,7 @@
     },
     "LogsConnecting.html": {
       "x": 16920,
-      "y": 21264,
+      "y": 21664,
       "w": 1440,
       "h": 900,
       "title": "Logs: opening the stream",
@@ -3429,6 +3437,7 @@
     "WardenReport.html",
     "AutoRollback.html",
     "Projects.html",
+    "ProjectsShow.html",
     "ProjectPhone.html",
     "ProjectDetailPhone.html",
     "Project.html",
@@ -4133,28 +4142,28 @@
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 14444,
+      "y": 14844,
       "text": "A project\nWeb app\niPhone: later"
     },
     "projects-2": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 15384,
+      "y": 15784,
       "text": "Its apps\nWeb app\niPhone: later"
     },
     "projects-3": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 16624,
+      "y": 17024,
       "text": "Logs\nWeb app\niPhone: later"
     },
     "projects-4": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 17764,
+      "y": 18164,
       "text": "Settings and secrets\nWeb app\niPhone: by design, not here"
     },
     "compute-col-web": {
@@ -4552,14 +4561,14 @@
       "fill": "orange",
       "w": 420,
       "x": 16420,
-      "y": 14620,
+      "y": 15020,
       "text": "For approval. An app has one page, under its project.\n• Projects › project › app, with one tab row: Overview, Requests, Releases, Logs, Settings. A worker has no Requests. Performance joins the row when that page is built. Releases and Logs are the project’s, opened on this app.\n• Live stays the table of what is running on each computer. Each row names its project and opens that one app page; there is no separate Live › app page.\n• The Projects list says how each project’s apps are doing, so health does not need a trip to Live. A project with nothing running says nothing.\n• A one-app project is its app: the project page is the app page, whether or not it has pull requests or issues.\n• An app from Discover or with no project gets a project of its own, so it has the same page.\n• iPhone: the app page opens inside Projects, back goes to its project, and Releases, Logs and Settings are rows on it. The Projects list carries the same health. The Live tab is unchanged."
     },
     "projects-5": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 19164,
+      "y": 19564,
       "text": "Code and pull requests\nWeb app\niPhone: later\n\nCode reads like GitHub and Gitea: files, then the README. Every pull request opens; one no task opened shows read-only, with its commits and files."
     },
     "projects-rail-how": {
@@ -5167,7 +5176,7 @@
       "w": 440,
       "x": 15940,
       "y": 13104,
-      "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them, deployed first; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: two groups and Done. Deployed comes first, the ones that need you on top, then by last change. Each row ends with what it runs: health, then where (the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped). Its second line is the care line; a Maintained project says so there, and a project with no repository says “No repository”. Not deployed is one line per repository, newest change first, with open PRs and proposals beside the date; it shows six and “Show 9 more”. The stage is not repeated on Active rows. Filter projects narrows every group as you type. Done rows say nothing about running.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
+      "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them, deployed first; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: two groups, Live and Repositories. Live is a grid of cards, two across and one on a phone-width window, the ones that need you first. A card has the project’s initial, its name, where it runs (the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped), its health, a line of today’s requests with the count under it, and at most one more fact: an open PR, a proposal, Maintained, or “Shipped from a folder”. Repositories is a list, newest change first: the repository, its last commit’s subject, and open PRs with when it changed. It shows six and “Show 9 more”, which fetches the next page; nothing below the first page is read until asked for.\n\nArchived projects (the Done stage: app stopped, repository read-only, final backup kept) are hidden. The Show menu beside the filter has three ticks, Live, Repositories and Archived, any number at once; Live and Repositories start ticked, and the button names what is ticked (“Live and repositories”, “Archived”, “All projects”). The choice is remembered on this computer. Typing in Filter projects searches every project whatever is ticked, so an archived project you name still turns up, in an Archived group at the end.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
     },
     "review-on-canvas": {
       "fill": "purple",
