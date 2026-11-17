@@ -24,7 +24,10 @@ export class LockfileCache {
   private git: typeof repositoryGit;
   private parse: typeof readLockfile;
   private capacity: number;
-  constructor(git = repositoryGit, parse = readLockfile, capacity = 64) {
+  // Each project takes one entry per lockfile name it is asked about (four for npm, one for
+  // Cargo), most of them empty. At 64, a server with more than 12 projects pushed its own
+  // entries out on every read and parsed every lockfile again for each page.
+  constructor(git = repositoryGit, parse = readLockfile, capacity = 512) {
     this.git = git;
     this.parse = parse;
     this.capacity = capacity;
