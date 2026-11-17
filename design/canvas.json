@@ -615,8 +615,8 @@
       "x": 16920,
       "y": 13104,
       "w": 1440,
-      "h": 1040,
-      "title": "Projects by stage, each row with its care line and what it runs",
+      "h": 1240,
+      "title": "Projects: deployed first with health and where they run, then repositories by last change",
       "expand": "fill"
     },
     "ProjectPhone.html": {
@@ -628,7 +628,7 @@
     },
     "Project.html": {
       "x": 16920,
-      "y": 14244,
+      "y": 14444,
       "w": 1440,
       "h": 900,
       "title": "Project overview",
@@ -4133,7 +4133,7 @@
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 14244,
+      "y": 14444,
       "text": "A project\nWeb app\niPhone: later"
     },
     "projects-2": {
@@ -4552,7 +4552,7 @@
       "fill": "orange",
       "w": 420,
       "x": 16420,
-      "y": 14420,
+      "y": 14620,
       "text": "For approval. An app has one page, under its project.\n• Projects › project › app, with one tab row: Overview, Requests, Releases, Logs, Settings. A worker has no Requests. Performance joins the row when that page is built. Releases and Logs are the project’s, opened on this app.\n• Live stays the table of what is running on each computer. Each row names its project and opens that one app page; there is no separate Live › app page.\n• The Projects list says how each project’s apps are doing, so health does not need a trip to Live. A project with nothing running says nothing.\n• A one-app project is its app: the project page is the app page, whether or not it has pull requests or issues.\n• An app from Discover or with no project gets a project of its own, so it has the same page.\n• iPhone: the app page opens inside Projects, back goes to its project, and Releases, Logs and Settings are rows on it. The Projects list carries the same health. The Live tab is unchanged."
     },
     "projects-5": {
@@ -5167,7 +5167,7 @@
       "w": 440,
       "x": 15940,
       "y": 13104,
-      "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them by stage; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: every Active and Maintained row ends with what it runs. Health on top, then where: the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped, “Not deployed” for a repository that has never shipped. A project with no repository says “No repository” in its care line. Done rows say nothing.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
+      "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them, deployed first; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: two groups and Done. Deployed comes first, the ones that need you on top, then by last change. Each row ends with what it runs: health, then where (the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped). Its second line is the care line; a Maintained project says so there, and a project with no repository says “No repository”. Not deployed is one line per repository, newest change first, with open PRs and proposals beside the date; it shows six and “Show 9 more”. The stage is not repeated on Active rows. Filter projects narrows every group as you type. Done rows say nothing about running.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
     },
     "review-on-canvas": {
       "fill": "purple",
