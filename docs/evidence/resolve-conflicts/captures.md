@@ -1,6 +1,6 @@
 # Resolve design conflicts in review
 
-The implementation leaves `design/` unchanged. It uses `DesignReviewConflict.html`, `DesignReviewConflictPhone.html`, the full `resolve-conflicts` canvas note, and the shared choice layout as its specification. Nothing was committed, pushed, merged or deployed from this worktree.
+The implementation leaves `design/` unchanged. It was built against `DesignReviewConflict.html` (the one-surface review, since replaced on web by the canvas review: compare with `DesignReviewCanvasConflict.html`), `DesignReviewConflictPhone.html`, the full `resolve-conflicts` canvas note, and the shared choice layout as its specification. Nothing was committed, pushed, merged or deployed from this worktree.
 
 ## Run the fixture
 
@@ -30,8 +30,8 @@ Capture the web review at **1440 × 900** and **700 × 900**, light and dark. Re
 
 ```sh
 node design/tools/capture.mjs 'http://127.0.0.1:5182/__fixture?state=unresolved' docs/evidence/resolve-conflicts/captures/DesignReviewConflict 1440,700 900
-node design/tools/render.mjs --main DesignReviewConflict
-python3 design/tools/pair.py docs/evidence/resolve-conflicts/captures/DesignReviewConflict-pair-1440.png output/design-main/DesignReviewConflict-1440.png docs/evidence/resolve-conflicts/captures/DesignReviewConflict-1440.png
+node design/tools/render.mjs --main DesignReviewCanvasConflict
+python3 design/tools/pair.py docs/evidence/resolve-conflicts/captures/DesignReviewConflict-pair-1440.png output/design-main/DesignReviewCanvasConflict-1440.png docs/evidence/resolve-conflicts/captures/DesignReviewConflict-1440.png
 ```
 
 Repeat for resolved and owner, and for 700 px. Inspect these behaviors:

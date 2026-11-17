@@ -19,7 +19,6 @@ const { db, save, list, get, remove } = await import('../../../server/workspace/
 const { v2Api } = await import('../../../server/v2/api.ts');
 const { proposeDesign, designReview, startDesignApprovals } =
   await import('../../../server/features/design/design.ts');
-const { layerSnippet } = await import('../../../server/design/board-html.ts');
 const owner = 'resolve-conflicts-fixture';
 const repo = join(root, 'repository');
 mkdirSync(join(repo, 'design/boards'), { recursive: true });
@@ -29,8 +28,10 @@ const git = (...args: string[]) =>
 git('init', '-q', '--initial-branch=main');
 git('config', 'user.name', 'Review fixture');
 git('config', 'user.email', 'fixture@example.invalid');
-const source = readFileSync('design/boards/DesignReviewConflict.html', 'utf8');
-const screen = layerSnippet(source, 'rv-screen')!
+// The screen every fixture board shows: a project's Repository page, kept beside this file so the
+// fixture does not depend on a board staying in design/.
+const screen = readFileSync(join(import.meta.dirname, 'screen.html'), 'utf8')
+  .trim()
   .replace('class="dl-rv-screen "', 'class="fixture-screen"')
   .replace('data-layer="home-gym"', 'data-layer="home-gym" data-name="header row"')
   .replace(
