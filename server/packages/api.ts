@@ -11,7 +11,7 @@ import { createKey, listKeys, audit, type Identity } from './keys.ts';
 import { smallBody } from './body.ts';
 import { db, fail, nameOf, packageByName, versions, type Package } from './store.ts';
 import { deprecate, send } from './npm.ts';
-import { usedBy } from './projects.ts';
+import { projectHeads, usedBy } from './projects.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 
 interface PackagesContext {
@@ -28,7 +28,10 @@ function served() {
 
 /** Sidebar status never inspects a repository or probes the registry. */
 export function packageSidebar(copy = npmRegistry.copy) {
-  return { served: served(), usingCopies: !copy.reachable || !cargoRegistry.copy.reachable };
+  return {
+    served: served(),
+    usingCopies: !copy.reachable || !cargoRegistry.copy.reachable,
+  };
 }
 
 /** The package a `/api/packages/npm/<name>` path names, or 404. */
@@ -245,6 +248,7 @@ export async function readPackages(username: string, copy = npmRegistry.copy, ec
     .prepare("SELECT * FROM packages WHERE (?='all' OR ecosystem=?) ORDER BY created_at,name")
     .all(ecosystem, ecosystem) as Package[];
   const projects = list('project', username);
+  const heads = await projectHeads(username);
   const packages = [];
   for (const pkg of rows) {
     const latest = versions(pkg.id)[0];
@@ -260,7 +264,7 @@ export async function readPackages(username: string, copy = npmRegistry.copy, ec
           }
         : null,
       project: projects.find((p) => p.id === pkg.project_id)?.name || null,
-      usedBy: (await usedBy(username, pkg.name, undefined, pkg.ecosystem)).length,
+      usedBy: (await usedBy(username, pkg.name, undefined, pkg.ecosystem, heads)).length,
     });
   }
   return {

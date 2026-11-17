@@ -71,16 +71,22 @@ export function keptTotals(clock = Date.now()) {
   );
   return { ...total, needed, idle, ecosystems, cargoProtected: true };
 }
+// Both halves start from the kept versions of one package (package_cache_kept_name) and
+// look their projects up by key. Starting from the requirements instead reads every
+// lockfile entry of every project once per listed row.
 function projectsFor(owner: string, ecosystem: string, name: string, version?: string) {
+  const kept = `e.kind='file' AND e.size>0 AND ${packageName}=? AND (? IS NULL OR e.key=?||'@'||?)`;
   const rows = db()
-    .prepare(`SELECT project_id,COUNT(*) OVER () AS total FROM (
-    SELECT p.project_id FROM package_pins p JOIN package_cache_entries e
-      ON e.ecosystem=p.ecosystem AND e.key=p.key
-      WHERE e.ecosystem=? AND e.kind='file' AND e.size>0 AND ${packageName}=? AND (? IS NULL OR e.key=?||'@'||?)
-    UNION SELECT r.project_id FROM package_project_requirements r JOIN package_cache_entries e
-      ON e.ecosystem='npm' AND e.kind='file' AND e.key=r.key
-      WHERE ?='npm' AND r.name=? AND e.size>0 AND (? IS NULL OR r.version=?)
-  ) ORDER BY project_id LIMIT 100`)
+    .prepare(
+      `SELECT project_id,COUNT(*) OVER () AS total FROM (
+    SELECT p.project_id FROM package_cache_entries e CROSS JOIN package_pins p
+      ON p.ecosystem=e.ecosystem AND p.key=e.key
+      WHERE e.ecosystem=? AND ${kept}
+    UNION SELECT r.project_id FROM package_cache_entries e CROSS JOIN package_project_requirements r
+      ON r.key=e.key
+      WHERE e.ecosystem='npm' AND ?='npm' AND ${kept}
+  ) ORDER BY project_id LIMIT 100`,
+    )
     .all(
       ecosystem,
       name,
@@ -90,6 +96,7 @@ function projectsFor(owner: string, ecosystem: string, name: string, version?: s
       ecosystem,
       name,
       version ?? null,
+      name,
       version ?? null,
     ) as { project_id: string; total: number }[];
   const project = workspaceDb.prepare(
@@ -124,12 +131,17 @@ export function listKept(owner: string, query: KeptQuery, clock = Date.now()) {
   }[query.sort];
   const page = Math.min(query.page, Math.max(1, Math.ceil(totals.packages / 50)));
   const entries = db()
-    .prepare(`${files} SELECT ecosystem,name,COUNT(*) AS versions,SUM(size) AS bytes,
+    .prepare(
+      `${files} SELECT ecosystem,name,COUNT(*) AS versions,SUM(size) AS bytes,
     MAX(last_used_at) AS lastInstalled,MAX(needed) AS needed,
     (SELECT COUNT(*) FROM package_cache_entries original WHERE original.ecosystem=files.ecosystem AND original.kind='file' AND original.size>0 AND substr(original.key,1,instr(substr(original.key,2),'@'))=files.name) AS allVersions FROM files WHERE ${where.sql}
-    GROUP BY ecosystem,name ORDER BY ${order},ecosystem,name LIMIT 50 OFFSET ?`)
+    GROUP BY ecosystem,name ORDER BY ${order},ecosystem,name LIMIT 50 OFFSET ?`,
+    )
     .all(...where.args, (page - 1) * 50)
-    .map((row: any) => ({ ...row, ...projectsFor(owner, row.ecosystem, row.name) }));
+    .map((row: any) => ({
+      ...row,
+      ...projectsFor(owner, row.ecosystem, row.name),
+    }));
   return {
     ...totals,
     entries,
@@ -161,9 +173,14 @@ export function versionOrder(version: string) {
 export function readKept(owner: string, ecosystem: string, name: string, offset = 0, limit = 5) {
   if (!['npm', 'cargo'].includes(ecosystem)) fail('Unknown package ecosystem');
   const totals = db()
-    .prepare(`${files} SELECT ${aggregate},COALESCE(SUM(needed),0) AS neededVersions,
-    COALESCE(SUM(CASE WHEN needed=0 THEN size ELSE 0 END),0) AS unusedBytes FROM files WHERE ecosystem=? AND name=?`)
-    .get(ecosystem, name) as KeptTotals & { neededVersions: number; unusedBytes: number };
+    .prepare(
+      `${files} SELECT ${aggregate},COALESCE(SUM(needed),0) AS neededVersions,
+    COALESCE(SUM(CASE WHEN needed=0 THEN size ELSE 0 END),0) AS unusedBytes FROM files WHERE ecosystem=? AND name=?`,
+    )
+    .get(ecosystem, name) as KeptTotals & {
+    neededVersions: number;
+    unusedBytes: number;
+  };
   // Empty detail remains useful after removing the final version.
   if (!versionDatabases.has(db())) {
     db().function('kept_version_order', { deterministic: true }, (value) =>
@@ -172,10 +189,15 @@ export function readKept(owner: string, ecosystem: string, name: string, offset 
     versionDatabases.add(db());
   }
   const versions = db()
-    .prepare(`${files} SELECT version,size AS bytes,last_used_at AS lastInstalled,needed FROM files
-    WHERE ecosystem=? AND name=? ORDER BY kept_version_order(version) DESC,version DESC LIMIT ? OFFSET ?`)
+    .prepare(
+      `${files} SELECT version,size AS bytes,last_used_at AS lastInstalled,needed FROM files
+    WHERE ecosystem=? AND name=? ORDER BY kept_version_order(version) DESC,version DESC LIMIT ? OFFSET ?`,
+    )
     .all(ecosystem, name, limit, offset)
-    .map((row: any) => ({ ...row, ...projectsFor(owner, ecosystem, name, row.version) }));
+    .map((row: any) => ({
+      ...row,
+      ...projectsFor(owner, ecosystem, name, row.version),
+    }));
   return {
     name,
     ecosystem,
@@ -198,8 +220,10 @@ export async function removeKept(query: KeptQuery, name?: string, clock = Date.n
   let after = '';
   for (;;) {
     const candidates = db()
-      .prepare(`${files} SELECT ecosystem,key FROM files WHERE ${where.sql}
-      AND needed=0 AND ecosystem||':'||key>? ORDER BY ecosystem,key LIMIT 100`)
+      .prepare(
+        `${files} SELECT ecosystem,key FROM files WHERE ${where.sql}
+      AND needed=0 AND ecosystem||':'||key>? ORDER BY ecosystem,key LIMIT 100`,
+      )
       .all(...where.args, after) as { ecosystem: string; key: string }[];
     if (!candidates.length) break;
     for (const candidate of candidates) {

@@ -31,28 +31,46 @@ export async function packageProject(owner: string, repository: unknown): Promis
   );
   return matches.length === 1 ? matches[0].id : null;
 }
+/** The commit each project's default branch is on. One Git call per project, made at
+ * the same time, so a page listing many packages asks once instead of once per package. */
+export async function projectHeads(owner: string) {
+  const heads = await Promise.all(
+    list('project', owner)
+      .filter((project) => project.repositoryPath)
+      .map(async (project) => {
+        try {
+          const commit = (
+            await repositoryGit(
+              project.repositoryPath,
+              ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`],
+              { limit: 1024, timeout: 5000 },
+            )
+          )
+            .toString()
+            .trim();
+          return { project, commit };
+        } catch {
+          return null;
+        }
+      }),
+  );
+  return heads.filter((head) => head !== null);
+}
 /** Read only the default branch. No warming, pins, or Ready-state inference in this slice. */
-export async function usedBy(owner: string, name: string, cache = usageCache, ecosystem = 'npm') {
-  const result: { id: string; name: string; versions: string[]; sameRepository: boolean }[] = [];
-  for (const project of list('project', owner)) {
-    if (!project.repositoryPath) continue;
-    let commit: string;
-    try {
-      commit = (
-        await repositoryGit(
-          project.repositoryPath,
-          ['rev-parse', `refs/heads/${project.defaultBranch || 'main'}`],
-          {
-            limit: 1024,
-            timeout: 5000,
-          },
-        )
-      )
-        .toString()
-        .trim();
-    } catch {
-      continue;
-    }
+export async function usedBy(
+  owner: string,
+  name: string,
+  cache = usageCache,
+  ecosystem = 'npm',
+  heads?: Awaited<ReturnType<typeof projectHeads>>,
+) {
+  const result: {
+    id: string;
+    name: string;
+    versions: string[];
+    sameRepository: boolean;
+  }[] = [];
+  for (const { project, commit } of heads ?? (await projectHeads(owner))) {
     const found = new Set<string>();
     let sameRepository = false;
     for (const file of ecosystem === 'cargo'
