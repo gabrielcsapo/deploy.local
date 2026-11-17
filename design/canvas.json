@@ -3329,6 +3329,38 @@
       "h": 844,
       "title": "iPhone — deploys and jobs in a running task: one line each, open a failure for the reason"
     },
+    "ProjectWork.html": {
+      "x": 16920,
+      "y": 80440,
+      "w": 1440,
+      "h": 960,
+      "title": "A project’s work: one list by stage, in place of Issues and Pull requests (proposal)",
+      "expand": "fill"
+    },
+    "ProjectUsedBy.html": {
+      "x": 18460,
+      "y": 80440,
+      "w": 1440,
+      "h": 1700,
+      "title": "A project’s graph: what the code index read, every connection it knows, and what it could not index (proposal)",
+      "expand": "fill"
+    },
+    "SearchAcross.html": {
+      "x": 20000,
+      "y": 80440,
+      "w": 1440,
+      "h": 900,
+      "title": "Search finds every use of an export across projects (proposal)",
+      "expand": "fill"
+    },
+    "WorkAcross.html": {
+      "x": 21540,
+      "y": 80440,
+      "w": 1440,
+      "h": 900,
+      "title": "One change across projects: each project merges its own update (proposal)",
+      "expand": "fill"
+    },
     "Diagnostics.html": {
       "x": 500,
       "y": 83720,
@@ -3548,6 +3580,10 @@
     "Code.html",
     "CodeClone.html",
     "Issues.html",
+    "ProjectWork.html",
+    "ProjectUsedBy.html",
+    "SearchAcross.html",
+    "WorkAcross.html",
     "App.html",
     "AppSettings.html",
     "Logs.html",
@@ -5364,6 +5400,20 @@
       "x": 6580,
       "y": 78900,
       "text": "Everything kept, other states. Kind filter: one button, \"npm and Cargo\", opens a menu with both ticked; search always covers what is ticked. Untick one and the button reads \"npm only\" or \"Cargo only\"; the last ticked kind can’t be unticked. Empty: \"Nothing kept yet. The first install through deploy.local appears here.\" No match: \"No package or crate matches left-pad\" with Clear. Nothing idle: the Copies row reads \"Everything was installed in the last 30 days\" with no chevron. Loading: the count line reads \"Counting…\". After removing: a notice, \"Removed 1.9 GB. 4.3 GB kept.\" While a source is unreachable the removal dialog adds that removed packages can’t be fetched again until it’s back. Cargo: every kept crate reads \"Needed by projects\", is never listed under Not installed in 30 days and is never cleaned up, until deploy.local reads Cargo.lock. Counts of one read \"1 version\" and \"1 package\". iPhone: the same three pages as pushed screens from Packages › Copies, search in the navigation bar, filters as a menu."
+    },
+    "project-first": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 80440,
+      "text": "Project-first (proposal)\nWeb app\niPhone: later"
+    },
+    "project-first-rules": {
+      "fill": "purple",
+      "w": 1440,
+      "x": 16920,
+      "y": 80220,
+      "text": "Project-first proposal. A piece of work is one row with a stage: Up next (what you wrote down), Found by agents (waiting for you to accept or dismiss), Running, Needs you, Shipped. A project’s Work tab lists them and takes the place of Issues and Pull requests; a pull request is part of its work item. The sidebar’s Work setting keeps Agents where they are and replaces the dated task list with projects that have live work, each row with its state; agent runs stay with their agent, and work with no project sits under Chats. Work can belong to several projects: a change to a package you own shows as the same row in each project that uses what changed, and each project merges its own update when it chooses. What uses what comes from a code index built on every push, and the index is the only source for it. A project’s Graph tab draws one section per kind of connection the index reports, so a new indexer adds a section without changing the other pages; search and agent findings read the same index. Existing boards keep the date sidebar until this is approved."
     },
     "section-diagnostics": {
       "x": 0,

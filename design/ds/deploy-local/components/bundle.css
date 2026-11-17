@@ -657,7 +657,7 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 
 /* The Sidebar component (library.json › sidebar). One markup for every board; an instance's settings
    become classes on the root, and these rules show, hide and select accordingly. */
-.dl-side.at-new .p-new,.dl-side.at-projects .p-projects,.dl-side.at-live .p-live,.dl-side.at-computers .p-computers,.dl-side.at-packages .p-packages,.dl-side.at-design .p-design,.dl-side.sel-ask .w-ask,.dl-side.sel-ask2 .w-ask2,.dl-side.sel-rollback .w-rollback,.dl-side.sel-merge .w-merge,.dl-side.sel-task .t-task,.dl-side.sel-self .t-self,.dl-side.sel-sync .t-sync,.dl-side.sel-run .t-run,.dl-side.sel-release-notes-writer .a-release-notes-writer,.dl-side.sel-ops-watcher .a-ops-watcher,.dl-side.sel-code-reviewer .a-code-reviewer,.dl-side.sel-researcher .a-researcher,.dl-side.sel-designer .a-designer{background:var(--selection);color:var(--ink)}
+.dl-side.at-new .p-new,.dl-side.at-projects .p-projects,.dl-side.at-live .p-live,.dl-side.at-computers .p-computers,.dl-side.at-packages .p-packages,.dl-side.at-design .p-design,.dl-side.sel-ask .w-ask,.dl-side.sel-ask2 .w-ask2,.dl-side.sel-rollback .w-rollback,.dl-side.sel-merge .w-merge,.dl-side.sel-task .t-task,.dl-side.sel-self .t-self,.dl-side.sel-sync .t-sync,.dl-side.sel-across .t-across,.dl-side.sel-run .t-run,.dl-side.sel-release-notes-writer .a-release-notes-writer,.dl-side.sel-ops-watcher .a-ops-watcher,.dl-side.sel-code-reviewer .a-code-reviewer,.dl-side.sel-researcher .a-researcher,.dl-side.sel-designer .a-designer{background:var(--selection);color:var(--ink)}
 .dl-side .dl-end:empty,.dl-side .dl-c:empty{display:none}
 .side-live.failed{display:inline-flex;align-items:center;gap:6px;color:var(--danger)}
 .side-live.failed::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--danger)}
@@ -691,6 +691,8 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 /* Tasks in the sidebar group by date or by project. The first heading carries the choice.
    A task row's actions replace its time while the pointer is on it. */
 .dl-side:not(.by-project) .pj,.dl-side.by-project .dt{display:none}
+/* Work: projects with their live work only, each row with its state. */
+.dl-side:not(.by-work) .pw,.dl-side.by-work .dt{display:none}
 .side-label-actions{display:inline-flex;align-items:center}
 .side-anchor{position:relative;height:0}
 .side-anchor > .dl-menu{position:absolute;top:0;right:0;width:184px;z-index:5}
