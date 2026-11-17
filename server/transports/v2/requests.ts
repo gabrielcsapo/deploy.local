@@ -161,6 +161,26 @@ function percentile(name: string, from: number, to: number, total: number, p: nu
   return row?.duration ?? 0;
 }
 
+/** Requests in each of the last 24 hours for each app, oldest first; one read for every app. */
+export function hourlyRequests(apps: string[], now = Date.now()) {
+  const from = Math.floor(now / HOUR) * HOUR - 23 * HOUR;
+  const hours = new Map(apps.map((app) => [app, new Array<number>(24).fill(0)]));
+  if (!apps.length) return { from, hours };
+  const rows = getRequestsSqlite()
+    .prepare(
+      `SELECT deployment_name AS app, CAST((bucket_ms - ?) / ${HOUR} AS INTEGER) AS hour, sum(count) AS count
+       FROM request_logs_1m
+       WHERE bucket_ms >= ? AND bucket_ms <= ? AND deployment_name IN (${apps.map(() => '?').join(',')})
+       GROUP BY deployment_name, hour`,
+    )
+    .all(from, from, now, ...apps) as { app: string; hour: number; count: number }[];
+  for (const row of rows) {
+    const series = hours.get(row.app);
+    if (series && row.hour >= 0 && row.hour < 24) series[row.hour] += row.count;
+  }
+  return { from, hours };
+}
+
 export async function requestSummary(
   owner: string,
   name: string,

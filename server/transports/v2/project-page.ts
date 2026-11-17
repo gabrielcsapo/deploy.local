@@ -1,4 +1,5 @@
 import { loadDashboardResources, loadShellResources } from './dashboard-page.ts';
+import { projectListPath, readProjectList } from './project-list.ts';
 import { authenticate, getNodes } from '../../store.ts';
 import { parseAuthCookie } from '../../auth-cookie.ts';
 import { projectsForOwner, resolveProject } from '../../v2/projects.ts';
@@ -128,6 +129,8 @@ async function load(request: Request): Promise<Page | undefined> {
     projects.find((entry) => entry.id === key) ??
     (key ? await resolveProject(owner, key, true).catch(() => undefined) : undefined);
   await put('/api/state', () => readWorkspaceState(owner));
+  // The list arrives with the page as it first shows: live projects and the first repositories.
+  if (!key) await put(projectListPath(), () => readProjectList(owner));
   if (!key || !project) return { seed, url };
   const base = `/api/projects/${encodeURIComponent(key)}`;
   await Promise.all([

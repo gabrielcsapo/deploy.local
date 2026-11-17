@@ -125,6 +125,59 @@ test('a standalone app that was deleted leaves no empty project behind', async (
   await projectsForOwner('owner');
 });
 
+test('the Projects list groups, searches and pages, and reads a commit only for the page shown', async () => {
+  const { projectList } = await import('./project-list.ts');
+  for (const id of ['shelf-a', 'shelf-b'])
+    workspace.save('project', 'owner', {
+      id,
+      name: id,
+      repositoryPath: repo,
+      sourcePath: repo,
+      defaultBranch: 'main',
+    });
+  workspace.save('project', 'owner', { id: 'attic', name: 'attic', stage: 'done' });
+  workspace.save('pull-request', 'owner', {
+    id: 'list-open',
+    projectId: 'shelf-a',
+    status: 'open',
+  });
+  workspace.save('pull-request', 'owner', {
+    id: 'list-merged',
+    projectId: 'shelf-a',
+    status: 'merged',
+  });
+  const names = (projects: { name: string }[]) => projects.map((project) => project.name);
+  const first = await projectList('owner', { limit: 1 });
+  assert.equal(first.repositories.length, 1);
+  assert.equal(first.more, first.counts.repositories - 1);
+  assert.equal(first.repositories[0].lastCommit, 'fixture');
+  assert.equal(
+    Date.parse(first.repositories[0].changedAt!),
+    Date.parse(git('log', '-1', '--format=%cI', 'main').toString().trim()),
+  );
+  assert.deepEqual(first.archived, []);
+  assert.equal(first.counts.archived, 1);
+  // Request counts are the transport's to add.
+  assert.ok(first.live.length > 0);
+  assert.equal(first.live[0].traffic, undefined);
+  const every = await projectList('owner', { limit: 50 });
+  assert.equal(every.more, 0);
+  assert.equal(every.repositories.find((project) => project.id === 'shelf-a')?.openPulls, 1);
+  assert.equal(
+    every.repositories.find((project) => project.id === 'shelf-b')?.openPulls,
+    undefined,
+  );
+  assert.deepEqual(names((await projectList('owner', { show: ['archived'] })).archived), ['attic']);
+  assert.deepEqual((await projectList('owner', { show: ['archived'] })).live, []);
+  // Naming a project finds it whatever is shown.
+  const found = await projectList('owner', { query: ' ATT ' });
+  assert.deepEqual(names(found.archived), ['attic']);
+  assert.deepEqual(found.repositories, []);
+  assert.equal(found.counts.repositories, first.counts.repositories);
+  for (const id of ['shelf-a', 'shelf-b', 'attic']) workspace.remove('project', 'owner', id);
+  for (const id of ['list-open', 'list-merged']) workspace.remove('pull-request', 'owner', id);
+});
+
 test('migrates configuration once without plaintext secrets and applies shared values with app overrides', async () => {
   const declarations = {
     TOKEN: { type: 'secret' as const, required: true, scope: 'application' as const },

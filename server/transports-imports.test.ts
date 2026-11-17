@@ -163,6 +163,8 @@ const allowed: Record<string, { reason: string; edges: string[] }> = {
     edges: [
       'v2/performance.ts -> server/requests-db.ts',
       'v2/performance.ts -> server/telemetry.ts',
+      'v2/project-list.ts -> shared/v2/contracts.ts',
+      'v2/project-list.ts -> shared/v2/project-list.ts',
       'v2/project-page.ts -> server/requests-db.ts',
       'v2/project-page.ts -> server/telemetry.ts',
       'v2/requests.ts -> server/capture.ts',

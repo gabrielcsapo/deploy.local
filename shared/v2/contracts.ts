@@ -256,6 +256,28 @@ export type Project = {
   id: string;
   name: string;
   apps: { id: string; name: string; kind: 'web' | 'worker' }[];
+  /** The fields below are only on the Projects list (`ProjectListResponse`). */
+  /** When any branch of its repository last moved. */
+  changedAt?: string;
+  /** Open pull requests, when there are any. */
+  openPulls?: number;
+  /** Subject of the newest commit, on repository rows. */
+  lastCommit?: string;
+  /** Requests in each of the last 24 hours, oldest first, for a project with a web app. */
+  traffic?: { from: number; hourly: number[] };
+};
+
+export type ProjectListGroup = 'live' | 'repositories' | 'archived';
+/** The Projects page: what runs, repositories that never shipped, and archived projects. */
+export type ProjectListResponse = {
+  live: Project[];
+  /** Newest change first, one page at a time. */
+  repositories: Project[];
+  archived: Project[];
+  /** Repositories that match and were not sent. */
+  more: number;
+  /** Every project, whatever is shown or searched. */
+  counts: Record<ProjectListGroup, number>;
 };
 
 export type RollbackDataLoss = {

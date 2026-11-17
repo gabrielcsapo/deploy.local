@@ -1,5 +1,6 @@
 // Capture-only in-memory API. Never imports the coordinator, database, Docker or mDNS.
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createServer as createVite } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -55,6 +56,72 @@ const release = (project, running = false) => ({
     detail: index === 1 ? 'GET /healthz 200' : undefined,
   })),
 });
+// The Projects list slice: PROJECTS_FIXTURE adds repositories, traffic and an archived project.
+const listFixture = process.env.PROJECTS_FIXTURE
+  ? JSON.parse(readFileSync(process.env.PROJECTS_FIXTURE, 'utf8'))
+  : { live: {}, repositories: [] };
+function projectList(params) {
+  const ago = (hours) => new Date(Date.now() - hours * 3600000).toISOString();
+  const query = (params.get('q') || '').trim().toLowerCase();
+  const show = query ? ['live', 'repositories', 'archived'] : (params.get('show') || '').split(',');
+  const limit = Number(params.get('limit')) || 6;
+  const from = Math.floor(Date.now() / 3600000) * 3600000 - 23 * 3600000;
+  const all = [
+    ...projects
+      .filter((project) => project.apps.length)
+      .map((project) => {
+        const { shape = 'flat', scale = 20, ...extra } = listFixture.live[project.name] ?? {};
+        return {
+          ...project,
+          stage: 'active',
+          traffic: {
+            from,
+            hourly: Array.from({ length: 24 }, (_, hour) =>
+              Math.round(
+                scale *
+                  (shape === 'rise'
+                    ? 0.4 + hour / 24
+                    : shape === 'drop'
+                      ? hour < 17
+                        ? 0.6 + hour / 40
+                        : 0.05
+                      : shape === 'none'
+                        ? 0
+                        : 1 + (hour % 2) * 0.15),
+              ),
+            ),
+          },
+          ...extra,
+        };
+      }),
+    ...listFixture.repositories.map(({ hoursAgo, ...project }) => ({
+      id: project.name,
+      apps: [],
+      stage: 'active',
+      changedAt: ago(hoursAgo),
+      ...project,
+    })),
+  ];
+  const group = (project) =>
+    project.stage === 'done' ? 'archived' : project.apps.length ? 'live' : 'repositories';
+  const counts = { live: 0, repositories: 0, archived: 0 };
+  for (const project of all) counts[group(project)]++;
+  const of = (name) =>
+    all.filter(
+      (project) =>
+        group(project) === name &&
+        show.includes(name) &&
+        (!query || project.name.toLowerCase().includes(query)),
+    );
+  const repositories = of('repositories');
+  return {
+    live: of('live'),
+    repositories: repositories.slice(0, limit),
+    archived: of('archived'),
+    more: Math.max(0, repositories.length - limit),
+    counts,
+  };
+}
 let outputReads = 0;
 const server = createServer();
 const vite = await createVite({
@@ -77,6 +144,8 @@ server.on('request', async (req, res) => {
     res.end(JSON.stringify(value));
   };
   if (path === '/api/user') return send({ username: 'Gabriel' });
+  if (path === '/api/projects' && url.searchParams.get('view') === 'list')
+    return send(projectList(url.searchParams));
   if (path === '/api/projects') return send({ projects });
   if (path === '/api/live') return send(f.live);
   if (path === '/api/inbox') return send({ items: [f.item] });

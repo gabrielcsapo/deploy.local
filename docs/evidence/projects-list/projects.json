@@ -1,0 +1,120 @@
+{
+  "live": {
+    "home-gym": {
+      "openPulls": 1,
+      "shape": "drop",
+      "scale": 60
+    },
+    "Immich": {
+      "stage": "maintained",
+      "fromDiscover": true,
+      "shape": "rise",
+      "scale": 40
+    },
+    "recipes": {
+      "openPulls": 1,
+      "shape": "none"
+    },
+    "deploy.local": {
+      "shape": "rise",
+      "scale": 160
+    },
+    "Vaultwarden": {
+      "stage": "maintained",
+      "fromDiscover": true,
+      "scale": 4
+    },
+    "Miniflux": {
+      "stage": "maintained",
+      "fromDiscover": true,
+      "scale": 60
+    },
+    "pantry": {
+      "scale": 9
+    }
+  },
+  "repositories": [
+    {
+      "name": "deploy.local",
+      "hoursAgo": 6,
+      "lastCommit": "The SSH key rejection is plain ASCII",
+      "openPulls": 2
+    },
+    {
+      "name": "react-flight-router",
+      "hoursAgo": 30,
+      "lastCommit": "Prefetch on hover waits 80 ms",
+      "openPulls": 1
+    },
+    {
+      "name": "lego-builder",
+      "hoursAgo": 96,
+      "lastCommit": "Parts list groups by colour"
+    },
+    {
+      "name": "playground",
+      "hoursAgo": 340,
+      "lastCommit": "Try the streaming parser"
+    },
+    {
+      "name": "wander",
+      "hoursAgo": 850,
+      "lastCommit": "Map tiles load from the cache first"
+    },
+    {
+      "name": "recipes-book",
+      "hoursAgo": 2256,
+      "lastCommit": "Scale ingredients by servings"
+    },
+    {
+      "name": "path",
+      "hoursAgo": 2300,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "spill",
+      "hoursAgo": 2400,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "browseus",
+      "hoursAgo": 2500,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "dream",
+      "hoursAgo": 2600,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "mdink",
+      "hoursAgo": 2700,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "cargo-sample",
+      "hoursAgo": 2800,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "reader",
+      "hoursAgo": 2900,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "atlas",
+      "hoursAgo": 3000,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "ledger",
+      "hoursAgo": 3100,
+      "lastCommit": "Initial commit"
+    },
+    {
+      "name": "kettle-timer",
+      "hoursAgo": 900,
+      "stage": "done"
+    }
+  ]
+}

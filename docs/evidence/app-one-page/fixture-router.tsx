@@ -16,3 +16,11 @@ export const Link = ({ to, children }: { to: string; children: ReactNode }) => (
   <a href={to}>{children}</a>
 );
 export const Outlet = () => null;
+// The app has since started using these; the fixture has no router to prefetch or restore.
+export const clearPrefetchCache = () => {};
+export const prefetchRSC = () => {};
+export const useNavigation = () => ({ state: 'idle' as const });
+export const useParams = () => ({});
+export const ScrollRestoration = () => null;
+export const RouterProvider = ({ children }: { children?: ReactNode }) => <>{children}</>;
+export const ErrorBoundary = ({ children }: { children?: ReactNode }) => <>{children}</>;

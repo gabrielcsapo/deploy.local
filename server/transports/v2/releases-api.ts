@@ -14,6 +14,7 @@ import {
 } from '../../v2/releases.ts';
 import { releaseChoices, validateReleaseChoices } from '../../v2/releases-plan.ts';
 import { projectsForOwner, resolveProject } from '../../v2/projects.ts';
+import { projectListOptions, readProjectList } from './project-list.ts';
 import { projectReleaseService } from '../../features/releases/project-release-service.ts';
 export {
   projectReleaseService,
@@ -66,7 +67,13 @@ export async function releasesApi(
         route({
           method: 'GET',
           path: '/projects',
-          handler: async () => send({ projects: await projectsForOwner(owner, true) }),
+          // The Projects page asks for its own view; every other reader gets the plain list.
+          handler: async () =>
+            send(
+              url.searchParams.get('view') === 'list'
+                ? await readProjectList(owner, projectListOptions(url.searchParams))
+                : { projects: await projectsForOwner(owner, true) },
+            ),
         }),
         route({
           method: 'GET',

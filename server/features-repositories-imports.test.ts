@@ -42,6 +42,8 @@ const exceptions: Record<string, string> = {
     'Existing task creation from issues and pulls; needs a later task-command port.',
   'project-collaboration.ts -> server/features/tasks/workspace-checks.ts':
     'Existing pull check projection used for collaboration admission.',
+  'project-list.ts -> server/workspace/store.ts':
+    'Reads project and pull request records for the Projects list, as projects.ts does.',
   'project-tools.ts -> server/features/agents/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
   'project-tools.ts -> server/features/releases/pipelines.ts':
