@@ -1046,14 +1046,6 @@
       "title": "One board, with its notes, history and where it is used",
       "expand": "fill"
     },
-    "DesignReview.html": {
-      "x": 1600,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — one surface: the changes beside the design",
-      "expand": "fill"
-    },
     "DesignReviewPhone.html": {
       "x": 3120,
       "y": 50884,
@@ -1228,14 +1220,6 @@
       "w": 1440,
       "h": 900,
       "title": "Drawing a rectangle on a board; a sticky note on the canvas",
-      "expand": "fill"
-    },
-    "DesignReviewNote.html": {
-      "x": 7890,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — send your notes",
       "expand": "fill"
     },
     "DesignReviewNotePhone.html": {
@@ -2091,28 +2075,12 @@
       "h": 844,
       "title": "iPhone — designs waiting on you"
     },
-    "DesignReviewViewer.html": {
-      "x": 3600,
-      "y": 55600,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — a note on the design",
-      "expand": "fill"
-    },
     "DesignReviewViewerPhone.html": {
       "x": 5120,
       "y": 55600,
       "w": 390,
       "h": 844,
       "title": "iPhone — one change on the real screen"
-    },
-    "DesignReviewRound2.html": {
-      "x": 9880,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — since your last review",
-      "expand": "fill"
     },
     "DesignReviewRound2Phone.html": {
       "x": 11400,
@@ -2351,14 +2319,6 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Packages with a long name and a long version"
-    },
-    "DesignReviewSent.html": {
-      "x": 11900,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — notes sent",
-      "expand": "fill"
     },
     "ProjectRemoveFailed.html": {
       "x": 19960,
@@ -2612,54 +2572,6 @@
       "h": 844,
       "title": "iPhone — a project"
     },
-    "DesignReviewDiff.html": {
-      "x": 3600,
-      "y": 57900,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — old laid over new",
-      "expand": "fill"
-    },
-    "DesignReviewDiffSeveral.html": {
-      "x": 3600,
-      "y": 58940,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — several changes on one screen",
-      "expand": "fill"
-    },
-    "DesignReviewRegion.html": {
-      "x": 3600,
-      "y": 60200,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — dragging marks an area",
-      "expand": "fill"
-    },
-    "DesignReviewNew.html": {
-      "x": 3600,
-      "y": 61400,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — a new screen",
-      "expand": "fill"
-    },
-    "DesignReviewApproveCheck.html": {
-      "x": 3600,
-      "y": 62440,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — Approve with a note not sent",
-      "expand": "fill"
-    },
-    "DesignReviewApproved.html": {
-      "x": 3600,
-      "y": 63480,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — approved, 30 seconds to undo",
-      "expand": "fill"
-    },
     "DesignPropose.html": {
       "x": 3600,
       "y": 64520,
@@ -2674,38 +2586,6 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Approve with a note not sent"
-    },
-    "DesignReviewWipe.html": {
-      "x": 3600,
-      "y": 65560,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — wiping between old and new",
-      "expand": "fill"
-    },
-    "DesignReviewDraw.html": {
-      "x": 3600,
-      "y": 66600,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — drawing on the design",
-      "expand": "fill"
-    },
-    "DesignReviewWidth.html": {
-      "x": 3600,
-      "y": 67640,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — dragging the width",
-      "expand": "fill"
-    },
-    "DesignReviewOnMain.html": {
-      "x": 5120,
-      "y": 63480,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — on main, and what happens next",
-      "expand": "fill"
     },
     "TaskDesignCheck.html": {
       "x": 6640,
@@ -2758,14 +2638,6 @@
       "w": 1440,
       "h": 900,
       "title": "A task waits for a computer that can do the work",
-      "expand": "fill"
-    },
-    "DesignReviewConflict.html": {
-      "x": 1600,
-      "y": 49844,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — main changed the same screens: resolve it here",
       "expand": "fill"
     },
     "DesignReviewConflictPhone.html": {
@@ -3550,6 +3422,46 @@
       "h": 900,
       "title": "Design review on the canvas — notes sent to a terminal",
       "expand": "fill"
+    },
+    "DesignReviewCanvasApprove.html": {
+      "x": 9764,
+      "y": 58800,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — Approve names the frames you have not ticked",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasAsk.html": {
+      "x": 11284,
+      "y": 58800,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — Ask for changes says what should change",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasSent.html": {
+      "x": 12804,
+      "y": 58800,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — notes sent, and the way onward",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasApproving.html": {
+      "x": 9764,
+      "y": 59780,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — approved, 30 seconds to undo",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasConflict.html": {
+      "x": 11284,
+      "y": 59780,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — main changed the same screens: choose what to keep",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3767,8 +3679,6 @@
     "WelcomeNarrow.html",
     "DesignCanvas.html",
     "DesignBoard.html",
-    "DesignReview.html",
-    "DesignReviewConflict.html",
     "DesignReviewConflictPhone.html",
     "DesignReviewPhone.html",
     "PRDescEdit.html",
@@ -3789,9 +3699,7 @@
     "DesignAgent.html",
     "DesignDraw.html",
     "DesignAskPhone.html",
-    "DesignReviewNote.html",
     "DesignReviewNotePhone.html",
-    "DesignReviewSent.html",
     "DesignPrototype.html",
     "DesignPlay.html",
     "DesignPlayPad.html",
@@ -3887,28 +3795,16 @@
     "ProjectsCarePhone.html",
     "DesignToReview.html",
     "DesignToReviewPhone.html",
-    "DesignReviewRound2.html",
-    "DesignReviewViewer.html",
     "DesignReviewRound2Phone.html",
     "DesignReviewViewerPhone.html",
     "DesignReviewLandscapePhone.html",
     "DesignReviewComparingPhone.html",
     "DesignReviewLandscapeComparingPhone.html",
-    "DesignReviewDiff.html",
-    "DesignReviewDiffSeveral.html",
-    "DesignReviewRegion.html",
-    "DesignReviewWidth.html",
-    "DesignReviewDraw.html",
-    "DesignReviewWipe.html",
     "DesignReviewApproveCheckPhone.html",
     "DesignPropose.html",
-    "DesignReviewApproved.html",
-    "DesignReviewOnMain.html",
     "TaskDesignCheck.html",
     "TaskDesignChecked.html",
     "DesignBuiltDiffers.html",
-    "DesignReviewApproveCheck.html",
-    "DesignReviewNew.html",
     "DesignReviewHoldPhone.html",
     "DesignReviewWebPhone.html",
     "DesignReviewPinPhone.html",
@@ -3987,6 +3883,11 @@
     "AppLogsErrorPhone.html",
     "AppSettingsPhone.html",
     "DesignReviewCanvas.html",
+    "DesignReviewCanvasApprove.html",
+    "DesignReviewCanvasAsk.html",
+    "DesignReviewCanvasSent.html",
+    "DesignReviewCanvasApproving.html",
+    "DesignReviewCanvasConflict.html",
     "DesignReviewCanvasApproved.html",
     "TemplateList.html",
     "TemplateDetail.html",
@@ -5040,21 +4941,13 @@
       "fill": "blue",
       "text": "DesignCanvas.html\nKeep the quiet waiting-review banner above the canvas: “1 design waiting on you · Agents you make yourself · Review”. One proposal opens its review; several open the project list. Conflict proposals open #conflict; unrelated changes on main update automatically. The Changes on this branch panel describes only the selected branch, not waiting proposals. Existing layout and editing tools stay unchanged.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
     },
-    "review-clarity-DesignReview": {
-      "x": 6160,
-      "y": 56800,
-      "w": 1400,
-      "h": 2250,
-      "fill": "blue",
-      "text": "DesignReview.html Opens on the first change with the proposal’s summary in the list. #loading and #conflict are its other states. See the review-what-changed note."
-    },
     "review-clarity-DesignReviewNote": {
       "x": 1600,
       "y": 59600,
       "w": 1400,
       "h": 2250,
       "fill": "blue",
-      "text": "DesignReviewNote.html\n3 saved pins across 2 screens: 2 on Agent details, 1 on Meet your agent on iPhone. All pins expands a complete, roomy list by screen; select to focus it in the viewer. Ask for 3 changes sends all three, not only the current screen. Approve design remains secondary. Notes open complete Before/After prose, never raw diffs; note reads do not count as screens.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
+      "text": "DesignReviewNotePhone.html (iPhone pager; the web review is on the canvas)\n3 saved pins across 2 screens: 2 on Agent details, 1 on Meet your agent on iPhone. All pins expands a complete, roomy list by screen; select to focus it in the viewer. Ask for 3 changes sends all three, not only the current screen. Approve design remains secondary. Notes open complete Before/After prose, never raw diffs; note reads do not count as screens.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
     },
     "review-clarity-DesignReviewPhone": {
       "x": 3120,
@@ -5071,14 +4964,6 @@
       "h": 3000,
       "fill": "blue",
       "text": "DesignReviewNotePhone.html\nA canvas-note change is a page in the same pager after the screens. Inline title and Note 1 of 8, full readable prose, new sentences marked with accent-soft highlights while Show changes is on. Press and hold swaps to the complete Before prose with a Before capsule; release restores After. Pin targets a passage and uses the same sheet. Its seen status is separate from the 22 screen count. No grid, summary or decision footer on the note page.\n\niPhone review is a native horizontal pager, not a scrolling review page. Order: cover (page 0) → changed screens in canvas page/board order → new screens in canvas order → removed screens in canvas order → changed canvas notes → decide page. Screen counters exclude the cover, notes and decide page. Each phone viewport is 390 × 844. Web/Mac navigation and 700 px layout stay unchanged.\nApprove design and Ask for changes live on the decide page and in the viewer/note ⋯ menu; neither lives on the cover or the persistent toolbar. Open the Design page is also in ⋯. With unresolved pins, Ask for N changes is primary and Approve design secondary; without pins, Approve design is primary. All decisions, including ⋯ actions, are disabled while previews or the main/conflict check are loading: “Loading 22 screens…”. Do not treat loading as zero pins. Recheck conflicts atomically before deciding, preserve drafts on failure. Non-overlapping main changes update automatically; conflicting screens disable decisions and show Ask to update / Close in a native sheet (including the existing cover #conflict entry point).\nA screen is seen only after its current preview has loaded and remained visible in the foreground for one continuous second. Thumbnail peeks, grid tiles, loading and obscured backgrounds do not count. A screen counts once across widths; zoom/hold does not reset it. Seen never gates approval. Persist seen state and pins by proposal revision and screen. Grid opens All screens at a large detent, grouped by canvas page and original board order, with three columns of crops, seen checks and pin counts. Next unseen follows pager order and wraps once; disabled with All screens seen when finished. Dismiss the sheet back to the same page/crop; selecting a tile jumps into the pager.\nSecond round: cover says Since your last review, reply summary, then Your pins with the original request, screen, Addressed/Still open and proposer reply. Only the three revised screens enter this pager, in canvas order, then any revised notes and the decide page. The 19 unchanged screens remain available in All screens; they are excluded from swipe navigation and retain seen state. Before compares to the owner’s last reviewed proposal revision, not main. Seen resets only for revised screens. Looking never resolves a pin; addressed pins remain inspectable/reopenable and are not resent. Only still-open/new pins count in Ask for N changes (one in this second-round fixture).\nThese are static design fixtures; HTML links identify destinations, not implemented review logic. Phone notes supersede the old phone-specific grid/toggle language in shared review notes. Web/Mac layout stays unchanged; drawing-pin display follows the drawing contract below.\n\nScreen previews only (the prose-note board retains its existing hold-to-peek and passage-pin controls; drawing paths attach to screen boards, not reflowing note text). Compare and paging: the toolbar order is Compare, pencil (Draw and comment), Show changes, width chip. All hit targets are at least 44 px and remain on one line at 390 px; Seen / pins moves to the quiet line below. All screens and Place a pin remain in ⋯. Compare enters a full-preview wipe, not a slider below the image or an opacity blend. Before is left, After right, with nonwrapping capsules; the divider is drawn at 40%. Both revisions share the same scale, native crop and pan. One-finger dragging anywhere on the preview moves the divider and never pages. Two fingers pan / pinch both revisions together. Done or tapping Compare again exits and restores paging at the same crop. Do not carry compare mode into another screen. VoiceOver exposes the divider as an adjustable control (Before percentage); hardware arrow keys adjust it. Compare and draw modes are mutually exclusive.\nGestures: retain press-and-hold as a shortcut on the Compare control: hold shows all Before, release restores the prior After or divider position without also firing a tap. Long-press on the preview stays a pin gesture; it cannot also trigger Before. Outside compare/draw, horizontal swipes page at the initial crop; when zoomed, pan within the screen and return to the initial crop to page. Long-press or ⋯ → Place a pin opens the existing pin sheet; the explicit action is the accessible alternative. In compare mode, long-press creates no pin. In draw mode, one finger always draws; long-press neither compares nor creates another pin.\nNew / removed screens: a New screen is After only. Compare is visibly disabled with “No Before for this screen” (drawn in DesignReviewNewPhone); a Removed screen is Before only, disabled with “No After for this screen”. Show changes is disabled when no revision pair exists. Pencil and long-press can comment on the available revision, including removal. Preserve the width chip; a single available width is informational, multiple widths open a menu. Never fabricate a baseline. Width changes leave compare mode and retain each width’s crop; an unfinished drawing must be finished or cancelled first.\nPencil: entering draw mode stops paging and freezes the selected board/revision/width. One finger draws freehand; two fingers pan/zoom without adding a stroke. One accent stroke, 3 native px with round caps and joins; no colour picker. Undo removes the last completed stroke (including the arrow as one stroke), disabled when empty. Next is disabled until a stroke exists. Cancel discards the drawing and returns to the originating page/crop without adding a pin. Next opens the native comment sheet with a crop thumbnail of the drawn area, Cancel / Comment / Add, and the focused “What should change?” field. Add is disabled until trimmed text is nonempty. Sheet Cancel returns to drawing with strokes and draft text retained; only drawing Cancel discards them. Dismissing the sheet behaves like Cancel. Add saves the text and all strokes together as one numbered pin, dismisses the sheet and leaves draw mode. A failed save retains the draft and offers Retry; it never increments the count.\nDrawing storage and web: store paths with the pin as normalized native-board coordinates (x / board width, y / board height), not viewport or crop coordinates. Associate proposal revision, board ID, Before/After side, width variant, native dimensions, normalized anchor, ordered strokes and stroke weight. Transform paths and anchor together during crop, pan, zoom and scrubbing; clip them to the associated revision side. Keep the original revision/width association across updates, never stretch a path onto another width or silently move it to a new revision. All strokes in one saved drawing count as one unresolved pin in Ask for N changes, exactly like a point pin. Show changes controls the region outlines and saved pins/drawings together; turning it off hides both anchor and paths. A visible or selected pin reveals its strokes. Tapping its number opens the text and drawing for inspection, edit or removal. Deleting the pin deletes its paths; addressed pins remain inspectable. Web and Mac display the same normalized paths in the corresponding revision/width preview and the same numbered pin and text in their existing pins tray; no new desktop toolbar is proposed.\nLoading and motion: use skeletons in the real preview layout until the requested revision/width is ready; after 10 seconds say “Screen preview is taking longer than usual.” Do not enable Compare until both images are ready, or draw/pin until the visible image is ready. Preserve the existing decision-loading and conflict rules. Divider and strokes track the finger directly, without easing or replay. With Reduce Motion, sheets and page changes appear without sliding, skeletons are static, and comparison never animates between endpoints. These HTML boards are static design fixtures, not gesture implementations."
-    },
-    "review-clarity-DesignReviewViewer": {
-      "x": 6160,
-      "y": 59600,
-      "w": 1400,
-      "h": 2250,
-      "fill": "blue",
-      "text": "DesignReviewViewer.html A note on the design: the area it marks, its number and its words, on the screen itself."
     },
     "review-clarity-DesignReviewViewerPhone": {
       "x": 1600,
@@ -5110,7 +4995,7 @@
       "w": 1400,
       "h": 2600,
       "fill": "blue",
-      "text": "DesignReviewRound2.html\nSince your last review\n“3 screens changed · 2 of your 3 pins addressed” heads the same Agents you make yourself proposal, revised by Release notes writer. Your pins is directly under the summary and before all tiles. Three roomy numbered rows retain the request, screen, status and one-line proposer reply. Then “Changed since your review · 3” contains Agent details, Agent details on iPhone and Meet your agent on iPhone only. Each tile shows pin status: “1 addressed · 1 open”, “No pins”, “1 addressed”. Phone details mirrors the source fix; it has no original owner pin. Original requests are retained in a roomy list: name visibility Still open with “Kept the name in the fixed header.”; source attribution Addressed on Agent details; suggestion wrapping Addressed on Meet your agent on iPhone. Keep the proposer's reply attached to the pin, not folded into a fake owner resolution.\nThe owner can inspect or reopen an addressed request; only still-open and newly saved pins count toward Ask for N changes. Addressed pins stay in history and are not resent. Here Ask for 1 change is primary and Approve design secondary; with zero unresolved pins, Approve design is primary. Sending includes current unresolved requests once; approval never silently erases old comments.\n“19 screens you already saw · unchanged” is collapsed by default, expandable with their page group and Seen state intact. Seen resets only for the 3 revised screens, hence “You’ve looked at 19 of 22”. Next unseen opens one of those three; looking at a revision never clears a pin automatically. In a second-round viewer Before means the owner’s last reviewed revision; After means this revision. Full main comparison is separate context. Retain pin positions by revision and screen.\nStatic boards draw the resolved/open fixture; persistence, reply submission, live main updates and screenshot selection are implementation after design approval.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
+      "text": "DesignReviewRound2Phone.html (iPhone pager; the web review is on the canvas)\nSince your last review\n“3 screens changed · 2 of your 3 pins addressed” heads the same Agents you make yourself proposal, revised by Release notes writer. Your pins is directly under the summary and before all tiles. Three roomy numbered rows retain the request, screen, status and one-line proposer reply. Then “Changed since your review · 3” contains Agent details, Agent details on iPhone and Meet your agent on iPhone only. Each tile shows pin status: “1 addressed · 1 open”, “No pins”, “1 addressed”. Phone details mirrors the source fix; it has no original owner pin. Original requests are retained in a roomy list: name visibility Still open with “Kept the name in the fixed header.”; source attribution Addressed on Agent details; suggestion wrapping Addressed on Meet your agent on iPhone. Keep the proposer's reply attached to the pin, not folded into a fake owner resolution.\nThe owner can inspect or reopen an addressed request; only still-open and newly saved pins count toward Ask for N changes. Addressed pins stay in history and are not resent. Here Ask for 1 change is primary and Approve design secondary; with zero unresolved pins, Approve design is primary. Sending includes current unresolved requests once; approval never silently erases old comments.\n“19 screens you already saw · unchanged” is collapsed by default, expandable with their page group and Seen state intact. Seen resets only for the 3 revised screens, hence “You’ve looked at 19 of 22”. Next unseen opens one of those three; looking at a revision never clears a pin automatically. In a second-round viewer Before means the owner’s last reviewed revision; After means this revision. Full main comparison is separate context. Retain pin positions by revision and screen.\nStatic boards draw the resolved/open fixture; persistence, reply submission, live main updates and screenshot selection are implementation after design approval.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
     },
     "review-clarity-DesignReviewRound2Phone": {
       "x": 1600,
@@ -5250,12 +5135,12 @@
       "text": "Drawn after the iPhone screens were first seen running.\n\n• Packages and a package’s versions both open as sheets, like every other Settings destination.\n• The two parts load separately: if one fails, the other still shows. A failed part with nothing to show says it could not be refreshed. One with rows keeps them.\n• Storage reads like web: gigabytes of 1024³, then the limit (6.2 GB of 20 GB).\n• Version dates carry the year. Today’s reads Today, 7:57 AM.\n• Kept on SER opens nothing, so it has no chevron.\n• A latest version over 12 characters is capped at 96 pt and shortened in the middle, so it can’t squeeze the name. The versions sheet shows it in full."
     },
     "review-sent": {
-      "x": 11900,
-      "y": 51824,
+      "x": 12804,
+      "y": 59740,
       "w": 1440,
-      "h": 240,
+      "h": 160,
       "fill": "blue",
-      "text": "DesignReviewSent.html\nAfter Ask for changes, the review stays open as the record of what was asked. The notice says the changes were sent and to whom, and that the proposer will propose again here; it no longer says “You can add more before sending”. The pins stay on the screens and in All pins. The footer names the outcome, when, and how far the look got, with one way onward: Open the task (web and iPhone). When you proposed it yourself there is no task: “Changes requested · just now · propose again when the screens are updated.” After Approve design the footer reads “Approved · this is the design on main” with Open in Design."
+      "text": "DesignReviewCanvasSent.html\nAfter Ask for changes, the review stays open as the record of what was asked. The bar says Sent to and who, with Open the task and Next review (Done when nothing else is waiting). The proposer will propose again here."
     },
     "project-remove-failed": {
       "fill": "yellow",
@@ -5433,7 +5318,7 @@
       "w": 440,
       "x": 11244,
       "y": 55600,
-      "text": "For approval: a review happens on the canvas\n\nReviewing a design opens the Design canvas on the proposal’s branch, not a separate review surface. Same frames, same panels, same tools.\n\n• Changed and new frames stay at full strength, tagged Changed or New, with the changed areas marked on them. Everything else is dimmed. Before and After switches what the frames show.\n• Each changed frame has a checkbox beside its name. Ticking it approves that frame. The bar counts them: 1 of 3 approved.\n• The arrows in the tool bar, and ← →, move to the previous and next changed frame and zoom to it. Space ticks the frame you are on.\n• Because it is the canvas, a reviewer can do more than write: comment on a layer, draw, or edit the frame. Those land on the branch as suggestions for the proposer.\n• Links on a frame work as they do everywhere on the canvas, and the frame they open is right there beside it. There is nothing to go back from.\n• Changes on this branch, in the right panel, is the list of what changed. The review’s own list, viewer and dock go away, and so does their code.\n• Approve design is available at any time; unticked frames are named before it goes through. Ask for changes sends the comments, drawings and edits.\n\nThis replaces the DesignReview boards on web once approved; they stay on the canvas until then. iPhone keeps its pager."
+      "text": "For approval: a review happens on the canvas\n\nReviewing a design opens the Design canvas on the proposal’s branch, not a separate review surface. Same frames, same panels, same tools.\n\n• Changed and new frames stay at full strength, tagged Changed or New, with the changed areas marked on them. Everything else is dimmed. Before and After switches what the frames show.\n• Each changed frame has a checkbox beside its name. Ticking it approves that frame. The bar counts them: 1 of 3 approved.\n• The arrows in the tool bar, and ← →, move to the previous and next changed frame and zoom to it. Space ticks the frame you are on.\n• Because it is the canvas, a reviewer can do more than write: comment on a layer, draw, or edit the frame. Those land on the branch as suggestions for the proposer.\n• Links on a frame work as they do everywhere on the canvas, and the frame they open is right there beside it. There is nothing to go back from.\n• Changes on this branch, in the right panel, is the list of what changed. The review’s own list, viewer and dock go away, and so does their code.\n• Approve design is available at any time; unticked frames are named before it goes through. Ask for changes sends the comments, drawings and edits.\n\nThis replaced the one-surface DesignReview boards on web, which are retired. The states it has are drawn beside it: Approve, Ask for changes, Sent, approved with Undo, and Changed on main too. iPhone keeps its pager."
     },
     "build-on-ask": {
       "fill": "purple",
