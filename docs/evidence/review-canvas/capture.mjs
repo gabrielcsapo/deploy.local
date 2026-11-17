@@ -52,7 +52,8 @@ try {
     assert.equal(await bar.getByRole('button', { name: 'Approve design', exact: true }).count(), 0);
   } else {
     await bar.getByText('Keep the gutter at every width', { exact: true }).waitFor();
-    await page.locator('.dz-world').waitFor();
+    // The world is a zero-size origin its frames are placed from, so it is never “visible”.
+    await page.locator('.dz-world').waitFor({ state: 'attached' });
     if (state === 'notes-only') {
       await page
         .locator('.dz-note')

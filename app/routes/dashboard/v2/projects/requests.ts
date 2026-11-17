@@ -1,4 +1,5 @@
 // Words and numbers for a web app's Requests tab and one request opened.
+import type { RepeatingSender } from '../../../../../shared/v2/contracts';
 export type RequestRange = '1h' | '24h' | '7d' | '30d';
 export type RequestShow = 'all' | 'server' | 'client' | 'slow';
 export const requestRanges: { value: RequestRange; label: string; words: string }[] = [
@@ -28,6 +29,8 @@ export type RequestSummary = {
   p99: number;
   sentBytes: number;
   receivedBytes: number;
+  /** Senders that keep asking one route at a steady pace, busiest first. */
+  repeating?: RepeatingSender[];
   series: {
     bucketMs: number;
     points: { at: number; perMinute: number; serverErrorsPerMinute: number }[];

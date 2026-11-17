@@ -688,7 +688,7 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 .dl-spin{animation:dl-spin 1s linear infinite}
 @keyframes dl-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.dl-spin{animation:none}}
-/* Tasks in the sidebar group by date or by project. The first heading carries the choice.
+/* Tasks in the sidebar group by date, by project or by work. The first heading carries the choice.
    A task row's actions replace its time while the pointer is on it. */
 .dl-side:not(.by-project) .pj,.dl-side.by-project .dt{display:none}
 /* Work: projects with their live work only, each row with its state. */
@@ -697,7 +697,7 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 .side-anchor{position:relative;height:0}
 .side-anchor > .dl-menu{position:absolute;top:0;right:0;width:184px;z-index:5}
 .dl-side:not(.gm-open) .side-group-anchor,.dl-side:not(.rm-open) .side-row-anchor,.dl-side:not(.rm-on):not(.rm-open) .side-row-more,.dl-side:is(.rm-on,.rm-open) .t-task > .dl-end{display:none}
-.dl-side:not(.by-project) .gm-project .side-check,.dl-side.by-project .gm-date .side-check{display:none}
+.dl-side:not(.by-project) .gm-project .side-check,.dl-side:is(.by-project,.by-work) .gm-date .side-check,.dl-side:not(.by-work) .gm-work .side-check{display:none}
 .dl-nav .side-row-more{width:24px;height:24px;margin-right:-4px}
 .dl-side.rm-open .side-row-more{background:color-mix(in srgb,var(--line) 80%,transparent);color:var(--ink)}
 .dl-nav.side-more .dl-t{color:var(--muted)}

@@ -71,6 +71,7 @@ const allowed: Record<string, { reason: string; edges: string[] }> = {
       'v2/performance.ts -> server/store.ts',
       'v2/project-page.ts -> server/store.ts',
       'v2/requests.ts -> server/store.ts',
+      'v2/traffic.ts -> server/store.ts',
       'v2/tasks.ts -> server/store.ts',
       'workspace/terminal-socket.ts -> server/store.ts',
     ],
@@ -100,6 +101,7 @@ const allowed: Record<string, { reason: string; edges: string[] }> = {
       'v2/project-page.ts -> shared/v2/contracts.ts',
       'v2/push.ts -> shared/v2/contracts.ts',
       'v2/requests.ts -> shared/v2/contracts.ts',
+      'v2/traffic.ts -> shared/v2/contracts.ts',
       'v2/screenshots.ts -> shared/v2/contracts.ts',
       'v2/tasks.ts -> shared/check-attempts.ts',
       'v2/tasks.ts -> shared/v2/contracts.ts',
@@ -169,6 +171,7 @@ const allowed: Record<string, { reason: string; edges: string[] }> = {
       'v2/project-page.ts -> server/telemetry.ts',
       'v2/requests.ts -> server/capture.ts',
       'v2/requests.ts -> server/requests-db.ts',
+      'v2/traffic.ts -> server/requests-db.ts',
     ],
   },
   dashboardSeed: {

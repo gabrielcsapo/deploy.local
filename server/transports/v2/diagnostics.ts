@@ -5,6 +5,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { sendJson } from '../../kernel/http.ts';
 import { fail } from '../../kernel/errors.ts';
 import { isAdmin } from '../../store.ts';
+import { REQUEST_RANGES, type RequestRange } from './request-shape.ts';
+import { traffic } from './traffic.ts';
+import { projectsForOwner } from '../../v2/projects.ts';
 
 /**
  * The server measuring itself, for an administrator: where its main thread spends its time and
@@ -181,6 +184,22 @@ export const diagnosticsApi = dispatch([
       const { profile, summary } = await profileSelf(seconds);
       // The whole profile opens in a profiler's flame chart; the summary is what to read first.
       sendJson(res, url.searchParams.get('raw') === '1' ? { summary, profile } : { summary });
+      return true;
+    },
+  }),
+  diagnosticRoute({
+    method: 'GET',
+    path: '/api/diagnostics/traffic',
+    handler: async ({ res, url, context: owner }) => {
+      if (!isAdmin(owner)) fail('Only an administrator can see the server’s traffic', 403);
+      const range = url.searchParams.get('range') || '24h';
+      if (!(range in REQUEST_RANGES)) fail('range must be 1h, 24h, 7d or 30d');
+      // Each app links to its Requests page, which lives under its project.
+      const projects = await projectsForOwner(owner, true).catch(() => []);
+      const projectOf = new Map(
+        projects.flatMap((project) => project.apps.map((app) => [app.name, project.id] as const)),
+      );
+      sendJson(res, traffic(owner, range as RequestRange, Date.now(), projectOf));
       return true;
     },
   }),

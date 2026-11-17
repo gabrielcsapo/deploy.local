@@ -356,6 +356,9 @@ export function createFixture() {
         },
       });
     }
+    // The app trades its saved sign-in for a session cookie on load. Nothing is stored here.
+    if (path === '/api/auth/session' && request.method === 'POST')
+      return new Response(null, { status: 204 });
     if (!['GET', 'HEAD'].includes(request.method)) {
       if (path !== `${api}/review/seen` || request.method !== 'POST')
         return json({ error: 'Capture fixture: mutation disabled' }, 405);
@@ -471,6 +474,9 @@ export function createFixture() {
         passkeyOffered: true,
       });
     if (path === '/api/agents') return json({ agents: [designer] });
+    // The design menu lists a project's other artifacts; this project has only its App design.
+    if (path === '/api/artifacts')
+      return json({ artifacts: [], projects: [{ id: project.id, name: project.name }] });
     if (path === '/api/computers') return json({ computers: [] });
     if (path === '/api/nodes')
       return json({
