@@ -937,7 +937,7 @@
       "x": 9730,
       "y": 34784,
       "w": 1440,
-      "h": 1100,
+      "h": 1240,
       "title": "CLI — help that matches the app"
     },
     "CliErrors.html": {
@@ -3512,6 +3512,44 @@
       "h": 960,
       "title": "Sidebar in Work: Group tasks sits on the first project, and its menu has Work",
       "expand": "fill"
+    },
+    "CliDesign.html": {
+      "x": 9730,
+      "y": 36124,
+      "w": 1440,
+      "h": 700,
+      "title": "CLI — a design change from a terminal: start and check"
+    },
+    "CliDesignReview.html": {
+      "x": 11250,
+      "y": 36124,
+      "w": 1440,
+      "h": 760,
+      "title": "CLI — propose a design, and read the answer"
+    },
+    "DesignReviewCanvasNotLanded.html": {
+      "x": 9764,
+      "y": 57560,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — approved, but it did not reach main",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasNoOne.html": {
+      "x": 11284,
+      "y": 57560,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — notes kept, nobody is working on it",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasTerminal.html": {
+      "x": 12804,
+      "y": 57560,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — notes sent to a terminal",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3978,7 +4016,12 @@
     "ArtifactDocumentReviewNew.html",
     "ArtifactDocumentReviewPhone.html",
     "ArtifactDocumentReviewNewPhone.html",
-    "ArtifactDocumentNewPhone.html"
+    "ArtifactDocumentNewPhone.html",
+    "CliDesign.html",
+    "CliDesignReview.html",
+    "DesignReviewCanvasNotLanded.html",
+    "DesignReviewCanvasNoOne.html",
+    "DesignReviewCanvasTerminal.html"
   ],
   "notes": {
     "intro": {
@@ -5574,6 +5617,14 @@
       "x": 23080,
       "y": 83380,
       "text": "The other empty lines on Work\n• Everything has shipped, nothing open: “Nothing open” with “Everything here has shipped.” and the same New idea and New task.\n• Shipped with nothing in it: “Nothing shipped yet” with “Merged pull requests, finished tasks and closed ideas show here.” No actions."
+    },
+    "design-commands": {
+      "x": 9764,
+      "y": 58500,
+      "w": 1440,
+      "h": 240,
+      "fill": "blue",
+      "text": "A design worked on outside a task\nCliDesign.html and CliDesignReview.html are the commands: start, check, propose, feedback, resolve. After Ask for changes the review bar names who has the notes: a task, a terminal that was waiting (DesignReviewCanvasTerminal.html), or nobody (DesignReviewCanvasNoOne.html), which offers Start a task. An approval that main overtakes says Did not reach main and asks again (DesignReviewCanvasNotLanded.html); it never reads on main. Once a design is on main its branch is removed, and the canvas says it shows main (DesignReviewCanvasApproved.html)."
     }
   },
   "starts": {}
