@@ -124,3 +124,52 @@ test('Composer does not re-request the shell agents, model choices, or seeded ta
     h.dispose();
   }
 });
+
+test('an immutable path is read once; events refresh other paths but not it', async () => {
+  const seed = { owner: 'alice', at: Date.now() - 60000, data: {} };
+  const cache = new Map();
+  const requests = [];
+  const listeners = [];
+  const h = await componentHarness(
+    'app/routes/dashboard/v2/projects/data.ts',
+    {
+      '../data/seeds': { useDataSeed: () => seed, freshSeed, resourceKey: (path) => path },
+      '../data/hooks': {
+        onAuthReset: () => () => {},
+        remember: (path, value) => cache.set(path, value),
+        remembered: (path) => cache.get(path),
+        eventFeed: {
+          subscribe(listener) {
+            listeners.push(listener);
+            return () => {};
+          },
+        },
+        authenticatedFetch: async (path) => {
+          requests.push(path);
+          return { ok: true, json: async () => ({ path }) };
+        },
+      },
+    },
+    { AbortController },
+  );
+  const preview = '/api/review/preview?revision=abc';
+  try {
+    const read = () =>
+      h.render(() => [
+        h.exports.useData(preview, { immutable: true }),
+        h.exports.useData('/api/projects'),
+      ]);
+    read();
+    h.effects();
+    await settle();
+    assert.deepEqual(requests.sort(), ['/api/projects', preview].sort());
+    for (const listener of listeners) listener.events([{ type: 'health' }]);
+    read();
+    h.effects();
+    await settle();
+    assert.equal(requests.filter((path) => path === preview).length, 1);
+    assert.equal(requests.filter((path) => path === '/api/projects').length, 2);
+  } finally {
+    h.dispose();
+  }
+});

@@ -133,6 +133,7 @@ export function ReviewAreas({
   );
   const result = useData<DesignReviewPreview>(
     `${api}/review/preview?item=${encodeURIComponent(item)}&board=${encodeURIComponent(board.file)}&width=${width}&scale=1&revision=${board.after}`,
+    { immutable: true },
   );
   return (
     <>
@@ -600,6 +601,7 @@ function ConflictPreview({
   const [side, setSide] = useState<ReviewSide>('before');
   const pair = useData<DesignReviewPreview>(
     `${api}/review/preview?item=${encodeURIComponent(item)}&board=${encodeURIComponent(board.file)}&width=${board.widths[0]}&comparison=main&main=${main}`,
+    { immutable: true },
   );
   const source = pair.data?.[side];
   const [image, setImage] = useState('');

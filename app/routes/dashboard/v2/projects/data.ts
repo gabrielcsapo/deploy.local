@@ -19,8 +19,12 @@ export async function request<T = any>(path: string, init: RequestInit = {}): Pr
 export function changesData(event: { type?: string; event?: { kind?: string; live?: boolean } }) {
   return !(event.type === 'conversation' && event.event?.kind === 'worklog' && event.event.live);
 }
-/** Data for a path; a path read before shows its last answer at once while it refreshes. */
-export function useData<T>(path: string | undefined) {
+/**
+ * Data for a path; a path read before shows its last answer at once while it refreshes.
+ * `immutable` is for a path that names fixed revisions: its answer cannot change, so one read
+ * is reused and events do not fetch it again. Health events otherwise redrew every preview.
+ */
+export function useData<T>(path: string | undefined, { immutable = false } = {}) {
   const seed = useDataSeed();
   const lastVersion = useRef(0);
   const [answer, setAnswer] = useState<{
@@ -52,6 +56,7 @@ export function useData<T>(path: string | undefined) {
     );
     setError(!forced ? seededError : '');
     if (!path || (!forced && freshSeed(seed, path))) return;
+    if (!forced && immutable && remembered<T>(path, seed) !== undefined) return;
     const controller = new AbortController();
     request<T>(path, { signal: controller.signal })
       .then((value) => {
@@ -63,7 +68,7 @@ export function useData<T>(path: string | undefined) {
         if (!controller.signal.aborted) setError(error.message);
       });
     return () => controller.abort();
-  }, [path, version, seed, seededError]);
+  }, [path, version, seed, seededError, immutable]);
   useEffect(
     () =>
       onAuthReset(() => {
@@ -73,7 +78,7 @@ export function useData<T>(path: string | undefined) {
     [path],
   );
   useEffect(() => {
-    if (!seed || !path) return;
+    if (!seed || !path || immutable) return;
     let first = true;
     return eventFeed.subscribe({
       async snapshot(_signal, boundary) {
@@ -89,7 +94,7 @@ export function useData<T>(path: string | undefined) {
       },
       error() {},
     });
-  }, [seed, path]);
+  }, [seed, path, immutable]);
   return { data, error, refresh: () => refresh((n) => n + 1) };
 }
 export type Work = {
