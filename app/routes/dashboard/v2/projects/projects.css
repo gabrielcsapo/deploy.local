@@ -493,6 +493,19 @@
   color: var(--ds-muted);
 }
 .v2-work-body {
-  margin: 12px 0 0;
+  margin: 0;
   white-space: pre-wrap;
+}
+/* New idea's description: several lines in the body's own type, as the board draws it. */
+.v2-work-textarea {
+  display: block;
+  min-height: 104px;
+  padding: 10px 14px;
+  font-family: var(--ds-font);
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  resize: none;
+}
+.v2-work-empty {
+  padding: 48px 24px;
 }

@@ -10,6 +10,7 @@ export function Item({
   onClick,
   disabled,
   loading,
+  chevron = true,
   children,
 }: ComponentState & {
   title: ReactNode;
@@ -19,6 +20,8 @@ export function Item({
   href?: string;
   /** A row that opens something in place, such as a dialog, instead of going to a page. */
   onClick?: () => void;
+  /** A row that opens something shows a chevron; a list read as a record, like Shipped, has none. */
+  chevron?: boolean;
   children?: ReactNode;
 }) {
   const content = (
@@ -30,7 +33,7 @@ export function Item({
       </span>
       {end && <span className="dl-c">{end}</span>}
       {children}
-      {(href || onClick) && <Icon name="chevron" className="dl-chev" />}
+      {chevron && (href || onClick) && <Icon name="chevron" className="dl-chev" />}
     </>
   );
   return href ? (

@@ -1,5 +1,5 @@
 'use client';
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useRouter } from 'react-flight-router/client';
 import {
   Action,
@@ -72,6 +72,8 @@ export function ProjectWorkTab({
       description={row.meta.join(' · ')}
       end={pullElapsed(row.at)}
       href={href(row)}
+      // Shipped reads as a record: no chevrons, so its times line up in one column.
+      chevron={row.stage !== 'shipped'}
       // An idea opens in place to start, accept or dismiss it; a closed one has nothing to do.
       onClick={
         row.link.kind === 'issue' && row.stage !== 'shipped' ? () => setOpened(row) : undefined
@@ -79,36 +81,44 @@ export function ProjectWorkTab({
     />
   );
   const sections = work ? workSections(work) : [];
+  // A project with no work at all shows only the empty state, with both ways to begin.
+  const blank = !!work && !work.rows.length && !work.shipped.length;
+  const begin = (
+    <>
+      <Action onClick={() => setIdea(true)}>New idea</Action>
+      <a className="dl-btn secondary" href={newTaskIn(projectId)}>
+        New task
+      </a>
+    </>
+  );
   return (
     <>
-      <div className="v2-work-bar">
-        <Seg
-          label="Work"
-          value={show}
-          onChange={(value) => setShow(value as 'open' | 'shipped')}
-          options={[
-            { value: 'open', label: `Open${work ? ` ${work.counts.open}` : ''}` },
-            { value: 'shipped', label: `Shipped${work ? ` ${work.counts.shipped}` : ''}` },
-          ]}
-        />
-        <span className="dl-end">
-          <Action onClick={() => setIdea(true)}>New idea</Action>
-        </span>
-      </div>
+      {!blank && (
+        <div className="v2-work-bar">
+          <Seg
+            label="Work"
+            value={show}
+            onChange={(value) => setShow(value as 'open' | 'shipped')}
+            options={[
+              { value: 'open', label: `Open${work ? ` ${work.counts.open}` : ''}` },
+              { value: 'shipped', label: `Shipped${work ? ` ${work.counts.shipped}` : ''}` },
+            ]}
+          />
+          <span className="dl-end">
+            <Action onClick={() => setIdea(true)}>New idea</Action>
+          </span>
+        </div>
+      )}
       {error && <Banner title={error} action={<Action onClick={refresh}>Retry</Action>} />}
       {!work && !error && <Skeleton rows={4} />}
-      {work && show === 'open' && !work.rows.length && (
-        <Empty
-          title={work.shipped.length ? 'Nothing open' : 'No work yet'}
-          actions={
-            <a className="dl-btn secondary" href={newTaskIn(projectId)}>
-              New task
-            </a>
-          }
-        >
-          {work.shipped.length
-            ? 'Everything here has shipped. Write down an idea or start a task.'
-            : 'Write down an idea for later, or start a task and it shows here while it runs.'}
+      {blank && (
+        <Empty className="v2-work-empty" icon="bulb" title="No work yet" actions={begin}>
+          Ideas you write down and tasks you start show here.
+        </Empty>
+      )}
+      {work && !blank && show === 'open' && !work.rows.length && (
+        <Empty className="v2-work-empty" icon="bulb" title="Nothing open" actions={begin}>
+          Everything here has shipped.
         </Empty>
       )}
       {work &&
@@ -120,13 +130,13 @@ export function ProjectWorkTab({
             <Group>{section.rows.map(item)}</Group>
           </section>
         ))}
-      {work && show === 'shipped' && (
+      {work && !blank && show === 'shipped' && (
         <section className="dl-section v2-work-section">
           {work.shipped.length ? (
             <Group>{work.shipped.map(item)}</Group>
           ) : (
-            <Empty title="Nothing shipped yet">
-              Merged pull requests and closed ideas show here.
+            <Empty className="v2-work-empty" title="Nothing shipped yet">
+              Merged pull requests, finished tasks and closed ideas show here.
             </Empty>
           )}
         </section>
@@ -169,6 +179,7 @@ function NewIdea({
 }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const bodyId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function create() {
@@ -213,7 +224,18 @@ function NewIdea({
     >
       <div className="v2-project-form">
         <Field label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
-        <Field label="Description" value={body} onChange={(event) => setBody(event.target.value)} />
+        <div>
+          <label className="dl-field-label" htmlFor={bodyId}>
+            Description
+          </label>
+          <textarea
+            id={bodyId}
+            className="dl-textarea v2-work-textarea"
+            rows={4}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+          />
+        </div>
         {error && <Banner title={error} />}
       </div>
     </Dialog>
@@ -235,6 +257,10 @@ function IdeaDialog({
   const [busy, setBusy] = useState<'' | 'start' | 'accept' | 'close'>('');
   const [error, setError] = useState('');
   const found = row.stage === 'found';
+  const { seenAgo } = useProjectFormatting();
+  // Who wrote or found it, and when: "Written by Gabriel · 3 days ago".
+  const when = seenAgo(Date.parse(row.at));
+  const byline = [...row.meta, when.charAt(0).toLowerCase() + when.slice(1)].join(' · ');
   async function act(action: 'task' | 'accept' | 'close') {
     setBusy(action === 'task' ? 'start' : action);
     setError('');
@@ -256,6 +282,7 @@ function IdeaDialog({
         if (!busy) onClose();
       }}
       title={row.title}
+      meta={byline}
       actions={
         found ? (
           <>
@@ -287,7 +314,6 @@ function IdeaDialog({
         )
       }
     >
-      <p className="dl-meta">{row.meta.join(' · ')}</p>
       {row.issue!.body.trim() && <p className="v2-work-body">{row.issue!.body}</p>}
       {error && <Banner title={error} />}
     </Dialog>

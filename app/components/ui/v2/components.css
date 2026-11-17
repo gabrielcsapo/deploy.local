@@ -138,6 +138,12 @@
 .dl-dialog-foot {
   padding: 0;
 }
+/* A title with a line under it, such as who wrote an idea and when. */
+.dl-dialog-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 .dl-term:focus-visible,
 .dl-lines:focus-visible {
   outline: 2px dashed var(--ds-focus);

@@ -27,7 +27,7 @@ export type WorkRow = {
 export type ProjectWork = {
   /** The open rows, Needs you first, then Running, Up next and Found by agents. */
   rows: WorkRow[];
-  /** Merged and closed work, newest first. */
+  /** Merged pull requests, finished tasks and closed ideas, newest first. */
   shipped: WorkRow[];
   counts: { open: number; shipped: number };
 };
@@ -139,7 +139,12 @@ export function stageProjectWork(input: WorkInput): ProjectWork {
       shipped.push({
         ...base,
         stage: 'shipped',
-        meta: [pull?.status === 'merged' ? 'Merged' : 'Done', hash].filter(Boolean) as string[],
+        // A task that ended well without a merged pull request reads "Finished", with no number
+        // unless it has a pull request of its own.
+        meta: (pull?.status === 'merged'
+          ? ['Merged', hash]
+          : ['Finished', pull ? hash : undefined]
+        ).filter(Boolean) as string[],
         at: latest(pull?.mergedAt, task.closedAt, at),
         link: { kind: 'task', id: task.id },
       });

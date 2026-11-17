@@ -215,11 +215,17 @@ test('an agent-found issue someone started runs as that task, saying who found i
   assert.deepEqual(work.rows[0].link, { kind: 'task', id: 'fix' });
 });
 
-test('Shipped holds merged and closed work, newest first; a task that ended unshipped lets its issue go', () => {
+test('Shipped holds merged, finished and closed work, newest first; a task that ended unshipped lets its issue go', () => {
   const work = stage({
     tasks: [
       { id: 'shipped', title: 'Shipped task', status: 'merged', updatedAt: ago(30) },
       { id: 'gave-up', title: 'Cancelled', status: 'closed', updatedAt: ago(20) },
+      {
+        id: 'finished',
+        title: 'Check SER release health',
+        status: 'completed',
+        updatedAt: ago(40),
+      },
     ],
     pulls: [
       { id: 'p1', number: 1, status: 'merged', taskIds: ['shipped'], mergedAt: ago(30) },
@@ -236,6 +242,7 @@ test('Shipped holds merged and closed work, newest first; a task that ended unsh
     [
       ['By hand', 'Merged · #2'],
       ['Shipped task', 'Merged · #1'],
+      ['Check SER release health', 'Finished'],
       ['Old idea', 'Closed · #4'],
     ],
   );
@@ -243,7 +250,7 @@ test('Shipped holds merged and closed work, newest first; a task that ended unsh
     work.rows.map((row) => [row.stage, row.title]),
     [['up-next', 'Still wanted']],
   );
-  assert.deepEqual(work.counts, { open: 1, shipped: 3 });
+  assert.deepEqual(work.counts, { open: 1, shipped: 4 });
 });
 
 test('stages come in order and the open count is all four of them', () => {
