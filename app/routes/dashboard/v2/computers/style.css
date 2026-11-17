@@ -118,3 +118,26 @@
     max-width: 180px;
   }
 }
+
+/* Diagnostics → Traffic */
+.v2-traffic-warn {
+  color: var(--ds-warning);
+}
+.dl-spark.v2-traffic-chart {
+  height: 96px;
+}
+.v2-traffic-ticks {
+  display: flex;
+  justify-content: space-between;
+}
+.v2-traffic-table .v2-traffic-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.v2-traffic-table .v2-traffic-wide {
+  width: 100%;
+}
+.v2-traffic-two {
+  display: flex;
+  flex-direction: column;
+}

@@ -1,4 +1,6 @@
 'use client';
+import { appWarning } from '../computers/traffic';
+import { useSince } from '../computers/diagnostics.client';
 import { useProjectFormatting } from './formatting.ts';
 import { useEffect, useState, type PointerEvent } from 'react';
 import { useRouter, useSearchParams } from 'react-flight-router/client';
@@ -188,6 +190,8 @@ export function AppRequests({
     return () => clearTimeout(timer);
   }, [filter, path, base, range, show, navigate]);
   const data = summary.data;
+  const since = useSince();
+  const warning = data?.repeating ? appWarning(data.repeating, since) : null;
   const link = (options: { path: string; show?: RequestShow }) =>
     `${requestsHref(base, { range, ...options })}#every-request`;
   const rows = list.data?.rows ?? [];
@@ -219,6 +223,11 @@ export function AppRequests({
         </Banner>
       )}
       {!data && !summary.error && <Skeleton rows={3} />}
+      {warning && (
+        <Banner title={warning.title} icon="update">
+          {warning.text}
+        </Banner>
+      )}
       {data && (
         <>
           <div className="dl-stats v2-requests-stats">

@@ -13,38 +13,25 @@ import { list } from '../../workspace/store.ts';
 import { fail } from '../../kernel/errors.ts';
 import type { Release } from '../../../shared/v2/contracts.ts';
 import { dispatch, routes } from '../../kernel/routes.ts';
+import { repeatingSenders } from './traffic.ts';
+import {
+  REQUEST_RANGES,
+  describeBrowser,
+  normalizePath,
+  type RequestRange,
+} from './request-shape.ts';
+
+export { REQUEST_RANGES, describeBrowser, normalizePath, type RequestRange };
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-export const REQUEST_RANGES = {
-  '1h': { ms: HOUR, bucketMs: MINUTE },
-  '24h': { ms: DAY, bucketMs: 15 * MINUTE },
-  '7d': { ms: 7 * DAY, bucketMs: 2 * HOUR },
-  '30d': { ms: 30 * DAY, bucketMs: 6 * HOUR },
-} as const;
-export type RequestRange = keyof typeof REQUEST_RANGES;
 export type RequestShow = 'all' | 'server' | 'client' | 'slow';
 const PAGE_SIZE = 50;
 // The edge answers 502 once an app stays silent this long (PROXY_RESPONSE_TIMEOUT_MS).
 const NO_ANSWER_MS = 15_000;
 const SLOW_MS = 1000;
 const PATH_ROWS = 200_000;
-
-/** A path with its IDs (numbers, UUIDs, long hex or tokens) folded to :id. */
-export function normalizePath(path: string) {
-  return path
-    .split('/')
-    .map((segment) =>
-      /^\d+$/.test(segment) ||
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
-      /^[0-9a-f]{16,}$/i.test(segment) ||
-      (segment.length >= 24 && /^[A-Za-z0-9_-]+$/.test(segment) && /\d/.test(segment))
-        ? ':id'
-        : segment,
-    )
-    .join('/');
-}
 
 /** What the list filters on for a grouped path: everything before its first :id. */
 export function pathFilter(path: string) {
@@ -115,37 +102,6 @@ export function errorReason(
   if (typeof text !== 'string' || !text.trim()) return null;
   const line = text.trim().split('\n')[0];
   return line.length > 80 ? `${line.slice(0, 79)}…` : line;
-}
-
-/** "Safari on iPhone" from a user agent; the raw value when nothing matches. */
-export function describeBrowser(agent: string | null): string | null {
-  if (!agent) return null;
-  const browser = /Edg\//.test(agent)
-    ? 'Edge'
-    : /Firefox\//.test(agent)
-      ? 'Firefox'
-      : /Chrome\/|CriOS\//.test(agent)
-        ? 'Chrome'
-        : /Safari\//.test(agent)
-          ? 'Safari'
-          : /^curl\//.test(agent)
-            ? 'curl'
-            : null;
-  const system = /iPhone/.test(agent)
-    ? 'iPhone'
-    : /iPad/.test(agent)
-      ? 'iPad'
-      : /Android/.test(agent)
-        ? 'Android'
-        : /Mac OS X|Macintosh/.test(agent)
-          ? 'Mac'
-          : /Windows/.test(agent)
-            ? 'Windows'
-            : /Linux/.test(agent)
-              ? 'Linux'
-              : null;
-  if (!browser) return agent;
-  return system ? `${browser} on ${system}` : browser;
 }
 
 function percentile(name: string, from: number, to: number, total: number, p: number) {
@@ -351,6 +307,8 @@ export async function requestSummary(
     sentBytes: bytes.sent,
     receivedBytes: bytes.received,
     series: { bucketMs, points },
+    // One address asking one route at a steady pace: a script left running, not visitors.
+    repeating: repeatingSenders(name, now),
     peak: peak && peak.count ? { perMinute: peak.count, at: peak.at } : null,
     releases: inRange,
     firstServerError: first

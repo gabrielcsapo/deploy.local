@@ -880,6 +880,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/diagnostics/traffic',
+    handler: 'v2:v2/diagnostics',
+  },
+  {
+    method: 'GET',
     path: '/api/activity-events',
     handler: 'v2:v2/api',
   },

@@ -143,7 +143,106 @@ server.on('request', async (req, res) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(value));
   };
-  if (path === '/api/user') return send({ username: 'Gabriel' });
+  if (path === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
+  if (path === '/api/computers')
+    return send({
+      computers: f.live.computers.map((computer) => ({
+        ...computer,
+        doing: [],
+        workerIds: [],
+        supportedRoles: computer.roles,
+      })),
+    });
+  // The Traffic slice: one computer keeps asking two apps for their front page.
+  if (path === '/api/diagnostics/traffic' || /^\/api\/apps\/[^/]+\/requests\/summary$/.test(path)) {
+    const now = Date.now();
+    const sender = (app, requests, perMinute, routeShare, appShare) => ({
+      app,
+      address: '10.0.0.159',
+      computer: 'MacBook Pro',
+      agent: 'curl',
+      route: 'GET /',
+      requests,
+      routeShare,
+      appShare,
+      perMinute,
+      sentBytes: requests * 11696,
+      since: now - 5 * 86400000 + 3 * 3600000,
+      sinceOrEarlier: false,
+    });
+    const repeating = [
+      sender('forma', 232300, 161, 1, 0.96),
+      sender('home-gym', 174300, 121, 1, 0.81),
+    ];
+    const points = Array.from({ length: 97 }, (_, index) => ({
+      at: now - 86400000 + index * 900000,
+      perMinute: 330 + (index % 3) * 4,
+      serverErrorsPerMinute: 0,
+    }));
+    if (path !== '/api/diagnostics/traffic')
+      return send({
+        range: '24h',
+        from: now - 86400000,
+        to: now,
+        total: 242002,
+        perMinuteNow: 168,
+        serverErrors: 157,
+        serverErrorRate: 157 / 242002,
+        usualServerErrorRate: 0.0006,
+        p50: 8,
+        p95: 21,
+        p99: 40,
+        sentBytes: 2827917360,
+        receivedBytes: 0,
+        repeating: [repeating[0]],
+        series: { bucketMs: 900000, points: points.map((point) => ({ ...point, perMinute: 168 })) },
+        peak: { perMinute: 181, at: now - 7200000 },
+        releases: [],
+        firstServerError: null,
+        slowest: [{ method: 'GET', path: '/', filter: '/', count: 200000, p95: 21, noAnswer: 133 }],
+        errorPaths: [
+          {
+            method: 'GET',
+            path: '/',
+            filter: '/',
+            count: 133,
+            status: 502,
+            reason: 'no answer in 15 s',
+          },
+        ],
+      });
+    const app = (name, requests, perMinuteNow, sentBytes, address, computer, share, flagged) => ({
+      name,
+      project: name,
+      requests,
+      perMinuteNow,
+      serverErrors: 0,
+      sentBytes,
+      topSender: { address, ...(computer ? { computer } : {}), share, repeating: flagged },
+    });
+    return send({
+      range: url.searchParams.get('range') || '24h',
+      from: now - 86400000,
+      to: now,
+      requests: 486136,
+      perMinuteNow: 334,
+      serverErrors: 231,
+      sendersWindowMs: 86400000,
+      sentBytes: 22011000000,
+      receivedBytes: 325000000,
+      topSender: { address: '10.0.0.159', computer: 'MacBook Pro', share: 0.84 },
+      series: { bucketMs: 900000, points },
+      apps: [
+        app('forma', 242002, 168, 2827917360, '10.0.0.159', 'MacBook Pro', 0.96, true),
+        app('home-gym', 214860, 151, 2040000000, '10.0.0.159', 'MacBook Pro', 0.81, true),
+        app('immich', 9104, 6, 15677000000, '10.0.0.4', 'imac', 0.41, false),
+        app('Miniflux', 1440, 1, 39800000, '127.0.0.1', 'SER', 0.64, false),
+        app('groffee', 214, 0, 6291456, '10.0.0.159', 'MacBook Pro', 0.58, false),
+        app('Vaultwarden', 96, 0, 2097152, '10.0.0.23', undefined, 0.7, false),
+      ],
+      repeating,
+    });
+  }
   if (path === '/api/projects' && url.searchParams.get('view') === 'list')
     return send(projectList(url.searchParams));
   if (path === '/api/projects') return send({ projects });
