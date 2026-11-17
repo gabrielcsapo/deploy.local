@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appPath, appTabItems, projectTabItems } from './routing.ts';
+import { appPath, appTabItems, projectTabItems, workRedirect } from './routing.ts';
 import { routes } from '../../../../routes.ts';
 import { matchRoutes } from 'react-flight-router/router';
 
@@ -47,36 +47,55 @@ test('web apps have Performance between Requests and Releases; workers omit both
   );
 });
 
-test('one-app projects retain code, pull requests and issues alongside app tabs', () => {
+test('one-app projects retain Work and Code alongside app tabs', () => {
   const tabs = projectTabItems(
     '/p',
     {
       project: { apps: [{ name: 'web', kind: 'web' }] },
       repository: {},
-      pulls: [{ state: 'open' }],
-      issues: [{}],
     },
     0,
+    7,
   );
   assert.deepEqual(
     tabs.map((tab) => tab.label),
-    [
-      'Overview',
-      'Code',
-      'Pull requests',
-      'Issues',
-      'Releases',
-      'Requests',
-      'Performance',
-      'Logs',
-      'Settings',
-    ],
+    ['Overview', 'Work', 'Code', 'Releases', 'Requests', 'Performance', 'Logs', 'Settings'],
   );
   assert.equal(tabs.find((tab) => tab.label === 'Overview')?.href, '/p');
   assert.equal(tabs.find((tab) => tab.label === 'Requests')?.href, '/p/requests');
   assert.equal(tabs.find((tab) => tab.label === 'Performance')?.href, '/p/performance');
   assert.equal(tabs.find((tab) => tab.label === 'Settings')?.href, '/p/settings');
-  assert.equal(tabs.find((tab) => tab.label === 'Pull requests')?.count, 1);
+  assert.equal(tabs.find((tab) => tab.label === 'Work')?.href, '/p/work');
+  assert.equal(tabs.find((tab) => tab.label === 'Work')?.count, 7);
+});
+
+test('Work takes the place of Issues and Pull requests on every project', () => {
+  const tabs = projectTabItems('/p', { project: { apps: [] }, repository: null }, 0, 0);
+  assert.deepEqual(
+    tabs.map((tab) => tab.label),
+    ['Overview', 'Work', 'Settings'],
+  );
+  // Nothing open: the tab stays, without a count.
+  assert.equal(tabs[1].count, undefined);
+});
+
+test('the old Issues and Pull requests lists redirect to Work; a pull request keeps its page', () => {
+  for (const list of ['issues', 'pulls']) {
+    const matched = matchRoutes(routes, `/dashboard/projects/gym/${list}`).at(-1)!.route;
+    assert.equal(typeof matched.redirect, 'function');
+    assert.equal(
+      workRedirect({ url: new URL(`http://x/dashboard/projects/gym/${list}?state=open`) }),
+      '/dashboard/projects/gym/work?state=open',
+    );
+  }
+  assert.equal(
+    matchRoutes(routes, '/dashboard/projects/gym/work').at(-1)!.route.id,
+    'v2-projects-p-work',
+  );
+  assert.equal(
+    matchRoutes(routes, '/dashboard/projects/gym/pulls/pr1').at(-1)!.route.id,
+    'v2-projects-p-pulls-id',
+  );
 });
 
 test('a one-worker project has no Performance tab', () => {
@@ -85,8 +104,6 @@ test('a one-worker project has no Performance tab', () => {
     {
       project: { apps: [{ name: 'worker', kind: 'worker' }] },
       repository: null,
-      pulls: [],
-      issues: [],
     },
     0,
   );
@@ -97,6 +114,7 @@ test('all project tabs and nested details share a single persistent parent segme
   const paths = [
     '',
     '/code',
+    '/work',
     '/pulls',
     '/pulls/1',
     '/issues',

@@ -403,6 +403,53 @@ test('issue task creation is replay-safe and project tools cannot escape the con
   assert.equal((await request(`${f.path}/issues/${issue.id}`)).body.record.taskIds.length, 2);
 });
 
+test('an issue an agent writes down is found by its task until the owner accepts or dismisses it', async () => {
+  const f = fixture();
+  const task = createTask('alice', { projectId: f.project.id });
+  const scope = { owner: 'alice', taskId: task.id, runId: 'found-run' };
+  const found = await projectTool(scope, {
+    resource: 'issues',
+    action: 'create',
+    title: 'Checks read as earlier',
+    operationId: randomUUID(),
+  });
+  assert.deepEqual(found.foundBy, { taskId: task.id });
+  // A person's issue, even one that names foundBy, is theirs.
+  const mine = await request(f.path + '/issues', {
+    operationId: randomUUID(),
+    title: 'Mine',
+    foundBy: { taskId: task.id },
+  });
+  assert.equal(mine.body.foundBy, undefined);
+  const accepted = await request(`${f.path}/issues/${found.id}/accept`, {
+    operationId: randomUUID(),
+    revision: found.revision,
+  });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  assert.equal(accepted.body.accepted.by, 'alice');
+  assert.deepEqual(accepted.body.foundBy, { taskId: task.id });
+  const stale = await request(`${f.path}/issues/${found.id}/accept`, {
+    operationId: randomUUID(),
+    revision: found.revision,
+  });
+  assert.equal(stale.status, 409);
+  const dismissed = await request(`${f.path}/issues/${mine.body.id}/close`, {
+    operationId: randomUUID(),
+    revision: mine.body.revision,
+  });
+  assert.equal(dismissed.body.status, 'closed');
+  const closedAccept = await request(`${f.path}/issues/${mine.body.id}/accept`, {
+    operationId: randomUUID(),
+    revision: dismissed.body.revision,
+  });
+  assert.equal(closedAccept.status, 409);
+  const pullAccept = await request(`${f.path}/pulls/${found.id}/accept`, {
+    operationId: randomUUID(),
+    revision: 0,
+  });
+  assert.notEqual(pullAccept.status, 200);
+});
+
 test('PR merge requires successful checks for its current commit, not an earlier commit', async () => {
   const f = fixture();
   git(f.source, ['checkout', 'feature']);

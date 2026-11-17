@@ -522,7 +522,7 @@ export async function workspaceApi(
                 ...[
                   '/projects/:project/:kind(issues|pulls)',
                   '/projects/:project/:kind(issues|pulls)/:item',
-                  '/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task)',
+                  '/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task|accept)',
                 ].map((pattern) =>
                   route({
                     method: 'POST',
@@ -1118,7 +1118,7 @@ export async function workspaceApi(
         ...[
           '/projects/:project/:kind(issues|pulls)',
           '/projects/:project/:kind(issues|pulls)/:item',
-          '/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task)',
+          '/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task|accept)',
         ].map((pattern) =>
           route({
             method: 'GET',

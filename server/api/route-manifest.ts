@@ -1325,6 +1325,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/projects/:project/work',
+    handler: 'v2:v2/settings',
+  },
+  {
+    method: 'GET',
     path: '/api/projects/:project/releases',
     handler: 'v2:v2/releases-api',
   },
@@ -1665,12 +1670,12 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
-    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task)',
+    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task|accept)',
     handler: 'workspace',
   },
   {
     method: 'POST',
-    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task)',
+    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task|accept)',
     handler: 'workspace',
   },
   {

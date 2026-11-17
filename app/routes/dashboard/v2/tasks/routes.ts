@@ -1,3 +1,4 @@
+import { workRedirect } from '../projects/routing.ts';
 import type { RouteConfig } from 'react-flight-router/router';
 
 export const tasksRoutes: RouteConfig[] = [
@@ -23,11 +24,8 @@ export const tasksRoutes: RouteConfig[] = [
   },
 ];
 export const pullRoutes: RouteConfig[] = [
-  {
-    id: 'v2-projects-p-pulls',
-    path: 'pulls',
-    component: () => import('./pulls.js'),
-  },
+  // The list is part of the project's Work tab; a pull request keeps its own page.
+  { id: 'v2-projects-p-pulls', path: 'pulls', redirect: workRedirect, redirectStatus: 302 },
   {
     id: 'v2-projects-p-pulls-id',
     path: 'pulls/:id',

@@ -108,10 +108,13 @@ export function Icon({
   name,
   size = 16,
   className = '',
+  label,
 }: {
   name: IconName;
   size?: number;
   className?: string;
+  /** Names an icon that carries meaning on its own, such as a row's state. */
+  label?: string;
 }) {
   return (
     <svg
@@ -123,7 +126,7 @@ export function Icon({
       strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
-      aria-hidden="true"
+      {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
       className={className}
     >
       {name === 'more' ? (

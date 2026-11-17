@@ -3,10 +3,12 @@ import { useEffect, useRef, useState, type FocusEvent, type ReactNode } from 're
 import { Icon, Nav } from '@/components/ui';
 import {
   PROJECT_TASKS_SHOWN,
+  liveWorkByProject,
   taskState,
   taskWorking,
   tasksByProject,
   type SidebarTask,
+  type TaskLiveness,
   type WorkspaceState,
 } from './data/sidebar';
 import {
@@ -18,6 +20,7 @@ import {
 } from './data/sidebar-preference';
 import { DeleteTaskDialog } from './tasks/DeleteTaskDialog';
 import { newTaskIn } from './start/chosen-project';
+import { projectPath } from './projects/routing';
 
 type FormatTime = (value: string, style: 'day' | 'list') => string;
 
@@ -67,7 +70,7 @@ function useTaskGrouping() {
   ] as const;
 }
 
-/** The sidebar's task list: by day (Today, Yesterday) or by project. */
+/** The sidebar's task list: by day (Today, Yesterday), by project, or projects' live work. */
 export function SidebarTasks({
   pathname,
   workspace,
@@ -130,6 +133,7 @@ export function SidebarTasks({
                 [
                   ['date', 'Date'],
                   ['project', 'Project'],
+                  ['work', 'Work'],
                 ] as const
               ).map(([value, name]) => (
                 <button
@@ -159,12 +163,13 @@ export function SidebarTasks({
       </div>
     );
   };
-  const row = (task: SidebarTask, end?: string) => (
+  const row = (task: SidebarTask, end?: string, live?: TaskLiveness) => (
     <TaskRow
       key={task.id}
       task={task}
       pathname={pathname}
       state={taskState(task, runs)}
+      live={live}
       working={taskWorking(task, runs)}
       end={end}
       open={rowMenu === task.id}
@@ -177,7 +182,40 @@ export function SidebarTasks({
   );
 
   let list: ReactNode;
-  if (grouping === 'project') {
+  if (grouping === 'work') {
+    const groups = liveWorkByProject(tasks, runs, workspace?.projects ?? []);
+    list = groups.length ? (
+      groups.map((group, index) => (
+        <div key={group.project?.id ?? ''}>
+          {heading(
+            group.project ? (
+              <a href={`${projectPath(group.project.id)}/work`}>{group.project.name}</a>
+            ) : (
+              'Chats'
+            ),
+            index === 0,
+            group.project && (
+              <a
+                href={newTaskIn(group.project.id)}
+                className="dl-icon-btn sm"
+                aria-label={`New task in ${group.project.name}`}
+              >
+                <Icon name="plus" size={14} />
+              </a>
+            ),
+          )}
+          {group.tasks.map(({ task, live }) =>
+            row(task, formatTime(task.updatedAt || task.createdAt, 'list'), live),
+          )}
+        </div>
+      ))
+    ) : workspace ? (
+      <div>
+        {heading('Work', true)}
+        <p className="dl-sidebar-notice">Nothing running or waiting on you.</p>
+      </div>
+    ) : null;
+  } else if (grouping === 'project') {
     const groups = tasksByProject(tasks, workspace?.projects ?? []);
     list = groups.map((group, index) => {
       const key = group.project?.id ?? '';
@@ -256,6 +294,7 @@ function TaskRow({
   task,
   pathname,
   state,
+  live,
   working,
   end,
   open,
@@ -265,6 +304,8 @@ function TaskRow({
   task: SidebarTask;
   pathname: string;
   state: ReturnType<typeof taskState>;
+  /** In Work, the row shows how its work is live instead of its last turn's state. */
+  live?: TaskLiveness;
   working: boolean;
   end?: string;
   open: boolean;
@@ -293,7 +334,9 @@ function TaskRow({
         href={href}
         active={pathname.startsWith(href)}
         lead={
-          state === 'idle' ? undefined : (
+          live ? (
+            <LiveLead live={live} />
+          ) : state === 'idle' ? undefined : (
             <span
               aria-label={state === 'stalled' ? 'Stalled' : state === 'ready' ? 'Ready' : 'Running'}
             >
@@ -343,5 +386,20 @@ function TaskRow({
         </div>
       )}
     </div>
+  );
+}
+
+/** Work's row state: running work spins; work waiting on the owner or their review needs them. */
+function LiveLead({ live }: { live: TaskLiveness }) {
+  if (live === 'running')
+    return (
+      <span aria-label="Running">
+        <Icon name="running" className="dl-run dl-spin" size={14} />
+      </span>
+    );
+  return (
+    <span aria-label={live === 'review' ? 'Ready for review' : 'Needs you'}>
+      <Icon name="attention" className="dl-attn" size={14} />
+    </span>
   );
 }

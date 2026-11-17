@@ -379,6 +379,8 @@ export async function collaborationCommand(
   action: string | undefined,
   input: any,
   signature: string,
+  /** Set by an agent's project tool, never by a request body: the task that found an issue. */
+  foundBy?: { taskId: string; agentId?: string },
 ) {
   get('project', owner, projectId);
   const replay = commandReplay(owner, input.operationId, signature);
@@ -437,6 +439,8 @@ export async function collaborationCommand(
                 issueIds: linked(owner, projectId, 'issue', input.issueIds ?? []),
               }
             : {}),
+          // An issue an agent writes down waits in Found by agents until the owner accepts it.
+          ...(collection === 'issues' && foundBy ? { foundBy } : {}),
           createdAt: now(),
           updatedAt: now(),
         });
@@ -464,6 +468,16 @@ export async function collaborationCommand(
           updatedAt: now(),
         });
         return { task, issue };
+      }
+      if (action === 'accept') {
+        if (collection !== 'issues') throw new Error('Only issues can be added to Up next');
+        if (row.status !== 'open') conflict('Only an open issue can be added to Up next');
+        return save(type, owner, {
+          ...row,
+          accepted: { by: owner, at: now() },
+          revision: row.revision + 1,
+          updatedAt: now(),
+        });
       }
       if (action === 'retry-merge') {
         if (collection !== 'pulls' || !['open', 'merged'].includes(row.status))

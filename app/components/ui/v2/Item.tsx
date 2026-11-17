@@ -7,6 +7,7 @@ export function Item({
   lead,
   end,
   href,
+  onClick,
   disabled,
   loading,
   children,
@@ -16,6 +17,8 @@ export function Item({
   lead?: ReactNode;
   end?: ReactNode;
   href?: string;
+  /** A row that opens something in place, such as a dialog, instead of going to a page. */
+  onClick?: () => void;
   children?: ReactNode;
 }) {
   const content = (
@@ -27,7 +30,7 @@ export function Item({
       </span>
       {end && <span className="dl-c">{end}</span>}
       {children}
-      {href && <Icon name="chevron" className="dl-chev" />}
+      {(href || onClick) && <Icon name="chevron" className="dl-chev" />}
     </>
   );
   return href ? (
@@ -38,6 +41,16 @@ export function Item({
     >
       {content}
     </a>
+  ) : onClick ? (
+    <button
+      {...stateProps({ disabled, loading })}
+      type="button"
+      className="dl-item dl-item-button"
+      disabled={disabled || loading}
+      onClick={onClick}
+    >
+      {content}
+    </button>
   ) : (
     <div {...stateProps({ disabled, loading })} className="dl-item">
       {content}

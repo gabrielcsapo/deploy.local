@@ -5,19 +5,9 @@ import { useSearchParams } from 'react-flight-router/client';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import {
-  Action,
-  Banner,
-  Dialog,
-  Field,
-  Group,
-  Icon,
-  IconButton,
-  Item,
-  Skeleton,
-} from '@/components/ui';
-import { request, useData, type Overview } from './data';
-import { projectPath, projectSegment } from './routing';
+import { Action, Banner, Dialog, Group, Icon, IconButton, Item, Skeleton } from '@/components/ui';
+import { useData, type Overview } from './data';
+import { projectPath } from './routing';
 import { fileSize, markMatches, sourceLines, sourceMarkdown, type RepositoryCommit } from './code';
 import { useSearchScope } from '../search/scope.ts';
 import { CloneUrls, archiveLabel } from './clone.client';
@@ -488,91 +478,6 @@ export function ProjectCode({ overview }: { overview: Overview }) {
               </Action>
             ),
           )}
-      </Dialog>
-    </>
-  );
-}
-export function ProjectIssues({ overview, refresh }: { overview: Overview; refresh: () => void }) {
-  const [closed, setClosed] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  async function create() {
-    setBusy(true);
-    setError('');
-    try {
-      await request(`/api/projects/${projectSegment(overview.project.id)}/issues`, {
-        method: 'POST',
-        body: JSON.stringify({ operationId: crypto.randomUUID(), title, body }),
-      });
-      setOpen(false);
-      setTitle('');
-      setBody('');
-      refresh();
-    } catch (error) {
-      setError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <>
-      <div className="v2-project-toolbar">
-        <Action variant={!closed ? 'secondary' : 'quiet'} onClick={() => setClosed(false)}>
-          Open {overview.issues.filter((row) => row.state !== 'closed').length}
-        </Action>
-        <Action variant={closed ? 'secondary' : 'quiet'} onClick={() => setClosed(true)}>
-          Closed {overview.issues.filter((row) => row.state === 'closed').length}
-        </Action>
-        <span className="dl-end" />
-        <Action onClick={() => setOpen(true)}>New issue</Action>
-      </div>
-      <Group>
-        {overview.issues
-          .filter((row) => (row.state === 'closed') === closed)
-          .map((row) => (
-            <Item
-              key={row.id}
-              title={row.title}
-              description={row.taskId ? 'Task running' : row.state}
-              href={row.taskId ? `/dashboard/tasks/${encodeURIComponent(row.taskId)}` : undefined}
-              lead={<Icon name="check" />}
-            />
-          ))}
-      </Group>
-      <Dialog
-        open={open}
-        onClose={() => {
-          if (!busy) setOpen(false);
-        }}
-        title="New issue"
-        actions={
-          <>
-            <Action disabled={busy} onClick={() => setOpen(false)}>
-              Cancel
-            </Action>
-            <Action
-              variant="primary"
-              loading={busy}
-              disabled={!title.trim()}
-              onClick={() => void create()}
-            >
-              Create issue
-            </Action>
-          </>
-        }
-      >
-        <div className="v2-project-form">
-          <Field label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
-          <Field
-            label="Description"
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-          />
-          {error && <Banner title={error} />}
-        </div>
       </Dialog>
     </>
   );

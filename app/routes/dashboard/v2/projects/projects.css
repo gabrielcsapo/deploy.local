@@ -468,3 +468,31 @@
   color: var(--ds-accent);
   cursor: pointer;
 }
+/* Work: the Open | Shipped switch, and New idea at the end of the same row. */
+.v2-work-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.v2-work-bar > .dl-end {
+  margin-left: auto;
+}
+/* As the board: 12px between a title and its rows, or between the line under it and its rows. */
+.v2-project-page .v2-work-section {
+  gap: 0;
+}
+.v2-project-page .v2-work-section > .dl-section-sub {
+  margin: 0 0 12px;
+}
+.v2-work-section > .dl-section-title + .dl-group {
+  margin-top: 12px;
+}
+.v2-work-idea {
+  display: inline-flex;
+  color: var(--ds-muted);
+}
+.v2-work-body {
+  margin: 12px 0 0;
+  white-space: pre-wrap;
+}
