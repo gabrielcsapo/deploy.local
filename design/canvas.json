@@ -3328,6 +3328,110 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — deploys and jobs in a running task: one line each, open a failure for the reason"
+    },
+    "Diagnostics.html": {
+      "x": 500,
+      "y": 83720,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics: the calm overview most days",
+      "expand": "fill"
+    },
+    "DiagnosticsAttention.html": {
+      "x": 2020,
+      "y": 83720,
+      "w": 1440,
+      "h": 1000,
+      "title": "Diagnostics: pushes are slow and a process restarted",
+      "expand": "fill"
+    },
+    "DiagnosticsEmpty.html": {
+      "x": 3540,
+      "y": 83720,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics on a new server: nothing recorded yet",
+      "expand": "fill"
+    },
+    "DiagnosticsGit.html": {
+      "x": 500,
+      "y": 84960,
+      "w": 1440,
+      "h": 1500,
+      "title": "Diagnostics · Git: every push, fetch and clone, and background repository work",
+      "expand": "fill"
+    },
+    "DiagnosticsGitOperation.html": {
+      "x": 2020,
+      "y": 84960,
+      "w": 1440,
+      "h": 1300,
+      "title": "Diagnostics · one slow push: where its time went",
+      "expand": "fill"
+    },
+    "DiagnosticsProcesses.html": {
+      "x": 500,
+      "y": 87000,
+      "w": 1440,
+      "h": 1500,
+      "title": "Diagnostics · Processes: event loop, memory and restarts over time",
+      "expand": "fill"
+    },
+    "DiagnosticsRequests.html": {
+      "x": 2020,
+      "y": 87000,
+      "w": 1440,
+      "h": 1300,
+      "title": "Diagnostics · API requests: route timings and recent slow requests",
+      "expand": "fill"
+    },
+    "DiagnosticsTraffic.html": {
+      "x": 5060,
+      "y": 87000,
+      "w": 1440,
+      "h": 1400,
+      "title": "Diagnostics · Traffic: everything through deploy.local, by app and by sender, with one sender repeating",
+      "expand": "fill"
+    },
+    "AppRequestsRepeating.html": {
+      "x": 6580,
+      "y": 87000,
+      "w": 1440,
+      "h": 1800,
+      "title": "A web app’s requests when one sender is most of them",
+      "expand": "fill"
+    },
+    "DiagnosticsLogs.html": {
+      "x": 500,
+      "y": 88940,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics · Logs: deploy.local’s own server log",
+      "expand": "fill"
+    },
+    "DiagnosticsProfiler.html": {
+      "x": 2020,
+      "y": 88940,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics · Profiler: record a CPU profile of control",
+      "expand": "fill"
+    },
+    "DiagnosticsProfilerRecording.html": {
+      "x": 3540,
+      "y": 88940,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics · Profiler: recording",
+      "expand": "fill"
+    },
+    "DiagnosticsProfile.html": {
+      "x": 5060,
+      "y": 88940,
+      "w": 1440,
+      "h": 1400,
+      "title": "Diagnostics · a finished profile: hottest functions and routes",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3463,6 +3567,19 @@
     "SelfUpdating.html",
     "SelfUpdateFailed.html",
     "SelfUpdate.html",
+    "Diagnostics.html",
+    "DiagnosticsAttention.html",
+    "DiagnosticsEmpty.html",
+    "DiagnosticsGit.html",
+    "DiagnosticsGitOperation.html",
+    "DiagnosticsProcesses.html",
+    "DiagnosticsRequests.html",
+    "DiagnosticsTraffic.html",
+    "AppRequestsRepeating.html",
+    "DiagnosticsLogs.html",
+    "DiagnosticsProfiler.html",
+    "DiagnosticsProfilerRecording.html",
+    "DiagnosticsProfile.html",
     "RemoveComputer.html",
     "LongChat.html",
     "AgentInfoPhone.html",
@@ -5247,6 +5364,91 @@
       "x": 6580,
       "y": 78900,
       "text": "Everything kept, other states. Kind filter: one button, \"npm and Cargo\", opens a menu with both ticked; search always covers what is ticked. Untick one and the button reads \"npm only\" or \"Cargo only\"; the last ticked kind can’t be unticked. Empty: \"Nothing kept yet. The first install through deploy.local appears here.\" No match: \"No package or crate matches left-pad\" with Clear. Nothing idle: the Copies row reads \"Everything was installed in the last 30 days\" with no chevron. Loading: the count line reads \"Counting…\". After removing: a notice, \"Removed 1.9 GB. 4.3 GB kept.\" While a source is unreachable the removal dialog adds that removed packages can’t be fetched again until it’s back. Cargo: every kept crate reads \"Needed by projects\", is never listed under Not installed in 30 days and is never cleaned up, until deploy.local reads Cargo.lock. Counts of one read \"1 version\" and \"1 package\". iPhone: the same three pages as pushed screens from Packages › Copies, search in the navigation bar, filters as a menu."
+    },
+    "section-diagnostics": {
+      "x": 0,
+      "y": 83000,
+      "text": "11 · Diagnostics: deploy.local measuring itself (for approval)",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 6500
+    },
+    "diagnostics-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 500,
+      "y": 83500,
+      "text": "Web app and Mac app"
+    },
+    "diagnostics-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 83720,
+      "text": "Overview\nWeb app · Mac app\niPhone: later"
+    },
+    "diagnostics-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 84960,
+      "text": "Git\nWeb app · Mac app"
+    },
+    "diagnostics-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 87000,
+      "text": "Processes and API requests\nWeb app · Mac app"
+    },
+    "diagnostics-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 88940,
+      "text": "Logs and profiler\nWeb app · Mac app"
+    },
+    "diagnostics-how": {
+      "fill": "orange",
+      "w": 440,
+      "x": -520,
+      "y": 83720,
+      "text": "Proposal. A way to debug deploy.local from inside deploy.local: git activity, the health of its own processes, its own API timings, its server log and a CPU profiler, in one place.\n\n• Where: Computers → Diagnostics, beside deploy.local updates, and the deploy.local row under Runs on SER’s page opens it. It is about the server, not a project, and it is the same kind of page as updates. No sidebar entry.\n• Only admins: non-admins see neither the button nor the row, and the API refuses them, as the profiler API already does.\n• Tabs: Overview, Git, Processes, API requests, Logs, Profiler. Overview says in one line whether anything needs a look, then one row per part with a dot and a label. A problem gets a warning banner that names the cause it can see and one next step.\n• States: calm (most days), attention, and a new server where each part fills in as it happens. A tab with nothing yet uses the empty pattern: “No git activity yet. Pushes, fetches and clones show here.”\n• Nothing here changes how deploy.local runs. Recording a profile is the only action."
+    },
+    "diagnostics-overview-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 5060,
+      "y": 83720,
+      "text": "When Overview warns\n• Git: a push, fetch or clone over 10 s, or any failure. More than 3 slow in an hour, or 2 failures in a row to one repository, raise a banner.\n• Processes: event-loop p99 over 200 ms or a longest pause over 1 s (the supervisor’s existing log threshold), held for 3 minutes; any restart that was not an update.\n• API requests: requests over 1 s, against the route’s own usual time.\n• Logs: errors in the last hour.\nA banner clears on its own once the cause has been normal for 10 minutes. Earlier this week keeps the last 7 days of them."
+    },
+    "diagnostics-git-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 3540,
+      "y": 84960,
+      "text": "Git, what is recorded (new; nothing is recorded today)\n• Every push, fetch and clone over HTTPS and SSH: repository, operation, protocol, who (person and computer, or the task or checks behind it), bytes each way, time, git’s exit code and its last lines of output.\n• For a push, time is split at what the server can see: signing in, receiving the upload, git storing it, starting checks. That separates a slow network or a stalled control from slow git.\n• Background work (import, fetch, sync, merge a pull request, set up a task’s copy) adds Waited to the timestamps it already keeps, so a task that starts late shows what it queued behind.\n• Slow means over 10 s. At the same time on SER links the process, background work and API numbers from that minute.\n• Kept 90 days, like request logs."
+    },
+    "diagnostics-traffic-how": {
+      "fill": "orange",
+      "w": 480,
+      "x": 8100,
+      "y": 87000,
+      "text": "Traffic (added to the Diagnostics proposal; for approval)\n• Why: six scripts left running on MacBook Pro fetched forma’s front page every two seconds for five days, 242,000 requests a day, and nothing said so. Each request is already kept with its address and agent; nobody was looking at who sends them.\n• Traffic is a seventh tab: requests through deploy.local to every app and to deploy.local itself, a minute-by-minute line, the repeating senders, and each app with its busiest sender.\n• A repeating sender is one address that sent at least 80% of one route’s requests and at least 1,000 of them, at a steady pace, for over an hour. Steady means the gaps between requests barely vary, which is what a loop looks like and a person or a browser does not.\n• The address is named when it belongs to one of your computers (“MacBook Pro”); otherwise it shows as the address.\n• Where it shows: a warning on Traffic, the Traffic row on Overview turns to “Repeating”, and the app’s own Requests page gets the same warning with “Leave it out”, which hides that sender from the page’s numbers until you turn it back.\n• It goes to Waiting on you once it has lasted a day. It clears on its own an hour after the sender stops.\n• New to record: requests to deploy.local’s own pages by sender. App requests are already kept for 90 days.\n• Not here: blocking a sender. This says who and what; stopping it is yours."
+    },
+    "diagnostics-processes-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 3540,
+      "y": 87000,
+      "text": "Processes and API requests\n• The supervisor already samples each process every minute (event-loop p50, p99, max, RSS, heap) but keeps only the latest. Keep every sample for 30 days, like resource metrics, and record each exit with its code or signal and whether it was an update, a crash or a missed heartbeat.\n• The charts show one process at a time; the 200 ms line is the existing warning threshold. These are the only charts, because here the trend is the point: is it new, and is memory climbing.\n• API requests: always on, per route (ids grouped as :id), the timing the profiler collects today. Event streams and git routes are left out. Kept 30 days; each request over 1 s is kept by itself for 30 days with who sent it and its status."
+    },
+    "diagnostics-profiler-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 6580,
+      "y": 88940,
+      "text": "Logs and profiler\n• Logs reads the supervisor’s server log on SER (20 MB, plus three rotated copies), the same lines as today, with filters by process, level and time, live while open. Download gives the file.\n• Profiler uses the existing admin API: control only, 1–120 seconds (offered as 10 s, 30 s, 1 min, 2 min), one at a time. A second admin sees Recording… with who started it.\n• New: each result is kept for 30 days, so it can be opened after leaving the page and shared. Download .cpuprofile gives the raw profile for Chrome DevTools or speedscope.\n• Own time and Including what it calls are the summary’s self and inclusive lists; Requests while recording is its route list."
     }
   },
   "starts": {}
