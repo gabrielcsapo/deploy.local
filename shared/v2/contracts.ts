@@ -293,7 +293,7 @@ export type RepeatingSender = {
   route: string;
   /** In the last 24 hours. */
   requests: number;
-  /** Its share of that route's requests, 0 to 1. */
+  /** Its share of that route's requests in the last hour, 0 to 1. */
   routeShare: number;
   /** Its share of all the app's requests, 0 to 1. */
   appShare: number;

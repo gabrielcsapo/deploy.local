@@ -21,7 +21,7 @@ export type { RepeatingSender, TrafficResponse };
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-/** A repeating sender: most of one route, many requests, for over an hour, and still going. */
+/** A repeating sender: most of one route in the last hour, many requests, for over an hour. */
 const REPEATING_SHARE = 0.8;
 const REPEATING_REQUESTS = 1000;
 const REPEATING_SPAN = HOUR;
@@ -168,14 +168,27 @@ function analyse(apps: string[], from: number, to: number): Analysis {
 /** Raw addresses that clean to this one, for matching rows as they were recorded. */
 const recorded = (address: string) => [address, `::ffff:${address}`];
 
-function repeatingIn(analysis: Analysis, names: Map<string, string>, now: number) {
+function repeatingIn(
+  analysis: Analysis,
+  recent: Analysis,
+  names: Map<string, string>,
+  now: number,
+) {
   const db = getRequestsSqlite();
   const windowStart = now - DAY;
   const found: RepeatingSender[] = [];
+  const lately = new Map(
+    recent.routes.map((entry) => [`${entry.app}\0${entry.route}\0${entry.address}`, entry]),
+  );
   for (const entry of analysis.routes) {
+    // Its share is judged over the last hour, not the day: a computer that moves from Wi-Fi to
+    // Ethernet keeps the same loop under a new address, which has most of the route at once
+    // but would need most of a day to have most of the day's requests.
+    const hour = lately.get(`${entry.app}\0${entry.route}\0${entry.address}`);
     if (
+      !hour ||
       entry.count < REPEATING_REQUESTS ||
-      entry.count / entry.routeTotal < REPEATING_SHARE ||
+      hour.count / hour.routeTotal < REPEATING_SHARE ||
       entry.last - entry.first < REPEATING_SPAN ||
       entry.last < now - REPEATING_QUIET
     )
@@ -227,7 +240,7 @@ function repeatingIn(analysis: Analysis, names: Map<string, string>, now: number
       agent: describeBrowser(entry.agent),
       route: entry.route,
       requests: entry.count,
-      routeShare: entry.count / entry.routeTotal,
+      routeShare: hour.count / hour.routeTotal,
       appShare: entry.count / (analysis.total.get(entry.app) || entry.count),
       perMinute: Math.round(entry.count / span),
       sentBytes: entry.sent,
@@ -248,7 +261,10 @@ function lastDay(apps: string[], now: number) {
   const kept = answers.get(key);
   if (kept && now - kept.at < ANSWER_FOR && now >= kept.at) return kept.value;
   const analysis = analyse(apps, now - DAY, now);
-  const value = { analysis, repeating: repeatingIn(analysis, computerNames(), now) };
+  const value = {
+    analysis,
+    repeating: repeatingIn(analysis, analyse(apps, now - HOUR, now), computerNames(), now),
+  };
   answers.set(key, { at: now, value });
   for (const [other, answer] of answers)
     if (now - answer.at > 10 * ANSWER_FOR) answers.delete(other);
