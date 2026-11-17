@@ -3464,6 +3464,54 @@
       "h": 1400,
       "title": "Diagnostics · a finished profile: hottest functions and routes",
       "expand": "fill"
+    },
+    "ProjectWorkShipped.html": {
+      "x": 16920,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "A project’s work, Shipped: merged pull requests, finished tasks and closed ideas, newest first",
+      "expand": "fill"
+    },
+    "ProjectWorkIdea.html": {
+      "x": 18460,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "An Up next idea opened: start a task from it",
+      "expand": "fill"
+    },
+    "ProjectWorkFound.html": {
+      "x": 20000,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "A finding opened: add it to Up next or dismiss it",
+      "expand": "fill"
+    },
+    "ProjectWorkNew.html": {
+      "x": 21540,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "New idea: a title and a description, added to Up next",
+      "expand": "fill"
+    },
+    "ProjectWorkEmpty.html": {
+      "x": 23080,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "A project with no work yet",
+      "expand": "fill"
+    },
+    "ProjectWorkGroupMenu.html": {
+      "x": 24620,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "Sidebar in Work: Group tasks sits on the first project, and its menu has Work",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3581,6 +3629,12 @@
     "CodeClone.html",
     "Issues.html",
     "ProjectWork.html",
+    "ProjectWorkShipped.html",
+    "ProjectWorkIdea.html",
+    "ProjectWorkFound.html",
+    "ProjectWorkNew.html",
+    "ProjectWorkEmpty.html",
+    "ProjectWorkGroupMenu.html",
     "ProjectUsedBy.html",
     "SearchAcross.html",
     "WorkAcross.html",
@@ -5499,6 +5553,27 @@
       "x": 6580,
       "y": 88940,
       "text": "Logs and profiler\n• Logs reads the supervisor’s server log on SER (20 MB, plus three rotated copies), the same lines as today, with filters by process, level and time, live while open. Download gives the file.\n• Profiler uses the existing admin API: control only, 1–120 seconds (offered as 10 s, 30 s, 1 min, 2 min), one at a time. A second admin sees Recording… with who started it.\n• New: each result is kept for 30 days, so it can be opened after leaving the page and shared. Download .cpuprofile gives the raw profile for Chrome DevTools or speedscope.\n• Own time and Including what it calls are the summary’s self and inclusive lists; Requests while recording is its route list."
+    },
+    "project-work-states": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 82380,
+      "text": "Work tab states (for approval)\nWeb app\niPhone: later"
+    },
+    "project-work-sidebar": {
+      "fill": "blue",
+      "w": 420,
+      "x": 16420,
+      "y": 80640,
+      "text": "Sidebar in Work\n• Projects are ordered by their most recent live work, newest first; Chats stays last.\n• When nothing is live, the list is a Work heading, which keeps Group tasks, and one line: “Nothing running or waiting on you.”\n• Group tasks sits on the first heading, as it does on Today and on the first project in the other groupings. Its menu offers Date, Project and Work."
+    },
+    "project-work-empty": {
+      "fill": "blue",
+      "w": 440,
+      "x": 23080,
+      "y": 83380,
+      "text": "The other empty lines on Work\n• Everything has shipped, nothing open: “Nothing open” with “Everything here has shipped.” and the same New idea and New task.\n• Shipped with nothing in it: “Nothing shipped yet” with “Merged pull requests, finished tasks and closed ideas show here.” No actions."
     }
   },
   "starts": {}
