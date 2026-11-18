@@ -238,7 +238,12 @@ export function sendTaskMessage(owner: string, taskId: string | undefined, body:
     .transaction(() => {
       const task = taskId
         ? get('task', owner, taskId)
-        : queueTask(owner, { title: content.slice(0, 80), projectId: body.projectId });
+        : queueTask(owner, {
+            title: content.slice(0, 80),
+            projectId: body.projectId,
+            // A task started on a branch, such as a pull request's, checks out that branch.
+            ...(body.projectId && body.ref !== undefined ? { ref: body.ref } : {}),
+          });
       const run = startRun(owner, task.id, {
         revision: body.revision ?? task.revision,
         content,

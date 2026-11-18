@@ -27,6 +27,35 @@
   flex-direction: column;
   gap: 8px;
 }
+.v2-pr-title-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.v2-pr-title-row .dl-title {
+  flex: 1;
+  min-width: 0;
+}
+.v2-pr-more > .dl-icon-btn {
+  flex: none;
+  margin-top: 2px;
+}
+.v2-pr-more > .dl-menu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  width: 232px;
+  z-index: 5;
+}
+.v2-pr-more .dl-menu-item {
+  color: var(--ds-ink);
+  text-decoration: none;
+}
+.v2-pr-more .dl-menu-item:hover,
+.v2-pr-more .dl-menu-item:focus-visible {
+  background: var(--ds-hover);
+}
 .v2-pr-number {
   font-weight: 400;
   color: var(--ds-muted);
@@ -48,6 +77,23 @@
   color: var(--ds-ink);
   overflow-wrap: anywhere;
 }
+/* The decision: what stands in the way, then its actions, which wrap under it when narrow. */
+.v2-pr-decision .dl-item {
+  flex-wrap: wrap;
+  row-gap: 12px;
+}
+.v2-pr-decision .dl-t {
+  flex: 1 1 280px;
+}
+.v2-pr-decision .dl-t > span + span {
+  white-space: normal;
+}
+.v2-pr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
 .v2-pr-avatar {
   width: 20px;
   height: 20px;
@@ -60,8 +106,49 @@
   color: var(--ds-ink);
   border-bottom: 1px solid var(--ds-line);
 }
-.v2-pr-description p {
+.v2-pr-description > :first-child {
+  margin-top: 0;
+}
+.v2-pr-description p,
+.v2-pr-description ul,
+.v2-pr-description ol,
+.v2-pr-description pre,
+.v2-pr-description blockquote {
+  margin: 8px 0 0;
+}
+/* The app's reset removes list markers; a description's lists keep theirs. */
+.v2-pr-description ul,
+.v2-pr-description ol {
+  padding-left: 22px;
+}
+.v2-pr-description ul {
+  list-style: disc;
+}
+.v2-pr-description ol {
+  list-style: decimal;
+}
+.v2-pr-description li ul {
+  list-style: circle;
+}
+.v2-pr-description li ul,
+.v2-pr-description li ol,
+.v2-pr-description li + li {
+  margin-top: 4px;
+}
+.v2-pr-description li > p {
   margin: 0;
+}
+.v2-pr-description a {
+  color: var(--ds-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.v2-pr-description h1,
+.v2-pr-description h2,
+.v2-pr-description h3 {
+  margin: 16px 0 0;
+  font-size: var(--ds-type-body);
+  font-weight: 600;
 }
 .v2-pr-description code {
   font-family: var(--ds-font-mono);
@@ -70,15 +157,65 @@
   border-radius: 5px;
   background: var(--ds-line);
 }
-.v2-pr-description img {
-  max-width: 100%;
-}
 .v2-pr-description pre {
   overflow: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--ds-canvas);
+}
+.v2-pr-description pre code {
+  padding: 0;
+  background: none;
+}
+.v2-pr-description img {
+  max-width: 100%;
 }
 .v2-pr-total {
   font-size: var(--ds-type-ui);
   font-weight: 400;
+}
+/* Rows that open in place: folded files, the merges from main, Show more. */
+.v2-pr-fold {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.v2-pr-lead {
+  display: inline-flex;
+  flex: none;
+  color: var(--ds-muted);
+}
+.v2-pr-quiet .v2-pr-lead {
+  width: 20px;
+  justify-content: center;
+}
+.v2-pr-quiet .dl-t > span:first-child {
+  font-weight: 400;
+  color: var(--ds-muted);
+}
+.v2-pr-show-more .dl-t > span:first-child {
+  font-weight: 400;
+  color: var(--ds-secondary);
+}
+.v2-pr-path {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.v2-pr-files-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.v2-pr-files-head .v2-pr-filter {
+  flex: 0 1 260px;
+  width: auto;
+  margin-left: auto;
+  height: 32px;
 }
 .v2-pr-diffs {
   display: flex;
@@ -104,20 +241,36 @@
   justify-content: center;
   align-items: center;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--ds-secondary);
   cursor: pointer;
+  z-index: 1;
 }
-.v2-pr-file {
-  width: 100%;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
+.v2-pr-image-meta {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.v2-pr-preview {
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  background: var(--ds-canvas);
+}
+.v2-pr-shot {
+  display: block;
+  width: 540px;
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  border: 1px solid var(--ds-line);
+  border-radius: 8px;
+  background: var(--ds-surface);
 }
 @media (max-width: 600px) {
-  .v2-pr-notice {
-    flex-wrap: wrap;
+  .v2-pr-files-head .v2-pr-filter {
+    flex: 1 1 100%;
+    margin-left: 0;
   }
 }
 .dl-pulls-filter {

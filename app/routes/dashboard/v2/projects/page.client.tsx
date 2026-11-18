@@ -102,6 +102,7 @@ export default function Projects() {
       requestId={
         parts[3] === 'requests' ? parts[4] : parts[5] === 'requests' ? parts[6] : undefined
       }
+      pullId={parts[3] === 'pulls' ? parts[4] : undefined}
       search={search}
     />
   ) : (
@@ -414,6 +415,7 @@ function ProjectPage({
   appRequests,
   appPerformance,
   requestId,
+  pullId,
   search,
 }: {
   projectKey: string;
@@ -423,6 +425,7 @@ function ProjectPage({
   appRequests: boolean;
   appPerformance: boolean;
   requestId?: string;
+  pullId?: string;
   search: string;
 }) {
   const { formatRequestClock, formatTime, now } = useProjectFormatting();
@@ -436,6 +439,18 @@ function ProjectPage({
   const history = useData<{ releases: Release[] }>(
     `/api/projects/${projectSegment(projectKey)}/releases`,
   );
+  // An open pull request's page has Merge as its one primary action, so New task steps back.
+  const pullDetail = useData<{ record: TaskPull }>(
+    pullId
+      ? `/api/projects/${projectSegment(projectKey)}/pulls/${projectSegment(pullId)}`
+      : undefined,
+  );
+  const openPull = pullDetail.data?.record.status === 'open';
+  const refreshPull = pullDetail.refresh;
+  useEffect(() => {
+    window.addEventListener('deploy:pull-changed', refreshPull);
+    return () => window.removeEventListener('deploy:pull-changed', refreshPull);
+  }, [refreshPull]);
   const [add, setAdd] = useState(false);
   const available = useData<{ apps: Project['apps'] }>('/api/projects/unlinked-apps');
   const inbox = useInbox();
@@ -600,13 +615,14 @@ function ProjectPage({
         }
         actions={
           !starting && !selectedApp ? (
-            <a className="dl-btn primary" href="/dashboard">
+            <a className={`dl-btn ${openPull ? 'secondary' : 'primary'}`} href="/dashboard">
               New task
             </a>
           ) : undefined
         }
-        // Work is a reading list: its rows keep the tabs' column instead of the wide page.
-        className={`${showRequests || showPerformance || section === 'work' ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
+        // Work is a reading list: its rows, and a pull request's page under it, keep the tabs'
+        // column instead of the wide page.
+        className={`${showRequests || showPerformance || section === 'work' || section === 'pulls' ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
       >
         {overview.error && (
           <Banner
