@@ -3205,7 +3205,7 @@
       "x": 16920,
       "y": 80440,
       "w": 1440,
-      "h": 960,
+      "h": 1180,
       "title": "A project’s work: one list by stage, in place of Issues and Pull requests (proposal)",
       "expand": "fill"
     },
@@ -5413,7 +5413,7 @@
       "w": 1440,
       "x": 16920,
       "y": 80220,
-      "text": "Project-first proposal. A piece of work is one row with a stage: Up next (what you wrote down), Found by agents (waiting for you to accept or dismiss), Running, Needs you, Shipped. A project’s Work tab lists them and takes the place of Issues and Pull requests; a pull request is part of its work item. The sidebar’s Work setting keeps Agents where they are and replaces the dated task list with projects that have live work, each row with its state; agent runs stay with their agent, and work with no project sits under Chats. Work can belong to several projects: a change to a package you own shows as the same row in each project that uses what changed, and each project merges its own update when it chooses. What uses what comes from a code index built on every push, and the index is the only source for it. A project’s Graph tab draws one section per kind of connection the index reports, so a new indexer adds a section without changing the other pages; search and agent findings read the same index. Existing boards keep the date sidebar until this is approved."
+      "text": "Project-first proposal. A piece of work is one row with a stage: Up next (what you wrote down), Found by agents (waiting for you to accept or dismiss), Running, Needs you (a question, a go-ahead or a pull request ready to merge), Stopped (halted and not waiting on you), Shipped. A project’s Work tab lists them and takes the place of Issues and Pull requests; a pull request is part of its work item. The sidebar’s Work setting keeps Agents where they are and replaces the dated task list with projects that have live work, each row with its state; agent runs stay with their agent, and work with no project sits under Chats. Work can belong to several projects: a change to a package you own shows as the same row in each project that uses what changed, and each project merges its own update when it chooses. What uses what comes from a code index built on every push, and the index is the only source for it. A project’s Graph tab draws one section per kind of connection the index reports, so a new indexer adds a section without changing the other pages; search and agent findings read the same index. Existing boards keep the date sidebar until this is approved."
     },
     "section-diagnostics": {
       "x": 0,
@@ -5512,7 +5512,14 @@
       "w": 420,
       "x": 16420,
       "y": 80640,
-      "text": "Sidebar in Work\n• Projects are ordered by their most recent live work, newest first; Chats stays last.\n• When nothing is live, the list is a Work heading, which keeps Group tasks, and one line: “Nothing running or waiting on you.”\n• Group tasks sits on the first heading, as it does on Today and on the first project in the other groupings. Its menu offers Date, Project and Work."
+      "text": "Sidebar in Work\n• Projects are ordered by their most recent live work, newest first; Chats stays last.\n• Only live work is listed: what is running and what waits on you. A stopped task (failed, interrupted, blocked or stalled) is not live, so it is not listed here and never shows as needing you; it waits under Stopped on its project’s Work tab.\n• When nothing is live, the list is a Work heading, which keeps Group tasks, and one line: “Nothing running or waiting on you.”\n• Group tasks sits on the first heading, as it does on Today and on the first project in the other groupings. Its menu offers Date, Project and Work."
+    },
+    "project-work-stopped": {
+      "fill": "blue",
+      "w": 420,
+      "x": 16420,
+      "y": 81200,
+      "text": "Stopped on Work\n• Needs you is only what waits on your answer: a question, a go-ahead, a pull request ready to merge.\n• Stopped is work that halted and is not waiting on you: a task that failed, was interrupted, blocked or stalled, and a pull request whose checks failed with nothing working on it.\n• It comes last, after Found by agents, and stays quiet: a muted icon, no attention colour. A row opens its task, or its pull request, where it can be continued or closed.\n• Stopped work counts in Open and in the Work tab’s count; it has not shipped.\n• Nothing drops out of Stopped by age. Closing a stopped task removes it."
     },
     "project-work-empty": {
       "fill": "blue",
