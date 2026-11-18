@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { list, remove, save } from '../../workspace/store.ts';
+import { list, remove, save } from '../../kernel/db/records.ts';
 
 /**
  * Git LFS File Locking API v2 (git-lfs docs/api/locking.md). Locks apply to the whole

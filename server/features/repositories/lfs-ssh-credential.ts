@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { get, list, remove, save } from '../../workspace/store.ts';
+import { get, list, remove, save } from '../../kernel/db/records.ts';
 
 /**
  * Short-lived HTTP credentials for Git LFS over SSH remotes. `git-lfs-authenticate <path>
