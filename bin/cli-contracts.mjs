@@ -86,3 +86,37 @@ export function pollLogin(post, deviceCode) {
   const body = { deviceCode };
   return post('/api/auth/cli/poll', body);
 }
+
+/** @typedef {{ branch: string, owner: string, review: null | Record<string, any> }} DesignFeedback */
+/** @param {API} api @param {string} design @param {{branch: string, computer: string}} body */
+export function designWorking(api, design, body) {
+  return api(`${design}/working`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** @param {API} api @param {string} design
+ * @param {{ref: string, title: string, summary: string, lookAt: string[]}} body
+ * @returns {Promise<{item: InboxItem}>} */
+export function proposeDesign(api, design, body) {
+  return api(`${design}/propose`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** @param {API} api @param {string} design @param {string} branch @returns {Promise<DesignFeedback>} */
+export function designFeedback(api, design, branch) {
+  return api(`${design}/feedback?branch=${encodeURIComponent(branch)}`);
+}
+
+/** Read the answer and say this terminal is waiting for it.
+ * @param {API} api @param {string} design @param {string} branch @param {string} computer
+ * @returns {Promise<DesignFeedback>} */
+export function waitDesignFeedback(api, design, branch, computer) {
+  return api(`${design}/feedback/wait`, {
+    method: 'POST',
+    body: JSON.stringify({ branch, computer }),
+  });
+}
+
+/** @param {API} api @param {string} design @param {{branch: string, pin: number, reply: string}} body
+ * @returns {Promise<{comment: {id: string, reply: string, resolved: boolean}}>} */
+export function resolveDesignNote(api, design, body) {
+  return api(`${design}/feedback/resolve`, { method: 'POST', body: JSON.stringify(body) });
+}

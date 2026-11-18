@@ -23,6 +23,13 @@ Decide
                          inbox <id> <action> --yes to answer in scripts
                          inbox wait <id or title> until it is answered
 
+Design
+  design start "<title>" Start a design change on a branch from main
+  design check           Draw what you changed beside main
+  design propose         Ask for review
+  design feedback        Read the answer and the notes  (--wait)
+  design resolve <n>     Answer a note when it is done
+
 Agents
   task "<what to do>"     Start a task (--on <computer>)
   tasks                  Tasks and what they are doing
@@ -217,8 +224,8 @@ export async function runInbox(api, args, options, prompt) {
   if (options.json) return { items };
   if (!items.length) console.log('Nothing waiting on you.');
   for (const item of items) {
-    if (unresolved.has(item.id)) console.log(`  ${resolveMessage(item.id)}`);
     console.log(`\n! ${item.title}  · ${item.from}\n  ${item.text}`);
+    if (unresolved.has(item.id)) console.log(`  ${resolveMessage(item.id)}`);
     console.log(
       `  ${item.actions.map((action, i) => `[${i + 1}] ${action.label}`).join('  ')}  [s] Skip  [q] Quit`,
     );

@@ -720,12 +720,10 @@ async function proposalFor(owner: string, project: any, input: { ref?: string; t
       .replace(/--.*$/, '');
   }
   const folder = designFolder();
-  const commit = await gitRead(repo, [
-    'rev-parse',
-    '--verify',
-    '--quiet',
-    `refs/heads/${branch}^{commit}`,
-  ]);
+  const commit =
+    (await gitRead(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}^{commit}`])) ||
+    // A branch removed when its design landed still names that proposal.
+    landedRemovedCommit(owner, project.id, branch);
   if (!commit) fail(`Nothing is committed on ${branch} yet`, 409);
   const main = await mainBranch(repo);
   const head = await gitRead(repo, [
@@ -751,6 +749,12 @@ async function proposalFor(owner: string, project: any, input: { ref?: string; t
     .filter(Boolean);
   if (!paths.length) fail(`${branch} changes nothing in ${folder}/`, 409);
   return { branch, commit: commit!, base, paths, taskId, main, name, folder };
+}
+
+function landedRemovedCommit(owner: string, projectId: string, branch: string) {
+  const row = branchReviewRow(owner, projectId, branch);
+  const landing = row && list('design-review-landing', owner).find((entry) => entry.id === row.id);
+  return landing?.branch?.removed ? (row.context.commit as string) : null;
 }
 
 // Inbox IDs travel as one URL path segment, so the branch's slashes become tildes.
@@ -1568,6 +1572,7 @@ async function readDesignReview(
     round: context.round ?? 1,
     previousItemId: context.previousItemId ?? null,
     landing: reviewLanding(owner, row.id),
+    feedback: reviewFeedback(owner, row),
     proposerTaskId: buildProposerTask(owner, row)?.id ?? null,
     boards,
     changes: groupReviewChanges(
@@ -1700,12 +1705,24 @@ export async function proposeDesign(
     title?: string;
     summary?: string;
     changeWords?: Record<string, Record<string, string>>;
+    /** The screens the owner should look at first, in the author's words. */
+    lookAt?: unknown;
   },
 ) {
   const title = optionalWords(input.title, 200);
   const summary = optionalWords(input.summary, 4000);
   if (!title || !summary) fail('A proposal needs a title and a summary');
   const changeWords = validateChangeWords(input.changeWords);
+  if (
+    input.lookAt !== undefined &&
+    (!Array.isArray(input.lookAt) ||
+      input.lookAt.length > 20 ||
+      input.lookAt.some(
+        (entry) => typeof entry !== 'string' || !entry.trim() || entry.length > 200,
+      ))
+  )
+    fail('Look at names up to 20 screens');
+  const lookAt = ((input.lookAt as string[] | undefined) ?? []).map((entry) => entry.trim());
   // With the lock, a proposal never replaces one that is being approved at that moment.
   return withRepositoryWrites(project.repositoryPath, async () => {
     const proposal = await proposalFor(owner, project, input);
@@ -1720,6 +1737,7 @@ export async function proposeDesign(
       title,
       summary,
       changeWords,
+      lookAt,
     });
     await ensureDesignCheckBoards(owner, project, get('v2-inbox-native', owner, item.id));
     return item;
@@ -1770,14 +1788,17 @@ function recordProposal(
     title: string | null;
     summary: string | null;
     changeWords: Record<string, Record<string, string>>;
+    lookAt?: string[];
   },
 ) {
-  const { title, summary, changeWords } = words;
+  const { title, summary, changeWords, lookAt = [] } = words;
   const history = list('v2-inbox-native', owner)
     .filter(
       (row) =>
         row.context?.projectId === project.id &&
-        row.context?.branch === proposal.branch &&
+        // A task started for a review's notes proposes from its own branch: the link says which review it continues.
+        (row.context?.branch === proposal.branch ||
+          (proposal.taskId !== null && row.context?.followUpTaskId === proposal.taskId)) &&
         row.item.state === 'answered' &&
         ['changes', 'update'].includes(row.item.answer?.actionId),
     )
@@ -1834,6 +1855,7 @@ function recordProposal(
     ...proposal,
     summary,
     changeWords,
+    ...(lookAt.length ? { lookAt } : {}),
     proposer,
     proposerTaskId: proposal.taskId ?? null,
     previousItemId: previous?.id ?? null,
@@ -1962,6 +1984,13 @@ function decideDesign(
           .filter(Boolean)
           .join('\n\n');
   if (!content) fail('Add a pin or describe what should change');
+  // Who has the notes is decided now and kept with the answer, so the review reads the same later.
+  const terminal = context.taskId ? null : waitingTerminal(owner, project.id, context.branch);
+  let delivery: DesignFeedbackDelivery = context.taskId
+    ? { kind: 'task', taskId: context.taskId }
+    : terminal
+      ? { kind: 'terminal', computer: terminal.computer }
+      : { kind: 'nobody' };
   if (note)
     save('design-comment', owner, {
       id: id(),
@@ -1986,7 +2015,9 @@ function decideDesign(
       event(owner, context.taskId, null, 'message.queued', { status: 'queued' });
     } else queueMessage(owner, context.taskId, { content });
   }
-  if (body.actionId === 'update' && !context.taskId) {
+  // Ask to update hands the conflict back. With nobody to hand it to, a task is started for it, as
+  // before; its proposal is this review's next round.
+  if (body.actionId === 'update' && delivery.kind === 'nobody') {
     const task = queueTask(owner, {
       projectId: project.id,
       title: `Update design: ${item.title}`,
@@ -1996,26 +2027,146 @@ function decideDesign(
     });
     const row = get('v2-inbox-native', owner, item.id);
     context.taskId = task.id;
+    context.followUpTaskId = task.id;
     item.taskId = task.id;
     save('v2-inbox-native', owner, { ...row, item, context });
     event(owner, project.id, null, 'v2.inbox', { item });
+    delivery = { kind: 'task', taskId: task.id, started: true };
   }
   save('design-review-feedback', owner, {
     id: item.id,
     projectId: project.id,
     taskId: context.taskId,
+    actionId: body.actionId,
     content,
+    note: note || null,
     pins: pins.map((pin) => pin.id),
+    notes: body.actionId === 'update' ? 1 : pins.length + (note ? 1 : 0),
+    delivery,
     createdAt: now(),
   });
+}
+
+type DesignFeedbackDelivery =
+  | { kind: 'task'; taskId: string; started?: boolean }
+  | { kind: 'terminal'; computer: string }
+  | { kind: 'nobody' };
+
+/** How long a terminal running `deploy design feedback --wait` counts as waiting after it last asked. */
+const terminalWaitLife = 20_000;
+const branchRecordId = (projectId: string, branch: string) => `${projectId}:${branch}`;
+
+/** A terminal on some computer that is waiting for the owner's answer on this branch right now. */
+function waitingTerminal(owner: string, projectId: string, branch: string) {
+  const wait = list('design-feedback-wait', owner).find(
+    (row) => row.id === branchRecordId(projectId, branch),
+  );
+  return wait && Date.now() - Date.parse(wait.at) < terminalWaitLife ? wait : null;
+}
+
+/** What the review says about the owner's last notes: how many, and who has them. */
+function reviewFeedback(owner: string, row: any): DesignReview['feedback'] {
+  if (!['changes', 'update'].includes(row.item.answer?.actionId)) return null;
+  const saved = list('design-review-feedback', owner).find((entry) => entry.id === row.id);
+  if (!saved) return null;
+  // Answers saved before deliveries were recorded went to the proposer's task, or to nobody.
+  const delivery: DesignFeedbackDelivery =
+    saved.delivery ?? (saved.taskId ? { kind: 'task', taskId: saved.taskId } : { kind: 'nobody' });
+  return {
+    actionId: saved.actionId ?? row.item.answer.actionId,
+    notes: saved.notes ?? Math.max(1, (saved.pins?.length ?? 0) + (saved.note ? 1 : 0)),
+    delivery: delivery.kind,
+    ...(delivery.kind === 'terminal' ? { computer: delivery.computer } : {}),
+    ...(delivery.kind === 'task' ? { taskId: delivery.taskId } : {}),
+  };
+}
+
+/** The brief of a task started on a design nobody is working on: the owner's note and every open pin. */
+export function designFollowUpBrief(input: {
+  title: string;
+  branch: string;
+  folder: string;
+  round: number;
+  content: string;
+}) {
+  return [
+    `The owner asked for changes on the design “${input.title}” (${input.branch}, round ${input.round}). Continue it from that branch's last commit.`,
+    input.content,
+    `Change the boards in ${input.folder}/ only. When a pin is done, answer it with deploy_design action resolve (commentId and a short reply). Then propose again with deploy_design action propose, with a title and a summary of what changed. The proposal continues this review as its next round.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * Start a task for notes nobody has: on the review's branch, with the owner's note and every pin
+ * still open. The task's proposal is linked to this review, so it is the review's next round.
+ */
+export function startDesignFollowUp(owner: string, projectId: string, itemId: unknown) {
+  return db
+    .transaction(() => {
+      const row = reviewRow(owner, projectId, itemId);
+      const saved = list('design-review-feedback', owner).find((entry) => entry.id === row.id);
+      if (!['changes', 'update'].includes(row.item.answer?.actionId) || !saved)
+        fail('The owner has not asked for changes on this design', 409);
+      if (saved.delivery?.kind === 'task' || (!saved.delivery && saved.taskId))
+        fail('A task already has these notes', 409);
+      const context = row.context;
+      const folder = context.folder ?? appDesignFolder;
+      const open = reviewPins(owner, context).filter((pin) => !pin.resolved);
+      const content =
+        saved.actionId === 'update'
+          ? saved.content
+          : [
+              saved.note,
+              ...open.map(
+                (pin) =>
+                  `Pin ${pin.number} · ${pin.board}${pin.layer ? ` · ${pin.layer}` : ''} · comment ${pin.id}\n${pin.text}`,
+              ),
+            ]
+              .filter(Boolean)
+              .join('\n\n') || saved.content;
+      const task = queueTask(owner, {
+        projectId,
+        title: `Update design: ${row.item.title}`,
+        ref: context.commit,
+        prompt: designFollowUpBrief({
+          title: row.item.title,
+          branch: context.branch,
+          folder,
+          round: context.round ?? 1,
+          content,
+        }),
+        ...serverTaskComputer(owner),
+      });
+      // The task works on this design, in this folder, from the proposal's commit.
+      save('task', owner, {
+        ...get('task', owner, task.id),
+        design: { ...(folder === appDesignFolder ? {} : { folder }), commit: context.commit },
+      });
+      const item = { ...row.item, taskId: task.id };
+      save('v2-inbox-native', owner, {
+        ...row,
+        item,
+        context: { ...context, taskId: task.id, followUpTaskId: task.id },
+      });
+      save('design-review-feedback', owner, {
+        ...saved,
+        taskId: task.id,
+        delivery: { kind: 'task', taskId: task.id, started: true },
+      });
+      event(owner, projectId, null, 'v2.inbox', { item });
+      return { taskId: task.id };
+    })
+    .immediate();
 }
 
 registerInboxSource('design', decideDesign, async ({ owner, body, context, check, answer }) => {
   check();
   const repo = requireRepository(owner, context.projectId).repositoryPath as string;
-  return withRepositoryWrites(repo, async () =>
+  return withRepositoryWrites(repo, async () => {
     // Checked again: another answer may have held the lock while this one waited for it.
-    answer(
+    const result = answer(
       await prepareDecision(
         owner,
         repo,
@@ -2023,8 +2174,13 @@ registerInboxSource('design', decideDesign, async ({ owner, body, context, check
         body,
         reviewRow(owner, context.projectId, check().id).context,
       ),
-    ),
-  );
+    );
+    if (body.actionId === 'approve' && !body.delay)
+      await removeLandedBranch(owner, repo, result.id).catch((error) =>
+        console.error('Design branch removal failed:', error),
+      );
+    return result;
+  });
 });
 
 /** What the builder is told once an approved design is on main. The same words for every proposer. */
@@ -2148,6 +2304,60 @@ export function requestDesignBuild(
     .immediate();
 }
 
+/**
+ * Once a design is on main its branch holds nothing main lacks, so it is removed, but only a
+ * design or artifact branch, still at the proposed commit, whose every change since it left main is
+ * inside the design folder the approval copied. Anything else would lose work, so it is kept. The
+ * proposal's commit stays under refs/deploy/design-reviews, so round history still reads.
+ * Call with withRepositoryWrites held.
+ */
+async function removeLandedBranch(owner: string, repo: string, itemId: string) {
+  const landing = list('design-review-landing', owner).find((entry) => entry.id === itemId);
+  if (landing?.state !== 'landed' || landing.branch) return;
+  const row = get('v2-inbox-native', owner, itemId);
+  let branch: { name: string; removed: boolean; kept?: string };
+  try {
+    branch = await landedBranchRemoval(repo, itemId, row.context);
+  } catch (error) {
+    console.error(`Design branch ${row.context.branch} was kept:`, error);
+    branch = { name: row.context.branch, removed: false, kept: 'it could not be removed' };
+  }
+  save('design-review-landing', owner, { ...get('design-review-landing', owner, itemId), branch });
+}
+async function landedBranchRemoval(repo: string, itemId: string, context: any) {
+  const name = String(context.branch);
+  const kept = (why: string) => ({ name, removed: false, kept: why });
+  if (!/^(design|artifact)\//.test(name)) return kept('it is not a design branch');
+  const tip = await gitRead(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${name}^{commit}`,
+  ]);
+  if (!tip) return { name, removed: true };
+  if (tip !== context.commit) return kept('it has commits after the proposal');
+  const main = await gitRead(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${context.main ?? 'main'}^{commit}`,
+  ]);
+  const base = main && (await gitRead(repo, ['merge-base', main, tip]));
+  if (!base) return kept('it shares no history with main');
+  const changed = await gitRead(repo, ['diff', '--name-only', '--no-renames', base, tip]);
+  if (changed === null) return kept('its changes could not be read');
+  const folder = `${context.folder ?? appDesignFolder}/`;
+  if (changed.split('\n').some((path) => path && !path.startsWith(folder)))
+    return kept(`it changes files outside ${folder}`);
+  const receipt = `refs/deploy/design-reviews/${sha1(itemId)}`;
+  if ((await gitRead(repo, ['update-ref', receipt, tip])) === null)
+    return kept('its commit could not be kept');
+  // Only the commit that was approved: a branch moved meanwhile is left alone.
+  if ((await gitRead(repo, ['update-ref', '-d', `refs/heads/${name}`, tip])) === null)
+    return kept('it moved meanwhile');
+  return { name, removed: true };
+}
+
 /** Persisted jobs are scanned on boot and each second; no in-memory timer owns a decision. */
 export async function landDesignApprovals(clock = Date.now()) {
   const jobs = db
@@ -2156,47 +2366,70 @@ export async function landDesignApprovals(clock = Date.now()) {
   for (const saved of jobs) {
     const job = JSON.parse(saved.data);
     if (job.state !== 'pending' || Date.parse(job.at) > clock) continue;
-    const owner = saved.owner;
-    const row = get('v2-inbox-native', owner, job.id);
-    const project = requireRepository(owner, row.context.projectId);
-    await withRepositoryWrites(project.repositoryPath, async () => {
-      const current = get('design-review-landing', owner, job.id);
-      if (current.state !== 'pending') return;
-      try {
-        // Recover the tiny crash window after update-ref but before the database transaction.
-        const landed = await gitRead(project.repositoryPath, [
-          'log',
-          `refs/heads/${row.context.main}`,
-          '--fixed-strings',
-          '--grep',
-          `Design-Review: ${job.id}`,
-          '--format=%H',
-          '-1',
-        ]);
-        const prepared = landed
-          ? { commit: landed, conflicts: [] }
-          : await prepareDecision(
-              owner,
-              project.repositoryPath,
-              row.item,
-              { actionId: 'approve', landingId: job.id },
-              row.context,
-            );
-        db.transaction(() => {
-          decideDesign(owner, row.item, { actionId: 'approve' }, row.context, prepared);
-          save('design-review-landing', owner, {
-            ...current,
-            state: 'landed',
-            commit: prepared.commit,
-          });
-          event(owner, project.id, null, 'v2.inbox', { item: row.item });
-        }).immediate();
-      } catch (error) {
-        if ((error as { status?: number }).status !== 409) throw error;
-        restoreDesignWaiting(owner, row, { ...current, state: 'conflict' });
-      }
-    });
+    // One job's failure never holds up the jobs behind it; a failed read is retried next scan.
+    try {
+      await landDesignApproval(saved.owner, job);
+    } catch (error) {
+      console.error(`Design approval ${job.id} will retry:`, error);
+    }
   }
+}
+
+async function landDesignApproval(owner: string, job: any) {
+  let row: any;
+  let project: any;
+  try {
+    row = get('v2-inbox-native', owner, job.id);
+    project = requireRepository(owner, row.context.projectId);
+  } catch (error) {
+    if ((error as { status?: number }).status !== 404) throw error;
+    // The proposal or its project is gone: there is nothing left to land it in.
+    save('design-review-landing', owner, {
+      ...job,
+      state: 'failed',
+      reason: 'The project or the proposal no longer exists',
+    });
+    return;
+  }
+  await withRepositoryWrites(project.repositoryPath, async () => {
+    const current = get('design-review-landing', owner, job.id);
+    if (current.state !== 'pending') return;
+    try {
+      // Recover the tiny crash window after update-ref but before the database transaction.
+      const landed = await gitRead(project.repositoryPath, [
+        'log',
+        `refs/heads/${row.context.main}`,
+        '--fixed-strings',
+        '--grep',
+        `Design-Review: ${job.id}`,
+        '--format=%H',
+        '-1',
+      ]);
+      const prepared = landed
+        ? { commit: landed, conflicts: [] }
+        : await prepareDecision(
+            owner,
+            project.repositoryPath,
+            row.item,
+            { actionId: 'approve', landingId: job.id },
+            row.context,
+          );
+      db.transaction(() => {
+        decideDesign(owner, row.item, { actionId: 'approve' }, row.context, prepared);
+        save('design-review-landing', owner, {
+          ...current,
+          state: 'landed',
+          commit: prepared.commit,
+        });
+        event(owner, project.id, null, 'v2.inbox', { item: row.item });
+      }).immediate();
+    } catch (error) {
+      if ((error as { status?: number }).status !== 409) throw error;
+      restoreDesignWaiting(owner, row, { ...current, state: 'conflict' });
+      return;
+    }
+    await removeLandedBranch(owner, project.repositoryPath, job.id);
+  });
 }
 function restoreDesignWaiting(owner: string, row: any, landing?: any) {
   return db
@@ -2916,6 +3149,132 @@ export function askPrompt(input: {
   ].join('\n');
 }
 
+/** Mark a comment or a review pin addressed, with a reply: deploy_design's resolve and the CLI's. */
+export function resolveDesignComment(
+  owner: string,
+  projectId: string,
+  args: { commentId?: unknown; resolved?: unknown; reply?: unknown },
+) {
+  const row = get('design-comment', owner, String(args.commentId ?? ''));
+  if (row.projectId !== projectId) fail('Not found', 404);
+  return presentComment(
+    save('design-comment', owner, {
+      ...row,
+      resolved: args.resolved !== false,
+      resolvedAt: args.resolved === false ? null : now(),
+      reply: optionalWords(args.reply, 1000) ?? row.reply ?? null,
+    }),
+  );
+}
+
+/** The newest proposal of a branch in a project, whatever its state. */
+function branchReviewRow(owner: string, projectId: string, branch: string) {
+  return list('v2-inbox-native', owner)
+    .filter(
+      (row) =>
+        row.context?.source === 'design' &&
+        row.context.projectId === projectId &&
+        row.context.branch === branch,
+    )
+    .sort((a, b) => b.item.createdAt.localeCompare(a.item.createdAt))[0];
+}
+
+/**
+ * The owner's latest answer on a branch's proposal, for `deploy design feedback`: still waiting,
+ * asked for changes (the note and every open pin, numbered as the review numbers them), or approved
+ * and where it landed.
+ */
+export async function readBranchFeedback(owner: string, project: any, branch: string) {
+  if (!validRef(branch)) fail('Name a branch');
+  const row = branchReviewRow(owner, project.id, branch);
+  if (!row) return { branch, owner, review: null };
+  return inDesignFolder(row.context.folder, async () => {
+    const { context, item } = row;
+    const repo = project.repositoryPath as string;
+    const saved = list('design-review-feedback', owner).find((entry) => entry.id === row.id);
+    const asked = ['changes', 'update'].includes(item.answer?.actionId);
+    const html = new Map<string, string | null>();
+    const pins = [];
+    for (const pin of asked ? reviewPins(owner, context).filter((entry) => !entry.resolved) : []) {
+      const path = `${designFolder()}/boards/${pin.board}`;
+      if (!html.has(path)) html.set(path, await showFile(repo, context.commit, path));
+      const board = html.get(path);
+      pins.push({
+        id: pin.id,
+        number: pin.number,
+        board: pin.board,
+        boardTitle: screenName(pin.board),
+        layer: pin.layer ?? null,
+        layerName: pin.layer
+          ? layerLabel(
+              pin.layer,
+              ((board && layerSnippet(board, pin.layer)) ?? '').replace(/<[^>]+>/g, ' '),
+            )
+          : null,
+        text: pin.text,
+      });
+    }
+    const landing = reviewLanding(owner, row.id);
+    return {
+      branch,
+      owner,
+      review: {
+        id: row.id,
+        title: item.title,
+        round: context.round ?? 1,
+        boards: reviewBoardPaths(context).length,
+        lookAt: context.lookAt ?? [],
+        state: item.state,
+        proposedAt: item.createdAt,
+        answer: item.answer
+          ? { actionId: item.answer.actionId, at: item.answer.at, by: item.answer.by ?? owner }
+          : null,
+        note: asked ? (saved?.note ?? null) : null,
+        pins,
+        feedback: reviewFeedback(owner, row),
+        landing: landing
+          ? {
+              state: landing.state,
+              at: landing.at,
+              commit: landing.commit ?? null,
+              branch: landing.branch ?? null,
+            }
+          : null,
+      },
+    };
+  });
+}
+
+/** A terminal waiting on a branch's answer says so every few seconds; the review reads it when answered. */
+export function markTerminalWaiting(owner: string, projectId: string, body: any) {
+  const branch = String(body?.branch ?? '');
+  if (!validRef(branch)) fail('Name a branch');
+  const computer = optionalWords(body?.computer, 120) ?? 'a computer';
+  return save('design-feedback-wait', owner, {
+    id: branchRecordId(projectId, branch),
+    projectId,
+    branch,
+    computer,
+    at: now(),
+  });
+}
+
+/** Who started a design branch from a terminal, on which computer and when, kept with the project. */
+export function recordDesignStart(owner: string, projectId: string, body: any) {
+  const branch = String(body?.branch ?? '');
+  if (!validRef(branch) || !/^(design|artifact)\//.test(branch))
+    fail('Name a design branch, like design/title-size');
+  return save('design-branch-start', owner, {
+    id: branchRecordId(projectId, branch),
+    projectId,
+    branch,
+    by: owner,
+    computer: optionalWords(body?.computer, 120) ?? 'a computer',
+    folder: optionalWords(body?.folder, 400),
+    at: now(),
+  });
+}
+
 // Where agents are working right now, by owner and project. Presence is a hint for people
 // watching, so it lives in memory and lapses after a minute without an update.
 type Presence = {
@@ -3000,20 +3359,8 @@ async function runDesignTool(scope: { owner: string; taskId: string; runId?: str
       });
       return { comment: presentComment(row) };
     }
-    case 'resolve': {
-      const row = get('design-comment', scope.owner, String(args.commentId ?? ''));
-      if (row.projectId !== project.id) fail('Not found', 404);
-      return {
-        comment: presentComment(
-          save('design-comment', scope.owner, {
-            ...row,
-            resolved: args.resolved !== false,
-            resolvedAt: args.resolved === false ? null : now(),
-            reply: optionalWords(args.reply, 1000) ?? row.reply ?? null,
-          }),
-        ),
-      };
-    }
+    case 'resolve':
+      return { comment: resolveDesignComment(scope.owner, project.id, args) };
     case 'built': {
       const row = approvedTaskDesign(scope.owner, task.id);
       if (row) {
@@ -3914,9 +4261,60 @@ async function projectDesignApi(
             title: body?.title,
             summary: body?.summary,
             changeWords: body?.changeWords,
+            lookAt: body?.lookAt,
           });
           setImmediate(() => void warmReview(owner, project, repo, item.id));
           return sendJson(res, { item }, 201);
+        },
+      }),
+      makeRoute({
+        method: 'POST',
+        path: '/working',
+        handler: async () =>
+          sendJson(res, { working: recordDesignStart(owner, project.id, await readJson(req)) }),
+      }),
+      makeRoute({
+        method: 'GET',
+        path: '/feedback',
+        handler: async () =>
+          sendJson(
+            res,
+            await readBranchFeedback(owner, project, String(url.searchParams.get('branch') ?? '')),
+          ),
+      }),
+      makeRoute({
+        method: 'POST',
+        path: '/feedback/wait',
+        handler: async () => {
+          const body = await readJson(req);
+          markTerminalWaiting(owner, project.id, body);
+          return sendJson(res, await readBranchFeedback(owner, project, String(body?.branch)));
+        },
+      }),
+      makeRoute({
+        method: 'POST',
+        path: '/feedback/resolve',
+        handler: async () => {
+          const body = await readJson(req);
+          const row = branchReviewRow(owner, project.id, String(body?.branch ?? ''));
+          if (!row) fail('Nothing on this branch was proposed', 404);
+          const pin = reviewPins(owner, row.context).find(
+            (entry) => entry.number === Number(body?.pin),
+          );
+          if (!pin) fail(`No note ${body?.pin} on this proposal`, 404);
+          const reply = optionalWords(body?.reply, 1000);
+          if (!reply) fail('Say what you did');
+          return sendJson(res, {
+            comment: resolveDesignComment(owner, project.id, { commentId: pin!.id, reply }),
+          });
+        },
+      }),
+      makeRoute({
+        method: 'POST',
+        path: '/review/task',
+        handler: async () => {
+          const body = await readJson(req);
+          return sendJson(res, startDesignFollowUp(owner, project.id, body?.item), 201);
         },
       }),
       makeRoute({
@@ -4224,7 +4622,15 @@ export function readDesignComments(owner: string, projectId: string, board?: str
 }
 export function readDesignPresence(owner: string, projectId: string) {
   const project = requireRepository(owner, projectId);
-  return { agents: livePresence(owner, project.id) };
+  return {
+    agents: livePresence(owner, project.id),
+    // Design branches started from a terminal, newest first, with who and where.
+    terminals: list('design-branch-start', owner)
+      .filter((row) => row.projectId === project.id)
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, 20)
+      .map((row) => ({ branch: row.branch, by: row.by, computer: row.computer, at: row.at })),
+  };
 }
 export function readDesignAsks(owner: string, projectId: string, folder = appDesignFolder) {
   const project = requireRepository(owner, projectId);

@@ -77,6 +77,7 @@ import {
   releaseSteps,
   printRelease,
 } from './cli-v2.mjs';
+import { runDesign } from './cli-design.mjs';
 
 import { parseArgs, format } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
@@ -89,7 +90,7 @@ import {
   DATA_COMMAND_TIMEOUT_MS,
 } from './bounded-command.mjs';
 import { createInterface } from 'node:readline';
-import { arch, cpus, homedir, networkInterfaces, platform, totalmem } from 'node:os';
+import { arch, cpus, homedir, hostname, networkInterfaces, platform, totalmem } from 'node:os';
 import {
   chmodSync,
   createReadStream,
@@ -3594,6 +3595,9 @@ try {
       project: { type: 'string' },
       'confirm-destructive': { type: 'boolean', default: false },
       result: { type: 'string' },
+      title: { type: 'string' },
+      summary: { type: 'string' },
+      'look-at': { type: 'string' },
     },
     strict: false,
   }));
@@ -3673,6 +3677,50 @@ const api = (path, options = {}) =>
     },
   });
 const outputJson = (data) => console.log(JSON.stringify(data, null, 2));
+/** What deploy design needs from this process: the coordinator, Git and the terminal. */
+function designDeps() {
+  const computer = (() => {
+    if (platform() === 'darwin') {
+      const name = spawnSync('scutil', ['--get', 'ComputerName'], { encoding: 'utf8' });
+      if (name.status === 0 && name.stdout.trim()) return name.stdout.trim();
+    }
+    return hostname();
+  })();
+  return {
+    api,
+    serverUrl,
+    cwd: process.cwd(),
+    home: homedir(),
+    computer,
+    git: (args, cwd) =>
+      execFileSync('git', args, {
+        cwd,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 1 << 28,
+      }).trimEnd(),
+    exists: existsSync,
+    write: (text) => process.stdout.write(text),
+    color: !!process.stdout.isTTY && process.env.NO_COLOR === undefined,
+    spinner: !!process.stdout.isTTY,
+    interactive: !!process.stdin.isTTY && !values.json,
+    prompt,
+    now: Date.now,
+    sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
+    runCheck: (root, args) => {
+      const script = resolve(root, 'scripts/design-check.mjs');
+      if (!existsSync(script)) return null;
+      const ran = spawnSync(process.execPath, [script, ...args], {
+        cwd: root,
+        encoding: 'utf8',
+        maxBuffer: 1 << 26,
+        stdio: ['ignore', 'pipe', 'inherit'],
+      });
+      if (ran.error) throw ran.error;
+      return { code: ran.status, stdout: ran.stdout };
+    },
+  };
+}
 function requireApp() {
   if (!appName)
     throw cliError(
@@ -3779,6 +3827,12 @@ try {
             result.cancelled ? 'Cancelled. Next: deploy inbox' : '✓ Answered. Next: deploy status',
           );
       }
+      break;
+    }
+    case 'design': {
+      const result = await runDesign(positionals[1], positionals.slice(2), values, designDeps());
+      if (values.json) outputJson(result.json);
+      process.exitCode = result.exitCode;
       break;
     }
     case 'computers': {

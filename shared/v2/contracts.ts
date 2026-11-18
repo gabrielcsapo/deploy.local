@@ -583,8 +583,10 @@ export type DesignReview = DesignReviewSummary & {
   changes?: DesignReviewRow[];
   landing?: {
     at: string;
-    state: 'pending' | 'landed' | 'conflict';
+    state: 'pending' | 'landed' | 'conflict' | 'failed';
     commit?: string;
+    /** After landing: whether the design branch was removed, or why it was kept. */
+    branch?: { name: string; removed: boolean; kept?: string };
     /** Explicitly requested build; legacy records may contain a failed or skipped attempt. */
     build?: {
       name?: string;
@@ -595,6 +597,15 @@ export type DesignReview = DesignReviewSummary & {
       skipped?: boolean;
     };
   };
+  /** The owner's last Ask for changes or Ask to update: how many notes, and who has them. */
+  feedback?: {
+    actionId: 'changes' | 'update';
+    notes: number;
+    delivery: 'task' | 'terminal' | 'nobody';
+    /** The computer whose terminal was waiting, for a terminal delivery. */
+    computer?: string;
+    taskId?: string;
+  } | null;
   boards: DesignReviewScreen[];
   groups: { id: string | null; title: string | null; boards: string[] }[];
   notes: (import('./design').NoteChange & { page: string | null })[];

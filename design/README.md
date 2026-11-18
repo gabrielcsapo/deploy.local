@@ -28,9 +28,12 @@ The server tests check that every board on the canvas exists and has unique laye
 
 ## Changing a design
 
-1. Fetch `origin` and start a branch from `origin/main`. Edit the board in `design/boards/` (and `canvas.json` for a new board, its place or its notes) on that branch.
-2. Render it at its widths with `node design/tools/render.mjs <Board>` and check it. The renderer refuses a checkout that lacks design changes main has, because approvals land on main without touching your checkout; `--stale-ok` renders it anyway. To review the current design, use `--main`.
-3. Ask for review. Nothing visual is built until the design is approved (see `AGENTS.md`).
+From the project's folder:
+
+1. `deploy design start "<title>"` makes `design/<title>` from main, in its own folder beside this one. Edit the boards in `design/boards/` there (and `canvas.json` for a new board, its place or its notes), and commit as you go.
+2. `deploy design check` names new layers, draws each changed board beside main in light and dark into `output/design/pairs`, and lists problems. It runs `scripts/design-check.mjs`. To look at the approved design itself, `node design/tools/render.mjs --main`.
+3. `deploy design propose` checks, pushes and asks for review. Nothing visual is built until the design is approved (see `AGENTS.md`).
+4. `deploy design feedback --wait` prints the answer, the note and every pin, numbered. `deploy design resolve <n> "<what you did>"` answers a pin; then propose again. Once the design is on main, feedback removes the folder and the local branch.
 
 ## Parity: implementation against design
 

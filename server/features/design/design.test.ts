@@ -2238,6 +2238,41 @@ test('a conflict at delayed landing returns the review to waiting', async () => 
   assert.equal(review.landing.state, 'conflict');
 });
 
+test('one broken landing never holds up the approvals behind it', async () => {
+  const gone = await reviewFixture('landing-gone');
+  const broken = await reviewFixture('landing-broken');
+  const fine = await reviewFixture('landing-fine');
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
+  const { landDesignApprovals } = await import('./design.ts');
+  const { get, remove } = await import('../../workspace/store.ts');
+  const items = [];
+  for (const f of [gone, broken, fine]) {
+    const item = await f.propose();
+    await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web', delay: true });
+    items.push(item);
+  }
+  const before = await fine.run(['rev-parse', 'main']);
+  // The first project is deleted; the second's repository is not ready to be written.
+  remove('project', 'alice', gone.project.id);
+  save('project', 'alice', { ...broken.project, repositoryStatus: 'preparing' });
+  const error = mock.method(console, 'error', () => {});
+  try {
+    await landDesignApprovals(Date.now() + 60_000);
+    assert.ok(error.mock.callCount() >= 1, 'the failure is logged');
+    // A failed landing is left alone on the next scan.
+    await landDesignApprovals(Date.now() + 60_000);
+  } finally {
+    error.mock.restore();
+  }
+  assert.notEqual(await fine.run(['rev-parse', 'main']), before, 'the later approval landed');
+  assert.equal(get('design-review-landing', 'alice', items[2].id).state, 'landed');
+  const failed = get('design-review-landing', 'alice', items[0].id);
+  assert.equal(failed.state, 'failed', 'a landing whose project is gone is marked failed');
+  assert.equal(get('design-review-landing', 'alice', items[1].id).state, 'pending');
+  assert.equal(get('design-review-landing', 'alice', items[0].id).state, 'failed');
+  save('project', 'alice', broken.project);
+});
+
 test('a group can be seen together and anchored area notes accept a dragged width', async () => {
   const f = await reviewFixture('review-group-seen');
   const item = await f.propose();
@@ -2674,6 +2709,240 @@ test('owner Ask to update creates and links a task, once, with the conflicting s
     /already resolved/,
   );
   assert.equal(list('task', 'alice').length, before + 1);
+});
+
+test('who has the notes is decided when the owner answers: a task, a waiting terminal, or nobody', async () => {
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
+  const { get, list } = await import('../../workspace/store.ts');
+  const ask = async (f: Awaited<ReturnType<typeof reviewFixture>>, item: { id: string }) => {
+    const first = await f.read(item);
+    const pinned = await f.call('/review/pins', {
+      item: item.id,
+      board: 'Alpha.html',
+      layer: 'title',
+      width: 1440,
+      revision: first.after,
+      x: 10,
+      y: 20,
+      text: 'Keep the project name bold.',
+    });
+    assert.equal(pinned.status, 200, await pinned.clone().text());
+    await answerInboxAsync('alice', item.id, {
+      actionId: 'changes',
+      on: 'web',
+      note: 'Close. Two things on the sidebar.',
+    });
+    return f.read(item);
+  };
+
+  // From a task: the task gets a message, as before.
+  const fromTask = await reviewFixture('notes-task');
+  const taskId = 'notes-task-proposer';
+  save('task', 'alice', { id: taskId, projectId: fromTask.project.id, revision: 1 });
+  save('run', 'alice', { id: 'notes-task-run', taskId, status: 'running' });
+  const taskItem = await fromTask.propose();
+  const row = get('v2-inbox-native', 'alice', taskItem.id);
+  save('v2-inbox-native', 'alice', {
+    ...row,
+    item: { ...row.item, taskId },
+    context: { ...row.context, taskId },
+  });
+  const taskReview = await ask(fromTask, taskItem);
+  assert.equal(taskReview.feedback.delivery, 'task');
+  assert.equal(taskReview.feedback.taskId, taskId);
+  assert.equal(taskReview.feedback.notes, 2);
+  assert.match(get('queued-message', 'alice', taskId).content, /Keep the project name bold/);
+
+  // A terminal is waiting on the branch right now: the notes are sent there.
+  const terminal = await reviewFixture('notes-terminal');
+  const terminalItem = await terminal.propose();
+  const waiting = await terminal.call('/feedback/wait', {
+    branch: 'design/review',
+    computer: 'MacBook Pro',
+  });
+  assert.equal(waiting.status, 200);
+  assert.equal((await waiting.json()).review.state, 'waiting');
+  const terminalReview = await ask(terminal, terminalItem);
+  assert.deepEqual(terminalReview.feedback, {
+    actionId: 'changes',
+    notes: 2,
+    delivery: 'terminal',
+    computer: 'MacBook Pro',
+  });
+  // The review reads the same once the terminal has stopped waiting.
+  const wait = get('design-feedback-wait', 'alice', 'notes-terminal:design/review');
+  save('design-feedback-wait', 'alice', { ...wait, at: new Date(0).toISOString() });
+  assert.equal((await terminal.read(terminalItem)).feedback.delivery, 'terminal');
+
+  // Nobody: kept, until the owner starts a task that carries the note and every open pin.
+  const nobody = await reviewFixture('notes-nobody');
+  const nobodyItem = await nobody.propose();
+  const stale = await nobody.call('/feedback/wait', { branch: 'design/review', computer: 'Old' });
+  assert.equal(stale.status, 200);
+  const old = get('design-feedback-wait', 'alice', 'notes-nobody:design/review');
+  save('design-feedback-wait', 'alice', {
+    ...old,
+    at: new Date(Date.now() - 60_000).toISOString(),
+  });
+  const tasks = list('task', 'alice').length;
+  const nobodyReview = await ask(nobody, nobodyItem);
+  assert.deepEqual(nobodyReview.feedback, { actionId: 'changes', notes: 2, delivery: 'nobody' });
+  assert.equal(list('task', 'alice').length, tasks, 'no task until the owner starts one');
+  const started = await nobody.call('/review/task', { item: nobodyItem.id });
+  assert.equal(started.status, 201);
+  const { taskId: followUp } = await started.json();
+  const task = get('task', 'alice', followUp);
+  assert.equal(task.baseRevision, nobodyReview.after);
+  const brief = list('run', 'alice').find((run) => run.taskId === followUp);
+  const prompt = JSON.stringify(brief ?? task);
+  assert.match(prompt, /Close. Two things on the sidebar./);
+  assert.match(prompt, /Keep the project name bold./);
+  assert.equal((await nobody.read(nobodyItem)).feedback.delivery, 'task');
+
+  // The task proposes from its own branch; the proposal is the review's second round.
+  const { taskBranch } = await import('../../workspace/follow-up.ts');
+  await nobody.run(['checkout', '-q', '-b', taskBranch(followUp), nobodyReview.after]);
+  writeFileSync(join(nobody.path, 'design/boards/Alpha.html'), '<h1 data-layer="title">Bold</h1>');
+  await nobody.commit('Address the notes');
+  await nobody.run(['checkout', '-q', 'main']);
+  const { designTool } = await import('./design.ts');
+  const next = await (designTool as (scope: object, args: object) => Promise<any>)(
+    { owner: 'alice', taskId: followUp },
+    { action: 'propose', title: 'Agents you make yourself', summary: 'Bold again.' },
+  );
+  const round = await nobody.read(next.item);
+  assert.equal(round.round, 2);
+  assert.equal(round.previousItemId, nobodyItem.id);
+  assert.deepEqual(
+    round.pins.map((pin: any) => pin.text),
+    ['Keep the project name bold.'],
+    'the earlier round’s pins carry over',
+  );
+});
+
+test('a landed design removes its branch only when every change is in the design folder', async () => {
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
+  const designOnly = await reviewFixture('landing-removes');
+  const item = await designOnly.propose();
+  await designOnly.run(['checkout', '-q', 'main']);
+  await answerInboxAsync('alice', item.id, { actionId: 'approve', on: 'web' });
+  assert.equal(
+    await designOnly.run(['branch', '--list', 'design/review']),
+    '',
+    'the design branch is gone',
+  );
+  const landed = await designOnly.read(item);
+  assert.equal(landed.landing.state, 'landed');
+  assert.deepEqual(landed.landing.branch, { name: 'design/review', removed: true });
+  // The landed review and its screens still read from the proposal's commit.
+  assert.equal(landed.boards.length, 2);
+  assert.equal(await designOnly.run(['cat-file', '-t', landed.after]), 'commit');
+  const feedback = await (await designOnly.call('/feedback?branch=design%2Freview')).json();
+  assert.equal(feedback.review.state, 'answered');
+  assert.equal(feedback.review.landing.branch.removed, true);
+
+  const mixed = await reviewFixture('landing-keeps');
+  writeFileSync(join(mixed.path, 'README.md'), 'Not a design file\n');
+  await mixed.commit('Also change a file outside design/');
+  const mixedItem = await mixed.propose();
+  await mixed.run(['checkout', '-q', 'main']);
+  await answerInboxAsync('alice', mixedItem.id, { actionId: 'approve', on: 'web' });
+  assert.notEqual(await mixed.run(['branch', '--list', 'design/review']), '');
+  const kept = (await mixed.read(mixedItem)).landing.branch;
+  assert.equal(kept.removed, false);
+  assert.match(kept.kept, /outside design\//);
+
+  // A delayed approval lands and removes its branch too, and round history stays readable.
+  const delayed = await reviewFixture('landing-delayed-removes');
+  const first = await delayed.propose();
+  await answerInboxAsync('alice', first.id, { actionId: 'changes', on: 'web', note: 'Again.' });
+  writeFileSync(join(delayed.path, 'design/boards/Beta.html'), '<h1 data-layer="title">Two</h1>');
+  await delayed.commit('Round two');
+  const second = await delayed.propose({ summary: 'Round two.' });
+  await delayed.run(['checkout', '-q', 'main']);
+  await answerInboxAsync('alice', second.id, { actionId: 'approve', on: 'web', delay: true });
+  const { landDesignApprovals } = await import('./design.ts');
+  await landDesignApprovals(Date.now() + 60_000);
+  assert.equal(await delayed.run(['branch', '--list', 'design/review']), '');
+  const history = await delayed.read(second);
+  assert.equal(history.round, 2);
+  assert.equal(history.previousItemId, first.id);
+  assert.equal(history.landing.branch.removed, true);
+  assert.equal((await delayed.read(first)).item.answer.actionId, 'changes');
+});
+
+test('a terminal reads the answer on its branch, says it is waiting, starts and resolves', async () => {
+  const f = await reviewFixture('terminal-feedback');
+  const nothing = await (await f.call('/feedback?branch=design%2Fnothing')).json();
+  assert.equal(nothing.review, null);
+  const started = await f.call('/working', { branch: 'design/review', computer: 'MacBook Pro' });
+  assert.equal(started.status, 200);
+  assert.equal((await started.json()).working.computer, 'MacBook Pro');
+  assert.equal((await f.call('/working', { branch: 'main' })).status, 400);
+  const presence = await (await f.call('/presence')).json();
+  assert.equal(presence.terminals[0].branch, 'design/review');
+
+  const item = await f.propose();
+  let feedback = await (await f.call('/feedback?branch=design%2Freview')).json();
+  assert.equal(feedback.review.id, item.id);
+  assert.equal(feedback.review.state, 'waiting');
+  assert.equal(feedback.review.round, 1);
+
+  const first = await f.read(item);
+  for (const [board, layer, text] of [
+    ['Alpha.html', 'title', 'Keep the project name bold.'],
+    ['Beta.html', null, 'Archived starts hidden.'],
+  ])
+    await f.call('/review/pins', {
+      item: item.id,
+      board,
+      ...(layer ? { layer } : {}),
+      width: board === 'Beta.html' ? 390 : 1440,
+      revision: first.after,
+      x: 1,
+      y: 2,
+      text,
+    });
+  const { answerInboxAsync } = await import('../../v2/inbox.ts');
+  await answerInboxAsync('alice', item.id, {
+    actionId: 'changes',
+    on: 'web',
+    note: 'Close. Two things on the sidebar and the menu.',
+  });
+  feedback = await (await f.call('/feedback?branch=design%2Freview')).json();
+  assert.equal(feedback.review.answer.actionId, 'changes');
+  assert.equal(feedback.review.note, 'Close. Two things on the sidebar and the menu.');
+  assert.deepEqual(
+    feedback.review.pins.map((pin: any) => [pin.number, pin.boardTitle, pin.layerName, pin.text]),
+    [
+      // A pin names its board the short way the boards and the review's list do.
+      [1, 'Alpha', 'Sources for preferences', 'Keep the project name bold.'],
+      [2, 'Beta', null, 'Archived starts hidden.'],
+    ],
+  );
+
+  const resolved = await f.call('/feedback/resolve', {
+    branch: 'design/review',
+    pin: 1,
+    reply: 'Bold again',
+  });
+  assert.equal(resolved.status, 200);
+  const comment = (await resolved.json()).comment;
+  assert.equal(comment.resolved, true);
+  assert.equal(comment.reply, 'Bold again');
+  assert.equal(
+    (await f.call('/feedback/resolve', { branch: 'design/review', pin: 9, reply: 'x' })).status,
+    404,
+  );
+  assert.equal(
+    (await f.call('/feedback/resolve', { branch: 'design/review', pin: 2, reply: ' ' })).status,
+    400,
+  );
+  feedback = await (await f.call('/feedback?branch=design%2Freview')).json();
+  assert.deepEqual(
+    feedback.review.pins.map((pin: any) => pin.number),
+    [2],
+  );
 });
 
 test('different canvas notes merge, the same note takes a reversible choice', async () => {

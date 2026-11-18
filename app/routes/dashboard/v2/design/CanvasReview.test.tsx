@@ -302,3 +302,78 @@ test('a document’s review is approved as a document, counts blocks and builds 
   assert.match(landed, /Approved · on main as 4f05991/);
   assert.doesNotMatch(landed, /not built yet|>Build</);
 });
+
+test('an approval that did not reach main says so and offers the update or the choice, never on main', () => {
+  const sameScreen = {
+    file: 'Changed.html',
+    kind: 'same-part',
+    mainChanged: 'Title',
+    proposalChanged: 'Title',
+    detail: '',
+    choice: null,
+  } as NonNullable<DesignReview['resolutions']>[number];
+  const notLanded: DesignReview = {
+    ...data,
+    resolutions: [sameScreen],
+    landing: { at: '2026-11-12T12:00:30Z', state: 'conflict' },
+  };
+  const html = bar(notLanded);
+  assert.match(
+    html,
+    /Keep the gutter at every width<\/strong><span> · <strong>Did not reach main<\/strong> · main changed first<\/span>/,
+  );
+  assert.match(html, />Before</);
+  assert.match(html, /class="[^"]*secondary[^"]*"[^>]*>Ask Designer to update<\/button>/);
+  assert.match(html, /class="[^"]*primary[^"]*"[^>]*>Choose what to keep<\/button>/);
+  assert.doesNotMatch(html, /Approved|on main as|Approve design|Ask for changes|approved/);
+  const yours = bar({ ...notLanded, proposer: { ...data.proposer, name: 'You' } });
+  assert.match(yours, />Ask to update<\/button>/);
+  // Even an answer that still says approve never reads as on main while the landing conflicts.
+  assert.doesNotMatch(
+    bar({
+      ...notLanded,
+      item: {
+        ...data.item,
+        state: 'answered',
+        answer: { actionId: 'approve', at: '2026-11-12T12:00:00Z', by: 'owner', on: 'web' },
+      },
+    }),
+    /on main/,
+  );
+  // Once every screen has a choice, the review is decided again as usual.
+  const chosen = bar({ ...notLanded, resolutions: [{ ...sameScreen, choice: 'proposal' }] });
+  assert.match(chosen, />Approve design<\/button>/);
+});
+
+test('notes say who has them: a terminal, or nobody with Start a task', () => {
+  const asked = {
+    ...data,
+    proposer: { ...data.proposer, name: 'Gabriel' },
+    item: {
+      ...data.item,
+      state: 'answered',
+      answer: { actionId: 'changes', at: '2026-11-12T12:00:00Z', by: 'owner', on: 'web' },
+    },
+  } as DesignReview;
+  const nobody = bar({
+    ...asked,
+    feedback: { actionId: 'changes', notes: 1, delivery: 'nobody' },
+  });
+  assert.match(nobody, /· from Gabriel · 1 note kept · nobody is working on it/);
+  assert.match(nobody, /class="[^"]*primary[^"]*"[^>]*>Start a task<\/button>/);
+  assert.doesNotMatch(nobody, /Sent to|Open the task|approved|>Done<|Next review/);
+  const terminal = bar({
+    ...asked,
+    feedback: { actionId: 'changes', notes: 2, delivery: 'terminal', computer: 'MacBook Pro' },
+  });
+  assert.match(terminal, /· from Gabriel · 2 notes sent to a terminal on MacBook Pro/);
+  assert.doesNotMatch(terminal, /<button[^>]*>(?!Before|After)[^<]*<\/button>/);
+  assert.doesNotMatch(terminal, /Start a task|Sent to|>Done<|Next review/);
+  // A task's notes read as they always have.
+  const task = bar({
+    ...asked,
+    feedback: { actionId: 'changes', notes: 1, delivery: 'task', taskId: 't' },
+  });
+  assert.match(task, /Sent to Gabriel/);
+  assert.doesNotMatch(task, /Start a task|nobody/);
+});

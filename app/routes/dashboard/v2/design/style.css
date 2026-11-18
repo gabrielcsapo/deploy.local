@@ -2889,6 +2889,10 @@ button.dz-link-row:hover,
   color: var(--ds-tertiary);
   font-size: var(--ds-type-caption);
 }
+.dz-review-heading > span strong {
+  color: var(--ds-text);
+  font-weight: 500;
+}
 .dz-review-bar .dl-btn {
   white-space: nowrap;
 }

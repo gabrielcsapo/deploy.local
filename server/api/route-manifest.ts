@@ -1090,6 +1090,21 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/feedback',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/feedback/resolve',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/feedback/wait',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
     path: '/api/projects/:project/artifacts/:artifact/design/files/:commit([0-9a-f]+)/:kind(boards|ds)/:file*',
     handler: 'v2:v2/design',
   },
@@ -1165,7 +1180,17 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/task',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
     path: '/api/projects/:project/artifacts/:artifact/design/review/undo',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/working',
     handler: 'v2:v2/design',
   },
   {
@@ -1236,6 +1261,21 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   {
     method: 'POST',
     path: '/api/projects/:project/design/edit',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/design/feedback',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/design/feedback/resolve',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/design/feedback/wait',
     handler: 'v2:v2/design',
   },
   {
@@ -1315,7 +1355,17 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'POST',
+    path: '/api/projects/:project/design/review/task',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
     path: '/api/projects/:project/design/review/undo',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/design/working',
     handler: 'v2:v2/design',
   },
   {

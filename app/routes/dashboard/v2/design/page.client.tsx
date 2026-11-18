@@ -1295,6 +1295,7 @@ function DesignCanvasPage({
           base={base}
           boardSrc={boardSrc}
           changed={changed}
+          branchRemoved={Boolean(reviewData?.landing?.branch?.removed)}
           owner={owner}
           reviewing={reviewingBranches}
           onRef={chooseRef}
