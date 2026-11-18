@@ -122,6 +122,8 @@ const controller = (value?: DesignReview) =>
     api: '/api/design',
     side: 'after',
     setSide: () => {},
+    compare: { wipe: false, width: null, dark: false },
+    setCompare: () => {},
     error: '',
     busy: false,
     setBusy: () => {},
@@ -461,4 +463,214 @@ test('a shared part is the first row of the change list, one unit in the bar, an
     );
   assert.match(box(grouped.parts), /aria-label="Approve Welcome" disabled="" checked=""/);
   assert.match(box([{ ...grouped.parts![0], seen: false }]), /aria-label="Approve Welcome"\/>/);
+});
+
+const panel = (review: DesignReview) =>
+  renderToStaticMarkup(
+    <RightPanel
+      onHide={() => {}}
+      project={undefined}
+      design={undefined}
+      canvas={canvas}
+      section={null}
+      selection={null}
+      frames={{ current: frames }}
+      tokens={{ colors: [], textStyles: [] }}
+      revision={0}
+      view={props.view}
+      onZoom={() => {}}
+      changes={[]}
+      select={() => {}}
+      owner="owner"
+      tab="edit"
+      setTab={() => {}}
+      commentCount={0}
+      comments={null}
+      agent={null}
+      onAsk={() => {}}
+      propose={null}
+      agents={[]}
+      onComment={() => {}}
+      htmlHref={null}
+      connections={false}
+      onConnections={() => {}}
+      onConnection={() => {}}
+      reviewing
+      review={review}
+      reviewSide="after"
+    />,
+  );
+// The Round2 board: Welcome seen in round 1 and unchanged; Welcome narrow and Install an app changed.
+const welcome = screen('Welcome.html', {
+  title: 'Welcome',
+  seen: true,
+  seenInRound: 1,
+  changedSinceReview: false,
+});
+const narrow = screen('Narrow.html', {
+  title: 'Welcome, narrow',
+  seen: true,
+  seenInRound: 2,
+  changedSinceReview: true,
+});
+const install = screen('Install.html', { title: 'Install an app', changedSinceReview: true });
+const note = {
+  noteId: null,
+  width: 1440,
+  revision: 'r1',
+  x: 0,
+  y: 0,
+  author: 'owner',
+  createdAt: '2026-11-10T00:00:00.000Z',
+  round: 1,
+};
+const roundTwo = {
+  ...data,
+  round: 2,
+  createdAt: '2026-11-12T00:00:00.000Z',
+  boards: [welcome, narrow, install],
+  groups: [{ id: null, title: null, boards: [welcome.file, narrow.file, install.file] }],
+  pins: [
+    {
+      ...note,
+      id: 'a',
+      number: 1,
+      board: narrow.file,
+      text: 'Keep the gutter at 16 here too.',
+      resolved: true,
+      reply: 'Gutter is 16 at every width now.',
+    },
+    {
+      ...note,
+      id: 'b',
+      number: 2,
+      board: install.file,
+      text: 'The app card should say who made it.',
+      resolved: false,
+      reply: 'Kept the size; the maker does not fit at 700.',
+    },
+  ],
+} as unknown as DesignReview;
+
+test('a second round counts changed screens, tags what was seen, and lists last round’s notes', () => {
+  assert.match(
+    bar(roundTwo),
+    /from Designer · round 2 · <span class="dz-review-count">1 of 2 changed screens approved<\/span>/,
+  );
+  // Round one keeps its wording.
+  assert.match(bar({ ...roundTwo, round: 1 }), /from Designer · 2 of 3 approved/);
+  const html = renderToStaticMarkup(
+    <DesignCanvas
+      {...props}
+      canvas={{
+        boards: {
+          [welcome.file]: { x: 0, y: 0, w: 1440, h: 900 },
+          [install.file]: { x: 1500, y: 0, w: 1440, h: 900 },
+        },
+      }}
+      review={{
+        ...frameReview,
+        round: 2,
+        boards: new Map([
+          [welcome.file, welcome],
+          [install.file, install],
+        ]),
+      }}
+    />,
+  );
+  // A plain tag, not the accent Changed one, and a ticked box.
+  assert.match(html, /<span class="dz-tag">Seen in round 1<\/span>/);
+  assert.match(html, /aria-label="Approve Welcome" disabled="" checked=""/);
+  assert.match(html, /<span class="dz-tag review">Changed<\/span>/);
+  const text = panel(roundTwo)
+    .replace(/<[^>]+>/g, '|')
+    .replace(/\|+/g, '|');
+  assert.match(
+    text,
+    /\|Since your last review\|2 screens changed\. 1 of your 2 notes addressed\.\|1\|Keep the gutter at 16 here too\.\|Welcome, narrow\|Addressed\|Gutter is 16 at every width now\.\|2\|The app card should say who made it\.\|Install an app\|Still open\|Kept the size; the maker does not fit at 700\.\|Changes on this branch\|/,
+  );
+  assert.match(panel(roundTwo), /class="dz-since-addressed">Addressed/);
+  // Last round's notes are not listed twice.
+  assert.equal(text.match(/Keep the gutter at 16 here too/g)?.length, 1);
+  assert.doesNotMatch(panel({ ...roundTwo, round: 1 }), /Since your last review/);
+});
+
+const compareBar = (value: DesignReview, compare: CanvasReview['compare'], noBefore = false) =>
+  renderToStaticMarkup(
+    <InboxProvider>
+      <CanvasReviewBar
+        review={{ ...controller(value), compare }}
+        suggestions=""
+        beforeDecision={async () => ''}
+        compare
+        noBefore={noBefore}
+      />
+    </InboxProvider>,
+  );
+
+test('a canvas review offers Wipe, a width and Dark; a document’s does not', () => {
+  const off = { wipe: false, width: null, dark: false };
+  const html = compareBar(data, off);
+  assert.match(
+    html,
+    /aria-pressed="false">Before<\/button><button[^>]*aria-pressed="true">After<\/button><button[^>]*aria-pressed="false">Wipe<\/button>/,
+  );
+  assert.match(html, /<span class="dz-review-cmp">/);
+  assert.match(html, /aria-label="Width" aria-haspopup="menu" aria-expanded="false"[^>]*>1440 /);
+  assert.match(html, /aria-pressed="false"[^>]*>Dark<\/button>/);
+  // With nothing on main, Wipe is disabled like Before.
+  assert.match(
+    compareBar(data, off, true),
+    /disabled="" class="" aria-pressed="false">Wipe<\/button>/,
+  );
+  const on = compareBar(data, { wipe: true, width: 700, dark: true });
+  assert.match(on, /class="on" aria-pressed="true">Wipe<\/button>/);
+  assert.match(on, /aria-label="Width"[^>]*>700 /);
+  assert.match(on, /aria-pressed="true"[^>]*>Dark<\/button>/);
+  assert.doesNotMatch(bar(data), /Wipe|dz-review-cmp/);
+});
+
+test('a chosen width draws changed web frames at it; wipe shows both sides with a slider', () => {
+  const phone = screen('Phone.html', { w: 390, widths: [390] });
+  const added = screen('Added.html', { added: true });
+  const draw = (compare: CanvasReview['compare']) =>
+    renderToStaticMarkup(
+      <DesignCanvas
+        {...props}
+        canvas={{
+          boards: {
+            'Changed.html': { x: 0, y: 0, w: 1440, h: 900 },
+            'Unchanged.html': { x: 1500, y: 0, w: 1440, h: 900 },
+            'Phone.html': { x: 3000, y: 0, w: 390, h: 844 },
+            'Added.html': { x: 0, y: 1000, w: 1440, h: 900 },
+          },
+        }}
+        review={{
+          ...frameReview,
+          boards: new Map([
+            [changed.file, changed],
+            [phone.file, phone],
+            [added.file, added],
+          ]),
+          compare,
+        }}
+      />,
+    );
+  const narrowHtml = draw({ wipe: false, width: 700, dark: false });
+  assert.match(narrowHtml, /title="Changed"[^>]*width="700"/);
+  assert.match(narrowHtml, /title="Unchanged"[^>]*width="1440"/);
+  assert.match(narrowHtml, /width:390px;height:844px.*>Phone 390</);
+  const wipe = draw({ wipe: true, width: null, dark: false });
+  assert.match(
+    wipe,
+    /title="Changed · Before" [^>]*src="\/api\/design\/files\/base\/boards\/Changed.html"/,
+  );
+  assert.match(wipe, /title="Changed" [^>]*src="\/files\/proposed\/boards\/Changed.html"/);
+  assert.match(
+    wipe,
+    /role="slider" tabindex="0" aria-label="Wipe between Before and After" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"/,
+  );
+  // A new frame has nothing to wipe: one slider, and its After alone.
+  assert.equal(wipe.match(/role="slider"/g)?.length, 1);
+  assert.match(wipe, /title="Added" [^>]*src="\/files\/proposed\/boards\/Added.html"/);
 });

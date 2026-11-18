@@ -1,7 +1,7 @@
 'use client';
 import type { DesignReview } from '../../../../../shared/v2/contracts';
 import { inboxItemHref } from './review-model';
-import { screenCount, type ReviewSide } from './canvas-review-model';
+import { screenCount, sinceLastReview, type ReviewSide } from './canvas-review-model';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Skeleton, Action, Icon, type IconName } from '@/components/ui';
 import type { InboxItem, Project } from '../../../../../shared/v2/contracts';
@@ -2133,74 +2133,108 @@ export function RightPanel({
   // A screen there only to show a shared part is the part's row, not a change of its own.
   const ownBoards = review?.boards.filter((entry) => !entry.instanceOnly) ?? [];
   const parts = review?.parts ?? [];
+  const sinceReview = review ? sinceLastReview(review) : null;
+  const lastNotes = new Set(sinceReview?.notes.map((note) => note.id));
   const reviewChanges = review && tab === 'edit' && (
-    <Prop
-      title="Changes on this branch"
-      actions={
-        <span className="dz-meta">{parts.length + ownBoards.length + review.notes.length}</span>
-      }
-    >
-      <div className="dz-list">
-        {parts.map((part) => (
-          <button
-            key={`part:${part.component}`}
-            type="button"
-            className="dz-list-item dz-part"
-            onClick={() => select({ board: part.lookAt.file, layer: null })}
-          >
-            <span className="dz-dot" />
-            <span className="dz-t">{part.name}</span>
-            <span className="dz-meta">{screenCount(part.screens)}</span>
-            <span className="dz-part-note">
-              One change to a shared part. Look at it on {part.lookAt.title}; ticking it there ticks
-              it for all.
-            </span>
-          </button>
-        ))}
-        {ownBoards.flatMap((entry) => {
-          const layers = entry.changes.length
-            ? entry.changes
-            : [{ layer: '', words: entry.added ? 'New' : entry.removed ? 'Removed' : 'Changed' }];
-          return layers.map((change) => (
+    <>
+      {sinceReview && (
+        <Prop title="Since your last review">
+          <span className="dz-since-summary">{sinceReview.summary}</span>
+          {sinceReview.notes.length > 0 && (
+            <div className="dz-list">
+              {sinceReview.notes.map((note) => (
+                <button
+                  key={note.id}
+                  type="button"
+                  className="dz-list-item dz-since"
+                  onClick={() => select({ board: note.board, layer: null })}
+                >
+                  <span className="dz-since-number">{note.number}</span>
+                  <span className="dz-since-text">{note.text}</span>
+                  <span className="dz-since-line">
+                    <span>{note.screen}</span>
+                    <span className={note.addressed ? 'dz-since-addressed' : 'dz-since-open'}>
+                      {note.addressed ? 'Addressed' : 'Still open'}
+                    </span>
+                  </span>
+                  {note.reply && <span className="dz-since-reply">{note.reply}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </Prop>
+      )}
+      <Prop
+        title="Changes on this branch"
+        actions={
+          <span className="dz-meta">{parts.length + ownBoards.length + review.notes.length}</span>
+        }
+      >
+        <div className="dz-list">
+          {parts.map((part) => (
             <button
-              key={`${entry.file}:${change.layer}`}
+              key={`part:${part.component}`}
               type="button"
-              className="dz-list-item"
-              title={change.words}
-              onClick={() => select({ board: entry.file, layer: change.layer || null })}
+              className="dz-list-item dz-part"
+              onClick={() => select({ board: part.lookAt.file, layer: null })}
             >
               <span className="dz-dot" />
-              <span className="dz-t">
-                {entry.title}
-                {change.layer
-                  ? ` › ${nameOf(frames.current.get(entry.file)?.contentDocument, change.layer)}`
-                  : ''}
+              <span className="dz-t">{part.name}</span>
+              <span className="dz-meta">{screenCount(part.screens)}</span>
+              <span className="dz-part-note">
+                One change to a shared part. Look at it on {part.lookAt.title}; ticking it there
+                ticks it for all.
               </span>
-              <span className="dz-meta">{change.words}</span>
             </button>
-          ));
-        })}
-        {review.notes.map((note) => (
-          <details key={note.id}>
-            <summary>{note.title}</summary>
-            {note[reviewSide ?? 'after']?.map((line, index) => (
-              <p key={index}>{line.text}</p>
+          ))}
+          {ownBoards.flatMap((entry) => {
+            const layers = entry.changes.length
+              ? entry.changes
+              : [{ layer: '', words: entry.added ? 'New' : entry.removed ? 'Removed' : 'Changed' }];
+            return layers.map((change) => (
+              <button
+                key={`${entry.file}:${change.layer}`}
+                type="button"
+                className="dz-list-item"
+                title={change.words}
+                onClick={() => select({ board: entry.file, layer: change.layer || null })}
+              >
+                <span className="dz-dot" />
+                <span className="dz-t">
+                  {entry.title}
+                  {change.layer
+                    ? ` › ${nameOf(frames.current.get(entry.file)?.contentDocument, change.layer)}`
+                    : ''}
+                </span>
+                <span className="dz-meta">{change.words}</span>
+              </button>
+            ));
+          })}
+          {review.notes.map((note) => (
+            <details key={note.id}>
+              <summary>{note.title}</summary>
+              {note[reviewSide ?? 'after']?.map((line, index) => (
+                <p key={index}>{line.text}</p>
+              ))}
+            </details>
+          ))}
+          {/* Last round's notes are in Since your last review. */}
+          {review.pins
+            .filter((pin) => !lastNotes.has(pin.id))
+            .map((pin) => (
+              <button
+                key={pin.id}
+                type="button"
+                className="dz-list-item"
+                onClick={() => select({ board: pin.board, layer: null })}
+              >
+                <span className="dz-t">{pin.text}</span>
+                <span className="dz-meta">{pin.resolved ? 'Addressed' : 'Open'}</span>
+              </button>
             ))}
-          </details>
-        ))}
-        {review.pins.map((pin) => (
-          <button
-            key={pin.id}
-            type="button"
-            className="dz-list-item"
-            onClick={() => select({ board: pin.board, layer: null })}
-          >
-            <span className="dz-t">{pin.text}</span>
-            <span className="dz-meta">{pin.resolved ? 'Addressed' : 'Open'}</span>
-          </button>
-        ))}
-      </div>
-    </Prop>
+        </div>
+      </Prop>
+    </>
   );
   return (
     <aside className="dz-right" aria-label="Edit">

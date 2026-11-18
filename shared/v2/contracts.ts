@@ -495,6 +495,8 @@ export type DesignReviewPin = {
   resolved: boolean;
   reply: string | null;
   createdAt: string;
+  /** The review round the pin was made in. Absent from older coordinators. */
+  round?: number;
 };
 export type DesignReviewResolution = {
   file: string;
@@ -528,6 +530,8 @@ export type DesignReviewScreen = {
   /** Compatibility with older clients: plain element words, never diff descriptions. */
   lines: string[];
   seen: boolean;
+  /** The round the screen was ticked in, while it is seen. Absent from older coordinators. */
+  seenInRound?: number;
   changedSinceReview: boolean;
   conflict: boolean;
   /** Present with GET review?previews=all; otherwise load /review/preview per viewport. */
@@ -551,6 +555,8 @@ export type DesignReviewPart = {
   /** The screen to look at it on; ticking that screen ticks the part. */
   lookAt: { file: string; title: string };
   seen: boolean;
+  /** False when the component is as it was in the owner's last review. Absent from older coordinators. */
+  changedSinceReview?: boolean;
 };
 export type DesignReviewRow = {
   changeWords?: string;

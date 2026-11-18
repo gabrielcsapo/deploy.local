@@ -10,7 +10,16 @@ import { useAgentName, useInbox } from '../data/hooks';
 import { authenticatedFetch, request, useData } from '../projects/data';
 import { approvalRecord, buildLine, inboxItemHref, resolutionProgress } from './review-model';
 import { approveLabel } from '../../../../../shared/v2/artifacts';
-import { frameTicked, reviewUnits, seenFrame, type ReviewSide } from './canvas-review-model';
+import {
+  defaultReviewWidth,
+  frameTicked,
+  reviewProgress,
+  reviewUnits,
+  reviewWidths,
+  seenFrame,
+  type ReviewCompare,
+  type ReviewSide,
+} from './canvas-review-model';
 import { BuildDesign } from './BuildDesign';
 import { DesignBuildDecision } from '../inbox/DesignBuildDecision';
 
@@ -20,6 +29,8 @@ export function useCanvasReview(project: string, item: string | null) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [side, setSide] = useState<ReviewSide>('after');
+  // Wipe, width and dark are for looking only: never sent, never saved, gone when the review closes.
+  const [compare, setCompare] = useState<ReviewCompare>({ wipe: false, width: null, dark: false });
   const version = useRef(0);
   const loading = useRef(false);
   const controller = useRef<AbortController | null>(null);
@@ -101,6 +112,8 @@ export function useCanvasReview(project: string, item: string | null) {
     setBusy,
     side,
     setSide,
+    compare,
+    setCompare,
     load,
     approveFrame,
   };
@@ -147,10 +160,13 @@ export function ReviewAreas({
             ? frameDocument?.querySelector(`[data-layer="${CSS.escape(area.layer)}"]`)
             : null;
         const measured = layer?.getBoundingClientRect();
+        // Cached rectangles are wrong at another width: with nothing measured, draw none.
         const rect =
           measured?.width && measured.height
             ? { x: measured.x, y: measured.y, w: measured.width, h: measured.height }
-            : cached;
+            : board.w === width
+              ? cached
+              : null;
         return (
           rect && (
             <i
@@ -180,6 +196,7 @@ export function CanvasReviewBar({
   beforeDecision,
   progress,
   noBefore = false,
+  compare = false,
 }: {
   review: CanvasReview;
   suggestions: string;
@@ -188,6 +205,8 @@ export function CanvasReviewBar({
   progress?: ReactNode;
   /** Nothing on main to compare with: Before cannot be chosen. */
   noBefore?: boolean;
+  /** A canvas of frames: Wipe, a width and Dark to look at them with. */
+  compare?: boolean;
 }) {
   const { data, busy, setBusy, setError, load, api, item } = review;
   const inbox = useInbox();
@@ -219,6 +238,23 @@ export function CanvasReviewBar({
   }, []);
   // A shared part counts once, however many screens show it.
   const units = data ? reviewUnits(data) : [];
+  const count = data ? reviewProgress(data) : null;
+  const [widthMenu, setWidthMenu] = useState(false);
+  const widthBox = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!widthMenu) return;
+    const away = (event: MouseEvent) => {
+      if (!widthBox.current?.contains(event.target as Node)) setWidthMenu(false);
+    };
+    const escape = (event: KeyboardEvent) => event.key === 'Escape' && setWidthMenu(false);
+    window.addEventListener('mousedown', away);
+    window.addEventListener('keydown', escape);
+    return () => {
+      window.removeEventListener('mousedown', away);
+      window.removeEventListener('keydown', escape);
+    };
+  }, [widthMenu]);
+  const view = review.compare;
   const unticked = units.filter((unit) => !unit.seen);
   const open = data?.pins.filter((pin) => !pin.resolved) ?? [];
   const resolutions = data?.resolutions ?? [];
@@ -335,11 +371,14 @@ export function CanvasReviewBar({
             <span>
               {' '}
               · from {data.proposer.name} ·{' '}
-              {progress ?? (
-                <>
-                  {units.filter((unit) => unit.seen).length} of {units.length} approved
-                </>
-              )}
+              {progress ??
+                (count?.round ? (
+                  <>
+                    {count.round} · <span className="dz-review-count">{count.count}</span>
+                  </>
+                ) : (
+                  count?.count
+                ))}
             </span>
           )}
           {data && approved && (
@@ -363,13 +402,61 @@ export function CanvasReviewBar({
         </span>
         <Seg
           label="Review version"
-          value={review.side}
+          value={compare && view.wipe ? 'wipe' : review.side}
           options={[
             { value: 'before', label: 'Before', disabled: noBefore },
             { value: 'after', label: 'After' },
+            ...(compare ? [{ value: 'wipe', label: 'Wipe', disabled: noBefore }] : []),
           ]}
-          onChange={(value) => review.setSide(value as ReviewSide)}
+          onChange={(value) => {
+            // Wipe shows both sides; edits and notes follow After, as they do outside it.
+            review.setCompare((current) => ({ ...current, wipe: value === 'wipe' }));
+            review.setSide(value === 'before' ? 'before' : 'after');
+          }}
         />
+        {compare && (
+          <span className="dz-review-cmp">
+            <span className="dz-zoom" ref={widthBox}>
+              <Action
+                variant="quiet"
+                aria-label="Width"
+                aria-haspopup="menu"
+                aria-expanded={widthMenu}
+                onClick={() => setWidthMenu(!widthMenu)}
+              >
+                {view.width ?? defaultReviewWidth} <Icon name="down" size={12} />
+              </Action>
+              {widthMenu && (
+                <div
+                  className="dl-menu dz-zoom-menu"
+                  role="menu"
+                  aria-label="Width"
+                  onClick={() => setWidthMenu(false)}
+                >
+                  {reviewWidths.map((width) => (
+                    <button
+                      key={width}
+                      type="button"
+                      className="dl-menu-item"
+                      role="menuitemradio"
+                      aria-checked={(view.width ?? defaultReviewWidth) === width}
+                      onClick={() => review.setCompare((current) => ({ ...current, width }))}
+                    >
+                      {width}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </span>
+            <Action
+              variant="quiet"
+              aria-pressed={view.dark}
+              onClick={() => review.setCompare((current) => ({ ...current, dark: !current.dark }))}
+            >
+              Dark
+            </Action>
+          </span>
+        )}
         {!data ? (
           <Skeleton label="Loading review decisions" />
         ) : notLanded ? (

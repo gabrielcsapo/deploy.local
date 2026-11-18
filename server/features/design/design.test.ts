@@ -1692,8 +1692,20 @@ test('seen state is owner/revision/screen scoped and round two retains only unch
   assert.equal(round.pins[0].resolved, true);
   assert.equal(round.pins[0].revision, initial.after);
   assert.deepEqual(round.pins[0].drawing, pin.drawing);
+  // Last round's notes say which round they were made in, and seen screens when they were ticked.
+  assert.equal(round.pins[0].round, 1);
+  assert.equal(pin.round, 1);
+  assert.deepEqual(round.boards.map((b: any) => [b.file, b.seenInRound]).sort(), [
+    ['Alpha.html', undefined],
+    ['Beta.html', 1],
+  ]);
   await f.call('/review/seen', { item: next.id, board: 'Alpha.html', revision: round.after });
-  assert.equal((await f.read(next)).pins[0].resolved, true, 'looking does not change resolution');
+  const looked = await f.read(next);
+  assert.equal(looked.pins[0].resolved, true, 'looking does not change resolution');
+  assert.deepEqual(looked.boards.map((b: any) => [b.file, b.seenInRound]).sort(), [
+    ['Alpha.html', 2],
+    ['Beta.html', 1],
+  ]);
   await f.call('/review/pins', { item: next.id, id: pin.id, resolved: false }, 'PATCH');
   assert.equal((await f.read(next)).pins[0].resolved, false);
   await answerInbox('alice', next.id, { actionId: 'approve', on: 'web' });
@@ -3266,6 +3278,7 @@ test('a shared part is one change in review whether the branch carries its insta
       // Plain, the one changed screen, has no sidebar: the first on the canvas that has one.
       lookAt: { file: 'Beta.html', title: 'Beta' },
       seen: false,
+      changedSinceReview: true,
     },
   ]);
   // Plain is its own change; Beta is there only to look at the sidebar on; Alpha and Gamma are not.
@@ -3336,6 +3349,7 @@ test('a shared part seen in one round stays seen while the component is the same
   const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
   const f = await sharedPartFixture('part-rounds', false);
   const first = await f.read();
+  assert.equal(first.parts[0].changedSinceReview, true);
   await f.call('/review/seen', { item: f.item.id, board: 'Beta.html', revision: first.after });
   await answerInbox('alice', f.item.id, { actionId: 'changes', on: 'web', note: 'Bigger.' });
   const propose = async (files: Record<string, string>) => {
@@ -3358,6 +3372,8 @@ test('a shared part seen in one round stays seen while the component is the same
   });
   assert.equal(second.round, 2);
   assert.equal(second.parts[0].seen, true);
+  // The part counts among what changed since the last review only when it changed again.
+  assert.equal(second.parts[0].changedSinceReview, false);
   assert.equal(second.boards.find((board: any) => board.file === 'Beta.html').seen, true);
   assert.equal(
     second.boards.find((board: any) => board.file === 'Beta.html').changedSinceReview,
@@ -3371,5 +3387,6 @@ test('a shared part seen in one round stays seen while the component is the same
   const third = await propose({ [libraryPath]: `${JSON.stringify(library, null, 2)}\n` });
   assert.equal(third.round, 3);
   assert.equal(third.parts[0].seen, false);
+  assert.equal(third.parts[0].changedSinceReview, true);
   assert.equal(third.boards.find((board: any) => board.file === 'Beta.html').seen, false);
 });

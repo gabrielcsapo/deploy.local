@@ -703,6 +703,50 @@
   line-height: 1.45;
   white-space: normal;
 }
+/* A later round: what changed, then each note sent last round with whether it was addressed. */
+.dz-since-summary {
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+  line-height: 1.45;
+}
+.dz-list-item.dz-since {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: start;
+  gap: calc(var(--ds-space-1) / 2) var(--ds-space-2);
+  padding-block: 6px;
+}
+.dz-since-number {
+  grid-row: 1 / span 3;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+}
+.dz-since-text {
+  white-space: normal;
+}
+.dz-since-line {
+  display: flex;
+  gap: var(--ds-space-2);
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+}
+.dz-since-line > :last-child {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.dz-since-addressed {
+  color: var(--ds-success);
+}
+.dz-since-open {
+  color: var(--ds-text);
+}
+.dz-since-reply {
+  grid-column: 2;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+  line-height: 1.45;
+  white-space: normal;
+}
 .dz-tokens {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2895,6 +2939,7 @@ button.dz-link-row:hover,
 .dz-review-bar {
   flex-wrap: wrap;
   gap: var(--ds-space-2);
+  container-type: inline-size;
 }
 .dz-review-heading {
   flex: 1;
@@ -2910,6 +2955,65 @@ button.dz-link-row:hover,
 }
 .dz-review-bar .dl-btn {
   white-space: nowrap;
+}
+/* Between the app's panels the bar is short: the heading takes its own row, the controls stay together. */
+@container (max-width: 800px) {
+  .dz-review-heading {
+    flex-basis: 100%;
+  }
+}
+.dz-review-count {
+  white-space: nowrap;
+}
+/* Width and Dark: quiet, beside the version control. */
+.dz-review-cmp {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+}
+.dz-review-cmp .dz-zoom {
+  margin-left: 0;
+}
+.dz-review-cmp .dl-btn.quiet[aria-pressed='true'] {
+  background: var(--ds-hover);
+  color: var(--ds-text);
+}
+/* Wipe: Before left of the divider, After right of it, in one frame. */
+.dz-wipe,
+.dz-wipe-side {
+  position: absolute;
+  inset: 0;
+}
+.dz-wipe-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.dz-wipe-divider > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ds-text);
+}
+.dz-wipe-divider > b {
+  position: relative;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: var(--ds-text);
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-surface);
+}
+.dz-wipe-divider:focus-visible {
+  outline: none;
+}
+.dz-wipe-divider:focus-visible > b {
+  box-shadow: 0 0 0 3px var(--ds-focus);
 }
 .dz-review-dim,
 .dz-review-world > .dz-note,
@@ -2953,6 +3057,9 @@ button.dz-link-row:hover,
 @media (max-width: 820px) {
   .dz-review-heading {
     flex-basis: 100%;
+  }
+  .dz-review-cmp {
+    display: none;
   }
   .dz-stage:has(> .dz-review-bar) > .dz-toolbar {
     top: calc(var(--dz-review-bar-height, 100px) + 12px);
