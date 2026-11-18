@@ -18,7 +18,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hostname, cpus, totalmem, platform, release } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { safeStorage } from 'electron';
-import { CoordinatorClient, coordinatorOrigin, inspectCertificate, validPin } from './client.mjs';
+import {
+  CoordinatorClient,
+  certificateProblem,
+  coordinatorOrigin,
+  inspectCertificate,
+} from './client.mjs';
 import { InboxModel, trayModel, externalUrl, roles } from './model.mjs';
 import { icon } from './icons.mjs';
 import { Vault } from './vault.mjs';
@@ -72,7 +77,8 @@ const notifications = new Map();
 const controlTasks = new Set();
 const controlClientId = randomUUID();
 let controlSession,
-  checkingControl = false;
+  checkingControl = false,
+  checkingCertificate = false;
 const state = {
   page: 'connect',
   origin: coordinatorOrigin(process.env.DEPLOY_COORDINATOR_URL || 'https://deploy.local'),
@@ -227,9 +233,12 @@ function trustedSender(event, local = false) {
 function configureSession() {
   const ses = session.fromPartition('persist:coordinator');
   ses.setCertificateVerifyProc((request, callback) => {
-    if (client && request.hostname === new URL(client.origin).hostname && client.pin) {
+    if (client && request.hostname === new URL(client.origin).hostname && client.trusted) {
       try {
-        return callback(validPin(request.certificate.data, client.pin) ? 0 : -2);
+        const trust = { ca: client.ca, pin: client.pin };
+        return callback(
+          certificateProblem(request.certificate.data, trust, request.hostname) ? -2 : 0,
+        );
       } catch {
         return callback(-2);
       }
@@ -254,6 +263,8 @@ function configureSession() {
 // to a place, or a page that never loaded, navigates the window.
 async function dashboard(path) {
   if (!client?.credentials) return show('connect');
+  // Nothing loads from the coordinator until you have compared its new certificate.
+  if (state.certificate?.previous) return show('certificate-changed');
   if (!webWindow || webWindow.isDestroyed()) {
     webWindow = new BrowserWindow({
       width: 1200,
@@ -336,6 +347,7 @@ function save(selection = { ...worker.selection, runApps: saved.roles?.runApps ?
   saved = {
     ...saved,
     origin: client.origin,
+    ca: client.ca,
     pin: client.pin,
     credentials: client.credentials,
     roles: selection,
@@ -450,6 +462,7 @@ async function refresh() {
     vault.write(saved);
     state.online = true;
     state.lastSeen = Date.now();
+    if (client.pin && !client.ca) await adoptCa(current);
     fresh.forEach((item) => {
       if (item.kind === 'control' && item.taskId) controlTasks.add(item.taskId);
       notify(item.id);
@@ -458,6 +471,7 @@ async function refresh() {
     await reconnected();
   } catch (error) {
     if (version !== generation) return;
+    if (error.code === 'CERTIFICATE_CHANGED') await certificateChanged(current);
     if (error.status === 401) {
       state.online = false;
       client.credentials = null;
@@ -469,6 +483,59 @@ async function refresh() {
     update();
     throw error;
   }
+}
+// Macs set up before CA trust hold the exact certificate's fingerprint. While that certificate still
+// answers, the CA that signs it is trusted in its place, so the next renewal needs nothing from you.
+async function adoptCa(current) {
+  try {
+    const seen = await inspectCertificate(current.origin);
+    if (current !== client || !seen || seen.certificate !== current.pin) return;
+    current.ca = seen.ca;
+    current.pin = undefined;
+    save();
+  } catch {
+    // Tried again after the next successful refresh.
+  }
+}
+// The coordinator answers with a certificate its trusted CA did not sign. Show what changed and wait
+// for you to compare it; nothing is sent to the coordinator until then.
+async function certificateChanged(current) {
+  state.online = false;
+  if (checkingCertificate || state.certificate?.previous) return;
+  checkingCertificate = true;
+  try {
+    const seen = await inspectCertificate(current.origin);
+    if (current !== client || !seen || seen.fingerprint === current.trusted) return;
+    state.certificate = { ...seen, previous: current.trusted };
+    backgroundPage('certificate-changed');
+  } catch {
+    // Not answering: the offline notice stays, and the next poll looks again.
+  } finally {
+    checkingCertificate = false;
+  }
+}
+async function trustChanged() {
+  const shown = state.certificate;
+  if (state.page !== 'certificate-changed' || !shown?.previous || !client)
+    throw new Error('Compare the new fingerprint first.');
+  const seen = await inspectCertificate(client.origin);
+  if (seen?.fingerprint !== shown.fingerprint) {
+    state.certificate = seen && { ...seen, previous: shown.previous };
+    throw new Error('The certificate changed again while you were comparing. Compare this one.');
+  }
+  client.ca = seen.ca;
+  client.pin = undefined;
+  state.certificate = null;
+  save();
+  // The window's session re-checks the coordinator against the new CA on fresh connections.
+  const ses = configureSession();
+  await ses.closeAllConnections();
+  failures = 0;
+  if (saved.roles && saved.enrollment)
+    saved.enrollment = await worker.configure(saved.roles, client, saved.enrollment);
+  state.page = 'dashboard';
+  await refresh().catch(() => {});
+  await dashboard();
 }
 async function poll() {
   if (polling || !client?.credentials || quitting) return;
@@ -582,6 +649,7 @@ async function switchCoordinator() {
   await session.fromPartition('persist:coordinator').clearStorageData();
   client = null;
   saved = {};
+  state.certificate = null;
   state.coordinatorName = undefined;
   state.runningTask = undefined;
   inbox = new InboxModel();
@@ -624,6 +692,7 @@ ipcMain.handle('shell:action', async (event, body) => {
         'repair-worker',
         'restart-docker',
         'remove-leftover',
+        'trust-changed',
       ].includes(body.action)
     )
       throw new Error('The worker is already being changed. Wait for it to finish.');
@@ -637,7 +706,7 @@ ipcMain.handle('shell:action', async (event, body) => {
     } else if (body.action === 'trust') {
       if (state.page !== 'trust' || body.confirmed !== 'on' || !state.certificate)
         throw new Error('Compare and confirm the fingerprint first.');
-      client = new CoordinatorClient(state.origin, { pin: state.certificate.fingerprint });
+      client = new CoordinatorClient(state.origin, { ca: state.certificate.ca });
       show('signin');
     } else if (body.action === 'signin') {
       if (!client || !vault.available())
@@ -712,7 +781,8 @@ ipcMain.handle('shell:action', async (event, body) => {
       state.computers = state.computers.map((entry) =>
         entry.id === computer.id ? computer : entry,
       );
-    } else if (body.action === 'switch') await switchCoordinator();
+    } else if (body.action === 'trust-changed') await trustChanged();
+    else if (body.action === 'switch') await switchCoordinator();
     else if (body.action === 'retry') {
       await refresh();
       if (state.online) await dashboard();
@@ -1067,6 +1137,21 @@ export async function captureFixture(page) {
     notifications.delete(id);
     notify(id);
     return fixture.notificationFile;
+  }
+  if (page === 'CertificateChanged') {
+    const issued = new Date();
+    issued.setHours(9, 11, 0, 0);
+    const bytes = (start, end) => [...start, ...Array(20).fill('00'), ...end].join(':');
+    state.online = false;
+    state.certificate = {
+      previous: bytes(['4F', 'A2', '19', 'C7', '0B', 'E3'], ['88', 'D1', '5E', '42', '9C', '07']),
+      fingerprint: bytes(['CA', '40', '8C', 'AF', 'D7', '6E'], ['2A', '88', 'F1', '9D', '13', '97']),
+      address: '192.168.1.20',
+      issued: issued.toISOString(),
+      expires: '2029-02-20T17:11:53Z',
+    };
+    show('certificate-changed');
+    return window.id;
   }
   if (!['Permissions', 'Offline'].includes(page)) throw new Error('Unknown capture page.');
   if (page === 'Offline') {

@@ -96,6 +96,7 @@ export class WorkerManager {
       DEPLOY_WORKER_ROOT: root,
       DEPLOY_WORKER_NAME: hostname(),
       DEPLOY_NODE_ID: this.nodeId(client.origin) || '',
+      DEPLOY_DESKTOP_CA: client.ca || '',
       DEPLOY_DESKTOP_PIN: client.pin || '',
       DEPLOY_DESKTOP_HELPER: this.selection.useScreen ? this.helper : '',
       DEPLOY_BROWSER_CONTROL: '0',

@@ -47,6 +47,7 @@ export function trayModel({
   workerId,
   now,
   appWorker,
+  certificate,
 }) {
   summary = live?.summary || summary;
   const computer = computers?.find((entry) => entry.workerIds.includes(workerId));
@@ -56,14 +57,19 @@ export function trayModel({
     .filter((entry) => ['failing', 'warning'].includes(entry.state))
     .sort((a, b) => Number(b.state === 'failing') - Number(a.state === 'failing'));
   return {
-    connection: online ? 'Connected' : 'Offline · retrying every 10 s',
+    connection: certificate?.previous
+      ? 'New certificate · check it'
+      : online
+        ? 'Connected'
+        : 'Offline · retrying every 10 s',
     count: inbox.length,
     live: liveLabel(summary),
     failing:
       Number(summary?.failing || 0) > 0 ||
       !!(appWorker?.install !== 'none' && appWorker?.state && appWorker.state !== 'running'),
-    icon:
-      appWorker?.install !== 'none' && appWorker?.state && appWorker.state !== 'running'
+    icon: certificate?.previous
+      ? 'warning'
+      : appWorker?.install !== 'none' && appWorker?.state && appWorker.state !== 'running'
         ? 'failing'
         : !online
           ? 'offline'
@@ -120,4 +126,11 @@ export function roles(value, platform = process.platform, helper = false) {
   if (result.useScreen && !result.takeTasks)
     throw new Error('Turn on Take tasks before Use the screen.');
   return result;
+}
+// The first and last six bytes, the same short form `deploy status --fingerprint` prints.
+export function shortFingerprint(value) {
+  const bytes = String(value || '')
+    .toUpperCase()
+    .split(':');
+  return bytes.length === 32 ? `${bytes.slice(0, 6).join(':')} · ${bytes.slice(-6).join(':')}` : '';
 }

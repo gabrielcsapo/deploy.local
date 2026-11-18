@@ -21,19 +21,65 @@ export function coordinatorOrigin(value = 'https://deploy.local') {
 export function fingerprint(pem) {
   return new X509Certificate(pem).fingerprint256;
 }
+const current = (cert, now) => Date.parse(cert.validFrom) <= now && now <= Date.parse(cert.validTo);
 export function validPin(pem, pin, now = Date.now()) {
   const cert = new X509Certificate(pem);
-  return (
-    cert.fingerprint256 === pin &&
-    Date.parse(cert.validFrom) <= now &&
-    now <= Date.parse(cert.validTo)
-  );
+  return cert.fingerprint256 === pin && current(cert, now);
 }
-// Inspection never sends HTTP or credentials. Trust still requires an explicit fingerprint confirmation.
-export function inspectCertificate(origin) {
-  const url = new URL(coordinatorOrigin(origin));
-  if (url.protocol !== 'https:') return Promise.resolve(null);
+// How the coordinator's certificate compares with what this app trusts. Trust is the coordinator's
+// own CA, so renewing its certificate (new apps add names to it) needs nothing from you. Macs set up
+// before CA trust still hold the exact certificate's fingerprint until they move to the CA.
+//   null: trusted · 'changed': signed by another CA · 'expired' · 'name': not issued for this host
+export function certificateProblem(leafPem, { ca, pin } = {}, host, now = Date.now()) {
+  const leaf = new X509Certificate(leafPem);
+  if (!ca) return leaf.fingerprint256 !== pin ? 'changed' : current(leaf, now) ? null : 'expired';
+  const authority = new X509Certificate(ca);
+  if (!leaf.checkIssued(authority) || !leaf.verify(authority.publicKey)) return 'changed';
+  if (!current(leaf, now) || !current(authority, now)) return 'expired';
+  if (host && !(isIP(host) ? leaf.checkIP(host) : leaf.checkHost(host))) return 'name';
+  return null;
+}
+const problems = {
+  changed: [
+    'CERTIFICATE_CHANGED',
+    'Coordinator certificate changed. Confirm its fingerprint again.',
+  ],
+  expired: ['CERTIFICATE_EXPIRED', 'Coordinator certificate expired.'],
+  name: ['CERTIFICATE_NAME', 'Coordinator certificate is not issued for this address.'],
+};
+export function certificateError(problem) {
+  const [code, message] = problems[problem];
+  return Object.assign(new Error(message), { code });
+}
+function readCa(origin) {
   return new Promise((resolve, reject) => {
+    // Only the public CA bytes come over this unverified request; you confirm its fingerprint.
+    const request = https.get(
+      new URL('/ca.crt', origin),
+      { rejectUnauthorized: false, agent: false },
+      (response) => {
+        let data = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          data += chunk;
+          if (data.length > 65536) response.destroy(new Error('CA certificate too large.'));
+        });
+        response.on('error', reject);
+        response.on('end', () =>
+          response.statusCode === 200 ? resolve(data) : reject(new Error('No CA certificate.')),
+        );
+      },
+    );
+    request.setTimeout(10000, () => request.destroy(new Error('Coordinator did not answer.')));
+    request.on('error', reject);
+  });
+}
+// Inspection never sends credentials. It finds the CA that signs the coordinator's certificate;
+// trust still requires you to confirm that CA's fingerprint.
+export async function inspectCertificate(origin) {
+  const url = new URL(coordinatorOrigin(origin));
+  if (url.protocol !== 'https:') return null;
+  const { leaf, issuer, address } = await new Promise((resolve, reject) => {
     const socket = tls.connect({
       host: url.hostname,
       port: Number(url.port || 443),
@@ -43,16 +89,44 @@ export function inspectCertificate(origin) {
     socket.setTimeout(10000, () => socket.destroy(new Error('Coordinator did not answer.')));
     socket.once('error', reject);
     socket.once('secureConnect', () => {
-      const cert = new X509Certificate(socket.getPeerCertificate().raw);
+      const peer = socket.getPeerCertificate(true);
+      const chain = peer.issuerCertificate;
+      const remote = socket.remoteAddress;
       socket.end();
-      resolve({ fingerprint: cert.fingerprint256, subject: cert.subject, expires: cert.validTo });
+      resolve({
+        leaf: new X509Certificate(peer.raw),
+        issuer: chain && chain !== peer ? chain.raw : null,
+        address: remote,
+      });
     });
   });
+  const signs = (pem) => {
+    try {
+      const authority = new X509Certificate(pem);
+      return authority.ca && leaf.checkIssued(authority) && leaf.verify(authority.publicKey)
+        ? authority
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const authority = (issuer && signs(issuer)) || signs(await readCa(url.origin));
+  if (!authority)
+    throw new Error('The coordinator did not send the CA that signs its certificate.');
+  return {
+    fingerprint: authority.fingerprint256,
+    ca: authority.toString(),
+    issued: authority.validFrom,
+    expires: authority.validTo,
+    certificate: leaf.fingerprint256,
+    subject: authority.subject,
+    address,
+  };
 }
-class PinnedAgent extends https.Agent {
-  constructor(pin) {
+class TrustedAgent extends https.Agent {
+  constructor(trust) {
     super({ keepAlive: false });
-    this.pin = pin;
+    this.trust = trust;
   }
   createConnection(options, callback) {
     const socket = tls.connect({ ...options, rejectUnauthorized: false });
@@ -68,22 +142,29 @@ class PinnedAgent extends https.Agent {
     };
     socket.once('error', finish);
     socket.once('secureConnect', () => {
-      if (!validPin(socket.getPeerCertificate().raw, this.pin)) {
-        const error = new Error(
-          'Coordinator certificate changed or expired. Confirm its fingerprint again.',
-        );
-        finish(error);
+      const problem = certificateProblem(
+        socket.getPeerCertificate().raw,
+        this.trust,
+        options.hostname || options.host,
+      );
+      if (problem) {
+        finish(certificateError(problem));
         socket.destroy();
       } else finish(null);
     });
-    // The agent releases this socket to HTTP only after the fingerprint check.
+    // The agent releases this socket to HTTP only after the certificate check.
   }
 }
 export class CoordinatorClient {
-  constructor(origin, { pin, credentials } = {}) {
+  constructor(origin, { ca, pin, credentials } = {}) {
     this.origin = coordinatorOrigin(origin);
-    this.pin = pin;
+    this.ca = ca;
+    this.pin = ca ? undefined : pin;
     this.credentials = credentials;
+  }
+  // The fingerprint this app trusts: the coordinator's CA, or for older setups its exact certificate.
+  get trusted() {
+    return this.ca ? fingerprint(this.ca) : this.pin;
   }
   request(path, { method = 'GET', body, timeout = 15000, headers = {}, raw = false } = {}) {
     const url = new URL(path, this.origin);
@@ -97,7 +178,10 @@ export class CoordinatorClient {
         url,
         {
           method,
-          agent: url.protocol === 'https:' && this.pin ? new PinnedAgent(this.pin) : undefined,
+          agent:
+            url.protocol === 'https:' && (this.ca || this.pin)
+              ? new TrustedAgent({ ca: this.ca, pin: this.pin })
+              : undefined,
           headers: {
             ...headers,
             ...auth,
@@ -145,7 +229,10 @@ export class CoordinatorClient {
         url,
         {
           signal,
-          agent: url.protocol === 'https:' && this.pin ? new PinnedAgent(this.pin) : undefined,
+          agent:
+            url.protocol === 'https:' && (this.ca || this.pin)
+              ? new TrustedAgent({ ca: this.ca, pin: this.pin })
+              : undefined,
           headers: this.credentials
             ? {
                 'X-Deploy-Username': this.credentials.username,

@@ -9,7 +9,7 @@ import { CoordinatorClient, inspectCertificate } from '../src/client.mjs';
 import { WorkerManager } from '../src/worker.mjs';
 const origin = process.env.DESKTOP_TEST_ORIGIN;
 test(
-  'real isolated coordinator: TLS pin, password login, Live, enrollment and bundled worker heartbeat',
+  'real isolated coordinator: CA trust, password login, Live, enrollment and bundled worker heartbeat',
   { skip: !origin, timeout: 30000 },
   async () => {
     const url = new URL(origin);
@@ -18,9 +18,9 @@ test(
     const cert = await inspectCertificate(origin);
     const untrusted = new CoordinatorClient(origin);
     await assert.rejects(untrusted.request('/api/inbox'));
-    const changed = new CoordinatorClient(origin, { pin: cert.fingerprint.replace(/^../, '00') });
+    const changed = new CoordinatorClient(origin, { pin: cert.certificate.replace(/^../, '00') });
     await assert.rejects(changed.request('/api/inbox'), /certificate changed/);
-    const client = new CoordinatorClient(origin, { pin: cert.fingerprint });
+    const client = new CoordinatorClient(origin, { ca: cert.ca });
     const username = `desktop-${Date.now()}`,
       password = 'isolated-desktop-test-password';
     await client.request('/api/register', { method: 'POST', body: { username, password } });

@@ -47,7 +47,11 @@ for (const width of [1440, 700]) {
   await page.getByRole('button', { name: /Large files/ }).click();
   await dialog(page).waitFor();
   await dialog(page).locator('table').waitFor();
-  console.log(width, 'focused', await page.evaluate(() => document.activeElement?.getAttribute('aria-label')));
+  console.log(
+    width,
+    'focused',
+    await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+  );
   await shot(page, 'StorageLargeFiles', width);
 
   await page.getByRole('textbox', { name: 'Search files' }).fill('video');
@@ -62,7 +66,9 @@ for (const width of [1440, 700]) {
     const sorts = async () =>
       dialog(page)
         .locator('th')
-        .evaluateAll((cells) => cells.map((th) => `${th.textContent}:${th.getAttribute('aria-sort') ?? '-'}`));
+        .evaluateAll((cells) =>
+          cells.map((th) => `${th.textContent}:${th.getAttribute('aria-sort') ?? '-'}`),
+        );
     console.log('sort before', await sorts());
     await dialog(page).getByRole('button', { name: 'Size' }).click();
     console.log('after Size', await sorts());
@@ -83,7 +89,11 @@ for (const width of [1440, 700]) {
   }
   await page.keyboard.press('Escape');
   await dialog(page).waitFor({ state: 'hidden' });
-  console.log(width, 'Escape closed; focus back on', await page.evaluate(() => document.activeElement?.textContent?.slice(0, 20)));
+  console.log(
+    width,
+    'Escape closed; focus back on',
+    await page.evaluate(() => document.activeElement?.textContent?.slice(0, 20)),
+  );
 
   await page.getByRole('button', { name: /Branches and tags/ }).click();
   await dialog(page).locator('table').waitFor();

@@ -106,4 +106,6 @@ for (let i = 0; i < 5; i++) {
   git('push', '-q', 'origin', `HEAD:${ref}`);
 }
 db.close();
-console.log(JSON.stringify({ project: project.id, cookie: encodeURIComponent(`${owner}:${token}`) }));
+console.log(
+  JSON.stringify({ project: project.id, cookie: encodeURIComponent(`${owner}:${token}`) }),
+);

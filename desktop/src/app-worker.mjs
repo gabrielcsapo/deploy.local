@@ -489,13 +489,16 @@ export class AppWorker {
       const logs = join(this.home, 'Library/Logs/deploy.local');
       await mkdir(logs, { recursive: true });
       const ca = join(this.root, 'desktop-coordinator-ca.pem');
-      if (this.client.pin)
-        await this.atomic(ca, await this.client.request('/ca.crt', { raw: true }));
+      if (this.client.ca || this.client.pin)
+        await this.atomic(
+          ca,
+          this.client.ca || (await this.client.request('/ca.crt', { raw: true })),
+        );
       const env = {
         PATH: this.path,
         DEPLOY_AGENT_CONFIG: this.configPath,
         DEPLOY_DATA_DIR: join(this.root, 'data'),
-        ...(this.client.pin ? { NODE_EXTRA_CA_CERTS: ca } : {}),
+        ...(this.client.ca || this.client.pin ? { NODE_EXTRA_CA_CERTS: ca } : {}),
       };
       await this.atomic(
         this.plist,

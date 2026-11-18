@@ -420,3 +420,58 @@ body:has(> main.tray) {
 .runs-apps form:last-child .tray-text small {
   white-space: normal;
 }
+
+.mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+}
+.approval {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  margin: 20px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.approval > svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--muted);
+}
+.approval > div {
+  flex: 1;
+  min-width: 0;
+}
+.approval h2 {
+  margin: 0;
+}
+.approval p {
+  margin: 4px 0 12px;
+}
+.approval code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--selection);
+  color: var(--ink);
+}
+.approval .well {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--selection);
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.approval form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+button.quiet {
+  border-color: transparent;
+  background: transparent;
+}
