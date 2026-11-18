@@ -522,8 +522,6 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
           <div className="dl-dock dl-task-wrap">
             <Composer
               key={sent}
-              project={view.project?.name || 'New task'}
-              computer={view.computer || 'Unavailable'}
               model={view.run?.modelName || view.run?.model || 'Default'}
               loading={busy}
               onSend={(text) =>

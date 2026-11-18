@@ -129,6 +129,26 @@ test('a task that names no computer goes to a free online one, not an offline co
   assert.equal(queueTask(owner, { workerId: 'gone' }).workerId, 'gone');
 });
 
+test('chosen computers are a pool: each task goes to the least busy online one among them', () => {
+  const owner = randomUUID();
+  worker(owner, 'ser');
+  worker(owner, 'bazzite');
+  worker(owner, 'mac');
+  worker(owner, 'gone', false);
+  save('run', owner, { id: 'b', workerId: 'ser', taskId: 'b', status: 'running' });
+  const pool = ['ser', 'bazzite'];
+  const first = queueTask(owner, { title: 'One', workerIds: pool });
+  assert.equal(first.workerId, 'bazzite');
+  save('run', owner, { id: 'q1', workerId: 'bazzite', taskId: first.id, status: 'queued' });
+  save('run', owner, { id: 'q2', workerId: 'bazzite', taskId: first.id, status: 'queued' });
+  // The free 'mac' is never used: it was not chosen.
+  assert.equal(queueTask(owner, { title: 'Two', workerIds: pool }).workerId, 'ser');
+  assert.throws(
+    () => queueTask(owner, { title: 'Offline', workerIds: ['gone'] }),
+    /None of the chosen computers is online to take tasks/,
+  );
+});
+
 test('a named computer that answers no is refused with the missing names', () => {
   const owner = fixture();
   answer(owner, 'mac', { xcodebuild: false, swift: false });

@@ -1,11 +1,10 @@
 'use client';
-import { useState } from 'react';
-import { Banner, Composer, Glyph, Icon } from '@/components/ui';
+import { Composer, Glyph, Icon } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { CloneTabs, SshKeyHint, useCloneProtocol } from './clone.client';
 import { cloneAddresses } from './clone.ts';
 import { CopyButton } from './code.client';
-import { request, useBrowserOrigin, type Overview } from './data';
+import { useBrowserOrigin, type Overview } from './data';
 import { projectPath } from './routing';
 
 /** A repository with no code yet: describe it for a task to write, or push code you have. */
@@ -18,7 +17,6 @@ export function ProjectStart({
   overview: Overview;
   addApp?: () => void;
 }) {
-  const [error, setError] = useState('');
   return (
     <>
       <div className="dl-empty v2-project-start">
@@ -31,27 +29,8 @@ export function ProjectStart({
           review.
         </p>
         <div className="v2-project-start-composer">
-          <Composer
-            project={project.name}
-            onSend={async (text) => {
-              try {
-                const task = await request('/api/tasks', {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    operationId: crypto.randomUUID(),
-                    projectId: project.id,
-                    title: text.split('\n')[0].slice(0, 120),
-                    prompt: text,
-                  }),
-                });
-                window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`);
-              } catch (reason) {
-                setError(reason instanceof Error ? reason.message : 'Could not start a task.');
-              }
-            }}
-          />
+          <Composer start projects={[project.id]} project={project.name} />
         </div>
-        {error && <Banner kind="danger" title={error} />}
       </div>
       <ProjectPushCode project={project} overview={overview} addApp={addApp} />
     </>

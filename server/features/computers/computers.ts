@@ -328,6 +328,9 @@ export function getModels(owner: string): ComputerModels {
             name: model.name,
             provider: option.id,
             model: model.id,
+            efforts: (Array.isArray(model.efforts) ? model.efforts : []).filter(
+              (effort: unknown): effort is string => typeof effort === 'string',
+            ),
           });
   const local: ComputerModels['local'] = [];
   for (const node of getNodes()) {

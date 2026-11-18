@@ -376,7 +376,14 @@ export type ComputerRemoval = {
   apps: { id: string; name: string; destinations: { id: string; name: string }[] }[];
   tasks: { id: string; name: string }[];
 };
-export type ModelChoice = { id: string; name: string; provider: string; model: string };
+export type ModelChoice = {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  /** Reasoning efforts this model takes, lowest first; empty when it has none to choose. */
+  efforts?: string[];
+};
 export type ModelDefaults = Record<
   'writing-code' | 'reviewing' | 'answering-questions',
   string | null

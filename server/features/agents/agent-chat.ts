@@ -31,13 +31,20 @@ export function chatModel(
   owner: string,
   override?: string | null,
   job: 'writing-code' | 'answering-questions' = 'writing-code',
-) {
+  effort?: unknown,
+): { adapter?: string; model?: string; effort?: string } {
   const models = getModels(owner);
   const selected = override || models.defaults[job];
-  if (!selected) return {};
+  if (effort !== undefined && effort !== null && typeof effort !== 'string') fail('Invalid effort');
+  if (!selected) {
+    if (effort) fail('Choose a model before choosing its effort.');
+    return {};
+  }
   const choice = models.choices.find((item) => item.id === selected);
   if (!choice) fail('That model is unavailable. Choose a model from Computers › Models.');
-  return { adapter: choice.provider, model: choice.model };
+  if (effort && !choice.efforts?.includes(effort))
+    fail(`${choice.name} does not take that effort. Choose another from Effort.`);
+  return { adapter: choice.provider, model: choice.model, ...(effort ? { effort } : {}) };
 }
 /** Agent chats use the existing compatible connection, with no tools or implicit task. */
 export async function sendAgentMessage(owner: string, agentId: string, body: any) {

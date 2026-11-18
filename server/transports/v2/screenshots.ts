@@ -229,28 +229,54 @@ export function patchScreenshot(owner: string, screenshotId: string, body: any) 
   }
   return save('screenshot', owner, { ...shot, markup, renderedImage });
 }
+/** A list of up to `max` distinct IDs from a request body, or [] when it names none. */
+function idList(value: unknown, what: string, max: number): string[] {
+  if (value === undefined || value === null) return [];
+  if (
+    !Array.isArray(value) ||
+    value.length > max ||
+    value.some((item) => typeof item !== 'string' || !item || item.length > 200)
+  )
+    fail(`Invalid ${what}`);
+  return [...new Set(value as string[])];
+}
+/**
+ * A message from the composer. In a task it continues that task. Otherwise it starts one task for
+ * each chosen project (or one with no project); each goes to a free computer among the chosen ones,
+ * or to any free computer when none is chosen.
+ */
 export function sendTaskMessage(owner: string, taskId: string | undefined, body: any) {
   const attachments = ownedAttachments(owner, body.attachments || []);
-  const settings = chatModel(owner, body.model);
+  const settings = chatModel(owner, body.model, 'writing-code', body.effort);
   const content = typeof body.text === 'string' ? body.text.trim() : '';
   if (!content || content.length > 100000) fail('Message required (maximum 100000 characters)');
+  const projectIds = idList(body.projectIds, 'projects', 20);
+  const workerIds = idList(body.workerIds, 'computers', 50);
+  const projects: (string | undefined)[] = projectIds.length ? projectIds : [body.projectId];
   return db
     .transaction(() => {
-      const task = taskId
-        ? get('task', owner, taskId)
-        : queueTask(owner, {
-            title: content.slice(0, 80),
-            projectId: body.projectId,
-            // A task started on a branch, such as a pull request's, checks out that branch.
-            ...(body.projectId && body.ref !== undefined ? { ref: body.ref } : {}),
-          });
-      const run = startRun(owner, task.id, {
-        revision: body.revision ?? task.revision,
-        content,
-        ...settings,
+      const started = (taskId ? [undefined] : projects).map((projectId) => {
+        const task = taskId
+          ? get('task', owner, taskId)
+          : queueTask(owner, {
+              title: content.slice(0, 80),
+              projectId,
+              adapter: settings.adapter,
+              ...(workerIds.length ? { workerIds } : {}),
+              // A task started on a branch, such as a pull request's, checks out that branch.
+              ...(projectId && projects.length === 1 && body.ref !== undefined
+                ? { ref: body.ref }
+                : {}),
+            });
+        const run = startRun(owner, task.id, {
+          revision: body.revision ?? task.revision,
+          content,
+          ...settings,
+        });
+        bindRunAttachments(owner, run, attachments);
+        return { taskId: task.id, runId: run.id };
       });
-      bindRunAttachments(owner, run, attachments);
-      return { taskId: task.id, runId: run.id };
+      return { ...started[0], taskIds: started.map((item) => item.taskId) };
     })
     .immediate();
 }

@@ -185,3 +185,48 @@
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
+/* The composer's project, computer and model menus (ComposerMenu.tsx): rows are real buttons. */
+.dl-composer-menu {
+  width: 240px;
+}
+.dl-composer-menu[data-placement='start'] {
+  width: max-content;
+  min-width: 256px;
+  max-width: min(360px, 100vw);
+}
+.dl-composer-menu[data-placement='side'] {
+  width: 220px;
+}
+.dl-composer-menu .dl-menu-item {
+  flex: none;
+  width: 100%;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  color: var(--ds-ink);
+  cursor: pointer;
+}
+.dl-composer-menu .dl-menu-item:hover:not(:disabled),
+.dl-composer-menu .dl-menu-item.on {
+  background: color-mix(in srgb, var(--ds-line) 70%, transparent);
+}
+.dl-composer-menu .dl-menu-item:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+.dl-composer-menu .dl-menu-item:disabled {
+  color: var(--ds-muted);
+  cursor: default;
+}
+.dl-composer-menu .dl-menu-search input {
+  color: var(--ds-ink);
+}
+.dl-composer-bar button.dl-chip {
+  font-family: inherit;
+  cursor: pointer;
+}
+.dl-composer-bar button.dl-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

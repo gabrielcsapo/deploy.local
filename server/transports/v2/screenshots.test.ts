@@ -318,3 +318,39 @@ test('a first message can start its task on a branch of the chosen project', asy
     /./,
   );
 });
+
+test('a first message starts one task per chosen project, with the chosen effort', async () => {
+  const { createProject } = await import('../../workspace/test-repository.ts');
+  save('worker', 'owner', {
+    ...get('worker', 'owner', 'mac'),
+    modelOptions: [{ id: 'codex', models: [{ id: 'one', name: 'One', efforts: ['low', 'high'] }] }],
+  });
+  const a = createProject('owner', { name: 'Alpha' });
+  const b = createProject('owner', { name: 'Beta' });
+  const result = sendTaskMessage('owner', undefined, {
+    text: 'Bump the dependencies',
+    projectIds: [a.id, b.id],
+    model: 'codex:one',
+    effort: 'high',
+  });
+  assert.equal(result.taskIds.length, 2);
+  assert.equal(result.taskId, result.taskIds[0]);
+  assert.deepEqual(
+    result.taskIds.map((id: string) => get('task', 'owner', id).projectId),
+    [a.id, b.id],
+  );
+  const runs = list('run', 'owner').filter((run: any) => result.taskIds.includes(run.taskId));
+  assert.deepEqual(
+    runs.map((run: any) => run.effort),
+    ['high', 'high'],
+  );
+  assert.throws(
+    () =>
+      sendTaskMessage('owner', undefined, { text: 'Too hard', model: 'codex:one', effort: 'max' }),
+    /One does not take that effort/,
+  );
+  assert.throws(
+    () => sendTaskMessage('owner', undefined, { text: 'Bad', projectIds: 'alpha' }),
+    /Invalid projects/,
+  );
+});

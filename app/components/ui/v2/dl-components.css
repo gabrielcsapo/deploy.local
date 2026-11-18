@@ -1379,6 +1379,54 @@ a.dl-item:hover {
   font-size: var(--ds-type-meta);
   color: var(--ds-muted);
 }
+.dl-menu-item .dl-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  flex: none;
+}
+.dl-menu-item .dl-end svg {
+  display: block;
+}
+.dl-menu-item .dl-end.dl-menu-check {
+  color: var(--ds-ink);
+}
+.dl-menu-item .dl-menu-hint {
+  font-size: var(--ds-type-meta);
+  color: var(--ds-muted);
+}
+.dl-menu-sep {
+  flex: none;
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--ds-line);
+}
+.dl-menu-note {
+  padding: 6px 10px 4px;
+  font-size: var(--ds-type-meta);
+  line-height: 16px;
+  color: var(--ds-muted);
+}
+.dl-menu-note a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dl-menu > .dl-menu-search {
+  height: 32px;
+  margin: 2px 2px 4px;
+  width: auto;
+  flex: none;
+}
+.dl-menu-search input {
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+}
+.dl-chip > .dl-chip-caret {
+  margin-left: -2px;
+  color: var(--ds-muted);
+}
 .dl-phone {
   width: 390px;
   height: 844px;

@@ -34,9 +34,10 @@ function taskComputers(owner: string, tools: string[], workerId?: string) {
  * built-in worker (SER runs a managed one) would otherwise queue the task for a computer
  * that never comes online.
  */
-function freeComputer(owner: string, adapter: string) {
+function freeComputer(owner: string, adapter: string, pool?: string[]) {
   const eligible = taskComputers(owner, []).filter(
     (worker) =>
+      (!pool || pool.includes(worker.id)) &&
       worker.status === 'online' &&
       (worker.id === 'local' ||
         (worker.capabilities?.includes(adapter) &&
@@ -45,7 +46,10 @@ function freeComputer(owner: string, adapter: string) {
               (c: any) => c.provider === adapter && c.available && c.enabled !== false,
             )))),
   );
-  return (eligible.find((worker) => worker.id === 'local') ?? eligible[0])?.id ?? 'local';
+  // Among chosen computers the least busy takes it, so several tasks spread across them.
+  const chosen = (pool ? eligible[0] : (eligible.find((w) => w.id === 'local') ?? eligible[0]))?.id;
+  if (!chosen && pool) throw new Error('None of the chosen computers is online to take tasks');
+  return chosen ?? 'local';
 }
 function askComputers(owner: string, tools: string[]) {
   for (const worker of computers(owner))
@@ -283,8 +287,15 @@ export async function requireTaskTools(
 
 export function queueTask(owner: string, input: any) {
   const needs = input.needs === undefined ? [] : toolNames(input.needs);
+  // The composer's chosen computers: the task goes to a free one among them.
+  const pool =
+    !input.workerId && Array.isArray(input.workerIds) && input.workerIds.length
+      ? (input.workerIds as string[])
+      : undefined;
+  if (pool && needs.length) throw new Error('Choose computers or tools a task needs, not both');
   let workerId =
-    input.workerId || (needs.length ? 'local' : freeComputer(owner, input.adapter || 'codex'));
+    input.workerId ||
+    (needs.length ? 'local' : freeComputer(owner, input.adapter || 'codex', pool));
   if (needs.length) {
     if (input.workerId) assertWorkerRole(owner, input.workerId, 'tasks');
     const missing = namedComputerMissing(owner, needs, input.workerId);

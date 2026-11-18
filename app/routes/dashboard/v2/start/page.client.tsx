@@ -43,7 +43,6 @@ function NewProject() {
 }
 function Welcome() {
   const coordinator = useCoordinatorName();
-  const [error, setError] = useState('');
   return (
     <>
       <Head
@@ -68,21 +67,7 @@ function Welcome() {
             </span>
           </div>
           <div className="dl-home-composer">
-            <Composer
-              project="New task"
-              model="Default"
-              onSend={(text) => {
-                void api('/api/tasks', {
-                  title: text,
-                  prompt: text,
-                  operationId: crypto.randomUUID(),
-                })
-                  .then((task) =>
-                    window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`),
-                  )
-                  .catch((error) => setError(error.message));
-              }}
-            />
+            <Composer start />
           </div>
           <Group aria-label="Quick actions">
             <Item
@@ -104,7 +89,6 @@ function Welcome() {
               end="Add a computer"
             />
           </Group>
-          {error && <Banner kind="danger" title={error} />}
         </div>
       </div>
     </>
