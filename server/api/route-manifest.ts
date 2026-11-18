@@ -1570,6 +1570,26 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/git/:repository/:name(.+\\.git)/info/lfs/locks',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/git/:repository/:name(.+\\.git)/info/lfs/locks',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/git/:repository/:name(.+\\.git)/info/lfs/locks/verify',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/git/:repository/:name(.+\\.git)/info/lfs/locks/:lock([a-f0-9-]+)/unlock',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
     path: '/api/git/:repository/:name(.+\\.git)/info/refs',
     handler: 'workspace',
   },
@@ -1601,6 +1621,26 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   {
     method: 'POST',
     path: '/api/git/:repository/info/lfs/verify',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
+    path: '/api/git/:repository/info/lfs/locks',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/git/:repository/info/lfs/locks',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/git/:repository/info/lfs/locks/verify',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/git/:repository/info/lfs/locks/:lock([a-f0-9-]+)/unlock',
     handler: 'workspace',
   },
   {

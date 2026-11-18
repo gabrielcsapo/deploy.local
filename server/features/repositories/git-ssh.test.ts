@@ -14,7 +14,8 @@ const { workspaceApi } = await import('../../workspace/api.ts');
 const { list, get, save } = await import('../../workspace/store.ts');
 const { parsePublicKey, addSshKey, deleteSshKey } = await import('./ssh-keys.ts');
 const { sshHostKey, sshServerInfo, configuredSshPort } = await import('./ssh-host.ts');
-const { startGitSshServer, parseGitCommand } = await import('./git-ssh.ts');
+const { startGitSshServer, parseGitCommand, parseLfsCommand } = await import('./git-ssh.ts');
+const { lfsCredential } = await import('./lfs-ssh-credential.ts');
 const { queueProject } = await import('./repositories.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
 let ssh: Awaited<ReturnType<typeof startGitSshServer>>;
@@ -196,6 +197,24 @@ test('command grammar accepts Git paths and rejects shell syntax', () => {
     "git-upload-pack '$(whoami)'",
   ])
     assert.equal(parseGitCommand(command), null);
+  assert.deepEqual(parseLfsCommand('git-lfs-authenticate /home-gym.git upload'), {
+    command: 'authenticate',
+    path: 'home-gym',
+    operation: 'upload',
+  });
+  assert.deepEqual(parseLfsCommand("git-lfs-transfer '~/home-gym.git' download"), {
+    command: 'transfer',
+    path: 'home-gym',
+    operation: 'download',
+  });
+  for (const command of [
+    'git-lfs-authenticate home-gym.git',
+    'git-lfs-authenticate home-gym.git delete',
+    "git-lfs-authenticate '../secret' download",
+    'git-lfs-authenticate home-gym.git download; whoami',
+    'git-upload-pack home-gym.git download',
+  ])
+    assert.equal(parseLfsCommand(command), null, command);
 });
 
 test('host identity persists with private permissions and disabled configuration', async () => {
@@ -315,7 +334,35 @@ test('SSH protocol verifies signatures, rejects capabilities, and serves ready o
     assert.match(version2.stdout, /version 2/);
     const arbitrary = await exec(client, 'whoami');
     assert.equal(arbitrary.code, 1);
-    assert.match(arbitrary.stderr, /Only git-upload-pack/);
+    assert.match(
+      arbitrary.stderr,
+      /Only git-upload-pack, git-receive-pack and git-lfs-authenticate/,
+    );
+    process.env.DEPLOY_PUBLIC_ORIGIN = 'https://deploy.example.test/';
+    try {
+      for (const access of ['download', 'upload'] as const) {
+        const reply = await exec(client, `git-lfs-authenticate /memory-repo.git ${access}`);
+        assert.equal(reply.code, 0, reply.stderr);
+        const discovered = JSON.parse(reply.stdout);
+        assert.equal(discovered.href, `https://deploy.example.test/api/git/${project.id}/info/lfs`);
+        assert.equal(discovered.expires_in, 600);
+        assert.deepEqual(lfsCredential(discovered.header.Authorization), {
+          owner: 'memory',
+          projectId: project.id,
+          operation: access,
+        });
+      }
+    } finally {
+      delete process.env.DEPLOY_PUBLIC_ORIGIN;
+    }
+    const transfer = await exec(client, 'git-lfs-transfer memory-repo.git upload');
+    assert.equal(transfer.code, 1);
+    assert.equal(transfer.stdout, '');
+    assert.match(transfer.stderr, /git-lfs-transfer is not supported/);
+    const elsewhere = await exec(client, 'git-lfs-authenticate private-other-owner.git download');
+    assert.equal(elsewhere.code, 1);
+    assert.equal(elsewhere.stdout, '');
+    assert.match(elsewhere.stderr, /repository not found/);
     const unknown = await exec(client, "git-upload-pack 'private-other-owner'");
     assert.equal(unknown.code, 1);
     assert.match(unknown.stderr, /repository not found/);

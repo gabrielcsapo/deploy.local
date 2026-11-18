@@ -7,6 +7,7 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { root, get, save, now } from '../../workspace/store.ts';
+import { createLock, listLocks, unlock, verifyLocks } from './lfs-locks.ts';
 
 const maximum = 2 * 1024 * 1024 * 1024;
 const validOid = (oid: unknown): oid is string =>
@@ -52,7 +53,14 @@ export async function serveRepositoryLfs(
   projectId: string,
   suffix: string,
   readOnly: boolean,
+  options: {
+    /** Who is asking, for lock ownership: the signed-in account (the repository's owner). */
+    user?: string;
+    /** Sent back on each transfer action, so a credential minted over SSH reaches the object URLs. */
+    actionHeader?: Record<string, string>;
+  } = {},
 ) {
+  const user = options.user ?? owner;
   const send = (value: any, status = 200) => {
     sendJson(res, value, status, {
       headers: {
@@ -61,6 +69,41 @@ export async function serveRepositoryLfs(
       },
     });
   };
+  if (suffix === '/info/lfs/locks' || suffix.startsWith('/info/lfs/locks/')) {
+    try {
+      // Read the (small) body before any refusal so nothing is left unread on the socket.
+      const input = req.method === 'POST' ? await body(req) : {};
+      const pushOnly = () => {
+        if (readOnly) fail('This credential has read-only access to Git LFS locks', 403);
+      };
+      if (suffix === '/info/lfs/locks' && req.method === 'GET') {
+        const query = new URL(req.url ?? '/', 'http://localhost').searchParams;
+        return send(listLocks(owner, projectId, query));
+      }
+      if (suffix === '/info/lfs/locks' && req.method === 'POST') {
+        pushOnly();
+        const created = createLock(owner, projectId, user, input);
+        return send(created.body, created.status);
+      }
+      if (suffix === '/info/lfs/locks/verify' && req.method === 'POST') {
+        pushOnly();
+        return send(verifyLocks(owner, projectId, user, input));
+      }
+      const unlocking = suffix.match(/^\/info\/lfs\/locks\/([A-Za-z0-9-]{1,64})\/unlock$/);
+      if (unlocking && req.method === 'POST') {
+        pushOnly();
+        return send(unlock(owner, projectId, user, unlocking[1], input));
+      }
+      return fail('Unknown LFS route', 404);
+    } catch (error: any) {
+      if (res.headersSent) throw error;
+      // The locking spec's error body is `{ message }`, which Git LFS prints.
+      return send(
+        { message: error instanceof SyntaxError ? 'Invalid JSON' : error.message },
+        error instanceof SyntaxError ? 400 : error.status || 500,
+      );
+    }
+  }
   if (suffix === '/info/lfs/objects/batch' && req.method === 'POST') {
     const input = await body(req);
     if (!['upload', 'download'].includes(input.operation)) fail('Invalid LFS operation', 422);
@@ -79,6 +122,8 @@ export async function serveRepositoryLfs(
         ? 'https'
         : 'http';
     const base = `${protocol}://${host}/api/git/${projectId}/info/lfs`;
+    const action = (href: string) =>
+      options.actionHeader ? { href, header: options.actionHeader } : { href };
     const objects = await Promise.all(
       input.objects.map(async (object: any) => {
         if (
@@ -96,7 +141,7 @@ export async function serveRepositoryLfs(
           return existing
             ? {
                 ...item,
-                actions: { download: { href: `${base}/objects/${object.oid}` } },
+                actions: { download: action(`${base}/objects/${object.oid}`) },
               }
             : { ...item, error: { code: 404, message: 'Object not found' } };
         return existing
@@ -104,8 +149,8 @@ export async function serveRepositoryLfs(
           : {
               ...item,
               actions: {
-                upload: { href: `${base}/objects/${object.oid}` },
-                verify: { href: `${base}/verify` },
+                upload: action(`${base}/objects/${object.oid}`),
+                verify: action(`${base}/verify`),
               },
             };
       }),

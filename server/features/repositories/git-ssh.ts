@@ -9,16 +9,48 @@ import { PushResult } from '../../workspace/pipeline-triggers.ts';
 import { findSshKey, sshFingerprint, verifySshSignature } from './ssh-keys.ts';
 import { configuredSshPort, setSshServerState, sshHostKey } from './ssh-host.ts';
 import { now, save } from '../../workspace/store.ts';
+import { lfsPublicOrigin, mintLfsCredential } from './lfs-ssh-credential.ts';
+
+const quotedPath = `(?:'([^']+)'|"([^"\\n]+)"|([^\\s'"]+))`;
+/** One simple repository identifier: `name`, `/name.git`, `~/name.git` or a repository id. */
+function repositoryPath(raw: string) {
+  const path = raw.replace(/^(?:~\/|\/)/, '').replace(/\.git$/i, '');
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(path) ? path : null;
+}
 
 /** No shell parsing: one Git service and one simple repository identifier. */
 export function parseGitCommand(command: string) {
+  const match = command.match(new RegExp(`^git(?:-| )(upload-pack|receive-pack) ${quotedPath}$`));
+  if (!match) return null;
+  const path = repositoryPath(match[2] || match[3] || match[4]);
+  return path ? { service: match[1], path } : null;
+}
+
+/** `git-lfs-authenticate <path> <upload|download>` and `git-lfs-transfer …`, same path grammar. */
+export function parseLfsCommand(command: string) {
   const match = command.match(
-    /^git(?:-| )(upload-pack|receive-pack) (?:'([^']+)'|"([^"\n]+)"|([^\s'"]+))$/,
+    new RegExp(`^git-lfs-(authenticate|transfer) ${quotedPath} (upload|download)$`),
   );
   if (!match) return null;
-  const path = (match[2] || match[3] || match[4]).replace(/^(?:~\/|\/)/, '').replace(/\.git$/i, '');
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(path)) return null;
-  return { service: match[1], path };
+  const path = repositoryPath(match[2] || match[3] || match[4]);
+  return path ? { command: match[1], path, operation: match[5] as 'upload' | 'download' } : null;
+}
+
+/**
+ * Git LFS discovers its HTTP endpoint over SSH: the reply points at this repository's LFS API with
+ * a short-lived credential for the key's owner, that repository and that operation only.
+ */
+export function lfsAuthentication(
+  owner: string,
+  projectId: string,
+  operation: 'upload' | 'download',
+) {
+  const credential = mintLfsCredential(owner, projectId, operation);
+  return {
+    href: `${lfsPublicOrigin()}/api/git/${projectId}/info/lfs`,
+    header: { Authorization: credential.authorization },
+    expires_in: credential.expiresIn,
+  };
 }
 
 /**
@@ -144,25 +176,42 @@ export function createGitSshTransport(privateKey: Buffer) {
         started = true;
         const channel = acceptExec();
         channel.on('error', () => channel.destroy());
-        const command = parseGitCommand(info.command);
-        if (!command)
-          return fail(channel, 'Only git-upload-pack and git-receive-pack are supported.');
+        const lfs = parseLfsCommand(info.command);
+        const command = lfs ? null : parseGitCommand(info.command);
+        if (!command && !lfs)
+          return fail(
+            channel,
+            'Only git-upload-pack, git-receive-pack and git-lfs-authenticate are supported.',
+          );
+        // Git LFS tries the SSH transfer protocol first and, when it fails, falls back to
+        // git-lfs-authenticate and the HTTP LFS API.
+        if (lfs?.command === 'transfer')
+          return fail(
+            channel,
+            'git-lfs-transfer is not supported; Git LFS uses git-lfs-authenticate and HTTP instead.',
+          );
         let project;
         try {
-          project = findRepository(owner, command.path);
+          project = findRepository(owner, (lfs ?? command)!.path);
         } catch (error: any) {
           return fail(channel, error.status === 409 ? error.message : 'repository not found');
         }
+        if (lfs) {
+          channel.write(JSON.stringify(lfsAuthentication(owner, project.id, lfs.operation)) + '\n');
+          channel.exit(0);
+          return channel.end();
+        }
+        const service = command!.service;
         const child = spawn(
           'git',
-          ['-c', 'core.hooksPath=/dev/null', command.service, project.repositoryPath],
+          ['-c', 'core.hooksPath=/dev/null', service, project.repositoryPath],
           {
             env: { ...gitEnvironment(), ...(protocol ? { GIT_PROTOCOL: protocol } : {}) },
             detached: true,
             stdio: ['pipe', 'pipe', 'pipe'],
           },
         );
-        const push = command.service === 'receive-pack' ? new PushResult() : null;
+        const push = service === 'receive-pack' ? new PushResult() : null;
         let completed = false;
         const kill = () => {
           if (completed) return;

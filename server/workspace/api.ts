@@ -68,6 +68,7 @@ import { workerCommand } from './protocol.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { serveRepositoryGit } from './git-http.ts';
 import { serveRepositoryLfs } from './repository-lfs.ts';
+import type { LfsCredential } from '../features/repositories/lfs-ssh-credential.ts';
 import { list, get, command, cursor, recentEvents, eventsBefore, activityEvents } from './store.ts';
 import { projectActivity } from './activity.ts';
 import { waitForEvents } from './event-feed.ts';
@@ -145,6 +146,8 @@ export async function workspaceApi(
   res: ServerResponse,
   owner: string,
   workerIdentity?: string,
+  /** A Git LFS credential minted over SSH: one repository's LFS routes and nothing else. */
+  lfsCredential?: LfsCredential,
 ) {
   const url = new URL(req.url!, 'http://localhost'),
     // The iPhone app writes a project ID as 37bba42d%2D72d2…; routes match the plain form.
@@ -183,6 +186,8 @@ export async function workspaceApi(
   const route = routes<undefined>();
   const options = { path: () => path, method: () => method };
   try {
+    if (lfsCredential && !path.startsWith('/git/'))
+      throw Object.assign(new Error('This credential only reaches Git LFS'), { status: 403 });
     if (workerIdentity) {
       const workerPath = '/workers/' + workerIdentity + '/';
       if (
@@ -939,6 +944,14 @@ export async function workspaceApi(
                   decodeURIComponent(match[1]).replace(/\.git$/, ''),
                 );
                 const lfs = match[2]?.startsWith('/info/lfs/');
+                if (
+                  lfsCredential &&
+                  (!lfs || lfsCredential.owner !== owner || lfsCredential.projectId !== project.id)
+                )
+                  throw Object.assign(
+                    new Error('This credential only reaches Git LFS for one repository'),
+                    { status: 403 },
+                  );
                 if (workerIdentity) {
                   if (
                     !lfs &&
@@ -967,7 +980,14 @@ export async function workspaceApi(
                     owner,
                     project.id,
                     match[2],
-                    Boolean(workerIdentity),
+                    Boolean(workerIdentity) || lfsCredential?.operation === 'download',
+                    {
+                      user: owner,
+                      actionHeader:
+                        lfsCredential && typeof req.headers.authorization === 'string'
+                          ? { Authorization: req.headers.authorization }
+                          : undefined,
+                    },
                   );
                 serveRepositoryGit(req, res, project, match[2] || '/', url, owner);
                 return;
