@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="design-board" content="width=1440,height=1240">
+<meta name="design-board" content="width=1440,height=1280">
 <title>CLI — help that matches the app</title>
 <link rel="stylesheet" href="../ds/deploy-local/tokens.css">
 <link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
@@ -23,10 +23,10 @@ body{margin:0;background:#fafafb}
 .t-dim{color:var(--muted)}.t-ok{color:var(--success)}.t-fail{color:var(--danger)}.t-warn{color:var(--warning)}.t-run{color:var(--active)}.t-acc{color:var(--accent)}.t-b{font-weight:700}
 .t-row{display:grid;gap:24px;align-items:start}
 .t-cap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
-</style><div data-layer="sheet" class="dl-sheet" style="width: 1440px; height: 1240px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden"><div data-layer="t" class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span data-layer="cli-help" class="dl-meta">CLI · help</span>
+</style><div data-layer="sheet" class="dl-sheet" style="width: 1440px; height: 1280px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden"><div data-layer="t" class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span data-layer="cli-help" class="dl-meta">CLI · help</span>
 <h1 data-layer="six-groups-the" class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">Seven groups, the app's words.</h1>
 <span data-layer="today-s-help" class="dl-soft" style="font-size:15px;line-height:24px;max-width:820px">Today's help has 35 command lines and 25 options in one list. It mixes -a with positional names, and none of tasks, agents, Live or Waiting on you appear. The new help groups commands by what you are doing and moves CI, recovery and graph internals to deploy help advanced.</span></div><div data-layer="t-row" class="t-row" style="grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)">
-  <div data-layer="div"><div data-layer="t-cap" class="t-cap"><span data-layer="today" class="dl-strong" style="font-size:15px;line-height:24px">Today</span><span data-layer="36-command-lines" class="dl-soft">35 command lines, 25 options, internal words (graph, component, site, suitcase)</span></div><div data-layer="t-win" class="t-win" data-theme="dark" style="height:920px;"><div data-layer="t-bar" class="t-bar"><span data-layer="t-lights" class="t-lights"><span data-layer="span"></span><span data-layer="span-2"></span><span data-layer="span-3"></span></span>zsh</div><pre data-layer="t-body" class="t-body"><span data-layer="t-dim" class="t-dim">~</span> <span data-layer="t-acc" class="t-acc">$</span> deploy --help
+  <div data-layer="div"><div data-layer="t-cap" class="t-cap"><span data-layer="today" class="dl-strong" style="font-size:15px;line-height:24px">Today</span><span data-layer="36-command-lines" class="dl-soft">35 command lines, 25 options, internal words (graph, component, site, suitcase)</span></div><div data-layer="t-win" class="t-win" data-theme="dark" style="height:960px;"><div data-layer="t-bar" class="t-bar"><span data-layer="t-lights" class="t-lights"><span data-layer="span"></span><span data-layer="span-2"></span><span data-layer="span-3"></span></span>zsh</div><pre data-layer="t-body" class="t-body"><span data-layer="t-dim" class="t-dim">~</span> <span data-layer="t-acc" class="t-acc">$</span> deploy --help
 deploy.local — self-hosted deployment platform
 
 Usage:
@@ -53,7 +53,7 @@ Options:
       --confirm-data-loss    Confirm restoration of the pre-relea…
       --no-cache             Build without using cached layers (…
 <span data-layer="21-more-options" class="t-dim">  … 21 more options, all in one list</span></pre></div></div>
-  <div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="proposed" class="dl-strong" style="font-size:15px;line-height:24px">Proposed</span><span data-layer="grouped-by-intent" class="dl-soft">Grouped by intent; [app] defaults to this folder; flags live with their command</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark" style="height:920px;"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="t-dim-2" class="t-dim">~</span> <span data-layer="t-acc-2" class="t-acc">$</span> deploy --help
+  <div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="proposed" class="dl-strong" style="font-size:15px;line-height:24px">Proposed</span><span data-layer="grouped-by-intent" class="dl-soft">Grouped by intent; [app] defaults to this folder; flags live with their command</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark" style="height:960px;"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="t-dim-2" class="t-dim">~</span> <span data-layer="t-acc-2" class="t-acc">$</span> deploy --help
 <span data-layer="deploy" class="t-b">deploy</span> <span data-layer="ship-and-run" class="t-dim">— ship and run apps on computers you own</span>
 
 <span data-layer="usage" class="t-dim">Usage</span>  deploy [command] [app] [flags]
@@ -79,6 +79,8 @@ Options:
   <span data-layer="design-propose" class="t-b">design propose        </span> <span data-layer="ask-for-review" class="t-dim">Ask for review</span>
   <span data-layer="design-feedback" class="t-b">design feedback       </span> <span data-layer="read-the-answer" class="t-dim">Read the answer and the notes  (--wait)</span>
   <span data-layer="design-resolve-n" class="t-b">design resolve &lt;n&gt;    </span> <span data-layer="answer-a-note" class="t-dim">Answer a note when it is done</span>
+  <span data-layer="design-build-name" class="t-b">design build [name]   </span> <span data-layer="list-approved-designs" class="t-dim">List approved designs, or start building one</span>
+  <span data-layer="design-verify" class="t-b">design verify         </span> <span data-layer="compare-the-running" class="t-dim">Compare the running app with its board</span>
 
 <span data-layer="agents" class="t-b">Agents</span>
   <span data-layer="task-what-to" class="t-b">task "&lt;what to do&gt;"   </span> <span data-layer="start-a-task" class="t-dim">Start a task  (--on &lt;computer&gt;, --agent scout)</span>

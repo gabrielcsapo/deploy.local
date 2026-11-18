@@ -337,7 +337,7 @@
       "x": 23210,
       "y": 6364,
       "w": 1440,
-      "h": 1000,
+      "h": 1200,
       "title": "Waiting on you: every decision and how you answered",
       "expand": "fill"
     },
@@ -937,7 +937,7 @@
       "x": 9730,
       "y": 34784,
       "w": 1440,
-      "h": 1240,
+      "h": 1280,
       "title": "CLI — help that matches the app"
     },
     "CliErrors.html": {
@@ -2064,7 +2064,7 @@
       "x": 1600,
       "y": 55600,
       "w": 1440,
-      "h": 900,
+      "h": 1200,
       "title": "Design — to review",
       "expand": "fill"
     },
@@ -3478,6 +3478,66 @@
       "h": 1620,
       "title": "An open pull request that conflicts with main",
       "expand": "fill"
+    },
+    "DesignReviewCanvasGrouped.html": {
+      "x": 1600,
+      "y": 90940,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — one change to a shared part is one row",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasRound2.html": {
+      "x": 3120,
+      "y": 90940,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — since your last review",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasCompare.html": {
+      "x": 4640,
+      "y": 90940,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — wipe, width and dark",
+      "expand": "fill"
+    },
+    "PullRequestNoDesign.html": {
+      "x": 6160,
+      "y": 90940,
+      "w": 1440,
+      "h": 900,
+      "title": "A pull request that changes screens with no approved design",
+      "expand": "fill"
+    },
+    "CliDesignBuild.html": {
+      "x": 7680,
+      "y": 90940,
+      "w": 1440,
+      "h": 720,
+      "title": "CLI — build an approved design, and compare the app with its board"
+    },
+    "DesignReviewNoOnePhone.html": {
+      "x": 9200,
+      "y": 90940,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — notes kept, nobody is working on it"
+    },
+    "DesignReviewNotLandedPhone.html": {
+      "x": 9670,
+      "y": 90940,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — approved, but it did not reach main"
+    },
+    "DesignBuiltDiffersPhone.html": {
+      "x": 10140,
+      "y": 90940,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — the build differs from the approved design"
     }
   },
   "order": [
@@ -3940,7 +4000,15 @@
     "CliDesignReview.html",
     "DesignReviewCanvasNotLanded.html",
     "DesignReviewCanvasNoOne.html",
-    "DesignReviewCanvasTerminal.html"
+    "DesignReviewCanvasTerminal.html",
+    "DesignReviewCanvasGrouped.html",
+    "DesignReviewCanvasRound2.html",
+    "DesignReviewCanvasCompare.html",
+    "PullRequestNoDesign.html",
+    "CliDesignBuild.html",
+    "DesignReviewNoOnePhone.html",
+    "DesignReviewNotLandedPhone.html",
+    "DesignBuiltDiffersPhone.html"
   ],
   "notes": {
     "intro": {
@@ -4937,7 +5005,7 @@
     },
     "review-clarity-DesignToReview": {
       "x": 1600,
-      "y": 56800,
+      "y": 56860,
       "w": 1400,
       "h": 2250,
       "fill": "blue",
@@ -5542,6 +5610,14 @@
       "x": 21480,
       "y": 22704,
       "text": "An open pull request no task opened. The decision comes first, in one row under the title: what stands in the way in plain words, then its actions. Merge and Close are the same actions the task page uses, and the reasons are the server's mergeBlock wording. The other states, as the row's line and its actions:\n• Checks still running: “Checks running · Required pipeline checks have not passed for 8ab72bd yet: 2 of 4 done.” Close, Merge disabled until they pass.\n• A required check failed: “Checks failed · Required pipeline checks have not passed for 8ab72bd: test failed.” test links to its run. Close, Fix in a task (primary), which starts a task on build/project-work with the failed run.\n• Nothing to merge: “Nothing to merge · build/project-work has no commits that main does not already have.” Close (primary).\n• Merging: “Merging into main…” with a spinner. No actions until it lands or fails.\n• Merge failed: “Merge failed · <the server's error>”. Close, Retry merge (primary).\n• Closed: the pill reads Closed, the row reads “Closed · Gabriel closed this pull request <when>.” Reopen (secondary).\n• Merged: after Merge succeeds the page becomes PullRequest.html: the Merged row in the first group says what happened, and there is no decision row.\n\nClose asks nothing; Reopen undoes it. Merge asks nothing more than the task page's Merge only: it merges into main at once.\n\nConflicts: the line is conflictReason()'s first sentence. Its second sentence (“Ask the task to merge main into its branch…”) is for task pull requests; with no task the action says it instead: Update from main in a task starts a task on build/project-work asked to merge main and resolve those files.\n\n⋯ beside the title holds Start a task on this branch (open) or Start a follow-up task on main (merged or closed); it replaces the old notice and its Follow up in a task button. On these pages the header's New task is secondary so Merge is the one primary action.\n\nFiles: all folded, path order, eight then Show 60 more; Filter files narrows by path (PullRequestBlocked shows it filtered). An opened image shows a preview with its size; an opened text file shows its diff as on PullRequest. Merges from main fold into one line that opens to list them."
+    },
+    "design-loop-surfaces": {
+      "x": 1600,
+      "y": 90620,
+      "w": 1440,
+      "h": 260,
+      "fill": "blue",
+      "text": "The design loop on every surface\nFrom the approved document Design and review, end to end. Review: a change to a shared part is one row (DesignReviewCanvasGrouped.html), the second round shows what changed and each note as Addressed or Still open (DesignReviewCanvasRound2.html), and the bar gains Wipe, a width and Dark (DesignReviewCanvasCompare.html). After approval: To review lists what is approved and not built, and what is parked (DesignToReview.html, DesignToReviewPhone.html); deploy design build and verify are in CliDesignBuild.html; a task says the comparison was made by the tool (TaskDesignCheck.html, TaskDesignChecked.html); the iPhone can answer a build that differs (DesignBuiltDiffersPhone.html). A small proposal is answered from its card (Inbox.html, WaitingCarePhone.html) and a waiting design notifies like any decision (Notification.html). A pull request that changes screens with no design says so (PullRequestNoDesign.html). iPhone has the two states the web got in step 1 (DesignReviewNoOnePhone.html, DesignReviewNotLandedPhone.html)."
     }
   },
   "starts": {}
