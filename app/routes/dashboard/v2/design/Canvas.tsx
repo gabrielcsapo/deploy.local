@@ -1,14 +1,24 @@
 'use client';
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Icon } from '@/components/ui';
-import type { DesignReviewPart, DesignReviewScreen } from '../../../../../shared/v2/contracts';
-import { ReviewAreas } from './CanvasReview';
+import type {
+  DesignRect,
+  DesignReview,
+  DesignReviewPart,
+  DesignReviewPin,
+  DesignReviewScreen,
+} from '../../../../../shared/v2/contracts';
+import { ReviewAreas, type PinOpen } from './CanvasReview';
 import {
   comparedWidth,
   frameSource,
   frameTag,
   frameTicked,
+  pinDraft,
+  pinPlacement,
+  screenPins,
   wipeStep,
+  type PinDraft,
   type ReviewCompare,
   type ReviewSide,
 } from './canvas-review-model';
@@ -77,6 +87,28 @@ export function layerElement(frames: Frames, board: string, layer: string) {
   return doc?.querySelector<HTMLElement>(`[data-layer="${CSS.escape(layer)}"]`) ?? null;
 }
 
+/** Every layer's box in a mounted board, in the board's own pixels: what a pin holds to. */
+export function frameBoxes(doc: Document | null | undefined, only?: string) {
+  const boxes: Record<string, DesignRect> = {};
+  if (!doc) return boxes;
+  const elements = only
+    ? [doc.querySelector<HTMLElement>(`[data-layer="${CSS.escape(only)}"]`)]
+    : doc.querySelectorAll<HTMLElement>('[data-layer]');
+  for (const element of elements) {
+    if (!element) continue;
+    const rect = element.getBoundingClientRect();
+    if (!rect.width || !rect.height) continue;
+    if (doc.defaultView?.getComputedStyle(element).visibility === 'hidden') continue;
+    boxes[element.dataset.layer!] = { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
+  }
+  return boxes;
+}
+
+/** Where a pin's number sits on its screen: by its point, or on the corner of its area. */
+function pinMark(point: { x: number; y: number }, area: DesignRect | null) {
+  return area ? { x: area.x + area.w, y: area.y, area: true } : { ...point, area: false };
+}
+
 export function rectOf(frames: Frames, canvas: CanvasData, board: string, layer: string | null) {
   const placed = canvas.boards[board];
   if (!placed) return null;
@@ -135,6 +167,19 @@ export function DesignCanvas({
     round?: number;
     /** Wipe, width and dark, for looking at the changed frames only. */
     compare?: ReviewCompare;
+    /** Pins in a review: this round's on each screen, and making one with the Comment tool. */
+    pins?: {
+      review: Pick<DesignReview, 'pins' | 'round' | 'createdAt'>;
+      /** The Comment tool on After in a waiting review: a click is a point, a drag an area. */
+      making: boolean;
+      /** Whether a saved pin can be opened to change its words. */
+      waiting: boolean;
+      open: PinOpen | null;
+      onMake: (draft: PinDraft) => void;
+      onOpen: (pin: DesignReviewPin) => void;
+      /** The box opened beside the pin. */
+      box: ReactNode;
+    };
   };
   onFollow?: (file: string) => void;
   canvas: CanvasData;
@@ -215,6 +260,14 @@ export function DesignCanvas({
   // A mark being dragged to a new place, in canvas units.
   const [moving, setMoving] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [editingNote, setEditingNote] = useState<string | null>(null);
+  // A pin being placed: where the pointer went down and where it is now, in the board's pixels.
+  const [pinDrag, setPinDrag] = useState<{
+    file: string;
+    start: Point;
+    end: Point;
+    from: Point;
+    moved: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const element = host.current;
@@ -528,6 +581,34 @@ export function DesignCanvas({
       )
     : [];
   const dragFrom = prototype?.onLink && selection?.layer ? box(selection) : null;
+  // The open pin's box sits beside its number and stays inside the canvas.
+  const pinBoxAt = (() => {
+    const open = review?.pins?.open;
+    if (!open || !review) return null;
+    const file = 'draft' in open ? open.draft.board : open.pin.board;
+    const at = canvas.boards[file];
+    if (!at || !review.boards.has(file)) return null;
+    const w = review.compare ? comparedWidth(review.compare, at.w) : at.w;
+    const where =
+      'draft' in open
+        ? { point: open.draft, area: open.draft.area ?? null }
+        : pinPlacement(
+            open.pin,
+            frameBoxes(frames.current.get(file)?.contentDocument, open.pin.layer),
+            w,
+          );
+    if (!where) return { left: 16, top: 16 };
+    const tip = pinMark(where.point, where.area);
+    const x = (at.x + tip.x) * view.z + view.x;
+    const y = (at.y + tip.y) * view.z + view.y;
+    const markLeft = tip.area ? x - pinSize / 2 : x;
+    let left = markLeft + pinSize + 8;
+    if (left + pinBoxWidth > size.w - 16) left = markLeft - 8 - pinBoxWidth;
+    return {
+      left: Math.max(16, Math.min(left, size.w - pinBoxWidth - 16)),
+      top: Math.max(16, Math.min(y - pinSize + 10, size.h - 180)),
+    };
+  })();
 
   return (
     <div
@@ -660,6 +741,25 @@ export function DesignCanvas({
           // A width chosen for the review draws changed web frames at it; canvas.json is untouched.
           const w = changed && review?.compare ? comparedWidth(review.compare, board.w) : board.w;
           const dark = review?.compare?.dark;
+          // Pins show on the side they were made on; Wipe shows none.
+          const pinSide = changed && review?.pins && !absent && !wipe ? side : undefined;
+          const doc = pinSide ? frames.current.get(file)?.contentDocument : null;
+          const pinned = pinSide
+            ? screenPins(review!.pins!.review, changed!, pinSide).flatMap((pin) => {
+                const at = pinPlacement(pin, frameBoxes(doc, pin.layer), w);
+                return at ? [{ pin, ...at }] : [];
+              })
+            : [];
+          const making = Boolean(
+            review?.pins?.making && pinSide === 'after' && changed && !changed.removed,
+          );
+          const newPin =
+            review?.pins?.open &&
+            'draft' in review.pins.open &&
+            review.pins.open.draft.board === file
+              ? review.pins.open
+              : null;
+          const dragging = pinDrag?.file === file && pinDrag.moved ? pinDrag : null;
 
           return (
             <div
@@ -753,11 +853,65 @@ export function DesignCanvas({
               )}
               {!absent && !panning && typing?.board !== file && (
                 <div
-                  className="dz-board-hit"
-                  onMouseMove={(event) => setHover(pick(file, event))}
+                  className={`dz-board-hit${making ? ' dz-pin-hit' : ''}`}
+                  onMouseMove={(event) => !making && setHover(pick(file, event))}
                   onMouseLeave={() => setHover(null)}
+                  onPointerDown={(event) => {
+                    if (!making || event.button !== 0 || event.pointerType === 'touch') return;
+                    // A pin is placed where the pointer goes down; a drag from there is an area.
+                    event.preventDefault();
+                    event.stopPropagation();
+                    try {
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                    } catch {}
+                    const hit = event.currentTarget.getBoundingClientRect();
+                    const at = {
+                      x: (event.clientX - hit.left) / view.z,
+                      y: (event.clientY - hit.top) / view.z,
+                    };
+                    setPinDrag({
+                      file,
+                      start: at,
+                      end: at,
+                      from: { x: event.clientX, y: event.clientY },
+                      moved: false,
+                    });
+                  }}
+                  onPointerMove={(event) => {
+                    if (!making || pinDrag?.file !== file) return;
+                    const hit = event.currentTarget.getBoundingClientRect();
+                    setPinDrag({
+                      ...pinDrag,
+                      end: {
+                        x: (event.clientX - hit.left) / view.z,
+                        y: (event.clientY - hit.top) / view.z,
+                      },
+                      moved:
+                        pinDrag.moved ||
+                        Math.hypot(
+                          event.clientX - pinDrag.from.x,
+                          event.clientY - pinDrag.from.y,
+                        ) >= 4,
+                    });
+                  }}
+                  onPointerUp={() => {
+                    if (!making || pinDrag?.file !== file || !changed) return;
+                    setPinDrag(null);
+                    review!.pins!.onMake(
+                      pinDraft(
+                        changed,
+                        w,
+                        pinDrag.start,
+                        pinDrag.end,
+                        frameBoxes(frames.current.get(file)?.contentDocument),
+                        pinDrag.moved,
+                      ),
+                    );
+                  }}
+                  onPointerCancel={() => setPinDrag(null)}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (making) return;
                     if (panned.current) return void (panned.current = false);
                     if (tool === 'move' && onFollow) {
                       const frame = frames.current.get(file);
@@ -790,6 +944,42 @@ export function DesignCanvas({
                       x: (size.w - placed.w * z) / 2 - placed.x * z,
                       y: (size.h - placed.h * z) / 2 - placed.y * z,
                     }));
+                  }}
+                />
+              )}
+              {pinned.map(({ pin, point, area }) => (
+                <PinMark
+                  key={pin.id}
+                  number={pin.number}
+                  point={point}
+                  area={area}
+                  z={view.z}
+                  open={Boolean(
+                    review?.pins?.open &&
+                    'pin' in review.pins.open &&
+                    review.pins.open.pin.id === pin.id,
+                  )}
+                  onOpen={review?.pins?.waiting ? () => review.pins!.onOpen(pin) : undefined}
+                />
+              ))}
+              {newPin && (
+                <PinMark
+                  number={newPin.number}
+                  point={newPin.draft}
+                  area={newPin.draft.area ?? null}
+                  z={view.z}
+                  open
+                />
+              )}
+              {dragging && (
+                <i
+                  className="dz-pin-area"
+                  style={{
+                    left: Math.min(dragging.start.x, dragging.end.x),
+                    top: Math.min(dragging.start.y, dragging.end.y),
+                    width: Math.abs(dragging.end.x - dragging.start.x),
+                    height: Math.abs(dragging.end.y - dragging.start.y),
+                    borderWidth: 1.5 / view.z,
                   }}
                 />
               )}
@@ -1124,6 +1314,21 @@ export function DesignCanvas({
           </>
         )}
       </div>
+      {pinBoxAt && review?.pins && (
+        <div
+          className="dz-pin-box"
+          style={
+            {
+              '--dz-pin-x': `${pinBoxAt.left}px`,
+              '--dz-pin-y': `${pinBoxAt.top}px`,
+            } as React.CSSProperties
+          }
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {review.pins.box}
+        </div>
+      )}
       {placing && host.current && (
         <div
           className="dz-ghost"
@@ -1227,6 +1432,62 @@ export function DesignCanvas({
         />
       )}
     </div>
+  );
+}
+
+/** A pin's number on its screen: its point at the tip, and its area dashed around what it means. */
+const pinSize = 20;
+const pinBoxWidth = 260;
+function PinMark({
+  number,
+  point,
+  area,
+  z,
+  open,
+  onOpen,
+}: {
+  number: number;
+  point: { x: number; y: number };
+  area: DesignRect | null;
+  z: number;
+  open?: boolean;
+  onOpen?: () => void;
+}) {
+  const mark = pinMark(point, area);
+  return (
+    <>
+      {area && (
+        <i
+          className="dz-pin-area"
+          style={{
+            left: area.x,
+            top: area.y,
+            width: area.w,
+            height: area.h,
+            borderWidth: 1.5 / z,
+            borderRadius: 3 / z,
+          }}
+        />
+      )}
+      <button
+        type="button"
+        className={`dz-pin${open ? ' on' : ''}`}
+        aria-label={`Pin ${number}`}
+        disabled={!onOpen}
+        style={{
+          left: mark.x,
+          top: mark.y,
+          transform: `scale(${1 / z}) translate(${mark.area ? '-50%' : '0'}, -100%)`,
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen?.();
+        }}
+      >
+        {number}
+      </button>
+    </>
   );
 }
 

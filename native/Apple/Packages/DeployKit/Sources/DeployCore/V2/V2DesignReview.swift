@@ -419,8 +419,8 @@ extension V2Client {
         let response: Response = try await client.request("/api/design/projects")
         return response.projects.filter { $0.boards > 0 }
     }
-    public func reviewPreview(project: String, item: String, board: String, width: Int, scale: Double = 1, main: Bool = false) async throws -> V2ReviewPreview {
-        try await client.request("/api/projects/\(Self.segment(project))/design/review/preview?item=\(Self.segment(item))&board=\(Self.segment(board))&width=\(width)&scale=\(min(3, max(1, scale)))\(main ? "&comparison=main" : "")", timeout: 120)
+    public func reviewPreview(project: String, item: String, board: String, width: Int, scale: Double = 1, main: Bool = false, dark: Bool = false) async throws -> V2ReviewPreview {
+        try await client.request("/api/projects/\(Self.segment(project))/design/review/preview?item=\(Self.segment(item))&board=\(Self.segment(board))&width=\(width)&scale=\(min(3, max(1, scale)))\(main ? "&comparison=main" : "")\(dark ? "&scheme=dark" : "")", timeout: 120)
     }
     /// Reuses the authenticated, origin-checked and certificate-pinned request session.
     public func reviewImage(_ url: String) async throws -> Data { try await client.data(url, timeout: 120) }

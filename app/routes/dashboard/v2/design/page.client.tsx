@@ -61,14 +61,21 @@ import {
   type DropTarget,
   type Placing,
 } from './Assets';
-import { DesignMenu, LeftPanel, RightPanel, useChanges, type LayerEdit } from './Panels';
+import {
+  DesignMenu,
+  LeftPanel,
+  ReviewNotes,
+  RightPanel,
+  useChanges,
+  type LayerEdit,
+} from './Panels';
 import { DesignArtifact } from './artifact-context';
 import { Play } from './Play';
 import { PickSheet } from './Pickers';
 import './style.css';
 import { ToReview } from './ToReview';
 import { documentReviewHref, reviewHref } from './review-model';
-import { CanvasReviewBar, useCanvasReview } from './CanvasReview';
+import { CanvasReviewBar, PinBox, useCanvasReview, useReviewPins } from './CanvasReview';
 import {
   reviewProject,
   reviewBranch,
@@ -76,6 +83,7 @@ import {
   reviewCanvas,
   reviewKey,
   reviewFeedback,
+  pinWhere,
   stepFrame,
 } from './canvas-review-model';
 
@@ -409,6 +417,16 @@ function DesignCanvasPage({
   );
   const [view, setView] = useState<View>({ x: 0, y: 0, z: 0.25 });
   const [tool, setTool] = useState<Tool>('move');
+  // In a waiting review, on After, the Comment tool makes pins the proposer is sent.
+  const pins = useReviewPins(review);
+  const pinsActive = Boolean(
+    reviewId &&
+    reviewData &&
+    !reviewedDocument &&
+    reviewData.item.state === 'waiting' &&
+    review.side === 'after' &&
+    !review.compare.wipe,
+  );
   const [narrowMenu, setNarrowMenu] = useState(false);
   // On a phone, the sheet that picks the project, branch and page.
   const [pickSheet, setPickSheet] = useState(false);
@@ -488,12 +506,13 @@ function DesignCanvasPage({
   const pickWithTool = useCallback(
     (next: Selection) => {
       select(next);
-      if (tool === 'comment' && next) {
+      // A pin is made on a changed screen; a click elsewhere only selects.
+      if (tool === 'comment' && next && !pinsActive) {
         setTab('comments');
         setCommentFocus((n) => n + 1);
       }
     },
-    [select, tool],
+    [select, tool, pinsActive],
   );
   const openTask = (id: string) => {
     setTaskId(id);
@@ -1440,6 +1459,42 @@ function DesignCanvasPage({
                       waiting: reviewData?.item.state === 'waiting',
                       round: reviewData?.round,
                       compare: review.compare,
+                      pins:
+                        reviewData && !reviewedDocument
+                          ? {
+                              review: reviewData,
+                              making: pinsActive && tool === 'comment',
+                              waiting: reviewData.item.state === 'waiting',
+                              open: pins.open,
+                              onMake: (draft) => {
+                                pins.start(draft);
+                                setTab('comments');
+                              },
+                              onOpen: (pin) => {
+                                pins.edit(pin);
+                                setTab('comments');
+                              },
+                              box: pins.open && (
+                                <PinBox
+                                  pins={pins}
+                                  number={
+                                    'draft' in pins.open ? pins.open.number : pins.open.pin.number
+                                  }
+                                  where={(() => {
+                                    const open = pins.open;
+                                    const file =
+                                      'draft' in open ? open.draft.board : open.pin.board;
+                                    const layer =
+                                      'draft' in open ? open.draft.layer : open.pin.layer;
+                                    return pinWhere(
+                                      reviewByFile.get(file)?.title ?? boardName(file),
+                                      layer ? nameFor(file, layer) : null,
+                                    );
+                                  })()}
+                                />
+                              ),
+                            }
+                          : undefined,
                     }
                   : undefined
               }
@@ -1770,18 +1825,32 @@ function DesignCanvasPage({
           onPlay={start && canvas ? () => setPlaying(start) : undefined}
           component={componentPanel}
           comments={
-            project ? (
-              <CommentsPanel
-                projectId={project.id}
-                commit={reviewData?.after ?? shown?.commit}
-                selection={selection}
-                select={select}
-                comments={comments}
-                refresh={refreshComments}
-                focus={commentFocus}
-                nameFor={nameFor}
-              />
-            ) : null
+            <>
+              {reviewData && !reviewedDocument && (
+                <ReviewNotes
+                  review={reviewData}
+                  onOpen={(id) => {
+                    const pin = reviewData.pins.find((entry) => entry.id === id);
+                    if (!pin) return;
+                    if (reviewByFile.has(pin.board)) focusReviewFrame(pin.board);
+                    if (reviewData.item.state === 'waiting') pins.edit(pin);
+                  }}
+                />
+              )}
+              {/* While the Comment tool makes pins, they are this review's comments. */}
+              {project && !pinsActive && (
+                <CommentsPanel
+                  projectId={project.id}
+                  commit={reviewData?.after ?? shown?.commit}
+                  selection={selection}
+                  select={select}
+                  comments={comments}
+                  refresh={refreshComments}
+                  focus={commentFocus}
+                  nameFor={nameFor}
+                />
+              )}
+            </>
           }
           agent={
             overlay && ask && project ? (

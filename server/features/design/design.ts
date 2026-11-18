@@ -3061,6 +3061,12 @@ export function previewScale(url: URL): number {
   return scale;
 }
 
+/** Light unless `scheme=dark` asks for the design system's dark theme. */
+export type BoardScheme = 'light' | 'dark';
+export function previewScheme(url: URL): BoardScheme {
+  return url.searchParams.get('scheme') === 'dark' ? 'dark' : 'light';
+}
+
 export async function renderBoard(
   repo: string,
   commit: string,
@@ -3068,8 +3074,10 @@ export async function renderBoard(
   width: number,
   height?: number,
   scale = 1,
+  scheme: BoardScheme = 'light',
 ) {
-  return (await renderBoardLayout(repo, commit, board, width, height, scale)).png;
+  return (await renderBoardLayout(repo, commit, board, width, height, scale, drawBoard, scheme))
+    .png;
 }
 
 // Test/injected renderers must not inherit an in-flight Chromium warm-up (or its failure).
@@ -3083,10 +3091,12 @@ export async function renderBoardLayout(
   height?: number,
   scale = 1,
   draw: typeof drawBoard = drawBoard,
+  scheme: BoardScheme = 'light',
 ): Promise<BoardRender> {
+  // A light drawing keeps the key it always had, so drawings already kept are not drawn again.
   const key =
-    (await drawingKey(repo, commit, board, width, height, scale)) ||
-    `${repo}:${commit}:${designFolder()}:${board}:${width}:${height ?? 'board'}:${scale}`;
+    (await drawingKey(repo, commit, board, width, height, scale, scheme)) ||
+    `${repo}:${commit}:${designFolder()}:${board}:${width}:${height ?? 'board'}:${scale}${scheme === 'dark' ? ':dark' : ''}`;
   const cached = renders.get(key);
   if (cached && (draw === drawBoard || renderers.get(key) === draw)) return cached;
   let work = rendering;
@@ -3108,7 +3118,7 @@ export async function renderBoardLayout(
     const stored = draw === drawBoard ? await readRender(key, scale) : null;
     if (stored) return stored;
     const rendered = await drawingLane.run(ticket, () =>
-      draw(repo, commit, board, width, height, scale),
+      draw(repo, commit, board, width, height, scale, scheme),
     );
     if (draw === drawBoard) writeRender(key, scale, rendered);
     return rendered;
@@ -3145,6 +3155,7 @@ async function drawingKey(
   width: number,
   height: number | undefined,
   scale: number,
+  scheme: BoardScheme = 'light',
 ) {
   const [canvas, tree] = await Promise.all([drawingCanvas(repo, commit), designTree(repo, commit)]);
   const placed = canvas?.boards?.[board];
@@ -3166,6 +3177,7 @@ async function drawingKey(
         height ?? placed.h,
         scale,
         ...(library ? [library] : []),
+        ...(scheme === 'dark' ? ['dark'] : []),
       ]),
     )
     .digest('hex')}`;
@@ -3241,6 +3253,7 @@ async function drawBoard(
   width: number,
   height?: number,
   scale = 1,
+  scheme: BoardScheme = 'light',
 ): Promise<BoardRender> {
   const canvas = await readCanvas(repo, commit);
   const placed = canvas?.boards[board];
@@ -3271,6 +3284,9 @@ async function drawBoard(
       );
       const tab = await context.newPage();
       await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
+      // The design system's dark theme is the root's data-theme, as the canvas's Dark sets it.
+      if (scheme === 'dark')
+        await tab.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
       await tab.evaluate(() => document.fonts.ready);
       const { boxes, textBoxes, words } = await tab.evaluate(() => {
         const boxes: Record<string, { x: number; y: number; w: number; h: number }> = {};
@@ -3319,15 +3335,24 @@ export async function reviewPreview(
   width: number,
   render: typeof renderBoardLayout = renderBoardLayout,
   scale = 1,
+  scheme: BoardScheme = 'light',
 ): Promise<DesignReviewPreview> {
   // Both sides are asked for at once, so both go ahead of drawings nobody is waiting for.
+  const side = (revision: string) => render(repo, revision, board.file, width, board.h, scale);
+  // Dark is drawn too, so its pictures are ready; where things are comes from light, which a
+  // theme does not move, so pins and areas sit where they do in light.
+  const dark = (revision: string) =>
+    render(repo, revision, board.file, width, board.h, scale, undefined, 'dark');
   const [before, after] = await Promise.all([
-    board.added ? null : render(repo, board.before, board.file, width, board.h, scale),
-    board.removed ? null : render(repo, board.after, board.file, width, board.h, scale),
+    board.added ? null : side(board.before),
+    board.removed ? null : side(board.after),
+    ...(scheme === 'dark'
+      ? [board.added ? null : dark(board.before), board.removed ? null : dark(board.after)]
+      : []),
   ]);
   const areas = reviewAreas(board.changes, before?.boxes ?? {}, after?.boxes ?? {}, width, board.h);
   const url = (revision: string) =>
-    `${designApiPath(projectId)}/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}&scale=${scale}`;
+    `${designApiPath(projectId)}/render?ref=${revision}&board=${encodeURIComponent(board.file)}&width=${width}&height=${board.h}&scale=${scale}${scheme === 'dark' ? '&scheme=dark' : ''}`;
   return {
     width,
     height: board.h,
@@ -4151,7 +4176,15 @@ async function projectDesignApi(
             : undefined;
           if (height !== undefined && (!Number.isInteger(height) || height < 64 || height > 20000))
             fail('Height must be 64 to 20000');
-          const png = await renderBoard(repo, commit, board, width, height, previewScale(url));
+          const png = await renderBoard(
+            repo,
+            commit,
+            board,
+            width,
+            height,
+            previewScale(url),
+            previewScheme(url),
+          );
           res.writeHead(200, {
             'Content-Type': 'image/png',
             'Content-Length': png.length,
@@ -4707,6 +4740,7 @@ async function projectDesignApi(
               width,
               undefined,
               previewScale(url),
+              previewScheme(url),
             ),
           );
         },

@@ -14,6 +14,8 @@ final class V2ReviewState {
     var previews: [String: Preview] = [:]
     var displayScale: Double = 1
     var widths: [String: Int] = [:]
+    /// Draw the screens in the design system's dark theme. For this review only.
+    var dark = false
     var loading = true
     var evidenceChecking = false
     var evidenceRevision = ""
@@ -73,7 +75,7 @@ final class V2ReviewState {
     var obscured: Bool { grid || design || conflict || asking || pinSheet || approvalCheck }
     var draftNumber: Int { (pins.map(\.number).max() ?? 0) + 1 }
     func width(_ board: V2DesignReview.Board) -> Int { widths[board.file] ?? board.defaultWidth }
-    func key(_ board: V2DesignReview.Board) -> String { "\(board.file)@\(width(board))@\(displayScale)@\(resolution?.file == board.file ? review?.main ?? "main" : "old")" }
+    func key(_ board: V2DesignReview.Board) -> String { "\(board.file)@\(width(board))@\(displayScale)@\(resolution?.file == board.file ? review?.main ?? "main" : "old")\(dark ? "@dark" : "")" }
     func preview(_ board: V2DesignReview.Board) -> Preview? { previews[key(board)] }
 
     func load(client: V2Client, item: InboxItem, scale: Double = 1) async {
@@ -108,12 +110,12 @@ final class V2ReviewState {
     }
     func loadPreview(client: V2Client, board: V2DesignReview.Board) async {
         guard let review else { return }
-        let key = key(board), width = width(board)
+        let key = key(board), width = width(board), dark = dark
         guard previews[key] == nil, !loadingKeys.contains(key) else { return }
         loadingKeys.insert(key)
         defer { loadingKeys.remove(key) }
         do {
-            let metadata = try await client.reviewPreview(project: project, item: review.item.id, board: board.file, width: width, scale: displayScale, main: resolution?.file == board.file)
+            let metadata = try await client.reviewPreview(project: project, item: review.item.id, board: board.file, width: width, scale: displayScale, main: resolution?.file == board.file, dark: dark)
             var before: UIImage?, after: UIImage?
             if let url = metadata.before { before = UIImage(data: try await client.reviewImage(url)); guard before != nil else { throw ClientError.invalidResponse } }
             if let url = metadata.after { after = UIImage(data: try await client.reviewImage(url)); guard after != nil else { throw ClientError.invalidResponse } }

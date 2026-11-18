@@ -3071,6 +3071,148 @@ button.dz-link-row:hover,
   max-width: 100%;
   height: auto;
 }
+/* Width: each board's own until a width is chosen, the choice ticked at the end of its row. */
+.dz-review-cmp .dl-btn.quiet[aria-expanded='true'] {
+  background: var(--ds-hover);
+}
+.dz-zoom-menu.dz-review-width-menu {
+  top: 36px;
+  right: auto;
+  left: 0;
+  width: 176px;
+}
+.dz-review-width-menu .dl-menu-item {
+  display: flex;
+  align-items: center;
+}
+.dz-review-width-menu .dl-end {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+/* Pins in a review (board DesignReviewCanvasPin): numbered on the screen, the tip on the point. */
+.dz-pin-hit {
+  cursor: crosshair;
+}
+.dz-pin {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ds-radius-full) var(--ds-radius-full) var(--ds-radius-full) 2px;
+  background: var(--ds-accent);
+  color: var(--ds-highlight);
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
+  line-height: 1;
+  box-shadow:
+    0 0 0 1.5px var(--ds-surface),
+    var(--ds-shadow-sm);
+  transform-origin: 0 0;
+  cursor: pointer;
+}
+.dz-pin:disabled {
+  opacity: 1;
+  color: var(--ds-highlight);
+  cursor: default;
+}
+.dz-pin.on {
+  box-shadow:
+    0 0 0 1.5px var(--ds-surface),
+    0 0 0 4px color-mix(in srgb, var(--ds-accent) 30%, transparent);
+}
+.dz-pin-area {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  border: 1.5px dashed var(--ds-accent);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.dz-pin-box {
+  position: absolute;
+  z-index: 15;
+  top: var(--dz-pin-y);
+  left: var(--dz-pin-x);
+  width: 260px;
+  box-sizing: border-box;
+  padding: var(--ds-space-3);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+  box-shadow:
+    0 0 0 1px var(--ds-line),
+    var(--ds-shadow-lg);
+  font-size: var(--ds-type-meta);
+}
+.dz-pin-box-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+.dz-pin-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.dz-pin-head b {
+  flex: none;
+  font-weight: 600;
+}
+.dz-pin-head .dl-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-pin-field {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: var(--ds-space-2) 10px;
+  border: 1px solid var(--ds-accent);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font: inherit;
+  font-size: var(--ds-type-small);
+  resize: vertical;
+  /* The accent ring is the field's focus. */
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 18%, transparent);
+}
+.dz-pin-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+.dz-pin-foot .dl-btn {
+  height: 28px;
+}
+/* The bar's narrow width: the box is a sheet along the bottom of the canvas. */
+@media (max-width: 820px) {
+  .dz-pin-box {
+    top: auto;
+    right: var(--ds-space-4);
+    bottom: var(--ds-space-4);
+    left: var(--ds-space-4);
+    width: auto;
+  }
+}
+/* Notes for the proposer, under Comments: one row per open pin of this round. */
+.dz-notes-go {
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+  line-height: 1.45;
+}
+.dz-notes-state {
+  color: var(--ds-tertiary);
+}
 
 /* A new design's canvas: nothing on it yet (board DesignNewEmpty). */
 .dz-stage > .dl-empty.dz-blank {

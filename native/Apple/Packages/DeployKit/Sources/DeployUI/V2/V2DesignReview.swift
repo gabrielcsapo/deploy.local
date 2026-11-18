@@ -151,6 +151,7 @@ struct V2DesignReviewView: View {
                     if board != nil || note != nil {
                         Button("Place a pin") { if let board { model.placePin(board) } else { model.pinTool = true } }.disabled(model.comparing || model.drawing || review?.item.state != .waiting || (board != nil && board.flatMap(model.preview) == nil))
                         Button("All screens") { model.grid = true }
+                        if board != nil { Toggle("Dark", isOn: Binding(get: { model.dark }, set: { model.dark = $0 })) }
                     }
                     if review?.resolutions?.isEmpty == false && review?.item.state == .waiting {
                         Button(review?.proposer?.isYou == true ? "Ask to update" : "Ask \(review?.proposer?.name ?? "the proposer") to update") { answer("update") }

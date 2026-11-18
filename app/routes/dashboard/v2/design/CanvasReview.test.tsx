@@ -4,9 +4,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { DesignReview, DesignReviewScreen } from '../../../../../shared/v2/contracts';
 import { InboxProvider } from '../data/hooks';
 import { DesignCanvas } from './Canvas';
-import { CanvasReviewBar, type CanvasReview } from './CanvasReview';
+import { CanvasReviewBar, PinBox, type CanvasReview } from './CanvasReview';
 import type { Canvas } from './model';
-import { RightPanel } from './Panels';
+import { RightPanel, ReviewNotes } from './Panels';
 
 const screen = (file: string, fields: Partial<DesignReviewScreen> = {}) =>
   ({
@@ -130,6 +130,7 @@ const controller = (value?: DesignReview) =>
     setError: () => {},
     load: async () => {},
     approveFrame: async () => {},
+    setPins: () => {},
   }) as CanvasReview;
 const bar = (value?: DesignReview) =>
   renderToStaticMarkup(
@@ -616,7 +617,8 @@ test('a canvas review offers Wipe, a width and Dark; a document’s does not', (
     /aria-pressed="false">Before<\/button><button[^>]*aria-pressed="true">After<\/button><button[^>]*aria-pressed="false">Wipe<\/button>/,
   );
   assert.match(html, /<span class="dz-review-cmp">/);
-  assert.match(html, /aria-label="Width" aria-haspopup="menu" aria-expanded="false"[^>]*>1440 /);
+  // Each board at its own width until one is chosen: the button says Width.
+  assert.match(html, /aria-label="Width" aria-haspopup="menu" aria-expanded="false"[^>]*>Width </);
   assert.match(html, /aria-pressed="false"[^>]*>Dark<\/button>/);
   // With nothing on main, Wipe is disabled like Before.
   assert.match(
@@ -673,4 +675,148 @@ test('a chosen width draws changed web frames at it; wipe shows both sides with 
   // A new frame has nothing to wipe: one slider, and its After alone.
   assert.equal(wipe.match(/role="slider"/g)?.length, 1);
   assert.match(wipe, /title="Added" [^>]*src="\/files\/proposed\/boards\/Added.html"/);
+});
+
+const reviewPin = (fields: Partial<DesignReview['pins'][number]> = {}) =>
+  ({
+    id: 'pin-1',
+    number: 1,
+    board: changed.file,
+    noteId: null,
+    width: 1440,
+    revision: 'proposed',
+    x: 300,
+    y: 200,
+    text: 'Keep the gutter at 16 here too.',
+    author: 'Gabriel',
+    resolved: false,
+    reply: null,
+    createdAt: '2026-11-12T15:00:00.000Z',
+    round: 1,
+    ...fields,
+  }) as DesignReview['pins'][number];
+const pinData = {
+  ...data,
+  round: 1,
+  createdAt: '2026-11-12T14:00:00.000Z',
+  boards: [{ ...changed, title: 'Welcome, narrow' }],
+  pins: [
+    reviewPin({ area: { x: 250, y: 150, w: 100, h: 100 } }),
+    reviewPin({ id: 'pin-2', number: 2, resolved: true, text: 'Done already.' }),
+  ],
+} as unknown as DesignReview;
+const pinsProp = (fields: object = {}) => ({
+  review: pinData,
+  making: true,
+  waiting: true,
+  open: null,
+  onMake: () => {},
+  onOpen: () => {},
+  box: null,
+  ...fields,
+});
+
+test('in a waiting review the Comment tool places pins on changed frames, numbered with their areas', () => {
+  const html = renderToStaticMarkup(
+    <DesignCanvas
+      {...props}
+      tool="comment"
+      review={{ ...frameReview, boards: new Map([[changed.file, changed]]), pins: pinsProp() }}
+    />,
+  );
+  // Only the changed frame takes a pin; the unchanged one is left as it was.
+  assert.equal(html.match(/dz-board-hit dz-pin-hit/g)?.length, 1);
+  // The open pin is a marker with its number; the resolved one is not shown.
+  assert.match(html, /class="dz-pin" aria-label="Pin 1"[^>]*>1<\/button>/);
+  assert.doesNotMatch(html, /Pin 2/);
+  assert.match(html, /class="dz-pin-area" style="left:250px;top:150px;width:100px;height:100px/);
+  // Before and Wipe show no After pins, and no frame takes one.
+  for (const view of [
+    { side: 'before' as const },
+    { compare: { wipe: true, width: null, dark: false } },
+  ]) {
+    const other = renderToStaticMarkup(
+      <DesignCanvas
+        {...props}
+        tool="comment"
+        review={{
+          ...frameReview,
+          ...view,
+          boards: new Map([[changed.file, changed]]),
+          pins: pinsProp({ making: false }),
+        }}
+      />,
+    );
+    assert.doesNotMatch(other, /dz-pin/);
+  }
+});
+
+test('placing a pin opens its box beside it, with the iPhone’s words', () => {
+  const draft = { board: changed.file, width: 1440, revision: 'proposed', x: 450, y: 360 };
+  const pins = {
+    open: { draft, number: 3 },
+    text: '',
+    setText: () => {},
+    busy: false,
+    error: '',
+    cancel: () => {},
+    save: () => {},
+    remove: () => {},
+  };
+  const box = <PinBox pins={pins} number={3} where="Install an app › App card" />;
+  const html = renderToStaticMarkup(
+    <DesignCanvas
+      {...props}
+      tool="comment"
+      review={{
+        ...frameReview,
+        boards: new Map([[changed.file, changed]]),
+        pins: pinsProp({ open: pins.open, box }),
+      }}
+    />,
+  );
+  // The new pin's number on the screen, and the box in the canvas beside it.
+  assert.match(html, /aria-label="Pin 3" disabled=""[^>]*>3<\/button>/);
+  assert.match(html, /class="dz-pin-box" style="--dz-pin-x:[\d.]+px;--dz-pin-y:[\d.]+px"/);
+  const text = html.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
+  assert.match(text, /\|Pin 3\|Install an app › App card\|Cancel\|Add\|/);
+  assert.match(html, /placeholder="What should change\?"/);
+  // Add waits for words; Remove pin is only for a saved pin.
+  assert.match(html, /disabled=""[^>]*>Add<\/button>/);
+  assert.doesNotMatch(html, /Remove pin|Save/);
+  const saved = renderToStaticMarkup(
+    <PinBox
+      pins={{ ...pins, open: { pin: pinData.pins[0] }, text: 'Keep the gutter at 16 here too.' }}
+      number={1}
+      where="Welcome, narrow"
+    />,
+  );
+  assert.match(saved, />Remove pin<\/button>/);
+  assert.match(saved, /<button[^>]*class="dl-btn primary ?"[^>]*>Save<\/button>/);
+  assert.doesNotMatch(saved, /disabled=""[^>]*>Save/);
+});
+
+test('Comments in a review lists this round’s pins for the proposer, Not sent until Ask for changes', () => {
+  const notes = (review: DesignReview) =>
+    renderToStaticMarkup(<ReviewNotes review={review} onOpen={() => {}} />)
+      .replace(/<[^>]+>/g, '|')
+      .replace(/\|+/g, '|');
+  assert.match(
+    notes(pinData),
+    /^\|Notes for Designer\|1\|Sent when you ask for changes\.\|1\|Keep the gutter at 16 here too\.\|Welcome, narrow\|Not sent\|Resolved · 1\|2\|Done already\.\|Welcome, narrow\|$/,
+  );
+  const sent = {
+    ...pinData,
+    item: { state: 'answered', answer: { actionId: 'changes' } },
+  } as unknown as DesignReview;
+  assert.match(notes(sent), /\|Welcome, narrow\|Sent\|/);
+  assert.doesNotMatch(notes(sent), /Not sent/);
+  // The proposer is you: Notes alone. An earlier round's pins are not repeated here.
+  const yours = {
+    ...pinData,
+    round: 2,
+    proposer: { name: 'You', id: null, avatar: null },
+    pins: [reviewPin({ round: 1 })],
+  } as unknown as DesignReview;
+  assert.match(notes(yours), /^\|Notes\|0\|Sent when you ask for changes\.\|Resolved · 0\|$/);
 });
