@@ -26,6 +26,8 @@ export const states = [
   'terminal',
   'approved-removed',
   'grouped',
+  'round2',
+  'compare',
 ] as const;
 type State = (typeof states)[number];
 const repo = resolve(import.meta.dirname, '../../..');
@@ -214,6 +216,8 @@ export function createFixture() {
     const person = state === 'approved-person' || asked;
     // An approval that hit main's own change while landing: back to waiting, with a choice to make.
     const conflicted = state === 'conflict' || state === 'not-landed';
+    // The second round: Welcome was seen in round 1 and is unchanged; the other two changed since.
+    const second = state === 'round2';
     const boards: DesignReviewScreen[] =
       state === 'notes-only'
         ? []
@@ -237,8 +241,9 @@ export function createFixture() {
               after,
               changes: areas[file].map(({ layer, words }) => ({ layer, words })),
               lines: [],
-              seen: approved || index === 0,
-              changedSinceReview: false,
+              seen: approved || index === 0 || (second && index === 1),
+              ...(second && index < 2 ? { seenInRound: index === 0 ? 1 : 2 } : {}),
+              changedSinceReview: second && index > 0,
               conflict: conflicted && index === 0,
             };
           });
@@ -310,8 +315,8 @@ export function createFixture() {
       after,
       main: approved ? '4f05991' : before,
       updatedWithMainAt: null,
-      round: 1,
-      previousItemId: null,
+      round: second ? 2 : 1,
+      previousItemId: second ? `design:deploy-local:design~welcome-gutter:${before}` : null,
       ...(approved
         ? {
             landing: {
@@ -346,7 +351,42 @@ export function createFixture() {
           boards: boards.map((board) => board.file),
         },
       ],
-      pins: [],
+      pins: second
+        ? [
+            {
+              id: 'pin-gutter',
+              number: 1,
+              board: 'WelcomeNarrow.html',
+              noteId: null,
+              width: 720,
+              revision: before,
+              x: 160,
+              y: 120,
+              text: 'Keep the gutter at 16 here too.',
+              author: 'Gabriel',
+              resolved: true,
+              reply: 'Gutter is 16 at every width now.',
+              createdAt: '2026-11-11T14:00:00.000Z',
+              round: 1,
+            },
+            {
+              id: 'pin-maker',
+              number: 2,
+              board: 'InstallApp.html',
+              noteId: null,
+              width: 1440,
+              revision: before,
+              x: 300,
+              y: 260,
+              text: 'The app card should say who made it.',
+              author: 'Gabriel',
+              resolved: false,
+              reply: 'Kept the size; the maker does not fit at 700.',
+              createdAt: '2026-11-11T14:01:00.000Z',
+              round: 1,
+            },
+          ]
+        : [],
       notes:
         state === 'notes-only'
           ? [
@@ -712,7 +752,28 @@ async function check() {
         assert.equal(Boolean(review.landing?.build), state === 'building');
         assert.ok(review.boards.every((board) => board.seen));
       } else if (state !== 'notes-only')
-        assert.equal(review.boards.filter((board) => board.seen).length, 1);
+        assert.equal(
+          review.boards.filter((board) => board.seen).length,
+          state === 'round2' ? 2 : 1,
+        );
+      if (state === 'round2') {
+        assert.equal(review.round, 2);
+        assert.deepEqual(
+          review.boards.map((board) => [board.file, board.changedSinceReview, board.seenInRound]),
+          [
+            ['Welcome.html', false, 1],
+            ['WelcomeNarrow.html', true, 2],
+            ['InstallApp.html', true, undefined],
+          ],
+        );
+        assert.deepEqual(
+          review.pins.map((pin) => [pin.round, pin.resolved, pin.reply]),
+          [
+            [1, true, 'Gutter is 16 at every width now.'],
+            [1, false, 'Kept the size; the maker does not fit at 700.'],
+          ],
+        );
+      } else assert.equal(review.pins.length, 0);
       if (state === 'conflict' || state === 'not-landed')
         assert.equal(review.resolutions![0].choice, null);
       if (state === 'notes-only') assert.equal(review.notes[0].id, 'gutter');
@@ -796,7 +857,7 @@ async function check() {
       await vite.close();
     }
     console.log(
-      'PASS: twelve states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
+      'PASS: fourteen states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
     );
   } finally {
     fixture.close();

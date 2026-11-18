@@ -535,7 +535,8 @@ function DesignCanvasPage({
     project &&
     design.data &&
     !(overlay && mode !== 'mine') &&
-    (!reviewId || (reviewData?.item.state === 'waiting' && review.side === 'after')),
+    (!reviewId ||
+      (reviewData?.item.state === 'waiting' && review.side === 'after' && !review.compare.wipe)),
   );
   const head = useRef<{ ref: string; commit: string } | null>(null);
   useEffect(() => {
@@ -1325,6 +1326,7 @@ function DesignCanvasPage({
           {reviewId && (
             <CanvasReviewBar
               review={review}
+              compare
               suggestions={
                 reviewData ? reviewFeedback(reviewData, comments, ref, design.data?.commit) : ''
               }
@@ -1436,6 +1438,8 @@ function DesignCanvasPage({
                       approve: review.approveFrame,
                       busy: review.busy,
                       waiting: reviewData?.item.state === 'waiting',
+                      round: reviewData?.round,
+                      compare: review.compare,
                     }
                   : undefined
               }

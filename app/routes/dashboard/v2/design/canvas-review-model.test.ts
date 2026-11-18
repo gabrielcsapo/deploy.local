@@ -11,9 +11,14 @@ import {
   reviewFrames,
   reviewKey,
   reviewProject,
+  comparedWidth,
+  frameTag,
+  reviewProgress,
   reviewUnits,
   seenFrame,
+  sinceLastReview,
   stepFrame,
+  wipeStep,
 } from './canvas-review-model';
 
 const screen = (file: string, fields: Partial<DesignReviewScreen> = {}): DesignReviewScreen => ({
@@ -190,4 +195,152 @@ test('a shared part is one unit, ticked with the screen it is looked at on', () 
     [true, true, false, false],
   );
   assert.equal(reviewUnits({ ...review, parts: undefined }).length, 3, 'older coordinators');
+});
+
+// The Round2 board: Welcome seen in round 1 and unchanged, Welcome narrow and Install an app changed.
+const pin = (id: string, fields: Partial<DesignReview['pins'][number]>) =>
+  ({
+    id,
+    number: 1,
+    board: 'Narrow.html',
+    noteId: null,
+    width: 1440,
+    revision: 'r1',
+    x: 0,
+    y: 0,
+    text: '',
+    author: 'owner',
+    resolved: false,
+    reply: null,
+    createdAt: '2026-11-10T00:00:00.000Z',
+    round: 1,
+    ...fields,
+  }) as DesignReview['pins'][number];
+const second = {
+  round: 2,
+  createdAt: '2026-11-12T00:00:00.000Z',
+  boards: [
+    screen('Welcome.html', {
+      title: 'Welcome',
+      seen: true,
+      seenInRound: 1,
+      changedSinceReview: false,
+    }),
+    screen('Narrow.html', { title: 'Welcome, narrow', seen: true, seenInRound: 2 }),
+    screen('Install.html', { title: 'Install an app' }),
+  ],
+  groups: [{ id: null, title: null, boards: ['Welcome.html', 'Narrow.html', 'Install.html'] }],
+  notes: [],
+  pins: [
+    pin('a', {
+      number: 1,
+      text: 'Keep the gutter at 16 here too.',
+      resolved: true,
+      reply: 'Gutter is 16 at every width now.',
+    }),
+    pin('b', {
+      number: 2,
+      board: 'Install.html',
+      text: 'The app card should say who made it.',
+      reply: 'Kept the size; the maker does not fit at 700.',
+    }),
+    pin('c', { number: 3, round: 2, text: 'A note made this round.' }),
+  ],
+} as unknown as DesignReview;
+
+test('a later round counts only what changed since the last review; round one is unchanged', () => {
+  assert.deepEqual(reviewProgress(second), {
+    round: 'round 2',
+    count: '1 of 2 changed screens approved',
+  });
+  assert.deepEqual(reviewProgress({ ...second, round: 1 }), {
+    round: null,
+    count: '2 of 3 approved',
+  });
+  const one = { ...second, boards: second.boards.slice(0, 2) };
+  assert.equal(reviewProgress(one).count, '1 of 1 changed screen approved');
+  // A shared part as it was last round is not counted; one changed again is, once.
+  const part = {
+    component: 'sidebar',
+    name: 'Sidebar',
+    screens: 3,
+    lookAt: { file: 'Welcome.html', title: 'Welcome' },
+    seen: true,
+  };
+  assert.equal(
+    reviewProgress({ ...second, parts: [{ ...part, changedSinceReview: false }] }).count,
+    '1 of 2 changed screens approved',
+  );
+  assert.equal(
+    reviewProgress({ ...second, parts: [{ ...part, seen: false, changedSinceReview: true }] })
+      .count,
+    '1 of 3 changed screens approved',
+  );
+});
+
+test('a frame seen in an earlier round and unchanged since is tagged with that round', () => {
+  const [welcome, narrow, install] = second.boards;
+  assert.deepEqual(frameTag(second, welcome), { text: 'Seen in round 1', changed: false });
+  // Ticked this round, or changed since: still Changed.
+  assert.deepEqual(frameTag(second, narrow), { text: 'Changed', changed: true });
+  assert.deepEqual(frameTag(second, install), { text: 'Changed', changed: true });
+  assert.equal(frameTag({ ...second, round: 3 }, welcome).text, 'Seen in round 1');
+  // Older coordinators do not say when: the previous round.
+  assert.equal(
+    frameTag({ ...second, round: 3 }, { ...welcome, seenInRound: undefined }).text,
+    'Seen in round 2',
+  );
+  assert.equal(frameTag({ ...second, round: 1 }, welcome).text, 'Changed');
+  assert.equal(frameTag(second, { ...welcome, seen: false }).text, 'Changed');
+  assert.equal(frameTag(second, { ...welcome, added: true }).text, 'New');
+});
+
+test('since your last review lists last round’s notes with their screen, state and reply', () => {
+  const since = sinceLastReview(second)!;
+  assert.equal(since.summary, '2 screens changed. 1 of your 2 notes addressed.');
+  assert.deepEqual(
+    since.notes.map((note) => [note.number, note.text, note.screen, note.addressed, note.reply]),
+    [
+      [
+        1,
+        'Keep the gutter at 16 here too.',
+        'Welcome, narrow',
+        true,
+        'Gutter is 16 at every width now.',
+      ],
+      [
+        2,
+        'The app card should say who made it.',
+        'Install an app',
+        false,
+        'Kept the size; the maker does not fit at 700.',
+      ],
+    ],
+  );
+  assert.equal(sinceLastReview({ ...second, round: 1 }), null);
+  assert.equal(
+    sinceLastReview({ ...second, boards: second.boards.slice(0, 2), pins: [second.pins[1]] })!
+      .summary,
+    '1 screen changed. 0 of your 1 note addressed.',
+  );
+  assert.equal(sinceLastReview({ ...second, pins: [] })!.summary, '2 screens changed.');
+  // Older coordinators give no round: pins made before this round's review are last round's.
+  const old = second.pins.map(({ round: _, ...rest }) => rest) as DesignReview['pins'];
+  old[2] = { ...old[2], createdAt: '2026-11-13T00:00:00.000Z' };
+  assert.deepEqual(
+    sinceLastReview({ ...second, pins: old })!.notes.map((note) => note.id),
+    ['a', 'b'],
+  );
+});
+
+test('the review width draws web frames only; the wipe divider steps and stops at the edges', () => {
+  assert.equal(comparedWidth({ width: null }, 720), 720);
+  assert.equal(comparedWidth({ width: 390 }, 1440), 390);
+  assert.equal(comparedWidth({ width: 700 }, 390), 390);
+  assert.equal(wipeStep(0.5, 'ArrowLeft'), 0.45);
+  assert.equal(wipeStep(0.5, 'ArrowRight'), 0.55);
+  assert.equal(wipeStep(0.02, 'ArrowLeft'), 0);
+  assert.equal(wipeStep(0.5, 'End'), 1);
+  assert.equal(wipeStep(0.5, 'Home'), 0);
+  assert.equal(wipeStep(0.5, 'a'), null);
 });

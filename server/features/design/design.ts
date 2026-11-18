@@ -1233,10 +1233,16 @@ function reviewLineage(owner: string, context: any): string[] {
 }
 
 function reviewPins(owner: string, context: any): DesignReviewPin[] {
-  const lineage = new Set([
-    designItemId(context.projectId, context.branch, context.commit),
-    ...reviewLineage(owner, context),
+  // Each review in the lineage with its round, so a later round can tell last round's notes.
+  const rows = list('v2-inbox-native', owner);
+  const rounds = new Map<string, number>([
+    [designItemId(context.projectId, context.branch, context.commit), context.round ?? 1],
+    ...reviewLineage(owner, context).map(
+      (earlier) =>
+        [earlier, rows.find((row) => row.id === earlier)?.context.round ?? 1] as [string, number],
+    ),
   ]);
+  const lineage = new Set(rounds.keys());
   return list('design-comment', owner)
     .filter(
       (row) =>
@@ -1263,6 +1269,7 @@ function reviewPins(owner: string, context: any): DesignReviewPin[] {
       resolved: Boolean(row.resolved),
       reply: row.reply ?? null,
       createdAt: row.createdAt,
+      round: rounds.get(row.reviewItemId),
     }))
     .sort((a, b) => a.number - b.number);
 }
@@ -1602,17 +1609,18 @@ async function reviewParts(
             (input.lineage.includes(entry.itemId) && entry.hash === component.hash)),
       );
     const placed = canvas.boards[file];
+    const before = previous?.components.find((item) => item.id === component.id);
+    const sinceReview =
+      !context.previousCommit || !before || sha1(JSON.stringify(before)) !== component.hash;
     parts.push({
       component: component.id,
       name: component.name,
       screens: screens.size,
       lookAt: { file, title: placed.title ?? screenName(file) },
       seen,
+      changedSinceReview: sinceReview,
     });
     if (boards.some((board) => board.file === file)) continue;
-    const before = previous?.components.find((item) => item.id === component.id);
-    const sinceReview =
-      !context.previousCommit || !before || sha1(JSON.stringify(before)) !== component.hash;
     const existing = lookAt.get(file);
     if (existing) {
       existing.seen &&= seen;
@@ -1766,23 +1774,31 @@ async function readDesignReview(
     if (reviewBuilt.size > 64) reviewBuilt.delete(reviewBuilt.keys().next().value!);
   }
   const revision = built;
+  const round = context.round ?? 1;
   const boards: DesignReviewScreen[] = await Promise.all(
     revision.screens.map(async (screen) => {
       const path = `${dir}/boards/${screen.file}`;
-      let wasSeen = false;
+      // The earliest round it was ticked in: a later round shows that one.
+      let seenInRound: number | undefined;
       for (const entry of seen) {
         if (entry.board !== screen.file) continue;
-        wasSeen =
-          entry.itemId === item.id ||
-          (!screen.changedSinceReview &&
-            lineage.includes(entry.itemId) &&
-            sha1(await showFile(repo, entry.revision, path)) === revision.afterHashes.get(path));
-        if (wasSeen) break;
+        const at =
+          entry.itemId === item.id
+            ? round
+            : !screen.changedSinceReview &&
+                lineage.includes(entry.itemId) &&
+                sha1(await showFile(repo, entry.revision, path)) === revision.afterHashes.get(path)
+              ? (previousContexts[lineage.indexOf(entry.itemId)]?.round ?? 1)
+              : undefined;
+        if (at !== undefined && (seenInRound === undefined || at < seenInRound)) seenInRound = at;
       }
+      const wasSeen = seenInRound !== undefined;
+      const approved = item.answer?.actionId === 'approve';
       const resolution = status.resolutions.find((entry) => entry.file === screen.file);
       return {
         ...screen,
-        seen: item.answer?.actionId === 'approve' || wasSeen,
+        seen: approved || wasSeen,
+        ...(wasSeen || approved ? { seenInRound: seenInRound ?? round } : {}),
         conflict: status.conflicts.includes(screen.file),
         resolution,
         main: resolution ? status.main : undefined,
@@ -1839,7 +1855,7 @@ async function readDesignReview(
     after: context.commit,
     main: status.main,
     updatedWithMainAt: mainTime,
-    round: context.round ?? 1,
+    round,
     previousItemId: context.previousItemId ?? null,
     landing: reviewLanding(owner, row.id),
     feedback: reviewFeedback(owner, row),
