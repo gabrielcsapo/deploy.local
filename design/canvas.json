@@ -3578,6 +3578,13 @@
       "h": 900,
       "title": "Large files, searched with no match",
       "expand": "fill"
+    },
+    "CertificateChanged.html": {
+      "x": 17410,
+      "y": 3000,
+      "w": 1440,
+      "h": 900,
+      "title": "SER has a new certificate: compare it, then trust it again"
     }
   },
   "order": [
@@ -3595,6 +3602,7 @@
     "SignInPasswordPhone.html",
     "SignInTrustPhone.html",
     "SignIn.html",
+    "CertificateChanged.html",
     "CliLogin.html",
     "Setup.html",
     "SetupRunApps.html",
