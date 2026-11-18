@@ -132,10 +132,21 @@ const conflictReason = (pull: any, conflicts: string[]) => {
     rest > 0 ? ` and ${rest} more ${rest === 1 ? 'file' : 'files'}` : ''
   }. Ask the task to merge ${pull.targetBranch} into its branch and resolve those files, then merge again.`;
 };
+/**
+ * The conflict on its own, for a pull request no task opened: there is no task to ask, so its
+ * page offers a new one instead of conflictReason()'s second sentence.
+ */
+export function conflictSummary(pull: any, conflicts: string[]) {
+  const shown = conflicts.slice(0, 10);
+  const rest = conflicts.length - shown.length;
+  const names = rest > 0 ? [...shown, `${rest} more ${rest === 1 ? 'file' : 'files'}`] : shown;
+  const listed =
+    names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+  return `${pull.targetBranch} has moved and ${pull.sourceBranch} conflicts with it in ${listed}.`;
+}
 
-/** Whether the pull request's required pipeline checks have passed for `headCommit`. A manifest
- * that does not compile fails the merge, but must not break the read that explains mergeability. */
-async function requiredChecksPassed(
+/** The pipeline run that decides whether `headCommit` may merge, when its deploy.yaml asks for one. */
+async function requiredChecks(
   owner: string,
   project: any,
   headCommit: string,
@@ -146,19 +157,38 @@ async function requiredChecksPassed(
     'show',
     `${headCommit}:deploy.yaml`,
   ]).catch(() => null);
-  if (manifest === null) return true;
+  if (manifest === null) return { required: false, run: undefined };
   let pipeline;
   try {
     pipeline = compileDeployYaml(manifest).spec.pipeline;
   } catch (error) {
     if (onInvalidManifest === 'throw') throw error;
-    return true;
+    return { required: false, run: undefined };
   }
-  if (!pipeline?.on.includes('pull_request')) return true;
-  const check = list('pipeline-run', owner)
-    .filter((run) => run.projectId === project.id && run.commit === headCommit)
+  if (!pipeline?.on.includes('pull_request')) return { required: false, run: undefined };
+  const run = list('pipeline-run', owner)
+    .filter((row) => row.projectId === project.id && row.commit === headCommit)
     .at(-1);
-  return check?.status === 'succeeded';
+  return { required: true, run };
+}
+
+/** Whether the pull request's required pipeline checks have passed for `headCommit`. A manifest
+ * that does not compile fails the merge, but must not break the read that explains mergeability. */
+async function requiredChecksPassed(
+  owner: string,
+  project: any,
+  headCommit: string,
+  runGit: typeof gitText,
+  onInvalidManifest: 'throw' | 'ignore',
+) {
+  const { required, run } = await requiredChecks(
+    owner,
+    project,
+    headCommit,
+    runGit,
+    onInvalidManifest,
+  );
+  return !required || run?.status === 'succeeded';
 }
 
 function mergeOperation(owner: string, pull: any) {
@@ -316,29 +346,74 @@ export async function collaborationRead(
         ? (await mergeTree(project.repositoryPath, baseCommit, headCommit, gitText)).conflicts
         : [];
     let mergeBlock: string | null = null;
-    if (row.status !== 'open') mergeBlock = `This pull request is ${row.status}.`;
-    else if (noChanges)
+    // What kind of block it is, and the parts a page shows on its own: a pull request no task
+    // opened names the conflicting files or the failing checks instead of asking a task.
+    let mergeBlockKind: 'status' | 'no-changes' | 'conflicts' | 'checks' | null = null;
+    let pending: {
+      commit: string;
+      runId: string | null;
+      status: string | null;
+      done: number;
+      total: number;
+      failed: { id: string; name: string }[];
+    } | null = null;
+    if (row.status !== 'open') {
+      mergeBlock = `This pull request is ${row.status}.`;
+      mergeBlockKind = 'status';
+    } else if (noChanges) {
       mergeBlock = `${row.sourceBranch} has no commits that ${row.targetBranch} does not already have.`;
-    else if (conflicts.length) mergeBlock = conflictReason(row, conflicts);
-    else if (!(await requiredChecksPassed(owner, project, headCommit, gitText, 'ignore')))
-      mergeBlock = `Required pipeline checks have not passed for ${headCommit.slice(0, 7)}.`;
+      mergeBlockKind = 'no-changes';
+    } else if (conflicts.length) {
+      mergeBlock = conflictReason(row, conflicts);
+      mergeBlockKind = 'conflicts';
+    } else {
+      const { required, run } = await requiredChecks(owner, project, headCommit, gitText, 'ignore');
+      if (required && run?.status !== 'succeeded') {
+        mergeBlock = `Required pipeline checks have not passed for ${headCommit.slice(0, 7)}.`;
+        mergeBlockKind = 'checks';
+        const jobs = run
+          ? list('job', owner).filter((job) => job.pipelineId === run.id && !job.packagePublish)
+          : [];
+        pending = {
+          commit: headCommit,
+          runId: run?.id ?? null,
+          status: run?.status ?? null,
+          done: jobs.filter((job) =>
+            ['succeeded', 'failed', 'cancelled', 'skipped', 'timed_out', 'unknown'].includes(
+              job.status,
+            ),
+          ).length,
+          total: jobs.length,
+          failed: jobs
+            .filter((job) => ['failed', 'timed_out'].includes(job.status))
+            .map((job) => ({ id: job.id, name: job.name })),
+        };
+      }
+    }
     const rawCommits = await gitText(project.repositoryPath, [
       'log',
       '--max-count=100',
       '--reverse',
-      '--format=%H%x00%an%x00%aI%x00%s',
+      '--format=%H%x00%P%x00%an%x00%aI%x00%s',
       `${mergeBase}..${headCommit}`,
     ]);
     const commitCount = Number(
       await gitText(project.repositoryPath, ['rev-list', '--count', `${mergeBase}..${headCommit}`]),
     );
-    const commits = rawCommits
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => {
-        const [oid, author, date, subject] = line.split('\0');
-        return { oid, author, date, subject };
-      });
+    const commits = await Promise.all(
+      rawCommits
+        .split('\n')
+        .filter(Boolean)
+        .map(async (line) => {
+          const [oid, parentList, author, date, subject] = line.split('\0');
+          const parents = parentList.split(' ').filter(Boolean);
+          // A merge that brought the target branch in, so a page can fold those together.
+          const mergesTarget =
+            parents.length > 1 &&
+            (await isAncestor(project.repositoryPath, parents[1], baseCommit, gitText));
+          return { oid, parents, author, date, subject, ...(mergesTarget ? { mergesTarget } : {}) };
+        }),
+    );
     return {
       commits,
       commitCount,
@@ -348,8 +423,11 @@ export async function collaborationRead(
       patch,
       fastForward,
       conflicts,
+      conflictSummary: conflicts.length ? conflictSummary(row, conflicts) : null,
       mergeable: mergeBlock === null,
       mergeBlock,
+      mergeBlockKind,
+      requiredChecks: pending,
     };
   }
   return {
@@ -379,6 +457,8 @@ export async function collaborationCommand(
   action: string | undefined,
   input: any,
   signature: string,
+  /** Set by an agent's project tool, never by a request body: the task that found an issue. */
+  foundBy?: { taskId: string; agentId?: string },
 ) {
   get('project', owner, projectId);
   const replay = commandReplay(owner, input.operationId, signature);
@@ -437,6 +517,8 @@ export async function collaborationCommand(
                 issueIds: linked(owner, projectId, 'issue', input.issueIds ?? []),
               }
             : {}),
+          // An issue an agent writes down waits in Found by agents until the owner accepts it.
+          ...(collection === 'issues' && foundBy ? { foundBy } : {}),
           createdAt: now(),
           updatedAt: now(),
         });
@@ -464,6 +546,16 @@ export async function collaborationCommand(
           updatedAt: now(),
         });
         return { task, issue };
+      }
+      if (action === 'accept') {
+        if (collection !== 'issues') throw new Error('Only issues can be added to Up next');
+        if (row.status !== 'open') conflict('Only an open issue can be added to Up next');
+        return save(type, owner, {
+          ...row,
+          accepted: { by: owner, at: now() },
+          revision: row.revision + 1,
+          updatedAt: now(),
+        });
       }
       if (action === 'retry-merge') {
         if (collection !== 'pulls' || !['open', 'merged'].includes(row.status))

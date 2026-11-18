@@ -142,7 +142,7 @@ test('host redirect adapter returns HTTP 308 for every old path without intercep
 test('repository pages from before v2 open the project, and never shadow a deploy.local page', async () => {
   for (const [old, next] of [
     ['/home-gym', '/dashboard/projects/home-gym'],
-    ['/home-gym/pulls?state=open', '/dashboard/projects/home-gym/pulls?state=open'],
+    ['/home-gym/pulls?state=open', '/dashboard/projects/home-gym/work?state=open'],
     ['/home-gym/deployment', '/dashboard/projects/home-gym/releases'],
     ['/dashboard/repositories/home%20gym/settings', '/dashboard/projects/home%20gym/settings'],
   ])

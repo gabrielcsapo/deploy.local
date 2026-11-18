@@ -24,6 +24,14 @@ test('results link to the place they open', () => {
     '/dashboard/projects/home%2Egym/apps/home-gym%20sync',
   );
   assert.equal(
+    nameHref({ kind: 'pull', id: 'pr.1', title: 'Fix', projectId: 'home.gym' }),
+    '/dashboard/projects/home%2Egym/pulls/pr%2E1',
+  );
+  assert.equal(
+    nameHref({ kind: 'issue', id: 'i1', title: 'Idea', projectId: 'home.gym' }),
+    '/dashboard/projects/home%2Egym/work',
+  );
+  assert.equal(
     messageHref({
       id: 'm1',
       taskId: 't1',

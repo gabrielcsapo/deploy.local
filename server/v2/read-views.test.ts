@@ -196,6 +196,7 @@ after(() => {
 const paths = [
   '/api/projects',
   '/api/projects/p/overview',
+  '/api/projects/p/work',
   '/api/task-snapshots/t',
   '/api/design/projects',
   '/api/projects/p/design',
@@ -229,6 +230,17 @@ for (const path of paths)
     await request(path);
     assert.deepEqual(starts, [], 'first request after warm-up also reuses the view');
   });
+
+test('the overview links pull requests to their tasks, and Work folds them into one row', async () => {
+  const overview = await request('/api/projects/p/overview');
+  assert.deepEqual(overview.pulls[0].taskIds, ['t']);
+  assert.equal(overview.pulls[0].taskId, 't');
+  const work = await request('/api/projects/p/work');
+  const row = work.rows.find((entry: any) => entry.id === 'task:t');
+  assert.equal(row.number, 1);
+  assert.equal(row.title, 'A task');
+  assert.equal(work.rows.filter((entry: any) => entry.link.id === 'pr').length, 0);
+});
 
 test('update progress stays live while service probing is cached', async () => {
   await request('/api/self-update');

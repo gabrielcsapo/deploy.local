@@ -28,10 +28,11 @@ export async function submitMessage(
   taskId?: string,
   agentId?: string,
   projectId?: string,
+  ref?: string,
 ) {
   return mediaRequest(
     agentId ? `/composer/agents/${encodeURIComponent(agentId)}/messages` : '/composer/messages',
     'POST',
-    { ...message, taskId, ...(projectId ? { projectId } : {}) },
+    { ...message, taskId, ...(projectId ? { projectId, ...(ref ? { ref } : {}) } : {}) },
   );
 }

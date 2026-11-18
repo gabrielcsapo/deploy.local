@@ -25,7 +25,8 @@ import type {
 import { useData, type Overview, type Work } from './data';
 import { appPath, appTabItems, projectPath, projectSegment, projectTabItems } from './routing';
 import { AppOverview, AppSettings, Health, ReleaseList } from './app.client';
-import { ProjectCode, ProjectIssues } from './code.client';
+import { ProjectCode } from './code.client';
+import { ProjectWorkTab } from './work.client';
 import { CloneUrls } from './clone.client';
 import { ProjectConfiguration } from './settings.client';
 import { ProjectPipelines } from './pipelines.client';
@@ -58,6 +59,7 @@ import { ProjectPushCode, ProjectStart } from './project-start.client';
 import { remembered, useCoordinatorName, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
+import type { ProjectWork } from '../../../../../server/features/repositories/project-work.ts';
 import { parsePatch } from '../tasks/api';
 import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
 
@@ -100,6 +102,7 @@ export default function Projects() {
       requestId={
         parts[3] === 'requests' ? parts[4] : parts[5] === 'requests' ? parts[6] : undefined
       }
+      pullId={parts[3] === 'pulls' ? parts[4] : undefined}
       search={search}
     />
   ) : (
@@ -412,6 +415,7 @@ function ProjectPage({
   appRequests,
   appPerformance,
   requestId,
+  pullId,
   search,
 }: {
   projectKey: string;
@@ -421,6 +425,7 @@ function ProjectPage({
   appRequests: boolean;
   appPerformance: boolean;
   requestId?: string;
+  pullId?: string;
   search: string;
 }) {
   const { formatRequestClock, formatTime, now } = useProjectFormatting();
@@ -429,9 +434,23 @@ function ProjectPage({
   const pulls = useData<{ items: TaskPull[] }>(
     `/api/projects/${projectSegment(projectKey)}/pulls?status=open`,
   );
+  // Every tab row shows the Work count, so the work is read with the page, not the tab.
+  const work = useData<ProjectWork>(`/api/projects/${projectSegment(projectKey)}/work`);
   const history = useData<{ releases: Release[] }>(
     `/api/projects/${projectSegment(projectKey)}/releases`,
   );
+  // An open pull request's page has Merge as its one primary action, so New task steps back.
+  const pullDetail = useData<{ record: TaskPull }>(
+    pullId
+      ? `/api/projects/${projectSegment(projectKey)}/pulls/${projectSegment(pullId)}`
+      : undefined,
+  );
+  const openPull = pullDetail.data?.record.status === 'open';
+  const refreshPull = pullDetail.refresh;
+  useEffect(() => {
+    window.addEventListener('deploy:pull-changed', refreshPull);
+    return () => window.removeEventListener('deploy:pull-changed', refreshPull);
+  }, [refreshPull]);
   const [add, setAdd] = useState(false);
   const available = useData<{ apps: Project['apps'] }>('/api/projects/unlinked-apps');
   const inbox = useInbox();
@@ -522,7 +541,9 @@ function ProjectPage({
     !data.tasks.length &&
     !project?.apps.length;
   const tabs =
-    pageApp && !single ? appTabItems(base, pageApp) : projectTabItems(base, data, releases.length);
+    pageApp && !single
+      ? appTabItems(base, pageApp)
+      : projectTabItems(base, data, releases.length, work.data?.counts.open);
   const activeLabel = appSettings
     ? 'Settings'
     : showRequests
@@ -535,8 +556,9 @@ function ProjectPage({
               releases: 'Releases',
               logs: 'Logs',
               code: 'Code',
-              pulls: 'Pull requests',
-              issues: 'Issues',
+              work: 'Work',
+              // A pull request's own page sits under Work.
+              pulls: 'Work',
               pipelines: 'Pipelines',
               settings: 'Settings',
             }[section] ?? 'Overview');
@@ -593,12 +615,14 @@ function ProjectPage({
         }
         actions={
           !starting && !selectedApp ? (
-            <a className="dl-btn primary" href="/dashboard">
+            <a className={`dl-btn ${openPull ? 'secondary' : 'primary'}`} href="/dashboard">
               New task
             </a>
           ) : undefined
         }
-        className={`${showRequests || showPerformance ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
+        // Work is a reading list: its rows, and a pull request's page under it, keep the tabs'
+        // column instead of the wide page.
+        className={`${showRequests || showPerformance || section === 'work' || section === 'pulls' ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
       >
         {overview.error && (
           <Banner
@@ -641,8 +665,16 @@ function ProjectPage({
                   ) : (
                     <ProjectCode overview={data} />
                   )
-                ) : section === 'issues' ? (
-                  <ProjectIssues overview={data} refresh={overview.refresh} />
+                ) : section === 'work' ? (
+                  <ProjectWorkTab
+                    projectId={project.id}
+                    work={work.data}
+                    error={work.error}
+                    refresh={() => {
+                      work.refresh();
+                      overview.refresh();
+                    }}
+                  />
                 ) : section === 'settings' ? (
                   <>
                     {single && (
@@ -706,10 +738,7 @@ function ProjectPage({
                       <NoRepository project={project} />
                     )}
                     {!data.pulls.length && !data.issues.length && (
-                      <p className="dl-meta">
-                        Pull requests and issues get their own tabs once there are some. Add a
-                        second app and an Apps tab appears.
-                      </p>
+                      <p className="dl-meta">Add a second app and an Apps tab appears.</p>
                     )}
                     {data.repository && (
                       <Action onClick={() => setAdd(true)}>Add an app to this project</Action>

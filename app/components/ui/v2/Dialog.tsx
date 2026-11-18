@@ -6,6 +6,7 @@ export function Dialog({
   open,
   onClose,
   title,
+  meta,
   children,
   actions,
   disabled,
@@ -15,6 +16,8 @@ export function Dialog({
   open: boolean;
   onClose: () => void;
   title: string;
+  /** A line under the title, such as who wrote it and when. */
+  meta?: ReactNode;
   children: ReactNode;
   actions?: ReactNode;
   className?: string;
@@ -67,9 +70,18 @@ export function Dialog({
       }}
     >
       <div className="dl-dialog-head">
-        <h2 id={id} className="dl-section-title">
-          {title}
-        </h2>
+        {meta ? (
+          <div className="dl-dialog-title">
+            <h2 id={id} className="dl-section-title">
+              {title}
+            </h2>
+            <span className="dl-meta">{meta}</span>
+          </div>
+        ) : (
+          <h2 id={id} className="dl-section-title">
+            {title}
+          </h2>
+        )}
         <IconButton icon="close" label="Close dialog" onClick={onClose} />
       </div>
       <div className="dl-dialog-body" inert={disabled || loading || undefined}>

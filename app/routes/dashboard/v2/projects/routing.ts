@@ -10,8 +10,6 @@ export function projectDocumentUrl(url: string) {
 }
 export function projectTabs(input: {
   code: boolean;
-  pulls: number;
-  issues: number;
   apps: number;
   releases: number;
   /** A one-app project is its own app page, so a web app's requests are a project tab. */
@@ -20,9 +18,9 @@ export function projectTabs(input: {
 }) {
   return [
     'Overview',
+    // Work takes the place of Issues and Pull requests, on every project.
+    'Work',
     ...(input.code ? ['Code'] : []),
-    ...(input.pulls ? ['Pull requests'] : []),
-    ...(input.issues ? ['Issues'] : []),
     ...(input.apps > 1 || (input.pipeline && input.apps > 0) ? ['Apps'] : []),
     ...(input.pipeline ? ['Pipelines'] : []),
     ...(input.releases || input.apps === 1 ? ['Releases'] : []),
@@ -35,7 +33,7 @@ export function projectTabs(input: {
 
 /**
  * A project's tabs as every project page shows them, so switching tabs never changes the row.
- * Pull requests count the open ones, as the Pull requests page does.
+ * Work counts what is open, as the Work tab's Open switch does.
  */
 export function projectTabItems(
   base: string,
@@ -43,20 +41,16 @@ export function projectTabItems(
     | {
         project: { apps: { name: string; kind?: string }[] };
         repository: { deployment?: { pipeline?: boolean } } | null;
-        pulls: { state?: string; status?: string }[];
-        issues: unknown[];
       }
     | undefined,
   releases: number,
+  openWork?: number,
 ) {
-  const open = overview?.pulls.filter((pull) => (pull.state ?? pull.status) === 'open').length;
   const apps = overview?.project.apps.length ?? 0;
   const appTabs = apps === 1 ? appTabItems(base, overview!.project.apps[0], true) : [];
   return projectTabs({
     code: !!overview?.repository,
     pipeline: !!overview?.repository?.deployment?.pipeline,
-    pulls: overview?.pulls.length ?? 0,
-    issues: overview?.issues.length ?? 0,
     apps,
     releases,
     requests: overview?.project.apps[0]?.kind === 'web',
@@ -68,14 +62,12 @@ export function projectTabItems(
         ? base
         : label === 'Apps'
           ? `${base}?tab=apps`
-          : `${base}/${label === 'Pull requests' ? 'pulls' : label.toLowerCase()}`),
+          : `${base}/${label.toLowerCase()}`),
     ...(label === 'Apps'
       ? { count: apps }
-      : label === 'Pull requests'
-        ? { count: open || undefined }
-        : label === 'Issues'
-          ? { count: overview?.issues.length }
-          : {}),
+      : label === 'Work'
+        ? { count: openWork || undefined }
+        : {}),
   }));
 }
 
@@ -99,4 +91,9 @@ export function appTabItems(base: string, app: { name: string; kind?: string }, 
     { label: 'Logs', href: `${base}/logs${query}` },
     { label: 'Settings', href: `${single ? base : appBase}/settings` },
   ];
+}
+
+/** The old Issues and Pull requests lists are one Work tab now; their addresses land there. */
+export function workRedirect({ url }: { url: URL }) {
+  return url.pathname.replace(/\/(?:issues|pulls)\/?$/, '/work') + url.search + url.hash;
 }

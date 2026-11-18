@@ -280,3 +280,41 @@ test('message submission binds owner attachments to the run and overrides only t
     403,
   );
 });
+
+test('a first message can start its task on a branch of the chosen project', async () => {
+  const { git } = await import('../../workspace/service.ts');
+  const { createProject } = await import('../../workspace/test-repository.ts');
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const source = join(root, 'branch-source');
+  mkdirSync(source);
+  git(source, ['init', '--initial-branch=main']);
+  git(source, ['config', 'user.name', 'Test']);
+  git(source, ['config', 'user.email', 'test@example.invalid']);
+  writeFileSync(join(source, 'a.txt'), 'main\n');
+  git(source, ['add', '.']);
+  git(source, ['commit', '-m', 'Main']);
+  const main = git(source, ['rev-parse', 'HEAD']);
+  git(source, ['checkout', '-b', 'build/project-work']);
+  writeFileSync(join(source, 'a.txt'), 'branch\n');
+  git(source, ['commit', '-am', 'Branch']);
+  const branch = git(source, ['rev-parse', 'HEAD']);
+  git(source, ['checkout', 'main']);
+  const project = createProject('owner', { name: 'Branches', sourcePath: source });
+  const onBranch = sendTaskMessage('owner', undefined, {
+    text: 'Merge main into build/project-work',
+    projectId: project.id,
+    ref: 'refs/heads/build/project-work',
+  });
+  assert.equal(get('task', 'owner', onBranch.taskId).baseRevision, branch);
+  const onMain = sendTaskMessage('owner', undefined, { text: 'Tidy up', projectId: project.id });
+  assert.equal(get('task', 'owner', onMain.taskId).baseRevision, main);
+  assert.throws(
+    () =>
+      sendTaskMessage('owner', undefined, {
+        text: 'Nowhere',
+        projectId: project.id,
+        ref: 'refs/heads/missing',
+      }),
+    /./,
+  );
+});

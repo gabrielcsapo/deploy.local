@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chosenProject, newTaskIn, projectParameter } from './chosen-project.ts';
+import {
+  branchRef,
+  chosenProject,
+  newTaskIn,
+  newTaskOnBranch,
+  projectParameter,
+} from './chosen-project.ts';
 
 const projects = [
   { id: 'deploy-local', name: 'deploy.local' },
@@ -37,6 +43,36 @@ test('the start page sends the chosen project with the first message, and only t
     await submitMessage(message, undefined, undefined, 'home-gym');
     await submitMessage(message);
     assert.deepEqual(bodies, [{ ...message, projectId: 'home-gym' }, { ...message }]);
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
+test('a pull request starts a task on its branch with the first message begun', async () => {
+  const link = new URL(
+    newTaskOnBranch('deploy-local', 'build/project-work', 'On build/project-work: '),
+    'http://127.0.0.1',
+  );
+  assert.equal(projectParameter(link.pathname, link.search), 'deploy-local');
+  assert.equal(link.searchParams.get('ask'), 'On build/project-work: ');
+  assert.equal(branchRef(link.search), 'refs/heads/build/project-work');
+  assert.equal(branchRef(new URL(newTaskIn('deploy-local'), 'http://127.0.0.1').search), undefined);
+  const { submitMessage } = await import('../markup/client.ts');
+  const previous = globalThis.fetch;
+  const bodies: unknown[] = [];
+  globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return Response.json({ taskId: 'new', runId: 'run' });
+  }) as typeof fetch;
+  try {
+    const message = { text: 'Merge main', attachments: [] };
+    await submitMessage(message, undefined, undefined, 'deploy-local', 'refs/heads/b');
+    // A ref means nothing without a project, so it is not sent alone.
+    await submitMessage(message, undefined, undefined, undefined, 'refs/heads/b');
+    assert.deepEqual(bodies, [
+      { ...message, projectId: 'deploy-local', ref: 'refs/heads/b' },
+      { ...message },
+    ]);
   } finally {
     globalThis.fetch = previous;
   }

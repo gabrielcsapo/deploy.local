@@ -468,3 +468,44 @@
   color: var(--ds-accent);
   cursor: pointer;
 }
+/* Work: the Open | Shipped switch, and New idea at the end of the same row. */
+.v2-work-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.v2-work-bar > .dl-end {
+  margin-left: auto;
+}
+/* As the board: 12px between a title and its rows, or between the line under it and its rows. */
+.v2-project-page .v2-work-section {
+  gap: 0;
+}
+.v2-project-page .v2-work-section > .dl-section-sub {
+  margin: 0 0 12px;
+}
+.v2-work-section > .dl-section-title + .dl-group {
+  margin-top: 12px;
+}
+.v2-work-idea {
+  display: inline-flex;
+  color: var(--ds-muted);
+}
+.v2-work-body {
+  margin: 0;
+  white-space: pre-wrap;
+}
+/* New idea's description: several lines in the body's own type, as the board draws it. */
+.v2-work-textarea {
+  display: block;
+  min-height: 104px;
+  padding: 10px 14px;
+  font-family: var(--ds-font);
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  resize: none;
+}
+.v2-work-empty {
+  padding: 48px 24px;
+}
