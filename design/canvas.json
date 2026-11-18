@@ -3600,6 +3600,38 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — the screen in dark, from the More menu"
+    },
+    "NewTaskProject.html": {
+      "x": 24730,
+      "y": 720,
+      "w": 1440,
+      "h": 900,
+      "title": "New task: the project chip opens a menu of projects, or No project",
+      "expand": "fill"
+    },
+    "NewTaskComputer.html": {
+      "x": 26250,
+      "y": 720,
+      "w": 1440,
+      "h": 900,
+      "title": "New task: the computer chip picks a computer, or Any free computer",
+      "expand": "fill"
+    },
+    "TaskModelMenu.html": {
+      "x": 24730,
+      "y": 4160,
+      "w": 1440,
+      "h": 900,
+      "title": "Model for this chat: a short menu at the model button, with Effort",
+      "expand": "fill"
+    },
+    "TaskModelMore.html": {
+      "x": 26250,
+      "y": 4160,
+      "w": 1440,
+      "h": 900,
+      "title": "Model for this chat: More models holds the rest, by provider",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3635,12 +3667,16 @@
     "ImmichApp.html",
     "UpdateApp.html",
     "Home.html",
+    "NewTaskProject.html",
+    "NewTaskComputer.html",
     "HomePhone.html",
     "ComposePhone.html",
     "AttachPhone.html",
     "AttachedPhone.html",
     "ModelPhone.html",
     "Task.html",
+    "TaskModelMenu.html",
+    "TaskModelMore.html",
     "TaskChanges.html",
     "TaskChecks.html",
     "TaskPhone.html",
@@ -5696,6 +5732,13 @@
       "h": 240,
       "fill": "blue",
       "text": "Pins and dark, the rest of step 3\nDesignReviewCanvasPin.html: in a review the Comment tool makes a pin. Click for a point, drag for an area; it holds to the layer under it. Pins are numbered, listed under Comments, and sent with Ask for changes. DesignReviewCanvasCompare.html is the bar as built, with the divider, the width menu and Dark on; Width starts at each board’s own and can go back to it. DesignReviewDarkPhone.html: Dark is in the More menu on iPhone, where the width already is."
+    },
+    "composer-pickers": {
+      "fill": "yellow",
+      "w": 440,
+      "x": 24730,
+      "y": 5120,
+      "text": "Composer menus. The project and computer chips open menus when a task starts (New task, an empty project). Projects has a search field and takes several: the task works across every project checked, or No project for an empty folder. The chip names up to two, then counts (3 projects). Computers takes several too: the task works across every computer checked. Any free computer (the default) lets deploy.local choose a free online one and clears the others; checking a computer clears it. The list is the online computers that take tasks, with what each is doing. A running task keeps the projects and computers it started with, so the task page shows them in This task, with no chips, as on the Task board. The model button opens one short menu: Auto (naming the default), the models set as defaults in Computers › Models, and this chat’s pick. Effort lists the levels the chosen model supports, and More models holds the rest, by provider. Fast mode is left out because no provider here has it."
     }
   },
   "starts": {}

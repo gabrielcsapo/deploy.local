@@ -385,7 +385,13 @@ test('task preparation accepts a first message, fences execution, and can recove
   });
   try {
     const start = Date.now();
-    const task = (await post('/tasks', { projectId: project.id, title: 'First prompt' })).body;
+    const task = (
+      await post('/tasks', {
+        projectId: project.id,
+        title: 'First prompt',
+        workerId: 'local',
+      })
+    ).body;
     assert.ok(Date.now() - start < 1000);
     const run = (await post(`/tasks/${task.id}/messages`, { revision: 0, content: 'Read README' }))
       .body;

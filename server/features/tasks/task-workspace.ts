@@ -27,6 +27,26 @@ function taskComputers(owner: string, tools: string[], workerId?: string) {
       return load(a.id) - load(b.id) || a.id.localeCompare(b.id);
     });
 }
+/**
+ * The computer a task runs on when the request names none ("Any free computer"). The
+ * coordinator's own worker keeps tasks while it is online; otherwise the least busy online
+ * computer that takes tasks with this provider does. A coordinator that no longer runs its
+ * built-in worker (SER runs a managed one) would otherwise queue the task for a computer
+ * that never comes online.
+ */
+function freeComputer(owner: string, adapter: string) {
+  const eligible = taskComputers(owner, []).filter(
+    (worker) =>
+      worker.status === 'online' &&
+      (worker.id === 'local' ||
+        (worker.capabilities?.includes(adapter) &&
+          (!worker.connections?.length ||
+            worker.connections.some(
+              (c: any) => c.provider === adapter && c.available && c.enabled !== false,
+            )))),
+  );
+  return (eligible.find((worker) => worker.id === 'local') ?? eligible[0])?.id ?? 'local';
+}
 function askComputers(owner: string, tools: string[]) {
   for (const worker of computers(owner))
     if (worker.status === 'online' && workerRoleEnabled(owner, worker.id, 'tasks'))
@@ -263,7 +283,8 @@ export async function requireTaskTools(
 
 export function queueTask(owner: string, input: any) {
   const needs = input.needs === undefined ? [] : toolNames(input.needs);
-  let workerId = input.workerId || 'local';
+  let workerId =
+    input.workerId || (needs.length ? 'local' : freeComputer(owner, input.adapter || 'codex'));
   if (needs.length) {
     if (input.workerId) assertWorkerRole(owner, input.workerId, 'tasks');
     const missing = namedComputerMissing(owner, needs, input.workerId);

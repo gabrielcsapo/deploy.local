@@ -111,6 +111,24 @@ test('placement uses probe answers, excludes roles off, and prefers an idle elig
   assert.equal(queueTask(owner, { needs: ['xcodebuild'] }).workerId, 'mac');
 });
 
+test('a task that names no computer goes to a free online one, not an offline coordinator worker', () => {
+  const owner = randomUUID();
+  worker(owner, 'gone', false);
+  // Nothing online: the coordinator's own worker keeps it, as before.
+  assert.equal(queueTask(owner, { title: 'Nobody online' }).workerId, 'local');
+  worker(owner, 'busy');
+  worker(owner, 'free');
+  save('worker', owner, { ...get('worker', owner, 'free'), capabilities: ['claude'] });
+  save('run', owner, { id: 'b', workerId: 'busy', taskId: 'b', status: 'running' });
+  // Only 'busy' runs Codex, so it takes the task even though it is busy.
+  assert.equal(queueTask(owner, { title: 'Codex' }).workerId, 'busy');
+  assert.equal(queueTask(owner, { title: 'Claude', adapter: 'claude' }).workerId, 'free');
+  save('v2-computer-roles', owner, { id: 'busy', workerIds: ['busy'], roles: [] });
+  assert.equal(queueTask(owner, { title: 'Roles off' }).workerId, 'local');
+  // A named computer is kept even when another is free.
+  assert.equal(queueTask(owner, { workerId: 'gone' }).workerId, 'gone');
+});
+
 test('a named computer that answers no is refused with the missing names', () => {
   const owner = fixture();
   answer(owner, 'mac', { xcodebuild: false, swift: false });
@@ -256,10 +274,10 @@ test('agent action records satisfied needs without stopping and re-places missin
   );
 });
 
-test('tasks without needs keep their existing local default and snapshot shape', () => {
+test('tasks without needs go to a free computer and keep their snapshot shape', () => {
   const owner = fixture();
   const task = queueTask(owner, { prompt: 'Do normal work' });
-  assert.equal(task.workerId, 'local');
+  assert.equal(task.workerId, 'linux');
   assert.equal(task.workspaceStatus, 'preparing');
   assert.equal(task.status, 'running');
   assert.deepEqual(taskRequirementsSnapshot(owner, task), {});
