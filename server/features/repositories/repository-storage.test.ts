@@ -218,7 +218,15 @@ test('the API serves the measurement, measures in the background and is the owne
   const lfs: any = await (await fetch(base + '/files?kind=lfs')).json();
   assert.equal(lfs.count, 3);
   assert.equal(lfs.files.length, 3);
-  assert.equal(lfs.truncated, false);
+  assert.equal(lfs.matches, 3);
+  assert.equal(lfs.page, 1);
+  assert.equal(lfs.pageSize, 50);
+  assert.equal(lfs.truncated, undefined);
+  assert.deepEqual(
+    lfs.files.map((file: any) => file.oid),
+    [f.videoOid, f.oldOid, f.orphanOid],
+    'largest first by default',
+  );
   const history: any = await (await fetch(base + '/files?kind=history')).json();
   assert.equal(history.count, 5);
   assert.equal(history.commits, summary.history.commits);
@@ -323,4 +331,243 @@ test('pointer detection reads only Git LFS pointers', () => {
   const oid = 'b'.repeat(64);
   assert.equal(storage.pointerOid(pointer(oid, 12)), oid);
   assert.equal(storage.pointerOid(`hello\noid sha256:${oid}\n`), null);
+});
+
+/** A hosted repository with more than a thousand files in history and in Git LFS. */
+function manyFiles(name: string) {
+  const project = createProject('owner', { name });
+  const repository = project.repositoryPath;
+  const work = join(data, `work-${project.id}`);
+  execFileSync('git', ['clone', '-q', repository, work]);
+  mkdirSync(join(work, 'media'));
+  mkdirSync(join(work, 'src'));
+  const objects: { oid: string; bytes: number; path: string | null }[] = [];
+  // 1,005 LFS files with a pointer, sizes repeating so ties fall back to names.
+  for (let i = 0; i < 1005; i++) {
+    const bytes = randomBytes(100 + (i % 13) * 10);
+    const oid = lfsObject(repository, bytes);
+    const path = `media/Clip-${String(i).padStart(4, '0')}.bin`;
+    writeFileSync(join(work, path), pointer(oid, bytes.length));
+    objects.push({ oid, bytes: bytes.length, path });
+  }
+  // One object no pointer names: it is listed by the start of its id.
+  const orphan = randomBytes(5);
+  objects.push({ oid: lfsObject(repository, orphan), bytes: orphan.length, path: null });
+  for (let i = 0; i < 30; i++)
+    writeFileSync(join(work, `src/module-${i}.ts`), 'x'.repeat(2000 + i * 500));
+  writeFileSync(join(work, 'tiny.txt'), 't');
+  git(work, 'add', '.');
+  commitAt(work, '2026-01-10T12:00:00Z', 'Add files');
+  for (let i = 0; i < 10; i++) writeFileSync(join(work, `src/module-${i}.ts`), 'y'.repeat(100 + i));
+  git(work, 'add', '.');
+  commitAt(work, '2026-02-10T12:00:00Z', 'Change modules');
+  git(work, 'push', '-q', 'origin', 'main');
+  return { project, repository, work, objects };
+}
+
+test('the file lists hold every file and page, sort and search on the server', async () => {
+  const f = manyFiles('Many');
+  const base = `${origin}/api/projects/${f.project.id}/storage`;
+  await storage.repositoryStorage('owner', f.project.id);
+  await storage.storageMeasurement('owner', f.project.id);
+  const summary: any = await (await fetch(base)).json();
+  assert.equal(summary.largeFiles.count, 1006);
+  assert.equal(summary.history.files, 1036);
+  // The summary record stays small: the lists are records of their own.
+  const record = db
+    .prepare("SELECT data FROM records WHERE kind='repository-storage' AND id=?")
+    .get(f.project.id) as { data: string };
+  assert.equal(JSON.parse(record.data).lfs, undefined);
+  assert.equal(JSON.parse(record.data).historyFiles, undefined);
+  assert.ok(record.data.length < 2000, `summary record is ${record.data.length} bytes`);
+
+  const files = async (query: string) => {
+    const response = await fetch(`${base}/files?${query}`);
+    return { status: response.status, body: (await response.json()) as any };
+  };
+  const every = async (kind: string, sort: string, direction: string) => {
+    const all: any[] = [];
+    for (let page = 1; ; page++) {
+      const { body } = await files(`kind=${kind}&sort=${sort}&direction=${direction}&page=${page}`);
+      assert.equal(body.page, page);
+      assert.equal(body.pageSize, 50);
+      all.push(...body.files);
+      if (page * 50 >= body.matches) {
+        assert.equal(body.files.length, body.matches - (page - 1) * 50);
+        break;
+      }
+      assert.equal(body.files.length, 50);
+    }
+    return all;
+  };
+  // The order the dialog always had: the column, ties by name; file ascending reads A to Z.
+  const name = (file: any) => file.path ?? file.oid.slice(0, 12);
+  const reference = (list: any[], value: (file: any) => number | string, direction: string) =>
+    [...list].sort((a, b) => {
+      const x = value(a),
+        y = value(b);
+      const order = x < y ? -1 : x > y ? 1 : 0;
+      return order * (direction === 'ascending' ? 1 : -1) || name(a).localeCompare(name(b));
+    });
+  const time = (value: string | null) => (value ? Date.parse(value) : 0);
+
+  const lfsBySize = await every('lfs', 'size', 'descending');
+  assert.equal(lfsBySize.length, 1006, 'every large file, past the old 1,000');
+  const lfsKeys: Record<string, (file: any) => number | string> = {
+    file: (file) => name(file).toLowerCase(),
+    added: (file) => time(file.addedAt),
+    size: (file) => file.bytes,
+  };
+  for (const [key, value] of Object.entries(lfsKeys))
+    for (const direction of ['ascending', 'descending']) {
+      const listed = await every('lfs', key, direction);
+      assert.deepEqual(
+        listed.map(name),
+        reference(lfsBySize, value, direction).map(name),
+        `lfs ${key} ${direction}`,
+      );
+    }
+  const orphan = f.objects.at(-1)!.oid;
+  assert.ok(lfsBySize.some((file) => file.oid === orphan && file.path === null));
+
+  const historyBySize = await every('history', 'size', 'descending');
+  assert.equal(historyBySize.length, 1036, 'every path in history, past the old 1,000');
+  const historyKeys: Record<string, (file: any) => number | string> = {
+    file: (file) => file.path.toLowerCase(),
+    versions: (file) => file.versions,
+    changed: (file) => time(file.lastChangedAt),
+    size: (file) => file.bytes,
+  };
+  for (const [key, value] of Object.entries(historyKeys))
+    for (const direction of ['ascending', 'descending']) {
+      const listed = await every('history', key, direction);
+      assert.deepEqual(
+        listed.map(name),
+        reference(historyBySize, value, direction).map(name),
+        `history ${key} ${direction}`,
+      );
+    }
+  // Last changed is known for every path, the smallest too, which the old top 1,000 left out.
+  assert.equal(historyBySize.at(-1)!.path, 'tiny.txt');
+  assert.equal(historyBySize.at(-1)!.lastChangedAt, '2026-01-10T12:00:00.000Z');
+  assert.ok(historyBySize.every((file) => file.lastChangedAt));
+  const changed = historyBySize.find((file) => file.path === 'src/module-3.ts');
+  assert.equal(changed.versions, 2);
+  assert.equal(changed.lastChangedAt, '2026-02-10T12:00:00.000Z');
+
+  // Defaults: size, largest first, page 1. File alone reads A to Z.
+  const first = (await files('kind=history')).body;
+  assert.deepEqual(first.files, historyBySize.slice(0, 50));
+  assert.equal(first.sort, 'size');
+  assert.equal(first.direction, 'descending');
+  assert.equal(first.matches, 1036);
+  assert.equal(first.count, 1036);
+  assert.equal(first.commits, summary.history.commits);
+  assert.equal(first.bytes, summary.history.bytes);
+  assert.equal(first.measuredAt, summary.measuredAt);
+  assert.equal((await files('kind=lfs&sort=file')).body.direction, 'ascending');
+
+  // Paging: the last page holds what is left; past it, the last page again.
+  const last = (await files('kind=lfs&page=21')).body;
+  assert.equal(last.page, 21);
+  assert.equal(last.files.length, 6);
+  const beyond = (await files('kind=lfs&page=99')).body;
+  assert.equal(beyond.page, 21);
+  assert.deepEqual(beyond.files, last.files);
+
+  // Search: case-insensitive, on the shown name, with the matches' count and bytes.
+  const search = (await files('kind=lfs&query=%20CLIP-00%20')).body;
+  const expected = lfsBySize.filter((file) => /clip-00/i.test(name(file)));
+  assert.equal(search.query, 'CLIP-00');
+  assert.equal(search.matches, 100);
+  assert.equal(search.count, 1006, 'the total stays the whole list');
+  assert.equal(
+    search.matchedBytes,
+    expected.reduce((sum, file) => sum + file.bytes, 0),
+  );
+  assert.deepEqual(search.files, expected.slice(0, 50));
+  const page2 = (await files('kind=lfs&query=clip-00&page=2')).body;
+  assert.deepEqual(page2.files, expected.slice(50, 100));
+  const byId = (await files(`kind=lfs&query=${orphan.slice(0, 12).toUpperCase()}`)).body;
+  assert.deepEqual(
+    byId.files.map((file: any) => file.oid),
+    [orphan],
+    'an unnamed object is found by the start of its id',
+  );
+  const none = (await files('kind=history&query=nothing-like-this&page=3')).body;
+  assert.deepEqual(
+    [none.matches, none.matchedBytes, none.files.length, none.page, none.count],
+    [0, 0, 0, 1, 1036],
+  );
+
+  // What a request cannot ask for.
+  for (const query of [
+    'kind=lfs&sort=versions',
+    'kind=lfs&sort=changed',
+    'kind=history&sort=added',
+    'kind=history&sort=name',
+    'kind=lfs&direction=up',
+    'kind=lfs&page=0',
+    'kind=lfs&page=two',
+    'kind=other',
+  ])
+    assert.equal((await files(query)).status, 400, query);
+});
+
+test('a measurement from before every file was kept still lists its files and is redone', async (t) => {
+  const settings = { ...storage.storageSettings };
+  t.after(() => Object.assign(storage.storageSettings, settings));
+  const f = fixture('owner', 'Older');
+  const base = `${origin}/api/projects/${f.project.id}/storage`;
+  // The record the previous version saved: its largest files inline, nothing kept apart.
+  const measuredAt = new Date().toISOString();
+  save('repository-storage', 'owner', {
+    id: f.project.id,
+    projectId: f.project.id,
+    measuredAt,
+    attemptedAt: measuredAt,
+    fingerprint: 'old',
+    total: 1000,
+    largeFiles: { bytes: 900, count: 1500 },
+    history: { bytes: 100, commits: 3, files: 1200 },
+    work: { bytes: 0, tasks: 0, reviews: 0 },
+    other: { bytes: 0 },
+    lfs: [
+      { oid: 'a'.repeat(64), path: 'small.bin', bytes: 300, addedAt: null, onBranch: true },
+      { oid: 'b'.repeat(64), path: 'large.bin', bytes: 600, addedAt: null, onBranch: false },
+    ],
+    historyFiles: [
+      { path: 'readme.md', bytes: 100, versions: 3, lastChangedAt: null, deleted: false },
+    ],
+    durationMs: 1,
+  });
+  // Within the minimum interval: the old list is served as it is.
+  const old: any = await (await fetch(base + '/files?kind=lfs')).json();
+  assert.equal(old.count, 1500);
+  assert.equal(old.matches, 2);
+  assert.deepEqual(
+    old.files.map((file: any) => file.path),
+    ['large.bin', 'small.bin'],
+  );
+  const history: any = await (await fetch(base + '/files?kind=history&sort=file')).json();
+  assert.deepEqual(
+    history.files.map((file: any) => file.path),
+    ['readme.md'],
+  );
+  assert.equal(storage.storageMeasurement('owner', f.project.id), undefined);
+
+  // Afterwards it is measured again, and the new lists hold every file.
+  storage.storageSettings.minimumIntervalMs = 0;
+  const summary: any = await (await fetch(base)).json();
+  assert.equal(summary.measuring, true);
+  assert.equal(summary.measuredAt, measuredAt, 'the old answer is served meanwhile');
+  await storage.storageMeasurement('owner', f.project.id);
+  const lfs: any = await (await fetch(base + '/files?kind=lfs')).json();
+  assert.notEqual(lfs.measuredAt, measuredAt);
+  assert.equal(lfs.count, 3);
+  assert.equal(lfs.matches, 3);
+  assert.deepEqual(
+    lfs.files.map((file: any) => file.oid),
+    [f.videoOid, f.oldOid, f.orphanOid],
+  );
 });

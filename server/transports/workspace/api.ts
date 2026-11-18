@@ -1073,7 +1073,13 @@ export async function workspaceApi(
           handler: async ({ params }) => {
             try {
               return send(
-                await repositoryStorageFiles(owner, params.project, url.searchParams.get('kind')),
+                await repositoryStorageFiles(owner, params.project, {
+                  kind: url.searchParams.get('kind'),
+                  sort: url.searchParams.get('sort') ?? undefined,
+                  direction: url.searchParams.get('direction') ?? undefined,
+                  query: url.searchParams.get('query') ?? undefined,
+                  page: url.searchParams.get('page') ?? undefined,
+                }),
               );
             } catch (error: any) {
               return respondError(error);

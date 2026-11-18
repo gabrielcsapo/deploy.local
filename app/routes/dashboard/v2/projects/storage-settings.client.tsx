@@ -9,15 +9,14 @@ import { projectSegment } from './routing';
 import {
   ageLabel,
   defaultSort,
-  filterRows,
   formatBytes,
   historyLine,
   largeFilesLine,
   listLine,
   nextSort,
+  pageRange,
   rows,
   share,
-  sortRows,
   workLine,
   type Sort,
   type SortKey,
@@ -168,7 +167,7 @@ const columns: Record<Kind, { key: SortKey; label: string; number?: boolean; wid
   ],
 };
 
-/** The files behind a Storage row: searchable by path, sortable by any column. */
+/** The files behind a Storage row, 50 at a time: the server searches, sorts and pages them. */
 export function StorageFilesDialog({
   kind,
   path,
@@ -179,20 +178,43 @@ export function StorageFilesDialog({
   onClose: () => void;
 }) {
   const { now, formatTime, formatCount } = useProjectFormatting();
-  const files = useData<StorageFiles>(path);
   const [query, setQuery] = useState('');
+  // What the server is asked to search for: the field, once typing pauses.
+  const [search, setSearch] = useState('');
   const [sort, setSort] = useState<Sort>(defaultSort);
+  const [page, setPage] = useState(1);
   const [shown, setShown] = useState<Kind | null>(kind);
-  // Each opening starts with an empty search, sorted by size.
+  const files = useData<StorageFiles>(
+    path &&
+      `${path}&sort=${sort.key}&direction=${sort.direction}&page=${page}` +
+        (search ? `&query=${encodeURIComponent(search)}` : ''),
+  );
+  // While the next page, sort or search loads, the rows shown stay in place.
+  const [kept, setKept] = useState(files.data);
+  if (files.data && files.data !== kept) setKept(files.data);
+  // Each opening starts with an empty search, sorted by size, on the first page.
   if (kind !== shown) {
     setShown(kind);
     setQuery('');
+    setSearch('');
     setSort(defaultSort);
+    setPage(1);
+    setKept(undefined);
   }
+  useEffect(() => {
+    const next = query.trim();
+    if (next === search) return;
+    const timer = setTimeout(() => {
+      setSearch(next);
+      setPage(1);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query, search]);
   const current = kind ?? shown ?? 'lfs';
-  const data = files.data?.kind === current ? files.data : undefined;
-  const all = data ? rows(data) : [];
-  const matches = sortRows(filterRows(all, query), sort);
+  const answer = files.data ?? kept;
+  const data = answer?.kind === current ? answer : undefined;
+  const list = data ? rows(data) : [];
+  const range = data ? pageRange(data, formatCount) : null;
   return (
     <Dialog open={!!kind} onClose={onClose} title={titles[current]} className="v2-storage-dialog">
       <label className="dl-field">
@@ -205,7 +227,7 @@ export function StorageFilesDialog({
           onChange={(event) => setQuery(event.target.value)}
         />
       </label>
-      {files.error && !data ? (
+      {files.error && !files.data ? (
         <Banner
           kind="danger"
           title="Couldn't load the files"
@@ -216,10 +238,10 @@ export function StorageFilesDialog({
       ) : (
         <>
           <div className="v2-storage-line" aria-live="polite">
-            <span>{listLine(data, query, matches, formatCount)}</span>
+            <span>{listLine(data, formatCount)}</span>
             <span>Measured {midSentence(formatTime(data.measuredAt))}</span>
           </div>
-          {matches.length ? (
+          {list.length ? (
             <div className="dl-group dl-table-wrap v2-storage-table">
               <table className="dl-table">
                 <thead>
@@ -236,7 +258,10 @@ export function StorageFilesDialog({
                             type="button"
                             className="v2-storage-sort"
                             data-sorted={sorted || undefined}
-                            onClick={() => setSort(nextSort(sort, column.key))}
+                            onClick={() => {
+                              setSort(nextSort(sort, column.key));
+                              setPage(1);
+                            }}
                           >
                             {column.label}
                             {sorted && (
@@ -267,7 +292,7 @@ export function StorageFilesDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {matches.map((row) => (
+                  {list.map((row) => (
                     <tr key={row.key}>
                       <td className="dl-name">
                         <span className="dl-mono">{row.name}</span>
@@ -288,9 +313,22 @@ export function StorageFilesDialog({
           ) : (
             <div className="dl-group">
               <div className="dl-empty v2-storage-empty">
-                <h3>{query.trim() ? `No files match “${query.trim()}”` : 'No files'}</h3>
-                {query.trim() && <p>Search looks at file paths.</p>}
+                <h3>{data.query ? `No files match “${data.query}”` : 'No files'}</h3>
+                {data.query && <p>Search looks at file paths.</p>}
               </div>
+            </div>
+          )}
+          {range && (
+            <div className="v2-storage-pages">
+              <span className="dl-meta">{range.text}</span>
+              <span className="dl-end">
+                <Action disabled={!range.previous} onClick={() => setPage(data.page - 1)}>
+                  Previous
+                </Action>
+                <Action disabled={!range.next} onClick={() => setPage(data.page + 1)}>
+                  Next
+                </Action>
+              </span>
             </div>
           )}
         </>

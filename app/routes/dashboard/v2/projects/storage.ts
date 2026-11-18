@@ -27,26 +27,26 @@ export type HistoryFile = {
   lastChangedAt: string | null;
   deleted: boolean;
 };
-export type StorageFiles =
-  | {
-      kind: 'lfs';
-      measuredAt: string;
-      count: number;
-      bytes: number;
-      files: LargeFile[];
-      truncated: boolean;
-    }
-  | {
-      kind: 'history';
-      measuredAt: string;
-      count: number;
-      commits: number;
-      bytes: number;
-      files: HistoryFile[];
-      truncated: boolean;
-    };
 export type SortKey = 'file' | 'added' | 'versions' | 'changed' | 'size';
 export type Sort = { key: SortKey; direction: 'ascending' | 'descending' };
+/** One page of a list, sorted and searched by the server. */
+type FilesPage = {
+  measuredAt: string;
+  /** The search this page answers, trimmed; empty for the whole list. */
+  query: string;
+  sort: SortKey;
+  direction: Sort['direction'];
+  page: number;
+  pageSize: number;
+  /** Files the search matched (every file without one), and what they take. */
+  matches: number;
+  matchedBytes: number;
+  count: number;
+  bytes: number;
+};
+export type StorageFiles =
+  | (FilesPage & { kind: 'lfs'; files: LargeFile[] })
+  | (FilesPage & { kind: 'history'; commits: number; files: HistoryFile[] });
 export type Row = {
   key: string;
   name: string;
@@ -133,29 +133,6 @@ export function rows(data: StorageFiles): Row[] {
         ...(file.deleted ? { tag: 'Deleted' as const } : {}),
       }));
 }
-/** Search looks at file paths, ignoring case. */
-export function filterRows(list: Row[], query: string) {
-  const needle = query.trim().toLowerCase();
-  return needle ? list.filter((row) => row.name.toLowerCase().includes(needle)) : list;
-}
-const time = (row: Row) => (row.at ? Date.parse(row.at) || 0 : 0);
-export function sortRows(list: Row[], sort: Sort) {
-  const sign = sort.direction === 'ascending' ? 1 : -1;
-  const value = (row: Row): number | string =>
-    sort.key === 'file'
-      ? row.name.toLowerCase()
-      : sort.key === 'size'
-        ? row.bytes
-        : sort.key === 'versions'
-          ? (row.versions ?? 0)
-          : time(row);
-  return [...list].sort((a, b) => {
-    const x = value(a),
-      y = value(b);
-    const order = x < y ? -1 : x > y ? 1 : 0;
-    return order * sign || a.name.localeCompare(b.name);
-  });
-}
 /** A header click: the same column turns around; a new one starts where it reads best. */
 export function nextSort(current: Sort, key: SortKey): Sort {
   if (current.key === key)
@@ -165,14 +142,26 @@ export function nextSort(current: Sort, key: SortKey): Sort {
 export const defaultSort: Sort = { key: 'size', direction: 'descending' };
 
 /** The line above the table: the whole list, or how much of it the search matched. */
-export function listLine(data: StorageFiles, query: string, matches: Row[], format = plain) {
-  if (query.trim()) {
-    const of = `${format(matches.length)} of ${count(data.count, 'file', 'files', format)}`;
-    return matches.length
-      ? `${of} · ${formatBytes(matches.reduce((sum, row) => sum + row.bytes, 0))}`
-      : of;
+export function listLine(data: StorageFiles, format = plain) {
+  if (data.query) {
+    const of = `${format(data.matches)} of ${count(data.count, 'file', 'files', format)}`;
+    return data.matches ? `${of} · ${formatBytes(data.matchedBytes)}` : of;
   }
   return data.kind === 'lfs'
     ? `${largeFilesLine(data.count, format)} · ${formatBytes(data.bytes)}`
     : `${count(data.count, 'file', 'files', format)} in ${count(data.commits, 'commit', 'commits', format)} · ${formatBytes(data.bytes)}`;
+}
+/** Pages: the files a page shows of the matches, or null when every match fits on one page. */
+export function pageRange(
+  data: Pick<StorageFiles, 'page' | 'pageSize' | 'matches'>,
+  format = plain,
+) {
+  if (data.matches <= data.pageSize) return null;
+  const first = (data.page - 1) * data.pageSize + 1;
+  const last = Math.min(data.matches, data.page * data.pageSize);
+  return {
+    text: `${format(first)}–${format(last)} of ${format(data.matches)}`,
+    previous: data.page > 1,
+    next: last < data.matches,
+  };
 }

@@ -73,7 +73,7 @@ const exceptions: Record<string, string> = {
   'repository-lfs.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
   'repository-storage.ts -> server/workspace/store.ts':
-    'Reads the project and checkpoint metadata and keeps the measurement as a store record, as repository-lfs.ts does.',
+    'Reads the project and checkpoint metadata from the workspace store, as repository-lfs.ts does.',
   'repository-runner.ts -> server/features/tasks/checkpoint.ts':
     'Existing task snapshot/base restoration during repository creation and recovery.',
   'repository-runner.ts -> server/features/releases/pipeline-triggers.ts':

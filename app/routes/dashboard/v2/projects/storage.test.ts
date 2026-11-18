@@ -3,15 +3,14 @@ import assert from 'node:assert/strict';
 import {
   ageLabel,
   defaultSort,
-  filterRows,
   formatBytes,
   historyLine,
   largeFilesLine,
   listLine,
   nextSort,
+  pageRange,
   rows,
   share,
-  sortRows,
   workLine,
   type StorageFiles,
 } from './storage.ts';
@@ -61,25 +60,21 @@ test('row descriptions count what was measured', () => {
   assert.equal(share(78, 100), 78);
 });
 
+const page = { query: '', sort: 'size', direction: 'descending', page: 1, pageSize: 50 } as const;
 const lfs: StorageFiles = {
   kind: 'lfs',
   measuredAt: '2026-11-18T12:00:00Z',
   count: 4,
   bytes: 412 * MB + 286 * MB + 88 * MB + 4 * MB,
-  truncated: false,
+  ...page,
+  matches: 4,
+  matchedBytes: 412 * MB + 286 * MB + 88 * MB + 4 * MB,
   files: [
     {
       oid: 'a'.repeat(64),
       path: 'assets/video/onboarding.mp4',
       bytes: 412 * MB,
       addedAt: '2026-10-28T12:00:00Z',
-      onBranch: true,
-    },
-    {
-      oid: 'b'.repeat(64),
-      path: 'assets/video/form-check-squat.mov',
-      bytes: 286 * MB,
-      addedAt: '2026-09-18T12:00:00Z',
       onBranch: true,
     },
     {
@@ -99,42 +94,64 @@ const lfs: StorageFiles = {
   ],
 };
 
-test('large files: tags, names, search and the line that follows it', () => {
+test('large files: tags, names, and the line above the table with and without a search', () => {
   const list = rows(lfs);
-  assert.equal(list[2].tag, 'Not on any branch');
+  assert.equal(list[1].tag, 'Not on any branch');
   assert.equal(list[0].tag, undefined);
-  assert.equal(list[3].name, 'dddddddddddd', 'an object no pointer names shows its id');
-  assert.equal(listLine(lfs, '', list), '4 files stored with Git LFS · 790 MB');
-  const video = filterRows(list, 'VIDEO');
-  assert.equal(video.length, 3);
-  assert.equal(listLine(lfs, 'video', video), '3 of 4 files · 786 MB');
-  const none = filterRows(list, 'backup');
-  assert.equal(none.length, 0);
-  assert.equal(listLine(lfs, 'backup', none), '0 of 4 files');
-  assert.equal(filterRows(list, '   ').length, 4, 'blank search shows everything');
+  assert.equal(list[2].name, 'dddddddddddd', 'an object no pointer names shows its id');
+  assert.equal(listLine(lfs), '4 files stored with Git LFS · 790 MB');
+  assert.equal(
+    listLine({ ...lfs, query: 'video', matches: 3, matchedBytes: 786 * MB }),
+    '3 of 4 files · 786 MB',
+  );
+  assert.equal(
+    listLine({ ...lfs, query: 'backup', matches: 0, matchedBytes: 0, files: [] }),
+    '0 of 4 files',
+  );
+  assert.equal(
+    listLine({ ...lfs, count: 4817, query: 'a', matches: 2120, matchedBytes: MB }, (n) =>
+      n.toLocaleString('en-US'),
+    ),
+    '2,120 of 4,817 files · 1 MB',
+  );
 });
 
 test('sorting: size descending first, a header turns around, a new header starts sensibly', () => {
-  const list = rows(lfs);
-  assert.deepEqual(
-    sortRows(list, defaultSort).map((row) => row.bytes),
-    [412, 286, 88, 4].map((n) => n * MB),
-  );
+  assert.deepEqual(defaultSort, { key: 'size', direction: 'descending' });
   assert.deepEqual(nextSort(defaultSort, 'size'), { key: 'size', direction: 'ascending' });
   assert.deepEqual(nextSort(defaultSort, 'file'), { key: 'file', direction: 'ascending' });
   assert.deepEqual(nextSort(defaultSort, 'added'), { key: 'added', direction: 'descending' });
+  assert.deepEqual(nextSort({ key: 'file', direction: 'ascending' }, 'file'), {
+    key: 'file',
+    direction: 'descending',
+  });
+});
+
+test('pages: the range under the table, and which way it can go', () => {
+  assert.equal(pageRange({ page: 1, pageSize: 50, matches: 50 }), null, 'one page: nothing');
+  assert.equal(pageRange({ page: 1, pageSize: 50, matches: 0 }), null);
+  assert.deepEqual(pageRange({ page: 1, pageSize: 50, matches: 4817 }), {
+    text: '1–50 of 4,817',
+    previous: false,
+    next: true,
+  });
+  assert.deepEqual(pageRange({ page: 2, pageSize: 50, matches: 4817 }), {
+    text: '51–100 of 4,817',
+    previous: true,
+    next: true,
+  });
+  assert.deepEqual(pageRange({ page: 97, pageSize: 50, matches: 4817 }), {
+    text: '4,801–4,817 of 4,817',
+    previous: true,
+    next: false,
+  });
   assert.deepEqual(
-    sortRows(list, { key: 'file', direction: 'ascending' }).map((row) => row.name),
-    [
-      'assets/video/form-check-deadlift.mov',
-      'assets/video/form-check-squat.mov',
-      'assets/video/onboarding.mp4',
-      'dddddddddddd',
-    ],
-  );
-  assert.deepEqual(
-    sortRows(list, { key: 'added', direction: 'descending' }).map((row) => row.bytes / MB),
-    [412, 286, 88, 4],
+    pageRange({ page: 2, pageSize: 50, matches: 51 }, (n) => `#${n}`),
+    {
+      text: '#51–#51 of #51',
+      previous: true,
+      next: false,
+    },
   );
 });
 
@@ -145,7 +162,9 @@ test('history: versions, deleted tags and its own header line', () => {
     count: 4817,
     commits: 2310,
     bytes: 212 * MB,
-    truncated: true,
+    ...page,
+    matches: 4817,
+    matchedBytes: 212 * MB,
     files: [
       {
         path: 'package-lock.json',
@@ -160,9 +179,6 @@ test('history: versions, deleted tags and its own header line', () => {
   const list = rows(history);
   assert.equal(list[1].tag, 'Deleted');
   assert.equal(list[0].versions, 184);
-  assert.equal(listLine(history, '', list), '4,817 files in 2,310 commits · 212 MB');
-  assert.deepEqual(
-    sortRows(list, { key: 'versions', direction: 'ascending' }).map((row) => row.name),
-    ['dist/bundle.js', 'package-lock.json'],
-  );
+  assert.equal(list[0].name, 'package-lock.json');
+  assert.equal(listLine(history), '4,817 files in 2,310 commits · 212 MB');
 });
