@@ -1145,7 +1145,10 @@ export async function captureFixture(page) {
     state.online = false;
     state.certificate = {
       previous: bytes(['4F', 'A2', '19', 'C7', '0B', 'E3'], ['88', 'D1', '5E', '42', '9C', '07']),
-      fingerprint: bytes(['CA', '40', '8C', 'AF', 'D7', '6E'], ['2A', '88', 'F1', '9D', '13', '97']),
+      fingerprint: bytes(
+        ['CA', '40', '8C', 'AF', 'D7', '6E'],
+        ['2A', '88', 'F1', '9D', '13', '97'],
+      ),
       address: '192.168.1.20',
       issued: issued.toISOString(),
       expires: '2029-02-20T17:11:53Z',
