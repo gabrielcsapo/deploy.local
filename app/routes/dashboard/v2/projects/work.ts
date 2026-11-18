@@ -13,6 +13,11 @@ const SECTIONS: { stage: WorkStage; title: string; sub?: string }[] = [
     title: 'Found by agents',
     sub: 'Not on your list yet. Open one to add it to Up next or dismiss it.',
   },
+  {
+    stage: 'stopped',
+    title: 'Stopped',
+    sub: 'Not finished, not waiting on you. Open one to continue it or close it.',
+  },
 ];
 
 /** The open sections in order, each with its rows; a section with nothing in it is left out. */

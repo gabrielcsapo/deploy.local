@@ -37,10 +37,15 @@ const lead: Record<WorkStage, ReactNode> = {
       <Icon name="bulb" />
     </span>
   ),
+  // Stopped stays quiet: a muted icon, no attention colour.
+  stopped: <Icon name="failed" className="dl-muted" label="Stopped" />,
   shipped: <Icon name="check" className="dl-ok" label="Shipped" />,
 };
 
-/** A project's work by stage: what needs you, what runs, what is written down, what agents found. */
+/**
+ * A project's work by stage: what needs you, what runs, what is written down, what agents found,
+ * and what stopped.
+ */
 export function ProjectWorkTab({
   projectId,
   work,

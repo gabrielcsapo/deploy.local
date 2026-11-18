@@ -5,8 +5,8 @@
  */
 type Row = Record<string, any>;
 
-export type WorkStage = 'needs-you' | 'running' | 'up-next' | 'found' | 'shipped';
-export const OPEN_STAGES: WorkStage[] = ['needs-you', 'running', 'up-next', 'found'];
+export type WorkStage = 'needs-you' | 'running' | 'up-next' | 'found' | 'stopped' | 'shipped';
+export const OPEN_STAGES: WorkStage[] = ['needs-you', 'running', 'up-next', 'found', 'stopped'];
 
 export type WorkRow = {
   id: string;
@@ -25,7 +25,10 @@ export type WorkRow = {
 };
 
 export type ProjectWork = {
-  /** The open rows, Needs you first, then Running, Up next and Found by agents. */
+  /**
+   * The open rows, Needs you first, then Running, Up next, Found by agents and Stopped. Needs you
+   * is only what waits on the owner's answer; Stopped is work that halted and waits on no one.
+   */
   rows: WorkRow[];
   /** Merged pull requests, finished tasks and closed ideas, newest first. */
   shipped: WorkRow[];
@@ -55,8 +58,17 @@ export type WorkInput = {
 const ENDED = new Set(['merged', 'done', 'completed', 'closed', 'cancelled', 'deleted']);
 /** Finished well: shipped. The others ended without shipping. */
 const SHIPPED = new Set(['merged', 'done', 'completed']);
-const STOPPED = new Set(['failed']);
-const PAUSED = new Set(['blocked', 'interrupted', 'stalled', 'unknown']);
+/**
+ * A task halted without finishing and waits on no one: it is Stopped, saying why. A run whose
+ * state was lost (`unknown`) reads as stalled.
+ */
+const STOPPED: Record<string, string> = {
+  failed: 'Failed',
+  interrupted: 'Interrupted',
+  blocked: 'Blocked',
+  stalled: 'Stalled',
+  unknown: 'Stalled',
+};
 const WORKING = new Set(['queued', 'preparing', 'starting', 'running', 'checking']);
 
 const time = (row: Row | undefined) => String(row?.updatedAt || row?.createdAt || '');
@@ -156,11 +168,7 @@ export function stageProjectWork(input: WorkInput): ProjectWork {
     const checks = pull ? input.checks?.get(pull.id) : undefined;
     // An open pull request nothing is working on waits for the owner to merge it.
     const toMerge =
-      pull?.status === 'open' &&
-      !input.merging?.has(pull.id) &&
-      !working &&
-      !STOPPED.has(status) &&
-      !PAUSED.has(status);
+      pull?.status === 'open' && !input.merging?.has(pull.id) && !working && !STOPPED[status];
     const reason = ask
       ? ask.kind === 'question'
         ? 'Asked you a question'
@@ -173,17 +181,12 @@ export function stageProjectWork(input: WorkInput): ProjectWork {
         ? 'Asked you a question'
         : input.controlRequests.has(task.id)
           ? 'Wants your go-ahead'
-          : STOPPED.has(status)
-            ? 'Stopped'
-            : PAUSED.has(status)
-              ? 'Paused'
-              : toMerge
-                ? checks?.failed
-                  ? 'Checks failed'
-                  : 'Ready to merge'
-                : undefined;
+          : toMerge && !checks?.failed
+            ? 'Ready to merge'
+            : undefined;
+    const computer = run?.workerId ? input.computerName(run.workerId) : undefined;
     if (reason) {
-      const mergeRow = reason === 'Ready to merge' || reason === 'Checks failed';
+      const mergeRow = reason === 'Ready to merge';
       rows.push({
         ...base,
         stage: 'needs-you',
@@ -199,7 +202,24 @@ export function stageProjectWork(input: WorkInput): ProjectWork {
       });
       continue;
     }
-    const computer = run?.workerId ? input.computerName(run.workerId) : undefined;
+    // Halted and waiting on no one: the task failed or stopped, or its pull request's checks
+    // failed with nothing working on it. The row says why: "Failed on SER", "Checks failed · #25".
+    const halted = STOPPED[status]
+      ? computer && run?.status === status
+        ? `${STOPPED[status]} on ${computer}`
+        : STOPPED[status]
+      : toMerge
+        ? 'Checks failed'
+        : undefined;
+    if (halted) {
+      rows.push({
+        ...base,
+        stage: 'stopped',
+        meta: [halted, hash].filter(Boolean) as string[],
+        link: { kind: 'task', id: task.id },
+      });
+      continue;
+    }
     const where =
       pull && input.merging?.has(pull.id)
         ? 'Merging'
@@ -252,9 +272,10 @@ export function stageProjectWork(input: WorkInput): ProjectWork {
     }
     const checks = input.checks?.get(pull.id);
     const operation = !!input.merging?.has(pull.id);
+    // Nothing works on a pull request with no task: failed checks leave it Stopped, not waiting.
     rows.push({
       ...base,
-      stage: operation ? 'running' : 'needs-you',
+      stage: operation ? 'running' : checks?.failed ? 'stopped' : 'needs-you',
       meta: [
         operation ? 'Merging' : checks?.failed ? 'Checks failed' : 'Ready to merge',
         `#${pull.number}`,

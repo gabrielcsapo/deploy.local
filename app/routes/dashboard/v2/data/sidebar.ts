@@ -111,14 +111,15 @@ export function tasksByProject(tasks: SidebarTask[], projects: SidebarProject[])
 }
 
 /**
- * How a task's work is live, or null when it is not: `needs-you` waits on the owner (an answer,
- * a control request, or a turn that was blocked, failed, interrupted or lost), `running` is queued,
- * preparing or working, `review` is finished work waiting to be reviewed. Merged, closed and
- * idle tasks are not live.
+ * How a task's work is live, or null when it is not: `needs-you` waits on the owner's answer (a
+ * question or a control request), `running` is queued, preparing or working, `review` is finished
+ * work waiting to be reviewed. Merged, closed and idle tasks are not live, and neither is a
+ * stopped one (its turn failed, was interrupted, blocked, stalled or lost): it waits under
+ * Stopped on its project's Work tab, not in the sidebar.
  */
 export type TaskLiveness = 'running' | 'needs-you' | 'review';
 const finishedTask = ['merged', 'done', 'closed', 'cancelled', 'archived'];
-const attentionStatus = ['blocked', 'failed', 'interrupted', 'stalled', 'unknown'];
+const stoppedStatus = ['blocked', 'failed', 'interrupted', 'stalled', 'unknown'];
 const runningStatus = ['queued', 'preparing', 'waiting', 'starting', 'running'];
 
 export function taskLiveness(task: SidebarTask, runs: SidebarRun[]): TaskLiveness | null {
@@ -130,7 +131,7 @@ export function taskLiveness(task: SidebarTask, runs: SidebarRun[]): TaskLivenes
   for (const status of [run?.status, task.status]) {
     if (!status) continue;
     if (runningStatus.includes(status)) return 'running';
-    if (attentionStatus.includes(status)) return 'needs-you';
+    if (stoppedStatus.includes(status)) return null;
   }
   return task.status === 'review' ? 'review' : null;
 }

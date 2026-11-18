@@ -77,7 +77,7 @@ test('the grouping choice is remembered per browser and defaults to Date', () =>
   }
 });
 
-test('live work: running, waiting on the owner, or ready for review; finished work is not', () => {
+test('live work: running, waiting on the owner, or ready for review; finished and stopped work is not', () => {
   const base = { title: 't', createdAt: at(10), updatedAt: at(5) };
   const run = (taskId: string, status: string, minutes = 5) => ({
     taskId,
@@ -91,9 +91,14 @@ test('live work: running, waiting on the owner, or ready for review; finished wo
     [{ id: 'd', status: 'waiting' }, [], 'running'],
     [{ id: 'e', status: 'ready', waitingForAnswer: true }, [run('e', 'running')], 'needs-you'],
     [{ id: 'f', status: 'ready', controlRequest: { id: 'x' } }, [], 'needs-you'],
-    [{ id: 'g', status: 'blocked' }, [], 'needs-you'],
-    [{ id: 'h', status: 'review' }, [run('h', 'failed')], 'needs-you'],
-    [{ id: 'i', status: 'review' }, [run('i', 'interrupted')], 'needs-you'],
+    // Stopped work waits on its project's Work tab, not in the sidebar.
+    [{ id: 'g', status: 'blocked' }, [], null],
+    [{ id: 'h', status: 'review' }, [run('h', 'failed')], null],
+    [{ id: 'i', status: 'review' }, [run('i', 'interrupted')], null],
+    [{ id: 'p', status: 'review' }, [run('p', 'stalled')], null],
+    [{ id: 'q', status: 'review' }, [run('q', 'unknown')], null],
+    // A stopped task that asks a question still waits on the owner.
+    [{ id: 'r', status: 'ready', waitingForAnswer: true }, [run('r', 'failed')], 'needs-you'],
     // The latest run decides: an old failure that was retried successfully is review.
     [{ id: 'j', status: 'review' }, [run('j', 'failed', 50), run('j', 'succeeded', 1)], 'review'],
     [{ id: 'k', status: 'review' }, [run('k', 'cancelled')], 'review'],
@@ -130,7 +135,6 @@ test('Work lists only projects with live work, live tasks only, and Chats last',
       group.tasks.map((item) => [item.task.id, item.live]),
     ]),
     [
-      ['home-gym', [['gym-stalled', 'needs-you']]],
       [
         'deploy.local',
         [

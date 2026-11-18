@@ -59,16 +59,27 @@ test('without a pull request the issue gives the number; a pull request links it
   assert.equal(work.counts.open, 2);
 });
 
-test('Needs you: a decision waiting, a question, a go-ahead, or a stopped or paused task', () => {
+test('Needs you is only what waits on an answer; a halted task is Stopped, saying why', () => {
   const work = stage({
-    tasks: ['ask', 'question', 'control', 'failed', 'blocked', 'interrupted'].map((id) => ({
+    tasks: [
+      'ask',
+      'question',
+      'control',
+      'failed',
+      'blocked',
+      'interrupted',
+      'stalled',
+      'lost',
+    ].map((id) => ({
       id,
       title: id,
       status: id === 'blocked' ? 'blocked' : 'review',
     })),
     runs: [
-      { id: 'r1', taskId: 'failed', status: 'failed', createdAt: ago(5) },
+      { id: 'r1', taskId: 'failed', status: 'failed', workerId: 'local', createdAt: ago(5) },
       { id: 'r2', taskId: 'interrupted', status: 'interrupted', createdAt: ago(5) },
+      { id: 'r4', taskId: 'stalled', status: 'stalled', workerId: 'bazzite', createdAt: ago(5) },
+      { id: 'r5', taskId: 'lost', status: 'unknown', createdAt: ago(5) },
       // Still running, but waiting on an answer.
       { id: 'r3', taskId: 'question', status: 'running', createdAt: ago(5) },
     ],
@@ -84,10 +95,46 @@ test('Needs you: a decision waiting, a question, a go-ahead, or a stopped or pau
     ask: ['needs-you', 'Approve design?'],
     question: ['needs-you', 'Asked you a question'],
     control: ['needs-you', 'Wants your go-ahead'],
-    failed: ['needs-you', 'Stopped'],
-    blocked: ['needs-you', 'Paused'],
-    interrupted: ['needs-you', 'Paused'],
+    failed: ['stopped', 'Failed on SER'],
+    blocked: ['stopped', 'Blocked'],
+    interrupted: ['stopped', 'Interrupted'],
+    stalled: ['stopped', 'Stalled on bazzite'],
+    lost: ['stopped', 'Stalled'],
   });
+  // Stopped comes last and counts as open.
+  assert.deepEqual(
+    work.rows.slice(-5).map((row) => row.stage),
+    Array(5).fill('stopped'),
+  );
+  assert.equal(work.counts.open, 8);
+});
+
+test('a pull request whose checks failed with nothing working on it is Stopped', () => {
+  const work = stage({
+    tasks: [
+      { id: 'red', title: 'Keep the sidebar quiet until it has content', status: 'review' },
+      { id: 'fixing', title: 'Fixing it', status: 'review' },
+      { id: 'asked', title: 'Asked', status: 'review' },
+    ],
+    pulls: [
+      { id: 'p25', number: 25, status: 'open', taskIds: ['red'] },
+      { id: 'p26', number: 26, status: 'open', taskIds: ['fixing'] },
+      { id: 'p27', number: 27, status: 'open', taskIds: ['asked'] },
+    ],
+    runs: [{ id: 'r', taskId: 'fixing', status: 'running', workerId: 'local', createdAt: ago(1) }],
+    checks: new Map(
+      ['p25', 'p26', 'p27'].map((id) => [id, { passed: 1, failed: 1, total: 2 }] as const),
+    ),
+    waitingForAnswer: new Set(['asked']),
+  });
+  assert.deepEqual(
+    work.rows.map((row) => [row.stage, row.title, row.meta.join(' · ')]),
+    [
+      ['needs-you', 'Asked', 'Asked you a question · #27'],
+      ['running', 'Fixing it', 'On SER for 1 min · #26'],
+      ['stopped', 'Keep the sidebar quiet until it has content', 'Checks failed · #25'],
+    ],
+  );
 });
 
 test('an open pull request nothing is working on waits for you to merge it', () => {
@@ -122,7 +169,7 @@ test('an open pull request nothing is working on waits for you to merge it', () 
     title: 'Merge main from the remote',
     number: 21,
     link: { kind: 'pull', id: 'p21' },
-    stage: 'needs-you',
+    stage: 'stopped',
     meta: ['Checks failed', '#21'],
     at: '',
   });
@@ -253,12 +300,14 @@ test('Shipped holds merged, finished and closed work, newest first; a task that 
   assert.deepEqual(work.counts, { open: 1, shipped: 4 });
 });
 
-test('stages come in order and the open count is all four of them', () => {
+test('stages come in order and the open count is all five of them', () => {
   const work = stage({
     tasks: [
       { id: 'run', title: 'Run', status: 'running' },
       { id: 'stuck', title: 'Stuck', status: 'failed' },
+      { id: 'asks', title: 'Asks', status: 'review' },
     ],
+    waitingForAnswer: new Set(['asks']),
     issues: [
       { id: 'idea', number: 1, title: 'Idea', status: 'open', author: 'gabriel' },
       { id: 'agent', number: 2, title: 'Agent', status: 'open', foundBy: { taskId: 'run' } },
@@ -266,7 +315,7 @@ test('stages come in order and the open count is all four of them', () => {
   });
   assert.deepEqual(
     work.rows.map((row) => row.stage),
-    ['needs-you', 'running', 'up-next', 'found'],
+    ['needs-you', 'running', 'up-next', 'found', 'stopped'],
   );
-  assert.equal(work.counts.open, 4);
+  assert.equal(work.counts.open, 5);
 });
