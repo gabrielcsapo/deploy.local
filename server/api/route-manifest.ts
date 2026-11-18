@@ -1839,6 +1839,16 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
     handler: 'workspace',
   },
   {
+    method: 'GET',
+    path: '/api/projects/:project/storage',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/storage/files',
+    handler: 'workspace',
+  },
+  {
     method: 'POST',
     path: '/api/projects/:project/settings',
     handler: 'workspace',

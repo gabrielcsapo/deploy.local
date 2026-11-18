@@ -19,6 +19,7 @@ test('one-app settings use singular release and secret copy and omit per-app sco
     '../data/hooks': { useCoordinatorName: () => 'My computer' },
     '../data/time': { formatTime: () => '' },
     './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+    './storage-settings.client': { StorageSettings: 'StorageSettings' },
     './repository-connect.client': { NoRepository: 'NoRepository' },
   });
   const tree = h.render(h.exports.ProjectConfiguration, {
