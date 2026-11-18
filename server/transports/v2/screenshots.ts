@@ -241,6 +241,8 @@ export function sendTaskMessage(owner: string, taskId: string | undefined, body:
         : queueTask(owner, {
             title: content.slice(0, 80),
             projectId: body.projectId,
+            // Place the task on a computer that runs the chosen provider.
+            ...(settings.adapter ? { adapter: settings.adapter } : {}),
             // A task started on a branch, such as a pull request's, checks out that branch.
             ...(body.projectId && body.ref !== undefined ? { ref: body.ref } : {}),
           });

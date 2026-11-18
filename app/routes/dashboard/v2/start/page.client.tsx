@@ -16,6 +16,7 @@ import {
 } from '@/components/ui';
 import { api } from '../../../v2-public/client';
 import { PasskeyOffer } from './account.client';
+import { submitMessage } from '../markup/client';
 import './start.css';
 import { useDataSeed, readSeeded } from '../data/seeds';
 export { FirstTask } from './FirstTask';
@@ -71,14 +72,11 @@ function Welcome() {
             <Composer
               project="New task"
               model="Default"
-              onSend={(text) => {
-                void api('/api/tasks', {
-                  title: text,
-                  prompt: text,
-                  operationId: crypto.randomUUID(),
-                })
+              onSend={(text, message) => {
+                // The composer path turns the picked model into its provider (Opus runs Claude).
+                void submitMessage(message ?? { text, attachments: [] })
                   .then((task) =>
-                    window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`),
+                    window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.taskId)}`),
                   )
                   .catch((error) => setError(error.message));
               }}

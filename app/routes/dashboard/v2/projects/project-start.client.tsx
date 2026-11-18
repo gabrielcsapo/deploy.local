@@ -5,8 +5,9 @@ import type { Project } from '../../../../../shared/v2/contracts';
 import { CloneTabs, SshKeyHint, useCloneProtocol } from './clone.client';
 import { cloneAddresses } from './clone.ts';
 import { CopyButton } from './code.client';
-import { request, useBrowserOrigin, type Overview } from './data';
+import { useBrowserOrigin, type Overview } from './data';
 import { projectPath } from './routing';
+import { submitMessage } from '../markup/client';
 
 /** A repository with no code yet: describe it for a task to write, or push code you have. */
 export function ProjectStart({
@@ -33,18 +34,16 @@ export function ProjectStart({
         <div className="v2-project-start-composer">
           <Composer
             project={project.name}
-            onSend={async (text) => {
+            onSend={async (text, message) => {
               try {
-                const task = await request('/api/tasks', {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    operationId: crypto.randomUUID(),
-                    projectId: project.id,
-                    title: text.split('\n')[0].slice(0, 120),
-                    prompt: text,
-                  }),
-                });
-                window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`);
+                // The composer path turns the picked model into its provider (Opus runs Claude).
+                const task = await submitMessage(
+                  message ?? { text, attachments: [] },
+                  undefined,
+                  undefined,
+                  project.id,
+                );
+                window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.taskId)}`);
               } catch (reason) {
                 setError(reason instanceof Error ? reason.message : 'Could not start a task.');
               }
