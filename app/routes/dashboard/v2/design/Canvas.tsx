@@ -3,7 +3,15 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { Icon } from '@/components/ui';
 import type { DesignReviewPart, DesignReviewScreen } from '../../../../../shared/v2/contracts';
 import { ReviewAreas } from './CanvasReview';
-import { frameSource, frameTicked, type ReviewSide } from './canvas-review-model';
+import {
+  comparedWidth,
+  frameSource,
+  frameTag,
+  frameTicked,
+  wipeStep,
+  type ReviewCompare,
+  type ReviewSide,
+} from './canvas-review-model';
 import {
   boardName,
   changeLabel,
@@ -123,6 +131,10 @@ export function DesignCanvas({
     approve: (file: string) => void;
     busy: boolean;
     waiting: boolean;
+    /** The review's round: a later one tags frames seen before and unchanged since. */
+    round?: number;
+    /** Wipe, width and dark, for looking at the changed frames only. */
+    compare?: ReviewCompare;
   };
   onFollow?: (file: string) => void;
   canvas: CanvasData;
@@ -627,24 +639,38 @@ export function DesignCanvas({
           const on = selection?.board === file;
           const agent = agentBoards?.has(file);
           const changed = review?.boards.get(file);
-          const reviewRevision = changed && review ? frameSource(changed, review.side) : undefined;
+          // Wipe needs both sides: a new or removed frame shows its one side as After or Before do.
+          const wipe = Boolean(
+            changed && review?.compare?.wipe && !changed.added && !changed.removed,
+          );
+          const side: ReviewSide | undefined =
+            changed && review?.compare?.wipe
+              ? changed.removed
+                ? 'before'
+                : 'after'
+              : review?.side;
+          const reviewRevision = changed && side ? frameSource(changed, side) : undefined;
           const sourceBase =
-            changed && review?.side === 'before'
+            changed && review && side === 'before'
               ? `${review.api}/files/${reviewRevision}`
               : (boardSrc?.get(file)?.base ?? base);
           const absent = changed && reviewRevision === null;
           const ticked = changed && review ? frameTicked(review, changed) : false;
+          const tag = changed && review ? frameTag(review, changed) : null;
+          // A width chosen for the review draws changed web frames at it; canvas.json is untouched.
+          const w = changed && review?.compare ? comparedWidth(review.compare, board.w) : board.w;
+          const dark = review?.compare?.dark;
 
           return (
             <div
               key={file}
               className={`dz-board${review && !changed ? ' dz-review-dim' : ''}${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}${typing?.board === file ? ' typing' : ''}`}
-              style={{ left: board.x, top: board.y, width: board.w, height: board.h }}
+              style={{ left: board.x, top: board.y, width: w, height: board.h }}
             >
               <div
                 className="dz-board-name"
                 // Names stay at screen size and, like Figma's, never run past their board.
-                style={{ transform: `scale(${1 / view.z})`, maxWidth: board.w * view.z }}
+                style={{ transform: `scale(${1 / view.z})`, maxWidth: w * view.z }}
               >
                 {changed && review && (
                   <input
@@ -667,16 +693,10 @@ export function DesignCanvas({
                 >
                   {board.title ?? boardName(file)}
                 </button>
-                {board.w * view.z > 160 && (
-                  <span className="dz-tag">
-                    {board.w <= 500 ? `Phone ${board.w}` : `Web ${board.w}`}
-                  </span>
+                {w * view.z > 160 && (
+                  <span className="dz-tag">{w <= 500 ? `Phone ${w}` : `Web ${w}`}</span>
                 )}
-                {changed && (
-                  <span className="dz-tag review">
-                    {changed.added ? 'New' : changed.removed ? 'Removed' : 'Changed'}
-                  </span>
-                )}
+                {tag && <span className={`dz-tag${tag.changed ? ' review' : ''}`}>{tag.text}</span>}
                 {agent && <span className="dz-tag agent">Agent’s version</span>}
                 {prototype && prototype.start === file && (
                   <span className="dz-tag start">
@@ -692,26 +712,41 @@ export function DesignCanvas({
                 <div className="dz-board-placeholder">
                   {changed.added ? 'New frame · no Before' : 'Removed frame · no After'}
                 </div>
+              ) : visible(file) && wipe && changed && review ? (
+                <WipeFrame
+                  key={`${base}:wipe:${w}:${boardSrc?.get(file)?.reload ?? 0}`}
+                  review={review}
+                  board={{ ...changed, w }}
+                  title={board.title ?? boardName(file)}
+                  afterSrc={`${boardSrc?.get(file)?.base ?? base}/boards/${encodeURIComponent(file)}`}
+                  height={board.h}
+                  zoom={view.z}
+                  frames={frames}
+                  dark={dark}
+                  onLoad={onFrameLoad}
+                />
               ) : visible(file) ? (
                 <BoardFrame
-                  key={`${base}:${review?.side === 'before' && changed ? reviewRevision : 'after'}:${boardSrc?.get(file)?.reload ?? 0}`}
+                  // The width remounts the frame, so its changed areas are measured once it loads.
+                  key={`${base}:${side === 'before' && changed ? reviewRevision : 'after'}:${w}:${boardSrc?.get(file)?.reload ?? 0}`}
                   file={file}
                   title={board.title ?? boardName(file)}
                   src={`${sourceBase}/boards/${encodeURIComponent(file)}`}
-                  width={board.w}
+                  width={w}
                   height={board.h}
                   frames={frames}
+                  dark={dark}
                   onLoad={onFrameLoad}
                 />
               ) : (
                 <div className="dz-board-placeholder">{board.title ?? boardName(file)}</div>
               )}
-              {visible(file) && changed && review && !absent && (
+              {visible(file) && changed && review && !absent && !wipe && (
                 <ReviewAreas
                   api={review.api}
                   item={review.item}
-                  board={{ ...changed, w: board.w }}
-                  side={review.side}
+                  board={{ ...changed, w }}
+                  side={side ?? review.side}
                   zoom={view.z}
                   frameDocument={frames.current.get(file)?.contentDocument}
                 />
@@ -1387,17 +1422,25 @@ function BoardFrame({
   width,
   height,
   frames,
+  dark,
   onLoad,
+  onFrame,
 }: {
   file: string;
   title: string;
   src: string;
   width: number;
   height: number;
-  frames: Frames;
+  /** Absent leaves the board's own frame list alone: the Before side of a wipe is not edited. */
+  frames?: Frames;
+  /** The review's Dark: the design system's dark theme on the board's document. */
+  dark?: boolean;
   onLoad: () => void;
+  onFrame?: (frame: HTMLIFrameElement | null) => void;
 }) {
   const [opened] = useState(src);
+  const frame = useRef<HTMLIFrameElement | null>(null);
+  useEffect(() => frameTheme(frame.current, dark), [dark]);
   return (
     <iframe
       title={title}
@@ -1406,11 +1449,143 @@ function BoardFrame({
       width={width}
       height={height}
       loading="lazy"
-      ref={(frame) => {
-        if (frame) frames.current?.set(file, frame);
+      ref={(element) => {
+        frame.current = element;
+        onFrame?.(element);
+        if (!frames) return;
+        if (element) frames.current?.set(file, element);
         else frames.current?.delete(file);
       }}
-      onLoad={onLoad}
+      onLoad={(event) => {
+        frameTheme(event.currentTarget, dark);
+        onLoad();
+      }}
     />
+  );
+}
+
+/** Documents the review turned dark, so turning it off never removes a board's own theme. */
+const darkened = new WeakSet<Document>();
+function frameTheme(frame: HTMLIFrameElement | null, dark: boolean | undefined) {
+  const document = frame?.contentDocument;
+  if (!document?.documentElement || dark === undefined) return;
+  if (dark) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    darkened.add(document);
+  } else if (darkened.has(document)) {
+    document.documentElement.removeAttribute('data-theme');
+    darkened.delete(document);
+  }
+}
+
+/**
+ * Before and After in one frame, with a divider dragged between them: Before to its left, After
+ * to its right. Each side outlines its own changed areas. Only After is the board's frame, so
+ * picking a layer reads the proposal.
+ */
+function WipeFrame({
+  review,
+  board,
+  title,
+  afterSrc,
+  height,
+  zoom,
+  frames,
+  dark,
+  onLoad,
+}: {
+  review: { api: string; item: string };
+  board: DesignReviewScreen;
+  title: string;
+  afterSrc: string;
+  height: number;
+  zoom: number;
+  frames: Frames;
+  dark?: boolean;
+  onLoad: () => void;
+}) {
+  const [at, setAt] = useState(0.5);
+  const [beforeFrame, setBeforeFrame] = useState<HTMLIFrameElement | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const drag = (event: React.PointerEvent) => {
+    const rect = box.current?.getBoundingClientRect();
+    if (rect?.width) setAt(Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)));
+  };
+  const percent = `${at * 100}%`;
+  return (
+    <div ref={box} className="dz-wipe">
+      <div className="dz-wipe-side" style={{ clipPath: `inset(0 ${100 - at * 100}% 0 0)` }}>
+        <BoardFrame
+          file={board.file}
+          title={`${title} · Before`}
+          src={`${review.api}/files/${board.before}/boards/${encodeURIComponent(board.file)}`}
+          width={board.w}
+          height={height}
+          dark={dark}
+          onFrame={setBeforeFrame}
+          onLoad={onLoad}
+        />
+        <ReviewAreas
+          api={review.api}
+          item={review.item}
+          board={board}
+          side="before"
+          zoom={zoom}
+          frameDocument={beforeFrame?.contentDocument}
+        />
+      </div>
+      <div className="dz-wipe-side" style={{ clipPath: `inset(0 0 0 ${percent})` }}>
+        <BoardFrame
+          file={board.file}
+          title={title}
+          src={afterSrc}
+          width={board.w}
+          height={height}
+          frames={frames}
+          dark={dark}
+          onLoad={onLoad}
+        />
+        <ReviewAreas
+          api={review.api}
+          item={review.item}
+          board={board}
+          side="after"
+          zoom={zoom}
+          frameDocument={frames.current.get(board.file)?.contentDocument}
+        />
+      </div>
+      <div
+        className="dz-wipe-divider"
+        role="slider"
+        tabIndex={0}
+        aria-label="Wipe between Before and After"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(at * 100)}
+        aria-orientation="horizontal"
+        style={{ left: percent, width: 24 / zoom, marginLeft: -12 / zoom }}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          drag(event);
+        }}
+        onPointerMove={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+          event.stopPropagation();
+          drag(event);
+        }}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          const next = wipeStep(at, event.key);
+          if (next === null) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setAt(next);
+        }}
+      >
+        <i style={{ width: 2 / zoom }} />
+        <b style={{ width: 20 / zoom, height: 20 / zoom, borderWidth: 2 / zoom }} />
+      </div>
+    </div>
   );
 }

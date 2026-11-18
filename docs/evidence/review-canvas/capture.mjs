@@ -17,6 +17,8 @@ const states = [
   'terminal',
   'approved-removed',
   'grouped',
+  'round2',
+  'compare',
 ];
 const width = Number(rawWidth);
 const port = Number(process.env.PORT ?? 5190);
@@ -88,6 +90,21 @@ try {
         await page.getByRole('checkbox', { name: 'Approve Welcome', exact: true }).isChecked(),
         true,
       );
+    }
+    if (state === 'round2') {
+      await bar.getByText(/round 2 · 1 of 2 changed screens approved/).waitFor();
+      await page.getByText('Seen in round 1', { exact: true }).waitFor();
+      // The right panel is hidden below 820 px, as on the board; the section is still there.
+      await page
+        .getByText('2 screens changed. 1 of your 2 notes addressed.', { exact: true })
+        .waitFor({ state: 'attached' });
+    }
+    if (state === 'compare') {
+      // Wipe is view state only, so the runner chooses it as the owner would.
+      await bar.getByRole('button', { name: 'Wipe', exact: true }).click();
+      await page.getByRole('slider', { name: 'Wipe between Before and After' }).first().waitFor();
+      await page.locator('.dz-review-area').first().waitFor();
+      await page.evaluate(() => document.activeElement?.blur());
     }
     if (state === 'grouped') {
       // The shared part is one unit: Welcome's tick counts for Welcome and for the Sidebar.

@@ -111,18 +111,135 @@ export function seenFrame(review: DesignReview, file: string, revision: string):
 }
 
 /** What one approves in a review: each shared part once, then each screen with its own changes. */
-export type ReviewUnit = { key: string; title: string; seen: boolean };
+export type ReviewUnit = { key: string; title: string; seen: boolean; changedSinceReview: boolean };
 export function reviewUnits(review: Pick<DesignReview, 'boards' | 'groups' | 'parts'>) {
   return [
     ...(review.parts ?? []).map((part) => ({
       key: `part:${part.component}`,
       title: `${part.name} · ${screenCount(part.screens)}`,
       seen: part.seen,
+      // Older coordinators do not say; the part then counts as changed.
+      changedSinceReview: part.changedSinceReview ?? true,
     })),
     ...reviewFrames(review)
       .filter((board) => !board.instanceOnly)
-      .map((board) => ({ key: board.file, title: board.title, seen: board.seen })),
+      .map((board) => ({
+        key: board.file,
+        title: board.title,
+        seen: board.seen,
+        changedSinceReview: board.changedSinceReview,
+      })),
   ] satisfies ReviewUnit[];
+}
+
+/**
+ * The bar's count. A later round counts only what changed since the owner's last review: the rest
+ * was looked at then. Round one counts everything, as before.
+ */
+export function reviewProgress(
+  review: Pick<DesignReview, 'boards' | 'groups' | 'parts' | 'round'>,
+) {
+  const units = reviewUnits(review);
+  if ((review.round ?? 1) <= 1)
+    return {
+      round: null,
+      count: `${units.filter((unit) => unit.seen).length} of ${units.length} approved`,
+    };
+  const changed = units.filter((unit) => unit.changedSinceReview);
+  return {
+    round: `round ${review.round}`,
+    count: `${changed.filter((unit) => unit.seen).length} of ${changed.length} changed screen${changed.length === 1 ? '' : 's'} approved`,
+  };
+}
+
+/** A changed frame's tag. In a later round, a frame looked at before and unchanged since says so. */
+export function frameTag(
+  review: Pick<DesignReview, 'parts'> & { round?: number },
+  board: DesignReviewScreen,
+) {
+  if (board.added) return { text: 'New', changed: true };
+  if (board.removed) return { text: 'Removed', changed: true };
+  const round = review.round ?? 1;
+  // Older coordinators do not say when it was ticked: the previous round is the one it can be.
+  const seenIn = board.seenInRound ?? round - 1;
+  if (round > 1 && !board.changedSinceReview && frameTicked(review, board) && seenIn < round)
+    return { text: `Seen in round ${seenIn}`, changed: false };
+  return { text: 'Changed', changed: true };
+}
+
+export type SinceLastReviewNote = {
+  id: string;
+  number: number;
+  text: string;
+  board: string;
+  screen: string;
+  addressed: boolean;
+  reply: string | null;
+};
+/** What a later round brings back: how many screens changed, and the notes sent last round. */
+export function sinceLastReview(
+  review: Pick<
+    DesignReview,
+    'boards' | 'groups' | 'parts' | 'round' | 'pins' | 'notes' | 'createdAt'
+  >,
+) {
+  if ((review.round ?? 1) <= 1) return null;
+  const changed = reviewUnits(review).filter((unit) => unit.changedSinceReview).length;
+  // Older coordinators do not give a pin its round: last round's pins are the ones made before this one.
+  const last = review.pins.filter((pin) =>
+    pin.round === undefined
+      ? Date.parse(pin.createdAt) < Date.parse(review.createdAt)
+      : pin.round === review.round - 1,
+  );
+  const notes: SinceLastReviewNote[] = last.map((pin) => ({
+    id: pin.id,
+    number: pin.number,
+    text: pin.text,
+    board: pin.board,
+    screen:
+      review.boards.find((board) => board.file === pin.board)?.title ??
+      review.notes.find((note) => note.id === pin.noteId)?.title ??
+      pin.board.replace(/\.html$/, ''),
+    addressed: pin.resolved,
+    reply: pin.reply,
+  }));
+  const addressed = notes.filter((note) => note.addressed).length;
+  return {
+    summary: [
+      `${screenCount(changed)} changed.`,
+      notes.length
+        ? `${addressed} of your ${notes.length} note${notes.length === 1 ? '' : 's'} addressed.`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+    notes,
+  };
+}
+
+/** View state for comparing a review's frames. Never sent to the server or saved. */
+export type ReviewCompare = { wipe: boolean; width: number | null; dark: boolean };
+export const reviewWidths = [1440, 700, 390] as const;
+/** Web boards' own width: the width button reads it until another is chosen. */
+export const defaultReviewWidth = 1440;
+/** A phone board keeps its width; the width menu draws web boards only. */
+export const isPhoneBoard = (w: number) => w <= 500;
+export function comparedWidth(compare: Pick<ReviewCompare, 'width'>, w: number) {
+  return compare.width && !isPhoneBoard(w) ? compare.width : w;
+}
+/** Where the wipe divider sits, 0–1 from the left; keys move it by a twentieth. */
+export function wipeStep(value: number, key: string) {
+  const next =
+    key === 'ArrowLeft' || key === 'ArrowDown'
+      ? value - 0.05
+      : key === 'ArrowRight' || key === 'ArrowUp'
+        ? value + 0.05
+        : key === 'Home'
+          ? 0
+          : key === 'End'
+            ? 1
+            : null;
+  return next === null ? null : Math.round(Math.min(1, Math.max(0, next)) * 100) / 100;
 }
 export const screenCount = (count: number) => `${count} screen${count === 1 ? '' : 's'}`;
 

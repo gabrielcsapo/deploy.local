@@ -3585,6 +3585,21 @@
       "w": 1440,
       "h": 900,
       "title": "SER has a new certificate: compare it, then trust it again"
+    },
+    "DesignReviewCanvasPin.html": {
+      "x": 4640,
+      "y": 92240,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — a pin on a point or an area, with words",
+      "expand": "fill"
+    },
+    "DesignReviewDarkPhone.html": {
+      "x": 6160,
+      "y": 92240,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — the screen in dark, from the More menu"
     }
   },
   "order": [
@@ -4052,6 +4067,8 @@
     "DesignReviewCanvasGrouped.html",
     "DesignReviewCanvasRound2.html",
     "DesignReviewCanvasCompare.html",
+    "DesignReviewCanvasPin.html",
+    "DesignReviewDarkPhone.html",
     "PullRequestNoDesign.html",
     "CliDesignBuild.html",
     "DesignReviewNoOnePhone.html",
@@ -5671,6 +5688,14 @@
       "h": 260,
       "fill": "blue",
       "text": "The design loop on every surface\nFrom the approved document Design and review, end to end. Review: a change to a shared part is one row (DesignReviewCanvasGrouped.html), the second round shows what changed and each note as Addressed or Still open (DesignReviewCanvasRound2.html), and the bar gains Wipe, a width and Dark (DesignReviewCanvasCompare.html). After approval: To review lists what is approved and not built, and what is parked (DesignToReview.html, DesignToReviewPhone.html); deploy design build and verify are in CliDesignBuild.html; a task says the comparison was made by the tool (TaskDesignCheck.html, TaskDesignChecked.html); the iPhone can answer a build that differs (DesignBuiltDiffersPhone.html). A small proposal is answered from its card (Inbox.html, WaitingCarePhone.html) and a waiting design notifies like any decision (Notification.html). A pull request that changes screens with no design says so (PullRequestNoDesign.html). iPhone has the two states the web got in step 1 (DesignReviewNoOnePhone.html, DesignReviewNotLandedPhone.html)."
+    },
+    "review-pins-and-dark": {
+      "x": 4640,
+      "y": 91980,
+      "w": 440,
+      "h": 240,
+      "fill": "blue",
+      "text": "Pins and dark, the rest of step 3\nDesignReviewCanvasPin.html: in a review the Comment tool makes a pin. Click for a point, drag for an area; it holds to the layer under it. Pins are numbered, listed under Comments, and sent with Ask for changes. DesignReviewCanvasCompare.html is the bar as built, with the divider, the width menu and Dark on; Width starts at each board’s own and can go back to it. DesignReviewDarkPhone.html: Dark is in the More menu on iPhone, where the width already is."
     }
   },
   "starts": {}

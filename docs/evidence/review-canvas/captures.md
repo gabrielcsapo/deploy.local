@@ -26,6 +26,8 @@ Each reset starts fresh and redirects to `/dashboard/design?review=…&page=sect
 | terminal         | http://127.0.0.1:5190/__fixture?state=terminal         | 1 note sent to a terminal on MacBook Pro; no button                                                                                                    |
 | approved-removed | http://127.0.0.1:5190/__fixture?state=approved-removed | Landed as 4f05991 with its branch removed: left panel reads main · branch removed; Build menu open                                                     |
 | grouped          | http://127.0.0.1:5190/__fixture?state=grouped          | The branch also changed the Sidebar (242 screens), looked at on Welcome: one row first in Changes on this branch; Welcome ticked, so 2 of 4 approved   |
+| round2           | http://127.0.0.1:5190/__fixture?state=round2           | Round 2: Welcome seen in round 1 and unchanged, so 1 of 2 changed screens approved; Since your last review lists the two notes, one addressed          |
+| compare          | http://127.0.0.1:5190/__fixture?state=compare          | The review state; the runner chooses Wipe (view state only, so it cannot be preselected by URL). Width and Dark sit after Before / After / Wipe        |
 
 Run every capture in an environment with Playwright Chromium available. Output is `output/review-canvas/<state>-<width>.png`, always 900 px tall at device scale 1. Each command logs the real redirected URL and fails on page errors, HTTP errors or remote requests.
 
@@ -54,9 +56,13 @@ node docs/evidence/review-canvas/capture.mjs approved-removed 1440
 node docs/evidence/review-canvas/capture.mjs approved-removed 700
 node docs/evidence/review-canvas/capture.mjs grouped 1440
 node docs/evidence/review-canvas/capture.mjs grouped 700
+node docs/evidence/review-canvas/capture.mjs round2 1440
+node docs/evidence/review-canvas/capture.mjs round2 700
+node docs/evidence/review-canvas/capture.mjs compare 1440
+node docs/evidence/review-canvas/capture.mjs compare 700
 ```
 
-The later states pair with DesignReviewCanvasNotLanded, DesignReviewCanvasNoOne, DesignReviewCanvasTerminal, DesignReviewCanvasApproved and DesignReviewCanvasGrouped, for example `uv run --no-project --python 3.13 --with pillow python design/tools/pair.py output/review-canvas/no-one-pair-1440.png output/design/DesignReviewCanvasNoOne-1440.png output/review-canvas/no-one-1440.png`.
+The later states pair with DesignReviewCanvasNotLanded, DesignReviewCanvasNoOne, DesignReviewCanvasTerminal, DesignReviewCanvasApproved, DesignReviewCanvasGrouped, DesignReviewCanvasRound2 (round2) and DesignReviewCanvasCompare (compare), for example `uv run --no-project --python 3.13 --with pillow python design/tools/pair.py output/review-canvas/no-one-pair-1440.png output/design/DesignReviewCanvasNoOne-1440.png output/review-canvas/no-one-1440.png`.
 
 `PORT` can select another port in the Parity range 5180–5199; use the same value for server and runner.
 
@@ -78,7 +84,7 @@ node --import tsx docs/evidence/review-canvas/fixture-server.ts --check
 node --check docs/evidence/review-canvas/capture.mjs
 ```
 
-The in-process check exercises all twelve resets, redirects, review/design/inbox/account JSON, Before/After frame assets, change rectangles, loading cancellation, persisted/idempotent ticks, reset, rejection of stale ticks and ticks on answered proposals, blocked mutations, and Vite compilation of the fixture entry, real layout, Design page, CanvasReview and BuildDesign.
+The in-process check exercises all fourteen resets, redirects, review/design/inbox/account JSON, Before/After frame assets, change rectangles, loading cancellation, persisted/idempotent ticks, reset, rejection of stale ticks and ticks on answered proposals, blocked mutations, and Vite compilation of the fixture entry, real layout, Design page, CanvasReview and BuildDesign.
 
 Verified here: the in-process check, repository TypeScript check, targeted lint and runner syntax check pass. A startup attempt reached the loopback listener, but this sandbox rejected binding `127.0.0.1:5190` with `EPERM`; HTTP listening could not be verified.
 

@@ -1,5 +1,6 @@
 // Seeds a throwaway data folder with the boards' home-gym: a hosted repository with Git LFS
-// files, a history with deleted files, a tag, and deploy.local's own task and review refs.
+// files, a history with deleted files, a tag, and deploy.local's own task and review refs. Both
+// lists hold more than one page (50) of files, so the dialogs page.
 // Usage: DEPLOY_DATA_DIR=<empty folder> node --import tsx docs/evidence/repository-storage/seed.mts
 // Prints the project id and a sign-in cookie value for the capture script.
 import { execFileSync } from 'node:child_process';
@@ -77,6 +78,16 @@ lfs('assets/audio/timer-voices.zip', 4.4 * MB);
 lfs('assets/audio/beep-set.wav', 4 * MB);
 lfs('assets/video/form-check-squat.mov', 28.6 * MB);
 commit('Timer voices', 120);
+// Enough files for the dialogs to page: every one smaller than the named files the boards show,
+// so those stay on the first page. 70 components (a search with more than one page), 30 server
+// modules (a search on one page), 15 notes, and 50 recorded samples in Git LFS.
+for (let i = 0; i < 70; i++) write(`app/components/Widget${i}.tsx`, text(20 + ((i * 37) % 180)));
+for (let i = 0; i < 30; i++) write(`server/lib/module${i}.ts`, text(10 + ((i * 53) % 120)));
+commit('Components and server modules', 110);
+for (let i = 0; i < 15; i++) write(`docs/notes/note${i}.md`, text(5 + i * 7));
+for (let i = 0; i < 50; i++) lfs(`assets/samples/sample-${i}.wav`, (40 + ((i * 71) % 900)) * 1024);
+for (let i = 0; i < 70; i += 7) write(`app/components/Widget${i}.tsx`, text(40 + i));
+commit('Notes, samples and component fixes', 104);
 for (let i = 0; i < 24; i++) {
   write('package-lock.json', text(4000 + i * 40));
   write('fixtures/workouts.json', text(1500 + i * 10));
@@ -94,6 +105,9 @@ lfs('assets/audio/countdown.wav', 3 * MB);
 write('package-lock.json', text(5200));
 commit('Onboarding video', 21);
 write('app/routes/workouts.tsx', text(420));
+// Deleted at the tip: notes and a few components only an earlier commit still holds.
+for (let i = 0; i < 8; i++) git('rm', '-q', `docs/notes/note${i}.md`);
+for (let i = 60; i < 65; i++) git('rm', '-q', `app/components/Widget${i}.tsx`);
 commit('Yesterday', 1);
 git('push', '-q', 'origin', 'main', 'v1.0.0');
 // deploy.local's own refs: tasks, checkpoints and design reviews hold work no branch has.

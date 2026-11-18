@@ -2,6 +2,8 @@
 // history branches and tags hold, the work deploy.local keeps under refs/deploy, and the rest.
 // Measuring reads every object's size, so it runs in the background and its answer is kept as a
 // store record; reads serve that record and start a new measurement when it is missing or stale.
+// The summary record stays small: the two file lists (every file, tens of thousands in a large
+// repository) are records of their own, read only when a dialog asks for a page of them.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -9,7 +11,8 @@ import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { gitEnvironment, gitRead } from '../../kernel/git.ts';
-import { get, save, listCheckpointMetadata, now } from '../../workspace/store.ts';
+import { get, save } from '../../kernel/db/records.ts';
+import { listCheckpointMetadata, now } from '../../workspace/store.ts';
 
 export type LargeFile = {
   oid: string;
@@ -62,13 +65,14 @@ export const storageSettings = {
   minimumIntervalMs: 60 * 1000,
   /** Measurements running at once across the server. */
   concurrency: 2,
-  /** Rows kept for each dialog; counts and totals stay true beyond them. */
-  historyLimit: 1000,
-  lfsLimit: 1000,
   commandTimeoutMs: 10 * 60 * 1000,
 };
 
 const KIND = 'repository-storage';
+/** One record per list: `<project>/lfs` and `<project>/history`. */
+const FILES_KIND = 'repository-storage-files';
+/** Summary records whose lists are stored apart; older ones held the largest 1,000 inline. */
+const LISTS_VERSION = 2;
 const POINTER = 'version https://git-lfs.github.com/spec/v1';
 
 /** One git process whose output is read line by line, so a large answer is never buffered. */
@@ -259,13 +263,13 @@ export async function measureRepositoryStorage(
   // Branches and tags: the code and its history.
   let historyBytes = 0,
     commits = 0;
-  const paths = new Map<string, { bytes: number; versions: number }>();
+  const paths = new Map<string, { bytes: number; versions: number; changed: number }>();
   await reachableObjects(repository, ['--branches', '--tags'], (object) => {
     historyBytes += object.disk;
     if (object.type === 'commit') commits++;
     if (object.type !== 'blob') return;
     candidate(object);
-    const entry = paths.get(object.path) ?? { bytes: 0, versions: 0 };
+    const entry = paths.get(object.path) ?? { bytes: 0, versions: 0, changed: 0 };
     entry.bytes += object.disk;
     entry.versions++;
     paths.set(object.path, entry);
@@ -353,15 +357,11 @@ export async function measureRepositoryStorage(
         onBranch: !!pointer?.onBranch,
       };
     })
-    .sort((a, b) => b.bytes - a.bytes)
-    .slice(0, storageSettings.lfsLimit);
+    .sort((a, b) => b.bytes - a.bytes);
 
-  // The largest paths in history, when each last changed and whether the default branch has it.
-  const largest = [...paths.entries()]
-    .sort((a, b) => b[1].bytes - a[1].bytes)
-    .slice(0, storageSettings.historyLimit);
-  const wanted = new Map(largest.map(([path]) => [path, 0]));
-  if (wanted.size)
+  // Every path in history, when each last changed (one pass over the log) and whether the
+  // default branch has it.
+  if (paths.size)
     await gitLines(
       repository,
       ['log', '--branches', '--tags', '--name-only', '--no-renames', '--format=%x01%ct'],
@@ -369,7 +369,10 @@ export async function measureRepositoryStorage(
         let time = 0;
         return (line: string) => {
           if (line.startsWith('\x01')) time = Number(line.slice(1)) * 1000;
-          else if (line && wanted.has(line) && time > wanted.get(line)!) wanted.set(line, time);
+          else if (line) {
+            const entry = paths.get(line);
+            if (entry && time > entry.changed) entry.changed = time;
+          }
         };
       })(),
     );
@@ -388,13 +391,15 @@ export async function measureRepositoryStorage(
     } catch {
       // No such branch yet: nothing is called deleted.
     }
-  const historyFiles: HistoryFile[] = largest.map(([path, entry]) => ({
-    path,
-    bytes: entry.bytes,
-    versions: entry.versions,
-    lastChangedAt: wanted.get(path) ? new Date(wanted.get(path)!).toISOString() : null,
-    deleted: tipKnown && !atTip.has(path),
-  }));
+  const historyFiles: HistoryFile[] = [...paths.entries()]
+    .sort((a, b) => b[1].bytes - a[1].bytes)
+    .map(([path, entry]) => ({
+      path,
+      bytes: entry.bytes,
+      versions: entry.versions,
+      lastChangedAt: entry.changed ? new Date(entry.changed).toISOString() : null,
+      deleted: tipKnown && !atTip.has(path),
+    }));
 
   return {
     total,
@@ -460,16 +465,30 @@ function measure(owner: string, project: any) {
       for (const checkpoint of listCheckpointMetadata(owner))
         if (checkpoint.baseRef && checkpoint.taskId)
           checkpoints.set(checkpoint.baseRef, checkpoint.taskId);
-      const result = await measureRepositoryStorage(project.repositoryPath, {
-        defaultBranch: project.defaultBranch,
-        taskOfRef: (ref) => checkpoints.get(ref),
-      });
+      const { lfs, historyFiles, ...result } = await measureRepositoryStorage(
+        project.repositoryPath,
+        { defaultBranch: project.defaultBranch, taskOfRef: (ref) => checkpoints.get(ref) },
+      );
+      const measuredAt = now();
+      // The lists first: a summary is only ever read with lists of its own measurement beside it.
+      for (const [kind, files] of [
+        ['lfs', lfs],
+        ['history', historyFiles],
+      ] as const)
+        save(FILES_KIND, owner, {
+          id: `${project.id}/${kind}`,
+          projectId: project.id,
+          kind,
+          measuredAt,
+          files,
+        });
       save(KIND, owner, {
         id: project.id,
         projectId: project.id,
-        measuredAt: now(),
+        measuredAt,
         attemptedAt,
         fingerprint: refs,
+        lists: LISTS_VERSION,
         ...result,
       });
     } catch (error: any) {
@@ -484,13 +503,20 @@ function measure(owner: string, project: any) {
   return work;
 }
 /** Start a measurement when there is none, it is old, the refs moved, or the last one failed. */
-async function refreshIfStale(owner: string, project: any, record: any) {
+async function refreshIfStale(owner: string, project: any, record: any, listsMissing = false) {
   if (running.has(`${owner}:${project.id}`)) return;
   if (!record) return void measure(owner, project);
   const attempted = Date.parse(record.attemptedAt || record.measuredAt || '') || 0;
   const age = Date.now() - attempted;
   if (age < storageSettings.minimumIntervalMs) return;
-  if (record.error || age >= storageSettings.staleAfterMs) return void measure(owner, project);
+  // A measurement from before every file was kept is redone, so its dialogs list every file.
+  if (
+    record.error ||
+    age >= storageSettings.staleAfterMs ||
+    record.lists !== LISTS_VERSION ||
+    listsMissing
+  )
+    return void measure(owner, project);
   if ((await fingerprint(project.repositoryPath)) !== record.fingerprint)
     void measure(owner, project);
 }
@@ -522,32 +548,166 @@ export async function repositoryStorage(owner: string, projectId: string): Promi
   };
 }
 
-/** The file list behind one row, from the last measurement. */
-export async function repositoryStorageFiles(owner: string, projectId: string, kind: unknown) {
-  if (kind !== 'lfs' && kind !== 'history')
-    throw Object.assign(new Error('kind must be lfs or history'), { status: 400 });
+export type StorageSortKey = 'file' | 'added' | 'versions' | 'changed' | 'size';
+export type StorageFilesQuery = {
+  kind?: unknown;
+  sort?: unknown;
+  direction?: unknown;
+  query?: unknown;
+  page?: unknown;
+};
+/** Rows a dialog shows at once. */
+export const STORAGE_PAGE_SIZE = 50;
+const sortKeys: Record<'lfs' | 'history', StorageSortKey[]> = {
+  lfs: ['file', 'added', 'size'],
+  history: ['file', 'versions', 'changed', 'size'],
+};
+const invalid = (message: string) => Object.assign(new Error(message), { status: 400 });
+
+type Listed = { name: string; lower: string; bytes: number; at: number; versions: number };
+type ListEntry = {
+  measuredAt: string;
+  files: (LargeFile | HistoryFile)[];
+  rows: Listed[];
+  /** Orders already worked out, by `<key> <direction>`: indexes into `files`. */
+  orders: Map<string, number[]>;
+};
+/** Lists recently paged through, so each page, sort or search does not read and parse again. */
+const lists = new Map<string, ListEntry>();
+const LISTS_KEPT = 8;
+const collator = new Intl.Collator();
+function listEntry(key: string, measuredAt: string, kind: 'lfs' | 'history', files: any[]) {
+  const existing = lists.get(key);
+  if (existing?.measuredAt === measuredAt) {
+    lists.delete(key);
+    lists.set(key, existing);
+    return existing;
+  }
+  const time = (value: string | null | undefined) => (value ? Date.parse(value) || 0 : 0);
+  const rows = files.map((file): Listed => {
+    // The name the dialog shows: an object no pointer names is listed by the start of its id.
+    const name = kind === 'lfs' ? (file.path ?? file.oid.slice(0, 12)) : file.path;
+    return {
+      name,
+      lower: name.toLowerCase(),
+      bytes: file.bytes,
+      at: time(kind === 'lfs' ? file.addedAt : file.lastChangedAt),
+      versions: file.versions ?? 0,
+    };
+  });
+  const entry: ListEntry = { measuredAt, files, rows, orders: new Map() };
+  lists.set(key, entry);
+  while (lists.size > LISTS_KEPT) lists.delete(lists.keys().next().value!);
+  return entry;
+}
+/** The dialog's order: by the column, ties by name; the same order the browser once sorted in. */
+function ordered(entry: ListEntry, key: StorageSortKey, direction: 'ascending' | 'descending') {
+  const id = `${key} ${direction}`;
+  const known = entry.orders.get(id);
+  if (known) return known;
+  const sign = direction === 'ascending' ? 1 : -1;
+  const rows = entry.rows;
+  const value = (row: Listed): number | string =>
+    key === 'file'
+      ? row.lower
+      : key === 'size'
+        ? row.bytes
+        : key === 'versions'
+          ? row.versions
+          : row.at;
+  const order = rows
+    .map((_, index) => index)
+    .sort((a, b) => {
+      const x = value(rows[a]),
+        y = value(rows[b]);
+      const compared = x < y ? -1 : x > y ? 1 : 0;
+      return compared * sign || collator.compare(rows[a].name, rows[b].name);
+    });
+  entry.orders.set(id, order);
+  return order;
+}
+
+/** A list of the last measurement, kept apart from the summary; null when there is none. */
+function storedList(owner: string, projectId: string, kind: 'lfs' | 'history', record: any) {
+  try {
+    const list = get(FILES_KIND, owner, `${projectId}/${kind}`);
+    if (list?.measuredAt === record.measuredAt && Array.isArray(list.files)) return list.files;
+  } catch {
+    // Not written: a measurement from before lists were kept apart.
+  }
+  return null;
+}
+
+/** One page of the file list behind a row, from the last measurement: sorted, searched, paged. */
+export async function repositoryStorageFiles(
+  owner: string,
+  projectId: string,
+  options: StorageFilesQuery,
+) {
+  const kind = options.kind;
+  if (kind !== 'lfs' && kind !== 'history') throw invalid('kind must be lfs or history');
+  const key = (options.sort ?? 'size') as StorageSortKey;
+  if (!sortKeys[kind].includes(key))
+    throw invalid(`sort must be one of ${sortKeys[kind].join(', ')}`);
+  const direction = options.direction ?? (key === 'file' ? 'ascending' : 'descending');
+  if (direction !== 'ascending' && direction !== 'descending')
+    throw invalid('direction must be ascending or descending');
+  const query = typeof options.query === 'string' ? options.query.trim() : '';
+  const asked = Number(options.page ?? 1);
+  if (!Number.isInteger(asked) || asked < 1) throw invalid('page must be a whole number from 1');
+
   const project = hostedRepository(owner, projectId);
   if (!project)
     throw Object.assign(new Error('This project has no hosted repository'), { status: 404 });
   const record = cached(owner, projectId);
   if (!record?.measuredAt)
     throw Object.assign(new Error('This repository has not been measured yet'), { status: 409 });
+  const stored = storedList(owner, projectId, kind, record);
+  // Until it is measured again, a record from before every file was kept shows the largest
+  // 1,000 it held; the new measurement lists every file.
+  if (!stored) await refreshIfStale(owner, project, record, true);
+  const inline = kind === 'lfs' ? record.lfs : record.historyFiles;
+  const entry = listEntry(
+    `${owner}:${projectId}:${kind}`,
+    record.measuredAt,
+    kind,
+    stored ?? (Array.isArray(inline) ? inline : []),
+  );
+  const order = ordered(entry, key, direction);
+  const needle = query.toLowerCase();
+  const matched = needle
+    ? order.filter((index) => entry.rows[index].lower.includes(needle))
+    : order;
+  let matchedBytes = 0;
+  for (const index of matched) matchedBytes += entry.rows[index].bytes;
+  // A page past the end shows the last one.
+  const pages = Math.max(1, Math.ceil(matched.length / STORAGE_PAGE_SIZE));
+  const page = Math.min(asked, pages);
+  const start = (page - 1) * STORAGE_PAGE_SIZE;
+  const files = matched.slice(start, start + STORAGE_PAGE_SIZE).map((index) => entry.files[index]);
+  const shared = {
+    measuredAt: record.measuredAt as string,
+    query,
+    sort: key,
+    direction,
+    page,
+    pageSize: STORAGE_PAGE_SIZE,
+    matches: matched.length,
+    matchedBytes,
+    files,
+  };
   return kind === 'lfs'
     ? {
         kind,
-        measuredAt: record.measuredAt,
-        count: record.largeFiles.count,
-        bytes: record.largeFiles.bytes,
-        files: record.lfs,
-        truncated: record.lfs.length < record.largeFiles.count,
+        count: record.largeFiles.count as number,
+        bytes: record.largeFiles.bytes as number,
+        ...shared,
       }
     : {
         kind,
-        measuredAt: record.measuredAt,
-        count: record.history.files,
-        commits: record.history.commits,
-        bytes: record.history.bytes,
-        files: record.historyFiles,
-        truncated: record.historyFiles.length < record.history.files,
+        count: record.history.files as number,
+        commits: record.history.commits as number,
+        bytes: record.history.bytes as number,
+        ...shared,
       };
 }

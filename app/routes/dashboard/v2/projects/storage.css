@@ -98,3 +98,13 @@
   line-height: 16px;
   color: var(--ds-muted);
 }
+.v2-storage-pages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-storage-pages .dl-end {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
