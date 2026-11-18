@@ -598,6 +598,8 @@ async function connectAppWorker() {
   await refreshAppWorker(true);
 }
 async function setup() {
+  // A command-line worker opens setup at launch; a changed certificate comes first.
+  if (state.certificate?.previous) return show('certificate-changed');
   await refreshAppWorker();
   if (state.appWorker?.install === 'desktop')
     state.roles = { ...state.roles, runApps: state.appWorker.enabled };
