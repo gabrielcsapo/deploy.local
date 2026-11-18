@@ -7,7 +7,11 @@ import type { AgentConfiguration } from '../../../../shared/v2/contracts';
 import { Icon, IconButton, type ComponentState } from './shared';
 import { Dialog } from './Dialog';
 import { useLocation } from 'react-flight-router/client';
-import { chosenProject, projectParameter } from '../../../routes/dashboard/v2/start/chosen-project';
+import {
+  branchRef,
+  chosenProject,
+  projectParameter,
+} from '../../../routes/dashboard/v2/start/chosen-project';
 import type { Attachment, ComputerModels } from '../../../../shared/v2/contracts';
 import {
   mediaRequest,
@@ -177,6 +181,8 @@ export function Composer({
           context.taskId,
           context.agentId,
           context.home ? context.chosen?.id : undefined,
+          // A pull request's Start a task on this branch chose one of the project's branches.
+          context.home && context.chosen ? branchRef(location.search) : undefined,
         );
         if (context.home) {
           window.location.assign(`/dashboard/tasks/${encodeURIComponent(result.taskId)}`);

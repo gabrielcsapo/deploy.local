@@ -378,23 +378,28 @@ test('dotted project paths preserve resource identity, query strings and route s
   }
   assert.equal(projectPath('deploy.local'), '/dashboard/projects/deploy%2Elocal');
   assert.equal(projectDocumentUrl('/assets/app.js'), '/assets/app.js');
-  assert.deepEqual(projectTabs({ code: true, pulls: 0, issues: 0, apps: 1, releases: 2 }), [
+  assert.deepEqual(projectTabs({ code: true, apps: 1, releases: 2 }), [
     'Overview',
+    'Work',
     'Code',
     'Releases',
     'Logs',
     'Settings',
   ]);
   // A one-app project is its own app page: a web app's requests and performance are project tabs.
-  assert.deepEqual(
-    projectTabs({ code: true, pulls: 0, issues: 0, apps: 1, releases: 2, requests: true }),
-    ['Overview', 'Code', 'Releases', 'Requests', 'Performance', 'Logs', 'Settings'],
-  );
+  assert.deepEqual(projectTabs({ code: true, apps: 1, releases: 2, requests: true }), [
+    'Overview',
+    'Work',
+    'Code',
+    'Releases',
+    'Requests',
+    'Performance',
+    'Logs',
+    'Settings',
+  ]);
   assert.equal(
     projectTabs({
       code: false,
-      pulls: 0,
-      issues: 0,
       apps: 2,
       releases: 0,
       requests: true,

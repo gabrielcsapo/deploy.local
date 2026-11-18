@@ -1,13 +1,15 @@
 import type { RouteConfig } from 'react-flight-router/router';
 import { pullRoutes } from '../tasks/routes.ts';
 import { releasesRoutes } from '../releases/routes.ts';
+import { workRedirect } from './routing.ts';
 
 export const projectSectionRoutes: RouteConfig[] = [
   {
-    id: 'v2-projects-p-issues',
-    path: 'issues',
+    id: 'v2-projects-p-work',
+    path: 'work',
     component: () => import('./tab.js'),
   },
+  { id: 'v2-projects-p-issues', path: 'issues', redirect: workRedirect, redirectStatus: 302 },
   {
     id: 'v2-projects-p-apps-app',
     path: 'apps/:app',

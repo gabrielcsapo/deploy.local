@@ -20,6 +20,7 @@ export function pageTitle(pathname: string) {
     backups: 'Backups',
     discover: 'Discover',
     code: 'Code',
+    work: 'Work',
     pulls: 'Pull requests',
     issues: 'Issues',
     releases: 'Releases',

@@ -5,6 +5,10 @@ export type SidebarTask = {
   createdAt: string;
   updatedAt?: string;
   projectId?: string | null;
+  /** From /api/state: the task's agent asked a question and waits for the owner's answer. */
+  waitingForAnswer?: boolean | null;
+  /** From /api/state: the task asks the owner to control a computer. */
+  controlRequest?: unknown;
 };
 export type SidebarProject = { id: string; name: string };
 export type SidebarRun = { taskId: string; status: string; updatedAt?: string; createdAt: string };
@@ -104,4 +108,53 @@ export function tasksByProject(tasks: SidebarTask[], projects: SidebarProject[])
           : 1
         : taskTime(b.tasks[0]) - taskTime(a.tasks[0]),
     );
+}
+
+/**
+ * How a task's work is live, or null when it is not: `needs-you` waits on the owner (an answer,
+ * a control request, or a turn that was blocked, failed, interrupted or lost), `running` is queued,
+ * preparing or working, `review` is finished work waiting to be reviewed. Merged, closed and
+ * idle tasks are not live.
+ */
+export type TaskLiveness = 'running' | 'needs-you' | 'review';
+const finishedTask = ['merged', 'done', 'closed', 'cancelled', 'archived'];
+const attentionStatus = ['blocked', 'failed', 'interrupted', 'stalled', 'unknown'];
+const runningStatus = ['queued', 'preparing', 'waiting', 'starting', 'running'];
+
+export function taskLiveness(task: SidebarTask, runs: SidebarRun[]): TaskLiveness | null {
+  if (finishedTask.includes(task.status)) return null;
+  if (task.waitingForAnswer || task.controlRequest) return 'needs-you';
+  const run = runs
+    .filter((entry) => entry.taskId === task.id)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+  for (const status of [run?.status, task.status]) {
+    if (!status) continue;
+    if (runningStatus.includes(status)) return 'running';
+    if (attentionStatus.includes(status)) return 'needs-you';
+  }
+  return task.status === 'review' ? 'review' : null;
+}
+
+/**
+ * The sidebar's Work groups: only projects with live work, ordered by their most recent live
+ * task, each with only its live tasks, newest first. Live work with no project (or whose project
+ * is gone) comes last, under Chats (`project` null).
+ */
+export function liveWorkByProject(
+  tasks: SidebarTask[],
+  runs: SidebarRun[],
+  projects: SidebarProject[],
+) {
+  const live = new Map<string, TaskLiveness>();
+  for (const task of tasks) {
+    const state = taskLiveness(task, runs);
+    if (state) live.set(task.id, state);
+  }
+  return tasksByProject(
+    tasks.filter((task) => live.has(task.id)),
+    projects,
+  ).map((group) => ({
+    ...group,
+    tasks: group.tasks.map((task) => ({ task, live: live.get(task.id)! })),
+  }));
 }

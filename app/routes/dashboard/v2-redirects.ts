@@ -49,8 +49,8 @@ export function staticRedirect(path: string): string | null {
 // Repository pages from before v2: `/dashboard/repositories/<id>` and the short `/<repo>` address.
 const repositorySections: Record<string, string> = {
   repository: '',
-  issues: '/issues',
-  pulls: '/pulls',
+  issues: '/work',
+  pulls: '/work',
   pipelines: '/code',
   deployment: '/releases',
   settings: '/settings',

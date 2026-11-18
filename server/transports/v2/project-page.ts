@@ -3,7 +3,7 @@ import { projectListPath, readProjectList } from './project-list.ts';
 import { authenticate, getNodes } from '../../store.ts';
 import { parseAuthCookie } from '../../auth-cookie.ts';
 import { projectsForOwner, resolveProject } from '../../v2/projects.ts';
-import { readProjectOverview, readProjectSettings } from '../../v2/settings.ts';
+import { readProjectOverview, readProjectSettings, readProjectWork } from '../../v2/settings.ts';
 import { projectReleases, projectRollbacks } from '../../v2/releases.ts';
 import { getLive, getLiveApp } from '../../v2/live.ts';
 import { readWorkspaceState } from '../../workspace/read-state.ts';
@@ -136,6 +136,8 @@ async function load(request: Request): Promise<Page | undefined> {
   await Promise.all([
     put(`${base}/overview`, () => readProjectOverview(owner, project)),
     put(`${base}/releases`, () => ({ releases: projectReleases(owner, project.id) })),
+    // Every tab row shows the Work count, so the work arrives with the header.
+    put(`${base}/work`, () => readProjectWork(owner, project.id, items)),
     put(`/api/projects/${encodeURIComponent(key)}/pulls?status=open`, () =>
       collaborationRead(
         owner,
@@ -211,28 +213,13 @@ export async function loadProjectTab(page?: Page): Promise<PageSeed | undefined>
   }
   if (section === 'releases')
     jobs.push(put(`${base}/rollbacks`, () => ({ rollbacks: projectRollbacks(owner, project.id) })));
-  if (section === 'pulls') {
-    const pulls = `/api/projects/${encodeURIComponent(parts[2])}/pulls`;
-    if (parts[4]) {
-      const path = `${pulls}/${encodeURIComponent(parts[4])}`;
-      jobs.push(put(path, () => collaborationRead(owner, project.id, 'pulls', parts[4])));
-      jobs.push(
-        put(`${path}/diff`, () => collaborationRead(owner, project.id, 'pulls', parts[4], 'diff')),
-      );
-    } else
-      for (const query of ['status=open&q=', 'status=merged&limit=5&q='])
-        jobs.push(
-          put(`${pulls}?${query}`, () =>
-            collaborationRead(
-              owner,
-              project.id,
-              'pulls',
-              undefined,
-              undefined,
-              new URLSearchParams(query),
-            ),
-          ),
-        );
+  // The pull request list moved into Work; only a pull request's own page remains here.
+  if (section === 'pulls' && parts[4]) {
+    const path = `/api/projects/${encodeURIComponent(parts[2])}/pulls/${encodeURIComponent(parts[4])}`;
+    jobs.push(put(path, () => collaborationRead(owner, project.id, 'pulls', parts[4])));
+    jobs.push(
+      put(`${path}/diff`, () => collaborationRead(owner, project.id, 'pulls', parts[4], 'diff')),
+    );
   }
   if (
     section === 'pipelines' &&

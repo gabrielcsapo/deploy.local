@@ -4,7 +4,7 @@ import {
   putProjectReleasePolicy,
   assertProjectWritable,
 } from './project-policy.ts';
-import { list } from '../workspace/store.ts';
+import { get, list } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Project, ProjectSettings } from '../../shared/v2/contracts.ts';
@@ -19,6 +19,14 @@ import {
 import { fail } from '../kernel/errors.ts';
 import { addProjectApplication, resolveProject } from './projects.ts';
 import { logsApi } from './logs.ts';
+import { computers } from '../workspace/coordination.ts';
+import { tasksWaitingForAnswer } from '../workspace/questions.ts';
+import { pendingControlRequests } from '../features/tasks/interactive.ts';
+import { pullTaskChecks } from '../features/tasks/workspace-checks.ts';
+import { requireCollaborationPreferencesSource } from '../workspace/collaboration-preferences-port.ts';
+import { syncInbox } from '../features/decisions/inbox.ts';
+import type { InboxItem } from '../../shared/v2/contracts.ts';
+import { stageProjectWork, type ProjectWork } from '../features/repositories/project-work.ts';
 
 type Row = {
   owner: string;
@@ -278,20 +286,23 @@ export async function readProjectOverview(owner: string, project: Project) {
       })),
     issues: list('issue', owner)
       .filter((entry) => entry.projectId === project.id)
-      .map(({ id, title, state, status, taskId, createdAt }) => ({
+      .map(({ id, title, state, status, taskIds, createdAt }) => ({
         id,
         title,
         state: state || status || 'open',
-        taskId,
+        // Records keep every linked task in taskIds; taskId is the first, for older readers.
+        taskIds: taskIds ?? [],
+        taskId: taskIds?.[0],
         createdAt,
       })),
     pulls: list('pull-request', owner)
       .filter((entry) => entry.projectId === project.id)
-      .map(({ id, title, state, status, taskId }) => ({
+      .map(({ id, title, state, status, taskIds }) => ({
         id,
         title,
         state: state || status || 'open',
-        taskId,
+        taskIds: taskIds ?? [],
+        taskId: taskIds?.[0],
       })),
     apps: project.apps.map((app) => {
       const record = getDeployment(app.name)!;
@@ -306,6 +317,63 @@ export async function readProjectOverview(owner: string, project: Project) {
   };
 }
 
+const passed = (check: Record<string, any>) => ['succeeded', 'passed'].includes(check.status);
+
+/**
+ * A project's Work tab, gathered from the workspace for the pure stageProjectWork, which holds
+ * the staging rules. `inbox` is the page's own Waiting on you read, when it has one.
+ */
+export function readProjectWork(
+  owner: string,
+  projectId: string,
+  inbox?: InboxItem[],
+): ProjectWork {
+  const inProject = (row: Record<string, any>) => row.projectId === projectId;
+  const tasks = list('task', owner).filter(inProject);
+  const pulls = list('pull-request', owner).filter(inProject);
+  const issues = list('issue', owner).filter(inProject);
+  const taskIds = new Set(tasks.map((task) => task.id));
+  const checks = new Map<string, { passed: number; failed: number; total: number }>();
+  const merging = new Set<string>();
+  for (const pull of pulls) {
+    if (pull.status !== 'open') continue;
+    const rows = pullTaskChecks(owner, pull);
+    checks.set(pull.id, {
+      passed: rows.filter(passed).length,
+      failed: rows.filter((row) => row.status === 'failed').length,
+      total: rows.length,
+    });
+    if (pull.mergeOperationId)
+      try {
+        const operation = get('repository-operation', owner, pull.mergeOperationId);
+        if (['queued', 'running'].includes(operation.status)) merging.add(pull.id);
+      } catch {
+        /* A missing operation is no merge in flight. */
+      }
+  }
+  const agents = new Map(list('agent', owner).map((agent) => [agent.id, agent.name]));
+  const workers = new Map(computers(owner).map((computer: any) => [computer.id, computer.name]));
+  return stageProjectWork({
+    tasks,
+    pulls,
+    issues,
+    runs: list('run', owner).filter((run) => taskIds.has(run.taskId)),
+    inbox: (inbox ?? syncInbox(owner, false)).filter(
+      (item) => item.taskId && taskIds.has(item.taskId),
+    ),
+    waitingForAnswer: tasksWaitingForAnswer(owner),
+    controlRequests: new Set(pendingControlRequests(owner).keys()),
+    checks,
+    merging,
+    agentName: (agentId) => (agentId ? agents.get(agentId) : undefined),
+    // Read only for an idea a person wrote, as pull requests read their author's name.
+    personName: (username) =>
+      requireCollaborationPreferencesSource('workspace')(username).name || username,
+    computerName: (workerId) => workers.get(workerId),
+    now: Date.now(),
+  });
+}
+
 export async function settingsApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -314,7 +382,7 @@ export async function settingsApi(
   if (await logsApi(req, res, owner)) return true;
   const url = new URL(req.url!, 'http://localhost');
   const match = url.pathname.match(
-    /^\/api\/projects\/([^/]+)\/(overview|settings|apps|secrets\/([^/]+))$/,
+    /^\/api\/projects\/([^/]+)\/(overview|work|settings|apps|secrets\/([^/]+))$/,
   );
   if (!match) return false;
   const project = await resolveProject(owner, decodeURIComponent(match[1]), req.method === 'GET');
@@ -336,6 +404,11 @@ export async function settingsApi(
         handler: async () => {
           return readProjectOverview(owner, project);
         },
+      }),
+      route({
+        method: 'GET',
+        path: '/api/projects/:project/work',
+        handler: () => readProjectWork(owner, project.id),
       }),
       route({
         method: 'GET',

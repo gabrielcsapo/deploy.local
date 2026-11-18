@@ -33,7 +33,9 @@ function expand(pattern: string): string[] {
 
 const patterns = declared(routes);
 test('the app declares the redirects that need no lookup', () => {
-  assert.equal(patterns.length, 21);
+  // Two of them send a project's old Issues and Pull requests lists to its Work tab
+  // (projects/routing.ts workRedirect, tested in routing.test.ts).
+  assert.equal(patterns.length, 23);
 });
 
 for (const pattern of patterns) {

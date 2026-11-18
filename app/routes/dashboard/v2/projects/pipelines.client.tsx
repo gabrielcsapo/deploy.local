@@ -1,6 +1,7 @@
 'use client';
 import { useProjectFormatting } from './formatting.ts';
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-flight-router/client';
 import {
   Action,
   Banner,
@@ -37,7 +38,11 @@ export function ProjectPipelines({ projectId }: { projectId: string }) {
   const runs = useData<any>(path);
   const runSelector = useRef<HTMLButtonElement>(null);
   const [runsOpen, setRunsOpen] = useState(false);
-  const [selected, setSelected] = useState<string>();
+  // A pull request's checks open their run here (?run=<id>).
+  const [searchParams] = useSearchParams();
+  const [selected, setSelected] = useState<string | undefined>(
+    () => searchParams.get('run') || undefined,
+  );
   const selectedId = selected || runs.data?.runs[0]?.id;
   const detail = useData<any>(selectedId ? `${path}/${encodeURIComponent(selectedId)}` : undefined);
   const [log, setLog] = useState<any>();
