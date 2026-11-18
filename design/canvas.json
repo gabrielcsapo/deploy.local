@@ -678,8 +678,8 @@
       "x": 16920,
       "y": 18164,
       "w": 1440,
-      "h": 1380,
-      "title": "Project settings: variables, secrets, repository, remote sync and releases",
+      "h": 1800,
+      "title": "Project settings: variables, secrets, repository, remote sync, storage and releases",
       "expand": "fill"
     },
     "SecretEdit.html": {
@@ -1300,7 +1300,7 @@
     },
     "CodeFile.html": {
       "x": 16920,
-      "y": 19564,
+      "y": 19984,
       "w": 1440,
       "h": 900,
       "title": "A file in the code",
@@ -2657,7 +2657,7 @@
     },
     "LogsDisconnected.html": {
       "x": 16920,
-      "y": 20644,
+      "y": 21064,
       "w": 1440,
       "h": 900,
       "title": "Logs: the stream has stopped",
@@ -2665,7 +2665,7 @@
     },
     "LogsConnecting.html": {
       "x": 16920,
-      "y": 21664,
+      "y": 22084,
       "w": 1440,
       "h": 900,
       "title": "Logs: opening the stream",
@@ -3538,6 +3538,38 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — the build differs from the approved design"
+    },
+    "StorageLargeFiles.html": {
+      "x": 18440,
+      "y": 20124,
+      "w": 1440,
+      "h": 900,
+      "title": "Large files: every Git LFS file in a table you can search and sort",
+      "expand": "fill"
+    },
+    "StorageHistory.html": {
+      "x": 18440,
+      "y": 21164,
+      "w": 1440,
+      "h": 900,
+      "title": "Branches and tags: the largest files in the history, in a table you can search and sort",
+      "expand": "fill"
+    },
+    "StorageLargeFilesSearch.html": {
+      "x": 18440,
+      "y": 26364,
+      "w": 1440,
+      "h": 900,
+      "title": "Large files, searched: the matching files and what they add up to",
+      "expand": "fill"
+    },
+    "StorageLargeFilesNoMatch.html": {
+      "x": 18440,
+      "y": 27404,
+      "w": 1440,
+      "h": 900,
+      "title": "Large files, searched with no match",
+      "expand": "fill"
     }
   },
   "order": [
@@ -4008,7 +4040,11 @@
     "CliDesignBuild.html",
     "DesignReviewNoOnePhone.html",
     "DesignReviewNotLandedPhone.html",
-    "DesignBuiltDiffersPhone.html"
+    "DesignBuiltDiffersPhone.html",
+    "StorageLargeFiles.html",
+    "StorageHistory.html",
+    "StorageLargeFilesSearch.html",
+    "StorageLargeFilesNoMatch.html"
   ],
   "notes": {
     "intro": {
