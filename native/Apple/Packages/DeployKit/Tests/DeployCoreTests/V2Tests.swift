@@ -508,6 +508,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
         let preview = #"{"width":390,"height":844,"before":null,"after":"/preview.png","areas":[],"crop":{"x":0,"y":0,"w":390,"h":400}}"#
         V2URLProtocol.state.reset([
             "GET \(prefix)/preview?item=design%3Ap%3Ab%3Ac&board=Hello%20Phone%2Ehtml&width=390&scale=3.0": [(200, preview)],
+            "GET \(prefix)/preview?item=design%3Ap%3Ab%3Ac&board=Hello%20Phone%2Ehtml&width=390&scale=1.0&scheme=dark": [(200, preview)],
             "GET /preview.png": [(200, "image-bytes")],
             "POST \(prefix)/seen": [(200, #"{"seen":true}"#)],
             "POST \(prefix)/pins": [(200, #"{"pins":[]}"#)],
@@ -525,6 +526,8 @@ private func body(_ request: URLRequest) -> [String: Any] {
         _ = try await api.editReviewPin(project: "p", item: draft.item, id: "pin", resolved: false)
         _ = try await api.deleteReviewPin(project: "p", item: draft.item, id: "pin")
         _ = try await api.answer(draft.item, action: "changes")
+        // Dark is asked for by name; without it the address is the one older coordinators know.
+        #expect(try await api.reviewPreview(project: "p", item: "design:p:b:c", board: "Hello Phone.html", width: 390, dark: true).width == 390)
         let requests = V2URLProtocol.state.recorded()
         #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "X-Deploy-Username") == "gabriel" && $0.value(forHTTPHeaderField: "X-Deploy-Token") == "private-token" })
         #expect(body(requests[2])["revision"] as? String == "after")

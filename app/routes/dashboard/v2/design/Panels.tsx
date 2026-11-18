@@ -1,7 +1,13 @@
 'use client';
 import type { DesignReview } from '../../../../../shared/v2/contracts';
 import { inboxItemHref } from './review-model';
-import { screenCount, sinceLastReview, type ReviewSide } from './canvas-review-model';
+import {
+  reviewNotes,
+  screenCount,
+  sinceLastReview,
+  type ReviewNoteRow,
+  type ReviewSide,
+} from './canvas-review-model';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Skeleton, Action, Icon, type IconName } from '@/components/ui';
 import type { InboxItem, Project } from '../../../../../shared/v2/contracts';
@@ -695,6 +701,55 @@ function Prop({
       </div>
       {children}
     </section>
+  );
+}
+/**
+ * Comments in a review: the pins of this round, which go to the proposer with Ask for changes.
+ * Last round's are in Edit's Since your last review, not here.
+ */
+export function ReviewNotes({
+  review,
+  onOpen,
+}: {
+  review: Pick<
+    DesignReview,
+    'pins' | 'round' | 'createdAt' | 'boards' | 'notes' | 'proposer' | 'item'
+  >;
+  /** Selects the pin's screen and opens the pin. */
+  onOpen: (id: string) => void;
+}) {
+  const notes = reviewNotes(review);
+  const row = (note: ReviewNoteRow, state: string | null) => (
+    <button
+      key={note.id}
+      type="button"
+      className="dz-list-item dz-since"
+      onClick={() => onOpen(note.id)}
+    >
+      <span className="dz-since-number">{note.number}</span>
+      <span className="dz-since-text">{note.text}</span>
+      <span className="dz-since-line">
+        <span>{note.screen}</span>
+        {state && <span className="dz-notes-state">{state}</span>}
+      </span>
+    </button>
+  );
+  return (
+    <>
+      <Prop title={notes.title} actions={<span className="dz-meta">{notes.open.length}</span>}>
+        <span className="dz-notes-go">Sent when you ask for changes.</span>
+        {notes.open.length > 0 && (
+          <div className="dz-list">
+            {notes.open.map((note) => row(note, notes.sent ? 'Sent' : 'Not sent'))}
+          </div>
+        )}
+      </Prop>
+      <Prop title={`Resolved · ${notes.resolved.length}`}>
+        {notes.resolved.length > 0 && (
+          <div className="dz-list">{notes.resolved.map((note) => row(note, null))}</div>
+        )}
+      </Prop>
+    </>
   );
 }
 function Field({

@@ -1870,6 +1870,130 @@ test('review preview density defaults to 1, preserves CSS geometry and separates
   }
 });
 
+test('review previews draw dark on request, cached apart from light, with light’s geometry', async () => {
+  const f = await reviewFixture('review-dark');
+  const item = await f.propose();
+  const review = await f.read(item);
+  const board = review.boards.find((b: any) => b.file === 'Alpha.html');
+  const { reviewPreview, renderBoardLayout, previewScheme } = await import('./design.ts');
+  assert.equal(previewScheme(new URL('https://test.invalid')), 'light');
+  assert.equal(previewScheme(new URL('https://test.invalid?scheme=dark')), 'dark');
+  for (const other of ['light', 'Dark', 'dim', ''])
+    assert.equal(previewScheme(new URL(`https://test.invalid?scheme=${other}`)), 'light');
+  const calls: string[] = [];
+  // A dark drawing that moved things would show here: the preview must keep light's boxes.
+  const draw = async (
+    _repo: string,
+    commit: string,
+    _board: string,
+    width: number,
+    height = 900,
+    _scale = 1,
+    scheme = 'light',
+  ) => {
+    calls.push(`${commit === board.after ? 'after' : 'before'}:${scheme}`);
+    return {
+      png: Buffer.from(`${scheme} ${width}x${height}`),
+      boxes: { title: { x: 30, y: scheme === 'dark' ? 99 : 40, w: 240, h: 60 } },
+    };
+  };
+  const render: typeof renderBoardLayout = (repo, commit, file, width, height, scale, _d, scheme) =>
+    renderBoardLayout(repo, commit, file, width, height, scale, draw, scheme);
+  const light = await reviewPreview(f.path, f.project.id, board, 1440, render);
+  assert.deepEqual(calls.sort(), ['after:light', 'before:light']);
+  // Light asks exactly as before: no scheme in its picture's address.
+  assert.doesNotMatch(light.after!, /scheme/);
+  const dark = await reviewPreview(f.path, f.project.id, board, 1440, render, 1, 'dark');
+  assert.deepEqual(calls.sort(), ['after:dark', 'after:light', 'before:dark', 'before:light']);
+  assert.deepEqual(dark.areas, light.areas);
+  assert.deepEqual(dark.layers, light.layers);
+  assert.deepEqual(dark.crop, light.crop);
+  assert.equal(new URL(dark.after!, origin).searchParams.get('scheme'), 'dark');
+  assert.equal(new URL(dark.before!, origin).searchParams.get('scheme'), 'dark');
+  // Each is drawn once, then kept: asking again draws nothing.
+  await reviewPreview(f.path, f.project.id, board, 1440, render, 1, 'dark');
+  await reviewPreview(f.path, f.project.id, board, 1440, render);
+  assert.equal(calls.length, 4);
+  // The real handlers, against those kept drawings; anything but dark is light.
+  for (const [query, scheme] of [
+    ['&scheme=dark', 'dark'],
+    ['', 'light'],
+    ['&scheme=sepia', 'light'],
+  ]) {
+    const response = await f.call(
+      `/review/preview?item=${encodeURIComponent(item.id)}&board=Alpha.html&width=1440${query}`,
+    );
+    assert.equal(response.status, 200);
+    const metadata = await response.json();
+    assert.deepEqual(metadata, scheme === 'dark' ? dark : light);
+    const image = await fetch(new URL(metadata.after!, origin).href);
+    assert.equal(image.status, 200);
+    assert.equal(await image.text(), `${scheme} 1440x900`);
+  }
+  assert.equal(calls.length, 4);
+});
+
+test('a pin made on the web holds to its layer at the After commit, as the iPhone’s do', async () => {
+  const f = await reviewFixture('review-web-pin');
+  const item = await f.propose();
+  const review = await f.read(item);
+  const { pinBody, pinDraft } =
+    await import('../../../app/routes/dashboard/v2/design/canvas-review-model.ts');
+  const board = review.boards.find((b: any) => b.file === 'Alpha.html');
+  const boxes = { title: { x: 100, y: 200, w: 400, h: 50 } };
+  const point = pinDraft(board, 1440, { x: 300, y: 225 }, { x: 300, y: 225 }, boxes, false);
+  const area = pinDraft(board, 1440, { x: 120, y: 180 }, { x: 520, y: 280 }, boxes, true);
+  for (const [draft, text] of [
+    [point, 'Center the title.'],
+    [area, 'Less room above.'],
+  ] as const)
+    assert.equal((await f.call('/review/pins', pinBody(item.id, draft, text))).status, 200);
+  const pins = (await f.read(item)).pins;
+  assert.deepEqual(
+    pins.map((pin: any) => [
+      pin.number,
+      pin.board,
+      pin.width,
+      pin.revision,
+      pin.x,
+      pin.y,
+      pin.layer,
+      pin.offset,
+      pin.area,
+      pin.text,
+      pin.round,
+    ]),
+    [
+      [
+        1,
+        'Alpha.html',
+        1440,
+        review.after,
+        300,
+        225,
+        'title',
+        { x: 0.5, y: 0.5 },
+        undefined,
+        'Center the title.',
+        1,
+      ],
+      [
+        2,
+        'Alpha.html',
+        1440,
+        review.after,
+        320,
+        230,
+        'title',
+        { x: 0.55, y: 0.6 },
+        { x: 120, y: 180, w: 400, h: 100 },
+        'Less room above.',
+        1,
+      ],
+    ],
+  );
+});
+
 test('drawing pins validate native coordinates, side, dimensions and bounded paths; edits preserve association', async () => {
   const f = await reviewFixture('review-drawings');
   const item = await f.propose(),

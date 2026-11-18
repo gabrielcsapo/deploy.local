@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Action, Dialog, Icon, Seg, Skeleton } from '@/components/ui';
 import type {
   DesignReview,
+  DesignReviewPin,
   DesignReviewPreview,
   DesignReviewScreen,
 } from '../../../../../shared/v2/contracts';
@@ -11,12 +12,15 @@ import { authenticatedFetch, request, useData } from '../projects/data';
 import { approvalRecord, buildLine, inboxItemHref, resolutionProgress } from './review-model';
 import { approveLabel } from '../../../../../shared/v2/artifacts';
 import {
-  defaultReviewWidth,
   frameTicked,
+  nextPinNumber,
+  pinBody,
   reviewProgress,
   reviewUnits,
-  reviewWidths,
+  reviewWidthOptions,
   seenFrame,
+  widthLabel,
+  type PinDraft,
   type ReviewCompare,
   type ReviewSide,
 } from './canvas-review-model';
@@ -101,6 +105,11 @@ export function useCanvasReview(project: string, item: string | null) {
     },
     [api, item, data, busy],
   );
+  // Pins answer with the review's whole list; a read already on its way would bring back the old one.
+  const setPins = useCallback((pins: DesignReviewPin[]) => {
+    version.current++;
+    setData((current) => current && { ...current, pins });
+  }, []);
   // A review of a design under Artifacts reads its boards from that design's folder.
   return {
     api: data?.api ?? api,
@@ -116,6 +125,7 @@ export function useCanvasReview(project: string, item: string | null) {
     setCompare,
     load,
     approveFrame,
+    setPins,
   };
 }
 export type CanvasReview = ReturnType<typeof useCanvasReview>;
@@ -424,25 +434,30 @@ export function CanvasReviewBar({
                 aria-expanded={widthMenu}
                 onClick={() => setWidthMenu(!widthMenu)}
               >
-                {view.width ?? defaultReviewWidth} <Icon name="down" size={12} />
+                {widthLabel(view)} <Icon name="down" size={12} />
               </Action>
               {widthMenu && (
                 <div
-                  className="dl-menu dz-zoom-menu"
+                  className="dl-menu dz-zoom-menu dz-review-width-menu"
                   role="menu"
                   aria-label="Width"
                   onClick={() => setWidthMenu(false)}
                 >
-                  {reviewWidths.map((width) => (
+                  {reviewWidthOptions.map(({ width, label }) => (
                     <button
-                      key={width}
+                      key={label}
                       type="button"
                       className="dl-menu-item"
                       role="menuitemradio"
-                      aria-checked={(view.width ?? defaultReviewWidth) === width}
+                      aria-checked={view.width === width}
                       onClick={() => review.setCompare((current) => ({ ...current, width }))}
                     >
-                      {width}
+                      {label}
+                      {view.width === width && (
+                        <span className="dl-end">
+                          <Icon name="tick" size={14} />
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -790,5 +805,129 @@ function ConflictPreview({
         <p>{side === 'before' ? 'New frame · no Before' : 'Removed frame · no After'}</p>
       )}
     </>
+  );
+}
+
+/** The pin being made or read again in a waiting review: a new one's place, or a saved pin. */
+export type PinOpen = { draft: PinDraft; number: number } | { pin: DesignReviewPin };
+export function useReviewPins(review: CanvasReview) {
+  const { api, item, data, setPins } = review;
+  const [open, setOpen] = useState<PinOpen | null>(null);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const start = useCallback(
+    (draft: PinDraft) => {
+      if (!data) return;
+      setOpen({ draft, number: nextPinNumber(data) });
+      setText('');
+      setError('');
+    },
+    [data],
+  );
+  const edit = useCallback((pin: DesignReviewPin) => {
+    setOpen({ pin });
+    setText(pin.text);
+    setError('');
+  }, []);
+  const cancel = useCallback(() => {
+    setOpen(null);
+    setText('');
+    setError('');
+  }, []);
+  const send = async (method: 'POST' | 'PATCH' | 'DELETE', body: unknown) => {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await request<{ pins: DesignReviewPin[] }>(`${api}/review/pins`, {
+        method,
+        body: JSON.stringify(body),
+      });
+      setPins(result.pins);
+      cancel();
+    } catch (failure) {
+      setError((failure as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // A pin open when the review stops waiting can no longer be saved, so it closes.
+  const shown = data?.item.state === 'waiting' ? open : null;
+  const save = () => {
+    if (!shown || !item || busy || !text.trim()) return;
+    void ('draft' in shown
+      ? send('POST', pinBody(item, shown.draft, text))
+      : send('PATCH', { item, id: shown.pin.id, text: text.trim() }));
+  };
+  const remove = () => {
+    if (!shown || !item || busy || 'draft' in shown) return;
+    void send('DELETE', { item, id: shown.pin.id });
+  };
+  return { open: shown, text, setText, busy, error, start, edit, cancel, save, remove };
+}
+export type ReviewPins = ReturnType<typeof useReviewPins>;
+
+/** Beside a pin: its number and where it is, what should change, and Add (or Save). */
+export function PinBox({
+  pins,
+  number,
+  where,
+}: {
+  pins: Pick<
+    ReviewPins,
+    'open' | 'text' | 'setText' | 'busy' | 'error' | 'cancel' | 'save' | 'remove'
+  >;
+  number: number;
+  where: string;
+}) {
+  const editing = pins.open && 'pin' in pins.open;
+  return (
+    <div
+      className="dz-pin-box-inner"
+      role="dialog"
+      aria-label={`Pin ${number}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          pins.cancel();
+        }
+      }}
+    >
+      <span className="dz-pin-head">
+        <b>Pin {number}</b>
+        <span className="dl-meta">{where}</span>
+      </span>
+      <textarea
+        className="dz-pin-field"
+        aria-label="What should change?"
+        placeholder="What should change?"
+        rows={3}
+        autoFocus
+        value={pins.text}
+        disabled={pins.busy}
+        onChange={(event) => pins.setText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            pins.save();
+          }
+        }}
+      />
+      {pins.error && <p className="dz-error">{pins.error}</p>}
+      <span className="dz-pin-foot">
+        {editing && (
+          <Action variant="quiet" disabled={pins.busy} onClick={pins.remove}>
+            Remove pin
+          </Action>
+        )}
+        <span className="dl-grow" />
+        <Action variant="quiet" disabled={pins.busy} onClick={pins.cancel}>
+          Cancel
+        </Action>
+        <Action variant="primary" disabled={pins.busy || !pins.text.trim()} onClick={pins.save}>
+          {editing ? 'Save' : 'Add'}
+        </Action>
+      </span>
+    </div>
   );
 }

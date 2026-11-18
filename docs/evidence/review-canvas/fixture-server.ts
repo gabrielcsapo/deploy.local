@@ -28,6 +28,7 @@ export const states = [
   'grouped',
   'round2',
   'compare',
+  'pins',
 ] as const;
 type State = (typeof states)[number];
 const repo = resolve(import.meta.dirname, '../../..');
@@ -136,7 +137,11 @@ export function createFixture() {
     'WelcomeNarrow.html': snippet('ph'),
     'SignIn.html': snippet('ph-2'),
     'NewProject.html': snippet('ph-3'),
-    'InstallApp.html': snippet('ph-4'),
+    // Named as the real board names it, so a pin on it reads Install an app › App card.
+    'InstallApp.html': snippet('ph-4').replace(
+      'data-layer="c-4"',
+      'data-layer="c-4" data-name="App card"',
+    ),
     'FirstTask.html': snippet('ph-5'),
     'EmptyStateArt.html': snippet('vec'),
   };
@@ -351,42 +356,64 @@ export function createFixture() {
           boards: boards.map((board) => board.file),
         },
       ],
-      pins: second
-        ? [
-            {
-              id: 'pin-gutter',
-              number: 1,
-              board: 'WelcomeNarrow.html',
-              noteId: null,
-              width: 720,
-              revision: before,
-              x: 160,
-              y: 120,
-              text: 'Keep the gutter at 16 here too.',
-              author: 'Gabriel',
-              resolved: true,
-              reply: 'Gutter is 16 at every width now.',
-              createdAt: '2026-11-11T14:00:00.000Z',
-              round: 1,
-            },
-            {
-              id: 'pin-maker',
-              number: 2,
-              board: 'InstallApp.html',
-              noteId: null,
-              width: 1440,
-              revision: before,
-              x: 300,
-              y: 260,
-              text: 'The app card should say who made it.',
-              author: 'Gabriel',
-              resolved: false,
-              reply: 'Kept the size; the maker does not fit at 700.',
-              createdAt: '2026-11-11T14:01:00.000Z',
-              round: 1,
-            },
-          ]
-        : [],
+      pins:
+        state === 'pins'
+          ? [
+              // One saved area pin, as on DesignReviewCanvasPin; the runner makes the second.
+              {
+                id: 'pin-gutter',
+                number: 1,
+                board: 'WelcomeNarrow.html',
+                noteId: null,
+                width: 720,
+                revision: after,
+                x: 248,
+                y: 218,
+                area: { x: 128, y: 83, w: 240, h: 270 },
+                text: 'Keep the gutter at 16 here too.',
+                author: 'Gabriel',
+                resolved: false,
+                reply: null,
+                createdAt: '2026-11-12T15:00:00.000Z',
+                round: 1,
+              },
+            ]
+          : second
+            ? [
+                {
+                  id: 'pin-gutter',
+                  number: 1,
+                  board: 'WelcomeNarrow.html',
+                  noteId: null,
+                  width: 720,
+                  revision: before,
+                  x: 160,
+                  y: 120,
+                  text: 'Keep the gutter at 16 here too.',
+                  author: 'Gabriel',
+                  resolved: true,
+                  reply: 'Gutter is 16 at every width now.',
+                  createdAt: '2026-11-11T14:00:00.000Z',
+                  round: 1,
+                },
+                {
+                  id: 'pin-maker',
+                  number: 2,
+                  board: 'InstallApp.html',
+                  noteId: null,
+                  width: 1440,
+                  revision: before,
+                  x: 300,
+                  y: 260,
+                  text: 'The app card should say who made it.',
+                  author: 'Gabriel',
+                  resolved: false,
+                  reply: 'Kept the size; the maker does not fit at 700.',
+                  createdAt: '2026-11-11T14:01:00.000Z',
+                  round: 1,
+                },
+              ]
+            : [],
       notes:
         state === 'notes-only'
           ? [
@@ -440,6 +467,48 @@ export function createFixture() {
     if (path === '/api/auth/session' && request.method === 'POST')
       return new Response(null, { status: 204 });
     if (!['GET', 'HEAD'].includes(request.method)) {
+      // Pins are kept like the server keeps them, so a pin added by hand shows and lists.
+      if (path === `${api}/review/pins` && ['POST', 'PATCH', 'DELETE'].includes(request.method)) {
+        let body;
+        try {
+          body = await request.json();
+        } catch {
+          return json({ error: 'Invalid JSON' }, 400);
+        }
+        if (!body || body.item !== id || review.item.state !== 'waiting')
+          return json({ error: 'This review is no longer waiting' }, 409);
+        if (request.method === 'POST') {
+          const text = String(body.text ?? '').trim();
+          if (!text || !review.boards.some((board) => board.file === body.board))
+            return json({ error: 'Name the screen or note and revision for this pin' }, 400);
+          review.pins.push({
+            id: `pin-${review.pins.length + 1}`,
+            number: Math.max(0, ...review.pins.map((pin) => pin.number)) + 1,
+            board: body.board,
+            noteId: null,
+            width: body.width,
+            revision: body.revision,
+            x: body.x,
+            y: body.y,
+            ...(body.layer ? { layer: body.layer, offset: body.offset } : {}),
+            ...(body.area ? { area: body.area } : {}),
+            text,
+            author: 'Gabriel',
+            resolved: false,
+            reply: null,
+            createdAt: at,
+            round: review.round,
+          });
+        } else {
+          const index = review.pins.findIndex((pin) => pin.id === body.id);
+          if (index < 0) return json({ error: 'No such pin' }, 404);
+          if (request.method === 'DELETE') review.pins.splice(index, 1);
+          else if (typeof body.text === 'string' && body.text.trim())
+            review.pins[index] = { ...review.pins[index], text: body.text.trim() };
+        }
+        save();
+        return json({ pins: review.pins });
+      }
       if (path !== `${api}/review/seen` || request.method !== 'POST')
         return json({ error: 'Capture fixture: mutation disabled' }, 405);
       let body;
@@ -773,7 +842,12 @@ async function check() {
             [1, false, 'Kept the size; the maker does not fit at 700.'],
           ],
         );
-      } else assert.equal(review.pins.length, 0);
+      } else if (state === 'pins')
+        assert.deepEqual(
+          review.pins.map((pin) => [pin.number, pin.board, pin.width, pin.revision, pin.area]),
+          [[1, 'WelcomeNarrow.html', 720, after, { x: 128, y: 83, w: 240, h: 270 }]],
+        );
+      else assert.equal(review.pins.length, 0);
       if (state === 'conflict' || state === 'not-landed')
         assert.equal(review.resolutions![0].choice, null);
       if (state === 'notes-only') assert.equal(review.notes[0].id, 'gutter');
@@ -835,7 +909,35 @@ async function check() {
       ).length,
       1,
     );
+    // A pin is kept, numbered after the saved one, and can be changed and removed.
+    await call('/__fixture?state=pins');
+    const pins = (method: string, body: object) =>
+      call(`${api}/review/pins`, { method, body: JSON.stringify(body) });
+    const added = await pins('POST', {
+      item: id,
+      board: 'InstallApp.html',
+      width: 1440,
+      revision: after,
+      x: 450,
+      y: 360,
+      layer: 'c-4',
+      offset: { x: 0.12, y: 0.4 },
+      text: 'The app card should say who made it.',
+    });
+    assert.equal(added!.status, 200);
+    const made = (await added!.json()).pins[1];
+    assert.deepEqual([made.number, made.layer, made.round], [2, 'c-4', 1]);
+    assert.equal((await pins('PATCH', { item: id, id: made.id, text: 'Say who.' }))!.status, 200);
+    assert.equal((await pins('DELETE', { item: id, id: made.id }))!.status, 200);
+    assert.equal(
+      JSON.parse(readFileSync(join(fixture.root, 'seed.json'), 'utf8')).review.pins.length,
+      1,
+    );
     await call('/__fixture?state=approved');
+    assert.equal(
+      (await pins('POST', { item: id, board: 'InstallApp.html', text: 'Too late.' }))!.status,
+      409,
+    );
     assert.equal(
       (await tick({ item: id, board: 'WelcomeNarrow.html', revision: after }))!.status,
       409,
@@ -857,7 +959,7 @@ async function check() {
       await vite.close();
     }
     console.log(
-      'PASS: fourteen states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
+      'PASS: fifteen states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
     );
   } finally {
     fixture.close();

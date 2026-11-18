@@ -19,6 +19,17 @@ import {
   sinceLastReview,
   stepFrame,
   wipeStep,
+  nextPinNumber,
+  pinAnchor,
+  pinBody,
+  pinDraft,
+  pinPlacement,
+  pinWhere,
+  reviewNotes,
+  reviewWidthOptions,
+  roundPins,
+  screenPins,
+  widthLabel,
 } from './canvas-review-model';
 
 const screen = (file: string, fields: Partial<DesignReviewScreen> = {}): DesignReviewScreen => ({
@@ -343,4 +354,166 @@ test('the review width draws web frames only; the wipe divider steps and stops a
   assert.equal(wipeStep(0.5, 'End'), 1);
   assert.equal(wipeStep(0.5, 'Home'), 0);
   assert.equal(wipeStep(0.5, 'a'), null);
+});
+
+test('the width menu starts at each board’s own and can go back to it', () => {
+  assert.deepEqual(
+    reviewWidthOptions.map((option) => [option.width, option.label]),
+    [
+      [null, 'Each board’s own'],
+      [1440, '1440'],
+      [700, '700'],
+      [390, '390'],
+    ],
+  );
+  assert.equal(widthLabel({ width: null }), 'Width');
+  assert.equal(widthLabel({ width: 700 }), '700');
+  // Each board's own draws every frame at its own width again.
+  assert.equal(comparedWidth({ width: reviewWidthOptions[0].width }, 720), 720);
+});
+
+const reviewPin = (fields: Partial<DesignReview['pins'][number]> = {}) =>
+  ({
+    id: 'p1',
+    number: 1,
+    board: 'Welcome.html',
+    noteId: null,
+    width: 1440,
+    revision: 'after',
+    x: 300,
+    y: 225,
+    text: 'Center the title.',
+    author: 'Gabriel',
+    resolved: false,
+    reply: null,
+    createdAt: '2026-11-12T15:00:00.000Z',
+    round: 1,
+    ...fields,
+  }) as DesignReview['pins'][number];
+
+test('a click is a point and a drag an area; the pin holds to the smallest layer under it', () => {
+  const board = { file: 'Welcome.html', after: 'after', h: 900 };
+  const boxes = {
+    app: { x: 0, y: 0, w: 1440, h: 900 },
+    title: { x: 100, y: 200, w: 400, h: 50 },
+    hidden: { x: 0, y: 0, w: 0, h: 0 },
+  };
+  assert.deepEqual(pinAnchor({ x: 300, y: 225 }, boxes), {
+    layer: 'title',
+    offset: { x: 0.5, y: 0.5 },
+  });
+  assert.deepEqual(pinAnchor({ x: 1000, y: 800 }, boxes)?.layer, 'app');
+  assert.equal(pinAnchor({ x: 2000, y: 800 }, boxes), null);
+  const click = pinDraft(board, 1440, { x: 300, y: 225 }, { x: 302, y: 226 }, boxes, false);
+  assert.deepEqual(click, {
+    board: 'Welcome.html',
+    width: 1440,
+    revision: 'after',
+    x: 300,
+    y: 225,
+    layer: 'title',
+    offset: { x: 0.5, y: 0.5 },
+  });
+  // Dragged up and left, past the screen's edge: the area is kept on the screen.
+  const drag = pinDraft(board, 1440, { x: 500, y: 250 }, { x: -40, y: 150 }, boxes, true);
+  assert.deepEqual(drag.area, { x: 0, y: 150, w: 500, h: 100 });
+  assert.deepEqual([drag.x, drag.y, drag.layer], [250, 200, 'title']);
+  // What is posted is the iPhone's body with the words.
+  assert.deepEqual(pinBody('design:p:b:c', click, '  Center the title. '), {
+    item: 'design:p:b:c',
+    ...click,
+    text: 'Center the title.',
+  });
+});
+
+test('a saved pin follows its layer at any width, and without one shows only at its own', () => {
+  const held = reviewPin({
+    layer: 'title',
+    offset: { x: 0.5, y: 0.5 },
+    area: { x: 250, y: 200, w: 100, h: 50 },
+  });
+  const moved = { title: { x: 50, y: 300, w: 200, h: 40 } };
+  assert.deepEqual(pinPlacement(held, moved, 700), {
+    point: { x: 150, y: 320 },
+    area: { x: 100, y: 295, w: 100, h: 50 },
+  });
+  assert.deepEqual(pinPlacement(reviewPin(), {}, 1440), { point: { x: 300, y: 225 }, area: null });
+  assert.equal(pinPlacement(reviewPin(), {}, 700), null);
+});
+
+test('this round’s pins are the Notes for the proposer, sent or not, and the next one’s number', () => {
+  const pinned = {
+    round: 2,
+    createdAt: '2026-11-12T14:00:00.000Z',
+    proposer: { name: 'Designer' },
+    item: { state: 'waiting' },
+    boards: [screen('Welcome.html', { title: 'Welcome' })],
+    notes: [],
+    pins: [
+      reviewPin({ id: 'old', number: 1, round: 1 }),
+      reviewPin({ id: 'open', number: 2, round: 2, text: 'Keep the gutter.' }),
+      reviewPin({ id: 'done', number: 3, round: 2, resolved: true }),
+      reviewPin({ id: 'older-server', number: 4, round: undefined, board: 'Gone.html' }),
+    ],
+  } as unknown as DesignReview;
+  assert.deepEqual(
+    roundPins(pinned).map((entry) => entry.id),
+    ['open', 'done', 'older-server'],
+  );
+  const notes = reviewNotes(pinned);
+  assert.equal(notes.title, 'Notes for Designer');
+  assert.deepEqual(
+    notes.open.map((row) => [row.number, row.text, row.screen]),
+    [
+      [2, 'Keep the gutter.', 'Welcome'],
+      [4, 'Center the title.', 'Gone'],
+    ],
+  );
+  assert.deepEqual(
+    notes.resolved.map((row) => row.id),
+    ['done'],
+  );
+  assert.equal(notes.sent, false);
+  assert.equal(
+    reviewNotes({
+      ...pinned,
+      item: { ...pinned.item, answer: { actionId: 'changes' } },
+    } as DesignReview).sent,
+    true,
+  );
+  assert.equal(
+    reviewNotes({ ...pinned, proposer: { name: 'You' } } as DesignReview).title,
+    'Notes',
+  );
+  assert.equal(nextPinNumber(pinned), 5);
+  assert.equal(nextPinNumber({ pins: [] }), 1);
+});
+
+test('a screen shows its open pins on the side they were made on', () => {
+  const board = screen('Welcome.html', { before: 'before', after: 'after' });
+  const pinned = {
+    round: 1,
+    createdAt: '2026-11-12T14:00:00.000Z',
+    pins: [
+      reviewPin({ id: 'after' }),
+      reviewPin({ id: 'before', revision: 'before' }),
+      reviewPin({ id: 'resolved', resolved: true }),
+      reviewPin({ id: 'other', board: 'Other.html' }),
+      reviewPin({ id: 'note', noteId: 'gutter' }),
+    ],
+  };
+  assert.deepEqual(
+    screenPins(pinned, board, 'after').map((entry) => entry.id),
+    ['after'],
+  );
+  assert.deepEqual(
+    screenPins(pinned, board, 'before').map((entry) => entry.id),
+    ['before'],
+  );
+});
+
+test('the pin box names the screen, and the layer when it has a name', () => {
+  assert.equal(pinWhere('Install an app', 'App card'), 'Install an app › App card');
+  assert.equal(pinWhere('Install an app', 'Frame'), 'Install an app');
+  assert.equal(pinWhere('Install an app', null), 'Install an app');
 });

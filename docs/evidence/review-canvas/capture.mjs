@@ -19,6 +19,7 @@ const states = [
   'grouped',
   'round2',
   'compare',
+  'pins',
 ];
 const width = Number(rawWidth);
 const port = Number(process.env.PORT ?? 5190);
@@ -104,7 +105,47 @@ try {
       await bar.getByRole('button', { name: 'Wipe', exact: true }).click();
       await page.getByRole('slider', { name: 'Wipe between Before and After' }).first().waitFor();
       await page.locator('.dz-review-area').first().waitFor();
-      await page.evaluate(() => document.activeElement?.blur());
+      // Each board at its own width: the button says Width. Below 820 px Width and Dark are hidden.
+      const widthButton = bar.getByRole('button', { name: 'Width', exact: true });
+      if (await widthButton.isVisible()) {
+        assert.equal((await widthButton.textContent())?.trim(), 'Width');
+        await bar.getByRole('button', { name: 'Dark', exact: true }).click();
+        await widthButton.click();
+        const menu = page.getByRole('menu', { name: 'Width', exact: true });
+        await menu.waitFor();
+        assert.equal(
+          await menu
+            .getByRole('menuitemradio', { name: 'Each board’s own', exact: true })
+            .getAttribute('aria-checked'),
+          'true',
+        );
+      } else await page.evaluate(() => document.activeElement?.blur());
+    }
+    if (state === 'pins') {
+      // The saved area pin is on Welcome, narrow; the Comment tool makes a second on the app card.
+      await page.getByRole('button', { name: 'Pin 1', exact: true }).waitFor();
+      await page
+        .locator('[role="toolbar"][aria-label="Tools"]:visible')
+        .getByRole('button', { name: /^Comment/ })
+        .click();
+      const frame = await page.locator('iframe[title="Install an app"]').boundingBox();
+      assert.ok(frame, 'Install an app is on screen');
+      const scale = frame.width / 1440;
+      await page.mouse.click(frame.x + 450 * scale, frame.y + 360 * scale);
+      const box = page.getByRole('dialog', { name: 'Pin 2', exact: true });
+      await box.waitFor();
+      assert.equal(
+        (await box.locator('.dl-meta').textContent())?.trim(),
+        'Install an app › App card',
+      );
+      await box
+        .getByRole('textbox', { name: 'What should change?' })
+        .fill('The app card should say who made it.');
+      // The right panel is hidden below 820 px, as on the board; the section is still there.
+      await page
+        .getByText('Sent when you ask for changes.', { exact: true })
+        .waitFor({ state: 'attached' });
+      await page.getByText('Not sent', { exact: true }).waitFor({ state: 'attached' });
     }
     if (state === 'grouped') {
       // The shared part is one unit: Welcome's tick counts for Welcome and for the Sidebar.

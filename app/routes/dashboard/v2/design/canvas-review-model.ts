@@ -1,4 +1,9 @@
-import type { DesignReview, DesignReviewScreen } from '../../../../../shared/v2/contracts';
+import type {
+  DesignRect,
+  DesignReview,
+  DesignReviewPin,
+  DesignReviewScreen,
+} from '../../../../../shared/v2/contracts';
 import type { Canvas } from './model';
 import type { Comment } from './Comments';
 
@@ -220,8 +225,14 @@ export function sinceLastReview(
 /** View state for comparing a review's frames. Never sent to the server or saved. */
 export type ReviewCompare = { wipe: boolean; width: number | null; dark: boolean };
 export const reviewWidths = [1440, 700, 390] as const;
-/** Web boards' own width: the width button reads it until another is chosen. */
-export const defaultReviewWidth = 1440;
+/** The width menu: each board at its own width (null), then the widths to draw web boards at. */
+export const reviewWidthOptions = [
+  { width: null, label: 'Each board’s own' },
+  ...reviewWidths.map((width) => ({ width, label: String(width) })),
+] as const;
+/** The width button names the chosen width, or says Width while each board keeps its own. */
+export const widthLabel = (compare: Pick<ReviewCompare, 'width'>) =>
+  compare.width ? String(compare.width) : 'Width';
 /** A phone board keeps its width; the width menu draws web boards only. */
 export const isPhoneBoard = (w: number) => w <= 500;
 export function comparedWidth(compare: Pick<ReviewCompare, 'width'>, w: number) {
@@ -242,6 +253,166 @@ export function wipeStep(value: number, key: string) {
   return next === null ? null : Math.round(Math.min(1, Math.max(0, next)) * 100) / 100;
 }
 export const screenCount = (count: number) => `${count} screen${count === 1 ? '' : 's'}`;
+
+/**
+ * A pin about to be made on a review screen, in the screen's own pixels at the width it is drawn
+ * at: what the iPhone sends too, so a pin made on either shows on the other.
+ */
+export type PinDraft = {
+  board: string;
+  width: number;
+  revision: string;
+  x: number;
+  y: number;
+  layer?: string;
+  offset?: { x: number; y: number };
+  area?: DesignRect;
+};
+
+/** The smallest layer under a point holds the pin, so it follows that layer at any width. */
+export function pinAnchor(point: { x: number; y: number }, boxes: Record<string, DesignRect>) {
+  let best: { layer: string; box: DesignRect } | null = null;
+  for (const [layer, box] of Object.entries(boxes)) {
+    if (!(box.w > 0 && box.h > 0)) continue;
+    if (point.x < box.x || point.x > box.x + box.w || point.y < box.y || point.y > box.y + box.h)
+      continue;
+    if (!best || box.w * box.h < best.box.w * best.box.h) best = { layer, box };
+  }
+  return best
+    ? {
+        layer: best.layer,
+        offset: {
+          x: (point.x - best.box.x) / best.box.w,
+          y: (point.y - best.box.y) / best.box.h,
+        },
+      }
+    : null;
+}
+
+/** A click is a point; a drag is an area, whose middle is the pin's point. Both stay on the screen. */
+export function pinDraft(
+  board: Pick<DesignReviewScreen, 'file' | 'after' | 'h'>,
+  width: number,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  boxes: Record<string, DesignRect>,
+  dragged: boolean,
+): PinDraft {
+  const clamp = (value: number, max: number) => Math.min(max, Math.max(0, value));
+  const [x1, x2] = [clamp(Math.min(start.x, end.x), width), clamp(Math.max(start.x, end.x), width)];
+  const [y1, y2] = [
+    clamp(Math.min(start.y, end.y), board.h),
+    clamp(Math.max(start.y, end.y), board.h),
+  ];
+  const area = dragged && x2 > x1 && y2 > y1 ? { x: x1, y: y1, w: x2 - x1, h: y2 - y1 } : null;
+  const point = area
+    ? { x: area.x + area.w / 2, y: area.y + area.h / 2 }
+    : { x: clamp(start.x, width), y: clamp(start.y, board.h) };
+  const anchor = pinAnchor(point, boxes);
+  return {
+    board: board.file,
+    width,
+    revision: board.after,
+    ...point,
+    ...(anchor ?? {}),
+    ...(area ? { area } : {}),
+  };
+}
+
+/** The request that saves a new pin: the iPhone's body, with the words. */
+export function pinBody(item: string, draft: PinDraft, text: string) {
+  return { item, ...draft, text: text.trim() };
+}
+
+/**
+ * Where a saved pin sits on a screen drawn at `width`, as the iPhone places it: by the layer it
+ * holds to when that layer is there, otherwise only at the width it was made at.
+ */
+export function pinPlacement(
+  pin: Pick<DesignReviewPin, 'x' | 'y' | 'width' | 'layer' | 'offset' | 'area'>,
+  boxes: Record<string, DesignRect>,
+  width: number,
+): { point: { x: number; y: number }; area: DesignRect | null } | null {
+  const box = pin.layer ? boxes[pin.layer] : undefined;
+  if (box && pin.offset) {
+    const point = { x: box.x + pin.offset.x * box.w, y: box.y + pin.offset.y * box.h };
+    return {
+      point,
+      area: pin.area
+        ? { ...pin.area, x: pin.area.x + point.x - pin.x, y: pin.area.y + point.y - pin.y }
+        : null,
+    };
+  }
+  return pin.width === width ? { point: { x: pin.x, y: pin.y }, area: pin.area ?? null } : null;
+}
+
+/** Pins made in this round. Older coordinators do not give a round: this round's came after it. */
+export function roundPins(review: Pick<DesignReview, 'pins' | 'round' | 'createdAt'>) {
+  const round = review.round ?? 1;
+  return review.pins.filter((pin) =>
+    pin.round === undefined
+      ? Date.parse(pin.createdAt) >= Date.parse(review.createdAt)
+      : pin.round === round,
+  );
+}
+
+/** The number the server will give the next pin: one more than any in the review's lineage. */
+export const nextPinNumber = (review: Pick<DesignReview, 'pins'>) =>
+  Math.max(0, ...review.pins.map((pin) => pin.number)) + 1;
+
+/** Which pins a screen shows on a side: this round's open ones made on that side. */
+export function screenPins(
+  review: Pick<DesignReview, 'pins' | 'round' | 'createdAt'>,
+  board: Pick<DesignReviewScreen, 'file' | 'before' | 'main'>,
+  side: ReviewSide,
+) {
+  return roundPins(review).filter((pin) => {
+    if (pin.resolved || pin.noteId || pin.board !== board.file) return false;
+    const before = pin.drawing
+      ? pin.drawing.side === 'before'
+      : pin.revision === board.before || pin.revision === board.main;
+    return side === 'before' ? before : !before;
+  });
+}
+
+export type ReviewNoteRow = {
+  id: string;
+  number: number;
+  text: string;
+  board: string;
+  screen: string;
+};
+/** The Comments tab's notes for the proposer: this round's pins, open ones first, and whether they went. */
+export function reviewNotes(
+  review: Pick<
+    DesignReview,
+    'pins' | 'round' | 'createdAt' | 'boards' | 'notes' | 'proposer' | 'item'
+  >,
+) {
+  const row = (pin: DesignReviewPin): ReviewNoteRow => ({
+    id: pin.id,
+    number: pin.number,
+    text: pin.text,
+    board: pin.board,
+    screen:
+      review.boards.find((board) => board.file === pin.board)?.title ??
+      review.notes.find((note) => note.id === pin.noteId)?.title ??
+      pin.board.replace(/\.html$/, ''),
+  });
+  const pins = roundPins(review);
+  return {
+    title: review.proposer.name === 'You' ? 'Notes' : `Notes for ${review.proposer.name}`,
+    open: pins.filter((pin) => !pin.resolved).map(row),
+    resolved: pins.filter((pin) => pin.resolved).map(row),
+    // Ask for changes sends every open pin with it.
+    sent: review.item.answer?.actionId === 'changes',
+  };
+}
+
+/** The pin box's head: the screen, and the layer the pin holds to when that layer has a name. */
+export function pinWhere(screen: string, layerName: string | null) {
+  return layerName && layerName !== 'Frame' ? `${screen} › ${layerName}` : screen;
+}
 
 /** A frame's tick: its own seen, and every shared part looked at on it. */
 export function frameTicked(review: Pick<DesignReview, 'parts'>, board: DesignReviewScreen) {

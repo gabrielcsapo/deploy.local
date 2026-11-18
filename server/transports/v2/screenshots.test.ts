@@ -354,3 +354,24 @@ test('a first message starts one task per chosen project, with the chosen effort
     /Invalid projects/,
   );
 });
+
+test('a new task started with a picked model runs that provider on a computer that has it', () => {
+  const owner = 'model-pick';
+  const worker = (id: string, provider: string, model: { id: string; name: string }) =>
+    save('worker', owner, {
+      id,
+      name: id,
+      capabilities: [provider],
+      modelOptions: [{ id: provider, models: [model] }],
+      instanceId: id,
+      heartbeat: new Date().toISOString(),
+      platform: 'linux',
+    });
+  worker('a-codex', 'codex', { id: 'gpt-6.1-sol', name: 'GPT-6.1-Sol' });
+  worker('b-claude', 'claude', { id: 'opus', name: 'Opus' });
+  const picked = sendTaskMessage(owner, undefined, { text: 'Write it', model: 'claude:opus' });
+  const run = get('run', owner, picked.runId);
+  assert.equal(run.adapter, 'claude');
+  assert.equal(run.model, 'opus');
+  assert.equal(get('task', owner, picked.taskId).workerId, 'b-claude');
+});
