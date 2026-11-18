@@ -120,7 +120,8 @@ export function withServerTelemetry(
   };
 }
 
-/** Old path is only for apps on router 0.13.0; remove once none remain. */
+/** /__deploy/telemetry is the documented path for any app (Docs › Performance); keep it.
+ * /__rfr/telemetry is the one react-flight-router posts to on its own. */
 export function isBrowserTelemetryPath(url: string) {
   const path = url.split('?')[0];
   return path === '/__rfr/telemetry' || path === '/__deploy/telemetry';

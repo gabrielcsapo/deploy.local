@@ -76,11 +76,12 @@ export async function containerTelemetryEnvironment(
     credentials.set(name, token);
   }
   return {
-    RFR_TELEMETRY_URL: endpoint,
-    RFR_TELEMETRY_TOKEN: token,
-    // Old names are only for apps on router 0.13.0; remove once none remain.
+    // The documented names, for any app (Docs › Performance). Keep them.
     DEPLOY_TELEMETRY_URL: endpoint,
     DEPLOY_TELEMETRY_TOKEN: token,
+    // The names react-flight-router reads on its own.
+    RFR_TELEMETRY_URL: endpoint,
+    RFR_TELEMETRY_TOKEN: token,
   };
 }
 export async function dockerNetworks() {
