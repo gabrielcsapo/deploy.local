@@ -27,6 +27,7 @@ import { useCoordinatorName } from '../data/hooks';
 import { projectPath, projectSegment } from './routing';
 import { NoRepository } from './repository-connect.client';
 import { RepositorySettings } from './repository-settings.client';
+import { StorageSettings } from './storage-settings.client';
 
 export function ProjectConfiguration({
   project,
@@ -223,7 +224,10 @@ export function ProjectConfiguration({
         )}
       </section>
       {overview.repository ? (
-        <RepositorySettings project={project} />
+        <>
+          <RepositorySettings project={project} />
+          <StorageSettings project={project} />
+        </>
       ) : (
         !project.fromDiscover && !overview.repositoryError && <NoRepository project={project} />
       )}

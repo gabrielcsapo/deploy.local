@@ -15,6 +15,7 @@ test('Remove project dialog Cancel uses quiet styling and closes the dialog', as
     '../data/time': { formatTime: () => '' },
     './routing': { projectSegment: (id) => id },
     './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+    './storage-settings.client': { StorageSettings: 'StorageSettings' },
     './repository-connect.client': { NoRepository: 'NoRepository' },
   });
   const render = () =>
@@ -70,6 +71,7 @@ for (const entry of cases) {
         '../data/time': { formatTime: () => '' },
         './routing': { projectSegment: (id) => id },
         './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+        './storage-settings.client': { StorageSettings: 'StorageSettings' },
         './repository-connect.client': { NoRepository: 'NoRepository' },
       });
       const project = {
@@ -112,6 +114,7 @@ test('Remove project uses actual names and existing list formatting for more tha
     '../data/time': { formatTime: () => '' },
     './routing': { projectSegment: (id) => id },
     './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+    './storage-settings.client': { StorageSettings: 'StorageSettings' },
     './repository-connect.client': { NoRepository: 'NoRepository' },
   });
   const project = {
@@ -147,6 +150,7 @@ test('Docker error leaves the dialog open, confirmation retained and removal ava
     '../data/time': { formatTime: () => '' },
     './routing': { projectSegment: (id) => id },
     './repository-settings.client': { RepositorySettings: 'RepositorySettings' },
+    './storage-settings.client': { StorageSettings: 'StorageSettings' },
     './repository-connect.client': { NoRepository: 'NoRepository' },
   });
   const render = () =>

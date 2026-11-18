@@ -75,6 +75,10 @@ import { serveRepositoryGit } from '../../workspace/git-http.ts';
 import { serveRepositoryLfs } from '../../workspace/repository-lfs.ts';
 import type { LfsCredential } from '../../features/repositories/lfs-ssh-credential.ts';
 import {
+  repositoryStorage,
+  repositoryStorageFiles,
+} from '../../features/repositories/repository-storage.ts';
+import {
   list,
   get,
   command,
@@ -1047,6 +1051,30 @@ export async function workspaceApi(
                 description: project.description || '',
                 settingsRevision: project.settingsRevision || 0,
               });
+            } catch (error: any) {
+              return respondError(error);
+            }
+          },
+        }),
+        route({
+          method: 'GET',
+          path: '/projects/:project/storage',
+          handler: async ({ params }) => {
+            try {
+              return send(await repositoryStorage(owner, params.project));
+            } catch (error: any) {
+              return respondError(error);
+            }
+          },
+        }),
+        route({
+          method: 'GET',
+          path: '/projects/:project/storage/files',
+          handler: async ({ params }) => {
+            try {
+              return send(
+                await repositoryStorageFiles(owner, params.project, url.searchParams.get('kind')),
+              );
             } catch (error: any) {
               return respondError(error);
             }

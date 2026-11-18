@@ -1,0 +1,100 @@
+/* A project's Storage section and the file lists behind its rows. */
+/* A column, so the rows that are buttons stretch like the rows that are not. */
+.v2-storage-group {
+  display: flex;
+  flex-direction: column;
+}
+.v2-storage-row {
+  box-sizing: border-box;
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--ds-line);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.v2-storage-row:last-child {
+  border-bottom-width: 0;
+}
+.v2-storage-row:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+.v2-storage-bar {
+  width: 96px;
+  flex: none;
+}
+.v2-storage-size {
+  min-width: 60px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+}
+.v2-storage-chev-space {
+  width: 14px;
+  flex: none;
+}
+.v2-storage-dialog {
+  max-width: 720px;
+}
+.v2-storage-dialog .dl-dialog-foot:empty {
+  display: none;
+}
+.v2-storage-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: -8px;
+  font-size: var(--ds-type-meta);
+  line-height: 16px;
+  color: var(--ds-muted);
+}
+.dl-group.v2-storage-table {
+  max-height: 416px;
+  overflow: auto;
+}
+.v2-storage-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ds-surface);
+}
+.v2-storage-table .v2-storage-wide {
+  width: 100%;
+}
+.v2-storage-table .v2-storage-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.v2-storage-sort {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+}
+.v2-storage-sort[data-sorted] {
+  color: var(--ds-ink);
+}
+.v2-storage-sort:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+.v2-storage-tag {
+  margin-left: 8px;
+}
+.dl-empty.v2-storage-empty {
+  padding: 32px 24px;
+}
+.v2-storage-empty p {
+  color: var(--ds-muted);
+}
+.v2-storage-note {
+  font-size: var(--ds-type-meta);
+  line-height: 16px;
+  color: var(--ds-muted);
+}
