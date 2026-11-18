@@ -1,7 +1,7 @@
 'use client';
 import { useProjectFormatting } from './formatting.ts';
 import { ListTemplate, DetailTemplate } from '@/components/ui/v2/Templates';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams, useRouter } from 'react-flight-router/client';
 import {
   Action,
@@ -15,11 +15,19 @@ import {
   Status,
   Tabs,
 } from '@/components/ui';
-import type { LiveResponse, Project, Release } from '../../../../../shared/v2/contracts';
+import type {
+  LiveResponse,
+  Project,
+  ProjectListGroup,
+  ProjectListResponse,
+  Release,
+} from '../../../../../shared/v2/contracts';
 import { useData, type Overview, type Work } from './data';
 import { appPath, appTabItems, projectPath, projectSegment, projectTabItems } from './routing';
 import { AppOverview, AppSettings, Health, ReleaseList } from './app.client';
-import { ProjectCode, ProjectIssues } from './code.client';
+import { ProjectCode } from './code.client';
+import { ProjectWorkTab } from './work.client';
+import { CloneUrls } from './clone.client';
 import { ProjectConfiguration } from './settings.client';
 import { ProjectPipelines } from './pipelines.client';
 import { ProjectLogs } from './logs.client';
@@ -29,13 +37,29 @@ import { type RequestDetail } from './requests';
 import './projects.css';
 import { ProjectPanel } from './content.client';
 import { AddExistingAppDialog, NoRepository } from './repository-connect.client';
-import { projectRuntime } from './presentation';
+import {
+  projectCardFact,
+  projectListSummary,
+  projectRuntime,
+  rankLiveProjects,
+  repositoryRowFact,
+  requestsToday,
+  showLabel,
+  sparkPoints,
+} from './presentation';
+import {
+  PROJECT_LIST_DEFAULT,
+  PROJECT_LIST_GROUPS,
+  REPOSITORY_PAGE,
+  projectListPath,
+} from '../../../../../shared/v2/project-list';
 import { NewProjectDialog } from './new-project.client';
 import { ProjectPushCode, ProjectStart } from './project-start.client';
 
 import { remembered, useCoordinatorName, useInbox, useResource } from '../data/hooks';
 import { taskState, type WorkspaceState } from '../data/sidebar';
 import type { TaskPull } from '../tasks/types';
+import type { ProjectWork } from '../../../../../server/features/repositories/project-work.ts';
 import { parsePatch } from '../tasks/api';
 import { appAddress, releaseLabel, repositoryName, runningSubtitle } from '../live/presentation';
 
@@ -78,6 +102,7 @@ export default function Projects() {
       requestId={
         parts[3] === 'requests' ? parts[4] : parts[5] === 'requests' ? parts[6] : undefined
       }
+      pullId={parts[3] === 'pulls' ? parts[4] : undefined}
       search={search}
     />
   ) : (
@@ -100,20 +125,135 @@ function Account() {
     </Group>
   );
 }
+const SHOW_KEY = 'deploy-projects-show';
+const SHOW_NAMES: Record<ProjectListGroup, string> = {
+  live: 'Live',
+  repositories: 'Repositories',
+  archived: 'Archived',
+};
+/** How many more repositories one “Show more” fetches. */
+const REPOSITORY_STEP = 20;
+
+/** Three ticks, any number at once but never none; it stays open while you tick. */
+function ShowMenu({
+  show,
+  onChange,
+}: {
+  show: ProjectListGroup[];
+  onChange: (show: ProjectListGroup[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  return (
+    <span
+      className="v2-project-show"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !open) return;
+        event.stopPropagation();
+        setOpen(false);
+        trigger.current?.focus();
+      }}
+    >
+      <button
+        ref={trigger}
+        type="button"
+        className="dl-btn secondary"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {showLabel(show)}
+        <Icon name="down" size={14} />
+      </button>
+      {open && (
+        <div className="dl-menu" role="menu" aria-label="Show">
+          <span className="dl-menu-label">Show</span>
+          {PROJECT_LIST_GROUPS.map((group) => {
+            const on = show.includes(group);
+            return (
+              <button
+                key={group}
+                type="button"
+                className="dl-menu-item"
+                role="menuitemcheckbox"
+                aria-checked={on}
+                aria-disabled={on && show.length === 1}
+                onClick={() => {
+                  if (on && show.length === 1) return;
+                  onChange(
+                    PROJECT_LIST_GROUPS.filter((entry) =>
+                      entry === group ? !on : show.includes(entry),
+                    ),
+                  );
+                }}
+              >
+                {SHOW_NAMES[group]}
+                {on && (
+                  <span className="dl-end">
+                    <Icon name="tick" size={14} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </span>
+  );
+}
+
+const folderGlyph = (
+  <Glyph kind="plain">
+    <Icon name="folder" size={12} />
+  </Glyph>
+);
+
 function ProjectList() {
   const coordinator = useCoordinatorName();
-  const projects = useData<{ projects: Project[] }>('/api/projects');
+  const { repositoryTime, now } = useProjectFormatting();
   const live = useResource<LiveResponse>('/api/live');
   const [open, setOpen] = useState(false);
+  const [show, setShow] = useState<ProjectListGroup[]>(PROJECT_LIST_DEFAULT);
+  const [filter, setFilter] = useState('');
+  const [query, setQuery] = useState('');
+  const [limit, setLimit] = useState(REPOSITORY_PAGE);
+  // The ticks are remembered on this computer; the page first arrives with the usual two.
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(SHOW_KEY) || 'null');
+      const groups = PROJECT_LIST_GROUPS.filter(
+        (group) => Array.isArray(stored) && stored.includes(group),
+      );
+      if (groups.length) setShow(groups);
+    } catch {
+      // A browser that keeps nothing shows the usual two.
+    }
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(filter.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [filter]);
+  const list = useData<ProjectListResponse>(projectListPath(show, query, limit));
+  // While the next answer loads, the last one stays: the list never blanks between keystrokes.
+  const [kept, setKept] = useState(list.data);
+  if (list.data && list.data !== kept) setKept(list.data);
+  const data = list.data ?? kept;
+  const total = data ? data.counts.live + data.counts.repositories + data.counts.archived : 0;
+  const matches = data ? data.live.length + data.repositories.length + data.archived.length : 0;
+  const midnight = new Date(now).setHours(0, 0, 0, 0);
+  const changed = (project: Project) =>
+    project.changedAt ? repositoryTime(project.changedAt) : undefined;
+  const summary = data ? projectListSummary(data.counts, live.data?.summary.failing ?? 0) : '';
   return (
     <>
       <ListTemplate title="Projects" ruled={false} className="v2-project-page">
         <div className="dl-page-head">
           <div className="dl-t">
             <h1 className="dl-title">Projects</h1>
-            <span className="dl-meta">
-              Active projects grow. Maintained projects get fixes and updates. Done projects rest.
-            </span>
+            {summary && <span className="dl-meta">{summary}</span>}
           </div>
           <span className="dl-end">
             <a className="dl-btn secondary" href="/dashboard/discover">
@@ -124,65 +264,140 @@ function ProjectList() {
             </Action>
           </span>
         </div>
-        {projects.error && (
-          <Banner
-            title={projects.error}
-            action={<Action onClick={projects.refresh}>Retry</Action>}
-          />
+        {list.error && (
+          <Banner title={list.error} action={<Action onClick={list.refresh}>Retry</Action>} />
         )}
-        {!projects.data && !projects.error && <Skeleton rows={4} />}
-        {projects.data?.projects.length === 0 && (
+        {!data && !list.error && <Skeleton rows={4} />}
+        {data && total === 0 && (
           <Empty title="No projects yet">Create a project from a repository.</Empty>
         )}
-        {(['active', 'maintained', 'done'] as const).map((stage) => {
-          const rows =
-            projects.data?.projects.filter((project) => (project.stage || 'active') === stage) ||
-            [];
-          if (!rows.length) return null;
-          const label = { active: 'Active', maintained: 'Maintained', done: 'Done' }[stage];
-          return (
-            <section className="dl-section" key={stage}>
-              <h2 className="dl-section-title">{label}</h2>
-              <Group>
-                {rows.map((project) => {
-                  const runtime = projectRuntime(project, live.data ?? undefined, coordinator);
-                  return (
-                    <Item
-                      key={project.id}
-                      title={`${project.name} · ${label}`}
-                      description={
-                        stage === 'done'
-                          ? undefined
-                          : project.fromDiscover
-                            ? 'App from Discover'
-                            : project.id.startsWith('app:')
-                              ? 'No repository · shipped from a folder'
-                              : project.apps.length > 1
-                                ? `${project.apps.length} apps`
-                                : project.apps.length
-                                  ? '1 app'
-                                  : 'Repository only · no app'
-                      }
-                      end={
-                        stage !== 'done' && (
-                          <span className="v2-project-runtime">
-                            {'kind' in runtime ? (
-                              <Status kind={runtime.kind}>{runtime.label}</Status>
-                            ) : (
-                              <span className="dl-meta">{runtime.label}</span>
-                            )}
-                            {'where' in runtime && <span className="dl-meta">{runtime.where}</span>}
-                          </span>
-                        )
-                      }
-                      href={projectPath(project.id)}
-                    />
-                  );
-                })}
-              </Group>
-            </section>
-          );
-        })}
+        {data && total > 0 && (
+          <div className="v2-project-tools">
+            <label className="dl-field">
+              <span className="dl-sr">Filter projects</span>
+              <Icon name="search" size={14} />
+              <input
+                type="search"
+                placeholder="Filter projects"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </label>
+            <ShowMenu
+              show={show}
+              onChange={(next) => {
+                setShow(next);
+                try {
+                  localStorage.setItem(SHOW_KEY, JSON.stringify(next));
+                } catch {
+                  // Nowhere to keep it; the choice lasts for this visit.
+                }
+              }}
+            />
+          </div>
+        )}
+        {data && total > 0 && !matches && (
+          <Empty title={query ? 'No projects match' : `Nothing under ${showLabel(show)}`}>
+            {query
+              ? `Nothing is named “${query}”.`
+              : 'Tick another kind of project in the menu beside the filter.'}
+          </Empty>
+        )}
+        {data && data.live.length > 0 && (
+          <section className="dl-section">
+            <h2 className="dl-section-title">Live</h2>
+            <div className="dl-stats v2-project-cards">
+              {rankLiveProjects(data.live, live.data ?? undefined, coordinator).map((project) => {
+                const runtime = projectRuntime(project, live.data ?? undefined, coordinator);
+                const fact = projectCardFact(project, changed(project));
+                return (
+                  <a
+                    key={project.id}
+                    className="dl-stat v2-project-card"
+                    href={projectPath(project.id)}
+                  >
+                    <span className="v2-project-card-head">
+                      <Glyph>{project.name.charAt(0).toUpperCase()}</Glyph>
+                      <span className="v2-project-card-name">
+                        <span className="dl-strong dl-truncate">{project.name}</span>
+                        <span className="dl-meta dl-truncate">
+                          {'where' in runtime ? runtime.where : runtime.label}
+                        </span>
+                      </span>
+                      {'kind' in runtime && <Status kind={runtime.kind}>{runtime.label}</Status>}
+                    </span>
+                    {project.traffic && (
+                      <svg
+                        className="dl-spark"
+                        viewBox="0 0 110 40"
+                        preserveAspectRatio="none"
+                        aria-hidden="true"
+                      >
+                        <polyline
+                          points={sparkPoints(project.traffic.hourly)}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      </svg>
+                    )}
+                    <span className="v2-project-card-foot">
+                      <span className="dl-meta">
+                        {project.traffic ? requestsToday(project.traffic, midnight) : ''}
+                      </span>
+                      {fact && <span className="dl-meta">{fact}</span>}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+        )}
+        {data && data.repositories.length > 0 && (
+          <section className="dl-section">
+            <h2 className="dl-section-title">Repositories</h2>
+            <Group>
+              {data.repositories.map((project) => {
+                const fact = repositoryRowFact(project, changed(project));
+                return (
+                  <Item
+                    key={project.id}
+                    lead={folderGlyph}
+                    title={project.name}
+                    description={project.lastCommit}
+                    end={fact ? <span className="dl-meta">{fact}</span> : undefined}
+                    href={projectPath(project.id)}
+                  />
+                );
+              })}
+              {data.more > 0 && (
+                <button
+                  type="button"
+                  className="dl-item v2-project-more"
+                  onClick={() => setLimit(limit + REPOSITORY_STEP)}
+                >
+                  Show {Math.min(data.more, REPOSITORY_STEP)} more
+                </button>
+              )}
+            </Group>
+          </section>
+        )}
+        {data && data.archived.length > 0 && (
+          <section className="dl-section">
+            <h2 className="dl-section-title">Archived</h2>
+            <Group>
+              {data.archived.map((project) => (
+                <Item
+                  key={project.id}
+                  lead={folderGlyph}
+                  title={project.name}
+                  href={projectPath(project.id)}
+                />
+              ))}
+            </Group>
+          </section>
+        )}
       </ListTemplate>
       <NewProjectDialog
         open={open}
@@ -200,6 +415,7 @@ function ProjectPage({
   appRequests,
   appPerformance,
   requestId,
+  pullId,
   search,
 }: {
   projectKey: string;
@@ -209,6 +425,7 @@ function ProjectPage({
   appRequests: boolean;
   appPerformance: boolean;
   requestId?: string;
+  pullId?: string;
   search: string;
 }) {
   const { formatRequestClock, formatTime, now } = useProjectFormatting();
@@ -217,9 +434,23 @@ function ProjectPage({
   const pulls = useData<{ items: TaskPull[] }>(
     `/api/projects/${projectSegment(projectKey)}/pulls?status=open`,
   );
+  // Every tab row shows the Work count, so the work is read with the page, not the tab.
+  const work = useData<ProjectWork>(`/api/projects/${projectSegment(projectKey)}/work`);
   const history = useData<{ releases: Release[] }>(
     `/api/projects/${projectSegment(projectKey)}/releases`,
   );
+  // An open pull request's page has Merge as its one primary action, so New task steps back.
+  const pullDetail = useData<{ record: TaskPull }>(
+    pullId
+      ? `/api/projects/${projectSegment(projectKey)}/pulls/${projectSegment(pullId)}`
+      : undefined,
+  );
+  const openPull = pullDetail.data?.record.status === 'open';
+  const refreshPull = pullDetail.refresh;
+  useEffect(() => {
+    window.addEventListener('deploy:pull-changed', refreshPull);
+    return () => window.removeEventListener('deploy:pull-changed', refreshPull);
+  }, [refreshPull]);
   const [add, setAdd] = useState(false);
   const available = useData<{ apps: Project['apps'] }>('/api/projects/unlinked-apps');
   const inbox = useInbox();
@@ -310,7 +541,9 @@ function ProjectPage({
     !data.tasks.length &&
     !project?.apps.length;
   const tabs =
-    pageApp && !single ? appTabItems(base, pageApp) : projectTabItems(base, data, releases.length);
+    pageApp && !single
+      ? appTabItems(base, pageApp)
+      : projectTabItems(base, data, releases.length, work.data?.counts.open);
   const activeLabel = appSettings
     ? 'Settings'
     : showRequests
@@ -323,8 +556,9 @@ function ProjectPage({
               releases: 'Releases',
               logs: 'Logs',
               code: 'Code',
-              pulls: 'Pull requests',
-              issues: 'Issues',
+              work: 'Work',
+              // A pull request's own page sits under Work.
+              pulls: 'Work',
               pipelines: 'Pipelines',
               settings: 'Settings',
             }[section] ?? 'Overview');
@@ -381,12 +615,14 @@ function ProjectPage({
         }
         actions={
           !starting && !selectedApp ? (
-            <a className="dl-btn primary" href="/dashboard">
+            <a className={`dl-btn ${openPull ? 'secondary' : 'primary'}`} href="/dashboard">
               New task
             </a>
           ) : undefined
         }
-        className={`${showRequests || showPerformance ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
+        // Work is a reading list: its rows, and a pull request's page under it, keep the tabs'
+        // column instead of the wide page.
+        className={`${showRequests || showPerformance || section === 'work' || section === 'pulls' ? '' : 'wide'} v2-project-page v2-project-detail ${requestId ? 'v2-request-page' : ''}`}
       >
         {overview.error && (
           <Banner
@@ -429,8 +665,16 @@ function ProjectPage({
                   ) : (
                     <ProjectCode overview={data} />
                   )
-                ) : section === 'issues' ? (
-                  <ProjectIssues overview={data} refresh={overview.refresh} />
+                ) : section === 'work' ? (
+                  <ProjectWorkTab
+                    projectId={project.id}
+                    work={work.data}
+                    error={work.error}
+                    refresh={() => {
+                      work.refresh();
+                      overview.refresh();
+                    }}
+                  />
                 ) : section === 'settings' ? (
                   <>
                     {single && (
@@ -494,10 +738,7 @@ function ProjectPage({
                       <NoRepository project={project} />
                     )}
                     {!data.pulls.length && !data.issues.length && (
-                      <p className="dl-meta">
-                        Pull requests and issues get their own tabs once there are some. Add a
-                        second app and an Apps tab appears.
-                      </p>
+                      <p className="dl-meta">Add a second app and an Apps tab appears.</p>
                     )}
                     {data.repository && (
                       <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
@@ -620,6 +861,14 @@ function ProjectPage({
                       </section>
                       <ReleaseList project={project} releases={releases} />
                     </div>
+                    {data.repository && (
+                      <section className="dl-section">
+                        <h2 className="dl-section-title">Clone</h2>
+                        <div className="dl-group v2-clone-card">
+                          <CloneUrls repository={data.repository} projectId={project.id} />
+                        </div>
+                      </section>
+                    )}
                     {project.apps.length < 2 && data.repository && (
                       <Action onClick={() => setAdd(true)}>Add an app to this project</Action>
                     )}

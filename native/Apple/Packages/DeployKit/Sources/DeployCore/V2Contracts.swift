@@ -72,17 +72,57 @@ public enum WorkIcon: String, Codable, Equatable, Sendable {
     case search = "search"
 }
 
+public struct WorkLink: Codable, Equatable, Sendable {
+    public var label: String
+    public var href: String
+
+    public init(label: String, href: String) {
+        self.label = label
+        self.href = href
+    }
+}
+
 public struct WorkStep: Codable, Equatable, Sendable {
     public var icon: WorkIcon
     public var text: String
     public var added: Double?
     public var removed: Double?
+    /// A closer picture than `icon`, such as "deploy". A string, not an enum, so new values still decode.
+    public var glyph: String?
+    /// How it went: "Live at drop.local", "13 passed", "Failed: health check".
+    public var outcome: String?
+    /// Where the outcome points, such as the app a deploy made live.
+    public var outcomeHref: String?
+    /// "fail" or "warn". A string, not an enum, so new values still decode.
+    public var tone: String?
+    /// Still running.
+    public var live: Bool?
+    public var seconds: Double?
+    /// Where to look next, such as View logs.
+    public var links: [WorkLink]?
+    /// Why it failed or stopped, shown when the step is opened.
+    public var reason: String?
+    /// The last lines of its log, shown when the step is opened.
+    public var tail: [String]?
 
-    public init(icon: WorkIcon, text: String, added: Double? = nil, removed: Double? = nil) {
+    public init(
+        icon: WorkIcon, text: String, added: Double? = nil, removed: Double? = nil,
+        glyph: String? = nil, outcome: String? = nil, outcomeHref: String? = nil, tone: String? = nil,
+        live: Bool? = nil, seconds: Double? = nil, links: [WorkLink]? = nil, reason: String? = nil, tail: [String]? = nil
+    ) {
         self.icon = icon
         self.text = text
         self.added = added
         self.removed = removed
+        self.glyph = glyph
+        self.outcome = outcome
+        self.outcomeHref = outcomeHref
+        self.tone = tone
+        self.live = live
+        self.seconds = seconds
+        self.links = links
+        self.reason = reason
+        self.tail = tail
     }
 }
 

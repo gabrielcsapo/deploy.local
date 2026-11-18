@@ -888,6 +888,10 @@ describe('ApplicationGraphExecutor', () => {
     await executor.converge(graphContext);
 
     assert.equal(docker.networkOptions.get('deploy-sh-validation-family-private')?.internal, true);
+    // Docker publishes no ports there, so the ready endpoint is the container on that network.
+    const endpoints = [...state.endpoints.values()].flatMap((entry) => entry.values);
+    assert.ok(endpoints.length > 0, 'validation publishes ready endpoints');
+    for (const endpoint of endpoints) assert.notEqual(endpoint.host, '127.0.0.1');
     for (const request of [...docker.created, ...docker.oneShots]) {
       assert.ok(request.runArgs?.includes('--read-only'));
       assert.ok(request.runArgs?.includes('/tmp:rw,noexec,nosuid,size=64m'));
@@ -1002,7 +1006,11 @@ class FakeGraphDocker implements GraphDockerAdapter {
     request: GraphContainerCreateRequest,
   ): Promise<{ id: string; name: string }> {
     const id = `container-${this.created.length + 1}`;
-    const hostPorts = Object.fromEntries(request.publishPorts.map((port) => [port, this.#port++]));
+    // Like Docker, an internal network publishes no host ports.
+    const internal = this.networkOptions.get(request.network)?.internal === true;
+    const hostPorts = internal
+      ? {}
+      : Object.fromEntries(request.publishPorts.map((port) => [port, this.#port++]));
     this.created.push(request);
     this.containers.set(request.name, { request, id, running: false, hostPorts });
     return { id, name: request.name };

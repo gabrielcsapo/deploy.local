@@ -30,6 +30,8 @@ import { computerRequest, useComputerData } from './data';
 import { useSelfUpdate } from '../data/self-update';
 import { selfUpdateView } from './self-update-presentation';
 import { SelfUpdatePanel } from './self-update.client';
+import { Diagnostics } from './diagnostics.client';
+import { useData } from '../projects/data';
 import './style.css';
 const base = '/dashboard/computers';
 const roleNames: Record<Role, string> = {
@@ -756,18 +758,30 @@ export default function Computers() {
   const selfUpdate = useSelfUpdate();
   const ownUpdate = updates ? selfUpdateView(selfUpdate.status) : null;
   const computer = data?.computers.find((c) => c.id === key);
-  const detail = !!key && !['models', 'add'].includes(key);
-  const PageTemplate = detail ? DetailTemplate : ListTemplate;
+  const diagnostics = key === 'diagnostics';
+  const detail = !!key && !['models', 'add', 'diagnostics'].includes(key);
+  const user = useData<{ role?: string }>('/api/user');
+  const admin = user.data?.role === 'admin';
+  const PageTemplate = detail || diagnostics ? DetailTemplate : ListTemplate;
   const selected = key === 'models' ? `${base}/models` : key === 'add' ? `${base}/add` : base;
   return (
     <>
       <PageTemplate
-        title={key === 'models' ? 'Models' : detail ? computer?.name || 'Computer' : 'Computers'}
-        subtitle={detail ? 'Computer' : undefined}
+        title={
+          diagnostics
+            ? 'Diagnostics'
+            : key === 'models'
+              ? 'Models'
+              : detail
+                ? computer?.name || 'Computer'
+                : 'Computers'
+        }
+        subtitle={detail ? 'Computer' : diagnostics ? 'Traffic' : undefined}
+        {...(diagnostics ? { parent: { label: 'Computers', href: base } } : {})}
         ruled={false}
         className="computers-page"
       >
-        {!detail && (
+        {!detail && !diagnostics && (
           <Tabs
             value={selected}
             items={[
@@ -780,7 +794,9 @@ export default function Computers() {
         {error && (
           <Banner kind="danger" title={error} action={<Action onClick={refresh}>Retry</Action>} />
         )}
-        {key === 'models' ? (
+        {diagnostics ? (
+          <Diagnostics />
+        ) : key === 'models' ? (
           <Models />
         ) : ownUpdate && !detail ? (
           <SelfUpdatePanel view={ownUpdate} offline={selfUpdate.offline} />
@@ -816,6 +832,11 @@ export default function Computers() {
                 </span>
               </div>
               <span className="dl-end">
+                {!updates && admin && (
+                  <a className="dl-btn quiet" href={`${base}/diagnostics`}>
+                    Diagnostics
+                  </a>
+                )}
                 {!updates && (
                   <a className="dl-btn quiet" href={`${base}?updates=1`}>
                     deploy.local updates

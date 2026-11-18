@@ -8,6 +8,9 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { prepareAgentInstall, agentEnvironment, agentShellEnvironment } from './agent-packages.ts';
 import { agentLaunch } from './agent-launch.ts';
+import { wireWorkerEntry } from '../../main/worker-entry.ts';
+
+wireWorkerEntry();
 const root = await mkdtemp(join(tmpdir(), 'agent-packages-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { save, get, db } = await import('../../workspace/store.ts');

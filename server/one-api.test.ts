@@ -462,10 +462,13 @@ test('every route a handler declares is in the manifest, so a new route cannot s
     path.replace(/:[A-Za-z0-9_]+/g, ':p').replace(/:p\([^)]*\)/g, ':p');
   const manifest = apiRouteManifest.map((route) => names(route.path));
   const sources = [
-    'server/workspace/api.ts',
-    ...readdirSync('server/v2')
-      .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
-      .map((file) => 'server/v2/' + file),
+    'server/transports/workspace/api.ts',
+    'server/packages/api.ts',
+    ...['server/v2/', 'server/transports/v2/'].flatMap((folder) =>
+      readdirSync(folder)
+        .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
+        .map((file) => folder + file),
+    ),
   ];
   const missing: string[] = [];
   for (const file of sources)

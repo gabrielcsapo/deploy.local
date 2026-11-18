@@ -615,8 +615,8 @@
       "x": 16920,
       "y": 13104,
       "w": 1440,
-      "h": 1040,
-      "title": "Projects by stage, each row with its care line and what it runs",
+      "h": 1440,
+      "title": "Projects: live apps as cards with health and traffic, repositories with their last commit, archived hidden",
       "expand": "fill"
     },
     "ProjectPhone.html": {
@@ -628,7 +628,7 @@
     },
     "Project.html": {
       "x": 16920,
-      "y": 14244,
+      "y": 14844,
       "w": 1440,
       "h": 900,
       "title": "Project overview",
@@ -652,7 +652,7 @@
     },
     "App.html": {
       "x": 16920,
-      "y": 15384,
+      "y": 15784,
       "w": 1440,
       "h": 900,
       "title": "An app and how it's running",
@@ -668,7 +668,7 @@
     },
     "Logs.html": {
       "x": 16920,
-      "y": 16624,
+      "y": 17024,
       "w": 1440,
       "h": 900,
       "title": "Logs",
@@ -676,7 +676,7 @@
     },
     "ProjectSettings.html": {
       "x": 16920,
-      "y": 17764,
+      "y": 18164,
       "w": 1440,
       "h": 1380,
       "title": "Project settings: variables, secrets, repository, remote sync and releases",
@@ -787,7 +787,7 @@
       "x": 15310,
       "y": 23864,
       "w": 1440,
-      "h": 1100,
+      "h": 1300,
       "title": "Settings",
       "expand": "fill"
     },
@@ -937,7 +937,7 @@
       "x": 9730,
       "y": 34784,
       "w": 1440,
-      "h": 1100,
+      "h": 1240,
       "title": "CLI — help that matches the app"
     },
     "CliErrors.html": {
@@ -1044,14 +1044,6 @@
       "w": 1440,
       "h": 900,
       "title": "One board, with its notes, history and where it is used",
-      "expand": "fill"
-    },
-    "DesignReview.html": {
-      "x": 1600,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — one surface: the changes beside the design",
       "expand": "fill"
     },
     "DesignReviewPhone.html": {
@@ -1230,14 +1222,6 @@
       "title": "Drawing a rectangle on a board; a sticky note on the canvas",
       "expand": "fill"
     },
-    "DesignReviewNote.html": {
-      "x": 7890,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — send your notes",
-      "expand": "fill"
-    },
     "DesignReviewNotePhone.html": {
       "x": 9410,
       "y": 50884,
@@ -1316,7 +1300,7 @@
     },
     "CodeFile.html": {
       "x": 16920,
-      "y": 19164,
+      "y": 19564,
       "w": 1440,
       "h": 900,
       "title": "A file in the code",
@@ -1344,6 +1328,14 @@
       "w": 1440,
       "h": 900,
       "title": "Projects with the sidebar collapsed to the rail",
+      "expand": "fill"
+    },
+    "ProjectsShow.html": {
+      "x": 19960,
+      "y": 13104,
+      "w": 1440,
+      "h": 900,
+      "title": "Projects with the Show menu open and only Archived ticked",
       "expand": "fill"
     },
     "DesignConnections.html": {
@@ -2083,28 +2075,12 @@
       "h": 844,
       "title": "iPhone — designs waiting on you"
     },
-    "DesignReviewViewer.html": {
-      "x": 3600,
-      "y": 55600,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — a note on the design",
-      "expand": "fill"
-    },
     "DesignReviewViewerPhone.html": {
       "x": 5120,
       "y": 55600,
       "w": 390,
       "h": 844,
       "title": "iPhone — one change on the real screen"
-    },
-    "DesignReviewRound2.html": {
-      "x": 9880,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — since your last review",
-      "expand": "fill"
     },
     "DesignReviewRound2Phone.html": {
       "x": 11400,
@@ -2343,14 +2319,6 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Packages with a long name and a long version"
-    },
-    "DesignReviewSent.html": {
-      "x": 11900,
-      "y": 50884,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — notes sent",
-      "expand": "fill"
     },
     "ProjectRemoveFailed.html": {
       "x": 19960,
@@ -2604,54 +2572,6 @@
       "h": 844,
       "title": "iPhone — a project"
     },
-    "DesignReviewDiff.html": {
-      "x": 3600,
-      "y": 57900,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — old laid over new",
-      "expand": "fill"
-    },
-    "DesignReviewDiffSeveral.html": {
-      "x": 3600,
-      "y": 58940,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — several changes on one screen",
-      "expand": "fill"
-    },
-    "DesignReviewRegion.html": {
-      "x": 3600,
-      "y": 60200,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — dragging marks an area",
-      "expand": "fill"
-    },
-    "DesignReviewNew.html": {
-      "x": 3600,
-      "y": 61400,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — a new screen",
-      "expand": "fill"
-    },
-    "DesignReviewApproveCheck.html": {
-      "x": 3600,
-      "y": 62440,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — Approve with a note not sent",
-      "expand": "fill"
-    },
-    "DesignReviewApproved.html": {
-      "x": 3600,
-      "y": 63480,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — approved, 30 seconds to undo",
-      "expand": "fill"
-    },
     "DesignPropose.html": {
       "x": 3600,
       "y": 64520,
@@ -2666,38 +2586,6 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — Approve with a note not sent"
-    },
-    "DesignReviewWipe.html": {
-      "x": 3600,
-      "y": 65560,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — wiping between old and new",
-      "expand": "fill"
-    },
-    "DesignReviewDraw.html": {
-      "x": 3600,
-      "y": 66600,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — drawing on the design",
-      "expand": "fill"
-    },
-    "DesignReviewWidth.html": {
-      "x": 3600,
-      "y": 67640,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — dragging the width",
-      "expand": "fill"
-    },
-    "DesignReviewOnMain.html": {
-      "x": 5120,
-      "y": 63480,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — on main, and what happens next",
-      "expand": "fill"
     },
     "TaskDesignCheck.html": {
       "x": 6640,
@@ -2752,14 +2640,6 @@
       "title": "A task waits for a computer that can do the work",
       "expand": "fill"
     },
-    "DesignReviewConflict.html": {
-      "x": 1600,
-      "y": 49844,
-      "w": 1440,
-      "h": 900,
-      "title": "Design review — main changed the same screens: resolve it here",
-      "expand": "fill"
-    },
     "DesignReviewConflictPhone.html": {
       "x": 3120,
       "y": 49844,
@@ -2777,7 +2657,7 @@
     },
     "LogsDisconnected.html": {
       "x": 16920,
-      "y": 20244,
+      "y": 20644,
       "w": 1440,
       "h": 900,
       "title": "Logs: the stream has stopped",
@@ -2785,7 +2665,7 @@
     },
     "LogsConnecting.html": {
       "x": 16920,
-      "y": 21264,
+      "y": 21664,
       "w": 1440,
       "h": 900,
       "title": "Logs: opening the stream",
@@ -3281,6 +3161,323 @@
       "w": 390,
       "h": 844,
       "title": "iPhone — a document not on main yet, read in a sheet"
+    },
+    "CodeClone.html": {
+      "x": 18440,
+      "y": 16464,
+      "w": 1440,
+      "h": 900,
+      "title": "Project code with the Clone menu open: HTTPS and SSH",
+      "expand": "fill"
+    },
+    "SshKeyAdd.html": {
+      "x": 16870,
+      "y": 26024,
+      "w": 1440,
+      "h": 1300,
+      "title": "Settings: adding an SSH key, with how to copy your public key",
+      "expand": "fill"
+    },
+    "ProjectDefaultBranch.html": {
+      "x": 21480,
+      "y": 17764,
+      "w": 1440,
+      "h": 1380,
+      "title": "Change a project’s default branch",
+      "expand": "fill"
+    },
+    "TaskDeploy.html": {
+      "x": 26250,
+      "y": 7604,
+      "w": 1440,
+      "h": 900,
+      "title": "A task deploys its app: each deploy and job is one step that says how it went",
+      "expand": "fill"
+    },
+    "TaskDeployPhone.html": {
+      "x": 28400,
+      "y": 7604,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — deploys and jobs in a running task: one line each, open a failure for the reason"
+    },
+    "ProjectWork.html": {
+      "x": 16920,
+      "y": 80440,
+      "w": 1440,
+      "h": 960,
+      "title": "A project’s work: one list by stage, in place of Issues and Pull requests (proposal)",
+      "expand": "fill"
+    },
+    "ProjectUsedBy.html": {
+      "x": 18460,
+      "y": 80440,
+      "w": 1440,
+      "h": 1700,
+      "title": "A project’s graph: what the code index read, every connection it knows, and what it could not index (proposal)",
+      "expand": "fill"
+    },
+    "SearchAcross.html": {
+      "x": 20000,
+      "y": 80440,
+      "w": 1440,
+      "h": 900,
+      "title": "Search finds every use of an export across projects (proposal)",
+      "expand": "fill"
+    },
+    "WorkAcross.html": {
+      "x": 21540,
+      "y": 80440,
+      "w": 1440,
+      "h": 900,
+      "title": "One change across projects: each project merges its own update (proposal)",
+      "expand": "fill"
+    },
+    "Diagnostics.html": {
+      "x": 500,
+      "y": 83720,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics: the calm overview most days",
+      "expand": "fill"
+    },
+    "DiagnosticsAttention.html": {
+      "x": 2020,
+      "y": 83720,
+      "w": 1440,
+      "h": 1000,
+      "title": "Diagnostics: pushes are slow and a process restarted",
+      "expand": "fill"
+    },
+    "DiagnosticsEmpty.html": {
+      "x": 3540,
+      "y": 83720,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics on a new server: nothing recorded yet",
+      "expand": "fill"
+    },
+    "DiagnosticsGit.html": {
+      "x": 500,
+      "y": 84960,
+      "w": 1440,
+      "h": 1500,
+      "title": "Diagnostics · Git: every push, fetch and clone, and background repository work",
+      "expand": "fill"
+    },
+    "DiagnosticsGitOperation.html": {
+      "x": 2020,
+      "y": 84960,
+      "w": 1440,
+      "h": 1300,
+      "title": "Diagnostics · one slow push: where its time went",
+      "expand": "fill"
+    },
+    "DiagnosticsProcesses.html": {
+      "x": 500,
+      "y": 87000,
+      "w": 1440,
+      "h": 1500,
+      "title": "Diagnostics · Processes: event loop, memory and restarts over time",
+      "expand": "fill"
+    },
+    "DiagnosticsRequests.html": {
+      "x": 2020,
+      "y": 87000,
+      "w": 1440,
+      "h": 1300,
+      "title": "Diagnostics · API requests: route timings and recent slow requests",
+      "expand": "fill"
+    },
+    "DiagnosticsTraffic.html": {
+      "x": 5060,
+      "y": 87000,
+      "w": 1440,
+      "h": 1400,
+      "title": "Diagnostics · Traffic: everything through deploy.local, by app and by sender, with one sender repeating",
+      "expand": "fill"
+    },
+    "AppRequestsRepeating.html": {
+      "x": 6580,
+      "y": 87000,
+      "w": 1440,
+      "h": 1800,
+      "title": "A web app’s requests when one sender is most of them",
+      "expand": "fill"
+    },
+    "DiagnosticsLogs.html": {
+      "x": 500,
+      "y": 88940,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics · Logs: deploy.local’s own server log",
+      "expand": "fill"
+    },
+    "DiagnosticsProfiler.html": {
+      "x": 2020,
+      "y": 88940,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics · Profiler: record a CPU profile of control",
+      "expand": "fill"
+    },
+    "DiagnosticsProfilerRecording.html": {
+      "x": 3540,
+      "y": 88940,
+      "w": 1440,
+      "h": 900,
+      "title": "Diagnostics · Profiler: recording",
+      "expand": "fill"
+    },
+    "DiagnosticsProfile.html": {
+      "x": 5060,
+      "y": 88940,
+      "w": 1440,
+      "h": 1400,
+      "title": "Diagnostics · a finished profile: hottest functions and routes",
+      "expand": "fill"
+    },
+    "ProjectWorkShipped.html": {
+      "x": 16920,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "A project’s work, Shipped: merged pull requests, finished tasks and closed ideas, newest first",
+      "expand": "fill"
+    },
+    "ProjectWorkIdea.html": {
+      "x": 18460,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "An Up next idea opened: start a task from it",
+      "expand": "fill"
+    },
+    "ProjectWorkFound.html": {
+      "x": 20000,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "A finding opened: add it to Up next or dismiss it",
+      "expand": "fill"
+    },
+    "ProjectWorkNew.html": {
+      "x": 21540,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "New idea: a title and a description, added to Up next",
+      "expand": "fill"
+    },
+    "ProjectWorkEmpty.html": {
+      "x": 23080,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "A project with no work yet",
+      "expand": "fill"
+    },
+    "ProjectWorkGroupMenu.html": {
+      "x": 24620,
+      "y": 82380,
+      "w": 1440,
+      "h": 960,
+      "title": "Sidebar in Work: Group tasks sits on the first project, and its menu has Work",
+      "expand": "fill"
+    },
+    "CliDesign.html": {
+      "x": 9730,
+      "y": 36124,
+      "w": 1440,
+      "h": 700,
+      "title": "CLI — a design change from a terminal: start and check"
+    },
+    "CliDesignReview.html": {
+      "x": 11250,
+      "y": 36124,
+      "w": 1440,
+      "h": 760,
+      "title": "CLI — propose a design, and read the answer"
+    },
+    "DesignReviewCanvasNotLanded.html": {
+      "x": 9764,
+      "y": 57560,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — approved, but it did not reach main",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasNoOne.html": {
+      "x": 11284,
+      "y": 57560,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — notes kept, nobody is working on it",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasTerminal.html": {
+      "x": 12804,
+      "y": 57560,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — notes sent to a terminal",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasApprove.html": {
+      "x": 9764,
+      "y": 58800,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — Approve names the frames you have not ticked",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasAsk.html": {
+      "x": 11284,
+      "y": 58800,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — Ask for changes says what should change",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasSent.html": {
+      "x": 12804,
+      "y": 58800,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — notes sent, and the way onward",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasApproving.html": {
+      "x": 9764,
+      "y": 59780,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — approved, 30 seconds to undo",
+      "expand": "fill"
+    },
+    "DesignReviewCanvasConflict.html": {
+      "x": 11284,
+      "y": 59780,
+      "w": 1440,
+      "h": 900,
+      "title": "Design review on the canvas — main changed the same screens: choose what to keep",
+      "expand": "fill"
+    },
+    "PullRequestOpen.html": {
+      "x": 21480,
+      "y": 19164,
+      "w": 1440,
+      "h": 1400,
+      "title": "An open pull request no task opened: ready to merge",
+      "expand": "fill"
+    },
+    "PullRequestBlocked.html": {
+      "x": 21480,
+      "y": 20964,
+      "w": 1440,
+      "h": 1620,
+      "title": "An open pull request that conflicts with main",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3339,6 +3536,8 @@
     "TaskStalled.html",
     "TaskNeedsComputer.html",
     "TaskFailed.html",
+    "TaskDeploy.html",
+    "TaskDeployPhone.html",
     "OfflinePhone.html",
     "Offline.html",
     "ScreenAsk.html",
@@ -3388,17 +3587,30 @@
     "WardenReport.html",
     "AutoRollback.html",
     "Projects.html",
+    "ProjectsShow.html",
     "ProjectPhone.html",
     "ProjectDetailPhone.html",
     "Project.html",
     "Code.html",
+    "CodeClone.html",
     "Issues.html",
+    "ProjectWork.html",
+    "ProjectWorkShipped.html",
+    "ProjectWorkIdea.html",
+    "ProjectWorkFound.html",
+    "ProjectWorkNew.html",
+    "ProjectWorkEmpty.html",
+    "ProjectWorkGroupMenu.html",
+    "ProjectUsedBy.html",
+    "SearchAcross.html",
+    "WorkAcross.html",
     "App.html",
     "AppSettings.html",
     "Logs.html",
     "LogsDisconnected.html",
     "LogsConnecting.html",
     "ProjectSettings.html",
+    "ProjectDefaultBranch.html",
     "SecretEdit.html",
     "Compute.html",
     "Computer.html",
@@ -3411,6 +3623,19 @@
     "SelfUpdating.html",
     "SelfUpdateFailed.html",
     "SelfUpdate.html",
+    "Diagnostics.html",
+    "DiagnosticsAttention.html",
+    "DiagnosticsEmpty.html",
+    "DiagnosticsGit.html",
+    "DiagnosticsGitOperation.html",
+    "DiagnosticsProcesses.html",
+    "DiagnosticsRequests.html",
+    "DiagnosticsTraffic.html",
+    "AppRequestsRepeating.html",
+    "DiagnosticsLogs.html",
+    "DiagnosticsProfiler.html",
+    "DiagnosticsProfilerRecording.html",
+    "DiagnosticsProfile.html",
     "RemoveComputer.html",
     "LongChat.html",
     "AgentInfoPhone.html",
@@ -3419,6 +3644,7 @@
     "AgentAvatarPicker.html",
     "SettingsAgents.html",
     "Settings.html",
+    "SshKeyAdd.html",
     "SettingsPhone.html",
     "SettingsApprovalsPhone.html",
     "AgentRulesPhone.html",
@@ -3469,8 +3695,6 @@
     "WelcomeNarrow.html",
     "DesignCanvas.html",
     "DesignBoard.html",
-    "DesignReview.html",
-    "DesignReviewConflict.html",
     "DesignReviewConflictPhone.html",
     "DesignReviewPhone.html",
     "PRDescEdit.html",
@@ -3491,9 +3715,7 @@
     "DesignAgent.html",
     "DesignDraw.html",
     "DesignAskPhone.html",
-    "DesignReviewNote.html",
     "DesignReviewNotePhone.html",
-    "DesignReviewSent.html",
     "DesignPrototype.html",
     "DesignPlay.html",
     "DesignPlayPad.html",
@@ -3506,6 +3728,8 @@
     "CodeFile.html",
     "PullRequestsEmpty.html",
     "PullRequest.html",
+    "PullRequestOpen.html",
+    "PullRequestBlocked.html",
     "ProjectsRail.html",
     "DesignConnections.html",
     "QuestionDecision.html",
@@ -3589,28 +3813,16 @@
     "ProjectsCarePhone.html",
     "DesignToReview.html",
     "DesignToReviewPhone.html",
-    "DesignReviewRound2.html",
-    "DesignReviewViewer.html",
     "DesignReviewRound2Phone.html",
     "DesignReviewViewerPhone.html",
     "DesignReviewLandscapePhone.html",
     "DesignReviewComparingPhone.html",
     "DesignReviewLandscapeComparingPhone.html",
-    "DesignReviewDiff.html",
-    "DesignReviewDiffSeveral.html",
-    "DesignReviewRegion.html",
-    "DesignReviewWidth.html",
-    "DesignReviewDraw.html",
-    "DesignReviewWipe.html",
     "DesignReviewApproveCheckPhone.html",
     "DesignPropose.html",
-    "DesignReviewApproved.html",
-    "DesignReviewOnMain.html",
     "TaskDesignCheck.html",
     "TaskDesignChecked.html",
     "DesignBuiltDiffers.html",
-    "DesignReviewApproveCheck.html",
-    "DesignReviewNew.html",
     "DesignReviewHoldPhone.html",
     "DesignReviewWebPhone.html",
     "DesignReviewPinPhone.html",
@@ -3689,6 +3901,11 @@
     "AppLogsErrorPhone.html",
     "AppSettingsPhone.html",
     "DesignReviewCanvas.html",
+    "DesignReviewCanvasApprove.html",
+    "DesignReviewCanvasAsk.html",
+    "DesignReviewCanvasSent.html",
+    "DesignReviewCanvasApproving.html",
+    "DesignReviewCanvasConflict.html",
     "DesignReviewCanvasApproved.html",
     "TemplateList.html",
     "TemplateDetail.html",
@@ -3718,7 +3935,12 @@
     "ArtifactDocumentReviewNew.html",
     "ArtifactDocumentReviewPhone.html",
     "ArtifactDocumentReviewNewPhone.html",
-    "ArtifactDocumentNewPhone.html"
+    "ArtifactDocumentNewPhone.html",
+    "CliDesign.html",
+    "CliDesignReview.html",
+    "DesignReviewCanvasNotLanded.html",
+    "DesignReviewCanvasNoOne.html",
+    "DesignReviewCanvasTerminal.html"
   ],
   "notes": {
     "intro": {
@@ -4089,28 +4311,28 @@
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 14244,
+      "y": 14844,
       "text": "A project\nWeb app\niPhone: later"
     },
     "projects-2": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 15384,
+      "y": 15784,
       "text": "Its apps\nWeb app\niPhone: later"
     },
     "projects-3": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 16624,
+      "y": 17024,
       "text": "Logs\nWeb app\niPhone: later"
     },
     "projects-4": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 17764,
+      "y": 18164,
       "text": "Settings and secrets\nWeb app\niPhone: by design, not here"
     },
     "compute-col-web": {
@@ -4508,14 +4730,14 @@
       "fill": "orange",
       "w": 420,
       "x": 16420,
-      "y": 14420,
+      "y": 15020,
       "text": "For approval. An app has one page, under its project.\n• Projects › project › app, with one tab row: Overview, Requests, Releases, Logs, Settings. A worker has no Requests. Performance joins the row when that page is built. Releases and Logs are the project’s, opened on this app.\n• Live stays the table of what is running on each computer. Each row names its project and opens that one app page; there is no separate Live › app page.\n• The Projects list says how each project’s apps are doing, so health does not need a trip to Live. A project with nothing running says nothing.\n• A one-app project is its app: the project page is the app page, whether or not it has pull requests or issues.\n• An app from Discover or with no project gets a project of its own, so it has the same page.\n• iPhone: the app page opens inside Projects, back goes to its project, and Releases, Logs and Settings are rows on it. The Projects list carries the same health. The Live tab is unchanged."
     },
     "projects-5": {
       "fill": "purple",
       "w": 420,
       "x": 16420,
-      "y": 19164,
+      "y": 19564,
       "text": "Code and pull requests\nWeb app\niPhone: later\n\nCode reads like GitHub and Gitea: files, then the README. Every pull request opens; one no task opened shows read-only, with its commits and files."
     },
     "projects-rail-how": {
@@ -4737,21 +4959,13 @@
       "fill": "blue",
       "text": "DesignCanvas.html\nKeep the quiet waiting-review banner above the canvas: “1 design waiting on you · Agents you make yourself · Review”. One proposal opens its review; several open the project list. Conflict proposals open #conflict; unrelated changes on main update automatically. The Changes on this branch panel describes only the selected branch, not waiting proposals. Existing layout and editing tools stay unchanged.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
     },
-    "review-clarity-DesignReview": {
-      "x": 6160,
-      "y": 56800,
-      "w": 1400,
-      "h": 2250,
-      "fill": "blue",
-      "text": "DesignReview.html Opens on the first change with the proposal’s summary in the list. #loading and #conflict are its other states. See the review-what-changed note."
-    },
     "review-clarity-DesignReviewNote": {
       "x": 1600,
       "y": 59600,
       "w": 1400,
       "h": 2250,
       "fill": "blue",
-      "text": "DesignReviewNote.html\n3 saved pins across 2 screens: 2 on Agent details, 1 on Meet your agent on iPhone. All pins expands a complete, roomy list by screen; select to focus it in the viewer. Ask for 3 changes sends all three, not only the current screen. Approve design remains secondary. Notes open complete Before/After prose, never raw diffs; note reads do not count as screens.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
+      "text": "DesignReviewNotePhone.html (iPhone pager; the web review is on the canvas)\n3 saved pins across 2 screens: 2 on Agent details, 1 on Meet your agent on iPhone. All pins expands a complete, roomy list by screen; select to focus it in the viewer. Ask for 3 changes sends all three, not only the current screen. Approve design remains secondary. Notes open complete Before/After prose, never raw diffs; note reads do not count as screens.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
     },
     "review-clarity-DesignReviewPhone": {
       "x": 3120,
@@ -4768,14 +4982,6 @@
       "h": 3000,
       "fill": "blue",
       "text": "DesignReviewNotePhone.html\nA canvas-note change is a page in the same pager after the screens. Inline title and Note 1 of 8, full readable prose, new sentences marked with accent-soft highlights while Show changes is on. Press and hold swaps to the complete Before prose with a Before capsule; release restores After. Pin targets a passage and uses the same sheet. Its seen status is separate from the 22 screen count. No grid, summary or decision footer on the note page.\n\niPhone review is a native horizontal pager, not a scrolling review page. Order: cover (page 0) → changed screens in canvas page/board order → new screens in canvas order → removed screens in canvas order → changed canvas notes → decide page. Screen counters exclude the cover, notes and decide page. Each phone viewport is 390 × 844. Web/Mac navigation and 700 px layout stay unchanged.\nApprove design and Ask for changes live on the decide page and in the viewer/note ⋯ menu; neither lives on the cover or the persistent toolbar. Open the Design page is also in ⋯. With unresolved pins, Ask for N changes is primary and Approve design secondary; without pins, Approve design is primary. All decisions, including ⋯ actions, are disabled while previews or the main/conflict check are loading: “Loading 22 screens…”. Do not treat loading as zero pins. Recheck conflicts atomically before deciding, preserve drafts on failure. Non-overlapping main changes update automatically; conflicting screens disable decisions and show Ask to update / Close in a native sheet (including the existing cover #conflict entry point).\nA screen is seen only after its current preview has loaded and remained visible in the foreground for one continuous second. Thumbnail peeks, grid tiles, loading and obscured backgrounds do not count. A screen counts once across widths; zoom/hold does not reset it. Seen never gates approval. Persist seen state and pins by proposal revision and screen. Grid opens All screens at a large detent, grouped by canvas page and original board order, with three columns of crops, seen checks and pin counts. Next unseen follows pager order and wraps once; disabled with All screens seen when finished. Dismiss the sheet back to the same page/crop; selecting a tile jumps into the pager.\nSecond round: cover says Since your last review, reply summary, then Your pins with the original request, screen, Addressed/Still open and proposer reply. Only the three revised screens enter this pager, in canvas order, then any revised notes and the decide page. The 19 unchanged screens remain available in All screens; they are excluded from swipe navigation and retain seen state. Before compares to the owner’s last reviewed proposal revision, not main. Seen resets only for revised screens. Looking never resolves a pin; addressed pins remain inspectable/reopenable and are not resent. Only still-open/new pins count in Ask for N changes (one in this second-round fixture).\nThese are static design fixtures; HTML links identify destinations, not implemented review logic. Phone notes supersede the old phone-specific grid/toggle language in shared review notes. Web/Mac layout stays unchanged; drawing-pin display follows the drawing contract below.\n\nScreen previews only (the prose-note board retains its existing hold-to-peek and passage-pin controls; drawing paths attach to screen boards, not reflowing note text). Compare and paging: the toolbar order is Compare, pencil (Draw and comment), Show changes, width chip. All hit targets are at least 44 px and remain on one line at 390 px; Seen / pins moves to the quiet line below. All screens and Place a pin remain in ⋯. Compare enters a full-preview wipe, not a slider below the image or an opacity blend. Before is left, After right, with nonwrapping capsules; the divider is drawn at 40%. Both revisions share the same scale, native crop and pan. One-finger dragging anywhere on the preview moves the divider and never pages. Two fingers pan / pinch both revisions together. Done or tapping Compare again exits and restores paging at the same crop. Do not carry compare mode into another screen. VoiceOver exposes the divider as an adjustable control (Before percentage); hardware arrow keys adjust it. Compare and draw modes are mutually exclusive.\nGestures: retain press-and-hold as a shortcut on the Compare control: hold shows all Before, release restores the prior After or divider position without also firing a tap. Long-press on the preview stays a pin gesture; it cannot also trigger Before. Outside compare/draw, horizontal swipes page at the initial crop; when zoomed, pan within the screen and return to the initial crop to page. Long-press or ⋯ → Place a pin opens the existing pin sheet; the explicit action is the accessible alternative. In compare mode, long-press creates no pin. In draw mode, one finger always draws; long-press neither compares nor creates another pin.\nNew / removed screens: a New screen is After only. Compare is visibly disabled with “No Before for this screen” (drawn in DesignReviewNewPhone); a Removed screen is Before only, disabled with “No After for this screen”. Show changes is disabled when no revision pair exists. Pencil and long-press can comment on the available revision, including removal. Preserve the width chip; a single available width is informational, multiple widths open a menu. Never fabricate a baseline. Width changes leave compare mode and retain each width’s crop; an unfinished drawing must be finished or cancelled first.\nPencil: entering draw mode stops paging and freezes the selected board/revision/width. One finger draws freehand; two fingers pan/zoom without adding a stroke. One accent stroke, 3 native px with round caps and joins; no colour picker. Undo removes the last completed stroke (including the arrow as one stroke), disabled when empty. Next is disabled until a stroke exists. Cancel discards the drawing and returns to the originating page/crop without adding a pin. Next opens the native comment sheet with a crop thumbnail of the drawn area, Cancel / Comment / Add, and the focused “What should change?” field. Add is disabled until trimmed text is nonempty. Sheet Cancel returns to drawing with strokes and draft text retained; only drawing Cancel discards them. Dismissing the sheet behaves like Cancel. Add saves the text and all strokes together as one numbered pin, dismisses the sheet and leaves draw mode. A failed save retains the draft and offers Retry; it never increments the count.\nDrawing storage and web: store paths with the pin as normalized native-board coordinates (x / board width, y / board height), not viewport or crop coordinates. Associate proposal revision, board ID, Before/After side, width variant, native dimensions, normalized anchor, ordered strokes and stroke weight. Transform paths and anchor together during crop, pan, zoom and scrubbing; clip them to the associated revision side. Keep the original revision/width association across updates, never stretch a path onto another width or silently move it to a new revision. All strokes in one saved drawing count as one unresolved pin in Ask for N changes, exactly like a point pin. Show changes controls the region outlines and saved pins/drawings together; turning it off hides both anchor and paths. A visible or selected pin reveals its strokes. Tapping its number opens the text and drawing for inspection, edit or removal. Deleting the pin deletes its paths; addressed pins remain inspectable. Web and Mac display the same normalized paths in the corresponding revision/width preview and the same numbered pin and text in their existing pins tray; no new desktop toolbar is proposed.\nLoading and motion: use skeletons in the real preview layout until the requested revision/width is ready; after 10 seconds say “Screen preview is taking longer than usual.” Do not enable Compare until both images are ready, or draw/pin until the visible image is ready. Preserve the existing decision-loading and conflict rules. Divider and strokes track the finger directly, without easing or replay. With Reduce Motion, sheets and page changes appear without sliding, skeletons are static, and comparison never animates between endpoints. These HTML boards are static design fixtures, not gesture implementations."
-    },
-    "review-clarity-DesignReviewViewer": {
-      "x": 6160,
-      "y": 59600,
-      "w": 1400,
-      "h": 2250,
-      "fill": "blue",
-      "text": "DesignReviewViewer.html A note on the design: the area it marks, its number and its words, on the screen itself."
     },
     "review-clarity-DesignReviewViewerPhone": {
       "x": 1600,
@@ -4807,7 +5013,7 @@
       "w": 1400,
       "h": 2600,
       "fill": "blue",
-      "text": "DesignReviewRound2.html\nSince your last review\n“3 screens changed · 2 of your 3 pins addressed” heads the same Agents you make yourself proposal, revised by Release notes writer. Your pins is directly under the summary and before all tiles. Three roomy numbered rows retain the request, screen, status and one-line proposer reply. Then “Changed since your review · 3” contains Agent details, Agent details on iPhone and Meet your agent on iPhone only. Each tile shows pin status: “1 addressed · 1 open”, “No pins”, “1 addressed”. Phone details mirrors the source fix; it has no original owner pin. Original requests are retained in a roomy list: name visibility Still open with “Kept the name in the fixed header.”; source attribution Addressed on Agent details; suggestion wrapping Addressed on Meet your agent on iPhone. Keep the proposer's reply attached to the pin, not folded into a fake owner resolution.\nThe owner can inspect or reopen an addressed request; only still-open and newly saved pins count toward Ask for N changes. Addressed pins stay in history and are not resent. Here Ask for 1 change is primary and Approve design secondary; with zero unresolved pins, Approve design is primary. Sending includes current unresolved requests once; approval never silently erases old comments.\n“19 screens you already saw · unchanged” is collapsed by default, expandable with their page group and Seen state intact. Seen resets only for the 3 revised screens, hence “You’ve looked at 19 of 22”. Next unseen opens one of those three; looking at a revision never clears a pin automatically. In a second-round viewer Before means the owner’s last reviewed revision; After means this revision. Full main comparison is separate context. Retain pin positions by revision and screen.\nStatic boards draw the resolved/open fixture; persistence, reply submission, live main updates and screenshot selection are implementation after design approval.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
+      "text": "DesignReviewRound2Phone.html (iPhone pager; the web review is on the canvas)\nSince your last review\n“3 screens changed · 2 of your 3 pins addressed” heads the same Agents you make yourself proposal, revised by Release notes writer. Your pins is directly under the summary and before all tiles. Three roomy numbered rows retain the request, screen, status and one-line proposer reply. Then “Changed since your review · 3” contains Agent details, Agent details on iPhone and Meet your agent on iPhone only. Each tile shows pin status: “1 addressed · 1 open”, “No pins”, “1 addressed”. Phone details mirrors the source fix; it has no original owner pin. Original requests are retained in a roomy list: name visibility Still open with “Kept the name in the fixed header.”; source attribution Addressed on Agent details; suggestion wrapping Addressed on Meet your agent on iPhone. Keep the proposer's reply attached to the pin, not folded into a fake owner resolution.\nThe owner can inspect or reopen an addressed request; only still-open and newly saved pins count toward Ask for N changes. Addressed pins stay in history and are not resent. Here Ask for 1 change is primary and Approve design secondary; with zero unresolved pins, Approve design is primary. Sending includes current unresolved requests once; approval never silently erases old comments.\n“19 screens you already saw · unchanged” is collapsed by default, expandable with their page group and Seen state intact. Seen resets only for the 3 revised screens, hence “You’ve looked at 19 of 22”. Next unseen opens one of those three; looking at a revision never clears a pin automatically. In a second-round viewer Before means the owner’s last reviewed revision; After means this revision. Full main comparison is separate context. Retain pin positions by revision and screen.\nStatic boards draw the resolved/open fixture; persistence, reply submission, live main updates and screenshot selection are implementation after design approval.\n\nShared review behavior: Changed tiles crop the AFTER screenshot around the largest changed area, with a thin outline using the same native-coordinate rectangle as Show changes. Spread-out changes add “+2 more” in the caption; opening the viewer exposes every changed area. Crops use native board coordinates and are never enlarged: at most 1:1, including web crops. Include the changed area plus about 48 px of context, expanding to whole elements (for example the avatar controls WITH the Name field); never cut text mid-word. Fit the complete crop inside the tile without slice/cover zoom. New tiles show the top of After and Removed tiles the top of Before at the same scale and crop dimensions for a given platform. No whole desktop screenshots on iPhone. Use 3 equal columns at 1440, 2 at 700, and 2 on phone at 390; image boxes are 200 px tall on web and 180 px on phone. Names are words, followed by seen/pin state; New, Removed and Conflict are quiet tile tags.\nGroup by canvas page in canvas order, then board order within each page, never by change type. All 22 boards in this actual fixture belong to section-agents, “Agents and trust”, so it has one page group of 22; do not invent Get started/Work assignments. Other proposals show each affected page with its own count. Total beneath the summary: “22 screens · 9 changed · 12 new · 1 removed”.\nMain edits on other screens are incorporated automatically: “Updated with main 10 min ago · no conflicts”. Preserve review progress and pins for unchanged proposal screens. Only overlapping screen edits create a conflict; #conflict shows “2 screens conflict with main”, crops of Agent details and Agent details on iPhone tagged Conflict, and only Ask to update / Close. No generic out-of-date state or requirement to revise just because main advanced. Decisions recheck conflicts atomically; failed checks/loading disable decisions and preserve drafts.\nNext unseen sits beside “You’ve looked at 4 of 22” on web and phone. It opens the next unread screen in page/board order, wraps once, and marks it seen only when its preview is ready; one screen counts once across widths. If all are seen, disable it and say “All screens seen”. Seen count never gates approval. Preserve grid scroll and selected width on return.\n1440 changed-screen viewer: a 280 px pins tray on the right; labelled Before and After share the remaining space next to each other, equal native viewport and scale, aligned at top, with Show changes outlining matching areas on BOTH revisions. At 700 keep pins below and show a “2 pins ↓” chip beside the screen name. At 700 and iPhone use the Before/After toggle, initially After. New: After only; Removed: Before only. No Show changes on new/removed. iPhone web previews remain crops at a readable scale with pan/zoom, never fitted whole desktop screens.\nRound two compares to the owner’s last reviewed proposal revision, not main. Your pins comes directly after the summary, before any tiles: 3 roomy numbered rows with pin text, screen, Addressed/Still open status and the proposer’s one-line reply below. Then show Changed since your review · 3; 19 previously seen, unchanged screens remain in a collapsed disclosure. See the Round2 boards for pin resolution and decision rules."
     },
     "review-clarity-DesignReviewRound2Phone": {
       "x": 1600,
@@ -4947,12 +5153,12 @@
       "text": "Drawn after the iPhone screens were first seen running.\n\n• Packages and a package’s versions both open as sheets, like every other Settings destination.\n• The two parts load separately: if one fails, the other still shows. A failed part with nothing to show says it could not be refreshed. One with rows keeps them.\n• Storage reads like web: gigabytes of 1024³, then the limit (6.2 GB of 20 GB).\n• Version dates carry the year. Today’s reads Today, 7:57 AM.\n• Kept on SER opens nothing, so it has no chevron.\n• A latest version over 12 characters is capped at 96 pt and shortened in the middle, so it can’t squeeze the name. The versions sheet shows it in full."
     },
     "review-sent": {
-      "x": 11900,
-      "y": 51824,
+      "x": 12804,
+      "y": 59740,
       "w": 1440,
-      "h": 240,
+      "h": 160,
       "fill": "blue",
-      "text": "DesignReviewSent.html\nAfter Ask for changes, the review stays open as the record of what was asked. The notice says the changes were sent and to whom, and that the proposer will propose again here; it no longer says “You can add more before sending”. The pins stay on the screens and in All pins. The footer names the outcome, when, and how far the look got, with one way onward: Open the task (web and iPhone). When you proposed it yourself there is no task: “Changes requested · just now · propose again when the screens are updated.” After Approve design the footer reads “Approved · this is the design on main” with Open in Design."
+      "text": "DesignReviewCanvasSent.html\nAfter Ask for changes, the review stays open as the record of what was asked. The bar says Sent to and who, with Open the task and Next review (Done when nothing else is waiting). The proposer will propose again here."
     },
     "project-remove-failed": {
       "fill": "yellow",
@@ -5123,14 +5329,14 @@
       "w": 440,
       "x": 15940,
       "y": 13104,
-      "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them by stage; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: every Active and Maintained row ends with what it runs. Health on top, then where: the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped, “Not deployed” for a repository that has never shipped. A project with no repository says “No repository” in its care line. Done rows say nothing.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
+      "text": "Projects and Live show the same things\n\nA project is a repository, what it runs, or both. Projects lists every one of them, deployed first; Live lists the running ones by computer. Neither page has anything the other cannot name.\n\nProjects: two groups, Live and Repositories. Live is a grid of cards, two across and one on a phone-width window, the ones that need you first. A card has the project’s initial, its name, where it runs (the address and computer for one app, “2 apps · SER and imac” for several, “Stopped 3 days ago” for one you stopped), its health, a line of today’s requests with the count under it, and at most one more fact: an open PR, a proposal, Maintained, or “Shipped from a folder”. Repositories is a list, newest change first: the repository, its last commit’s subject, and open PRs with when it changed. It shows six and “Show 9 more”, which fetches the next page; nothing below the first page is read until asked for.\n\nArchived projects (the Done stage: app stopped, repository read-only, final backup kept) are hidden. The Show menu beside the filter has three ticks, Live, Repositories and Archived, any number at once; Live and Repositories start ticked, and the button names what is ticked (“Live and repositories”, “Archived”, “All projects”). The choice is remembered on this computer. Typing in Filter projects searches every project whatever is ticked, so an archived project you name still turns up, in an Archived group at the end.\n\nLive: every row names its project and opens it. “No project” is gone, because an app shipped from a folder is a project of its own. Apps from Discover keep “From Discover”.\n\nBoth boards now use the same eight running apps. Live stays a page: the per-computer table, traffic and the alert card do not fit a project row.\n\niPhone: later. ProjectsRail keeps its older list; it only shows the rail."
     },
     "review-on-canvas": {
       "fill": "purple",
       "w": 440,
       "x": 11244,
       "y": 55600,
-      "text": "For approval: a review happens on the canvas\n\nReviewing a design opens the Design canvas on the proposal’s branch, not a separate review surface. Same frames, same panels, same tools.\n\n• Changed and new frames stay at full strength, tagged Changed or New, with the changed areas marked on them. Everything else is dimmed. Before and After switches what the frames show.\n• Each changed frame has a checkbox beside its name. Ticking it approves that frame. The bar counts them: 1 of 3 approved.\n• The arrows in the tool bar, and ← →, move to the previous and next changed frame and zoom to it. Space ticks the frame you are on.\n• Because it is the canvas, a reviewer can do more than write: comment on a layer, draw, or edit the frame. Those land on the branch as suggestions for the proposer.\n• Links on a frame work as they do everywhere on the canvas, and the frame they open is right there beside it. There is nothing to go back from.\n• Changes on this branch, in the right panel, is the list of what changed. The review’s own list, viewer and dock go away, and so does their code.\n• Approve design is available at any time; unticked frames are named before it goes through. Ask for changes sends the comments, drawings and edits.\n\nThis replaces the DesignReview boards on web once approved; they stay on the canvas until then. iPhone keeps its pager."
+      "text": "For approval: a review happens on the canvas\n\nReviewing a design opens the Design canvas on the proposal’s branch, not a separate review surface. Same frames, same panels, same tools.\n\n• Changed and new frames stay at full strength, tagged Changed or New, with the changed areas marked on them. Everything else is dimmed. Before and After switches what the frames show.\n• Each changed frame has a checkbox beside its name. Ticking it approves that frame. The bar counts them: 1 of 3 approved.\n• The arrows in the tool bar, and ← →, move to the previous and next changed frame and zoom to it. Space ticks the frame you are on.\n• Because it is the canvas, a reviewer can do more than write: comment on a layer, draw, or edit the frame. Those land on the branch as suggestions for the proposer.\n• Links on a frame work as they do everywhere on the canvas, and the frame they open is right there beside it. There is nothing to go back from.\n• Changes on this branch, in the right panel, is the list of what changed. The review’s own list, viewer and dock go away, and so does their code.\n• Approve design is available at any time; unticked frames are named before it goes through. Ask for changes sends the comments, drawings and edits.\n\nThis replaced the one-surface DesignReview boards on web, which are retired. The states it has are drawn beside it: Approve, Ask for changes, Sent, approved with Undo, and Changed on main too. iPhone keeps its pager."
     },
     "build-on-ask": {
       "fill": "purple",
@@ -5193,7 +5399,142 @@
       "w": 440,
       "x": 6580,
       "y": 78900,
-      "text": "Everything kept, other states. Kind filter: one button, \"npm and Cargo\", opens a menu with both ticked; search always covers what is ticked. Untick one and the button reads \"npm only\" or \"Cargo only\"; the last ticked kind can’t be unticked. Empty: \"Nothing kept yet. The first install through deploy.local appears here.\" No match: \"No package or crate matches left-pad\" with Clear. Nothing idle: the Copies row reads \"Everything was installed in the last 30 days\" with no chevron. Loading: the count line reads \"Counting…\". After removing: a notice, \"Removed 1.9 GB. 4.3 GB kept.\" While a source is unreachable the removal dialog adds that removed packages can’t be fetched again until it’s back. iPhone: the same three pages as pushed screens from Packages › Copies, search in the navigation bar, filters as a menu."
+      "text": "Everything kept, other states. Kind filter: one button, \"npm and Cargo\", opens a menu with both ticked; search always covers what is ticked. Untick one and the button reads \"npm only\" or \"Cargo only\"; the last ticked kind can’t be unticked. Empty: \"Nothing kept yet. The first install through deploy.local appears here.\" No match: \"No package or crate matches left-pad\" with Clear. Nothing idle: the Copies row reads \"Everything was installed in the last 30 days\" with no chevron. Loading: the count line reads \"Counting…\". After removing: a notice, \"Removed 1.9 GB. 4.3 GB kept.\" While a source is unreachable the removal dialog adds that removed packages can’t be fetched again until it’s back. Cargo: every kept crate reads \"Needed by projects\", is never listed under Not installed in 30 days and is never cleaned up, until deploy.local reads Cargo.lock. Counts of one read \"1 version\" and \"1 package\". iPhone: the same three pages as pushed screens from Packages › Copies, search in the navigation bar, filters as a menu."
+    },
+    "project-first": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 80440,
+      "text": "Project-first (proposal)\nWeb app\niPhone: later"
+    },
+    "project-first-rules": {
+      "fill": "purple",
+      "w": 1440,
+      "x": 16920,
+      "y": 80220,
+      "text": "Project-first proposal. A piece of work is one row with a stage: Up next (what you wrote down), Found by agents (waiting for you to accept or dismiss), Running, Needs you, Shipped. A project’s Work tab lists them and takes the place of Issues and Pull requests; a pull request is part of its work item. The sidebar’s Work setting keeps Agents where they are and replaces the dated task list with projects that have live work, each row with its state; agent runs stay with their agent, and work with no project sits under Chats. Work can belong to several projects: a change to a package you own shows as the same row in each project that uses what changed, and each project merges its own update when it chooses. What uses what comes from a code index built on every push, and the index is the only source for it. A project’s Graph tab draws one section per kind of connection the index reports, so a new indexer adds a section without changing the other pages; search and agent findings read the same index. Existing boards keep the date sidebar until this is approved."
+    },
+    "section-diagnostics": {
+      "x": 0,
+      "y": 83000,
+      "text": "11 · Diagnostics: deploy.local measuring itself (for approval)",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 6500
+    },
+    "diagnostics-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 500,
+      "y": 83500,
+      "text": "Web app and Mac app"
+    },
+    "diagnostics-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 83720,
+      "text": "Overview\nWeb app · Mac app\niPhone: later"
+    },
+    "diagnostics-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 84960,
+      "text": "Git\nWeb app · Mac app"
+    },
+    "diagnostics-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 87000,
+      "text": "Processes and API requests\nWeb app · Mac app"
+    },
+    "diagnostics-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 88940,
+      "text": "Logs and profiler\nWeb app · Mac app"
+    },
+    "diagnostics-how": {
+      "fill": "orange",
+      "w": 440,
+      "x": -520,
+      "y": 83720,
+      "text": "Proposal. A way to debug deploy.local from inside deploy.local: git activity, the health of its own processes, its own API timings, its server log and a CPU profiler, in one place.\n\n• Where: Computers → Diagnostics, beside deploy.local updates, and the deploy.local row under Runs on SER’s page opens it. It is about the server, not a project, and it is the same kind of page as updates. No sidebar entry.\n• Only admins: non-admins see neither the button nor the row, and the API refuses them, as the profiler API already does.\n• Tabs: Overview, Git, Processes, API requests, Logs, Profiler. Overview says in one line whether anything needs a look, then one row per part with a dot and a label. A problem gets a warning banner that names the cause it can see and one next step.\n• States: calm (most days), attention, and a new server where each part fills in as it happens. A tab with nothing yet uses the empty pattern: “No git activity yet. Pushes, fetches and clones show here.”\n• Nothing here changes how deploy.local runs. Recording a profile is the only action."
+    },
+    "diagnostics-overview-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 5060,
+      "y": 83720,
+      "text": "When Overview warns\n• Git: a push, fetch or clone over 10 s, or any failure. More than 3 slow in an hour, or 2 failures in a row to one repository, raise a banner.\n• Processes: event-loop p99 over 200 ms or a longest pause over 1 s (the supervisor’s existing log threshold), held for 3 minutes; any restart that was not an update.\n• API requests: requests over 1 s, against the route’s own usual time.\n• Logs: errors in the last hour.\nA banner clears on its own once the cause has been normal for 10 minutes. Earlier this week keeps the last 7 days of them."
+    },
+    "diagnostics-git-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 3540,
+      "y": 84960,
+      "text": "Git, what is recorded (new; nothing is recorded today)\n• Every push, fetch and clone over HTTPS and SSH: repository, operation, protocol, who (person and computer, or the task or checks behind it), bytes each way, time, git’s exit code and its last lines of output.\n• For a push, time is split at what the server can see: signing in, receiving the upload, git storing it, starting checks. That separates a slow network or a stalled control from slow git.\n• Background work (import, fetch, sync, merge a pull request, set up a task’s copy) adds Waited to the timestamps it already keeps, so a task that starts late shows what it queued behind.\n• Slow means over 10 s. At the same time on SER links the process, background work and API numbers from that minute.\n• Kept 90 days, like request logs."
+    },
+    "diagnostics-traffic-how": {
+      "fill": "orange",
+      "w": 480,
+      "x": 8100,
+      "y": 87000,
+      "text": "Traffic (added to the Diagnostics proposal; for approval)\n• Why: six scripts left running on MacBook Pro fetched forma’s front page every two seconds for five days, 242,000 requests a day, and nothing said so. Each request is already kept with its address and agent; nobody was looking at who sends them.\n• Traffic is a seventh tab: requests through deploy.local to every app and to deploy.local itself, a minute-by-minute line, the repeating senders, and each app with its busiest sender.\n• A repeating sender is one address that sent at least 80% of one route’s requests and at least 1,000 of them, at a steady pace, for over an hour. Steady means the gaps between requests barely vary, which is what a loop looks like and a person or a browser does not.\n• The address is named when it belongs to one of your computers (“MacBook Pro”); otherwise it shows as the address.\n• Where it shows: a warning on Traffic, the Traffic row on Overview turns to “Repeating”, and the app’s own Requests page gets the same warning with “Leave it out”, which hides that sender from the page’s numbers until you turn it back.\n• It goes to Waiting on you once it has lasted a day. It clears on its own an hour after the sender stops.\n• New to record: requests to deploy.local’s own pages by sender. App requests are already kept for 90 days.\n• Not here: blocking a sender. This says who and what; stopping it is yours."
+    },
+    "diagnostics-processes-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 3540,
+      "y": 87000,
+      "text": "Processes and API requests\n• The supervisor already samples each process every minute (event-loop p50, p99, max, RSS, heap) but keeps only the latest. Keep every sample for 30 days, like resource metrics, and record each exit with its code or signal and whether it was an update, a crash or a missed heartbeat.\n• The charts show one process at a time; the 200 ms line is the existing warning threshold. These are the only charts, because here the trend is the point: is it new, and is memory climbing.\n• API requests: always on, per route (ids grouped as :id), the timing the profiler collects today. Event streams and git routes are left out. Kept 30 days; each request over 1 s is kept by itself for 30 days with who sent it and its status."
+    },
+    "diagnostics-profiler-how": {
+      "fill": "blue",
+      "w": 440,
+      "x": 6580,
+      "y": 88940,
+      "text": "Logs and profiler\n• Logs reads the supervisor’s server log on SER (20 MB, plus three rotated copies), the same lines as today, with filters by process, level and time, live while open. Download gives the file.\n• Profiler uses the existing admin API: control only, 1–120 seconds (offered as 10 s, 30 s, 1 min, 2 min), one at a time. A second admin sees Recording… with who started it.\n• New: each result is kept for 30 days, so it can be opened after leaving the page and shared. Download .cpuprofile gives the raw profile for Chrome DevTools or speedscope.\n• Own time and Including what it calls are the summary’s self and inclusive lists; Requests while recording is its route list."
+    },
+    "project-work-states": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 82380,
+      "text": "Work tab states (for approval)\nWeb app\niPhone: later"
+    },
+    "project-work-sidebar": {
+      "fill": "blue",
+      "w": 420,
+      "x": 16420,
+      "y": 80640,
+      "text": "Sidebar in Work\n• Projects are ordered by their most recent live work, newest first; Chats stays last.\n• When nothing is live, the list is a Work heading, which keeps Group tasks, and one line: “Nothing running or waiting on you.”\n• Group tasks sits on the first heading, as it does on Today and on the first project in the other groupings. Its menu offers Date, Project and Work."
+    },
+    "project-work-empty": {
+      "fill": "blue",
+      "w": 440,
+      "x": 23080,
+      "y": 83380,
+      "text": "The other empty lines on Work\n• Everything has shipped, nothing open: “Nothing open” with “Everything here has shipped.” and the same New idea and New task.\n• Shipped with nothing in it: “Nothing shipped yet” with “Merged pull requests, finished tasks and closed ideas show here.” No actions."
+    },
+    "design-commands": {
+      "x": 9764,
+      "y": 58500,
+      "w": 1440,
+      "h": 240,
+      "fill": "blue",
+      "text": "A design worked on outside a task\nCliDesign.html and CliDesignReview.html are the commands: start, check, propose, feedback, resolve. After Ask for changes the review bar names who has the notes: a task, a terminal that was waiting (DesignReviewCanvasTerminal.html), or nobody (DesignReviewCanvasNoOne.html), which offers Start a task. An approval that main overtakes says Did not reach main and asks again (DesignReviewCanvasNotLanded.html); it never reads on main. Once a design is on main its branch is removed, and the canvas says it shows main (DesignReviewCanvasApproved.html)."
+    },
+    "pull-request-states": {
+      "fill": "yellow",
+      "w": 760,
+      "x": 21480,
+      "y": 22704,
+      "text": "An open pull request no task opened. The decision comes first, in one row under the title: what stands in the way in plain words, then its actions. Merge and Close are the same actions the task page uses, and the reasons are the server's mergeBlock wording. The other states, as the row's line and its actions:\n• Checks still running: “Checks running · Required pipeline checks have not passed for 8ab72bd yet: 2 of 4 done.” Close, Merge disabled until they pass.\n• A required check failed: “Checks failed · Required pipeline checks have not passed for 8ab72bd: test failed.” test links to its run. Close, Fix in a task (primary), which starts a task on build/project-work with the failed run.\n• Nothing to merge: “Nothing to merge · build/project-work has no commits that main does not already have.” Close (primary).\n• Merging: “Merging into main…” with a spinner. No actions until it lands or fails.\n• Merge failed: “Merge failed · <the server's error>”. Close, Retry merge (primary).\n• Closed: the pill reads Closed, the row reads “Closed · Gabriel closed this pull request <when>.” Reopen (secondary).\n• Merged: after Merge succeeds the page becomes PullRequest.html: the Merged row in the first group says what happened, and there is no decision row.\n\nClose asks nothing; Reopen undoes it. Merge asks nothing more than the task page's Merge only: it merges into main at once.\n\nConflicts: the line is conflictReason()'s first sentence. Its second sentence (“Ask the task to merge main into its branch…”) is for task pull requests; with no task the action says it instead: Update from main in a task starts a task on build/project-work asked to merge main and resolve those files.\n\n⋯ beside the title holds Start a task on this branch (open) or Start a follow-up task on main (merged or closed); it replaces the old notice and its Follow up in a task button. On these pages the header's New task is secondary so Merge is the one primary action.\n\nFiles: all folded, path order, eight then Show 60 more; Filter files narrows by path (PullRequestBlocked shows it filtered). An opened image shows a preview with its size; an opened text file shows its diff as on PullRequest. Merges from main fold into one line that opens to list them."
     }
   },
   "starts": {}

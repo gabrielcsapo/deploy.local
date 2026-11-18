@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=700">
+<title>CLI — a design change from a terminal: start and check</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</head>
+<body>
+<style data-layer="t-win-border">
+.t-win{border-radius:12px;overflow:hidden;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,.1),0 24px 48px -16px rgba(20,18,26,.35);display:flex;flex-direction:column;min-width:0}
+.t-bar{height:34px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;font-family:var(--font-sans);font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.t-bar .t-lights{position:absolute;left:12px;top:11px;display:flex;gap:7px}
+.t-bar .t-lights span{width:11px;height:11px;border-radius:6px;background:#ff5f57}
+.t-bar .t-lights span:nth-child(2){background:#febc2e}
+.t-bar .t-lights span:nth-child(3){background:#28c840}
+.t-body{margin:0;padding:14px 18px 18px;font-family:var(--font-mono);font-size:13px;line-height:20px;white-space:pre;overflow:hidden;color:var(--ink);flex:1}
+.t-dim{color:var(--muted)}.t-ok{color:var(--success)}.t-fail{color:var(--danger)}.t-warn{color:var(--warning)}.t-run{color:var(--active)}.t-acc{color:var(--accent)}.t-b{font-weight:700}
+.t-row{display:grid;gap:24px;align-items:start}
+.t-cap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+</style>
+<div data-layer="sheet" class="dl-sheet" style="width: 1440px; height: 700px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden"><div data-layer="t" class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span data-layer="cli-design" class="dl-meta">CLI · design</span>
+<h1 data-layer="a-design-change" class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">A design change, from a terminal.</h1>
+<span data-layer="anyone-working-outside" class="dl-soft" style="font-size:15px;line-height:24px;max-width:820px">Anyone working outside a task had to fetch, branch, name layers, render, pair and call the API by hand. deploy design start makes the branch from main in its own folder, so it is never behind the approved design. deploy design check draws what changed beside main, in light and dark, and says what is wrong.</span></div><div data-layer="t-row" class="t-row" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  <div data-layer="div"><div data-layer="t-cap" class="t-cap"><span data-layer="deploy-design-start" class="dl-strong" style="font-size:15px;line-height:24px">deploy design start</span><span data-layer="always-from-main" class="dl-soft">Always from main as it is now, in a folder of its own</span></div><div data-layer="t-win" class="t-win" data-theme="dark" style="height:340px;"><div data-layer="t-bar" class="t-bar"><span data-layer="t-lights" class="t-lights"><span data-layer="span"></span><span data-layer="span-2"></span><span data-layer="span-3"></span></span>zsh</div><pre data-layer="t-body" class="t-body"><span data-layer="deploy-local" class="t-dim">~/deploy.local</span> <span data-layer="t-acc" class="t-acc">$</span> deploy design start "Sidebar by project"
+<span data-layer="t-ok" class="t-ok">✓</span> Fetched main                     <span data-layer="518a1ea-2-min" class="t-dim">518a1ea · 2 min old</span>
+<span data-layer="t-ok-2" class="t-ok">✓</span> Branch                           <span data-layer="design-sidebar-by" class="t-dim">design/sidebar-by-project</span>
+<span data-layer="t-ok-3" class="t-ok">✓</span> Folder                           <span data-layer="deploy-local-sidebar" class="t-dim">../deploy.local-sidebar-by-project</span>
+
+<span data-layer="sidebar-by-project" class="t-b">Sidebar by project</span> is yours on MacBook Pro.
+<span data-layer="it-shows-on" class="t-dim">It shows on the Design page as being worked on.</span>
+
+Edit the boards in <span data-layer="design-boards" class="t-b">design/boards</span>, then:
+  <span data-layer="cd-deploy-local" class="t-dim">cd ../deploy.local-sidebar-by-project</span>
+  <span data-layer="deploy-design-check" class="t-dim">deploy design check</span></pre></div></div>
+  <div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="deploy-design-check-2" class="dl-strong" style="font-size:15px;line-height:24px">deploy design check</span><span data-layer="exit-code-1" class="dl-soft">Exit code 1 while a board has a problem</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark" style="height:340px;"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="deploy-local-sidebar-2" class="t-dim">~/deploy.local-sidebar-by-project</span> <span data-layer="t-acc-2" class="t-acc">$</span> deploy design check
+<span data-layer="t-ok-4" class="t-ok">✓</span> Named 4 new elements             <span data-layer="layer-ids-kept" class="t-dim">layer IDs kept on the rest</span>
+<span data-layer="t-ok-5" class="t-ok">✓</span> Drew 3 boards beside main        <span data-layer="1440-700-light" class="t-dim">1440 · 700 · light · dark   12 s</span>
+<span data-layer="t-fail" class="t-fail">✗</span> Projects is cut off at 700 px    <span data-layer="show-archived-leaves" class="t-dim">"Show archived" leaves the page</span>
+
+  <span data-layer="board-what-changed" class="t-dim">Board      What changed</span>
+  Sidebar    Tasks grouped under their project
+  Projects   New Show menu <span data-layer="cut-off-at" class="t-fail">· cut off at 700 px</span>
+  Project    Breadcrumb back to Projects
+
+Before and after, side by side:  <span data-layer="output-design-pairs" class="t-b">output/design/pairs</span>
+
+<span data-layer="1-problem" class="t-fail">1 problem.</span> Fix Projects, then:
+  <span data-layer="deploy-design-check-3" class="t-dim">deploy design check</span></pre></div></div>
+</div></div>
+</body>
+</html>

@@ -106,6 +106,11 @@ RUN --mount=type=secret,id=cargo,target=/run/deploy-packages/cargo.toml,required
 The CLI lists both ecosystems. The JSON API accepts
 `GET /api/packages?ecosystem=all` (or `cargo`) and
 `GET /api/packages/cargo/<name>`; its default list remains npm for the current
-web screens. Cargo list/detail and Copies UI support still need the corresponding
-screen work. Cargo copies are kept on demand; Cargo.lock background warming and
-release pins are not yet wired into the npm warmer.
+private web screens. Packages › Copies lists kept npm packages and Cargo crates,
+with search, ecosystem and install-time filters, sorting and 50-package pages.
+Admins can remove idle versions or one package’s unused versions; main-lockfile
+requirements and retained release/rollback pins are checked again during removal.
+Storage includes registry metadata; list and removal sizes count version archives.
+Cargo copies are kept on demand. Public Cargo.lock background warming and release
+pins are not yet wired into the npm warmer, so all Cargo copies are conservatively
+protected from manual removal and automatic cleanup.

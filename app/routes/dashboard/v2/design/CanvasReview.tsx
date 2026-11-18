@@ -133,6 +133,7 @@ export function ReviewAreas({
   );
   const result = useData<DesignReviewPreview>(
     `${api}/review/preview?item=${encodeURIComponent(item)}&board=${encodeURIComponent(board.file)}&width=${width}&scale=1&revision=${board.after}`,
+    { immutable: true },
   );
   return (
     <>
@@ -226,8 +227,14 @@ export function CanvasReviewBar({
   const resolutions = data?.resolutions ?? [];
   const resolved = resolutionProgress(resolutions);
   const waiting = data?.item.state === 'waiting';
-  const approved = data?.item.answer?.actionId === 'approve';
+  // An approval that hit main's own change while landing went back to waiting: it is not on main.
+  const notLanded = data?.landing?.state === 'conflict' && waiting && !resolved.canContinue;
+  const approved = data?.item.answer?.actionId === 'approve' && data?.landing?.state !== 'conflict';
   const pending = data?.landing?.state === 'pending';
+  const proposer = data?.proposer.name;
+  const askToUpdate = proposer === 'You' ? 'Ask to update' : `Ask ${proposer} to update`;
+  // Who has the owner's notes, decided when they were sent. A task's notes read as before.
+  const kept = !approved && data?.feedback?.delivery !== 'task' ? data?.feedback : null;
   // A document is approved as a document, and has no screens to build.
   const document = data?.item.document;
   const approve = approveLabel(document);
@@ -275,6 +282,18 @@ export function CanvasReviewBar({
       setBusy(false);
     }
   };
+  const startTask = async () => {
+    setBusy(true);
+    try {
+      await request(`${api}/review/task`, { method: 'POST', body: JSON.stringify({ item }) });
+      inbox.retry();
+      await load();
+    } catch (failure) {
+      setError((failure as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const choice = async (file: string, value: 'main' | 'proposal' | null) => {
     setBusy(true);
     try {
@@ -300,7 +319,22 @@ export function CanvasReviewBar({
       <div ref={bar} className="dl-design-waiting-banner dz-review-bar">
         <span className="dz-review-heading">
           {data ? <strong>{data.title}</strong> : <Skeleton rows={1} label="Loading the review" />}
-          {data && !approved && (
+          {data && notLanded && (
+            <span>
+              {' '}
+              · <strong>Did not reach main</strong> · main changed first
+            </span>
+          )}
+          {data && kept && (
+            <span>
+              {' '}
+              · from {data.proposer.name} · {kept.notes} note{kept.notes === 1 ? '' : 's'}{' '}
+              {kept.delivery === 'terminal'
+                ? `sent to a terminal on ${kept.computer}`
+                : 'kept · nobody is working on it'}
+            </span>
+          )}
+          {data && !approved && !notLanded && !kept && (
             <span>
               {' '}
               · from {data.proposer.name} ·{' '}
@@ -341,6 +375,21 @@ export function CanvasReviewBar({
         />
         {!data ? (
           <Skeleton label="Loading review decisions" />
+        ) : notLanded ? (
+          <>
+            <Action variant="secondary" disabled={busy} onClick={() => void decide('update')}>
+              {askToUpdate}
+            </Action>
+            <Action variant="primary" disabled={busy} onClick={() => setDialog('conflicts')}>
+              Choose what to keep
+            </Action>
+          </>
+        ) : kept ? (
+          kept.delivery === 'nobody' && (
+            <Action variant="primary" disabled={busy} onClick={() => void startTask()}>
+              Start a task
+            </Action>
+          )
         ) : waiting ? (
           <>
             {resolutions.length > 0 && (
@@ -483,9 +532,7 @@ export function CanvasReviewBar({
         actions={
           <>
             <Action disabled={busy} onClick={() => void decide('update')}>
-              {data?.proposer.name === 'You'
-                ? 'Ask to update'
-                : `Ask ${data?.proposer.name} to update`}
+              {askToUpdate}
             </Action>
             <Action
               variant="primary"
@@ -600,6 +647,7 @@ function ConflictPreview({
   const [side, setSide] = useState<ReviewSide>('before');
   const pair = useData<DesignReviewPreview>(
     `${api}/review/preview?item=${encodeURIComponent(item)}&board=${encodeURIComponent(board.file)}&width=${board.widths[0]}&comparison=main&main=${main}`,
+    { immutable: true },
   );
   const source = pair.data?.[side];
   const [image, setImage] = useState('');

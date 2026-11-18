@@ -41,6 +41,18 @@
   cursor: pointer;
   text-align: left;
 }
+/* An Item that opens something in place reads like the link rows beside it. */
+.dl-item-button {
+  width: 100%;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dl-item-button:hover {
+  background: color-mix(in srgb, var(--ds-line) 35%, transparent);
+}
 .dl-seg button {
   height: 28px;
   display: inline-flex;
@@ -76,7 +88,8 @@
   outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
 }
-:where(.dl-app, .dl-sheet) :where(a.dl-nav, a.dl-item):focus-visible {
+/* Inside a group (overflow hidden) a row's ring sits inside it, or it would be clipped. */
+:where(.dl-app, .dl-sheet) :where(a.dl-nav, a.dl-item, button.dl-item):focus-visible {
   outline-offset: -2px;
 }
 .dl-composer:focus-within,
@@ -124,6 +137,12 @@
 }
 .dl-dialog-foot {
   padding: 0;
+}
+/* A title with a line under it, such as who wrote an idea and when. */
+.dl-dialog-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 .dl-term:focus-visible,
 .dl-lines:focus-visible {

@@ -29,6 +29,7 @@ const {
   repositoryAtAddress,
   updateProjectSettings,
   queueDueSyncs,
+  repositoryArchiveName,
 } = await import('./repositories.ts');
 const { repositoryFolderName } = await import('../../../shared/repository-address.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
@@ -164,6 +165,24 @@ test('durable import stays responsive, preserves dirty source and isolates autho
     await read(`/projects/${project.id}/repository/blob?ref=${original}&path=README.md`)
   ).body;
   assert.equal(blob.content, 'original\n');
+  // Download ZIP: the commit as a ZIP, named after the repository and the ref, owner-only.
+  const zip = await fetch(
+    `${origin}/api/projects/${project.id}/repository/archive?ref=${original}`,
+    {
+      headers: { 'x-test-owner': 'alice' },
+    },
+  );
+  assert.equal(zip.status, 200);
+  assert.equal(zip.headers.get('content-type'), 'application/zip');
+  const zipName = repositoryArchiveName(project.name, original, original);
+  assert.equal(zip.headers.get('content-disposition'), `attachment; filename="${zipName}.zip"`);
+  const zipBody = Buffer.from(await zip.arrayBuffer());
+  assert.equal(zipBody.subarray(0, 4).toString('latin1'), 'PK\x03\x04');
+  assert.ok(zipBody.includes(`${zipName}/README.md`));
+  const otherOwner = await fetch(`${origin}/api/projects/${project.id}/repository/archive`, {
+    headers: { 'x-test-owner': 'bob' },
+  });
+  assert.equal(otherOwner.status, 404);
   const cloned = join(data, 'clone');
   await gitText(data, ['clone', `${origin}/api/git/${project.id}`, cloned]);
   // The advertised clone path is the short address `/<repo>.git`, so a plain `git clone` names
@@ -537,6 +556,29 @@ test('a hosted repository starts empty and syncs both ways with a remote, pausin
   assert.equal(get('repository-operation', 'alice', due).kind, 'sync');
 });
 
+test('an existing repository pushes to a new project over HTTP without pulling or forcing', async () => {
+  const created = await post('/repository-projects', { name: 'Existing' });
+  assert.equal((await ready(created.body.id)).body.empty, true);
+  const repo = created.body.repositoryPath;
+  const work = join(data, 'existing-work');
+  git(data, ['init', '--initial-branch=main', work]);
+  git(work, ['config', 'user.name', 'Test']);
+  git(work, ['config', 'user.email', 'test@example.invalid']);
+  writeFileSync(join(work, 'README.md'), 'already written\n');
+  git(work, ['add', '.']);
+  git(work, ['commit', '-m', 'Existing work']);
+  git(work, ['remote', 'add', 'origin', `${origin}/api/git/${created.body.id}`]);
+  await gitText(work, ['push', '-u', 'origin', 'main']);
+  assert.equal(git(repo, ['log', '--format=%s', 'main']), 'Existing work');
+  assert.equal(git(repo, ['for-each-ref', '--format=%(refname)']), 'refs/heads/main');
+  assert.equal(git(repo, ['symbolic-ref', 'HEAD']), 'refs/heads/main');
+  const info = await until(
+    () => read(`/projects/${created.body.id}/repository`),
+    (r) => r.body.empty === false,
+  );
+  assert.equal(info.body.empty, false);
+});
+
 test('remotes given with a new project sync both ways; earlier remotes and folders only fetch', () => {
   const owner = 'sync-policy';
   const remote = queueProject(owner, {
@@ -552,4 +594,72 @@ test('remotes given with a new project sync both ways; earlier remotes and folde
   assert.equal(folder.source.syncPolicy, 'manual-fetch');
   repositoryCommand(owner, folder.id, 'cancel');
   assert.equal(repositorySource('git@example.invalid:x/y.git').syncPolicy, 'manual-fetch');
+});
+
+test('a ZIP is named after the repository and the branch, tag or short commit', () => {
+  const commit = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+  assert.equal(repositoryArchiveName('forma', 'main', commit), 'forma-main');
+  assert.equal(repositoryArchiveName('forma', 'refs/tags/v1.2', commit), 'forma-v1.2');
+  assert.equal(
+    repositoryArchiveName('forma', 'feature/csv export', commit),
+    'forma-feature-csv-export',
+  );
+  assert.equal(repositoryArchiveName('forma', 'HEAD', commit), 'forma-a1b2c3d');
+  assert.equal(repositoryArchiveName('forma', commit, commit), 'forma-a1b2c3d');
+});
+
+test('the default branch can be any existing branch; it moves HEAD and what releases follow', async () => {
+  const created = await post('/repository-projects', { name: 'Branches' });
+  await ready(created.body.id);
+  const id = created.body.id;
+  const repo = created.body.repositoryPath;
+  const work = join(data, 'branches-work');
+  git(data, ['clone', repo, work]);
+  git(work, ['config', 'user.name', 'Test']);
+  git(work, ['config', 'user.email', 'test@example.invalid']);
+  git(work, ['checkout', '-b', 'develop']);
+  writeFileSync(join(work, 'deploy.yaml'), 'name: branches\n');
+  git(work, ['add', '.']);
+  git(work, ['commit', '-m', 'Develop']);
+  git(work, ['push', 'origin', 'develop', 'develop:task/abcd1234']);
+
+  let listed = await read(`/projects/${id}/repository/branches`);
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.defaultBranch, 'main');
+  assert.deepEqual(
+    listed.body.branches.map((branch: any) => branch.name),
+    ['main', 'develop'],
+    'the default comes first and task branches are left out',
+  );
+  assert.ok(Date.parse(listed.body.branches[1].committedAt));
+  assert.equal((await read(`/projects/${id}/repository/branches`, 'bob')).status, 404);
+
+  assert.equal((await post(`/projects/${id}/repository/default-branch`, {})).status, 400);
+  assert.equal(
+    (await post(`/projects/${id}/repository/default-branch`, { branch: 'task/abcd1234' })).status,
+    400,
+  );
+  const missing = await post(`/projects/${id}/repository/default-branch`, { branch: 'nope' });
+  assert.equal(missing.status, 404);
+  assert.match(missing.body.error, /nope is not a branch/);
+
+  const changed = await post(`/projects/${id}/repository/default-branch`, { branch: 'develop' });
+  assert.equal(changed.status, 200);
+  assert.deepEqual(changed.body, { defaultBranch: 'develop' });
+  assert.equal(git(repo, ['symbolic-ref', 'HEAD']), 'refs/heads/develop');
+  assert.equal(get('project', 'alice', id).defaultBranch, 'develop');
+  assert.equal(git(repo, ['rev-parse', 'main']), git(work, ['rev-parse', 'main']), 'main stays');
+  const info = (await read(`/projects/${id}/repository`)).body;
+  assert.equal(info.defaultBranch, 'develop');
+  assert.equal(info.deployment.branch, 'develop');
+  assert.equal(info.deployment.commit, git(work, ['rev-parse', 'develop']));
+  listed = await read(`/projects/${id}/repository/branches`);
+  assert.deepEqual(
+    listed.body.branches.map((branch: any) => branch.name),
+    ['develop', 'main'],
+  );
+  // A clone now checks out the new default.
+  const fresh = join(data, 'branches-fresh');
+  git(data, ['clone', repo, fresh]);
+  assert.equal(git(fresh, ['branch', '--show-current']), 'develop');
 });

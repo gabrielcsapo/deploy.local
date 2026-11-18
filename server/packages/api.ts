@@ -1,7 +1,8 @@
+import { keptQuery, listKept, readKept, removeKept } from './kept.ts';
 import { cargoRegistry, yankCrate } from './cargo.ts';
 import { crateName } from './cargo-copy.ts';
 import { readNpmLogin, finishNpmLogin, requireNpmLoginOrigin } from './npm-login.ts';
-import { copiesStatus, queueCopies } from './copies.ts';
+import { copiesStatus, queueCopies, storageStatus } from './copies.ts';
 import { npmRegistry } from './npm.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAdmin } from '../store.ts';
@@ -10,7 +11,7 @@ import { createKey, listKeys, audit, type Identity } from './keys.ts';
 import { smallBody } from './body.ts';
 import { db, fail, nameOf, packageByName, versions, type Package } from './store.ts';
 import { deprecate, send } from './npm.ts';
-import { usedBy } from './projects.ts';
+import { projectHeads, usedBy } from './projects.ts';
 import { dispatch, routes } from '../kernel/routes.ts';
 
 interface PackagesContext {
@@ -27,7 +28,10 @@ function served() {
 
 /** Sidebar status never inspects a repository or probes the registry. */
 export function packageSidebar(copy = npmRegistry.copy) {
-  return { served: served(), usingCopies: !copy.reachable || !cargoRegistry.copy.reachable };
+  return {
+    served: served(),
+    usingCopies: !copy.reachable || !cargoRegistry.copy.reachable,
+  };
 }
 
 /** The package a `/api/packages/npm/<name>` path names, or 404. */
@@ -42,6 +46,56 @@ function packageAt(encoded: string, ecosystem = 'npm') {
 }
 
 export const packagesRoutes = [
+  route({
+    method: 'GET',
+    path: '/api/packages/cache/kept',
+    handler: ({ res, url, context }) =>
+      send(res, {
+        ...listKept(context.username, keptQuery(url.searchParams)),
+        canRemove: context.identity.admin,
+      }),
+  }),
+  route({
+    method: 'POST',
+    path: '/api/packages/cache/kept/remove',
+    handler: async ({ res, url, context }) => {
+      if (!context.identity.admin) fail('Only an admin can remove copies', 403);
+      const query = keptQuery(url.searchParams);
+      if (!query.idle) fail('Choose versions not installed in 30 days');
+      const removed = await removeKept(query);
+      send(res, { ...removed, keptBytes: storageStatus().bytes });
+    },
+  }),
+  route({
+    method: 'GET',
+    path: '/api/packages/cache/entry/:ecosystem/:name*',
+    handler: ({ res, url, params, context }) => {
+      const offset = Number(url.searchParams.get('offset') || 0);
+      const limit = url.searchParams.get('all') === '1' ? 100 : 5;
+      if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000) fail('Invalid offset');
+      send(res, {
+        ...readKept(
+          context.username,
+          params.ecosystem,
+          decodeURIComponent(params.name),
+          offset,
+          limit,
+        ),
+        canRemove: context.identity.admin,
+      });
+    },
+  }),
+  route({
+    method: 'POST',
+    path: '/api/packages/cache/remove/:ecosystem/:name*',
+    handler: async ({ res, params, context }) => {
+      if (!context.identity.admin) fail('Only an admin can remove copies', 403);
+      const query = keptQuery(new URLSearchParams({ kind: params.ecosystem }));
+      if (query.kind === 'all') fail('Choose a package ecosystem');
+      const removed = await removeKept(query, decodeURIComponent(params.name));
+      send(res, { ...removed, keptBytes: storageStatus().bytes });
+    },
+  }),
   route({
     method: 'GET',
     path: '/api/packages/npm-login/:id',
@@ -194,6 +248,7 @@ export async function readPackages(username: string, copy = npmRegistry.copy, ec
     .prepare("SELECT * FROM packages WHERE (?='all' OR ecosystem=?) ORDER BY created_at,name")
     .all(ecosystem, ecosystem) as Package[];
   const projects = list('project', username);
+  const heads = await projectHeads(username);
   const packages = [];
   for (const pkg of rows) {
     const latest = versions(pkg.id)[0];
@@ -209,7 +264,7 @@ export async function readPackages(username: string, copy = npmRegistry.copy, ec
           }
         : null,
       project: projects.find((p) => p.id === pkg.project_id)?.name || null,
-      usedBy: (await usedBy(username, pkg.name, undefined, pkg.ecosystem)).length,
+      usedBy: (await usedBy(username, pkg.name, undefined, pkg.ecosystem, heads)).length,
     });
   }
   return {

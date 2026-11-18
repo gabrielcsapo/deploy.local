@@ -9,6 +9,7 @@ import { wireTaskRunStarter } from './main/task-run-starter.ts';
 import { wireQuestionAnswerResumer } from './main/question-answer-resumer.ts';
 import { wireStateRefreshSources } from './main/state-refresh-sources.ts';
 import { wireAgentChatSource } from './main/agent-chat-source.ts';
+import { wireWorkerEntry } from './main/worker-entry.ts';
 
 wireAgentInstructionsSource();
 wireRepositoryProjectCreator();
@@ -20,3 +21,4 @@ wireTaskRunStarter();
 wireQuestionAnswerResumer();
 wireStateRefreshSources();
 wireAgentChatSource();
+wireWorkerEntry();

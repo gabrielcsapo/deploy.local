@@ -79,9 +79,12 @@ the original tool call waiting without crossing the proxy idle timeout. After co
 restart, a known exact build can be polled again; an interrupted upload without a
 known build is never submitted again automatically.
 
-A completed tool call appends a compact Markdown transcript attachment containing
-app name, status, URL and **View logs**. It uses the existing message/blockquote
-styles on web, Mac and iOS; no separate transcript renderer is required.
+In the task's chat a deploy is one step in the work log: "Deploying drop" with a spinner, then
+"Deployed drop · Live at drop.local" or "Deployed drop · Failed: health check", with its time and
+**View logs**. A failed step opens to the platform's reason and the last log lines. A completed call
+still stores a compact Markdown summary message (`deployment:<id>`) for older clients; conversation
+events leave it out so the step is not repeated. Jobs read the same way: the job's name, then
+"Passed on SER" or "Failed on SER (exit 1)", with **Output**. See `server/features/agents/work-steps.ts`.
 
 ## Bring files back from a job
 

@@ -136,6 +136,18 @@
 .dl-step .dl-i{width:16px;flex:none;display:inline-flex;justify-content:center;color:var(--muted)}
 .dl-step .dl-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dl-step .dl-x{font-size:12px;color:var(--muted);flex:none}
+.dl-step .dl-x a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.dl-step .dl-x.fail{color:var(--danger)}
+.dl-step .dl-x.warn{color:var(--warning)}
+.dl-step.note{align-items:flex-start}
+.dl-step.note .dl-i{padding-top:3px}
+.dl-step.note .dl-t{white-space:normal}
+.dl-step .dl-step-end{margin-left:auto;display:flex;align-items:center;gap:12px;flex:none;font-size:12px;color:var(--muted)}
+.dl-step .dl-step-end a{color:var(--ink-soft)}
+.dl-step-toggle{display:inline-flex;align-items:center;padding:0;border:0;background:none;color:var(--muted);cursor:pointer}
+.dl-step-open{list-style:none;margin:2px 0 6px 24px;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:20px;color:var(--ink-soft)}
+.dl-step-open p{margin:0}
+.dl-step-tail{margin:0;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius-control);font-family:var(--font-mono);font-size:12px;line-height:20px;color:var(--muted);white-space:pre;overflow-x:auto}
 .dl-who-line{display:flex;align-items:center;gap:8px;font-size:13px;line-height:20px;font-weight:500}
 .dl-who-line .dl-meta{font-weight:400}
 
@@ -251,6 +263,7 @@ a.dl-item:hover{background:color-mix(in srgb,var(--line) 35%,transparent)}
 .dl-phone .dl-you{font-size:17px;line-height:24px}
 .dl-phone .dl-reply{font-size:17px;line-height:26px}
 .dl-phone .dl-step{font-size:15px;line-height:22px}
+.dl-phone .dl-step-open{font-size:15px;line-height:22px}
 .dl-phone .dl-approval-title{font-size:17px;line-height:24px}
 .dl-phone .dl-approval-text{font-size:15px;line-height:22px}
 .dl-phone .dl-approval-actions{padding-left:0;flex-direction:column}
@@ -644,7 +657,7 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 
 /* The Sidebar component (library.json › sidebar). One markup for every board; an instance's settings
    become classes on the root, and these rules show, hide and select accordingly. */
-.dl-side.at-new .p-new,.dl-side.at-projects .p-projects,.dl-side.at-live .p-live,.dl-side.at-computers .p-computers,.dl-side.at-packages .p-packages,.dl-side.at-design .p-design,.dl-side.sel-ask .w-ask,.dl-side.sel-ask2 .w-ask2,.dl-side.sel-rollback .w-rollback,.dl-side.sel-merge .w-merge,.dl-side.sel-task .t-task,.dl-side.sel-self .t-self,.dl-side.sel-sync .t-sync,.dl-side.sel-run .t-run,.dl-side.sel-release-notes-writer .a-release-notes-writer,.dl-side.sel-ops-watcher .a-ops-watcher,.dl-side.sel-code-reviewer .a-code-reviewer,.dl-side.sel-researcher .a-researcher,.dl-side.sel-designer .a-designer{background:var(--selection);color:var(--ink)}
+.dl-side.at-new .p-new,.dl-side.at-projects .p-projects,.dl-side.at-live .p-live,.dl-side.at-computers .p-computers,.dl-side.at-packages .p-packages,.dl-side.at-design .p-design,.dl-side.sel-ask .w-ask,.dl-side.sel-ask2 .w-ask2,.dl-side.sel-rollback .w-rollback,.dl-side.sel-merge .w-merge,.dl-side.sel-task .t-task,.dl-side.sel-self .t-self,.dl-side.sel-sync .t-sync,.dl-side.sel-across .t-across,.dl-side.sel-run .t-run,.dl-side.sel-release-notes-writer .a-release-notes-writer,.dl-side.sel-ops-watcher .a-ops-watcher,.dl-side.sel-code-reviewer .a-code-reviewer,.dl-side.sel-researcher .a-researcher,.dl-side.sel-designer .a-designer{background:var(--selection);color:var(--ink)}
 .dl-side .dl-end:empty,.dl-side .dl-c:empty{display:none}
 .side-live.failed{display:inline-flex;align-items:center;gap:6px;color:var(--danger)}
 .side-live.failed::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--danger)}
@@ -675,14 +688,16 @@ ul.dl-ph-group,ol.dl-ph-group{list-style:none;padding:0}
 .dl-spin{animation:dl-spin 1s linear infinite}
 @keyframes dl-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.dl-spin{animation:none}}
-/* Tasks in the sidebar group by date or by project. The first heading carries the choice.
+/* Tasks in the sidebar group by date, by project or by work. The first heading carries the choice.
    A task row's actions replace its time while the pointer is on it. */
 .dl-side:not(.by-project) .pj,.dl-side.by-project .dt{display:none}
+/* Work: projects with their live work only, each row with its state. */
+.dl-side:not(.by-work) .pw,.dl-side.by-work .dt{display:none}
 .side-label-actions{display:inline-flex;align-items:center}
 .side-anchor{position:relative;height:0}
 .side-anchor > .dl-menu{position:absolute;top:0;right:0;width:184px;z-index:5}
 .dl-side:not(.gm-open) .side-group-anchor,.dl-side:not(.rm-open) .side-row-anchor,.dl-side:not(.rm-on):not(.rm-open) .side-row-more,.dl-side:is(.rm-on,.rm-open) .t-task > .dl-end{display:none}
-.dl-side:not(.by-project) .gm-project .side-check,.dl-side.by-project .gm-date .side-check{display:none}
+.dl-side:not(.by-project) .gm-project .side-check,.dl-side:is(.by-project,.by-work) .gm-date .side-check,.dl-side:not(.by-work) .gm-work .side-check{display:none}
 .dl-nav .side-row-more{width:24px;height:24px;margin-right:-4px}
 .dl-side.rm-open .side-row-more{background:color-mix(in srgb,var(--line) 80%,transparent);color:var(--ink)}
 .dl-nav.side-more .dl-t{color:var(--muted)}

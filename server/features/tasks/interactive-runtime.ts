@@ -6,11 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import {
-  desktopAction,
-  desktopRequest,
-  linuxDesktopTarget,
-} from '../../workspace/linux-desktop.ts';
+import { desktopAction, desktopRequest, linuxDesktopTarget } from './linux-desktop.ts';
 import type { Browser, BrowserContext, Page } from 'playwright';
 const exec = promisify(execFile);
 type Runtime = {

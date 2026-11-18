@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { InboxProvider, remember } from '../data/hooks';
+import { InboxProvider } from '../data/hooks';
+import { DataSeeds } from '../data/seeds';
 import type { DesignReview } from '../../../../../shared/v2/contracts';
 import { DesignCard, cardRegion } from './Review';
 
@@ -77,20 +78,29 @@ test('approved proposal card offers Build only after landing, then links the rec
     proposer: { id: 'designer', name: 'Designer', avatar: null },
     landing: { at: '2026-11-12T12:00:30Z', state: 'landed', commit: '4f05991abcdef' },
   } as unknown as DesignReview;
-  const render = (data: DesignReview) => {
-    remember(`${api}/review?item=${encodeURIComponent(item.id)}&evidence=text`, data);
-    return renderToStaticMarkup(
-      createElement(
-        InboxProvider,
-        null,
-        createElement(DesignCard, {
-          projectId: 'chat',
-          taskId: 'proposer',
-          design: { api, proposal: item },
-        }),
-      ),
+  // A static render has no window, so the browser cache (`remember`) holds nothing here; the
+  // review reaches the card the way a server render hands it over, as a fresh data seed.
+  const render = (data: DesignReview) =>
+    renderToStaticMarkup(
+      createElement(DataSeeds, {
+        seed: {
+          owner: 'owner',
+          at: Date.now(),
+          data: { [`${api}/review?item=${encodeURIComponent(item.id)}&evidence=text`]: data },
+        },
+        // createElement's types want the required children in the props object.
+        // oxlint-disable-next-line react/no-children-prop
+        children: createElement(
+          InboxProvider,
+          null,
+          createElement(DesignCard, {
+            projectId: 'chat',
+            taskId: 'proposer',
+            design: { api, proposal: item },
+          }),
+        ),
+      }),
     );
-  };
   const ready = render(review);
   assert.match(ready, /Approved · on main as 4f05991 · not built yet/);
   assert.match(ready, />Build<\/button>/);

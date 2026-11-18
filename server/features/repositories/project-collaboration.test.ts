@@ -15,7 +15,7 @@ const { git } = await import('../../workspace/service.ts');
 const { gitText } = await import('../../workspace/repository-git.ts');
 const { db, get, list, save } = await import('../../workspace/store.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
-const { executePullMerge } = await import('./project-collaboration.ts');
+const { executePullMerge, conflictSummary } = await import('./project-collaboration.ts');
 const { projectTool } = await import('./project-tools.ts');
 const { coordinationApi } = await import('../../workspace/coordination-api.ts');
 const { issueAgentToken } = await import('../../workspace/coordination.ts');
@@ -305,6 +305,12 @@ test('a diverged pull request that conflicts is refused, naming the conflicting 
     comparison.mergeBlock,
     /main has moved and feature conflicts with it in source\.txt/,
   );
+  // A pull request no task opened shows the conflict alone, without asking a task.
+  assert.equal(comparison.mergeBlockKind, 'conflicts');
+  assert.equal(
+    comparison.conflictSummary,
+    'main has moved and feature conflicts with it in source.txt.',
+  );
 
   const queued = await queueMerge(f, pull, { baseCommit: movedMain, headCommit: f.head });
   await new RepositoryRunner().tick();
@@ -401,6 +407,53 @@ test('issue task creation is replay-safe and project tools cannot escape the con
   );
   assert.equal(get('task', 'alice', started.body.task.id).issueId, issue.id);
   assert.equal((await request(`${f.path}/issues/${issue.id}`)).body.record.taskIds.length, 2);
+});
+
+test('an issue an agent writes down is found by its task until the owner accepts or dismisses it', async () => {
+  const f = fixture();
+  const task = createTask('alice', { projectId: f.project.id });
+  const scope = { owner: 'alice', taskId: task.id, runId: 'found-run' };
+  const found = await projectTool(scope, {
+    resource: 'issues',
+    action: 'create',
+    title: 'Checks read as earlier',
+    operationId: randomUUID(),
+  });
+  assert.deepEqual(found.foundBy, { taskId: task.id });
+  // A person's issue, even one that names foundBy, is theirs.
+  const mine = await request(f.path + '/issues', {
+    operationId: randomUUID(),
+    title: 'Mine',
+    foundBy: { taskId: task.id },
+  });
+  assert.equal(mine.body.foundBy, undefined);
+  const accepted = await request(`${f.path}/issues/${found.id}/accept`, {
+    operationId: randomUUID(),
+    revision: found.revision,
+  });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  assert.equal(accepted.body.accepted.by, 'alice');
+  assert.deepEqual(accepted.body.foundBy, { taskId: task.id });
+  const stale = await request(`${f.path}/issues/${found.id}/accept`, {
+    operationId: randomUUID(),
+    revision: found.revision,
+  });
+  assert.equal(stale.status, 409);
+  const dismissed = await request(`${f.path}/issues/${mine.body.id}/close`, {
+    operationId: randomUUID(),
+    revision: mine.body.revision,
+  });
+  assert.equal(dismissed.body.status, 'closed');
+  const closedAccept = await request(`${f.path}/issues/${mine.body.id}/accept`, {
+    operationId: randomUUID(),
+    revision: dismissed.body.revision,
+  });
+  assert.equal(closedAccept.status, 409);
+  const pullAccept = await request(`${f.path}/pulls/${found.id}/accept`, {
+    operationId: randomUUID(),
+    revision: 0,
+  });
+  assert.notEqual(pullAccept.status, 200);
 });
 
 test('PR merge requires successful checks for its current commit, not an earlier commit', async () => {
@@ -790,4 +843,113 @@ test('an agent turn can still comment on, edit, close and reopen a pull request'
   assert.equal((await call('update', { revision: 0, title: 'Renamed' })).body.title, 'Renamed');
   assert.equal((await call('close', { revision: 1 })).body.status, 'closed');
   assert.equal((await call('reopen', { revision: 2 })).body.status, 'open');
+});
+
+test('the conflict summary names the files the way a sentence would', () => {
+  const pull = { targetBranch: 'main', sourceBranch: 'build/project-work' };
+  assert.equal(
+    conflictSummary(pull, ['app/SidebarTasks.tsx', 'server/v2/settings.ts']),
+    'main has moved and build/project-work conflicts with it in app/SidebarTasks.tsx and server/v2/settings.ts.',
+  );
+  const many = Array.from({ length: 12 }, (_, index) => `f${index}`);
+  assert.equal(
+    conflictSummary(pull, many),
+    'main has moved and build/project-work conflicts with it in f0, f1, f2, f3, f4, f5, f6, f7, f8, f9 and 2 more files.',
+  );
+});
+
+test('a pull request blocked by its checks says which ran, which failed and how many are done', async () => {
+  const f = fixture();
+  git(f.source, ['checkout', 'feature']);
+  writeFileSync(
+    join(f.source, 'deploy.yaml'),
+    'apiVersion: deploy.local/v1\nkind: Application\npipeline:\n  on: [manual, pull_request]\n  jobs:\n    check:\n      runsOn: {os: linux}\n      container: node:22-slim\n      run: node --version\n',
+  );
+  git(f.source, ['add', '.']);
+  git(f.source, ['commit', '-m', 'Checks']);
+  f.head = git(f.source, ['rev-parse', 'HEAD']);
+  git(f.source, ['push', f.project.repositoryPath, 'HEAD:feature']);
+  const pull = await createPull(f);
+  const read = async () => (await request(f.path + `/pulls/${pull.id}/diff`)).body;
+
+  let comparison = await read();
+  assert.equal(comparison.mergeBlockKind, 'checks');
+  assert.deepEqual(comparison.requiredChecks, {
+    commit: f.head,
+    runId: null,
+    status: null,
+    done: 0,
+    total: 0,
+    failed: [],
+  });
+
+  const runId = randomUUID();
+  save('pipeline-run', 'alice', {
+    id: runId,
+    projectId: f.project.id,
+    commit: f.head,
+    status: 'running',
+  });
+  const job = (name: string, status: string) =>
+    save('job', 'alice', { id: randomUUID(), pipelineId: runId, name, status });
+  job('lint', 'succeeded');
+  const tests = job('test', 'running');
+  job('typecheck', 'queued');
+  comparison = await read();
+  assert.equal(
+    comparison.mergeBlock,
+    `Required pipeline checks have not passed for ${f.head.slice(0, 7)}.`,
+  );
+  assert.deepEqual(comparison.requiredChecks, {
+    commit: f.head,
+    runId,
+    status: 'running',
+    done: 1,
+    total: 3,
+    failed: [],
+  });
+
+  save('job', 'alice', { ...tests, status: 'failed' });
+  save('pipeline-run', 'alice', { ...get('pipeline-run', 'alice', runId), status: 'failed' });
+  comparison = await read();
+  assert.equal(comparison.requiredChecks.status, 'failed');
+  assert.equal(comparison.requiredChecks.done, 2);
+  assert.deepEqual(comparison.requiredChecks.failed, [{ id: tests.id, name: 'test' }]);
+
+  // Once they pass, nothing blocks it and no check summary is sent.
+  save('pipeline-run', 'alice', { ...get('pipeline-run', 'alice', runId), status: 'succeeded' });
+  comparison = await read();
+  assert.equal(comparison.mergeBlockKind, null);
+  assert.equal(comparison.requiredChecks, null);
+  assert.equal(comparison.mergeable, true);
+});
+
+test('commits that merge the target into the source are marked so they can fold together', async () => {
+  const f = fixture();
+  git(f.source, ['checkout', 'main']);
+  writeFileSync(join(f.source, 'main.txt'), 'main\n');
+  git(f.source, ['add', '.']);
+  git(f.source, ['commit', '-m', 'Main moves']);
+  git(f.source, ['push', f.project.repositoryPath, 'HEAD:main']);
+  git(f.source, ['checkout', 'feature']);
+  git(f.source, ['merge', '--no-ff', '-m', "Merge branch 'main' into feature", 'main']);
+  writeFileSync(join(f.source, 'after.txt'), 'after\n');
+  git(f.source, ['add', '.']);
+  git(f.source, ['commit', '-m', 'After the merge']);
+  git(f.source, ['push', f.project.repositoryPath, 'HEAD:feature']);
+  const pull = await createPull(f);
+  const comparison = (await request(f.path + `/pulls/${pull.id}/diff`)).body;
+  assert.deepEqual(
+    comparison.commits.map((commit: any) => [
+      commit.subject,
+      !!commit.mergesTarget,
+      commit.parents.length,
+    ]),
+    [
+      ['Feature', false, 1],
+      ["Merge branch 'main' into feature", true, 2],
+      ['After the merge', false, 1],
+    ],
+  );
+  assert.equal(comparison.mergeable, true);
 });

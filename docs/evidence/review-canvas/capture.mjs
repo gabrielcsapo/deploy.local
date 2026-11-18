@@ -12,6 +12,10 @@ const states = [
   'conflict',
   'notes-only',
   'loading',
+  'not-landed',
+  'no-one',
+  'terminal',
+  'approved-removed',
 ];
 const width = Number(rawWidth);
 const port = Number(process.env.PORT ?? 5190);
@@ -52,7 +56,8 @@ try {
     assert.equal(await bar.getByRole('button', { name: 'Approve design', exact: true }).count(), 0);
   } else {
     await bar.getByText('Keep the gutter at every width', { exact: true }).waitFor();
-    await page.locator('.dz-world').waitFor();
+    // The world is a zero-size origin its frames are placed from, so it is never “visible”.
+    await page.locator('.dz-world').waitFor({ state: 'attached' });
     if (state === 'notes-only') {
       await page
         .locator('.dz-note')
@@ -115,6 +120,34 @@ try {
         .getByRole('link', { name: 'Keep the gutter at every width is building it', exact: true })
         .waitFor();
       assert.equal(await bar.getByRole('button', { name: 'Build', exact: true }).count(), 0);
+    }
+    if (state === 'not-landed') {
+      await bar.getByText(/Did not reach main/).waitFor();
+      await bar.getByRole('button', { name: 'Ask Designer to update', exact: true }).waitFor();
+      assert.equal(await bar.getByText(/on main/).count(), 0);
+      // Choose what to keep opens the existing decision; it is captured closed, as on the board.
+      await bar.getByRole('button', { name: 'Choose what to keep', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Changed on main too', exact: true }).waitFor();
+      await page.keyboard.press('Escape');
+      await page.getByRole('dialog', { name: 'Changed on main too', exact: true }).waitFor({
+        state: 'detached',
+      });
+      await page.evaluate(() => document.activeElement?.blur());
+    }
+    if (state === 'no-one') {
+      await bar.getByText(/1 note kept · nobody is working on it/).waitFor();
+      await bar.getByRole('button', { name: 'Start a task', exact: true }).waitFor();
+    }
+    if (state === 'terminal') {
+      await bar.getByText(/1 note sent to a terminal on MacBook Pro/).waitFor();
+      assert.equal(await bar.getByRole('button', { name: 'Start a task', exact: true }).count(), 0);
+    }
+    if (state === 'approved-removed') {
+      await bar.getByText(/Approved · on main as 4f05991 · not built yet/).waitFor();
+      // The left panel is hidden below 820 px, as on the board; the label is still there.
+      await page.getByText('main · branch removed').waitFor({ state: 'attached' });
+      await page.getByRole('button', { name: 'Where to build', exact: true }).click();
+      await page.getByRole('menu', { name: 'Where to build', exact: true }).waitFor();
     }
     if (state === 'conflict') {
       await bar.getByRole('button', { name: '0 of 1 resolved', exact: true }).click();

@@ -20,6 +20,8 @@ const workspaceOrigins = new Set<string>([
   'application-deployment.ts',
   'pipeline-deployment.ts',
   'pipelines.ts',
+  'application-deployment-instructions.ts',
+  'pipeline-triggers.ts',
 ]);
 const exceptions: Record<string, string> = {
   'application-deployment.ts -> bin/bundle-files.mjs':
@@ -48,6 +50,10 @@ const exceptions: Record<string, string> = {
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'pipeline-deployment.ts -> tar-stream':
     'Existing streaming tar implementation; preserve source archive bytes and validation.',
+  'pipeline-triggers.ts -> server/packages/copies.ts':
+    'Package hooks deliberately have optional behavior in CLI/remote workers; leave the package copy policy together until its process-specific composition is extracted.',
+  'pipeline-triggers.ts -> server/workspace/store.ts':
+    'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'pipelines.ts -> server/application-spec.ts':
     'Existing manifest compiler and types; preserve canonical digests and validation.',
   'pipelines.ts -> server/workspace/store.ts':
@@ -86,18 +92,16 @@ const exceptions: Record<string, string> = {
     'Existing manifest compiler and types; preserve canonical digests and validation.',
   'releases-fence.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'releases-journal.ts -> server/secrets.ts':
+    'Existing secret key and encryption; preserve encrypted release journals.',
   'releases-plan.ts -> server/deploy-config.ts':
     'Existing deployment definition reader; preserve release manifest interpretation.',
   'releases-plan.ts -> server/store.ts':
     'Existing engine records and bootstrap; preserve database evaluation order.',
-  'releases-plan.ts -> server/v2/computers.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-plan.ts -> shared/v2/contracts.ts':
     'Existing public release and update types; preserve client contracts.',
   'releases-remote.ts -> server/store.ts':
     'Existing engine records and bootstrap; preserve database evaluation order.',
-  'releases-remote.ts -> server/v2/releases-worker.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-runtime.ts -> server/agent-graph-payload.ts':
     'Existing worker graph payload construction; preserve remote release jobs.',
   'releases-runtime.ts -> server/agent-graph-recording.ts':
@@ -118,16 +122,14 @@ const exceptions: Record<string, string> = {
     'Existing graph Docker adapter and types; preserve container and volume identities.',
   'releases-runtime.ts -> server/graph-runtime-store.ts':
     'Existing durable graph state; preserve instance and endpoint publication order.',
+  'releases-runtime.ts -> server/certs.ts':
+    'A released app with a route needs its <name>.local on the shared certificate, as an upload gets.',
   'releases-runtime.ts -> server/ipc.ts':
     'Existing route-change notification; preserve activation publication timing.',
   'releases-runtime.ts -> server/store.ts':
     'Existing engine records and bootstrap; preserve database evaluation order.',
   'releases-runtime.ts -> server/upload-archive.ts':
     'Existing source archive inspection; preserve release source validation.',
-  'releases-runtime.ts -> server/v2/releases-journal.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
-  'releases-runtime.ts -> server/v2/releases-worker.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-runtime.ts -> server/v2/releases.ts':
     'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-runtime.ts -> server/volumes.ts':
@@ -136,12 +138,20 @@ const exceptions: Record<string, string> = {
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'releases-runtime.ts -> shared/v2/contracts.ts':
     'Existing public release and update types; preserve client contracts.',
-  'releases-upload.ts -> server/v2/releases-api.ts':
-    'Existing product dependency retained from v2; preserve release policy and evaluation order.',
+  'releases-worker.ts -> server/agent-graph-runtime.ts':
+    'Existing worker graph execution; preserve remote release jobs and receipts.',
+  'releases-worker.ts -> server/secrets.ts':
+    'Existing secret key and encryption; preserve encrypted release worker state.',
+  'releases-worker.ts -> server/upload-archive.ts':
+    'Existing source archive inspection; preserve release source validation.',
   'releases-upload.ts -> server/v2/releases.ts':
     'Existing product dependency retained from v2; preserve release policy and evaluation order.',
   'releases-upload.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'project-release-service.ts -> server/v2/releases.ts':
+    'Split from v2/releases-api: existing release service class; preserve release policy and evaluation order.',
+  'project-release-service.ts -> shared/v2/contracts.ts':
+    'Existing public release and update types; preserve client contracts.',
 };
 
 test('releases preserve origin boundaries and allow only reviewed dependencies', () => {

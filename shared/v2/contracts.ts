@@ -73,6 +73,21 @@ export type WorkStep = {
   text: string;
   added?: number;
   removed?: number;
+  /** A closer picture than `icon`, for clients that know it; `icon` stays for the rest. */
+  glyph?: 'deploy' | 'note';
+  /** How it went: "Live at drop.local", "Passed on SER", "Failed: health check". */
+  outcome?: string;
+  /** Where the outcome points, such as the app a deploy made live. */
+  outcomeHref?: string;
+  tone?: 'fail' | 'warn';
+  /** Still running. */
+  live?: boolean;
+  seconds?: number;
+  /** Where to look next, such as View logs or Output. */
+  links?: { label: string; href: string }[];
+  /** Why it failed or stopped, and the last lines of its log, shown when the step is opened. */
+  reason?: string;
+  tail?: string[];
 };
 
 // Waiting on you. The only thing that shows "!".
@@ -241,6 +256,81 @@ export type Project = {
   id: string;
   name: string;
   apps: { id: string; name: string; kind: 'web' | 'worker' }[];
+  /** The fields below are only on the Projects list (`ProjectListResponse`). */
+  /** When any branch of its repository last moved. */
+  changedAt?: string;
+  /** Open pull requests, when there are any. */
+  openPulls?: number;
+  /** Subject of the newest commit, on repository rows. */
+  lastCommit?: string;
+  /** Requests in each of the last 24 hours, oldest first, for a project with a web app. */
+  traffic?: { from: number; hourly: number[] };
+};
+
+export type ProjectListGroup = 'live' | 'repositories' | 'archived';
+/** The Projects page: what runs, repositories that never shipped, and archived projects. */
+export type ProjectListResponse = {
+  live: Project[];
+  /** Newest change first, one page at a time. */
+  repositories: Project[];
+  archived: Project[];
+  /** Repositories that match and were not sent. */
+  more: number;
+  /** Every project, whatever is shown or searched. */
+  counts: Record<ProjectListGroup, number>;
+};
+
+/** Diagnostics → Traffic, and the warning on an app's Requests page. */
+export type RepeatingSender = {
+  app: string;
+  /** The address as recorded, without the IPv4-in-IPv6 prefix. */
+  address: string;
+  /** One of the owner's computers, when the address is its own. */
+  computer?: string;
+  /** “curl”, “Safari”, or null when the agent says nothing useful. */
+  agent: string | null;
+  /** Method and path, with IDs folded to :id. */
+  route: string;
+  /** In the last 24 hours. */
+  requests: number;
+  /** Its share of that route's requests in the last hour, 0 to 1. */
+  routeShare: number;
+  /** Its share of all the app's requests, 0 to 1. */
+  appShare: number;
+  perMinute: number;
+  sentBytes: number;
+  since: number;
+  /** True when it has been going at least as long as the lookback; `since` is then a floor. */
+  sinceOrEarlier: boolean;
+};
+
+export type TrafficApp = {
+  name: string;
+  /** The project it belongs to, for the link to its Requests page. */
+  project?: string;
+  requests: number;
+  perMinuteNow: number;
+  serverErrors: number;
+  /** Null when the range is longer than senders are read for. */
+  sentBytes: number | null;
+  topSender: { address: string; computer?: string; share: number; repeating: boolean } | null;
+};
+
+export type TrafficResponse = {
+  range: '1h' | '24h' | '7d' | '30d';
+  from: number;
+  to: number;
+  requests: number;
+  perMinuteNow: number;
+  serverErrors: number;
+  /** Bytes and senders cover this much of the range: all of it up to 24 hours. */
+  sendersWindowMs: number;
+  sentBytes: number;
+  receivedBytes: number;
+  topSender: { address: string; computer?: string; share: number } | null;
+  series: { bucketMs: number; points: { at: number; perMinute: number }[] };
+  apps: TrafficApp[];
+  repeating: RepeatingSender[];
 };
 
 export type RollbackDataLoss = {
@@ -493,8 +583,10 @@ export type DesignReview = DesignReviewSummary & {
   changes?: DesignReviewRow[];
   landing?: {
     at: string;
-    state: 'pending' | 'landed' | 'conflict';
+    state: 'pending' | 'landed' | 'conflict' | 'failed';
     commit?: string;
+    /** After landing: whether the design branch was removed, or why it was kept. */
+    branch?: { name: string; removed: boolean; kept?: string };
     /** Explicitly requested build; legacy records may contain a failed or skipped attempt. */
     build?: {
       name?: string;
@@ -505,6 +597,15 @@ export type DesignReview = DesignReviewSummary & {
       skipped?: boolean;
     };
   };
+  /** The owner's last Ask for changes or Ask to update: how many notes, and who has them. */
+  feedback?: {
+    actionId: 'changes' | 'update';
+    notes: number;
+    delivery: 'task' | 'terminal' | 'nobody';
+    /** The computer whose terminal was waiting, for a terminal delivery. */
+    computer?: string;
+    taskId?: string;
+  } | null;
   boards: DesignReviewScreen[];
   groups: { id: string | null; title: string | null; boards: string[] }[];
   notes: (import('./design').NoteChange & { page: string | null })[];

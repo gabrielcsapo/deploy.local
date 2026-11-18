@@ -15,14 +15,18 @@ export function rememberSidebar(collapsed: boolean) {
   }
 }
 
-/** How the sidebar groups tasks: by day (Today, Yesterday) or by project. One choice per browser. */
-export type TaskGrouping = 'date' | 'project';
+/**
+ * How the sidebar groups tasks: by day (Today, Yesterday), by project, or by project with live
+ * work only (Work). One choice per browser.
+ */
+export type TaskGrouping = 'date' | 'project' | 'work';
 export const taskGroupingKey = 'deploy.sidebar.tasks';
 export const taskGroupingEvent = 'deploy:task-grouping';
 
 export function taskGrouping(): TaskGrouping {
   try {
-    return localStorage.getItem(taskGroupingKey) === 'project' ? 'project' : 'date';
+    const stored = localStorage.getItem(taskGroupingKey);
+    return stored === 'project' || stored === 'work' ? stored : 'date';
   } catch {
     return 'date';
   }

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
-import { pruneHealthEvents } from '../server/workspace/health-event-retention.ts';
+import { pruneHealthEvents } from '../server/features/observability/health-event-retention.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'deploy-health-prune-'));
 const file = join(root, 'workspace.db');

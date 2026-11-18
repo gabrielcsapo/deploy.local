@@ -48,3 +48,27 @@ test('CLI approvals continue when choices are resolved or the older coordinator 
     assert.equal(writes, 1);
   }
 });
+test('the conflict line is printed under its own item, not above it', async () => {
+  const other = { ...item, id: 'design:tally:other:commit', title: 'Footer' };
+  const api = async (path) => {
+    if (path.includes('/design/reviews')) return { proposals: [{ id: item.id, stale: true }] };
+    return { items: [other, item] };
+  };
+  const lines = [];
+  const log = console.log;
+  const tty = process.stdin.isTTY;
+  console.log = (...args) => lines.push(...args.join(' ').split('\n'));
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+  try {
+    await runInbox(api, [], {}, async () => '');
+  } finally {
+    console.log = log;
+    Object.defineProperty(process.stdin, 'isTTY', { value: tty, configurable: true });
+  }
+  const footer = lines.findIndex((line) => line.startsWith('! Footer'));
+  const header = lines.findIndex((line) => line.startsWith('! Header'));
+  const conflict = lines.findIndex((line) => line.includes('Resolve the conflicting screens'));
+  assert.ok(footer >= 0 && header > footer, lines.join('\n'));
+  assert.ok(conflict > header, `conflict line belongs under Header:\n${lines.join('\n')}`);
+  assert.equal(lines.filter((line) => line.includes('Resolve the conflicting')).length, 1);
+});

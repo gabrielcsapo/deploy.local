@@ -326,7 +326,8 @@
   right: 8px;
 }
 .v2-project-start-push > .dl-meta {
-  margin: 10px 0 0;
+  /* With the section's 12px gap: 10px under the commands. */
+  margin: -2px 0 0;
 }
 .v2-project-start-push a {
   color: var(--ds-accent);
@@ -365,4 +366,146 @@
   .v2-project-page .dl-tabs[data-more='true'] {
     mask-image: linear-gradient(90deg, var(--ds-ink) calc(100% - 32px), transparent);
   }
+}
+.v2-project-start-push > .v2-clone-tabs {
+  /* 8px above the commands. */
+  margin-bottom: -4px;
+}
+.v2-project-start-push > .dl-meta + .dl-meta {
+  /* 6px between the notes. */
+  margin-top: -6px;
+}
+
+/* The Projects list: a filter with a Show menu, live projects as cards, repositories as rows. */
+.v2-project-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-project-tools .dl-field {
+  flex: 1;
+  min-width: 0;
+}
+.v2-project-show {
+  position: relative;
+  flex: none;
+}
+.v2-project-show > .dl-btn {
+  gap: 6px;
+}
+.v2-project-show .dl-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  width: 240px;
+  z-index: 5;
+}
+.v2-project-show .dl-menu-item {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--ds-ink);
+  cursor: pointer;
+}
+.v2-project-show .dl-menu-item:hover {
+  background: color-mix(in srgb, var(--ds-line) 70%, transparent);
+}
+.v2-project-show .dl-menu-item:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+.dl-stats.v2-project-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 520px) {
+  .dl-stats.v2-project-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.v2-project-card {
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.v2-project-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.v2-project-card-head .dl-glyph {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: var(--ds-type-ui);
+}
+.v2-project-card-head .dl-status {
+  align-self: flex-start;
+}
+.v2-project-card-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.v2-project-card-foot {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 16px;
+}
+/* “Show 9 more” ends the Repositories group as a row of its own. */
+.v2-project-more {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--ds-accent);
+  cursor: pointer;
+}
+/* Work: the Open | Shipped switch, and New idea at the end of the same row. */
+.v2-work-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.v2-work-bar > .dl-end {
+  margin-left: auto;
+}
+/* As the board: 12px between a title and its rows, or between the line under it and its rows. */
+.v2-project-page .v2-work-section {
+  gap: 0;
+}
+.v2-project-page .v2-work-section > .dl-section-sub {
+  margin: 0 0 12px;
+}
+.v2-work-section > .dl-section-title + .dl-group {
+  margin-top: 12px;
+}
+.v2-work-idea {
+  display: inline-flex;
+  color: var(--ds-muted);
+}
+.v2-work-body {
+  margin: 0;
+  white-space: pre-wrap;
+}
+/* New idea's description: several lines in the body's own type, as the board draws it. */
+.v2-work-textarea {
+  display: block;
+  min-height: 104px;
+  padding: 10px 14px;
+  font-family: var(--ds-font);
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  resize: none;
+}
+.v2-work-empty {
+  padding: 48px 24px;
 }

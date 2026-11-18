@@ -71,14 +71,6 @@ const exceptions: Record<string, string> = {
     'Existing patch/digest implementation retained to satisfy the runtime port order guard.',
   'turn-checkpoint.ts -> server/workspace/review.ts':
     'Existing patch/digest implementation retained to satisfy the runtime port order guard.',
-  'interactive-runtime.ts -> server/workspace/node-control.ts':
-    'Existing worker pause policy; moving computer control is outside this task move.',
-  'interactive-runtime.ts -> server/workspace/node-permissions.ts':
-    'Existing worker capability policy; preserve interactive admission.',
-  'interactive.ts -> server/workspace/node-permissions.ts':
-    'Existing worker capability policy; preserve interactive admission.',
-  'interactive-runtime.ts -> server/workspace/linux-desktop.ts':
-    'Existing Linux desktop adapter; preserve computer-control execution.',
   'interactive.ts -> server/workspace/computer-role-policy.ts':
     'Existing effective worker-role checks; preserve refusals and placement.',
   'task-workspace.ts -> server/workspace/computer-role-policy.ts':
@@ -97,11 +89,17 @@ const exceptions: Record<string, string> = {
     'Existing worker projection and AgentScope type; preserve admission and placement.',
   'task-workspace.ts -> server/features/agents/coordination.ts':
     'Existing worker projection and AgentScope type; preserve admission and placement.',
+  'interactive-runtime.ts -> server/features/computers/node-control.ts':
+    'Existing worker pause policy; moving computer control is outside this task move.',
+  'interactive-runtime.ts -> server/features/computers/node-permissions.ts':
+    'Existing worker capability policy; preserve interactive admission.',
+  'interactive.ts -> server/features/computers/node-permissions.ts':
+    'Existing worker capability policy; preserve interactive admission.',
   'job-artifacts.ts -> server/features/releases/application-deployment.ts':
     'Existing deployment log redaction; preserve artifact secret filtering.',
   'job-runner.ts -> server/workspace/git-url-migration.ts':
     'Existing managed Git URL compatibility; preserve job checkout behavior.',
-  'job-runner.ts -> server/workspace/package-publish.ts':
+  'job-runner.ts -> server/features/packages/package-publish.ts':
     'Existing package-job completion; preserve publication acknowledgments.',
   'job-runner.ts -> shared/package-install.mjs':
     'Existing package install and secret-output handling shared with workers.',
@@ -123,7 +121,7 @@ const exceptions: Record<string, string> = {
     'Existing task/run service retained to satisfy the runtime port order guard.',
   'update-base.ts -> server/workspace/service.ts':
     'Existing task/run service retained to satisfy the runtime port order guard.',
-  'publish.ts -> server/workspace/pipeline-triggers.ts':
+  'publish.ts -> server/features/releases/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger; preserve publication event ordering.',
   'publish.ts -> shared/task-title.ts':
     'Existing shared task title formatting; preserve visible text.',
@@ -143,8 +141,6 @@ const exceptions: Record<string, string> = {
     'Existing run queue retained to satisfy the runtime port order guard.',
   'task-workspace.ts -> server/workspace/run-queue.ts':
     'Existing run queue retained to satisfy the runtime port order guard.',
-  'task-files.ts -> server/workspace/managed-worker.ts':
-    'Existing managed-worker root lookup; preserve task file scope.',
   'task-presentation.ts -> shared/check-label.ts':
     'Existing shared check labels; preserve visible verification text.',
   'workspace-checks.ts -> shared/check-label.ts':

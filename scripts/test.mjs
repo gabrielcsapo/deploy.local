@@ -9,7 +9,8 @@ function collectTests(directory) {
       const path = join(directory, entry.name);
       if (entry.name === 'node_modules') return [];
       if (entry.isDirectory()) return collectTests(path);
-      const test = entry.name.endsWith('.test.ts') || entry.name.endsWith('.test.mjs');
+      // .test.tsx too: component tests were written and never run, and one stayed broken for days.
+      const test = /\.test\.(ts|tsx|mjs)$/.test(entry.name);
       return entry.isFile() && test ? [path] : [];
     })
     .sort();

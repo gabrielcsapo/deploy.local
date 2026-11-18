@@ -337,6 +337,13 @@
       "when": 1794592173529,
       "tag": "0048_drop_app_replicas",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1794592173530,
+      "tag": "0049_package_kept",
+      "breakpoints": true
     }
   ]
 }

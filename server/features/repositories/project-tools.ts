@@ -72,5 +72,8 @@ export async function projectTool(scope: AgentScope, args: any) {
     args.action === 'create' ? undefined : args.action === 'comment' ? 'comments' : args.action,
     { ...args, ...(args.action === 'create' ? { taskIds: [task.id] } : {}) },
     signature,
+    args.action === 'create' && args.resource === 'issues'
+      ? { taskId: task.id, ...(task.agentId ? { agentId: task.agentId } : {}) }
+      : undefined,
   );
 }

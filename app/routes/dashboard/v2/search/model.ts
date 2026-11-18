@@ -101,9 +101,10 @@ export function nameHref(name: SearchName) {
     case 'computer':
       return '/dashboard/computers';
     case 'pull':
-      return `${projectPath(name.projectId!)}/pulls`;
+      return `${projectPath(name.projectId!)}/pulls/${projectSegment(name.id)}`;
     case 'issue':
-      return `${projectPath(name.projectId!)}/issues`;
+      // Ideas have no page of their own; they are rows in the project's Work tab.
+      return `${projectPath(name.projectId!)}/work`;
   }
 }
 

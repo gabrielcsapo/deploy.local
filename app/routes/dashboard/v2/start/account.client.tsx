@@ -229,6 +229,9 @@ function Account() {
       {message && <p role="status">{message}</p>}
       <section className="dl-section" id="ssh-keys">
         <h2 className="dl-section-title">SSH keys</h2>
+        <p className="dl-section-sub">
+          For cloning and pushing over SSH. Each project's Code menu has its SSH address.
+        </p>
         <SshKeysSettings />
       </section>
     </SettingsFrame>

@@ -272,7 +272,7 @@ test('SSH protocol verifies signatures, rejects capabilities, and serves ready o
   await new RepositoryRunner().tick();
   assert.equal(get('project', 'memory', project.id).repositoryStatus, 'ready');
   const clients: InstanceType<typeof Client>[] = [];
-  function connect(privateKey: any, username = 'git') {
+  function connect(privateKey: any, username = 'git', options: any = {}) {
     const streams: any[] = [];
     for (let i = 0; i < 2; i++)
       streams.push(
@@ -305,7 +305,7 @@ test('SSH protocol verifies signatures, rejects capabilities, and serves ready o
       client.once('ready', () => resolve(client));
       client.on('error', reject);
       transport.attach(streams[0]);
-      client.connect({ sock: streams[1], username, privateKey, readyTimeout: 3000 });
+      client.connect({ sock: streams[1], username, privateKey, readyTimeout: 3000, ...options });
     });
   }
   function exec(client: InstanceType<typeof Client>, command: string, options: any = {}) {
@@ -379,12 +379,21 @@ test('SSH protocol verifies signatures, rejects capabilities, and serves ready o
     forgedKey.getPublicSSH = () => knownKey.getPublicSSH();
     await assert.rejects(connect(forgedKey), /authentication methods failed/);
     await assert.rejects(connect(pair.private, 'root'), /authentication methods failed/);
-    await assert.rejects(
-      connect(utils.generateKeyPairSync('ed25519').private),
-      /Add this computer's SSH key/,
-    );
+    // An unknown key is refused, not fatal: the client may hold the right key next.
+    const stranger = utils.generateKeyPairSync('ed25519').private;
+    await assert.rejects(connect(stranger), /authentication methods failed/);
+    const second = await connect(undefined, 'git', {
+      authHandler: [
+        { type: 'publickey', username: 'git', key: stranger },
+        { type: 'publickey', username: 'git', key: pair.private },
+      ],
+    });
+    assert.equal((await exec(second, "git-upload-pack 'memory-repo.git'")).code, 0);
+    // A client out of keys turns to keyboard-interactive, and is told what to do.
+    const outOfKeys = { tryKeyboard: true };
+    await assert.rejects(connect(stranger, 'git', outOfKeys), /Add this computer's SSH key/);
     deleteSshKey('memory', added.id);
-    await assert.rejects(connect(pair.private), /Add this computer's SSH key/);
+    await assert.rejects(connect(pair.private, 'git', outOfKeys), /Add this computer's SSH key/);
   } finally {
     for (const client of clients) client.destroy();
     transport.close();
@@ -448,7 +457,9 @@ for (const mode of ['tcp', 'stdio'] as const)
     };
     const project = queueProject('alice', { name: `home-gym-${mode}` });
     const other = queueProject('bob', { name: `private-bob-${mode}` });
+    const fresh = queueProject('alice', { name: `existing-${mode}` });
     const runner = new RepositoryRunner();
+    await runner.tick();
     await runner.tick();
     await runner.tick();
     assert.equal(get('project', 'alice', project.id).repositoryStatus, 'ready');
@@ -500,12 +511,38 @@ for (const mode of ['tcp', 'stdio'] as const)
     const unknown = join(data, `unknown-${mode}`);
     await ok('ssh-keygen', ['-t', 'ed25519', '-N', '', '-f', unknown]);
     const unknownArgs = sshArgs.map((arg) => (arg === key ? unknown : arg));
-    const rejected = await run('ssh', [...unknownArgs, 'git@127.0.0.1', 'whoami']);
+    // Scripts (BatchMode) never try keyboard-interactive, so they get OpenSSH's own refusal.
+    const scripted = await run('ssh', [...unknownArgs, 'git@127.0.0.1', 'whoami']);
+    assert.notEqual(scripted.code, 0);
+    assert.match(scripted.stderr, /Permission denied \(publickey/);
+    // An unknown key offered first does not stop the registered one that follows it.
+    const both = await run('ssh', ['-i', unknown, ...sshArgs, 'git@127.0.0.1', 'whoami']);
+    assert.equal(both.code, 1);
+    assert.match(both.stderr, /Only git-upload-pack/);
+    const asPerson = unknownArgs.map((arg) => (arg === 'BatchMode=yes' ? 'BatchMode=no' : arg));
+    const rejected = await run('ssh', [...asPerson, 'git@127.0.0.1', 'whoami']);
     assert.notEqual(rejected.code, 0);
     assert.match(
       rejected.stderr,
       /Add this computer's SSH key in deploy\.local Settings > SSH keys/,
     );
+    // A repository someone already has goes to a new project with a plain first push.
+    const existing = join(data, `existing-${mode}`);
+    await ok('git', ['init', '--initial-branch=main', existing]);
+    await ok('git', ['config', 'user.name', 'SSH test'], existing);
+    await ok('git', ['config', 'user.email', 'ssh@example.invalid'], existing);
+    writeFileSync(join(existing, 'README.md'), 'already written\n');
+    await ok('git', ['add', '.'], existing);
+    await ok('git', ['commit', '-m', 'Existing work'], existing);
+    await ok('git', ['remote', 'add', 'origin', `${url}/existing-${mode}.git`], existing);
+    await ok('git', ['push', '-u', 'origin', 'main'], existing, env);
+    const hosted = get('project', 'alice', fresh.id).repositoryPath;
+    assert.equal(await ok('git', ['log', '--format=%s', 'main'], hosted), 'Existing work');
+    assert.equal(
+      await ok('git', ['for-each-ref', '--format=%(refname)'], hosted),
+      'refs/heads/main',
+    );
+    assert.equal(await ok('git', ['symbolic-ref', 'HEAD'], hosted), 'refs/heads/main');
     save('project', 'alice', {
       ...get('project', 'alice', project.id),
       repositoryStatus: 'preparing',

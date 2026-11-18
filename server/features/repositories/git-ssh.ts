@@ -1,7 +1,8 @@
 import { repositoryChanged } from '../../git-changes.ts';
 import { spawn } from 'node:child_process';
 import { createServer, type Socket } from 'node:net';
-import ssh2, { type Connection, type ServerChannel } from 'ssh2';
+import ssh2, { type AuthenticationType, type Connection, type ServerChannel } from 'ssh2';
+import { openFirstPush } from './first-push.ts';
 const { Server, utils } = ssh2;
 import { findRepository } from './repositories.ts';
 import { gitEnvironment } from '../../workspace/repository-git.ts';
@@ -76,6 +77,8 @@ function authenticationFailure(client: Connection, socket: Socket, message: stri
   socket.end();
 }
 
+const AUTH_METHODS: AuthenticationType[] = ['publickey', 'keyboard-interactive'];
+
 /** Transport separate from the TCP listener so protocol tests can use an in-memory socket pair. */
 export function createGitSshTransport(privateKey: Buffer) {
   const sockets = new Set<Socket>();
@@ -104,18 +107,23 @@ export function createGitSshTransport(privateKey: Buffer) {
     client.on('error', () => socket.destroy());
     client.on('close', () => clearTimeout(deadline));
     client.on('authentication', (context) => {
-      if (++attempts > 8)
+      if (++attempts > 12)
         return authenticationFailure(client, socket, 'Too many SSH authentication attempts');
-      if (context.username !== 'git' || context.method !== 'publickey')
-        return context.reject(['publickey']);
-      const found = findSshKey(sshFingerprint(context.key.data));
-      if (!found)
+      if (context.username !== 'git') return context.reject(['publickey']);
+      // OpenSSH turns to keyboard-interactive only once every key it holds has been
+      // refused. Nothing is ever asked: the request is the cue to say what to do next.
+      if (context.method === 'keyboard-interactive')
         return authenticationFailure(
           client,
           socket,
           // ASCII only: OpenSSH escapes every other byte of a disconnect message.
           "Add this computer's SSH key in deploy.local Settings > SSH keys",
         );
+      if (context.method !== 'publickey') return context.reject(AUTH_METHODS);
+      const found = findSshKey(sshFingerprint(context.key.data));
+      // Refuse an unknown key without hanging up: an agent often offers several keys,
+      // and the one deploy.local knows may come after one it does not.
+      if (!found) return context.reject(AUTH_METHODS);
       const key = utils.parseKey(found.key.publicKey);
       if (key instanceof Error || Array.isArray(key)) return context.reject(['publickey']);
       if (!context.signature) return context.accept(); // Public-key probe; not authenticated yet.
@@ -202,6 +210,10 @@ export function createGitSshTransport(privateKey: Buffer) {
           return channel.end();
         }
         const service = command!.service;
+        const firstPush =
+          service === 'receive-pack'
+            ? openFirstPush(project.repositoryPath, project.defaultBranch || 'main')
+            : null;
         const child = spawn(
           'git',
           ['-c', 'core.hooksPath=/dev/null', service, project.repositoryPath],
@@ -238,8 +250,12 @@ export function createGitSshTransport(privateKey: Buffer) {
         channel.pipe(child.stdin);
         child.stdout.pipe(channel, { end: false });
         child.stderr.pipe(channel.stderr, { end: false });
-        child.once('error', () => fail(channel, 'Git unavailable'));
+        child.once('error', () => {
+          firstPush?.();
+          fail(channel, 'Git unavailable');
+        });
         child.once('close', (code) => {
+          firstPush?.();
           if (push) repositoryChanged(project.repositoryPath);
           clearTimeout(timeout);
           socket.removeListener('close', kill);

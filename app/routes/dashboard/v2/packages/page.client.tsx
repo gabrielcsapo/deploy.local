@@ -1,4 +1,6 @@
 'use client';
+import { KeptList, KeptPackage } from './kept.client';
+import { keptPath } from './kept-model';
 import { Copies } from './copies.client';
 import { useState } from 'react';
 import { useLocation, useSearchParams } from 'react-flight-router/client';
@@ -11,7 +13,7 @@ import {
   ListTemplate,
   Setting,
 } from '@/components/ui';
-import { useData } from '../projects/data';
+import { useData, useBrowserOrigin } from '../projects/data';
 import { useCoordinatorName } from '../data/hooks';
 import './packages.css';
 const base = '/dashboard/packages';
@@ -23,6 +25,12 @@ export default function Packages() {
   const name = pathname.startsWith(base + '/npm/')
     ? decodeURIComponent(pathname.slice((base + '/npm/').length))
     : null;
+  if (pathname === keptPath) return <KeptList />;
+  if (pathname.startsWith(keptPath + '/')) {
+    const [ecosystem, ...parts] = pathname.slice(keptPath.length + 1).split('/');
+    const keptName = decodeURIComponent(parts.join('/'));
+    return <KeptPackage key={ecosystem + keptName} ecosystem={ecosystem} name={keptName} />;
+  }
   return name ? (
     <PackagePage key={name} name={name} />
   ) : (
@@ -88,7 +96,8 @@ function PackageList({ tab }: { tab: string }) {
     </ListTemplate>
   );
 }
-function Setup() {
+export function Setup() {
+  const origin = useBrowserOrigin();
   const coordinator = useCoordinatorName();
   return (
     <>
@@ -128,21 +137,30 @@ function Setup() {
           <div className="dl-inset">
             <Setting
               label="Install without signing in"
-              description={`Lets npm and pnpm trust ${coordinator}’s certificate. Any computer on your network can install.`}
+              description={`Lets npm, pnpm and Cargo trust ${coordinator}’s certificate. Any computer on your network can install.`}
             >
               <span className="dl-mono">deploy packages trust</span>
             </Setting>
             <Setting
-              label="Sign in to publish"
+              label="Sign in to publish npm packages"
               description="Opens deploy.local in your browser and gives npm and pnpm a publishing key"
             >
-              <span className="dl-mono">npm login --registry https://deploy.local/npm/</span>
+              <span className="dl-mono">npm login --registry {origin}/npm/</span>
             </Setting>
             <Setting
-              label="Publish by hand"
+              label="Publish a package by hand"
               description="From the package’s folder, for a package with no pipeline"
             >
               <span className="dl-mono">pnpm publish</span>
+            </Setting>
+            <Setting
+              label="Sign in to publish crates"
+              description="Signs you in from the terminal and saves a publishing key for Cargo"
+            >
+              <span className="dl-mono">deploy packages login</span>
+            </Setting>
+            <Setting label="Publish a crate by hand" description="From the crate’s folder">
+              <span className="dl-mono">cargo publish --registry deploy-local</span>
             </Setting>
           </div>
         </Group>
@@ -153,7 +171,7 @@ function Setup() {
           <div className="dl-inset">
             <Setting
               label="Install from deploy.local"
-              description="Writes this file. Commit it and everyone who clones the project installs from here."
+              description="Writes these two files. Commit them and everyone who clones the project installs from here."
             >
               <span className="dl-mono">deploy packages use</span>
             </Setting>
@@ -161,13 +179,13 @@ function Setup() {
         </Group>
         <pre className="dl-term">
           <span className="dl-muted"># .npmrc</span>
-          {'\nregistry=https://deploy.local/npm/'}
+          {`\nregistry=${origin}/npm/\n\n# .cargo/config.toml\n[registries.deploy-local]\nindex = "sparse+${origin}/cargo/index/"\n\n[source.crates-io]\nreplace-with = "deploy-local-crates-io"\n\n[source.deploy-local-crates-io]\nregistry = "sparse+${origin}/cargo/crates-io/"`}
         </pre>
         <p className="dl-list-note">
-          Once it’s committed, anyone who can’t reach deploy.local can’t install the project,
+          Once they’re committed, anyone who can’t reach deploy.local can’t install the project,
           including you when you’re away from {coordinator}.{' '}
-          <span className="dl-mono">deploy packages use --off</span> removes it. The file holds no
-          key.
+          <span className="dl-mono">deploy packages use --off</span> removes them. Neither file
+          holds a key.
         </p>
       </section>
     </>

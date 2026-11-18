@@ -34,6 +34,7 @@ test('every task compatibility path exposes the same module bindings', async () 
       ['workspace/job-output.ts', 'features/tasks/job-output.ts'],
       ['workspace/job-placement.ts', 'features/tasks/job-placement.ts'],
       ['workspace/job-runner.ts', 'features/tasks/job-runner.ts'],
+      ['workspace/linux-desktop.ts', 'features/tasks/linux-desktop.ts'],
       ['workspace/media-files.ts', 'features/tasks/media-files.ts'],
       ['workspace/message-search.ts', 'features/tasks/message-search.ts'],
       ['workspace/publish.ts', 'features/tasks/publish.ts'],

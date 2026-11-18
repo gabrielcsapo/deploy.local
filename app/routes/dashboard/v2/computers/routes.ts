@@ -17,6 +17,11 @@ export const computersRoutes: RouteConfig[] = [
     component: () => import('./page.js'),
   },
   {
+    id: 'v2-computers-diagnostics',
+    path: 'computers/diagnostics',
+    component: () => import('./page.js'),
+  },
+  {
     id: 'v2-computers-id',
     path: 'computers/:id',
     component: () => import('./page.js'),

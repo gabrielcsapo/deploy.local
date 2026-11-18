@@ -18,11 +18,11 @@ function imports(source: string) {
 const exceptions: Record<string, string> = {
   'git-http.ts -> server/git-changes.ts':
     'Dependency-free shared repository-change notifier; preserve its singleton.',
-  'git-http.ts -> server/workspace/pipeline-triggers.ts':
+  'git-http.ts -> server/features/releases/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
   'git-ssh.ts -> server/git-changes.ts':
     'Dependency-free shared repository-change notifier; preserve its singleton.',
-  'git-ssh.ts -> server/workspace/pipeline-triggers.ts':
+  'git-ssh.ts -> server/features/releases/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
   'git-ssh.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
@@ -32,7 +32,7 @@ const exceptions: Record<string, string> = {
     'Existing cleanup of task checkpoint refs when closing merged work.',
   'project-collaboration.ts -> server/features/tasks/follow-up.ts':
     'Existing task baseline adoption/refresh after pull merges.',
-  'project-collaboration.ts -> server/workspace/pipeline-triggers.ts':
+  'project-collaboration.ts -> server/features/releases/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
   'project-collaboration.ts -> server/features/decisions/question-lifecycle.ts':
     'Existing cancellation of task questions after collaboration closes work.',
@@ -42,6 +42,8 @@ const exceptions: Record<string, string> = {
     'Existing task creation from issues and pulls; needs a later task-command port.',
   'project-collaboration.ts -> server/features/tasks/workspace-checks.ts':
     'Existing pull check projection used for collaboration admission.',
+  'project-list.ts -> server/workspace/store.ts':
+    'Reads project and pull request records for the Projects list, as projects.ts does.',
   'project-tools.ts -> server/features/agents/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
   'project-tools.ts -> server/features/releases/pipelines.ts':
@@ -64,7 +66,7 @@ const exceptions: Record<string, string> = {
     'Existing task snapshot/base restoration during repository creation and recovery.',
   'repository-creation.ts -> server/features/agents/coordination.ts':
     'Type-only AgentScope contract; moving the contract is outside this pure move.',
-  'repository-creation.ts -> server/workspace/pipeline-triggers.ts':
+  'repository-creation.ts -> server/features/releases/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
   'repository-creation.ts -> server/workspace/store.ts':
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
@@ -72,7 +74,7 @@ const exceptions: Record<string, string> = {
     'Existing workspace schema, record adapters and bootstrap; splitting it changes behavior.',
   'repository-runner.ts -> server/features/tasks/checkpoint.ts':
     'Existing task snapshot/base restoration during repository creation and recovery.',
-  'repository-runner.ts -> server/workspace/pipeline-triggers.ts':
+  'repository-runner.ts -> server/features/releases/pipeline-triggers.ts':
     'Existing push-to-pipeline trigger/acknowledgment coupling; needs a later release port.',
   'repository-runner.ts -> server/features/tasks/scratch.ts':
     'Existing task scratch-workspace initialization during repository operations.',

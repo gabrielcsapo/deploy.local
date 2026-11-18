@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readNodeStatus } from '../../../server/workspace/node-status.ts';
+import { readNodeStatus } from '../../../server/features/computers/node-status.ts';
 import { trayModel, coordinatorHealth } from './tray-model.ts';
 import { desktopExec } from './linux-service.ts';
 const absent = { present: false, connected: false };

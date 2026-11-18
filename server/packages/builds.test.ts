@@ -459,6 +459,12 @@ test('platform filtering, owner-isolated warming, pins, cleanup races and tombst
     )
     .run();
   await cleanupCopies();
+  assert.ok(
+    await stat(objectPath('cache', file.sha256)),
+    "a version main's lockfile needs is never cleaned up, even with no pin",
+  );
+  database.prepare('DELETE FROM package_project_requirements').run();
+  await cleanupCopies();
   assert.equal(await stat(objectPath('cache', file.sha256)).catch(() => null), null);
 });
 

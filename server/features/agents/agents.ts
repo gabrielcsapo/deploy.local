@@ -18,7 +18,7 @@ import { providerConnections } from '../../workspace/provider-connections.ts';
 import { syncInbox } from '../../v2/inbox.ts';
 import { fail } from '../../kernel/errors.ts';
 
-import { mapConversationEvent } from '../../v2/events.ts';
+import { mapConversationEvent } from './conversation-events.ts';
 import {
   migrateAgent,
   validateAvatar,
@@ -465,12 +465,19 @@ export function agentConversation(owner: string, agentId: string): ConversationE
   const result: ConversationEvent[] = list('agent-message', owner)
     .filter((row) => row.agentId === agentId)
     .map((row) => row.event);
+  const jobs = new Map(list('job', owner).map((job) => [job.id, job]));
+  const workers = new Map(list('worker', owner).map((worker) => [worker.id, worker.name]));
+  const context = {
+    calls: new Map(),
+    job: (id: string) => jobs.get(id),
+    computer: (id: string) => workers.get(id),
+  };
   let cursor = 0;
   for (;;) {
     const rows = events(owner, cursor);
     for (const row of rows) {
       if (runs.has(row.runId)) {
-        const event = mapConversationEvent(row, runs.get(row.runId));
+        const event = mapConversationEvent(row, runs.get(row.runId), context);
         if (event) result.push(event);
       }
       cursor = row.cursor;
@@ -708,7 +715,7 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
                   if (agentControl(owner, agentId).paused)
                     fail('This agent is paused. Resume it before sending a message.', 409);
                   const content = text((await read())?.text, 'Message', 12000);
-                  const { sendAgentMessage } = await import('../../v2/attachments.ts');
+                  const { sendAgentMessage } = await import('./agent-chat.ts');
                   return send(await sendAgentMessage(owner, agentId, { text: content }));
                 },
               }),

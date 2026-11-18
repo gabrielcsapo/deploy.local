@@ -8,6 +8,7 @@ import type {
 
 export type TaskPull = {
   id: string;
+  projectId?: string;
   number: number;
   title: string;
   body?: string;
@@ -33,6 +34,8 @@ export type TaskPull = {
   checkCount?: number;
   checksCommit?: string;
   release?: { id: string; commit?: string; at?: string };
+  /** The merge last queued for it; its operation says whether it is running, landed or failed. */
+  mergeOperationId?: string;
   bodyEditedBy?: string;
   bodyEditedAt?: string;
   files?: PullFile[];
@@ -117,4 +120,5 @@ export type TaskDiff = {
   mergeBlock?: string | null;
   conflicts?: string[];
   fastForward?: boolean;
+  mergeBase?: string;
 };

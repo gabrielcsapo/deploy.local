@@ -21,6 +21,10 @@ export const states = [
   'conflict',
   'notes-only',
   'loading',
+  'not-landed',
+  'no-one',
+  'terminal',
+  'approved-removed',
 ] as const;
 type State = (typeof states)[number];
 const repo = resolve(import.meta.dirname, '../../..');
@@ -201,8 +205,14 @@ export function createFixture() {
     );
   function reset(next: State) {
     state = next;
-    const approved = ['approved', 'approved-person', 'building'].includes(state);
-    const person = state === 'approved-person';
+    const approved = ['approved', 'approved-person', 'building', 'approved-removed'].includes(
+      state,
+    );
+    // The owner asked for changes on Gabriel's own proposal, made from a terminal.
+    const asked = state === 'no-one' || state === 'terminal';
+    const person = state === 'approved-person' || asked;
+    // An approval that hit main's own change while landing: back to waiting, with a choice to make.
+    const conflicted = state === 'conflict' || state === 'not-landed';
     const boards: DesignReviewScreen[] =
       state === 'notes-only'
         ? []
@@ -228,7 +238,7 @@ export function createFixture() {
               lines: [],
               seen: approved || index === 0,
               changedSinceReview: false,
-              conflict: state === 'conflict' && index === 0,
+              conflict: conflicted && index === 0,
             };
           });
     const proposer = person ? { id: null, name: 'Gabriel', avatar: null } : designer;
@@ -242,23 +252,22 @@ export function createFixture() {
       summary: 'Keep the welcome gutter at every width and align the greeting and app card.',
       createdAt: at,
       counts: { screens: boards.length, changed: boards.length, new: 0, removed: 0 },
-      stale: state === 'conflict',
-      conflicts: state === 'conflict' ? ['Welcome.html'] : [],
-      resolutions:
-        state === 'conflict'
-          ? [
-              {
-                file: 'Welcome.html',
-                kind: 'same-part',
-                mainExists: true,
-                proposalExists: true,
-                mainChanged: 'Title alignment',
-                proposalChanged: 'Title alignment and greeting gap',
-                detail: 'The title changed on main too. Choose which version to keep.',
-                choice: null,
-              },
-            ]
-          : [],
+      stale: conflicted,
+      conflicts: conflicted ? ['Welcome.html'] : [],
+      resolutions: conflicted
+        ? [
+            {
+              file: 'Welcome.html',
+              kind: 'same-part',
+              mainExists: true,
+              proposalExists: true,
+              mainChanged: 'Title alignment',
+              proposalChanged: 'Title alignment and greeting gap',
+              detail: 'The title changed on main too. Choose which version to keep.',
+              choice: null,
+            },
+          ]
+        : [],
       item: {
         id,
         kind: 'other',
@@ -269,14 +278,16 @@ export function createFixture() {
         projectId: project.id,
         ...(person ? {} : { taskId: task.id }),
         createdAt: at,
-        state: approved ? 'answered' : 'waiting',
+        state: approved || asked ? 'answered' : 'waiting',
         actions: [
           { id: 'approve', label: 'Approve design', primary: true },
           { id: 'changes', label: 'Ask for changes' },
         ],
         ...(approved
           ? { answer: { actionId: 'approve', by: 'Gabriel', on: 'web' as const, at } }
-          : {}),
+          : asked
+            ? { answer: { actionId: 'changes', by: 'Gabriel', on: 'web' as const, at } }
+            : {}),
       },
       task: person ? null : title,
       proposerTaskId: person ? null : task.id,
@@ -295,6 +306,20 @@ export function createFixture() {
               ...(state === 'building'
                 ? { build: { at, taskId: task.id, name: title, started: true } }
                 : {}),
+              ...(state === 'approved-removed' ? { branch: { name: branch, removed: true } } : {}),
+            },
+          }
+        : state === 'not-landed'
+          ? { landing: { state: 'conflict' as const, at } }
+          : {}),
+      ...(asked
+        ? {
+            feedback: {
+              actionId: 'changes' as const,
+              notes: 1,
+              ...(state === 'terminal'
+                ? { delivery: 'terminal' as const, computer: 'MacBook Pro' }
+                : { delivery: 'nobody' as const }),
             },
           }
         : {}),
@@ -356,6 +381,9 @@ export function createFixture() {
         },
       });
     }
+    // The app trades its saved sign-in for a session cookie on load. Nothing is stored here.
+    if (path === '/api/auth/session' && request.method === 'POST')
+      return new Response(null, { status: 204 });
     if (!['GET', 'HEAD'].includes(request.method)) {
       if (path !== `${api}/review/seen` || request.method !== 'POST')
         return json({ error: 'Capture fixture: mutation disabled' }, 405);
@@ -471,6 +499,9 @@ export function createFixture() {
         passkeyOffered: true,
       });
     if (path === '/api/agents') return json({ agents: [designer] });
+    // The design menu lists a project's other artifacts; this project has only its App design.
+    if (path === '/api/artifacts')
+      return json({ artifacts: [], projects: [{ id: project.id, name: project.name }] });
     if (path === '/api/computers') return json({ computers: [] });
     if (path === '/api/nodes')
       return json({
@@ -486,7 +517,8 @@ export function createFixture() {
         version: 1,
         cursor: 1,
         projects: [project],
-        tasks: state === 'approved-person' ? [] : [task],
+        tasks:
+          state === 'approved-person' || state === 'no-one' || state === 'terminal' ? [] : [task],
         workers: [],
         runs: [],
         adapters: [],
@@ -650,14 +682,22 @@ async function check() {
       ))!.json()) as DesignReview;
       assert.equal(review.title, title);
       assert.equal(review.boards.length, state === 'notes-only' ? 0 : 3);
-      assert.equal(review.proposerTaskId, state === 'approved-person' ? null : task.id);
+      assert.equal(
+        review.proposerTaskId,
+        ['approved-person', 'no-one', 'terminal'].includes(state) ? null : task.id,
+      );
+      if (state === 'not-landed') assert.equal(review.landing?.state, 'conflict');
+      if (state === 'no-one') assert.equal(review.feedback?.delivery, 'nobody');
+      if (state === 'terminal') assert.equal(review.feedback?.computer, 'MacBook Pro');
+      if (state === 'approved-removed') assert.equal(review.landing?.branch?.removed, true);
       if (state.startsWith('approved') || state === 'building') {
         assert.equal(review.landing?.commit, '4f05991');
         assert.equal(Boolean(review.landing?.build), state === 'building');
         assert.ok(review.boards.every((board) => board.seen));
       } else if (state !== 'notes-only')
         assert.equal(review.boards.filter((board) => board.seen).length, 1);
-      if (state === 'conflict') assert.equal(review.resolutions![0].choice, null);
+      if (state === 'conflict' || state === 'not-landed')
+        assert.equal(review.resolutions![0].choice, null);
       if (state === 'notes-only') assert.equal(review.notes[0].id, 'gutter');
       const design = await (await call(api))!.json();
       assert.equal(design.canvas.boards['WelcomeNarrow.html'].w, 720);
@@ -735,7 +775,7 @@ async function check() {
       await vite.close();
     }
     console.log(
-      'PASS: seven states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
+      'PASS: eleven states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
     );
   } finally {
     fixture.close();

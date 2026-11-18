@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { Banner, Composer, Glyph, Icon } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
+import { CloneTabs, SshKeyHint, useCloneProtocol } from './clone.client';
+import { cloneAddresses } from './clone.ts';
 import { CopyButton } from './code.client';
 import { request, useBrowserOrigin, type Overview } from './data';
 import { projectPath } from './routing';
@@ -66,21 +68,33 @@ export function ProjectPushCode({
   addApp?: () => void;
 }) {
   const origin = useBrowserOrigin();
-  const clone = new URL(
-    overview.repository?.clonePath || `${projectPath(project.id)}.git`,
+  const { https, ssh } = cloneAddresses(
+    {
+      ...overview.repository,
+      clonePath: overview.repository?.clonePath || `${projectPath(project.id)}.git`,
+    },
+    project.id,
     origin || 'https://deploy.local',
-  ).href;
-  const commands = `git remote add deploy ${clone}\ngit push deploy ${overview.repository?.defaultBranch || 'main'}`;
+  );
+  const { shown, choose } = useCloneProtocol(ssh);
+  const clone = shown === 'ssh' && ssh ? ssh : https;
+  const commands = `git remote add origin ${clone}\ngit push -u origin ${overview.repository?.defaultBranch || 'main'}`;
   return (
     <section className="dl-section v2-project-start-push">
       <h2 className="dl-section-title">Or push code you have</h2>
       <p className="dl-section-sub">
         From the folder your code is in. Either way, {project.name} lives on deploy.local.
       </p>
+      {ssh && <CloneTabs shown={shown} choose={choose} label="Push with" />}
       <div className="v2-project-start-term">
         <pre className="dl-term wrap">{commands}</pre>
         <CopyButton value={commands} label="Copy commands" />
       </div>
+      {shown === 'ssh' && (
+        <p className="dl-meta">
+          <SshKeyHint />
+        </p>
+      )}
       {!overview.repository?.source?.location && (
         <p className="dl-meta">
           No remote. <a href={`${projectPath(project.id)}/settings`}>Add one in Settings</a> to keep

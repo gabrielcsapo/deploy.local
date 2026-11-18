@@ -880,6 +880,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/diagnostics/traffic',
+    handler: 'v2:v2/diagnostics',
+  },
+  {
+    method: 'GET',
     path: '/api/activity-events',
     handler: 'v2:v2/api',
   },
@@ -961,6 +966,36 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   {
     method: 'POST',
     path: '/api/packages/cache/warm',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'GET',
+    path: '/api/packages/cache/kept',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'POST',
+    path: '/api/packages/cache/kept/remove',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'GET',
+    path: '/api/packages/cache/entry/:ecosystem/:name*',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'POST',
+    path: '/api/packages/cache/remove/:ecosystem/:name*',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'GET',
+    path: '/api/packages/cargo/:name',
+    handler: 'v2:packages/api',
+  },
+  {
+    method: 'POST',
+    path: '/api/packages/cargo/:name/versions/:version/yank',
     handler: 'v2:packages/api',
   },
   {
@@ -1055,6 +1090,21 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
+    path: '/api/projects/:project/artifacts/:artifact/design/feedback',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/feedback/resolve',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/feedback/wait',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
     path: '/api/projects/:project/artifacts/:artifact/design/files/:commit([0-9a-f]+)/:kind(boards|ds)/:file*',
     handler: 'v2:v2/design',
   },
@@ -1130,7 +1180,17 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/review/task',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
     path: '/api/projects/:project/artifacts/:artifact/design/review/undo',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/artifacts/:artifact/design/working',
     handler: 'v2:v2/design',
   },
   {
@@ -1201,6 +1261,21 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   {
     method: 'POST',
     path: '/api/projects/:project/design/edit',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/design/feedback',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/design/feedback/resolve',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/design/feedback/wait',
     handler: 'v2:v2/design',
   },
   {
@@ -1280,7 +1355,17 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'POST',
+    path: '/api/projects/:project/design/review/task',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
     path: '/api/projects/:project/design/review/undo',
+    handler: 'v2:v2/design',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/design/working',
     handler: 'v2:v2/design',
   },
   {
@@ -1291,6 +1376,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   {
     method: 'GET',
     path: '/api/projects/:project/overview',
+    handler: 'v2:v2/settings',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/work',
     handler: 'v2:v2/settings',
   },
   {
@@ -1675,12 +1765,12 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'GET',
-    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task)',
+    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task|accept)',
     handler: 'workspace',
   },
   {
     method: 'POST',
-    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task)',
+    path: '/api/projects/:project/:kind(issues|pulls)/:item/:action(diff|update|close|reopen|comments|merge|retry-merge|task|accept)',
     handler: 'workspace',
   },
   {
@@ -1711,6 +1801,21 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   {
     method: 'POST',
     path: '/api/projects/:project/repository/:action(fetch|retry|cancel)',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/repository/archive',
+    handler: 'workspace',
+  },
+  {
+    method: 'GET',
+    path: '/api/projects/:project/repository/branches',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
+    path: '/api/projects/:project/repository/default-branch',
     handler: 'workspace',
   },
   {

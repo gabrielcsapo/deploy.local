@@ -1,4 +1,5 @@
 'use client';
+import { bytes, keptPath, many } from './kept-model';
 import { useEffect, useRef } from 'react';
 import { Banner, Group, Icon, Setting } from '@/components/ui';
 import { useData } from '../projects/data';
@@ -16,7 +17,6 @@ export function Copies() {
     return () => clearInterval(timer);
   }, []);
   const coordinator = useCoordinatorName();
-  const source = data?.sources[0];
   const problems = data?.projects.filter((p: any) => p.missing || p.removed.length) || [];
   const ready =
     data?.projects.filter((p: any) => !p.missing && !p.removed.length && p.checkedAt) || [];
@@ -26,39 +26,53 @@ export function Copies() {
       .map((p: any) => p.name)
       .join(', ') + (ready.length > 3 ? ` and ${ready.length - 3} more` : '');
   const storage = data?.storage;
-  if (!data) return error ? <Banner kind="danger" title={error} /> : null;
+  const kept = data?.kept;
+  if (!data)
+    return error ? (
+      <Banner kind="danger" title={error} />
+    ) : (
+      <p className="dl-list-note">Counting…</p>
+    );
   return (
     <>
       {error && <Banner kind="danger" title={error} />}
-      {source && !source.reachable && (
-        <Banner title="npmjs.org can’t be reached">{`Since ${formatTime(source.downSince, 'clock')}. Installs use deploy.local’s copies, and anything missing below has to wait. deploy.local tries again every minute.`}</Banner>
-      )}
+      {data.sources
+        .filter((s: any) => !s.reachable)
+        .map((s: any) => (
+          <Banner
+            key={s.name}
+            title={`${s.name} can’t be reached`}
+          >{`Since ${formatTime(s.downSince, 'clock')}. Installs use deploy.local’s copies, and anything missing below has to wait. deploy.local tries again every minute.`}</Banner>
+        ))}
       <section className="dl-section">
         <h2 className="dl-section-title">Sources</h2>
         <Group>
           <div className="dl-inset">
-            <Setting
-              label="npmjs.org"
-              description={
-                source?.reachable
-                  ? 'Checked ' +
-                    (source.checkedAt
-                      ? Math.max(1, Math.floor((now - Date.parse(source.checkedAt)) / 60000)) +
-                        ' min ago'
-                      : 'just now')
-                  : `${source?.copiesServed || 0} installs served from the copy`
-              }
-            >
-              <span className={`dl-status ${source?.reachable ? '' : 'attention'}`}>
-                <span className="dl-dot" />
-                {source?.reachable ? 'Reachable' : 'Unreachable'}
-              </span>
-            </Setting>
+            {data.sources.map((source: any) => (
+              <Setting
+                key={source.name}
+                label={source.name}
+                description={
+                  source.reachable
+                    ? 'Checked ' +
+                      (source.checkedAt
+                        ? Math.max(1, Math.floor((now - Date.parse(source.checkedAt)) / 60000)) +
+                          ' min ago'
+                        : 'just now')
+                    : `${source.copiesServed || 0} installs served from the copy`
+                }
+              >
+                <span className={`dl-status ${source.reachable ? '' : 'attention'}`}>
+                  <span className="dl-dot" />
+                  {source.reachable ? 'Reachable' : 'Unreachable'}
+                </span>
+              </Setting>
+            ))}
           </div>
         </Group>
       </section>
       <section className="dl-section">
-        <h2 className="dl-section-title">Packages kept</h2>
+        <h2 className="dl-section-title">Projects</h2>
         <Group>
           {problems.map((project: any) => (
             <a className="dl-item" href={'/dashboard/projects/' + project.id} key={project.id}>
@@ -88,7 +102,7 @@ export function Copies() {
                   {ready.length} {problems.length ? 'other ' : ''}
                   {ready.length === 1 ? 'project' : 'projects'}
                 </span>
-                <span>{names} · every locked package is kept</span>
+                <span>{names} · every locked package and crate is kept</span>
               </span>
             </div>
           )}
@@ -99,34 +113,67 @@ export function Copies() {
         </p>
       </section>
       <section className="dl-section">
-        <h2 className="dl-section-title">Storage</h2>
+        <h2 className="dl-section-title">What’s kept</h2>
         <Group>
           <div className="dl-inset">
             <Setting
-              label={`Kept on ${coordinator}`}
-              description="In deploy.local’s data folder, beside its repositories"
+              label={`On ${coordinator}`}
+              description={`npm ${bytes(storage.ecosystems.npm || 0)} · Cargo ${bytes(storage.ecosystems.cargo || 0)}`}
             >
               <span>
-                {((storage?.bytes || 0) / 1024 ** 3).toFixed(1)} GB of{' '}
-                {(storage?.limit || 20 * 1024 ** 3) / 1024 ** 3} GB
+                {bytes(storage.bytes)} of {bytes(storage.limit)}
               </span>
             </Setting>
             <Setting
-              label="Keeps"
-              description={`Anything installed in the last ${storage?.days || 90} days, and everything a live release or rollback needs`}
+              label="Needed by projects"
+              description="Locked on main or in a live release. Never removed."
             >
-              <span>{storage?.days || 90} days</span>
+              <span>{bytes(storage.pinned)}</span>
+            </Setting>
+            {kept.idle.versions ? (
+              <a className="dl-setting" href={keptPath + '?time=idle'}>
+                <span className="dl-t">
+                  <span>Not installed in 30 days</span>
+                  <span>{many(kept.idle.versions, 'version')} no project needs</span>
+                </span>
+                <span className="dl-v">
+                  {bytes(kept.idle.bytes)}
+                  <span className="dl-chev">
+                    <Icon name="chevron" size={14} />
+                  </span>
+                </span>
+              </a>
+            ) : (
+              <Setting
+                label="Not installed in 30 days"
+                description="Everything was installed in the last 30 days"
+              >
+                <span>{bytes(0)}</span>
+              </Setting>
+            )}
+            <a className="dl-setting" href={keptPath}>
+              <span className="dl-t">
+                <span>Everything kept</span>
+                <span>{many(kept.versions, 'version')}. Search, sort and filter them.</span>
+              </span>
+              <span className="dl-v">
+                {many(kept.packages, 'package')}
+                <span className="dl-chev">
+                  <Icon name="chevron" size={14} />
+                </span>
+              </span>
+            </a>
+            <Setting
+              label="Removes on its own"
+              description="Anything no project needs, once it goes unused this long"
+            >
+              <span>{storage.days} days</span>
             </Setting>
           </div>
         </Group>
         <p className="dl-list-note">
-          {storage?.pinnedOverLimit
-            ? 'Pinned files alone exceed the limit. They are kept. '
-            : storage?.pressure
-              ? 'Past 90% the oldest unpinned files go first. '
-              : ''}
-          Private packages are backed up with deploy.local. This copy is not: it can be fetched
-          again.
+          This copy isn’t backed up. Anything removed is fetched again the next time something
+          installs it.
         </p>
       </section>
     </>

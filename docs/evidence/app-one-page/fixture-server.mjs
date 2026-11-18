@@ -1,5 +1,6 @@
 // Capture-only in-memory API. Never imports the coordinator, database, Docker or mDNS.
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createServer as createVite } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -55,6 +56,72 @@ const release = (project, running = false) => ({
     detail: index === 1 ? 'GET /healthz 200' : undefined,
   })),
 });
+// The Projects list slice: PROJECTS_FIXTURE adds repositories, traffic and an archived project.
+const listFixture = process.env.PROJECTS_FIXTURE
+  ? JSON.parse(readFileSync(process.env.PROJECTS_FIXTURE, 'utf8'))
+  : { live: {}, repositories: [] };
+function projectList(params) {
+  const ago = (hours) => new Date(Date.now() - hours * 3600000).toISOString();
+  const query = (params.get('q') || '').trim().toLowerCase();
+  const show = query ? ['live', 'repositories', 'archived'] : (params.get('show') || '').split(',');
+  const limit = Number(params.get('limit')) || 6;
+  const from = Math.floor(Date.now() / 3600000) * 3600000 - 23 * 3600000;
+  const all = [
+    ...projects
+      .filter((project) => project.apps.length)
+      .map((project) => {
+        const { shape = 'flat', scale = 20, ...extra } = listFixture.live[project.name] ?? {};
+        return {
+          ...project,
+          stage: 'active',
+          traffic: {
+            from,
+            hourly: Array.from({ length: 24 }, (_, hour) =>
+              Math.round(
+                scale *
+                  (shape === 'rise'
+                    ? 0.4 + hour / 24
+                    : shape === 'drop'
+                      ? hour < 17
+                        ? 0.6 + hour / 40
+                        : 0.05
+                      : shape === 'none'
+                        ? 0
+                        : 1 + (hour % 2) * 0.15),
+              ),
+            ),
+          },
+          ...extra,
+        };
+      }),
+    ...listFixture.repositories.map(({ hoursAgo, ...project }) => ({
+      id: project.name,
+      apps: [],
+      stage: 'active',
+      changedAt: ago(hoursAgo),
+      ...project,
+    })),
+  ];
+  const group = (project) =>
+    project.stage === 'done' ? 'archived' : project.apps.length ? 'live' : 'repositories';
+  const counts = { live: 0, repositories: 0, archived: 0 };
+  for (const project of all) counts[group(project)]++;
+  const of = (name) =>
+    all.filter(
+      (project) =>
+        group(project) === name &&
+        show.includes(name) &&
+        (!query || project.name.toLowerCase().includes(query)),
+    );
+  const repositories = of('repositories');
+  return {
+    live: of('live'),
+    repositories: repositories.slice(0, limit),
+    archived: of('archived'),
+    more: Math.max(0, repositories.length - limit),
+    counts,
+  };
+}
 let outputReads = 0;
 const server = createServer();
 const vite = await createVite({
@@ -76,7 +143,108 @@ server.on('request', async (req, res) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(value));
   };
-  if (path === '/api/user') return send({ username: 'Gabriel' });
+  if (path === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
+  if (path === '/api/computers')
+    return send({
+      computers: f.live.computers.map((computer) => ({
+        ...computer,
+        doing: [],
+        workerIds: [],
+        supportedRoles: computer.roles,
+      })),
+    });
+  // The Traffic slice: one computer keeps asking two apps for their front page.
+  if (path === '/api/diagnostics/traffic' || /^\/api\/apps\/[^/]+\/requests\/summary$/.test(path)) {
+    const now = Date.now();
+    const sender = (app, requests, perMinute, routeShare, appShare) => ({
+      app,
+      address: '10.0.0.159',
+      computer: 'MacBook Pro',
+      agent: 'curl',
+      route: 'GET /',
+      requests,
+      routeShare,
+      appShare,
+      perMinute,
+      sentBytes: requests * 11696,
+      since: now - 5 * 86400000 + 3 * 3600000,
+      sinceOrEarlier: false,
+    });
+    const repeating = [
+      sender('forma', 232300, 161, 1, 0.96),
+      sender('home-gym', 174300, 121, 1, 0.81),
+    ];
+    const points = Array.from({ length: 97 }, (_, index) => ({
+      at: now - 86400000 + index * 900000,
+      perMinute: 330 + (index % 3) * 4,
+      serverErrorsPerMinute: 0,
+    }));
+    if (path !== '/api/diagnostics/traffic')
+      return send({
+        range: '24h',
+        from: now - 86400000,
+        to: now,
+        total: 242002,
+        perMinuteNow: 168,
+        serverErrors: 157,
+        serverErrorRate: 157 / 242002,
+        usualServerErrorRate: 0.0006,
+        p50: 8,
+        p95: 21,
+        p99: 40,
+        sentBytes: 2827917360,
+        receivedBytes: 0,
+        repeating: [repeating[0]],
+        series: { bucketMs: 900000, points: points.map((point) => ({ ...point, perMinute: 168 })) },
+        peak: { perMinute: 181, at: now - 7200000 },
+        releases: [],
+        firstServerError: null,
+        slowest: [{ method: 'GET', path: '/', filter: '/', count: 200000, p95: 21, noAnswer: 133 }],
+        errorPaths: [
+          {
+            method: 'GET',
+            path: '/',
+            filter: '/',
+            count: 133,
+            status: 502,
+            reason: 'no answer in 15 s',
+          },
+        ],
+      });
+    const app = (name, requests, perMinuteNow, sentBytes, address, computer, share, flagged) => ({
+      name,
+      project: name,
+      requests,
+      perMinuteNow,
+      serverErrors: 0,
+      sentBytes,
+      topSender: { address, ...(computer ? { computer } : {}), share, repeating: flagged },
+    });
+    return send({
+      range: url.searchParams.get('range') || '24h',
+      from: now - 86400000,
+      to: now,
+      requests: 486136,
+      perMinuteNow: 334,
+      serverErrors: 231,
+      sendersWindowMs: 86400000,
+      sentBytes: 22011000000,
+      receivedBytes: 325000000,
+      topSender: { address: '10.0.0.159', computer: 'MacBook Pro', share: 0.84 },
+      series: { bucketMs: 900000, points },
+      apps: [
+        app('forma', 242002, 168, 2827917360, '10.0.0.159', 'MacBook Pro', 0.96, true),
+        app('home-gym', 214860, 151, 2040000000, '10.0.0.159', 'MacBook Pro', 0.81, true),
+        app('immich', 9104, 6, 15677000000, '10.0.0.4', 'imac', 0.41, false),
+        app('Miniflux', 1440, 1, 39800000, '127.0.0.1', 'SER', 0.64, false),
+        app('groffee', 214, 0, 6291456, '10.0.0.159', 'MacBook Pro', 0.58, false),
+        app('Vaultwarden', 96, 0, 2097152, '10.0.0.23', undefined, 0.7, false),
+      ],
+      repeating,
+    });
+  }
+  if (path === '/api/projects' && url.searchParams.get('view') === 'list')
+    return send(projectList(url.searchParams));
   if (path === '/api/projects') return send({ projects });
   if (path === '/api/live') return send(f.live);
   if (path === '/api/inbox') return send({ items: [f.item] });

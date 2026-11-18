@@ -18,6 +18,7 @@ test('every updates compatibility path exposes the same module bindings', async 
       ['v2/self-release-runtime.ts', 'features/updates/self-release-runtime.ts'],
       ['v2/fleet-updates.ts', 'features/updates/fleet-updates.ts'],
       ['v2/updates.ts', 'features/updates/updates.ts'],
+      ['workspace/worker-update.ts', 'features/updates/worker-update.ts'],
     ]) {
       const oldModule = await import(pathToFileURL(join(root, 'server', oldPath)).href);
       const newModule = await import(pathToFileURL(join(root, 'server', newPath)).href);

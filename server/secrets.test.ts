@@ -253,16 +253,16 @@ describe('a missing master.key', () => {
       .sort();
     assert.deepEqual(callers, [
       'application-configuration.ts',
+      'features/agents/provider-connections.ts',
+      'features/releases/releases-journal.ts',
+      'features/releases/releases-worker.ts',
       'features/repositories/projects.ts',
       'graph-runtime-store.ts',
       'packages/keys.ts',
       'secrets.ts',
       'store/agent-jobs.ts',
-      'v2/releases-journal.ts',
-      'v2/releases-worker.ts',
       'v2/settings.ts',
       'workspace/managed-worker.ts',
-      'workspace/provider-connections.ts',
     ]);
   });
 });

@@ -423,6 +423,7 @@ export function LeftPanel({
   base,
   boardSrc,
   changed,
+  branchRemoved = false,
   inReview,
   agentAt,
   owner,
@@ -451,6 +452,8 @@ export function LeftPanel({
   /** Boards you edited, loaded from their latest commit. */
   boardSrc?: Map<string, { base: string }>;
   changed: Set<string>;
+  /** The review on screen landed and its branch was removed. */
+  branchRemoved?: boolean;
   /** Boards a waiting design review would change. */
   inReview: Set<string>;
   /** Where agents are working: board → layers (null for the board itself). */
@@ -513,6 +516,7 @@ export function LeftPanel({
           owner={owner}
           reviewing={reviewing}
           changed={changed.size}
+          branchRemoved={branchRemoved}
           onRef={onRef}
           onNewBranch={onNewBranch}
         />

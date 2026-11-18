@@ -30,14 +30,11 @@ const workspaceOrigins = new Set([
   'provider-runtime.ts',
   'provider-usage.ts',
   'shipping-instructions.ts',
+  'provider-connections.ts',
 ]);
 const exceptions: Record<string, string> = {
   'agent-context.ts -> server/computer-roles.ts':
     'Existing effective computer-role contract; preserve worker capability policy.',
-  'agent-context.ts -> server/workspace/application-deployment-instructions.ts':
-    'Existing deployment instructions; preserve provider text.',
-  'agent-context.ts -> server/workspace/worker-update.ts':
-    'Existing worker update projection; preserve update instructions.',
   'agent-foundation.ts -> croner': 'Existing schedule parser; preserve agent schedule timing.',
   'agent-foundation.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
@@ -53,28 +50,18 @@ const exceptions: Record<string, string> = {
     'Existing worker Node runtime environment; preserve child runtime selection.',
   'agent-launch.ts -> server/workspace/tls-trust.ts':
     'Existing worker TLS trust environment; preserve provider trust.',
-  'agent-launch.ts -> server/workspace/worker-entry.ts':
-    'Existing source and bundle entry lookup; preserve process paths.',
   'agent-packages.ts -> server/workspace/shell-environment.ts':
     'Existing shell environment policy; preserve executable lookup.',
   'agent-packages.ts -> shared/package-install.mjs':
     'Existing shared provider or public contract; preserve worker and client behavior.',
   'agents.ts -> server/v2/agent-runs.ts':
     'Existing product dependency retained from v2; preserve projection and evaluation order.',
-  'agents.ts -> server/v2/attachments.ts':
-    'Existing product dependency retained from v2; preserve projection and evaluation order.',
-  'agents.ts -> server/v2/events.ts':
-    'Existing product dependency retained from v2; preserve projection and evaluation order.',
-  'agents.ts -> server/workspace/provider-connections.ts':
-    'Existing encrypted provider store retained for the sorted secret-caller guard.',
   'agents.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'agents.ts -> shared/v2/agents.ts':
     'Existing shared provider or public contract; preserve worker and client behavior.',
   'agents.ts -> shared/v2/contracts.ts':
     'Existing shared provider or public contract; preserve worker and client behavior.',
-  'coordination-tools.ts -> server/workspace/application-deployment-instructions.ts':
-    'Existing deployment instructions; preserve provider text.',
   'coordination.ts -> server/computer-roles.ts':
     'Existing effective computer-role contract; preserve worker capability policy.',
   'coordination.ts -> server/metrics-collector.ts':
@@ -85,16 +72,28 @@ const exceptions: Record<string, string> = {
     'Existing effective worker-role policy; preserve admission refusals.',
   'coordination.ts -> server/workspace/computer-view.ts':
     'Existing cached computer projection; preserve worker visibility.',
-  'coordination.ts -> server/workspace/node-permissions.ts':
-    'Existing node permission policy; preserve control admission.',
-  'coordination.ts -> server/workspace/package-hooks.ts':
-    'Existing optional package hooks; preserve worker registration behavior.',
   'coordination.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'coordination.ts -> server/workspace/worker-capabilities.ts':
     'Existing worker capability validation; preserve job eligibility.',
-  'coordination.ts -> server/workspace/worker-update.ts':
-    'Existing worker update projection; preserve update instructions.',
+  'provider-connections.ts -> server/secrets.ts':
+    'Existing secret key and encryption; preserve encrypted provider credentials.',
+  'provider-connections.ts -> server/workspace/store.ts':
+    'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'agent-chat.ts -> server/content-store.ts':
+    'Split from v2/attachments: existing attachment artifact store; preserve stored bytes.',
+  'agent-chat.ts -> server/v2/agent-chat-source-port.ts':
+    'Split from v2/attachments: existing dependency-free agent chat port; preserve lazy agent loading.',
+  'agent-chat.ts -> server/workspace/store.ts':
+    'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
+  'agent-chat.ts -> shared/v2/contracts.ts':
+    'Existing shared provider or public contract; preserve worker and client behavior.',
+  'conversation-events.ts -> shared/v2/contracts.ts':
+    'Existing shared provider or public contract; preserve worker and client behavior.',
+  'work-steps.ts -> shared/v2/contracts.ts':
+    'Readable work steps use the shared WorkStep contract the clients decode.',
+  'media-event.ts -> shared/v2/contracts.ts':
+    'Existing shared provider or public contract; preserve worker and client behavior.',
 };
 
 test('agents preserve origin boundaries and allow only reviewed dependencies', () => {

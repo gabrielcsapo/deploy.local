@@ -51,6 +51,7 @@ const paths = {
   merge:
     'M8 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0M8 19a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0M6 7v10M6 7a7 7 0 0 0 10 5',
   cloud: 'M7 18a5 5 0 0 1-.6-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z',
+  deploy: 'M12 15V4M7 9l5-5 5 5M5 20h14',
   clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M12 7v5l3 2',
   image:
     'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM21 16l-5-5-9 9M11 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
@@ -58,6 +59,9 @@ const paths = {
   arrow: 'M5 12h14M13 6l6 6-6 6',
   download: 'M12 4v12M6 10l6 6 6-6M5 20h14',
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  key: 'M11 15.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM10 13l9-9M16 7l2 2M14 9l2 2',
+  server:
+    'M5 4h14a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM5 13h14a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2zM7 7.5h.01M7 16.5h.01',
   // Design canvas: tools, layers and properties.
   move: 'M5 3l14 8-6 2-2 6z',
   hand: 'M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-4a1.5 1.5 0 0 1 2.6-1.5L8 13',
@@ -104,10 +108,13 @@ export function Icon({
   name,
   size = 16,
   className = '',
+  label,
 }: {
   name: IconName;
   size?: number;
   className?: string;
+  /** Names an icon that carries meaning on its own, such as a row's state. */
+  label?: string;
 }) {
   return (
     <svg
@@ -119,7 +126,7 @@ export function Icon({
       strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
-      aria-hidden="true"
+      {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
       className={className}
     >
       {name === 'more' ? (
