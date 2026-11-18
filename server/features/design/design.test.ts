@@ -3150,3 +3150,226 @@ test('an agent lists designs, starts a named one in a project with none, and pro
 function store_get(kind: string, id: string) {
   return getRecord(kind, 'alice', id);
 }
+
+/**
+ * A repository whose sidebar is a shared part on three boards, and a branch that changes the
+ * sidebar in the library plus one board of its own. With `carry`, the branch also brings the
+ * three boards with their instances drawn again, as a branch made before landing re-synced them.
+ */
+async function sharedPartFixture(name: string, carry: boolean) {
+  const { syncInstances } = await import('../../design/board-html.ts');
+  const path = join(root, name);
+  mkdirSync(join(path, 'design/boards'), { recursive: true });
+  mkdirSync(join(path, 'design/ds/deploy-local/components'), { recursive: true });
+  const run = (args: string[]) => gitText(path, args);
+  await run(['init', '--initial-branch=main']);
+  await run(['config', 'user.name', 'Part Test']);
+  await run(['config', 'user.email', 'part@example.invalid']);
+  const libraryPath = 'design/ds/deploy-local/components/library.json';
+  const library = (label: string) => ({
+    name: 'Test system',
+    components: [
+      {
+        id: 'sidebar',
+        name: 'Sidebar',
+        props: [{ id: 'place', default: 'Home' }],
+        html: `<nav class="dl-side"><b>${label}</b> {{place}}</nav>`,
+      },
+    ],
+  });
+  const board = (text: string, place = 'Home') =>
+    `<main data-layer="page"><nav data-layer="side" data-component="sidebar" data-props="{&quot;place&quot;:&quot;${place}&quot;}">x</nav><p data-layer="body">${text}</p></main>\n`;
+  const files = ['Alpha.html', 'Beta.html', 'Gamma.html'];
+  const write = (file: string, text: string) => writeFileSync(join(path, file), text);
+  write(libraryPath, `${JSON.stringify(library('deploy.local'), null, 2)}\n`);
+  for (const file of files)
+    write(`design/boards/${file}`, syncInstances(board(file), library('deploy.local')));
+  write('design/boards/Plain.html', '<h1 data-layer="title">Plain</h1>\n');
+  write(
+    'design/canvas.json',
+    JSON.stringify({
+      boards: {
+        'Plain.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Plain' },
+        'Beta.html': { x: 1600, y: 0, w: 1440, h: 900, title: 'Beta' },
+        'Alpha.html': { x: 3200, y: 0, w: 1440, h: 900, title: 'Alpha' },
+        'Gamma.html': { x: 0, y: 2200, w: 1440, h: 900, title: 'Gamma' },
+      },
+      order: ['Plain.html', 'Beta.html', 'Alpha.html', 'Gamma.html'],
+      notes: {
+        'section-one': { x: 0, y: -100, text: 'One' },
+        'section-two': { x: 0, y: 2000, text: 'Two' },
+      },
+    }),
+  );
+  await run(['add', '.']);
+  await run(['commit', '-qm', 'Base']);
+  const project = { id: name, name, repositoryPath: path, repositoryStatus: 'ready' };
+  save('project', 'alice', project);
+  await run(['checkout', '-qb', 'design/sidebar']);
+  write(libraryPath, `${JSON.stringify(library('Projects'), null, 2)}\n`);
+  write('design/boards/Plain.html', '<h1 data-layer="title" style="font-size:22px">Plain</h1>\n');
+  if (carry)
+    for (const file of files)
+      write(`design/boards/${file}`, syncInstances(board(file), library('Projects')));
+  await run(['add', '.']);
+  await run(['commit', '-qm', 'Sidebar shows projects']);
+  await run(['checkout', '-q', 'main']);
+  const callPart = (suffix: string, body?: object) =>
+    fetch(
+      `${origin}/api/projects/${name}/design${suffix}`,
+      body
+        ? {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          }
+        : {},
+    );
+  const response = await callPart('/propose', {
+    ref: 'design/sidebar',
+    title: 'Sidebar shows projects',
+    summary: 'The sidebar lists projects, and Plain gets a bigger title.',
+  });
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const { item } = await response.json();
+  // Main changes Gamma meanwhile: its own text, and where its sidebar says it is.
+  write(
+    'design/boards/Gamma.html',
+    syncInstances(board('Gamma, edited on main', 'Gamma'), library('deploy.local')),
+  );
+  await run(['commit', '-qam', 'Main edits Gamma']);
+  const read = async () =>
+    (await callPart(`/review?item=${encodeURIComponent(item.id)}&evidence=text`)).json();
+  return { path, run, item, call: callPart, read };
+}
+
+test('a shared part is one change in review whether the branch carries its instances or not', async () => {
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
+  const lean = await sharedPartFixture('part-library-only', false);
+  const carried = await sharedPartFixture('part-carried', true);
+  const shape = (review: any) => ({
+    parts: review.parts,
+    boards: review.boards.map((board: any) => [board.file, Boolean(board.instanceOnly)]),
+    rows: review.changes.map((row: any) => [row.screens, row.changeWords ?? null]),
+    groups: review.groups,
+    counts: review.counts,
+    conflicts: review.conflicts,
+    resolutions: review.resolutions,
+  });
+  const [a, b] = [await lean.read(), await carried.read()];
+  assert.deepEqual(shape(a), shape(b));
+  assert.deepEqual(a.parts, [
+    {
+      component: 'sidebar',
+      name: 'Sidebar',
+      screens: 3,
+      // Plain, the one changed screen, has no sidebar: the first on the canvas that has one.
+      lookAt: { file: 'Beta.html', title: 'Beta' },
+      seen: false,
+    },
+  ]);
+  // Plain is its own change; Beta is there only to look at the sidebar on; Alpha and Gamma are not.
+  assert.deepEqual(shape(b).boards, [
+    ['Plain.html', false],
+    ['Beta.html', true],
+  ]);
+  assert.deepEqual(shape(b).rows, [
+    [['Plain.html'], null],
+    [['Beta.html'], 'Sidebar · 3 screens'],
+  ]);
+  assert.deepEqual(b.counts, { screens: 1, changed: 1, new: 0, removed: 0 });
+  assert.deepEqual(b.conflicts, [], 'main changing a carried board is no conflict');
+  assert.deepEqual(b.resolutions, []);
+  // The look-at screen shows the branch's sidebar, though the branch need not carry the board.
+  for (const fixture of [lean, carried]) {
+    const review = await fixture.read();
+    const shown = await (await fixture.call(`/files/${review.after}/boards/Beta.html`)).text();
+    assert.match(shown, />Projects<\/b> Home/);
+    const before = await (await fixture.call(`/files/${review.before}/boards/Beta.html`)).text();
+    assert.match(before, />deploy.local<\/b> Home/);
+  }
+  // Ticking Beta ticks the sidebar for all three screens; Plain is still to be ticked.
+  for (const fixture of [lean, carried]) {
+    const review = await fixture.read();
+    const ticked = await fixture.call('/review/seen', {
+      item: fixture.item.id,
+      board: 'Beta.html',
+      revision: review.after,
+    });
+    assert.equal(ticked.status, 200);
+    const after = await fixture.read();
+    assert.equal(after.parts[0].seen, true);
+    assert.deepEqual(
+      after.boards.map((board: any) => [board.file, board.seen]),
+      [
+        ['Plain.html', false],
+        ['Beta.html', true],
+      ],
+    );
+    // Instance-only boards are not screens of the review, so they cannot be ticked one by one.
+    assert.equal(
+      (
+        await fixture.call('/review/seen', {
+          item: fixture.item.id,
+          board: 'Alpha.html',
+          revision: review.after,
+        })
+      ).status,
+      409,
+    );
+  }
+  // Both land the same design on main: the sidebar drawn again on every board, Gamma keeping
+  // main's own edit, Plain with its new title.
+  for (const fixture of [lean, carried])
+    await answerInbox('alice', fixture.item.id, { actionId: 'approve', on: 'web' });
+  const tree = (fixture: typeof lean) => fixture.run(['ls-tree', '-r', 'main', '--', 'design']);
+  assert.equal(await tree(lean), await tree(carried));
+  const gamma = await lean.run(['show', 'main:design/boards/Gamma.html']);
+  assert.match(gamma, /Gamma, edited on main/);
+  assert.match(gamma, />Projects<\/b> Gamma/);
+  for (const file of ['Alpha.html', 'Beta.html'])
+    assert.match(await carried.run(['show', `main:design/boards/${file}`]), />Projects<\/b>/);
+  assert.match(await lean.run(['show', 'main:design/boards/Plain.html']), /font-size:22px/);
+});
+
+test('a shared part seen in one round stays seen while the component is the same', async () => {
+  const { answerInboxAsync: answerInbox } = await import('../../v2/inbox.ts');
+  const f = await sharedPartFixture('part-rounds', false);
+  const first = await f.read();
+  await f.call('/review/seen', { item: f.item.id, board: 'Beta.html', revision: first.after });
+  await answerInbox('alice', f.item.id, { actionId: 'changes', on: 'web', note: 'Bigger.' });
+  const propose = async (files: Record<string, string>) => {
+    await f.run(['checkout', '-q', 'design/sidebar']);
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(f.path, file), text);
+    await f.run(['commit', '-qam', 'Again']);
+    await f.run(['checkout', '-q', 'main']);
+    const response = await f.call('/propose', {
+      ref: 'design/sidebar',
+      title: 'Sidebar shows projects',
+      summary: 'Again.',
+    });
+    assert.equal(response.status, 201);
+    const { item } = await response.json();
+    return (await f.call(`/review?item=${encodeURIComponent(item.id)}&evidence=text`)).json();
+  };
+  // Round two changes only Plain: the sidebar is as it was, so it is still seen.
+  const second = await propose({
+    'design/boards/Plain.html': '<h1 data-layer="title" style="font-size:24px">Plain</h1>\n',
+  });
+  assert.equal(second.round, 2);
+  assert.equal(second.parts[0].seen, true);
+  assert.equal(second.boards.find((board: any) => board.file === 'Beta.html').seen, true);
+  assert.equal(
+    second.boards.find((board: any) => board.file === 'Beta.html').changedSinceReview,
+    false,
+  );
+  // Round three changes the sidebar again: it is to be looked at again.
+  await answerInbox('alice', second.id, { actionId: 'changes', on: 'web', note: 'Again.' });
+  const libraryPath = 'design/ds/deploy-local/components/library.json';
+  const library = JSON.parse(await f.run(['show', `design/sidebar:${libraryPath}`]));
+  library.components[0].html = library.components[0].html.replace('Projects', 'Your projects');
+  const third = await propose({ [libraryPath]: `${JSON.stringify(library, null, 2)}\n` });
+  assert.equal(third.round, 3);
+  assert.equal(third.parts[0].seen, false);
+  assert.equal(third.boards.find((board: any) => board.file === 'Beta.html').seen, false);
+});

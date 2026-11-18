@@ -118,9 +118,14 @@ export async function runDesign(sub, args, options, deps) {
   };
 
   /** Runs the project's own check and returns its result, or null when it has none. */
-  const check = async (top, { quiet = false } = {}) => {
+  const check = async (top, { quiet = false, drop = false } = {}) => {
     tryGit(['fetch', '--quiet', 'origin', mainName(top)], top);
-    const ran = await deps.runCheck(top, ['--base', `origin/${mainName(top)}`]);
+    const ran = await deps.runCheck(top, [
+      '--base',
+      `origin/${mainName(top)}`,
+      // Boards carried only for a shared part's instances go back to main's.
+      ...(drop ? ['--drop-instances'] : []),
+    ]);
     if (!ran) return null;
     let result;
     try {
@@ -147,9 +152,17 @@ export async function runDesign(sub, args, options, deps) {
     out(
       `${paint.bad(plural(result.problems.length, 'problem'))}. Fix ${titles.length ? titles.join(', ') : 'it'}, then:`,
     );
-    out('  deploy design check');
+    // A part's carried boards are fixed by the check itself.
+    const carried = result.problems.some((problem) => problem.file?.startsWith('part:'));
+    out(`  deploy design check${carried ? ' --drop-instances' : ''}`);
   };
   const printCheck = (result) => {
+    if (result.dropped)
+      step(
+        '✓',
+        `Restored ${plural(result.dropped, 'board')} to main`,
+        'landing draws their instances',
+      );
     step('✓', `Named ${plural(result.named, 'new element')}`, 'layer IDs kept on the rest');
     step(
       '✓',
@@ -171,7 +184,11 @@ export async function runDesign(sub, args, options, deps) {
     if (result.problems.length) fixLine(result);
     else {
       out();
-      out('No problems. Ask for review with:');
+      out(
+        result.dropped
+          ? 'No problems. Commit the restored boards, then ask for review with:'
+          : 'No problems. Ask for review with:',
+      );
       out('  deploy design propose');
     }
   };
@@ -238,7 +255,7 @@ export async function runDesign(sub, args, options, deps) {
 
     case 'check': {
       const top = root();
-      const result = await check(top);
+      const result = await check(top, { drop: Boolean(options['drop-instances']) });
       if (!result) {
         out('This project has no design check (scripts/design-check.mjs), so nothing was drawn.');
         out();

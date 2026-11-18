@@ -101,5 +101,34 @@ export function seenFrame(review: DesignReview, file: string, revision: string):
   return {
     ...review,
     boards: review.boards.map((board) => (board.file === file ? { ...board, seen: true } : board)),
+    // Ticking the screen a shared part is looked at on ticks the part.
+    ...(review.parts && {
+      parts: review.parts.map((part) =>
+        part.lookAt.file === file ? { ...part, seen: true } : part,
+      ),
+    }),
   };
+}
+
+/** What one approves in a review: each shared part once, then each screen with its own changes. */
+export type ReviewUnit = { key: string; title: string; seen: boolean };
+export function reviewUnits(review: Pick<DesignReview, 'boards' | 'groups' | 'parts'>) {
+  return [
+    ...(review.parts ?? []).map((part) => ({
+      key: `part:${part.component}`,
+      title: `${part.name} · ${screenCount(part.screens)}`,
+      seen: part.seen,
+    })),
+    ...reviewFrames(review)
+      .filter((board) => !board.instanceOnly)
+      .map((board) => ({ key: board.file, title: board.title, seen: board.seen })),
+  ] satisfies ReviewUnit[];
+}
+export const screenCount = (count: number) => `${count} screen${count === 1 ? '' : 's'}`;
+
+/** A frame's tick: its own seen, and every shared part looked at on it. */
+export function frameTicked(review: Pick<DesignReview, 'parts'>, board: DesignReviewScreen) {
+  return (
+    board.seen && (review.parts ?? []).every((part) => part.lookAt.file !== board.file || part.seen)
+  );
 }

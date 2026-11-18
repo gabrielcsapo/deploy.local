@@ -10,7 +10,7 @@ import { useAgentName, useInbox } from '../data/hooks';
 import { authenticatedFetch, request, useData } from '../projects/data';
 import { approvalRecord, buildLine, inboxItemHref, resolutionProgress } from './review-model';
 import { approveLabel } from '../../../../../shared/v2/artifacts';
-import { reviewFrames, seenFrame, type ReviewSide } from './canvas-review-model';
+import { frameTicked, reviewUnits, seenFrame, type ReviewSide } from './canvas-review-model';
 import { BuildDesign } from './BuildDesign';
 import { DesignBuildDecision } from '../inbox/DesignBuildDecision';
 
@@ -71,12 +71,8 @@ export function useCanvasReview(project: string, item: string | null) {
   }, [item, pending, load, busy]);
   const approveFrame = useCallback(
     async (file: string) => {
-      if (
-        !data ||
-        busy ||
-        data.item.state !== 'waiting' ||
-        data.boards.find((board) => board.file === file)?.seen
-      )
+      const board = data?.boards.find((entry) => entry.file === file);
+      if (!data || busy || data.item.state !== 'waiting' || (board && frameTicked(data, board)))
         return;
       version.current++;
       setBusy(true);
@@ -221,8 +217,9 @@ export function CanvasReviewBar({
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const frames = data ? reviewFrames(data) : [];
-  const unticked = frames.filter((board) => !board.seen);
+  // A shared part counts once, however many screens show it.
+  const units = data ? reviewUnits(data) : [];
+  const unticked = units.filter((unit) => !unit.seen);
   const open = data?.pins.filter((pin) => !pin.resolved) ?? [];
   const resolutions = data?.resolutions ?? [];
   const resolved = resolutionProgress(resolutions);
@@ -340,7 +337,7 @@ export function CanvasReviewBar({
               · from {data.proposer.name} ·{' '}
               {progress ?? (
                 <>
-                  {frames.filter((board) => board.seen).length} of {frames.length} approved
+                  {units.filter((unit) => unit.seen).length} of {units.length} approved
                 </>
               )}
             </span>
@@ -472,8 +469,8 @@ export function CanvasReviewBar({
           <>
             <p>These frames haven’t been approved:</p>
             <ul>
-              {unticked.map((board) => (
-                <li key={board.file}>{board.title}</li>
+              {unticked.map((unit) => (
+                <li key={unit.key}>{unit.title}</li>
               ))}
             </ul>
           </>

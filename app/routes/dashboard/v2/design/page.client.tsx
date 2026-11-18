@@ -1431,6 +1431,7 @@ function DesignCanvasPage({
                       api: review.api,
                       item: reviewId,
                       boards: reviewByFile,
+                      parts: reviewData?.parts,
                       side: review.side,
                       approve: review.approveFrame,
                       busy: review.busy,

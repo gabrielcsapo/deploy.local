@@ -3598,6 +3598,7 @@ try {
       title: { type: 'string' },
       summary: { type: 'string' },
       'look-at': { type: 'string' },
+      'drop-instances': { type: 'boolean', default: false },
     },
     strict: false,
   }));

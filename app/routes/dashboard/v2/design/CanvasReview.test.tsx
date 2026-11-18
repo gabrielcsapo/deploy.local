@@ -377,3 +377,88 @@ test('notes say who has them: a terminal, or nobody with Start a task', () => {
   assert.match(task, /Sent to Gabriel/);
   assert.doesNotMatch(task, /Start a task|nobody/);
 });
+
+test('a shared part is the first row of the change list, one unit in the bar, and ticks with its screen', () => {
+  const welcome = screen('Welcome.html', {
+    title: 'Welcome',
+    seen: true,
+    changes: [{ layer: 'title', words: 'Align' }],
+  });
+  const grouped = {
+    ...data,
+    boards: [
+      welcome,
+      screen('Narrow.html', { title: 'Welcome, narrow' }),
+      screen('Install.html', { title: 'Install an app' }),
+    ],
+    parts: [
+      {
+        component: 'sidebar',
+        name: 'Sidebar',
+        screens: 242,
+        lookAt: { file: 'Welcome.html', title: 'Welcome' },
+        seen: true,
+      },
+    ],
+  } as DesignReview;
+  assert.match(bar(grouped), /from Designer · 2 of 4 approved/);
+  assert.match(
+    bar({ ...grouped, parts: [{ ...grouped.parts![0], seen: false }] }),
+    /from Designer · 1 of 4 approved/,
+  );
+  const panel = renderToStaticMarkup(
+    <RightPanel
+      onHide={() => {}}
+      project={undefined}
+      design={undefined}
+      canvas={canvas}
+      section={null}
+      selection={null}
+      frames={{ current: frames }}
+      tokens={{ colors: [], textStyles: [] }}
+      revision={0}
+      view={props.view}
+      onZoom={() => {}}
+      changes={[]}
+      select={() => {}}
+      owner="owner"
+      tab="edit"
+      setTab={() => {}}
+      commentCount={0}
+      comments={null}
+      agent={null}
+      onAsk={() => {}}
+      propose={null}
+      agents={[]}
+      onComment={() => {}}
+      htmlHref={null}
+      connections={false}
+      onConnections={() => {}}
+      onConnection={() => {}}
+      reviewing
+      review={{
+        ...grouped,
+        // A screen shown only for the part is not a row of its own.
+        boards: [...grouped.boards, screen('Beta.html', { instanceOnly: true })],
+      }}
+      reviewSide="after"
+    />,
+  );
+  const text = panel.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
+  assert.match(
+    text,
+    /\|Sidebar\|242 screens\|One change to a shared part\. Look at it on Welcome; ticking it there ticks it for all\.\|Welcome › [^|]*\|Align\|Welcome, narrow\|Changed\|Install an app\|Changed\|/,
+  );
+  assert.doesNotMatch(text, /Beta/);
+  // The look-at screen's box shows the part: ticked only when the part is seen too.
+  const box = (parts: DesignReview['parts']) =>
+    renderToStaticMarkup(
+      <DesignCanvas
+        {...props}
+        canvas={{ boards: { 'Welcome.html': { x: 0, y: 0, w: 1440, h: 900 } } }}
+        review={{ ...frameReview, boards: new Map([[welcome.file, welcome]]), parts }}
+      />,
+    );
+  assert.match(box(grouped.parts), /aria-label="Approve Welcome" disabled="" checked=""/);
+  assert.match(box([{ ...grouped.parts![0], seen: false }]), /aria-label="Approve Welcome"\/>/);
+});

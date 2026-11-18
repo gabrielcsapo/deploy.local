@@ -688,6 +688,21 @@
 .dz-list-item:disabled {
   cursor: default;
 }
+/* A shared part: its name and screen count, then one quiet line on where to look at it. */
+.dz-list-item.dz-part {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: calc(var(--ds-space-1) / 2) var(--ds-space-2);
+  padding-block: var(--ds-space-1);
+}
+.dz-part-note {
+  grid-column: 2 / -1;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+  line-height: 1.45;
+  white-space: normal;
+}
 .dz-tokens {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

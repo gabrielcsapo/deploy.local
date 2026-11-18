@@ -1,7 +1,7 @@
 'use client';
 import type { DesignReview } from '../../../../../shared/v2/contracts';
 import { inboxItemHref } from './review-model';
-import type { ReviewSide } from './canvas-review-model';
+import { screenCount, type ReviewSide } from './canvas-review-model';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Skeleton, Action, Icon, type IconName } from '@/components/ui';
 import type { InboxItem, Project } from '../../../../../shared/v2/contracts';
@@ -2130,13 +2130,34 @@ export function RightPanel({
   } as Record<string, string>;
   // Welcome › Greeting › Title: the board, then the named layers down to the selection.
   const crumb = element ? [boardName(selection!.board), ...layerPath(element).slice(-2)] : [];
+  // A screen there only to show a shared part is the part's row, not a change of its own.
+  const ownBoards = review?.boards.filter((entry) => !entry.instanceOnly) ?? [];
+  const parts = review?.parts ?? [];
   const reviewChanges = review && tab === 'edit' && (
     <Prop
       title="Changes on this branch"
-      actions={<span className="dz-meta">{review.boards.length + review.notes.length}</span>}
+      actions={
+        <span className="dz-meta">{parts.length + ownBoards.length + review.notes.length}</span>
+      }
     >
       <div className="dz-list">
-        {review.boards.flatMap((entry) => {
+        {parts.map((part) => (
+          <button
+            key={`part:${part.component}`}
+            type="button"
+            className="dz-list-item dz-part"
+            onClick={() => select({ board: part.lookAt.file, layer: null })}
+          >
+            <span className="dz-dot" />
+            <span className="dz-t">{part.name}</span>
+            <span className="dz-meta">{screenCount(part.screens)}</span>
+            <span className="dz-part-note">
+              One change to a shared part. Look at it on {part.lookAt.title}; ticking it there ticks
+              it for all.
+            </span>
+          </button>
+        ))}
+        {ownBoards.flatMap((entry) => {
           const layers = entry.changes.length
             ? entry.changes
             : [{ layer: '', words: entry.added ? 'New' : entry.removed ? 'Removed' : 'Changed' }];

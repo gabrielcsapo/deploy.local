@@ -212,6 +212,98 @@ test('check prints each step, what changed per board and the problems, and exits
   }
 });
 
+test('check lists a shared part as one row, and --drop-instances leaves its boards to the landing', async () => {
+  const repo = repository();
+  const part = (dropped, carried) => ({
+    code: carried ? 1 : 0,
+    stdout: `${JSON.stringify({
+      named: 0,
+      drawn: 1,
+      widths: [1440, 700],
+      schemes: ['light', 'dark'],
+      seconds: 3,
+      ...(dropped === undefined ? {} : { dropped }),
+      boards: [
+        {
+          file: 'part:sidebar',
+          part: 'sidebar',
+          title: 'Sidebar',
+          status: 'part',
+          words: '242 screens',
+          problems: carried ? ['carried on 234 screens'] : [],
+        },
+        { file: 'Welcome.html', title: 'Welcome', words: 'Title · Greeting', problems: [] },
+      ],
+      problems: carried
+        ? [
+            {
+              file: 'part:sidebar',
+              label: 'Sidebar is carried on 234 screens',
+              detail: 'landing draws them; run deploy design check --drop-instances',
+              short: 'carried on 234 screens',
+            },
+          ]
+        : [],
+      pairs: 'output/design/pairs',
+    })}\n`,
+  });
+  try {
+    const asked = [];
+    const carried = terminal(repo.clone, coordinator().api, {
+      runCheck: async (_root, args) => (asked.push(args), part(undefined, true)),
+    });
+    assert.equal((await runDesign('check', [], {}, carried.deps)).exitCode, 1);
+    assert.equal(
+      carried.text(),
+      [
+        '✓ Named 0 new elements             layer IDs kept on the rest',
+        '✓ Drew 1 board beside main         1440 · 700 · light · dark   3 s',
+        '✗ Sidebar is carried on 234 screens landing draws them; run deploy design check --drop-instances',
+        '',
+        '  Board     What changed',
+        '  Sidebar   242 screens · carried on 234 screens',
+        '  Welcome   Title · Greeting',
+        '',
+        'Before and after, side by side:  output/design/pairs',
+        '',
+        '1 problem. Fix Sidebar, then:',
+        '  deploy design check --drop-instances',
+        '',
+      ].join('\n'),
+    );
+    const dropping = terminal(repo.clone, coordinator().api, {
+      runCheck: async (_root, args) => (asked.push(args), part(234, false)),
+    });
+    const result = await runDesign('check', [], { 'drop-instances': true }, dropping.deps);
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.json.dropped, 234);
+    assert.equal(
+      dropping.text(),
+      [
+        '✓ Restored 234 boards to main      landing draws their instances',
+        '✓ Named 0 new elements             layer IDs kept on the rest',
+        '✓ Drew 1 board beside main         1440 · 700 · light · dark   3 s',
+        '',
+        '  Board     What changed',
+        '  Sidebar   242 screens',
+        '  Welcome   Title · Greeting',
+        '',
+        'Before and after, side by side:  output/design/pairs',
+        '',
+        'No problems. Commit the restored boards, then ask for review with:',
+        '  deploy design propose',
+        '',
+      ].join('\n'),
+    );
+    assert.deepEqual(asked, [
+      ['--base', 'origin/main'],
+      ['--base', 'origin/main', '--drop-instances'],
+    ]);
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test('propose refuses a problem, then checks, pushes and asks, ending with the next command', async () => {
   const repo = repository();
   try {

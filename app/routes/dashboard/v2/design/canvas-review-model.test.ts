@@ -4,12 +4,14 @@ import type { DesignReview, DesignReviewScreen } from '../../../../../shared/v2/
 import type { Comment } from './Comments';
 import {
   frameSource,
+  frameTicked,
   reviewBranch,
   reviewCanvas,
   reviewFeedback,
   reviewFrames,
   reviewKey,
   reviewProject,
+  reviewUnits,
   seenFrame,
   stepFrame,
 } from './canvas-review-model';
@@ -140,4 +142,52 @@ test('feedback preserves layer comments and durable branch suggestions, excludin
   assert.match(feedback, /proposed design at proposal/);
   assert.doesNotMatch(feedback, /Unrelated|Resolved/);
   assert.equal(reviewFeedback(review, [], 'design/gutter', 'proposal'), '');
+});
+
+test('a shared part is one unit, ticked with the screen it is looked at on', () => {
+  const grouped = {
+    ...review,
+    boards: [
+      screen('Welcome.html', { title: 'Welcome', seen: true }),
+      screen('Narrow.html', { title: 'Welcome, narrow' }),
+      screen('Install.html', { title: 'Install an app' }),
+      screen('Beta.html', { title: 'Beta', instanceOnly: true }),
+    ],
+    groups: [
+      {
+        id: 'one',
+        title: 'One',
+        boards: ['Welcome.html', 'Narrow.html', 'Install.html', 'Beta.html'],
+      },
+    ],
+    parts: [
+      {
+        component: 'sidebar',
+        name: 'Sidebar',
+        screens: 242,
+        lookAt: { file: 'Welcome.html', title: 'Welcome' },
+        seen: false,
+      },
+    ],
+  } as DesignReview;
+  const units = reviewUnits(grouped);
+  // The screen shown only for a part is not a unit of its own.
+  assert.deepEqual(
+    units.map((unit) => [unit.title, unit.seen]),
+    [
+      ['Sidebar · 242 screens', false],
+      ['Welcome', true],
+      ['Welcome, narrow', false],
+      ['Install an app', false],
+    ],
+  );
+  // Welcome was seen in an earlier round, but the part on it was not: its box is not ticked.
+  assert.equal(frameTicked(grouped, grouped.boards[0]), false);
+  const ticked = seenFrame(grouped, 'Welcome.html', 'proposal');
+  assert.equal(frameTicked(ticked, ticked.boards[0]), true);
+  assert.deepEqual(
+    reviewUnits(ticked).map((unit) => unit.seen),
+    [true, true, false, false],
+  );
+  assert.equal(reviewUnits({ ...review, parts: undefined }).length, 3, 'older coordinators');
 });

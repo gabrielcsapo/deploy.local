@@ -65,6 +65,7 @@ import {
 import type {
   DesignRect,
   DesignReview,
+  DesignReviewPart,
   DesignReviewPin,
   DesignReviewPreview,
   DesignReviewScreen,
@@ -277,8 +278,22 @@ function parseLibrary(text: string | null | undefined): Library | null {
   }
 }
 
-/** Which boards hold instances of each component, at a commit. */
-async function componentUsage(repo: string, commit: string) {
+/** Which boards hold instances of each component, at a commit. A commit never changes, so its
+ * answer is kept: every review read asks it of the proposal and of main. */
+const usageCache = new Map<string, Promise<Record<string, string[]>>>();
+function componentUsage(repo: string, commit: string) {
+  if (!commitPattern.test(commit)) return readComponentUsage(repo, commit);
+  const key = `${repo}:${commit}`;
+  let usage = usageCache.get(key);
+  if (!usage) {
+    usage = readComponentUsage(repo, commit);
+    usageCache.set(key, usage);
+    if (usageCache.size > 64) usageCache.delete(usageCache.keys().next().value!);
+    usage.catch(() => usageCache.delete(key));
+  }
+  return usage;
+}
+async function readComponentUsage(repo: string, commit: string) {
   const out = await gitRead(repo, [
     'grep',
     '-o',
@@ -329,6 +344,116 @@ async function instanceWrites(repo: string, target: string, from: string, paths:
   );
   return writes.filter((write) => write !== null);
 }
+
+/** The component library at a commit, read once per commit. */
+const libraries = new Map<string, Promise<Library | null>>();
+function libraryAt(repo: string, commit: string) {
+  // A branch name moves; only a commit's answer is kept.
+  if (!commitPattern.test(commit)) return showFile(repo, commit, libraryPath).then(parseLibrary);
+  const key = `${repo}:${commit}`;
+  let library = libraries.get(key);
+  if (!library) {
+    library = showFile(repo, commit, libraryPath).then(parseLibrary);
+    libraries.set(key, library);
+    if (libraries.size > 64) libraries.delete(libraries.keys().next().value!);
+    library.catch(() => libraries.delete(key));
+  }
+  return library;
+}
+
+/**
+ * A board as it shows at a commit: its instances drawn by that commit's library. A branch that
+ * changes a component and leaves its instances to the landing still shows the change on every
+ * screen. On main, where landing keeps them in step, it is the board itself.
+ */
+async function boardAsShown(repo: string, commit: string, html: string) {
+  if (!html.includes(' data-component="')) return html;
+  const library = await libraryAt(repo, commit);
+  return library ? syncInstances(html, library) : html;
+}
+
+type SharedParts = {
+  /** Board paths the branch carries whose whole change is its instances drawn again. */
+  instanceOnly: string[];
+  /** The components the branch changed in the library, in library order. */
+  changed: { id: string; name: string; hash: string }[];
+};
+const noParts: SharedParts = { instanceOnly: [], changed: [] };
+/** Boards classified at once on a first read: enough to keep Git busy. */
+const sharedPartsWidth = 8;
+const sharedPartsCache = new Map<string, Promise<SharedParts>>();
+/**
+ * Which components a proposal changed, and which of the boards it carries changed only because
+ * their instances were drawn again from its library. Those boards are not changes of their own:
+ * landing draws every instance again from main's boards anyway. Worked out against the commit the
+ * branch started from, so the answer depends only on two commits and is kept.
+ */
+function sharedParts(
+  repo: string,
+  base: string,
+  commit: string,
+  paths: string[],
+): Promise<SharedParts> {
+  if (!paths.includes(libraryPath)) return Promise.resolve(noParts);
+  const key = JSON.stringify([repo, base, commit, designFolder()]);
+  const cached = sharedPartsCache.get(key);
+  if (cached) {
+    sharedPartsCache.delete(key);
+    sharedPartsCache.set(key, cached);
+    return cached;
+  }
+  const work = readSharedParts(repo, base, commit, paths);
+  sharedPartsCache.set(key, work);
+  if (sharedPartsCache.size > 32) sharedPartsCache.delete(sharedPartsCache.keys().next().value!);
+  work.catch(() => sharedPartsCache.delete(key));
+  return work;
+}
+async function readSharedParts(
+  repo: string,
+  base: string,
+  commit: string,
+  paths: string[],
+): Promise<SharedParts> {
+  const [was, library] = await Promise.all([
+    keptFile(repo, base, libraryPath).then(parseLibrary),
+    keptFile(repo, commit, libraryPath).then(parseLibrary),
+  ]);
+  if (!library) return noParts;
+  const changed = library.components
+    .filter(
+      (component) =>
+        JSON.stringify(component) !==
+        JSON.stringify(was?.components.find((item) => item.id === component.id)),
+    )
+    .map((component) => ({
+      id: component.id,
+      name: component.name || component.id,
+      hash: sha1(JSON.stringify(component)),
+    }));
+  if (!changed.length) return noParts;
+  const boards = paths.filter(
+    (path) => path.startsWith(`${designFolder()}/boards/`) && path.endsWith('.html'),
+  );
+  const instanceOnly: string[] = [];
+  let next = 0;
+  const worker = async () => {
+    while (next < boards.length) {
+      const path = boards[next++];
+      const [before, after] = await Promise.all([
+        keptFile(repo, base, path),
+        keptFile(repo, commit, path),
+      ]);
+      if (!before || !after || !before.includes(' data-component="')) continue;
+      if (syncInstances(before, library).trimEnd() === after.trimEnd()) instanceOnly.push(path);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(sharedPartsWidth, boards.length) }, worker));
+  return { instanceOnly: instanceOnly.sort(), changed };
+}
+
+/** The proposal's paths without the boards it carries only for their instances. */
+const ownPaths = (paths: string[], instanceOnly: string[]) =>
+  instanceOnly.length ? paths.filter((path) => !instanceOnly.includes(path)) : paths;
 
 /**
  * Files the branch changed that main also changed since the branch started, merged: canvas.json
@@ -1002,7 +1127,10 @@ async function readReviewMain(repo: string, context: any, presentation: boolean)
   ]);
   if (diff === null) fail('Main could not be checked. Try again.', 409);
   const changed = diff.split('\n');
-  const overlapping = conflictPaths(context.paths, changed);
+  // A board the branch carries only for its instances is main's board at landing, drawn again:
+  // main changing it meanwhile is never a conflict.
+  const { instanceOnly } = await sharedParts(repo, context.base, context.commit, context.paths);
+  const overlapping = conflictPaths(ownPaths(context.paths, instanceOnly), changed);
   const choiceFor = (file: string): BoardChoice | null => {
     const saved = context.choices?.[file];
     return saved?.main === main && saved?.proposal === context.commit ? saved.choice : null;
@@ -1066,6 +1194,7 @@ async function readReviewMain(repo: string, context: any, presentation: boolean)
       .filter((entry) => entry.kind === 'same-part' && !entry.choice)
       .map((entry) => entry.file),
     updated: changed.some(Boolean),
+    instanceOnly,
   };
 }
 
@@ -1193,7 +1322,10 @@ async function readReviewSummary(
     project,
     row,
     current.conflicts,
-    reviewBoardPaths(context).map((path) => [baseTree.has(path), fromTree.has(path)]),
+    ownPaths(reviewBoardPaths(context), current.instanceOnly ?? []).map((path) => [
+      baseTree.has(path),
+      fromTree.has(path),
+    ]),
     current.resolutions,
   );
 }
@@ -1400,11 +1532,119 @@ async function buildReviewScreens(
     evidence,
     screens,
     afterHashes: new Map(paths.map((path) => [path, sha1(texts.get(path)!.after)])),
-    counts: reviewBoardPaths(context).map((path) => [
-      Boolean(texts.get(path)?.original),
-      Boolean(texts.get(path)?.after),
-    ]),
+    // Boards carried only for a shared part's instances are not among the screens, nor counted.
+    counts: reviewBoardPaths(context)
+      .filter((path) => texts.has(path))
+      .map((path) => [Boolean(texts.get(path)?.original), Boolean(texts.get(path)?.after)]),
   };
+}
+
+/**
+ * The components a proposal changed, as the review shows them: each one unit to approve, with the
+ * screens landing draws it on and one screen to look at it on. That screen is the first the review
+ * already shows that has an instance, in canvas page and board order, or else the first on the
+ * canvas that has one; when it has no change of its own it joins the review's screens for the part.
+ */
+async function reviewParts(
+  repo: string,
+  context: any,
+  row: any,
+  input: {
+    status: Awaited<ReturnType<typeof reviewMain>>;
+    boards: DesignReviewScreen[];
+    canvas: Canvas | null;
+    pages: ReturnType<typeof sections>;
+    order: string[];
+    comparison: string;
+    lineage: string[];
+    seen: any[];
+    approved: boolean;
+  },
+): Promise<{ parts: DesignReviewPart[]; lookAt: DesignReviewScreen[] }> {
+  const { boards, canvas, pages, order } = input;
+  const { changed } = await sharedParts(repo, context.base, context.commit, context.paths);
+  if (!changed.length || !canvas) return { parts: [], lookAt: [] };
+  const dir = designFolder();
+  const [atCommit, atMain, previous] = await Promise.all([
+    componentUsage(repo, context.commit),
+    componentUsage(repo, input.status.main),
+    context.previousCommit ? libraryAt(repo, context.previousCommit) : null,
+  ]);
+  const rank = (file: string) => {
+    const page = pages.findIndex((entry) => entry.boards.includes(file));
+    return [page < 0 ? pages.length : page, order.indexOf(file)];
+  };
+  const parts: DesignReviewPart[] = [];
+  const lookAt = new Map<string, DesignReviewScreen>();
+  for (const component of changed) {
+    const shown = (atCommit[component.id] ?? []).filter((file) => canvas.boards[file]);
+    // Counted as landing writes them: every instance on main, and the boards this branch brings.
+    const screens = new Set([
+      ...(atMain[component.id] ?? []),
+      ...(atCommit[component.id] ?? []).filter((file) =>
+        (context.paths as string[]).includes(`${dir}/boards/${file}`),
+      ),
+    ]);
+    const file =
+      boards.find((board) => !board.removed && shown.includes(board.file))?.file ??
+      [...shown].sort((a, b) => {
+        const [pa, oa] = rank(a);
+        const [pb, ob] = rank(b);
+        return pa - pb || oa - ob;
+      })[0];
+    if (!screens.size || !file) continue;
+    const seen =
+      input.approved ||
+      input.seen.some(
+        (entry) =>
+          entry.board === `part:${component.id}` &&
+          (entry.itemId === row.id ||
+            (input.lineage.includes(entry.itemId) && entry.hash === component.hash)),
+      );
+    const placed = canvas.boards[file];
+    parts.push({
+      component: component.id,
+      name: component.name,
+      screens: screens.size,
+      lookAt: { file, title: placed.title ?? screenName(file) },
+      seen,
+    });
+    if (boards.some((board) => board.file === file)) continue;
+    const before = previous?.components.find((item) => item.id === component.id);
+    const sinceReview =
+      !context.previousCommit || !before || sha1(JSON.stringify(before)) !== component.hash;
+    const existing = lookAt.get(file);
+    if (existing) {
+      existing.seen &&= seen;
+      existing.changedSinceReview ||= sinceReview;
+      continue;
+    }
+    const page = pages.find((entry) => entry.boards.includes(file));
+    lookAt.set(file, {
+      file,
+      title: placed.title ?? screenName(file),
+      w: placed.w ?? 1440,
+      h: placed.h ?? 900,
+      widths: reviewWidths(placed.w ?? 1440),
+      page: page?.title ?? null,
+      pageId: page?.id ?? null,
+      index: page ? page.boards.indexOf(file) + 1 : null,
+      count: page?.boards.length ?? null,
+      notes: null,
+      added: false,
+      removed: false,
+      status: 'changed',
+      before: input.comparison,
+      after: context.commit,
+      changes: [],
+      lines: [],
+      seen,
+      changedSinceReview: sinceReview,
+      conflict: false,
+      instanceOnly: true,
+    });
+  }
+  return { parts, lookAt: [...lookAt.values()] };
 }
 
 export function designReview(
@@ -1453,8 +1693,21 @@ async function readDesignReview(
     order.splice(next ? order.indexOf(next) : order.length, 0, file);
   }
   const lineage = reviewLineage(owner, context);
-  const previousPaths = lineage.flatMap(
-    (id) => reviewRow(owner, project.id, id).context.paths as string[],
+  const previousContexts = lineage.map((id) => reviewRow(owner, project.id, id).context);
+  const previousPaths = previousContexts.flatMap((previous) => previous.paths as string[]);
+  // A shared part is one thing to look at, not every board that shows it: boards carried only
+  // for its instances, now or by an earlier round that no longer carries them, are left out.
+  const instanceOnly = new Set(status.instanceOnly);
+  const droppedInstances = new Set(
+    (
+      await Promise.all(
+        previousContexts.map((previous) =>
+          sharedParts(repo, previous.base, previous.commit, previous.paths),
+        ),
+      )
+    )
+      .flatMap((parts) => parts.instanceOnly)
+      .filter((path) => !(context.paths as string[]).includes(path)),
   );
   const paths = [
     ...new Set([
@@ -1464,7 +1717,10 @@ async function readDesignReview(
         .filter((entry) => boardPattern.test(entry.file))
         .map((entry) => `${dir}/boards/${entry.file}`),
     ]),
-  ].filter((path) => path.startsWith(`${dir}/boards/`));
+  ].filter(
+    (path) =>
+      path.startsWith(`${dir}/boards/`) && !instanceOnly.has(path) && !droppedInstances.has(path),
+  );
   const seen = list('design-review-seen', owner);
   const metadataOnly = !drawn || (status.resolutions.length > 0 && !fullEvidence);
   const builtKey = `${reviewScreenKey(repo, row)}:${context.commit}:${paths.join(',')}:${metadataOnly}`;
@@ -1534,11 +1790,25 @@ async function readDesignReview(
     }),
   );
   const pageOrder = [...new Set([...pages.map((p) => p.id), ...oldPages.map((p) => p.id)])];
-  boards.sort(
-    (a, b) =>
-      pageOrder.indexOf(a.pageId ?? '') - pageOrder.indexOf(b.pageId ?? '') ||
-      order.indexOf(a.file) - order.indexOf(b.file),
-  );
+  const byCanvas = (a: DesignReviewScreen, b: DesignReviewScreen) =>
+    pageOrder.indexOf(a.pageId ?? '') - pageOrder.indexOf(b.pageId ?? '') ||
+    order.indexOf(a.file) - order.indexOf(b.file);
+  boards.sort(byCanvas);
+  const { parts, lookAt } = await reviewParts(repo, context, row, {
+    status,
+    boards,
+    canvas,
+    pages,
+    order,
+    comparison,
+    lineage,
+    seen,
+    approved: item.answer?.actionId === 'approve',
+  });
+  if (lookAt.length) {
+    boards.push(...lookAt);
+    boards.sort(byCanvas);
+  }
   const groups: DesignReview['groups'] = [];
   for (const board of boards) {
     let group = groups.find((entry) => entry.id === board.pageId);
@@ -1575,11 +1845,26 @@ async function readDesignReview(
     feedback: reviewFeedback(owner, row),
     proposerTaskId: buildProposerTask(owner, row)?.id ?? null,
     boards,
+    parts,
     changes: groupReviewChanges(
-      boards.map((board) => ({
-        ...revision.evidence.find((entry) => entry.file === board.file)!,
-        seen: board.seen,
-      })),
+      boards.map((board) => {
+        const evidence = revision.evidence.find((entry) => entry.file === board.file);
+        if (evidence) return { ...evidence, seen: board.seen };
+        // A screen shown only for a shared part: one row, in the part's words.
+        const shown = parts.filter((part) => part.lookAt.file === board.file);
+        return {
+          file: board.file,
+          title: board.title,
+          status: 'changed' as const,
+          regions: [],
+          changeWords: shown
+            .map((part) => `${part.name} · ${part.screens} screen${part.screens === 1 ? '' : 's'}`)
+            .join(' · '),
+          nothingElse: false,
+          seen: board.seen,
+          changedSinceReview: board.changedSinceReview,
+        };
+      }),
       [
         project.name,
         ...list('app', owner)
@@ -1886,16 +2171,18 @@ async function decide(owner: string, repo: string, item: InboxItem, body: any, c
     return { conflicts: status.conflicts, landingAt: new Date(Date.now() + 30000).toISOString() };
   // Use exactly the commit checked above; update-ref below rejects a concurrent main move.
   const target = status.main;
+  // Boards carried only for their instances land as main's boards, drawn again below.
+  const paths = ownPaths(context.paths as string[], status.instanceOnly);
   const merged = await mergedWrites(repo, {
     base: context.base,
     target,
     from: context.commit,
-    paths: context.paths,
+    paths,
     main: context.main,
     branch: context.branch,
     resolutions: status.resolutions,
   });
-  const instances = await instanceWrites(repo, target, context.commit, context.paths);
+  const instances = await instanceWrites(repo, target, context.commit, paths);
   // Sync the resolved contents, never replace a merged board with the branch’s instance copy.
   const library = parseLibrary(
     merged.find((write) => write.path === libraryPath)?.content ??
@@ -1907,7 +2194,7 @@ async function decide(owner: string, repo: string, item: InboxItem, body: any, c
   );
   const writes = new Map([...instances, ...merged].map((write) => [write.path, write]));
   if (library)
-    for (const path of context.paths as string[]) {
+    for (const path of paths) {
       if (path.startsWith(`${dir}/boards/`) && !writes.has(path)) {
         const content = await showFile(repo, context.commit, path);
         if (content) writes.set(path, { path, content });
@@ -1921,7 +2208,7 @@ async function decide(owner: string, repo: string, item: InboxItem, body: any, c
   const commit = await copyPaths(repo, {
     target,
     from: context.commit,
-    paths: context.paths,
+    paths,
     writes: [...writes.values()],
     branch: context.main,
     message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}${body.landingId ? `\n\nDesign-Review: ${body.landingId}` : ''}`,
@@ -2851,8 +3138,20 @@ async function drawingKey(
     .filter(([path]) => path.startsWith('design/ds/') && path.endsWith('.css'))
     .map(([path, sha]) => `${path}=${sha}`)
     .sort();
+  // Instances draw from the library, so a board is drawn again when it changes.
+  const library = tree.get(libraryPath);
   return `drawing:${createHash('sha256')
-    .update(JSON.stringify([repo, blob, styles, width, height ?? placed.h, scale]))
+    .update(
+      JSON.stringify([
+        repo,
+        blob,
+        styles,
+        width,
+        height ?? placed.h,
+        scale,
+        ...(library ? [library] : []),
+      ]),
+    )
     .digest('hex')}`;
 }
 /** The canvas at a commit, read once for every drawing made at it. */
@@ -2933,7 +3232,7 @@ async function drawBoard(
   const html = await readFile(repo, commit, `${designFolder()}/boards/${board}`);
   if (!html) fail(`${designFolder()}/boards/${board} is missing at this commit`, 404);
   // Inline the design system so the page needs nothing from this server.
-  let page = html.toString();
+  let page = await boardAsShown(repo, commit, html.toString());
   for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
     const css = await designSystemFile(repo, commit, match[1]);
     page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
@@ -3606,10 +3905,16 @@ async function projectDesignApi(
           const type = fileTypes[path.split('.').pop()!];
           if (!type) fail('Not found', 404);
           // Boards are the design's own; the design system is the project's, in design/ds.
-          const bytes = path.startsWith('ds/')
+          let bytes = path.startsWith('ds/')
             ? await designSystemFile(repo, commit, path, true)
             : await readFile(repo, commit, `${dir}/${path}`, 2 * 1024 * 1024, true);
           if (!bytes) fail('Not found', 404);
+          // A board shows its instances as its commit's library draws them.
+          if (path.startsWith('boards/') && path.endsWith('.html')) {
+            const html = bytes!.toString();
+            const shown = await boardAsShown(repo, commit, html);
+            if (shown !== html) bytes = Buffer.from(shown);
+          }
           res.writeHead(200, {
             'Content-Type': type,
             'Content-Length': bytes.length,
@@ -4444,6 +4749,11 @@ async function projectDesignApi(
             body?.revision !== review.after
           )
             fail('Name screens at this proposal revision', 409);
+          // Ticking the screen a shared part is looked at on ticks the part, for every screen.
+          const parts = review.parts?.filter((part) => files.includes(part.lookAt.file)) ?? [];
+          const hashes = parts.length
+            ? await sharedParts(repo, row.context.base, row.context.commit, row.context.paths)
+            : noParts;
           db.transaction(() => {
             for (const file of new Set(files))
               save('design-review-seen', owner, {
@@ -4451,6 +4761,16 @@ async function projectDesignApi(
                 itemId: row.id,
                 board: file,
                 revision: review.after,
+                seenAt: now(),
+              });
+            for (const part of parts)
+              save('design-review-seen', owner, {
+                id: `${row.id}:part:${part.component}`,
+                itemId: row.id,
+                board: `part:${part.component}`,
+                revision: review.after,
+                // A later round keeps it seen while the component is the same.
+                hash: hashes.changed.find((entry) => entry.id === part.component)?.hash ?? null,
                 seenAt: now(),
               });
           }).immediate();

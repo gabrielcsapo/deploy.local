@@ -16,6 +16,7 @@ const states = [
   'no-one',
   'terminal',
   'approved-removed',
+  'grouped',
 ];
 const width = Number(rawWidth);
 const port = Number(process.env.PORT ?? 5190);
@@ -87,6 +88,13 @@ try {
         await page.getByRole('checkbox', { name: 'Approve Welcome', exact: true }).isChecked(),
         true,
       );
+    }
+    if (state === 'grouped') {
+      // The shared part is one unit: Welcome's tick counts for Welcome and for the Sidebar.
+      await bar.getByText(/2 of 4 approved/).waitFor();
+      await page
+        .getByRole('button', { name: /^Sidebar 242 screens One change to a shared part\./ })
+        .waitFor();
     }
     if (state === 'review') {
       await bar.getByText(/1 of 3 approved/).waitFor();

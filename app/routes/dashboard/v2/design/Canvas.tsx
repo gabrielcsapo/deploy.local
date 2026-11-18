@@ -1,9 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Icon } from '@/components/ui';
-import type { DesignReviewScreen } from '../../../../../shared/v2/contracts';
+import type { DesignReviewPart, DesignReviewScreen } from '../../../../../shared/v2/contracts';
 import { ReviewAreas } from './CanvasReview';
-import { frameSource, type ReviewSide } from './canvas-review-model';
+import { frameSource, frameTicked, type ReviewSide } from './canvas-review-model';
 import {
   boardName,
   changeLabel,
@@ -117,6 +117,8 @@ export function DesignCanvas({
     api: string;
     item: string;
     boards: Map<string, DesignReviewScreen>;
+    /** Shared parts the branch changed; ticking a part's look-at screen ticks the part. */
+    parts?: DesignReviewPart[];
     side: ReviewSide;
     approve: (file: string) => void;
     busy: boolean;
@@ -631,6 +633,7 @@ export function DesignCanvas({
               ? `${review.api}/files/${reviewRevision}`
               : (boardSrc?.get(file)?.base ?? base);
           const absent = changed && reviewRevision === null;
+          const ticked = changed && review ? frameTicked(review, changed) : false;
 
           return (
             <div
@@ -648,8 +651,8 @@ export function DesignCanvas({
                     type="checkbox"
                     className="dl-check"
                     aria-label={`Approve ${changed.title}`}
-                    checked={changed.seen}
-                    disabled={changed.seen || review.busy || !review.waiting}
+                    checked={ticked}
+                    disabled={ticked || review.busy || !review.waiting}
                     onChange={() => {
                       select({ board: file, layer: null });
                       review.approve(file);

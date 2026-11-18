@@ -532,6 +532,25 @@ export type DesignReviewScreen = {
   conflict: boolean;
   /** Present with GET review?previews=all; otherwise load /review/preview per viewport. */
   previews?: Record<number, DesignReviewPreview>;
+  /**
+   * On the review only as the screen to look at a shared part on (`DesignReview.parts`): it has
+   * no change of its own, and its seen is the part's.
+   */
+  instanceOnly?: boolean;
+};
+/**
+ * A design-system component the branch changed. Landing re-renders every instance of it, so it is
+ * one thing to approve however many screens show it.
+ */
+export type DesignReviewPart = {
+  /** The component's ID in the design system's library. */
+  component: string;
+  name: string;
+  /** How many screens show it: the screens landing re-renders. */
+  screens: number;
+  /** The screen to look at it on; ticking that screen ticks the part. */
+  lookAt: { file: string; title: string };
+  seen: boolean;
 };
 export type DesignReviewRow = {
   changeWords?: string;
@@ -607,6 +626,8 @@ export type DesignReview = DesignReviewSummary & {
     taskId?: string;
   } | null;
   boards: DesignReviewScreen[];
+  /** Shared parts the branch changed, each one unit to approve. Absent from older coordinators. */
+  parts?: DesignReviewPart[];
   groups: { id: string | null; title: string | null; boards: string[] }[];
   notes: (import('./design').NoteChange & { page: string | null })[];
   pins: DesignReviewPin[];

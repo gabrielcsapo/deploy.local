@@ -25,6 +25,7 @@ export const states = [
   'no-one',
   'terminal',
   'approved-removed',
+  'grouped',
 ] as const;
 type State = (typeof states)[number];
 const repo = resolve(import.meta.dirname, '../../..');
@@ -242,7 +243,21 @@ export function createFixture() {
             };
           });
     const proposer = person ? { id: null, name: 'Gabriel', avatar: null } : designer;
+    // The branch also changed the sidebar, a shared part on 242 screens, looked at on Welcome.
+    const parts =
+      state === 'grouped'
+        ? [
+            {
+              component: 'sidebar',
+              name: 'Sidebar',
+              screens: 242,
+              lookAt: { file: 'Welcome.html', title: 'Welcome' },
+              seen: true,
+            },
+          ]
+        : undefined;
     review = {
+      ...(parts ? { parts } : {}),
       id,
       title,
       projectId: project.id,
@@ -404,6 +419,8 @@ export function createFixture() {
       const board = review.boards.find((entry) => entry.file === body.board);
       if (!board) return json({ error: 'Unknown changed frame' }, 404);
       board.seen = true;
+      // Ticking the screen a shared part is looked at on ticks the part.
+      for (const part of review.parts ?? []) if (part.lookAt.file === board.file) part.seen = true;
       save();
       return json({ ok: true });
     }
@@ -699,6 +716,10 @@ async function check() {
       if (state === 'conflict' || state === 'not-landed')
         assert.equal(review.resolutions![0].choice, null);
       if (state === 'notes-only') assert.equal(review.notes[0].id, 'gutter');
+      assert.deepEqual(
+        review.parts?.map((part) => [part.name, part.screens, part.lookAt.file, part.seen]),
+        state === 'grouped' ? [['Sidebar', 242, 'Welcome.html', true]] : undefined,
+      );
       const design = await (await call(api))!.json();
       assert.equal(design.canvas.boards['WelcomeNarrow.html'].w, 720);
       assert.equal(sections(design.canvas).length, 5);
@@ -775,7 +796,7 @@ async function check() {
       await vite.close();
     }
     console.log(
-      'PASS: eleven states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
+      'PASS: twelve states, real route redirects, assets, cached areas, frame ticks/reset, loading cancellation, mutation guards and Vite entry/components. No browser or sockets opened.',
     );
   } finally {
     fixture.close();
