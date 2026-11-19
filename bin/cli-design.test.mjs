@@ -1,16 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { designSlug, projectFromRemote, runDesign, titleFromBranch } from './cli-design.mjs';
+import {
+  DESIGN_HELP,
+  DESIGN_README,
+  designSlug,
+  projectFromRemote,
+  runDesign,
+  titleFromBranch,
+} from './cli-design.mjs';
 
 const git = (args, cwd) =>
   execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd();
 
 /** An origin with main, and a clone of it named deploy.local, both in a fresh folder. */
-function repository() {
+function repository({ design = true } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-')));
   const origin = join(root, 'origin.git');
   git(['init', '--bare', '--initial-branch=main', origin], root);
@@ -18,8 +33,17 @@ function repository() {
   git(['init', '--initial-branch=main', seed], root);
   git(['config', 'user.name', 'Test'], seed);
   git(['config', 'user.email', 'test@example.invalid'], seed);
-  mkdirSync(join(seed, 'design/boards'), { recursive: true });
-  writeFileSync(join(seed, 'design/boards/Sidebar.html'), '<p data-layer="name">Name</p>');
+  if (design) {
+    mkdirSync(join(seed, 'design/boards'), { recursive: true });
+    writeFileSync(join(seed, 'design/boards/Sidebar.html'), '<p data-layer="name">Name</p>');
+    writeFileSync(
+      join(seed, 'design/canvas.json'),
+      JSON.stringify({
+        title: 'Site',
+        boards: { 'Sidebar.html': { x: 0, y: 0, w: 1440, h: 900 } },
+      }),
+    );
+  } else writeFileSync(join(seed, 'README.md'), '# catan\n');
   git(['add', '.'], seed);
   git(['commit', '-qm', 'Design'], seed);
   git(['remote', 'add', 'origin', origin], seed);
@@ -182,6 +206,7 @@ test('start makes the branch from main in a folder of its own and says who has i
     assert.equal(
       run.text(),
       [
+        '✓ Project                          site',
         `✓ Fetched main                     ${commit} · just now`,
         '✓ Branch                           design/sidebar-by-project',
         '✓ Folder                           ../deploy.local-sidebar-by-project',
@@ -189,9 +214,9 @@ test('start makes the branch from main in a folder of its own and says who has i
         'Sidebar by project is yours on MacBook Pro.',
         'It shows on the Design page as being worked on.',
         '',
-        'Edit the boards in design/boards, then:',
+        'Edit the boards in design/boards. To see them as you save:',
         '  cd ../deploy.local-sidebar-by-project',
-        '  deploy design check',
+        '  deploy design dev',
         '',
       ].join('\n'),
     );
@@ -227,6 +252,91 @@ test('start makes the branch from main in a folder of its own and says who has i
   } finally {
     repo.cleanup();
   }
+});
+
+test('start in a project with no design writes its first one, and says when main here is ahead', async () => {
+  const repo = repository({ design: false });
+  try {
+    // Two commits on main here that origin does not have.
+    for (const text of ['one', 'two']) {
+      writeFileSync(join(repo.clone, 'notes.txt'), text);
+      git(['add', '.'], repo.clone);
+      git(['commit', '-qm', text], repo.clone);
+    }
+    const server = coordinator([
+      { branch: 'design/harbor-trade', owner: 'Gabriel', project: 'catan', review: null },
+    ]);
+    const run = terminal(repo.clone, server.api);
+    const result = await runDesign('start', ['Harbor trade'], { project: 'p1' }, run.deps);
+    assert.equal(result.exitCode, 0);
+    const commit = git(['rev-parse', '--short=7', 'origin/main'], repo.clone);
+    assert.equal(
+      run.text(),
+      [
+        '✓ Project                          catan',
+        `✓ Fetched main                     ${commit} · just now`,
+        '! main here is 2 commits ahead     origin does not have them yet',
+        '✓ Branch                           design/harbor-trade',
+        '✓ Folder                           ../deploy.local-harbor-trade',
+        '✓ First design                     canvas.json · boards/Board.html · README.md',
+        '',
+        'Harbor trade is yours on MacBook Pro.',
+        'It shows on the Design page as being worked on.',
+        '',
+        'To draw from your newer main:',
+        '  git push origin main',
+        '  git -C ../deploy.local-harbor-trade merge origin/main',
+        '',
+        'This project had no design. How one is written:',
+        '  design/README.md',
+        '',
+        'Edit the boards in design/boards. To see them as you save:',
+        '  cd ../deploy.local-harbor-trade',
+        '  deploy design dev',
+        '',
+      ].join('\n'),
+    );
+    const folder = join(repo.root, 'deploy.local-harbor-trade');
+    // The branch starts from origin's main, not the newer main here.
+    assert.equal(git(['rev-parse', 'HEAD'], folder), git(['rev-parse', 'origin/main'], folder));
+    const canvas = JSON.parse(readFileSync(join(folder, 'design/canvas.json'), 'utf8'));
+    assert.deepEqual(canvas, {
+      title: 'catan',
+      boards: { 'Board.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Board' } },
+      order: ['Board.html'],
+      notes: {},
+    });
+    assert.equal(readFileSync(join(folder, 'design/README.md'), 'utf8'), DESIGN_README);
+    const board = readFileSync(join(folder, 'design/boards/Board.html'), 'utf8');
+    assert.match(board, /<meta name="design-board" content="width=1440,height=900">/);
+    assert.match(board, /data-layer="title"/);
+    assert.doesNotMatch(board, /<script|<img/);
+    assert.deepEqual(result.json.firstDesign, ['canvas.json', 'boards/Board.html', 'README.md']);
+    assert.equal(result.json.main.ahead, 2);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('the README start writes says how a canvas and a board are written, as the board shows', () => {
+  assert.equal(
+    DESIGN_README.split('\n').slice(0, 9).join('\n'),
+    [
+      '# Design',
+      '',
+      "This folder is the app's design: one board per screen, reviewed",
+      "on deploy.local's Design page before anything is built.",
+      '',
+      '## canvas.json',
+      '{ "title", "boards": { "<Name>.html": { "x", "y", "w", "h", "title" } },',
+      '  "order": ["<Name>.html"], "notes": { "<id>": { "x", "y", "text" } } }',
+      'Web boards are 1440 wide and are checked at 700 too. Phone boards',
+    ].join('\n'),
+  );
+  assert.match(DESIGN_HELP, /^deploy design — change what people see, and get it approved first\n/);
+  assert.match(DESIGN_HELP, /\n {2}dev {22}Open the Design page on this folder, as you save\n/);
+  assert.match(DESIGN_HELP, /\n {2}capture <url> <Board> {4}Put the running app on a board\n/);
+  assert.doesNotMatch(DESIGN_HELP, /guide/);
 });
 
 test('check prints each step, what changed per board and the problems, and exits 1 on one', async () => {
@@ -660,4 +770,21 @@ test('--json prints nothing but the result; colour only for a terminal that want
   } finally {
     repo.cleanup();
   }
+});
+
+test('deploy design --help, -h and deploy help design print the design help; --json wraps it', () => {
+  const deploy = (args) =>
+    execFileSync(process.execPath, [join(import.meta.dirname, 'deploy.js'), ...args], {
+      cwd: tmpdir(),
+      encoding: 'utf8',
+      env: { ...process.env, HOME: tmpdir() },
+    });
+  for (const args of [
+    ['design', '--help'],
+    ['design', '-h'],
+    ['help', 'design'],
+  ])
+    assert.equal(deploy(args), `${DESIGN_HELP}\n`);
+  assert.deepEqual(JSON.parse(deploy(['help', 'design', '--json'])), { help: DESIGN_HELP });
+  assert.match(deploy(['--help']), /^deploy — ship and run apps/);
 });

@@ -3527,7 +3527,9 @@ function branchReviewRow(owner: string, projectId: string, branch: string) {
 export async function readBranchFeedback(owner: string, project: any, branch: string) {
   if (!validRef(branch)) fail('Name a branch');
   const row = branchReviewRow(owner, project.id, branch);
-  if (!row) return { branch, owner, review: null };
+  // The project's own name, for a terminal that named it by ID or by its origin.
+  const named = { branch, owner, project: String(project.name ?? project.id) };
+  if (!row) return { ...named, review: null };
   return inDesignFolder(row.context.folder, async () => {
     const { context, item } = row;
     const repo = project.repositoryPath as string;
@@ -3556,8 +3558,7 @@ export async function readBranchFeedback(owner: string, project: any, branch: st
     }
     const landing = reviewLanding(owner, row.id);
     return {
-      branch,
-      owner,
+      ...named,
       review: {
         id: row.id,
         title: item.title,

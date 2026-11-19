@@ -126,7 +126,10 @@ test('a terminal names the project by its repository name, as its SSH origin doe
   for (const project of ['0d9f3c5e-catan', 'catan', 'Catan']) {
     const response = await read(project);
     assert.equal(response.status, 200, project);
-    assert.equal((await response.json()).review, null);
+    const feedback = await response.json();
+    assert.equal(feedback.review, null);
+    // The terminal says the project by its own name, however it was named.
+    assert.equal(feedback.project, 'Catan');
   }
   assert.equal((await read('nothing-here')).status, 404);
   assert.equal((await read('catan', 'mallory')).status, 404);

@@ -87,7 +87,7 @@ export function pollLogin(post, deviceCode) {
   return post('/api/auth/cli/poll', body);
 }
 
-/** @typedef {{ branch: string, owner: string, review: null | Record<string, any> }} DesignFeedback */
+/** @typedef {{ branch: string, owner: string, project?: string, review: null | Record<string, any> }} DesignFeedback */
 /** @param {API} api @param {string} design @param {{branch: string, computer: string}} body */
 export function designWorking(api, design, body) {
   return api(`${design}/working`, { method: 'POST', body: JSON.stringify(body) });

@@ -1,12 +1,119 @@
 // deploy design start | check | propose | feedback | resolve: a design change from a terminal.
 // The caller supplies the transport, Git and the terminal (see `deps` below), so the contract
 // tests drive every command without a server, a repository or a terminal.
-import { basename, dirname, relative, resolve } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import * as contracts from './cli-contracts.mjs';
 import { cliError } from './cli-v2.mjs';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const LABEL = 33;
+
+/** `deploy design --help`, `deploy design -h` and `deploy help design`. */
+export const DESIGN_HELP = `deploy design — change what people see, and get it approved first
+
+Usage  deploy design <command> [flags]
+
+  start "<title>"          Start a design change on a branch from main
+  propose                  Check it, push it and ask for review
+  feedback                 Read the answer and the notes
+  resolve <n> "<reply>"    Answer a note when it is done
+
+While you draw
+  dev                      Open the Design page on this folder, as you save
+  check                    Draw what you changed beside main, once
+  capture <url> <Board>    Put the running app on a board
+
+Flags
+  --project <name>         The project, when origin is elsewhere
+  --wait                   feedback: stay until there is an answer
+  --title, --summary, --look-at
+                           propose: answer its questions up front
+  --drop-instances         check: put carried boards back as on main
+  --json                   Print the result as JSON
+
+How a canvas and a board are written:  design/README.md`;
+
+/** The README start writes into a project that had no design: how a canvas and a board are written. */
+export const DESIGN_README = `# Design
+
+This folder is the app's design: one board per screen, reviewed
+on deploy.local's Design page before anything is built.
+
+## canvas.json
+{ "title", "boards": { "<Name>.html": { "x", "y", "w", "h", "title" } },
+  "order": ["<Name>.html"], "notes": { "<id>": { "x", "y", "text" } } }
+Web boards are 1440 wide and are checked at 700 too. Phone boards
+are 390. Place boards apart on the canvas.
+
+## boards/<Name>.html
+One standalone page per board, sized by
+<meta name="design-board" content="width=1440,height=900">
+No scripts and no remote images. Pictures sit beside the boards,
+in boards/captures: deploy design capture puts the running app there.
+Every element someone might point at carries a data-layer ID,
+unique in its board. deploy design check adds them. Keep them.
+
+## Style
+The board's own <style>, or design/ds if this project has one.
+
+## Changing the design
+deploy design start "<title>", then deploy design dev to see
+the boards on the Design page as you save. deploy design propose
+asks for review, and deploy design feedback --wait hears back.
+`;
+
+/** A project's first board: a standalone page, styled by its own <style>. */
+export function firstBoard(title = 'Board', width = 1440, height = 900) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=${width},height=${height}">
+<title>${title}</title>
+<style>
+body{margin:0;min-height:100vh;background:#fff;color:#18181b;font-family:system-ui,sans-serif}
+main{box-sizing:border-box;padding:64px}
+h1{margin:0;font-size:32px;line-height:40px}
+</style>
+</head>
+<body>
+<main data-layer="page"><h1 data-layer="title">${title}</h1></main>
+</body>
+</html>
+`;
+}
+
+/**
+ * Writes a first canvas, board and README into a folder whose design/ has no canvas yet, keeping
+ * whatever is there. Returns the paths written, relative to design/.
+ */
+export function writeFirstDesign(folder, title) {
+  const design = join(folder, 'design');
+  mkdirSync(join(design, 'boards'), { recursive: true });
+  const written = [];
+  const put = (path, text) => {
+    if (existsSync(join(design, path))) return;
+    writeFileSync(join(design, path), text);
+    written.push(path);
+  };
+  put(
+    'canvas.json',
+    `${JSON.stringify(
+      {
+        title,
+        boards: { 'Board.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Board' } },
+        order: ['Board.html'],
+        notes: {},
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  put('boards/Board.html', firstBoard());
+  put('README.md', DESIGN_README);
+  return written;
+}
 
 /** The same name the server gives a design branch: lowercase words joined by hyphens. */
 export function designSlug(title) {
@@ -230,8 +337,9 @@ export async function runDesign(sub, args, options, deps) {
       const top = root();
       const id = project(top);
       // Ask the coordinator about the project before anything is made here.
+      let known;
       try {
-        await contracts.designFeedback(api(deps), designApi(id), `design/${slug}`);
+        known = await contracts.designFeedback(api(deps), designApi(id), `design/${slug}`);
       } catch (error) {
         if (error?.status !== 404) throw error;
         throw cliError(
@@ -240,6 +348,8 @@ export async function runDesign(sub, args, options, deps) {
           1,
         );
       }
+      const projectName = known?.project ?? id;
+      step('✓', 'Project', projectName);
       const main = mainName(top);
       if (tryGit(['fetch', '--quiet', 'origin', main], top) === null)
         throw cliError(`Could not fetch ${main} from origin.`, 'git fetch origin');
@@ -261,12 +371,28 @@ export async function runDesign(sub, args, options, deps) {
         `Fetched ${main}`,
         `${commit.slice(0, 7)} · ${age === 'just now' ? age : `${age} old`}`,
       );
+      // Commits on main here that origin lacks are not in the new branch until they are pushed.
+      const ahead = Number(
+        tryGit(['rev-list', '--count', `origin/${main}..refs/heads/${main}`], top) ?? 0,
+      );
+      if (ahead > 0)
+        step(
+          '!',
+          `${main} here is ${plural(ahead, 'commit')} ahead`,
+          'origin does not have them yet',
+        );
       git(
         ['worktree', 'add', '--quiet', '--no-track', '-b', branch, folder, `origin/${main}`],
         top,
       );
       step('✓', 'Branch', branch);
       step('✓', 'Folder', shown);
+      // A project with no design gets its first canvas, a board and a README saying how they are written.
+      const first =
+        tryGit(['cat-file', '-e', `origin/${main}:design/canvas.json`], top) === null
+          ? writeFirstDesign(folder, projectName)
+          : [];
+      if (first.length) step('✓', 'First design', first.join(' · '));
       let working;
       try {
         working = await contracts.designWorking(api(deps), designApi(id), {
@@ -282,17 +408,29 @@ export async function runDesign(sub, args, options, deps) {
       out();
       out(`${paint.bold(title)} is yours on ${deps.computer}.`);
       out('It shows on the Design page as being worked on.');
+      if (ahead > 0) {
+        out();
+        out(`To draw from your newer ${main}:`);
+        out(paint.dim(`  git push origin ${main}`));
+        out(paint.dim(`  git -C ${shown} merge origin/${main}`));
+      }
+      if (first.length) {
+        out();
+        out('This project had no design. How one is written:');
+        out(paint.dim('  design/README.md'));
+      }
       out();
-      out(`Edit the boards in ${paint.bold('design/boards')}, then:`);
-      out(`  cd ${shown}`);
-      out('  deploy design check');
+      out(`Edit the boards in ${paint.bold('design/boards')}. To see them as you save:`);
+      out(paint.dim(`  cd ${shown}`));
+      out(paint.dim('  deploy design dev'));
       return {
         exitCode: 0,
         json: {
           project: id,
           branch,
           folder,
-          main: { name: main, commit },
+          main: { name: main, commit, ahead },
+          firstDesign: first,
           working: working.working,
         },
       };

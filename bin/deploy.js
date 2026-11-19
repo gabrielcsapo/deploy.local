@@ -77,7 +77,7 @@ import {
   releaseSteps,
   printRelease,
 } from './cli-v2.mjs';
-import { runDesign } from './cli-design.mjs';
+import { DESIGN_HELP, runDesign } from './cli-design.mjs';
 
 import { parseArgs, format } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
@@ -3628,11 +3628,13 @@ if (values.json) {
 
 if (values.help || positionals[0] === 'help') {
   const help =
-    positionals[0] === 'worker'
-      ? 'Usage: deploy worker run\nRuns the enrolled task worker using local agent credentials.'
-      : positionals.includes('advanced')
-        ? ADVANCED_HELP
-        : HELP;
+    positionals[0] === 'design' || (positionals[0] === 'help' && positionals[1] === 'design')
+      ? DESIGN_HELP
+      : positionals[0] === 'worker'
+        ? 'Usage: deploy worker run\nRuns the enrolled task worker using local agent credentials.'
+        : positionals.includes('advanced')
+          ? ADVANCED_HELP
+          : HELP;
   console.log(values.json ? JSON.stringify({ help }) : help);
   process.exit(0);
 }
