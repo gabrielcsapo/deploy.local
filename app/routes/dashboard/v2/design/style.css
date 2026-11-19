@@ -3233,3 +3233,12 @@ button.dz-link-row:hover,
 .dz-narrow-bar > .dl-grow {
   flex: 1;
 }
+/* deploy design dev: the page on a folder. Its branch is the folder's; there is nothing to pick. */
+.dz .dz-local-branch {
+  cursor: default;
+}
+@media (max-width: 820px) {
+  .dz-stage:has(> .dz-local-bar) > .dz-toolbar {
+    top: 72px;
+  }
+}

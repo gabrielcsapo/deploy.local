@@ -26,6 +26,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "build:cli": "node scripts/build-cli.mjs",
+    "build:design-local": "node scripts/build-design-local.mjs",
     "build:desktop-download": "node scripts/build-desktop-download.mjs",
     "service:install": "node scripts/service.mjs install",
     "service:stop": "node scripts/service.mjs stop",

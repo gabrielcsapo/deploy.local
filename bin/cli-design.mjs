@@ -84,6 +84,9 @@ h1{margin:0;font-size:32px;line-height:40px}
 `;
 }
 
+/** "Harbor" from Harbor.html, as boards and review name a board. */
+const screenName = (file) => String(file).replace(/\.html$/, '');
+
 /** The widths a board is drawn and checked at: web boards at 1440 and 700, phone boards at their own. */
 export const boardWidths = (width = 1440) => (width <= 500 ? [width] : [1440, 700]);
 
@@ -241,6 +244,7 @@ function stepLine(paint, mark, label, detail = '') {
  * Runs one design command. Returns `{ exitCode, json }`; throws cliError for usage and failures.
  * deps: api, git(args, cwd) → stdout (throws on failure), cwd, computer, write(text), color,
  * interactive, prompt(question), now(), sleep(ms), exists(path), serverUrl, home, spinner,
+ * serveDesign({ root, project, branch, main, deployUrl, onSave }) → { url, stopped },
  * capture(url, widths, height) → one PNG per width, or null when there is no Chromium here.
  */
 export async function runDesign(sub, args, options, deps) {
@@ -727,6 +731,46 @@ export async function runDesign(sub, args, options, deps) {
       out('When every note is done, propose again:');
       out('  deploy design propose');
       return { exitCode: 0, json: { comment } };
+    }
+
+    case 'dev': {
+      const top = root();
+      if (!existsSync(join(top, 'design', 'canvas.json')))
+        throw cliError('This folder has no design yet.', 'deploy design start "<title>"', 1);
+      const branch = tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], top) ?? 'HEAD';
+      // The project by the name of its main checkout, which a design folder sits beside.
+      const mainFolder = (tryGit(['worktree', 'list', '--porcelain'], top) ?? '')
+        .split('\n')[0]
+        .replace(/^worktree /, '');
+      const clock = (at) => new Date(at).toTimeString().slice(0, 8);
+      const page = await deps.serveDesign({
+        root: top,
+        project: basename(mainFolder || top),
+        branch,
+        main: `origin/${mainName(top)}`,
+        deployUrl: deps.serverUrl,
+        onSave: ({ file, problems }) => {
+          const name = screenName(file);
+          const named = name.length >= 7 ? `${name}  ` : name.padEnd(9);
+          if (!problems.length) {
+            out(paint.dim(`  ${clock(deps.now())}  ${named}saved`));
+            return;
+          }
+          for (const problem of problems)
+            out(
+              `${paint.bad('✗')} ${clock(deps.now())}  ${named}${problem.short} · ${problem.detail}`,
+            );
+        },
+      });
+      step('✓', 'Design page for this folder', page.url);
+      out(paint.dim('  The same page as on deploy.local, on your files. It follows each save.'));
+      out(paint.dim('  Comments, review and agents are on deploy.local.'));
+      out();
+      await page.stopped;
+      out();
+      out('Stopped. Ask for review with:');
+      out(paint.dim('  deploy design propose'));
+      return { exitCode: 0, json: { url: page.url, stopped: true } };
     }
 
     case 'capture': {

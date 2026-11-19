@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Skeleton, Icon } from '@/components/ui';
 import { useData } from '../projects/data';
 import { boardName, layerFacts, layerName, type Section } from './model';
+import { designLocal } from './local';
 
 /** The design system's components, as design/ds/<system>/components/library.json holds them. */
 export type Component = {
@@ -349,15 +350,18 @@ export function ComponentPanel({
             {component.name}
             <Icon name="down" size={11} />
           </span>
-          <button
-            type="button"
-            className="dl-icon-btn"
-            aria-label="Ask an agent to change this component  ⌘K"
-            title="Ask an agent to change this component  ⌘K"
-            onClick={onAsk}
-          >
-            <Icon name="spark" size={14} />
-          </button>
+          {/* Agents are on deploy.local, not on a folder (deploy design dev). */}
+          {!designLocal() && (
+            <button
+              type="button"
+              className="dl-icon-btn"
+              aria-label="Ask an agent to change this component  ⌘K"
+              title="Ask an agent to change this component  ⌘K"
+              onClick={onAsk}
+            >
+              <Icon name="spark" size={14} />
+            </button>
+          )}
           <span className="dz-more-wrap">
             <button
               type="button"

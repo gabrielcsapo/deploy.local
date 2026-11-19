@@ -27,6 +27,8 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { computeBuildInfo } from './build-info.mjs';
 import { LAUNCHER_PROTOCOL } from '../bin/launcher-protocol.mjs';
+import { readTree } from '../bin/design-local-assets.mjs';
+import { buildDesignLocal } from './build-design-local.mjs';
 
 // esbuild is a transitive dep (via vite). Resolve through vite so we don't
 // rely on pnpm's `.bin/esbuild` shim, which invokes `node bin/esbuild` —
@@ -121,6 +123,22 @@ export async function bundleCli(buildInfo, output = CLI_DIR) {
   // Use the JS API directly — pnpm's bin shim invokes `node bin/esbuild`,
   // but esbuild's postinstall replaces that path with a native binary, which
   // Node then tries to parse as JS and fails.
+  // deploy design dev serves the Design page and deploy.local's design system from the binary.
+  const embedded = (files) =>
+    JSON.stringify(
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(files).map(([path, bytes]) => [path, bytes.toString('base64')]),
+        ),
+      ),
+    );
+  const designPage = readTree(buildDesignLocal());
+  const designSystem = Object.fromEntries(
+    Object.entries(readTree(resolve(ROOT, 'design/ds/deploy-local'))).map(([path, bytes]) => [
+      `ds/deploy-local/${path}`,
+      bytes,
+    ]),
+  );
   await esbuild.build({
     // Static imports include the internal `agent relay` entry in the same SEA as the worker.
     // The supervisor launches itself with that subcommand; no sidecar download is required.
@@ -142,6 +160,8 @@ export async function bundleCli(buildInfo, output = CLI_DIR) {
       __DEPLOY_LINUX_DESKTOP_HELPER__: JSON.stringify(
         readFileSync(resolve(ROOT, 'native/Linux/desktop-helper.py'), 'utf8'),
       ),
+      __DESIGN_LOCAL_ASSETS__: embedded(designPage),
+      __DESIGN_SYSTEM_FILES__: embedded(designSystem),
       __DEPLOY_BUILD_INFO__: JSON.stringify(
         JSON.stringify({ ...buildInfo, runtime: NODE_VERSION }),
       ),

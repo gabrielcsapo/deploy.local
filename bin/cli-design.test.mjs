@@ -1010,3 +1010,69 @@ test('check sends this folder as it is, then writes back layer IDs, restored boa
     repo.cleanup();
   }
 });
+
+test('dev serves the Design page on this folder, prints a line per save, and stops on Ctrl-C', async () => {
+  const repo = repository();
+  try {
+    await runDesign(
+      'start',
+      ['Harbor trade'],
+      { project: 'site' },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    const folder = join(repo.root, 'deploy.local-harbor-trade');
+    let served;
+    const run = terminal(folder, coordinator().api, {
+      now: () => new Date(2026, 10, 17, 12, 4, 10).getTime(),
+      serveDesign: async (options) => {
+        served = options;
+        let stop;
+        const stopped = new Promise((resolve) => (stop = resolve));
+        setImmediate(() => {
+          options.onSave({ file: 'Harbor.html', problems: [] });
+          options.onSave({
+            file: 'Trade.html',
+            problems: [
+              {
+                file: 'Trade.html',
+                short: 'links to Market.html',
+                detail: 'no board has that name',
+              },
+            ],
+          });
+          stop();
+        });
+        return { url: 'http://localhost:5199', stopped };
+      },
+    });
+    const result = await runDesign('dev', [], {}, run.deps);
+    assert.equal(result.exitCode, 0);
+    assert.equal(
+      run.text(),
+      [
+        '✓ Design page for this folder      http://localhost:5199',
+        '  The same page as on deploy.local, on your files. It follows each save.',
+        '  Comments, review and agents are on deploy.local.',
+        '',
+        '  12:04:10  Harbor   saved',
+        '✗ 12:04:10  Trade    links to Market.html · no board has that name',
+        '',
+        'Stopped. Ask for review with:',
+        '  deploy design propose',
+        '',
+      ].join('\n'),
+    );
+    assert.equal(served.root, folder);
+    assert.equal(served.project, 'deploy.local');
+    assert.equal(served.branch, 'design/harbor-trade');
+    assert.equal(served.main, 'origin/main');
+    // A folder with no design has nothing to show.
+    rmSync(join(folder, 'design/canvas.json'));
+    await assert.rejects(
+      () => runDesign('dev', [], {}, run.deps),
+      (error) => error.message === 'This folder has no design yet.' && error.exitCode === 1,
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
