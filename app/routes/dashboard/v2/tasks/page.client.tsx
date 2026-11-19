@@ -522,6 +522,14 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
           <div className="dl-dock dl-task-wrap">
             <Composer
               key={sent}
+              task={{
+                computerId: view.computerId,
+                computer: view.computer,
+                running: ['queued', 'starting', 'running', 'unknown'].includes(
+                  view.run?.status ?? '',
+                ),
+                onMoved: refresh,
+              }}
               model={view.run?.modelName || view.run?.model || 'Default'}
               loading={busy}
               onSend={(text) =>

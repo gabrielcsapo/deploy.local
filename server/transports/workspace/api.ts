@@ -42,7 +42,7 @@ import {
   collaborationCommand,
   openRemotePull,
 } from '../../workspace/project-collaboration.ts';
-import { queueTask, taskWorkspaceCommand } from '../../workspace/task-workspace.ts';
+import { moveTask, queueTask, taskWorkspaceCommand } from '../../workspace/task-workspace.ts';
 import { repositorySetup } from '../../workspace/repository-setup.ts';
 import {
   updateProjectSettings,
@@ -756,6 +756,18 @@ export async function workspaceApi(
                       return runCommand(() => {
                         return moveQueuedRun(owner, params.task, body);
                       });
+                    } catch (error: any) {
+                      return respondError(error);
+                    }
+                  },
+                }),
+                route({
+                  method: 'POST',
+                  // A task with nothing running continues on another computer.
+                  path: '/tasks/:task/computer',
+                  handler: async ({ params }) => {
+                    try {
+                      return runCommand(() => moveTask(owner, params.task, body.workerId));
                     } catch (error: any) {
                       return respondError(error);
                     }

@@ -127,7 +127,10 @@ export function startRun(
       // A turn cut off by a restart before its session started left no session holding its
       // request, so the next turn carries the shared conversation like an adapter switch does.
       const lostTurn = last?.recovery?.resolvedAt && !last.sessionId;
-      if (last && (last.adapter !== adapter || lostTurn)) {
+      // A task moved to another computer starts a new session there, so it carries the
+      // conversation as well.
+      const moved = (last?.workspaceGeneration ?? null) !== (task.workspaceGeneration ?? null);
+      if (last && (last.adapter !== adapter || lostTurn || moved)) {
         const history = list('message', owner)
           .filter((m) => m.taskId === taskId && !m.shell)
           .slice(-20)
@@ -135,9 +138,11 @@ export function startRun(
           .join('\n')
           .slice(-40000);
         return (
-          (last.adapter === adapter
-            ? 'The previous turn was interrupted when the computer restarted. Task: '
-            : 'Adapter handoff. Task: ') +
+          (last.adapter !== adapter
+            ? 'Adapter handoff. Task: '
+            : moved
+              ? 'This task moved to another computer and continues from its last checkpoint. Task: '
+              : 'The previous turn was interrupted when the computer restarted. Task: ') +
           task.title +
           '\nShared conversation:\n' +
           history +

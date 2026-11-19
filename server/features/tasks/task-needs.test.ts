@@ -20,7 +20,7 @@ await import('../../test-ports.ts');
 const { get, save, list, now } = await import('../../workspace/store.ts');
 const { askTools, recordToolAnswers, toolAnswer, pendingToolProbes, answerLocalTools } =
   await import('../../workspace/tool-probes.ts');
-const { queueTask, startWaitingTasks, taskRequirementsSnapshot, requireTaskTools } =
+const { queueTask, startWaitingTasks, taskRequirementsSnapshot, requireTaskTools, moveTask } =
   await import('./task-workspace.ts');
 const { coordinationTool } = await import('../../workspace/coordination.ts');
 const { workerCommand } = await import('../../workspace/protocol.ts');
@@ -409,4 +409,49 @@ test('a Mac placeholder program does not count as having it', async () => {
   assert.equal(await probeTool('definitely-not-a-program-zz'), false);
   assert.equal(await probeTool('node'), true);
   if (process.platform === 'darwin') assert.equal(await probeTool('ls'), true);
+});
+
+test('a task with nothing running moves to another computer from its last checkpoint', async () => {
+  const { startRun } = await import('../../workspace/service.ts');
+  const owner = randomUUID();
+  worker(owner, 'ser');
+  worker(owner, 'mac');
+  worker(owner, 'gone', false);
+  const task = queueTask(owner, { title: 'Draw', workerId: 'ser' });
+  const run = save('run', owner, {
+    id: 'r1',
+    taskId: task.id,
+    workerId: 'ser',
+    adapter: 'codex',
+    status: 'running',
+    createdAt: now(),
+  });
+  assert.throws(() => moveTask(owner, task.id, 'mac'), /Stop the run to move this task/);
+  save('run', owner, { ...run, status: 'failed' });
+  save('message', owner, { id: 'm1', taskId: task.id, role: 'user', content: 'Draw a cat' });
+  save('checkpoint', owner, {
+    id: 'c1',
+    taskId: task.id,
+    runId: 'r1',
+    createdAt: now(),
+    snapshot: { base: { commit: 'abc' } },
+  });
+  save('task', owner, { ...get('task', owner, task.id), status: 'failed' });
+  assert.throws(() => moveTask(owner, task.id, 'gone'), /gone is offline/);
+  assert.throws(() => moveTask(owner, task.id, 'nowhere'), /Computer not found/);
+  const moved = moveTask(owner, task.id, 'mac');
+  assert.equal(moved.workerId, 'mac');
+  assert.equal(moved.resumeCheckpointId, 'c1');
+  assert.ok(moved.workspaceGeneration);
+  assert.notEqual(moved.status, 'failed');
+  // The next turn starts a new session there, so it carries the conversation.
+  save('task', owner, { ...get('task', owner, task.id), workspaceStatus: 'ready' });
+  const next = startRun(owner, task.id, {
+    content: 'Now a dog',
+    adapter: 'codex',
+    revision: get('task', owner, task.id).revision,
+  });
+  assert.equal(next.workerId, 'mac');
+  assert.match(next.prompt, /^This task moved to another computer/);
+  assert.match(next.prompt, /Draw a cat/);
 });

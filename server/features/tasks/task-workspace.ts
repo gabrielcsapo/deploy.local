@@ -130,6 +130,47 @@ function prepareTask(owner: string, task: any, workerId: string) {
   event(owner, task.id, null, 'task.assigned', { workerId });
 }
 
+/**
+ * Continue a task that has nothing running on another computer: from its last checkpoint when it
+ * has one, otherwise from where it started. The next message runs there.
+ */
+export function moveTask(owner: string, taskId: string, workerId: unknown) {
+  if (typeof workerId !== 'string' || !workerId || workerId.length > 200)
+    throw Object.assign(new Error('Choose a computer'), { status: 400 });
+  // Runs inside the caller's transaction (the API's command), so it is all-or-nothing.
+  const task = get('task', owner, taskId);
+  if ((task.workerId || 'local') === workerId) return task;
+  if (task.pendingPlacement)
+    throw Object.assign(new Error('This task is already waiting for a computer'), {
+      status: 409,
+    });
+  const runs = list('run', owner).filter((run) => run.taskId === taskId);
+  if (runs.some((run) => ['queued', 'starting', 'running', 'unknown'].includes(run.status)))
+    throw Object.assign(new Error('Stop the run to move this task'), { status: 409 });
+  const worker = computers(owner).find((candidate) => candidate.id === workerId);
+  if (!worker) throw Object.assign(new Error('Computer not found'), { status: 404 });
+  if (worker.status !== 'online')
+    throw Object.assign(new Error(`${worker.name || workerId} is offline`), { status: 409 });
+  const checkpoint = list('checkpoint', owner)
+    .filter(
+      (item) => item.taskId === taskId && (!item.runId || runs.some((r) => r.id === item.runId)),
+    )
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .at(-1);
+  prepareTask(
+    owner,
+    {
+      ...task,
+      pendingPlacement: checkpoint
+        ? { runId: checkpoint.runId || runs.at(-1)?.id || taskId, checkpointId: checkpoint.id }
+        : {},
+      pendingLaunch: undefined,
+    },
+    workerId,
+  );
+  return get('task', owner, taskId);
+}
+
 /** A transaction claims each durable wait, only after the previous process has stopped. */
 export async function startWaitingTasks() {
   const rows = db

@@ -395,6 +395,8 @@ export type ComputerModels = {
     id: string;
     name: string;
     computers: string[];
+    /** The workers signed in to this provider, to match against a computer's workerIds. */
+    workers?: string[];
     weekly?: { usedPercent: number; resetsAt?: number; checkedAt?: number };
   }[];
   local: { id: string; name: string; computer: string; loaded: boolean }[];

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ComputerModels } from '../../../../shared/v2/contracts';
-import { chipLabel, effortLabel, modelGroups } from './composer-choices.ts';
+import { chipLabel, effortLabel, listNames, modelGroups } from './composer-choices.ts';
 import { menuPosition } from './composer-menu.ts';
 
 test('a chip names up to two choices, then counts them', () => {
@@ -95,4 +95,11 @@ test('a submenu sits beside its row, and flips left when the window is narrow', 
   assert.equal(menuPosition(small, { width: 220, height: 200 }, narrow, 'side').left, 140);
   // Its foot is level with the row's.
   assert.equal(menuPosition(row, { width: 220, height: 200 }, viewport, 'side').top, 537);
+});
+
+test('names read as a sentence', () => {
+  assert.equal(listNames([]), '');
+  assert.equal(listNames(['imac']), 'imac');
+  assert.equal(listNames(['Opus', 'Sonnet']), 'Opus and Sonnet');
+  assert.equal(listNames(['SER', 'imac', 'MacBook Pro']), 'SER, imac and MacBook Pro');
 });

@@ -365,7 +365,7 @@ export function getModels(owner: string): ComputerModels {
       const reports = workers.flatMap((w) =>
         (w.providers || [])
           .filter((p: any) => p.id === id)
-          .map((p: any) => ({ ...p, computer: w.name })),
+          .map((p: any) => ({ ...p, computer: w.name, workerId: w.id })),
       );
       const weekly = reports
         .sort((a, b) => (b.checkedAt || 0) - (a.checkedAt || 0))
@@ -375,6 +375,7 @@ export function getModels(owner: string): ComputerModels {
         id,
         name: id === 'claude' ? 'Claude' : 'Codex',
         computers: reports.filter((p) => p.status === 'signed-in').map((p) => p.computer),
+        workers: reports.filter((p) => p.status === 'signed-in').map((p) => p.workerId),
         ...(window
           ? {
               weekly: {

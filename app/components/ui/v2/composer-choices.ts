@@ -7,6 +7,12 @@ export function chipLabel(names: string[], none: string, plural: string) {
   return `${names.length} ${plural}`;
 }
 
+/** "a", "a and b", "a, b and c". */
+export function listNames(names: string[]) {
+  if (names.length < 2) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}
+
 const efforts: Record<string, string> = {
   '': 'Default',
   low: 'Low',

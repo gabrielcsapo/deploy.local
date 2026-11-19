@@ -19,7 +19,7 @@ import type {
   ModelChoice,
 } from '../../../../shared/v2/contracts';
 import { MenuRow, MenuSeparator, PopoverMenu, SubMenu } from './ComposerMenu';
-import { chipLabel, effortLabel, modelGroups } from './composer-choices';
+import { chipLabel, effortLabel, listNames, modelGroups } from './composer-choices';
 import {
   mediaRequest,
   submitMessage,
@@ -33,6 +33,7 @@ export function Composer({
   computer = null,
   start = false,
   projects: startProjects,
+  task,
   model = 'Auto',
   disabled,
   loading,
@@ -50,6 +51,8 @@ export function Composer({
   start?: boolean;
   /** The projects a start composer begins with. */
   projects?: string[];
+  /** In a task: the computer it runs on (a worker ID) and whether a run is going. */
+  task?: { computerId?: string; computer?: string; running?: boolean; onMoved?: () => void };
   model?: string;
   onSend?: (text: string, message?: ComposerMessage) => void | Promise<void>;
   onAttach?: () => void;
@@ -87,7 +90,7 @@ export function Composer({
   }, [seed]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [menu, setMenu] = useState<
-    'attach' | 'model' | 'screenshot' | 'project' | 'projects' | 'computers' | null
+    'attach' | 'model' | 'screenshot' | 'project' | 'projects' | 'computers' | 'computer' | null
   >(null);
   const [submenu, setSubmenu] = useState<'effort' | 'more' | null>(null);
   const closeMenu = useCallback(() => {
@@ -97,19 +100,24 @@ export function Composer({
   // A menu closed by pressing on its own button must not open again on that button's click, and
   // one closed by pressing another button must not close the menu that button opens.
   const dismissed = useRef({ which: '', at: 0 });
-  const dismiss = useCallback((which: 'model' | 'projects' | 'computers') => {
+  const dismiss = useCallback((which: 'model' | 'projects' | 'computers' | 'computer') => {
     dismissed.current = { which, at: Date.now() };
     setMenu((current) => (current === which ? null : current));
     setSubmenu(null);
   }, []);
-  function toggleMenu(which: 'model' | 'projects' | 'computers') {
+  function toggleMenu(which: 'model' | 'projects' | 'computers' | 'computer') {
     const recent = dismissed.current.which === which && Date.now() - dismissed.current.at < 400;
-    if (menu === which || recent) closeMenu();
-    else setMenu(which);
+    if (menu === which || recent) return closeMenu();
+    setMenu(which);
+    if (context.taskId && (which === 'computer' || which === 'model'))
+      void mediaRequest('/computers')
+        .then((value: { computers?: Computer[] }) => setComputerList(value?.computers ?? []))
+        .catch(() => {});
   }
   const closeSubmenu = useCallback(() => setSubmenu(null), []);
   const projectChip = useRef<HTMLButtonElement>(null);
   const computerChip = useRef<HTMLButtonElement>(null);
+  const taskComputerChip = useRef<HTMLButtonElement>(null);
   const modelButton = useRef<HTMLButtonElement>(null);
   const [projectIds, setProjectIds] = useState<string[]>(startProjects ?? []);
   const [workerIds, setWorkerIds] = useState<string[]>([]);
@@ -183,18 +191,19 @@ export function Composer({
           }
         })
         .catch(() => {});
-    if (home || start) {
+    if (home || start)
       void readSeeded(seed, '/api/projects', () => mediaRequest('/projects'))
         .then((value: { projects?: { id: string; name: string }[] }) => {
           if (active) setProjectList(value?.projects ?? []);
         })
         .catch(() => {});
+    // A task page loads them when its computer or model menu opens, so mounting asks for nothing.
+    if (home || start)
       void mediaRequest('/computers')
         .then((value: { computers?: Computer[] }) => {
           if (active) setComputerList(value?.computers ?? []);
         })
         .catch(() => {});
-    }
     void readSeeded(seed, '/api/model-settings', () => mediaRequest('/model-settings'))
       .then((value) => {
         if (active) setModels(value);
@@ -306,6 +315,36 @@ export function Composer({
   const defaultId = models?.defaults[context.agentId ? 'answering-questions' : 'writing-code'];
   const defaultModel = models?.choices.find((choice) => choice.id === defaultId);
   const groups = modelGroups(models, override);
+  // In a task, a model runs only where its provider is signed in on the task's computer.
+  const taskComputer = context.taskId ? task?.computerId : undefined;
+  const providerWorkers = (provider: string) =>
+    models?.providers.find((item) => item.id === provider)?.workers;
+  const runsHere = (choice: ModelChoice) => {
+    const workers = providerWorkers(choice.provider);
+    return !taskComputer || !workers || workers.includes(taskComputer);
+  };
+  const unavailable = [
+    ...new Map(
+      [...(defaultModel ? [defaultModel] : []), ...groups.main]
+        .filter((choice) => !runsHere(choice))
+        .map((choice) => [choice.id, choice]),
+    ).values(),
+  ];
+  const elsewhere = [
+    ...new Set(
+      unavailable.flatMap((choice) => {
+        const workers = providerWorkers(choice.provider) ?? [];
+        return computerList
+          .filter(
+            (item) =>
+              item.online &&
+              item.roles.includes('take-tasks') &&
+              item.workerIds.some((workerId) => workers.includes(workerId)),
+          )
+          .map((item) => item.name);
+      }),
+    ),
+  ];
   const efforts = (selectedModel ?? defaultModel)?.efforts ?? [];
   function chooseModel(choice: ModelChoice | null) {
     setOverride(choice?.id ?? null);
@@ -476,6 +515,21 @@ export function Composer({
                 <Icon name="down" size={12} className="dl-chip-caret" />
               </button>
             </>
+          ) : context.taskId && task?.computer ? (
+            <button
+              ref={taskComputerChip}
+              type="button"
+              className="dl-chip"
+              aria-haspopup="menu"
+              aria-expanded={menu === 'computer'}
+              aria-label={`Computer: ${task.computer}`}
+              disabled={busy}
+              onClick={() => toggleMenu('computer')}
+            >
+              <Icon name="computer" size={14} />
+              {task.computer}
+              <Icon name="down" size={12} className="dl-chip-caret" />
+            </button>
           ) : (
             <>
               {project && (
@@ -607,13 +661,24 @@ export function Composer({
         placement="end"
         label="Model for this chat"
       >
-        <MenuRow checked={!override} hint={defaultModel?.name} onSelect={() => chooseModel(null)}>
+        <MenuRow
+          checked={!override}
+          disabled={!!defaultModel && !runsHere(defaultModel)}
+          hint={
+            defaultModel && !runsHere(defaultModel)
+              ? `${defaultModel.name}, not on ${task?.computer || 'this computer'}`
+              : defaultModel?.name
+          }
+          onSelect={() => chooseModel(null)}
+        >
           Auto
         </MenuRow>
         {groups.main.map((choice) => (
           <MenuRow
             key={choice.id}
             checked={override === choice.id}
+            disabled={!runsHere(choice)}
+            hint={runsHere(choice) ? undefined : `Not on ${task?.computer || 'this computer'}`}
             onSelect={() => chooseModel(choice)}
           >
             {choice.name}
@@ -655,6 +720,10 @@ export function Composer({
                   <MenuRow
                     key={choice.id}
                     checked={override === choice.id}
+                    disabled={!runsHere(choice)}
+                    hint={
+                      runsHere(choice) ? undefined : `Not on ${task?.computer || 'this computer'}`
+                    }
                     onSelect={() => chooseModel(choice)}
                   >
                     {choice.name}
@@ -665,9 +734,61 @@ export function Composer({
           </SubMenu>
         )}
         <MenuSeparator />
+        {!!unavailable.length && (
+          <span className="dl-menu-note">
+            {`${listNames(unavailable.map((choice) => choice.name))} ${
+              elsewhere.length
+                ? `run on ${listNames(elsewhere)}`
+                : 'run on no other online computer'
+            }. Move this task with the computer chip.`}
+          </span>
+        )}
         <span className="dl-menu-note">
           {models ? 'Only this chat. ' : 'Models are unavailable. '}
           <a href="/dashboard/computers/models">Change defaults</a>
+        </span>
+      </PopoverMenu>
+      <PopoverMenu
+        anchor={taskComputerChip}
+        open={menu === 'computer'}
+        onClose={() => dismiss('computer')}
+        label="Continue on"
+      >
+        <span className="dl-menu-label">Continue on</span>
+        {takers.map((item) => {
+          const tasks = item.doing.filter((thing) => thing.kind === 'task').length;
+          const here = !!task?.computerId && item.workerIds.includes(task.computerId);
+          return (
+            <MenuRow
+              key={item.id}
+              checked={here}
+              disabled={task?.running || pending}
+              end={tasks ? `${tasks} task${tasks === 1 ? '' : 's'}` : 'Free'}
+              onSelect={() => {
+                if (here) return closeMenu();
+                void perform(async () => {
+                  await mediaRequest(
+                    `/tasks/${encodeURIComponent(context.taskId!)}/computer`,
+                    'POST',
+                    {
+                      workerId: item.workerIds[0],
+                      operationId: crypto.randomUUID(),
+                    },
+                  );
+                  closeMenu();
+                  task?.onMoved?.();
+                });
+              }}
+            >
+              {item.name}
+            </MenuRow>
+          );
+        })}
+        <MenuSeparator />
+        <span className="dl-menu-note">
+          {task?.running
+            ? 'Stop the run to move this task'
+            : 'Picks up from the last checkpoint, with the conversation so far'}
         </span>
       </PopoverMenu>
       <PopoverMenu

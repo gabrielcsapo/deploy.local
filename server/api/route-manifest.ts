@@ -1970,6 +1970,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
   },
   {
     method: 'POST',
+    path: '/api/tasks/:task/computer',
+    handler: 'workspace',
+  },
+  {
+    method: 'POST',
     path: '/api/tasks/:task/publish',
     handler: 'workspace',
   },
