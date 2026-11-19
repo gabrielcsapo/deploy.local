@@ -430,6 +430,10 @@
   .dl-task-changes {
     padding-top: 16px;
   }
+  /* The Mac app's traffic lights sit where the menu button would; keep it clear, like .dl-head. */
+  .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-task-head .dl-task-wrap {
+    padding-left: 100px;
+  }
 }
 @media (max-width: 1180px) {
   .with-panel .dl-task-panel {
