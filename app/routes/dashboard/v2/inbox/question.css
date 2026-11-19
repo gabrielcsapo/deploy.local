@@ -179,3 +179,16 @@
 .dl-decision-footer > :last-child {
   margin-left: auto;
 }
+
+/* An agent's choice can be a sentence: it wraps inside the card instead of running past it. */
+.dl-ask .dl-decision-options {
+  margin-top: 0;
+}
+.dl-ask .dl-decision-options .dl-btn {
+  height: auto;
+  min-height: 32px;
+  max-width: 100%;
+  padding-block: 6px;
+  white-space: normal;
+  text-align: left;
+}

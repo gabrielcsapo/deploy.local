@@ -3,6 +3,7 @@ import { Action, Icon } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { MarkdownWithMedia } from '../conversation/Media';
 import { askedTime, questionActions } from './presentation';
+import './question.css';
 
 /**
  * A question the agent is waiting on, in its task's thread: set apart from the work, with its
