@@ -63,6 +63,24 @@ test('the page is served on this computer only, with its settings, and follows e
     assert.equal((await get(page.port, '/assets/app.js')).body, 'console.log(1)');
     assert.equal((await get(page.port, '/assets/missing.js')).status, 404);
     assert.equal((await get(page.port, '/', 'evil.example')).status, 403);
+    // A write from another site open in the same browser is refused before the folder is touched.
+    const post = (origin) =>
+      new Promise((resolve, reject) =>
+        request(
+          {
+            port: page.port,
+            path: '/api/projects/local/design/edit',
+            host: '127.0.0.1',
+            method: 'POST',
+            headers: { host: `localhost:${page.port}`, ...(origin ? { origin } : {}) },
+          },
+          (res) => (res.resume(), resolve(res.statusCode)),
+        )
+          .on('error', reject)
+          .end('{}'),
+      );
+    assert.equal(await post('https://evil.example'), 403);
+    assert.notEqual(await post(`http://localhost:${page.port}`), 403);
     const design = JSON.parse((await get(page.port, '/api/projects/local/design')).body);
     assert.equal(design.ref, 'design/harbor-trade');
 

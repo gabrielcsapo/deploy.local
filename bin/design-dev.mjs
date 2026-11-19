@@ -56,6 +56,16 @@ export async function serveDesignFolder({
         req.on('close', () => listeners.delete(send));
         return;
       }
+      // Writes come only from this page: another site open in the browser cannot post here.
+      const origin = req.headers.origin;
+      if (
+        !['GET', 'HEAD'].includes(req.method ?? 'GET') &&
+        origin !== undefined &&
+        origin !== `http://${req.headers.host}`
+      ) {
+        res.writeHead(403).end();
+        return;
+      }
       if (await local.handle(req, res)) return;
       if (url.pathname === '/' && !url.searchParams.has('project')) {
         res.writeHead(302, { Location: '/?project=local&view=canvas' }).end();
