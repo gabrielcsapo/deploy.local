@@ -47,10 +47,83 @@ test('a layer main has and the branch dropped is lost; renamed text keeps its ID
     '<div data-layer="page"><h1 data-layer="title">Old</h1><p data-layer="menu">Menu</p></div>';
   assert.deepEqual(lostLayers(main, main.replace('Old', 'New')), []);
   assert.deepEqual(
-    lostLayers(main, '<div data-layer="page"><h1 data-layer="title">New</h1></div>'),
+    lostLayers(main, '<div data-layer="page"><h1 data-layer="title">New</h1><p>Menu</p></div>'),
     ['menu'],
+    'an element that stays without its ID is lost',
+  );
+  assert.deepEqual(
+    lostLayers(main, main.replace('data-layer="menu"', 'data-layer="nav"')),
+    ['menu'],
+    'an element that stays under another ID is lost',
   );
   assert.deepEqual(lostLayers(null, main), [], 'a new board loses nothing');
+});
+
+test('an element deleted from the board is removed, not lost', () => {
+  const main = [
+    '<main data-layer="page">',
+    '  <h1 data-layer="title">Projects</h1>',
+    '  <section data-layer="export" class="card">',
+    '    <h2 data-layer="export-title">Export</h2>',
+    '    <div class="row"><button data-layer="download">Download</button></div>',
+    '  </section>',
+    '  <p data-layer="menu">Menu</p>',
+    '</main>',
+  ].join('\n');
+  const without = (html: string, layer: string) =>
+    html.replace(new RegExp(`\\s*<[a-z0-9]+ data-layer="${layer}"[^>]*>[^<]*</[a-z0-9]+>`), '');
+  assert.doesNotMatch(without(main, 'menu'), /Menu/);
+  assert.deepEqual(lostLayers(main, without(main, 'menu')), [], 'one element deleted');
+  const noExport = main.replace(/\s*<section[\s\S]*<\/section>/, '');
+  assert.doesNotMatch(noExport, /Export|Download/);
+  assert.deepEqual(lostLayers(main, noExport), [], 'a container deleted with all it held');
+  assert.deepEqual(
+    lostLayers(
+      main,
+      without(main, 'menu').replace(
+        '</main>',
+        '<button data-layer="show-archived">Show archived</button></main>',
+      ),
+    ),
+    [],
+    'an element deleted and an unrelated one added',
+  );
+  // The removed section held a button like one the branch adds; inside a removed container it is
+  // removed too.
+  assert.deepEqual(
+    lostLayers(
+      main,
+      noExport.replace(
+        '</main>',
+        '<div class="row"><button data-layer="download-2">Download</button></div></main>',
+      ),
+    ),
+    [],
+  );
+});
+
+test('an element moved within the board keeps its ID and is not lost', () => {
+  const main =
+    '<main data-layer="page"><h1 data-layer="title">Projects</h1><nav data-layer="nav"><a data-layer="inbox">Inbox</a></nav><p data-layer="menu">Menu</p></main>';
+  const moved =
+    '<main data-layer="page"><p data-layer="menu">Menu</p><h1 data-layer="title">Projects</h1><nav data-layer="nav"></nav><a data-layer="inbox">Inbox</a></main>';
+  assert.deepEqual(lostLayers(main, moved), []);
+});
+
+test('a board drawn again with fresh IDs for the same content loses every layer', () => {
+  const main = [
+    '<main data-layer="page" class="dl-page">',
+    '  <h1 data-layer="title">Projects</h1>',
+    '  <ul data-layer="list"><li data-layer="harbor">Harbor</li><li data-layer="trade">Trade</li></ul>',
+    '</main>',
+  ].join('\n');
+  const fresh = main.replace(/data-layer="([a-z-]+)"/g, 'data-layer="x-$1"').replace(/\n\s*/g, '');
+  assert.deepEqual(lostLayers(main, fresh), ['page', 'title', 'list', 'harbor', 'trade']);
+  assert.deepEqual(
+    lostLayers(main, main.replace(/\sdata-layer="[^"]*"/g, '')),
+    ['page', 'title', 'list', 'harbor', 'trade'],
+    'or with none at all',
+  );
 });
 
 test('what changed names the board’s layers the way the review does', () => {
@@ -269,14 +342,13 @@ test('a working copy is checked against main: named, drawn, and its problems fou
     assert.deepEqual(
       result.boards.map((board) => [board.title, board.words, board.problems]),
       [
-        ['Projects', 'New Show archived · Menu removed', ['lost layer menu', 'cut off at 700 px']],
+        ['Projects', 'New Show archived · Menu removed', ['cut off at 700 px']],
         ['Trade', 'New board', ['links to Harbor.html']],
       ],
     );
     assert.deepEqual(
       result.problems.map((problem) => `${problem.label} · ${problem.detail}`),
       [
-        'Projects lost layer menu · main has it; keep its ID',
         'Trade links to Harbor.html · no board has that name',
         'Projects is cut off at 700 px · "Show archived" leaves the page',
       ],

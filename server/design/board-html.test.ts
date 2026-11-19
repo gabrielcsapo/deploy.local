@@ -122,6 +122,28 @@ describe('layer changes', () => {
   });
 });
 
+describe('board elements', () => {
+  it('lists every element with its layer, markup and container, skipping comments and scripts', async () => {
+    const { boardElements } = await import('./board-html.ts');
+    const html =
+      '<body><!-- <p data-layer="no">x</p> --><main data-layer="page"><img src="a.png"><p>One<br>two</p><script>if (a<b) x("<div>")</script><svg data-layer="icon"><path d="M0 0"/></svg></main></body>';
+    assert.deepEqual(
+      boardElements(html).map(({ layer, outer, parent }) => [layer, outer.slice(0, 24), parent]),
+      [
+        [null, '<body><!-- <p data-layer', -1],
+        ['page', '<main data-layer="page">', 0],
+        [null, '<img src="a.png">', 1],
+        [null, '<p>One<br>two</p>', 1],
+        [null, '<br>', 3],
+        [null, '<script>if (a<b) x("<div', 1],
+        ['icon', '<svg data-layer="icon"><', 1],
+        [null, '<path d="M0 0"/>', 6],
+      ],
+    );
+    assert.equal(boardElements(html)[1].outer, layerSnippet(html, 'page'));
+  });
+});
+
 describe('board edits', () => {
   const board =
     '<body><div data-layer="g" class="dl-greeting" style="gap:8px"><h1 data-layer="title" class="dl-title">Welcome</h1><span data-layer="mark" class="dl-mark">d</span><img data-layer="pic" src="a.png"></div></body>';

@@ -174,6 +174,55 @@ export function layerSnippet(html: string, layer: string): string | null {
   return null;
 }
 
+export type BoardElement = {
+  /** The element's layer ID, or null when it has none. */
+  layer: string | null;
+  /** Its markup, start tag to matching end tag. */
+  outer: string;
+  /** The index of the element that contains it, or -1 at the top. */
+  parent: number;
+};
+
+/**
+ * Every element of a board, in document order, in one pass: its layer ID, its markup and the
+ * element that contains it. Comments and the text of scripts and styles are skipped.
+ */
+export function boardElements(html: string): BoardElement[] {
+  const found: (BoardElement & { open: number })[] = [];
+  const stack: { index: number; name: string }[] = [];
+  const finish = (entry: { index: number }, end: number) => {
+    const element = found[entry.index];
+    element.outer = html.slice(element.open, end);
+  };
+  const pattern = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+  for (let match = pattern.exec(html); match; match = pattern.exec(html)) {
+    if (!match[2]) continue;
+    const name = match[2].toLowerCase();
+    const end = match.index + match[0].length;
+    if (match[1]) {
+      const at = stack.findLastIndex((entry) => entry.name === name);
+      if (at < 0) continue;
+      // Elements left open inside this one end with it.
+      for (const entry of stack.splice(at)) finish(entry, end);
+      continue;
+    }
+    const layer = /\sdata-layer="([^"]*)"/.exec(match[0])?.[1] ?? null;
+    const index = found.length;
+    found.push({ layer, outer: match[0], parent: stack.at(-1)?.index ?? -1, open: match.index });
+    if (VOID.has(name) || match[3].endsWith('/')) continue;
+    if (RAW_TEXT.has(name)) {
+      const close = html.toLowerCase().indexOf(`</${name}`, end);
+      const stop = close < 0 ? html.length : html.indexOf('>', close) + 1 || html.length;
+      found[index].outer = html.slice(match.index, stop);
+      pattern.lastIndex = stop;
+      continue;
+    }
+    stack.push({ index, name });
+  }
+  for (const entry of stack) finish(entry, html.length);
+  return found.map(({ layer, outer, parent }) => ({ layer, outer, parent }));
+}
+
 /** Every `data-layer` ID in a board, in document order. */
 export function layerIds(html: string): string[] {
   return [...html.matchAll(/\sdata-layer="([^"]*)"/g)].map((match) => match[1]);

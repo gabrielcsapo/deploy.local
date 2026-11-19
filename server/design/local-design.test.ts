@@ -163,7 +163,7 @@ test('a saved board is checked the way check would, without drawing it', async (
     assert.deepEqual(at.local.problems('Harbor.html'), []);
     at.write(
       'design/boards/Harbor.html',
-      '<main data-layer="page"><h1 data-layer="title">Harbor</h1><a data-layer="to" href="Trade.html">Trade</a></main>',
+      '<main data-layer="page"><h1 data-layer="title">Harbor</h1><p data-layer="nav">Menu</p><a data-layer="to" href="Trade.html">Trade</a></main>',
     );
     at.write('design/boards/Market.html', '<main data-layer="page">Market</main>');
     assert.deepEqual(

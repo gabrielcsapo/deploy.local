@@ -10,6 +10,7 @@
 // carried ones in its own folder.
 import {
   assignLayerIds,
+  boardElements,
   boardLinks,
   layerChanges,
   layerIds,
@@ -52,11 +53,45 @@ export function changedBoardFiles(paths: string[], folder = 'design') {
   ].sort();
 }
 
-/** Layer IDs main's board has that the branch's board no longer has. */
+/** An element's markup without its layer IDs or formatting: the same content gives the same text. */
+const signature = (outer: string) =>
+  outer
+    .replace(/\sdata-layer="[^"]*"/g, '')
+    .replace(/>\s+</g, '><')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * Layer IDs main's board has that the branch lost while keeping the element. A layer whose ID is
+ * gone from the branch is lost when the branch still has its exact markup (layer IDs aside) on an
+ * element without one of main's IDs, so the element came back with no ID or another one; otherwise
+ * it was removed, and so was everything inside it.
+ */
 export function lostLayers(main: string | null, branch: string | null) {
   if (!main || !branch) return [];
-  const kept = new Set(layerIds(branch));
-  return [...new Set(layerIds(main))].filter((id) => !kept.has(id));
+  const mainIds = new Set(layerIds(main));
+  const branchIds = new Set(layerIds(branch));
+  // The branch's elements that do not carry one of main's IDs, by their markup.
+  const unclaimed = new Map<string, number>();
+  for (const element of boardElements(branch))
+    if (!element.layer || !mainIds.has(element.layer)) {
+      const key = signature(element.outer);
+      unclaimed.set(key, (unclaimed.get(key) ?? 0) + 1);
+    }
+  const lost = new Set<string>();
+  const elements = boardElements(main);
+  const removed = new Set<number>();
+  // Parents come before their children, so a removed container is known before what it held.
+  elements.forEach((element, index) => {
+    if (removed.has(element.parent)) return void removed.add(index);
+    if (!element.layer || branchIds.has(element.layer)) return;
+    const key = signature(element.outer);
+    const left = unclaimed.get(key) ?? 0;
+    if (!left) return void removed.add(index);
+    unclaimed.set(key, left - 1);
+    lost.add(element.layer);
+  });
+  return [...lost];
 }
 
 const plainText = (html: string) =>
