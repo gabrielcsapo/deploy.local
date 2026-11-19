@@ -208,6 +208,17 @@ export function eventsBefore(owner: string, before: number, taskId: string, limi
     .map(({ owner: _, payload, ...r }) => ({ ...r, payload: JSON.parse(readStoredText(payload)) }));
 }
 
+/** One step's events in a run, oldest first: its call, updates and result. */
+export function stepEvents(owner: string, runId: string, itemId: string) {
+  return (
+    db
+      .prepare(`SELECT cursor,runId,type,payload,createdAt FROM events
+    WHERE owner=? AND runId=? AND type IN ('item.started','item.updated','item.completed')
+    AND json_extract(payload,'$.item.id')=? ORDER BY cursor`)
+      .all(owner, runId, itemId) as any[]
+  ).map((r) => ({ ...r, payload: JSON.parse(readStoredText(r.payload)) }));
+}
+
 /** Keep tool history independent of high-volume text deltas. Raw replay is unchanged. */
 export function activityEvents(owner: string, taskId: string) {
   return (

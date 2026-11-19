@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { askedTime } from '../inbox/presentation';
+import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { useLocation, useRouter } from 'react-flight-router/client';
 import { Action, Banner, Composer, Head, Icon, IconButton, Skeleton } from '@/components/ui';
 import { Conversation, ReleaseProgress } from '../conversation/Conversation';
@@ -206,18 +208,39 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const summary = waitingNeeds
     ? { label: 'Waiting for a computer', detail: undefined, icon: 'clock' as const }
     : taskStatus(view, detailError ? null : diff, headChecks, currentChecks);
-  const waiting = view.events.some(
-    (event) =>
-      event.kind === 'decision' &&
-      inbox.items.some((item) => item.id === event.inboxItemId && item.state === 'waiting'),
+  // The question the agent is waiting on: the composer answers it, and it stays in view.
+  const waitingQuestion = view.events
+    .flatMap((event) =>
+      event.kind === 'decision'
+        ? inbox.items.filter(
+            (item) =>
+              item.id === event.inboxItemId && item.state === 'waiting' && item.kind === 'question',
+          )
+        : [],
+    )
+    .at(-1);
+  // Nothing runs while the agent waits on you, so that is what the header says.
+  const shown = waitingQuestion
+    ? {
+        label: 'Waiting for your answer',
+        detail: askedTime(waitingQuestion.createdAt),
+        icon: 'attention' as const,
+      }
+    : summary;
+  const answerable = waitingQuestion?.actions.some((action) => action.id === 'answer');
+  const waitingItems = view.events.flatMap((event) =>
+    event.kind === 'decision'
+      ? inbox.items.filter((item) => item.id === event.inboxItemId && item.state === 'waiting')
+      : [],
   );
+  const waiting = waitingItems.length > 0;
   const updatedAt = pull || view.checkpoint ? taskUpdatedAt(view, currentChecks) : undefined;
   const mergeable = pull?.status === 'open' && diff?.mergeable === true && !detailError;
   // Below 1180 px task details is closed until someone opens it, whatever the default.
-  const shown = (item: TaskPane) =>
+  const paneShown = (item: TaskPane) =>
     pane === item && main === 'chat' && (item !== 'details' || details === true || !narrow);
   const togglePane = (next: TaskPane) => {
-    if (shown(next)) {
+    if (paneShown(next)) {
       if (next === 'details') setDetails(false);
       else navigate(base);
     } else if (next === 'details') {
@@ -285,7 +308,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
               <span className="dl-end">
                 <span className="dl-task-tools" role="toolbar" aria-label="Task panes">
                   {paneButtons.map((item) => {
-                    const on = shown(item.pane) || (item.pane === 'changes' && main === 'full');
+                    const on = paneShown(item.pane) || (item.pane === 'changes' && main === 'full');
                     return (
                       <button
                         type="button"
@@ -434,29 +457,29 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
               </span>
             </div>
             <div className="dl-task-status">
-              <span className="dl-status dl-task-state">
+              <span className={`dl-status dl-task-state${waitingQuestion ? ' waiting' : ''}`}>
                 <Icon
-                  name={summary.icon}
+                  name={shown.icon}
                   className={
-                    summary.icon === 'check'
+                    shown.icon === 'check'
                       ? 'dl-ok'
-                      : summary.icon === 'close'
+                      : shown.icon === 'close'
                         ? 'dl-fail'
-                        : summary.icon === 'running'
+                        : shown.icon === 'running'
                           ? 'dl-run dl-spin'
                           : designCheckWaiting(view)
                             ? 'dl-wait'
                             : ''
                   }
                 />
-                {summary.label}
+                {shown.label}
               </span>
-              {summary.detail && (
+              {shown.detail && (
                 <>
                   <span className="dl-task-sep" aria-hidden="true">
                     ·
                   </span>
-                  <span>{summary.detail}</span>
+                  <span>{shown.detail}</span>
                 </>
               )}
               {view.packages?.map((pkg) => (
@@ -527,6 +550,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                   screenshots: view.screenshots,
                   releases: view.releases,
                   showAuthors: false,
+                  inTask: true,
                 }}
               />
               {view.project && design.boards.length > 0 && (
@@ -537,7 +561,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                   events={view.events}
                 />
               )}
-              {waiting && !stalled && !failed && !pull && (
+              {waiting && !waitingQuestion && !stalled && !failed && !pull && (
                 <div className="dl-task-waiting">
                   <Icon name="running" className="dl-run dl-spin" size={14} />
                   Waiting for your answer
@@ -572,6 +596,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
         </div>
         {main === 'chat' && (
           <div className="dl-dock dl-task-wrap">
+            {waitingQuestion && <QuestionPin item={waitingQuestion} />}
             <Composer
               key={sent}
               task={{
@@ -581,6 +606,14 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                   view.run?.status ?? '',
                 ),
                 onMoved: refresh,
+                ...(waitingQuestion && answerable
+                  ? {
+                      answer: async (text: string) => {
+                        await inbox.answer(waitingQuestion.id, 'answer', text);
+                        refresh();
+                      },
+                    }
+                  : {}),
               }}
               model={view.run?.modelName || view.run?.model || 'Default'}
               loading={busy}
@@ -696,5 +729,34 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
         onClose={() => setDeleting(false)}
       />
     </div>
+  );
+}
+
+/** While the waiting question is scrolled out of view, it stays above the composer. */
+function QuestionPin({ item }: { item: InboxItem }) {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    const card = document.getElementById(`decision-${item.id}`);
+    if (!card) return;
+    const observer = new IntersectionObserver(([entry]) => setHidden(!entry.isIntersecting));
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [item.id]);
+  if (!hidden) return null;
+  return (
+    <a
+      className="dl-ask-pin"
+      href={`#decision-${item.id}`}
+      onClick={(event) => {
+        event.preventDefault();
+        document
+          .getElementById(`decision-${item.id}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }}
+    >
+      <Icon name="attention" size={14} className="dl-ask-icon" />
+      <span className="dl-t">{item.text || item.title}</span>
+      <span className="dl-end">Show question</span>
+    </a>
   );
 }

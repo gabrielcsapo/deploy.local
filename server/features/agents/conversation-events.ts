@@ -180,12 +180,13 @@ export function mapConversationEvent(
           tone: 'warn',
           ...(typeof run?.error === 'string' && run.error ? { reason: run.error } : {}),
         };
+      const id = `work:${row.runId}:${item.id}`;
       return {
         kind: 'worklog',
-        id: `work:${row.runId}:${item.id}`,
+        id,
         at,
         summary: step.text,
-        steps: [step],
+        steps: [{ ...step, id }],
         live: step.live === true,
       };
     }
@@ -195,12 +196,15 @@ export function mapConversationEvent(
       [item.command, item.name, item.tool, item.query].find(
         (value) => typeof value === 'string' && value,
       ) || item.type.replaceAll('_', ' ');
+    const id = `work:${row.runId}:${item.id}`;
+    // A finished command opens to its command and output.
+    const opens = item.type === 'command_execution' && row.type === 'item.completed';
     return {
       kind: 'worklog',
-      id: `work:${row.runId}:${item.id}`,
+      id,
       at,
       summary: text,
-      steps: [{ icon, text }],
+      steps: [{ icon, text, id, ...(opens ? { opens } : {}) }],
       live: row.type !== 'item.completed',
     };
   }

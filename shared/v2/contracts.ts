@@ -88,6 +88,34 @@ export type WorkStep = {
   /** Why it failed or stopped, and the last lines of its log, shown when the step is opened. */
   reason?: string;
   tail?: string[];
+  /** The step's run and item, `work:<run>:<item>`, to load what it did when it opens. */
+  id?: string;
+  /** Opening it loads its detail: the command and output, the diff, what a search found. */
+  opens?: boolean;
+  /** What a search found, at the row's end: "3 files". */
+  found?: string;
+};
+
+/** One row of a step's diff. Line numbers are left out when the edit doesn't say where it landed. */
+export type StepDiffRow = {
+  kind: 'add' | 'del' | 'same' | 'hunk';
+  old?: number;
+  new?: number;
+  text: string;
+};
+
+/** What opening a step shows. */
+export type StepDetail = {
+  command?: string;
+  /** The last lines of its output. */
+  output?: string[];
+  exitCode?: number;
+  path?: string;
+  diff?: StepDiffRow[];
+  /** What a search found, a line each. */
+  found?: string[];
+  /** Lines left out above the output, or below the diff or the search results. */
+  more?: number;
 };
 
 // Waiting on you. The only thing that shows "!".

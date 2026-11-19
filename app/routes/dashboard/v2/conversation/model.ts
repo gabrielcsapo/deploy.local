@@ -63,8 +63,9 @@ export function workLogs(events: ConversationEvent[]): ConversationEvent[] {
       const live = logs.some((event) => event.live);
       const steps = work.flatMap((event): WorkStep[] =>
         event.kind === 'worklog'
-          ? event.steps.map((step) => ({ ...step, live: step.live ?? event.live }))
-          : [{ icon: 'pulse', glyph: 'note', text: event.paragraphs.join(' ') }],
+          ? // Each step keeps its own state: the log being live must not spin the steps that are done.
+            event.steps.map((step) => ({ ...step, live: step.live ?? event.live }))
+          : [{ icon: 'pulse', glyph: 'note', text: event.paragraphs.join(' '), live: false }],
       );
       result.push({
         kind: 'worklog',

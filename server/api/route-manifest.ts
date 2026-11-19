@@ -1919,6 +1919,11 @@ export const apiRouteManifest: { method: Method | '*'; path: string; handler: st
     handler: 'workspace',
   },
   {
+    method: 'GET',
+    path: '/api/runs/:run/steps/:item',
+    handler: 'workspace',
+  },
+  {
     method: 'POST',
     path: '/api/tasks/:task/:action(messages|stop|mark-stopped|check|close|reopen|delete)',
     handler: 'workspace',

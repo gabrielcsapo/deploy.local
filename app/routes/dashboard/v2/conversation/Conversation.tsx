@@ -1,18 +1,46 @@
 'use client';
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { SavedAgentAvatar } from '../agents/identity';
 import { Glyph, Icon, WorkLog } from '@/components/ui';
-import type { ConversationEvent, Release, Screenshot } from '../../../../../shared/v2/contracts';
+import type {
+  ConversationEvent,
+  Release,
+  Screenshot,
+  StepDetail,
+} from '../../../../../shared/v2/contracts';
 import { InboxDecision } from '../inbox/InboxDecision';
-import { useAgentName } from '../data/hooks';
+import { authenticatedFetch, useAgentName } from '../data/hooks';
 import { useProjectFormatting } from '../projects/formatting';
 import { conversationDays, safeResourceUrl, workLogs } from './model';
-import { AttachmentImage, ScreenshotEvent } from './Media';
+import { MarkdownWithMedia, MediaRow, ScreenshotEvent } from './Media';
 import './style.css';
+
+const isPicture = (kind: string) => ['photo', 'screenshot', 'video'].includes(kind);
+
+/** A step's detail, loaded once per step however often the page renders; a failure tries again. */
+const stepDetails = new Map<string, Promise<StepDetail>>();
+function loadStep(id: string): Promise<StepDetail> {
+  const cached = stepDetails.get(id);
+  if (cached) return cached;
+  const [, run, ...item] = id.split(':');
+  const loading = authenticatedFetch(
+    `/api/runs/${encodeURIComponent(run)}/steps/${encodeURIComponent(item.join(':'))}`,
+  )
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Step detail ${response.status}`);
+      return ((await response.json()) as { detail: StepDetail }).detail;
+    })
+    .catch((error) => {
+      stepDetails.delete(id);
+      throw error;
+    });
+  stepDetails.set(id, loading);
+  return loading;
+}
 
 export type ConversationResources = {
   showAuthors?: boolean;
+  /** In a task: a waiting question is answered from the composer below. */
+  inTask?: boolean;
   tasks?: { id: string; title: string }[];
   releases?: Release[];
   screenshots?: Screenshot[];
@@ -62,14 +90,20 @@ export function ConversationItem({
       return (
         <div className="dl-you">
           {event.text}
-          {event.attachments.map((attachment, i) => (
-            <a className="dl-chat-attachment" key={i} href={safeResourceUrl(attachment.ref)}>
-              {['photo', 'screenshot'].includes(attachment.kind) && (
-                <AttachmentImage src={attachment.ref} alt={attachment.name} />
-              )}
-              {attachment.name}
-            </a>
-          ))}
+          {event.attachments.some((attachment) => isPicture(attachment.kind)) && (
+            <MediaRow
+              items={event.attachments
+                .filter((attachment) => isPicture(attachment.kind))
+                .map((attachment) => ({ src: attachment.ref, alt: attachment.name }))}
+            />
+          )}
+          {event.attachments
+            .filter((attachment) => !isPicture(attachment.kind))
+            .map((attachment, i) => (
+              <a className="dl-chat-attachment" key={i} href={safeResourceUrl(attachment.ref)}>
+                {attachment.name}
+              </a>
+            ))}
         </div>
       );
     case 'reply':
@@ -81,13 +115,16 @@ export function ConversationItem({
               {agentName(event.agent)} <span className="dl-meta">· {formatTime(event.at)}</span>
             </div>
           )}
-          <Markdown remarkPlugins={[remarkGfm]}>{event.paragraphs.join('\n\n')}</Markdown>
+          <MarkdownWithMedia text={event.paragraphs.join('\n\n')} />
         </div>
       );
     case 'worklog': {
       const steps = event.steps.map((step) => ({
         ...step,
         live: step.live ?? event.live,
+        ...(step.opens && step.id?.startsWith('work:')
+          ? { load: () => loadStep(step.id as string) }
+          : {}),
         note: step.glyph === 'note',
         icon:
           step.glyph === 'deploy'
@@ -110,7 +147,7 @@ export function ConversationItem({
       );
     }
     case 'decision':
-      return <InboxDecision itemId={event.inboxItemId} />;
+      return <InboxDecision itemId={event.inboxItemId} inTask={resources.inTask} />;
     case 'task':
       return (
         <a className="dl-chat-link" href={`/dashboard/tasks/${encodeURIComponent(event.taskId)}`}>

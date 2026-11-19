@@ -1,4 +1,5 @@
 import type { WorkStep } from '../../../shared/v2/contracts.ts';
+import { editCounts, searchFound, stepOpens } from './step-details.ts';
 
 /**
  * Turns an agent's tool calls and jobs into steps a person can read: what was done, how it went,
@@ -179,6 +180,7 @@ export function toolStep(item: ToolItem, done: boolean, endedAt?: string): WorkS
     ...step,
     ...(done ? {} : { live: true }),
     ...(failed ? { outcome: 'Failed', tone: 'fail' as const } : {}),
+    ...(stepOpens(item, done) ? { opens: true } : {}),
   });
   switch (name) {
     case 'Bash':
@@ -195,10 +197,17 @@ export function toolStep(item: ToolItem, done: boolean, endedAt?: string): WorkS
       return result({
         icon: 'edit',
         text: `${name === 'Write' ? 'Wrote' : 'Edited'} ${basename(input.file_path || input.notebook_path)}`,
+        ...(done && !failed ? editCounts(item) : {}),
       });
     case 'Grep':
-    case 'Glob':
-      return result({ icon: 'search', text: short(`Searched for ${input.pattern ?? ''}`) });
+    case 'Glob': {
+      const found = done && !failed ? searchFound(item) : undefined;
+      return result({
+        icon: 'search',
+        text: short(`Searched for ${input.pattern ?? ''}`),
+        ...(found ? { found } : {}),
+      });
+    }
     case 'WebSearch':
       return result({ icon: 'search', text: short(`Searched the web for ${input.query ?? ''}`) });
     case 'WebFetch':
