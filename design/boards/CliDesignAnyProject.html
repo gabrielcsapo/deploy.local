@@ -55,7 +55,7 @@ Edit the boards in <span data-layer="design-boards" class="t-b">design/boards</s
 
 <span data-layer="catan-3" class="t-dim">~/catan $</span> deploy design start "Harbor trade" --project catam
 <span data-layer="t-fail" class="t-fail">✗</span> deploy.local has no project "catam".
-<span data-layer="next-deploy-design" class="t-dim">  Next: deploy design start "&lt;title&gt;" --project &lt;name&gt;</span></pre></div></div><div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="design-readme-md-2" class="dl-strong" style="font-size:15px;line-height:24px">design/README.md</span><span data-layer="start-writes-it" class="dl-soft">start writes it with the first canvas and board</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="catan-harbor-trade-2" class="t-dim">~/catan-harbor-trade $</span> cat design/README.md
+<span data-layer="next-deploy-design" class="t-dim">  Next: deploy design start "&lt;title&gt;" --project &lt;name&gt;</span></pre></div></div><div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="design-readme-md-2" class="dl-strong" style="font-size:15px;line-height:24px">design/README.md</span><span data-layer="start-writes-it" class="dl-soft">start writes it with the first canvas and board, and leaves the three files for you to commit</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="catan-harbor-trade-2" class="t-dim">~/catan-harbor-trade $</span> cat design/README.md
 <span data-layer="design" class="t-b"># Design</span>
 
 This folder is the app's design: one board per screen, reviewed
@@ -70,8 +70,8 @@ are 390. Place boards apart on the canvas.
 <span data-layer="boards-name-html" class="t-b">## boards/&lt;Name&gt;.html</span>
 One standalone page per board, sized by
 &lt;meta name="design-board" content="width=1440,height=900"&gt;
-No scripts and no remote images. Pictures sit beside the boards,
-in boards/captures: deploy design capture puts the running app there.
+No scripts and no remote images. Pictures, such as a screenshot of
+the running app, sit beside the boards in boards/captures.
 Every element someone might point at carries a data-layer ID,
 unique in its board. deploy design check adds them. Keep them.
 
