@@ -9,7 +9,7 @@ import { execFile } from 'node:child_process';
 import { readdir, rm, rmdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gitEnvironment } from '../../kernel/git.ts';
-import { remove } from '../../workspace/store.ts';
+import { remove } from '../../kernel/db/records.ts';
 import {
   gitLines,
   lfsObjects,
