@@ -19,9 +19,15 @@ import {
 } from '../../design/board-html.ts';
 import { layerLabel } from '../../../shared/v2/design.ts';
 import { reviewWidths, screenName } from '../../../shared/v2/design-review.ts';
+import {
+  measureOverflow,
+  overflowProblems,
+  type CheckProblem,
+  type Overflow,
+} from '../../../shared/v2/design-overflow.ts';
 
-export type CheckProblem = { file: string | null; label: string; detail: string; short: string };
-export type Overflow = { scrolls: boolean; cut: string | null };
+export { measureOverflow, overflowProblems, type CheckProblem, type Overflow };
+
 export type CheckBoardRow = {
   file: string;
   title: string;
@@ -200,58 +206,6 @@ export function partRow(part: { id: string; name: string }, shown: number, carri
 
 /** The widths a board is drawn at: web boards at 1440 and 700, phone boards at their own. */
 export const checkWidths = (width: number | undefined) => reviewWidths(width ?? 1440);
-
-/** In the page: the first piece of text that leaves the page sideways, and whether the page scrolls. */
-export function measureOverflow(): Overflow {
-  const width = document.documentElement.clientWidth;
-  const scrolls = document.documentElement.scrollWidth > width + 1;
-  let cut: string | null = null;
-  for (const element of document.body.querySelectorAll('*')) {
-    const rect = element.getBoundingClientRect();
-    if (!rect.width || !rect.height || (rect.right <= width + 1 && rect.left >= -1)) continue;
-    const own = [...element.childNodes]
-      .filter((node) => node.nodeType === Node.TEXT_NODE)
-      .map((node) => node.textContent)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (!own) continue;
-    const style = getComputedStyle(element);
-    if (style.visibility === 'hidden' || style.display === 'none') continue;
-    cut = own.slice(0, 40);
-    break;
-  }
-  return { scrolls, cut };
-}
-
-/** Problems from drawing at 700: only what the branch made, not what main already had. */
-export function overflowProblems(
-  file: string,
-  title: string,
-  measured: { after: Overflow; before: Overflow | null } | undefined,
-): CheckProblem[] {
-  if (!measured) return [];
-  const { after, before } = measured;
-  if (after.cut && !(before && before.cut === after.cut))
-    return [
-      {
-        file,
-        label: `${title} is cut off at 700 px`,
-        detail: `"${after.cut}" leaves the page`,
-        short: 'cut off at 700 px',
-      },
-    ];
-  if (after.scrolls && !before?.scrolls)
-    return [
-      {
-        file,
-        label: `${title} overflows at 700 px`,
-        detail: 'the page scrolls sideways',
-        short: 'overflows at 700 px',
-      },
-    ];
-  return [];
-}
 
 /** One side of a pair: a board drawn at a commit, with what overflows when measured. */
 export type CheckShot = { png: Buffer; measured: Overflow | null };

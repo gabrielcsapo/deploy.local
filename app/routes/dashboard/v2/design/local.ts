@@ -19,3 +19,6 @@ export function designLocal(): DesignLocal | null {
   if (typeof window === 'undefined') return null;
   return (window as { __DEPLOY_DESIGN_LOCAL__?: DesignLocal }).__DEPLOY_DESIGN_LOCAL__ ?? null;
 }
+
+/** The one project a folder's page shows, as its addresses name it. */
+export const localProjectId = 'local';

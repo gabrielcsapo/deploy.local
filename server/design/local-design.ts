@@ -190,6 +190,19 @@ export function createLocalDesign(options: LocalDesignOptions) {
   /** Where this branch started from main: what "Changes on this branch" compares with. */
   const forkedAt = () =>
     git(['merge-base', 'HEAD', options.main]) ?? git(['rev-parse', '--verify', options.main]);
+  const mainBytes = (path: string) => {
+    const base = git(['rev-parse', '--verify', '--quiet', `${options.main}^{commit}`]);
+    if (!base) return null;
+    try {
+      return execFileSync('git', ['show', `${base}:${path}`], {
+        cwd: root,
+        stdio: ['ignore', 'pipe', 'ignore'],
+        maxBuffer: 1 << 28,
+      });
+    } catch {
+      return null;
+    }
+  };
   const onMain = (path: string) => {
     const base = git(['rev-parse', '--verify', '--quiet', `${options.main}^{commit}`]);
     return base ? git(['show', `${base}:${path}`]) : null;
@@ -273,12 +286,18 @@ export function createLocalDesign(options: LocalDesignOptions) {
           branches: [],
           openComments: 0,
         });
-      const file = sub.match(/^\/files\/[0-9a-f]+\/((?:boards|ds)\/[A-Za-z0-9_./-]+)$/);
+      // A board as this folder has it, or (main-files) as main has it, for measuring beside it.
+      const file = sub.match(
+        /^\/(?:files\/[0-9a-f]+|(main-files))\/((?:boards|ds)\/[A-Za-z0-9_./-]+)$/,
+      );
       if (file && (method === 'GET' || method === 'HEAD')) {
-        const at = file[1];
+        const [, fromMain, at] = file;
         const type = fileTypes[at.split('.').pop()!];
         if (!type || at.split('/').includes('..')) return json(res, { error: 'Not found' }, 404);
-        let bytes = read(at) ?? (at.startsWith('ds/') ? options.designSystem(at) : null);
+        let bytes =
+          (fromMain && at.startsWith('boards/') ? mainBytes(`design/${at}`) : null) ??
+          (fromMain && at.startsWith('boards/') ? null : read(at)) ??
+          (at.startsWith('ds/') ? options.designSystem(at) : null);
         if (!bytes) return json(res, { error: 'Not found' }, 404);
         // A board shows its instances as the folder's library draws them.
         if (at.startsWith('boards/') && at.endsWith('.html')) {
@@ -397,5 +416,10 @@ export function createLocalDesign(options: LocalDesignOptions) {
     /** A board's name as the page and the check say it. */
     name: (file: string) => screenName(file),
     exists: () => existsSync(join(design, 'canvas.json')),
+    /** A board's place and size on the canvas, or null when it is not on it. */
+    placed: (file: string): { w: number; h: number } | null => {
+      const board = canvas()?.boards?.[file];
+      return board ? { w: Number(board.w ?? 1440), h: Number(board.h ?? 900) } : null;
+    },
   };
 }

@@ -118,6 +118,10 @@ test('edits and canvas changes from the page are written into the folder', async
       readFileSync(join(at.root, 'design/boards/Harbor.html'), 'utf8'),
       /<h1 data-layer="title">Harbor trade<\/h1>/,
     );
+    // Main's board stays readable beside it, for measuring what main already had.
+    const onMain = await at.call(`${localDesignApi}/main-files/boards/Harbor.html`);
+    assert.match(await onMain.text(), /<h1 data-layer="title">Harbor<\/h1>/);
+    assert.equal((await at.call(`${localDesignApi}/main-files/boards/New.html`)).status, 404);
     // The answer and the reload after the save name the same version: nothing redraws twice.
     assert.equal((await (await at.call(localDesignApi)).json()).commit, edited.commit);
     const note = await (

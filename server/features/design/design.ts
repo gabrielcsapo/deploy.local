@@ -3282,7 +3282,10 @@ export function checkDrawing(repo: string): CheckDrawing {
           if (scheme === 'dark')
             await tab.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
           await tab.evaluate(() => document.fonts.ready);
-          const measured = measure ? await tab.evaluate(measureOverflow) : null;
+          // Run in the page itself, on its own document.
+          const measured = measure
+            ? await tab.evaluate(measureOverflow as () => ReturnType<typeof measureOverflow>)
+            : null;
           return { png: await tab.screenshot(), measured };
         } finally {
           await context.close();

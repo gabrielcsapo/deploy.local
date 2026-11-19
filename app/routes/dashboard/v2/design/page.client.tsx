@@ -71,6 +71,7 @@ import {
 } from './Panels';
 import { DesignArtifact } from './artifact-context';
 import { designLocal } from './local';
+import { measureSaved, type SavedBoard } from './local-measure';
 import { Play } from './Play';
 import { PickSheet } from './Pickers';
 import './style.css';
@@ -189,9 +190,16 @@ function DesignCanvasPage({
     if (!local) return;
     const events = new EventSource('/api/design-local/events');
     let first = true;
-    events.onmessage = () => {
+    events.onmessage = (event) => {
       if (!first) setSaved((n) => n + 1);
       first = false;
+      // The terminal reports what each saved board leaves off the page at 700, measured here.
+      try {
+        const { measure } = JSON.parse(event.data) as { measure?: SavedBoard[] };
+        if (measure?.length) void measureSaved(measure);
+      } catch {
+        /* Not a save. */
+      }
     };
     return () => events.close();
   }, [local]);
