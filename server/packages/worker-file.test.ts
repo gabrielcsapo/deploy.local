@@ -34,7 +34,9 @@ test('a worker is found beside its caller, one folder up, or from source', () =>
 // A release runs its tests after building. A worker the built code can't find fails every
 // package that isn't kept yet, and running from source never shows it.
 const dist = resolve('dist');
-test('every built file can find the package workers it names', { skip: !existsSync(dist) }, () => {
+// dist also holds builds that are not the server's (the CLI, the page deploy design dev serves).
+const built = existsSync(join(dist, 'build-meta.json'));
+test('every built file can find the package workers it names', { skip: !built }, () => {
   const workers = [
     'package-document-worker.mjs',
     'package-index-worker.mjs',

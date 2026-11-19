@@ -18,6 +18,16 @@ function imports(source: string) {
 // Exact exceptions retained by the pure move. An edge disappearing also requires review.
 const workspaceOrigins = new Set<string>([]);
 const exceptions: Record<string, string> = {
+  'board-check.ts -> server/design/board-html.ts':
+    'The board check reads layers with the existing board HTML reader; moved from scripts/design-check.mjs.',
+  'board-check.ts -> shared/v2/design-overflow.ts':
+    'The cut-off rule, shared with the page deploy design dev serves so both measure the same way.',
+  'board-check.ts -> shared/v2/design-review.ts':
+    'Existing shared design review model; the check names screens and widths as review does.',
+  'board-check.ts -> shared/v2/design.ts':
+    'Existing shared canvas model; the check labels layers as review does.',
+  'design.ts -> server/design/canvas-edit.ts':
+    'Canvas edits, shared with the folder deploy design dev serves so both write the same canvas.',
   'design-check.ts -> server/workspace/store.ts':
     'Existing workspace records, transactions and events; preserve bootstrap and record semantics.',
   'design-check.ts -> shared/v2/contracts.ts':
