@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { SavedAgentAvatar } from '../agents/identity';
 import { Glyph, Icon, WorkLog } from '@/components/ui';
+import { duration } from '@/components/ui/v2/Steps';
 import type {
   ConversationEvent,
   Release,
@@ -11,7 +12,7 @@ import type {
 import { InboxDecision } from '../inbox/InboxDecision';
 import { authenticatedFetch, useAgentName } from '../data/hooks';
 import { useProjectFormatting } from '../projects/formatting';
-import { conversationDays, safeResourceUrl, took, workLogs } from './model';
+import { conversationDays, safeResourceUrl, workLogs } from './model';
 import { MarkdownWithMedia, MediaRow, ScreenshotEvent } from './Media';
 import './style.css';
 
@@ -22,15 +23,22 @@ function Elapsed({ since }: { since: string }) {
     const timer = setInterval(() => setNow(new Date().toISOString()), 1000);
     return () => clearInterval(timer);
   }, []);
-  return <>Working for {took(since, now)}</>;
+  return (
+    <>
+      Working for {duration(Math.max(0, Math.round((Date.parse(now) - Date.parse(since)) / 1000)))}
+    </>
+  );
 }
 
 const isPicture = (kind: string) => ['photo', 'screenshot', 'video'].includes(kind);
 
-/** A step's detail, loaded once per step however often the page renders; a failure tries again. */
+/**
+ * A step's detail, loaded once per finished step however often the page renders; a failure tries
+ * again. A running step's detail is still changing, so it is loaded fresh each time.
+ */
 const stepDetails = new Map<string, Promise<StepDetail>>();
-function loadStep(id: string): Promise<StepDetail> {
-  const cached = stepDetails.get(id);
+function loadStep(id: string, live?: boolean): Promise<StepDetail> {
+  const cached = live ? undefined : stepDetails.get(id);
   if (cached) return cached;
   const [, run, ...item] = id.split(':');
   const loading = authenticatedFetch(
@@ -44,8 +52,25 @@ function loadStep(id: string): Promise<StepDetail> {
       stepDetails.delete(id);
       throw error;
     });
-  stepDetails.set(id, loading);
+  if (!live) stepDetails.set(id, loading);
   return loading;
+}
+
+/** The lines of a build log the running deploy shows, as many as fit without scrolling. */
+const FOLLOW_LINES = 5;
+
+/** The end of a running deploy's build log, without each line's timestamp. */
+async function followDeploy(app: string): Promise<StepDetail> {
+  const response = await authenticatedFetch(
+    `/api/deployments/${encodeURIComponent(app)}/build-logs`,
+  );
+  if (!response.ok) throw new Error(`Build log ${response.status}`);
+  const body = (await response.json()) as { activeBuild?: { output?: string } | null };
+  const lines = String(body.activeBuild?.output ?? '')
+    .split('\n')
+    .map((line) => line.replace(/^\[[^\]]+\]\s*/, '').trimEnd())
+    .filter(Boolean);
+  return { output: lines.slice(-FOLLOW_LINES) };
 }
 
 export type ConversationResources = {
@@ -130,24 +155,33 @@ export function ConversationItem({
         </div>
       );
     case 'worklog': {
-      const steps = event.steps.map((step) => ({
-        ...step,
-        live: step.live ?? event.live,
-        ...(step.opens && step.id?.startsWith('work:')
-          ? { load: () => loadStep(step.id as string) }
-          : {}),
-        note: step.glyph === 'note',
-        icon:
-          step.glyph === 'deploy'
-            ? ('deploy' as const)
-            : step.glyph === 'note'
-              ? ('comment' as const)
-              : step.icon === 'edit'
-                ? ('compose' as const)
-                : step.icon === 'logs'
-                  ? ('terminal' as const)
-                  : step.icon,
-      }));
+      const steps = event.steps.map((step) => {
+        const live = step.live ?? event.live;
+        // A running deploy follows its build log; other steps load what they did.
+        const load =
+          live && step.follow
+            ? () => followDeploy(step.follow as string)
+            : step.opens && step.id?.startsWith('work:')
+              ? () => loadStep(step.id as string, live)
+              : undefined;
+        return {
+          ...step,
+          live,
+          ...(load ? { load } : {}),
+          ...(live && step.follow ? { follows: true } : {}),
+          note: step.glyph === 'note',
+          icon:
+            step.glyph === 'deploy'
+              ? ('deploy' as const)
+              : step.glyph === 'note'
+                ? ('comment' as const)
+                : step.icon === 'edit'
+                  ? ('compose' as const)
+                  : step.icon === 'logs'
+                    ? ('terminal' as const)
+                    : step.icon,
+        };
+      });
       return (
         <WorkLog
           summary={

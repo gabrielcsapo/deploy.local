@@ -197,15 +197,28 @@ export function mapConversationEvent(
         (value) => typeof value === 'string' && value,
       ) || item.type.replaceAll('_', ' ');
     const id = `work:${row.runId}:${item.id}`;
-    // A finished command opens to its command and output.
-    const opens = item.type === 'command_execution' && row.type === 'item.completed';
+    const done = row.type === 'item.completed';
+    // When it started, from its first event, so a running step counts its own time.
+    const first = context.calls?.get(item.id);
+    const startedAt = typeof first?.startedAt === 'string' ? first.startedAt : at;
+    if (!first) context.calls?.set(item.id, { startedAt });
+    // A command opens to what it ran, and to its output once it finishes.
+    const opens = item.type === 'command_execution';
     return {
       kind: 'worklog',
       id,
       at,
       summary: text,
-      steps: [{ icon, text, id, ...(opens ? { opens } : {}) }],
-      live: row.type !== 'item.completed',
+      steps: [
+        {
+          icon,
+          text,
+          id,
+          ...(opens ? { opens } : {}),
+          ...(done ? {} : { live: true, since: startedAt }),
+        },
+      ],
+      live: !done,
     };
   }
 }

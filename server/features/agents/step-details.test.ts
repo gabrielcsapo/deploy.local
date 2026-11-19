@@ -128,3 +128,10 @@ test('A file in the task folder shows as its path in the repository', () => {
   );
   assert.equal(repositoryPath('/etc/hosts'), '/etc/hosts');
 });
+
+test('A running command opens to the command it ran; its output follows when it finishes', () => {
+  const item = { name: 'Bash', arguments: { command: 'pnpm build' } };
+  assert.equal(stepOpens(item, false), true);
+  assert.equal(stepOpens({ name: 'Read', arguments: { file_path: 'a.ts' } }, false), false);
+  assert.deepEqual(stepDetail(item), { command: 'pnpm build', output: [] });
+});

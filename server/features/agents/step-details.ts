@@ -47,7 +47,9 @@ const clip = (line: string) =>
 
 /** The last lines of some output, without trailing blank lines. */
 function tail(text: string, count = OUTPUT_LINES) {
-  const lines = text.replace(/\s+$/, '').split('\n');
+  const trimmed = text.replace(/\s+$/, '');
+  // No output is no lines, not one empty line.
+  const lines = trimmed ? trimmed.split('\n') : [];
   return { lines: lines.slice(-count).map(clip), more: Math.max(0, lines.length - count) };
 }
 
@@ -180,8 +182,9 @@ export function searchFound(item: ToolItem): string | undefined {
 
 /** Whether opening this step has anything to show. */
 export function stepOpens(item: ToolItem, done: boolean): boolean {
-  if (!done) return false;
   const name = toolName(item.name);
+  // A running command opens to the command; its output arrives when it finishes.
+  if (!done) return name === 'Bash' && typeof args(item).command === 'string';
   if (['Bash', 'Grep', 'Glob'].includes(name)) return true;
   if (['Edit', 'MultiEdit', 'Write'].includes(name)) return edits(item).length > 0;
   return item.isError === true && outputText(item.output).trim() !== '';

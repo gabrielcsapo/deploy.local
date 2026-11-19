@@ -124,8 +124,17 @@ function deployStep(item: ToolItem, done: boolean): WorkStep {
   const output = text(item.output);
   const result = json(output);
   const name = appName(item, result);
-  if (!done) return { icon: 'pulse', glyph: 'deploy', text: `Deploying ${name}`, live: true };
   const logs = { label: 'View logs', href: `/dashboard/${encodeURIComponent(name)}/build` };
+  // A running deploy shows the end of its build log as it goes, with the full log a click away.
+  if (!done)
+    return {
+      icon: 'pulse',
+      glyph: 'deploy',
+      text: `Deploying ${name}`,
+      live: true,
+      links: [logs],
+      ...(name !== 'app' ? { follow: name } : {}),
+    };
   if (result?.status === 'running' && typeof result.url === 'string') {
     let host = result.url;
     try {
@@ -163,6 +172,12 @@ function deployStep(item: ToolItem, done: boolean): WorkStep {
   };
 }
 
+/** When a running step started, so its time counts up while it runs. */
+function since(item: ToolItem, done: boolean): { since?: string } {
+  const at = String(item.startedAt ?? '');
+  return !done && Number.isFinite(Date.parse(at)) ? { since: at } : {};
+}
+
 /** One readable step for a tool call, or undefined for plumbing that has no step. */
 export function toolStep(item: ToolItem, done: boolean, endedAt?: string): WorkStep | undefined {
   const name = toolName(item.name);
@@ -172,13 +187,13 @@ export function toolStep(item: ToolItem, done: boolean, endedAt?: string): WorkS
     const seconds = Math.round(
       (Date.parse(endedAt ?? '') - Date.parse(String(item.startedAt ?? ''))) / 1000,
     );
-    return done && seconds >= 0 ? { ...step, seconds } : step;
+    return done && seconds >= 0 ? { ...step, seconds } : { ...step, ...since(item, done) };
   }
   const input = args(item);
   const failed = done && item.isError === true;
   const result = (step: WorkStep): WorkStep => ({
     ...step,
-    ...(done ? {} : { live: true }),
+    ...(done ? {} : { live: true, ...since(item, done) }),
     ...(failed ? { outcome: 'Failed', tone: 'fail' as const } : {}),
     ...(stepOpens(item, done) ? { opens: true } : {}),
   });

@@ -35,6 +35,8 @@ test('a deploy reads Deploying, then Live at its address or Failed with the reas
     glyph: 'deploy',
     text: 'Deploying drop',
     live: true,
+    links: [{ label: 'View logs', href: '/dashboard/drop/build' }],
+    follow: 'drop',
   });
   const live = toolStep(
     {
@@ -257,4 +259,12 @@ test("a pipeline's job ticks are no conversation's", () => {
     job: () => ({ id: 'tests', name: 'Run tests', taskId: 'task' }),
   });
   assert.equal(taskJob?.kind, 'worklog');
+});
+
+test('A running step says when it started, so its own time counts up', () => {
+  const startedAt = '2026-11-19T10:00:00.000Z';
+  assert.equal(toolStep({ ...deploy, startedAt }, false)?.since, startedAt);
+  const command = { name: 'Bash', arguments: { command: 'pnpm test' }, startedAt };
+  assert.equal(toolStep(command, false)?.since, startedAt);
+  assert.equal(toolStep(command, true)?.since, undefined);
 });

@@ -94,6 +94,10 @@ export type WorkStep = {
   opens?: boolean;
   /** What a search found, at the row's end: "3 files". */
   found?: string;
+  /** When a running step started, so it can show its own time counting up. */
+  since?: string;
+  /** A running deploy's app, whose build log the step shows as it goes. */
+  follow?: string;
 };
 
 /** One row of a step's diff. Line numbers are left out when the edit doesn't say where it landed. */

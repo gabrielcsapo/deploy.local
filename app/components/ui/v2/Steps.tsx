@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { StepDetail } from '../../../../shared/v2/contracts';
 import { type ComponentState, type IconName, Icon, stateProps } from './shared';
 import { Skeleton } from './Skeleton';
 export type WorkStep = {
+  /** Keeps a step's open state with the step when steps before it arrive or change. */
+  id?: string;
   text: ReactNode;
   icon?: IconName;
   /** dl-run, dl-ok or dl-fail, to color the icon by its state. */
@@ -28,14 +30,21 @@ export type WorkStep = {
   found?: string;
   /** Loads what the step did when it opens: the command and output, the diff, the matches. */
   load?: () => Promise<StepDetail>;
+  /** When a running step started: its time counts up beside it. */
+  since?: string;
+  /** A running step that opens by itself and keeps its detail current, like a deploy's build log. */
+  follows?: boolean;
 };
 
+/** How often a running step's detail is loaded again. */
+const REFRESH_MS = 2000;
+
 /** The command and the end of its output, or a search and what it found. */
-function Output({ detail }: { detail: StepDetail }) {
+function Output({ detail, live }: { detail: StepDetail; live?: boolean }) {
   const lines = detail.output ?? detail.found ?? [];
   if (!detail.command && !lines.length) return null;
   return (
-    <pre className="dl-step-tail">
+    <pre className="dl-step-tail" aria-live={live ? 'polite' : undefined}>
       {detail.command && (
         <span className="dl-step-cmd">
           {detail.found ? detail.command : `$ ${detail.command}`}
@@ -71,34 +80,66 @@ function Diff({ detail }: { detail: StepDetail }) {
   );
 }
 
-/** What opening a step shows, loaded the first time it opens. */
-function Detail({ load }: { load: () => Promise<StepDetail> }) {
+/**
+ * What opening a step shows, loaded the first time it opens. While the step runs it loads again
+ * every couple of seconds, and once more when it finishes.
+ */
+function Detail({ load, live }: { load: () => Promise<StepDetail>; live?: boolean }) {
   const [detail, setDetail] = useState<StepDetail | null>(null);
   const [failed, setFailed] = useState(false);
+  const loader = useRef(load);
+  useEffect(() => {
+    loader.current = load;
+  }, [load]);
   useEffect(() => {
     let active = true;
-    load()
-      .then((value) => active && setDetail(value))
-      .catch(() => active && setFailed(true));
+    const fetchDetail = () =>
+      loader
+        .current()
+        .then((value) => {
+          if (!active) return;
+          setDetail(value);
+          setFailed(false);
+        })
+        // A running step that misses one load keeps what it had and tries again.
+        .catch(() => active && !live && setFailed(true));
+    fetchDetail();
+    const timer = live ? setInterval(fetchDetail, REFRESH_MS) : undefined;
     return () => {
       active = false;
+      clearInterval(timer);
     };
-  }, [load]);
+  }, [live]);
   if (failed) return <p className="dl-meta">Couldn’t load this step</p>;
   if (!detail) return <Skeleton rows={2} label="Loading this step" />;
   return (
     <>
       {detail.path && <p className="dl-step-path">{detail.path}</p>}
       <Diff detail={detail} />
-      <Output detail={detail} />
+      <Output detail={detail} live={live} />
     </>
   );
 }
 
 export function duration(seconds: number) {
   if (seconds < 60) return `${seconds}s`;
+  if (seconds >= 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  }
   const minutes = Math.floor(seconds / 60);
   return seconds % 60 ? `${minutes}m ${seconds % 60}s` : `${minutes}m`;
+}
+
+/** A running step's own time, counting up every second. */
+function Running({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.round((now - Date.parse(since)) / 1000));
+  return <span>{duration(seconds)}</span>;
 }
 
 /** "Live at drop.local" links the address, not the words before it. */
@@ -117,8 +158,16 @@ function Outcome({ step }: { step: WorkStep }) {
 
 function Step({ step, index, numbered }: { step: WorkStep; index: number; numbered?: boolean }) {
   const opens = Boolean(step.reason || step.tail?.length || step.load);
-  // A failure is the thing to read, so it starts open.
-  const [open, setOpen] = useState(step.tone === 'fail');
+  // A failure is the thing to read, so it starts open; so does a deploy as it goes.
+  const [open, setOpen] = useState(step.tone === 'fail' || Boolean(step.live && step.follows));
+  // A deploy that starts running after the row appeared opens then.
+  const follows = Boolean(step.live && step.follows);
+  const [following, setFollowing] = useState(follows);
+  if (follows !== following) {
+    setFollowing(follows);
+    if (follows) setOpen(true);
+  }
+  const running = step.live && step.since && step.seconds === undefined ? step.since : undefined;
   return (
     <>
       <li className={`dl-step${step.note ? ' note' : ''}`}>
@@ -140,10 +189,11 @@ function Step({ step, index, numbered }: { step: WorkStep; index: number; number
         )}
         {step.added !== undefined && <span className="dl-add">+{step.added}</span>}
         {step.removed !== undefined && <span className="dl-del">−{step.removed}</span>}
-        {(step.seconds !== undefined || step.links?.length || step.found || opens) && (
+        {(step.seconds !== undefined || running || step.links?.length || step.found || opens) && (
           <span className="dl-step-end">
             {step.found && <span>{step.found}</span>}
             {step.seconds !== undefined && <span>{duration(step.seconds)}</span>}
+            {running && <Running since={running} />}
             {step.links?.map((link) => (
               <a key={link.href + link.label} href={link.href}>
                 {link.label}
@@ -175,7 +225,7 @@ function Step({ step, index, numbered }: { step: WorkStep; index: number; number
         <li className="dl-step-open">
           {step.reason && <p>{step.reason}</p>}
           {step.tail?.length ? <pre className="dl-step-tail">{step.tail.join('\n')}</pre> : null}
-          {step.load && <Detail load={step.load} />}
+          {step.load && <Detail load={step.load} live={step.live} />}
         </li>
       )}
     </>
@@ -199,7 +249,7 @@ export function Steps({
       {...stateProps({ disabled, loading })}
     >
       {steps.map((step, index) => (
-        <Step key={index} step={step} index={index} numbered={numbered} />
+        <Step key={step.id ?? index} step={step} index={index} numbered={numbered} />
       ))}
     </List>
   );
