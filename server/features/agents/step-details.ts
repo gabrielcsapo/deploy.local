@@ -56,6 +56,14 @@ function split(text: unknown) {
   return text.replace(/\n$/, '').split('\n');
 }
 
+/** A file in the task's own folder reads as its path in the repository: web/server.mjs. */
+export function repositoryPath(path: string) {
+  return path.replace(
+    /^.*\/tasks\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i,
+    '',
+  );
+}
+
 /** Lines added and removed by an edit, matched line by line. */
 export function diffRows(before: string[], after: string[], start = 1): StepDiffRow[] {
   const rows: StepDiffRow[] = [];
@@ -205,7 +213,7 @@ export function stepDetail(item: ToolItem & Record<string, any>): StepDetail {
     };
   }
   if (['Edit', 'MultiEdit', 'Write'].includes(name)) {
-    const path = String(input.file_path || input.notebook_path || '');
+    const path = repositoryPath(String(input.file_path || input.notebook_path || ''));
     const all = edits(item);
     const rows = all.flatMap(({ before, after }, index) => {
       // A new file starts at line 1; an edit starts where its result says, if it says.

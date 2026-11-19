@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diffRows, editCounts, searchFound, stepDetail, stepOpens } from './step-details.ts';
+import {
+  diffRows,
+  repositoryPath,
+  editCounts,
+  searchFound,
+  stepDetail,
+  stepOpens,
+} from './step-details.ts';
 import { toolStep } from './work-steps.ts';
 import { mapConversationEvent } from './conversation-events.ts';
 
@@ -110,4 +117,14 @@ test('Each work step carries its run and item, so it can load its detail when op
   const step = done?.kind === 'worklog' ? done.steps[0] : undefined;
   assert.equal(step?.id, 'work:run-1:toolu_1');
   assert.equal(step?.opens, true);
+});
+
+test('A file in the task folder shows as its path in the repository', () => {
+  assert.equal(
+    repositoryPath(
+      '/Users/me/Library/Application Support/deploy.local/worker/tasks/da830f5c-bffa-4e86-8d30-94eb093fb8fc/web/server.mjs',
+    ),
+    'web/server.mjs',
+  );
+  assert.equal(repositoryPath('/etc/hosts'), '/etc/hosts');
 });
