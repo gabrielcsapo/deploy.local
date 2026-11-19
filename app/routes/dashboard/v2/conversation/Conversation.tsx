@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { SavedAgentAvatar } from '../agents/identity';
 import { Glyph, Icon, WorkLog } from '@/components/ui';
 import type {
@@ -10,9 +11,19 @@ import type {
 import { InboxDecision } from '../inbox/InboxDecision';
 import { authenticatedFetch, useAgentName } from '../data/hooks';
 import { useProjectFormatting } from '../projects/formatting';
-import { conversationDays, safeResourceUrl, workLogs } from './model';
+import { conversationDays, safeResourceUrl, took, workLogs } from './model';
 import { MarkdownWithMedia, MediaRow, ScreenshotEvent } from './Media';
 import './style.css';
+
+/** "Working for 3m" that keeps counting while a step runs, instead of stopping at the last one. */
+function Elapsed({ since }: { since: string }) {
+  const [now, setNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date().toISOString()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <>Working for {took(since, now)}</>;
+}
 
 const isPicture = (kind: string) => ['photo', 'screenshot', 'video'].includes(kind);
 
@@ -139,7 +150,13 @@ export function ConversationItem({
       }));
       return (
         <WorkLog
-          summary={event.summary}
+          summary={
+            event.live && event.summary.startsWith('Working for') ? (
+              <Elapsed since={event.at} />
+            ) : (
+              event.summary
+            )
+          }
           live={event.live}
           steps={steps}
           defaultOpen={steps.some((step) => step.live || step.tone === 'fail')}
