@@ -974,10 +974,10 @@
   grid-template-rows: 56px minmax(0, 1fr) 56px;
   align-items: center;
   justify-items: center;
-  background: color-mix(in srgb, #000 90%, transparent);
+  background: color-mix(in srgb, var(--ds-shadow) 90%, transparent);
 }
 .dl-viewer .dl-icon-btn {
-  color: #fff;
+  color: var(--ds-highlight);
 }
 .dl-viewer-close {
   grid-column: 3;
@@ -1027,10 +1027,10 @@
   gap: 16px;
   font-size: var(--ds-type-ui);
   line-height: 20px;
-  color: #fff;
+  color: var(--ds-highlight);
 }
 .dl-viewer-caption {
-  color: color-mix(in srgb, #fff 75%, transparent);
+  color: color-mix(in srgb, var(--ds-highlight) 75%, transparent);
 }
 .dl-who-line {
   display: flex;

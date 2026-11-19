@@ -46,14 +46,29 @@ test('Attachments cannot execute scripts or navigate protocol-relative URLs', ()
 test('While one step runs, the steps that are done and the notes between them do not spin', () => {
   const at = '2026-11-19T10:00:00.000Z';
   const [log] = workLogs([
-    { kind: 'worklog', id: 'a', at, summary: 'Wrote a', steps: [{ icon: 'edit', text: 'Wrote a' }], live: false },
+    {
+      kind: 'worklog',
+      id: 'a',
+      at,
+      summary: 'Wrote a',
+      steps: [{ icon: 'edit', text: 'Wrote a' }],
+      live: false,
+    },
     { kind: 'reply', id: 'n', at, agent: 'claude', paragraphs: ['Now installing'] },
-    { kind: 'worklog', id: 'b', at, summary: 'npm install', steps: [{ icon: 'terminal', text: 'npm install', live: true }], live: true },
+    {
+      kind: 'worklog',
+      id: 'b',
+      at,
+      summary: 'npm install',
+      steps: [{ icon: 'terminal', text: 'npm install', live: true }],
+      live: true,
+    },
   ] as ConversationEvent[]);
   assert.equal(log.kind, 'worklog');
   assert.equal(log.kind === 'worklog' && log.live, true);
-  assert.deepEqual(
-    log.kind === 'worklog' && log.steps.map((step) => step.live),
-    [false, false, true],
-  );
+  assert.deepEqual(log.kind === 'worklog' && log.steps.map((step) => step.live), [
+    false,
+    false,
+    true,
+  ]);
 });

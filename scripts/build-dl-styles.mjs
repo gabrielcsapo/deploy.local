@@ -15,6 +15,7 @@ import { format } from 'oxfmt';
 import {
   GENERATED,
   SOURCE_SHEETS,
+  COLOR_MAP,
   TOKEN_MAP,
   TYPE_MAP,
   appSelector,
@@ -48,6 +49,11 @@ export async function build(rootDirectory = root) {
         .replace(/font-size\s*:\s*(\d+)px/g, (all, size) => {
           if (!TYPE_MAP[size]) throw new Error(`${sheet}: no type token for ${all}`);
           return `font-size: var(${TYPE_MAP[size]})`;
+        })
+        .replace(/#(?:[\da-f]{6}|[\da-f]{3})\b/gi, (all) => {
+          const token = COLOR_MAP[all.toLowerCase()];
+          if (!token) throw new Error(`${sheet}: no app token for ${all}`);
+          return `var(${token})`;
         })
         .replace(/var\((--[\w-]+)/g, (all, name) => {
           // The design system's token names, written as the app's: no second set of globals.

@@ -67,6 +67,17 @@ export const TOKEN_MAP = {
   '--size-icon': '--ds-size-iconGlyphDefault',
 };
 
+/**
+ * The design system writes pure black and white as literals (the media viewer stays dark in both
+ * themes); the app reads them from tokens that are black and white in both themes.
+ */
+export const COLOR_MAP = {
+  '#000': '--ds-shadow',
+  '#000000': '--ds-shadow',
+  '#fff': '--ds-highlight',
+  '#ffffff': '--ds-highlight',
+};
+
 /** The design system writes type sizes in pixels; the app reads them from its type tokens. */
 export const TYPE_MAP = {
   11: '--ds-type-caption',

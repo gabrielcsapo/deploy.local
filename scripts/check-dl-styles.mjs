@@ -11,6 +11,7 @@ import { build } from './build-dl-styles.mjs';
 import {
   APP_SHEETS,
   GENERATED,
+  COLOR_MAP,
   TOKEN_MAP,
   TYPE_MAP,
   declarations,
@@ -80,6 +81,16 @@ for (const [name, appName] of Object.entries(TOKEN_MAP))
       normalize(resolveToken(want, board[theme])) !== normalize(resolveToken(have, app[theme]))
     )
       problems.push(`${name} → ${appName} differ in ${theme}: ${want} / ${have}`);
+  }
+
+for (const [color, token] of Object.entries(COLOR_MAP))
+  for (const theme of ['light', 'dark']) {
+    const have = normalize(resolveToken(app[theme][token] ?? '', app[theme]));
+    const want = color.length === 4 ? '#' + [...color.slice(1)].map((c) => c + c).join('') : color;
+    if (have !== want)
+      problems.push(
+        `${token} is ${have || 'missing'} in ${theme}, but the generator maps ${color} to it`,
+      );
   }
 
 for (const [size, token] of Object.entries(TYPE_MAP))
