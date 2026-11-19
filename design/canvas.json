@@ -3701,6 +3701,38 @@
       "h": 900,
       "title": "Pictures open in a viewer: one at a time, previous and next, 2 of 4",
       "expand": "fill"
+    },
+    "TaskBrowser.html": {
+      "x": 27850,
+      "y": 12860,
+      "w": 1440,
+      "h": 900,
+      "title": "The agent's browser opens beside the chat from the task's toolbar: its picture, address, Take over and Stop",
+      "expand": "fill"
+    },
+    "TaskBrowserYours.html": {
+      "x": 29450,
+      "y": 12860,
+      "w": 1440,
+      "h": 900,
+      "title": "You have the task browser: go to an address, back and forward, click and type, then give it back",
+      "expand": "fill"
+    },
+    "TaskChangesPane.html": {
+      "x": 27850,
+      "y": 13900,
+      "w": 1440,
+      "h": 900,
+      "title": "The task's changes open beside the chat: a short description, then each file's diff",
+      "expand": "fill"
+    },
+    "TaskChecksPane.html": {
+      "x": 29450,
+      "y": 13900,
+      "w": 1440,
+      "h": 900,
+      "title": "The task's checks open beside the chat: the latest checkpoint as it runs, then earlier ones",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3768,6 +3800,10 @@
     "TaskFailed.html",
     "TaskDeploy.html",
     "TaskStepDetails.html",
+    "TaskBrowser.html",
+    "TaskBrowserYours.html",
+    "TaskChangesPane.html",
+    "TaskChecksPane.html",
     "TaskWaitingPinned.html",
     "TaskQuestion.html",
     "TaskMediaViewer.html",
@@ -5844,6 +5880,13 @@
       "x": 27770,
       "y": 12164,
       "text": "Waiting on you, in a task. When the agent asks a question, the task header says Waiting for your answer (the ! icon, not a spinner: nothing is running). The question is a card in the thread, set apart from the work with a border and its label, and the work before it folds to Worked for 31m. While the card is scrolled out of view, the question is pinned above the composer; Show question scrolls to it. The composer says Answer, or ask something else. Answering removes the pin and the card label. Pictures and recordings that come one after another show as a row of thumbnails, a recording with its length; any of them opens the viewer, with arrow keys, previous and next, the count, and Escape to close. The same row and viewer apply to your own attachments."
+    },
+    "task-browser": {
+      "fill": "purple",
+      "w": 440,
+      "x": 27850,
+      "y": 12460,
+      "text": "Task panes: the task header's Chat/Changes/Checks tabs become icon buttons (details, changes, checks, browser, more), each opening a pane beside the chat, as in the Claude app; one pane at a time. Changes shows the description as one row, then each file's diff (the first open), with Open full view for the wide diff. Checks shows the latest checkpoint as it runs, then earlier ones. Browser: the headless Chromium a worker runs for deploy_control; its button shows a dot while the agent uses it. The pane shows the latest picture (updated after each step), the address and the dark at-the-controls bar; Take over lets you go to an address, back and forward, click and type, and the agent waits until you give it back. Below 1180 px a pane fills the window and Close returns to the chat."
     }
   },
   "starts": {}
