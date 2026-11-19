@@ -8,6 +8,7 @@ import { useProjectFormatting } from '../projects/formatting';
 import { DesignCard } from '../design/Review';
 
 import { QuestionDecision } from './QuestionDecision';
+import { TaskQuestion } from './TaskQuestion';
 import { DesignBuildDecision } from './DesignBuildDecision';
 import { answerDetails, answerLabel } from './presentation';
 export { agentName, answerDetails, answerLabel } from './presentation';
@@ -29,7 +30,7 @@ export function Outcome({ item }: { item: InboxItem }) {
 }
 
 /** Render ConversationEvent.kind === 'decision' with its inboxItemId. */
-export function InboxDecision({ itemId }: { itemId: string }) {
+export function InboxDecision({ itemId, inTask }: { itemId: string; inTask?: boolean }) {
   const inbox = useInbox();
   const item = inbox.items.find((entry) => entry.id === itemId);
   if (!item) {
@@ -41,10 +42,10 @@ export function InboxDecision({ itemId }: { itemId: string }) {
       />
     );
   }
-  return <Decision item={item} />;
+  return <Decision item={item} inTask={inTask} />;
 }
 
-function Decision({ item }: { item: InboxItem }) {
+function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
   const { formatTime } = useProjectFormatting();
   const { answer } = useInbox();
   const agentName = useAgentName();
@@ -107,6 +108,12 @@ function Decision({ item }: { item: InboxItem }) {
                 : 'Withdrawn'}
           </div>
         </article>
+      ) : item.kind === 'question' && inTask ? (
+        <TaskQuestion
+          item={item}
+          pending={pending}
+          choose={(action) => (action.confirm ? setConfirmation(action) : void submit(action.id))}
+        />
       ) : item.kind === 'question' ? (
         <QuestionDecision
           item={item}

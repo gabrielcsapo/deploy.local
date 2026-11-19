@@ -52,7 +52,14 @@ export function Composer({
   /** The projects a start composer begins with. */
   projects?: string[];
   /** In a task: the computer it runs on (a worker ID) and whether a run is going. */
-  task?: { computerId?: string; computer?: string; running?: boolean; onMoved?: () => void };
+  task?: {
+    computerId?: string;
+    computer?: string;
+    running?: boolean;
+    onMoved?: () => void;
+    /** A question the agent is waiting on: what is sent answers it. */
+    answer?: (text: string) => Promise<void>;
+  };
   model?: string;
   onSend?: (text: string, message?: ComposerMessage) => void | Promise<void>;
   onAttach?: () => void;
@@ -251,6 +258,11 @@ export function Composer({
       return;
     }
     await perform(async () => {
+      if (context.taskId && task?.answer && !attachments.length) {
+        await task.answer(text.trim());
+        setText('');
+        return;
+      }
       const message = {
         text: text.trim(),
         attachments,
@@ -471,7 +483,11 @@ export function Composer({
             }
           }}
           disabled={busy}
-          placeholder="Ask, build, or follow up…"
+          placeholder={
+            context.taskId && task?.answer
+              ? 'Answer, or ask something else…'
+              : 'Ask, build, or follow up…'
+          }
         />
         <div className="dl-composer-bar">
           <IconButton

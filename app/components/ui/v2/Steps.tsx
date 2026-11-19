@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { StepDetail } from '../../../../shared/v2/contracts';
 import { type ComponentState, type IconName, Icon, stateProps } from './shared';
+import { Skeleton } from './Skeleton';
 export type WorkStep = {
   text: ReactNode;
   icon?: IconName;
@@ -84,7 +85,7 @@ function Detail({ load }: { load: () => Promise<StepDetail> }) {
     };
   }, [load]);
   if (failed) return <p className="dl-meta">Couldn’t load this step</p>;
-  if (!detail) return <p className="dl-meta">Loading…</p>;
+  if (!detail) return <Skeleton rows={2} label="Loading this step" />;
   return (
     <>
       {detail.path && <p className="dl-step-path">{detail.path}</p>}

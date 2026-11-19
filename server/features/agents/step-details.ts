@@ -1,5 +1,10 @@
 import type { StepDetail, StepDiffRow } from '../../../shared/v2/contracts.ts';
-import { toolName, type ToolItem } from './work-steps.ts';
+/** A call as its events carry it; the same shape work-steps reads. */
+type ToolItem = { name?: unknown; arguments?: unknown; output?: unknown; isError?: unknown };
+
+/** `mcp__deploy__deploy_application` reads as `deploy_application`. */
+const toolName = (name: unknown) =>
+  typeof name === 'string' ? name.replace(/^mcp__.+?__/, '') : '';
 
 /**
  * What a step did, for when a person opens it: the command and the end of its output, the
