@@ -3677,6 +3677,30 @@
       "h": 900,
       "title": "Every step opens to show what it did: the command and its output, the diff, what a search found",
       "expand": "fill"
+    },
+    "TaskWaitingPinned.html": {
+      "x": 23210,
+      "y": 12164,
+      "w": 1440,
+      "h": 900,
+      "title": "A waiting question stays in view while you read the work: the header says so, and the question is pinned above the composer",
+      "expand": "fill"
+    },
+    "TaskQuestion.html": {
+      "x": 24730,
+      "y": 12164,
+      "w": 1440,
+      "h": 900,
+      "title": "The question the agent is waiting on stands out from the thread, with its pictures and recordings in a row",
+      "expand": "fill"
+    },
+    "TaskMediaViewer.html": {
+      "x": 26250,
+      "y": 12164,
+      "w": 1440,
+      "h": 900,
+      "title": "Pictures open in a viewer: one at a time, previous and next, 2 of 4",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3744,6 +3768,9 @@
     "TaskFailed.html",
     "TaskDeploy.html",
     "TaskStepDetails.html",
+    "TaskWaitingPinned.html",
+    "TaskQuestion.html",
+    "TaskMediaViewer.html",
     "TaskDeployPhone.html",
     "OfflinePhone.html",
     "Offline.html",
@@ -5810,6 +5837,13 @@
       "x": 27770,
       "y": 8704,
       "text": "Step details. Every step that did something has a chevron at its end and opens in place. A command shows the command and the last lines of its output. An edit shows the file and its diff, with lines added and removed on the row. A search shows what it found. A failed step starts open. Reads and notes do not open: the row already says it all. Details load when a step opens, so long tasks stay quick. On iPhone the same steps open the same way."
+    },
+    "thread-waiting": {
+      "fill": "yellow",
+      "w": 440,
+      "x": 27770,
+      "y": 12164,
+      "text": "Waiting on you, in a task. When the agent asks a question, the task header says Waiting for your answer (the ! icon, not a spinner: nothing is running). The question is a card in the thread, set apart from the work with a border and its label, and the work before it folds to Worked for 31m. While the card is scrolled out of view, the question is pinned above the composer; Show question scrolls to it. The composer says Answer, or ask something else. Answering removes the pin and the card label. Pictures and recordings that come one after another show as a row of thumbnails, a recording with its length; any of them opens the viewer, with arrow keys, previous and next, the count, and Escape to close. The same row and viewer apply to your own attachments."
     }
   },
   "starts": {}
