@@ -3632,6 +3632,22 @@
       "h": 900,
       "title": "Model for this chat: More models holds the rest, by provider",
       "expand": "fill"
+    },
+    "TaskComputerMenu.html": {
+      "x": 26250,
+      "y": 5120,
+      "w": 1440,
+      "h": 900,
+      "title": "A stopped task moves to another computer from the computer chip",
+      "expand": "fill"
+    },
+    "TaskModelNotHere.html": {
+      "x": 26250,
+      "y": 6100,
+      "w": 1440,
+      "h": 900,
+      "title": "Models the task’s computer can’t run say so, and where they run",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3677,6 +3693,8 @@
     "Task.html",
     "TaskModelMenu.html",
     "TaskModelMore.html",
+    "TaskComputerMenu.html",
+    "TaskModelNotHere.html",
     "TaskChanges.html",
     "TaskChecks.html",
     "TaskPhone.html",
@@ -5739,6 +5757,13 @@
       "x": 24730,
       "y": 5120,
       "text": "Composer menus. The project and computer chips open menus when a task starts (New task, an empty project). Projects has a search field and takes several: the task works across every project checked, or No project for an empty folder. The chip names up to two, then counts (3 projects). Computers takes several too: the task works across every computer checked. Any free computer (the default) lets deploy.local choose a free online one and clears the others; checking a computer clears it. The list is the online computers that take tasks, with what each is doing. A running task keeps the projects and computers it started with, so the task page shows them in This task, with no chips, as on the Task board. The model button opens one short menu: Auto (naming the default), the models set as defaults in Computers › Models, and this chat’s pick. Effort lists the levels the chosen model supports, and More models holds the rest, by provider. Fast mode is left out because no provider here has it."
+    },
+    "task-computer": {
+      "fill": "yellow",
+      "w": 440,
+      "x": 26250,
+      "y": 7060,
+      "text": "A task’s computer. In a task the composer shows the computer chip. While nothing is running, it opens Continue on: the online computers that take tasks. Picking another one stops nothing (nothing is running) and continues the task there from its last checkpoint, with the conversation so far; the next message runs there. While a run is going the chip stays but its menu says Stop the run to move this task. The project is fixed for a task, so there is no project chip. In the model menu, a model the task’s computer can’t run is greyed out with Not on SER, and a note names the computers that run it. This replaces a silent refusal: SER runs Codex only."
     }
   },
   "starts": {}
