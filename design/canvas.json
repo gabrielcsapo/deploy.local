@@ -3669,6 +3669,14 @@
       "w": 1440,
       "h": 1080,
       "title": "CLI — design help, and the Design page on your own folder"
+    },
+    "TaskStepDetails.html": {
+      "x": 26250,
+      "y": 8704,
+      "w": 1440,
+      "h": 900,
+      "title": "Every step opens to show what it did: the command and its output, the diff, what a search found",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3735,6 +3743,7 @@
     "TaskNeedsComputer.html",
     "TaskFailed.html",
     "TaskDeploy.html",
+    "TaskStepDetails.html",
     "TaskDeployPhone.html",
     "OfflinePhone.html",
     "Offline.html",
@@ -5794,6 +5803,13 @@
       "y": 37084,
       "w": 420,
       "text": "The design commands in any project\nFrom building Brick Island's design in catan. A change needs three commands: start, propose, feedback. CliDesignAnyProject.html: start reads an SSH origin or a project name, checks the project first, warns when main here is ahead of origin, and gives a project with no design its first canvas, a board and design/README.md, which holds the format (no guide command). CliDesignDev.html: design has its own help; dev serves the Design page from the terminal on the folder as it is, with nothing uploaded (DesignLocal.html: the same canvas, panels and tools, writing to the folder's files; no comments, review, agents or Propose, which stay on deploy.local); check is one drawing by deploy.local, for a script or an agent, and propose checks the same way, so scripts/design-check.mjs goes away, here too, and nothing needs a browser on the computer. As built: the help prints plain like deploy --help; start leaves the first canvas, board and README for you to commit; dev reports cut off at 700 px only while its page is open, measured in that browser, and check and propose stay the authority; on a folder Export offers no PNG, the empty canvas offers no agent, and off a Mac the bar says this computer. CliDesign.html shows start as it now prints: the Project line, ending on deploy design dev. There is no capture command: a screenshot of the running app is a picture in design/boards/captures, which review and dev both show."
+    },
+    "step-details": {
+      "fill": "yellow",
+      "w": 440,
+      "x": 27770,
+      "y": 8704,
+      "text": "Step details. Every step that did something has a chevron at its end and opens in place. A command shows the command and the last lines of its output. An edit shows the file and its diff, with lines added and removed on the row. A search shows what it found. A failed step starts open. Reads and notes do not open: the row already says it all. Details load when a step opens, so long tasks stay quick. On iPhone the same steps open the same way."
     }
   },
   "starts": {}

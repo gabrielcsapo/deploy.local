@@ -148,6 +148,10 @@
 .dl-step-open{list-style:none;margin:2px 0 6px 24px;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:20px;color:var(--ink-soft)}
 .dl-step-open p{margin:0}
 .dl-step-tail{margin:0;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius-control);font-family:var(--font-mono);font-size:12px;line-height:20px;color:var(--muted);white-space:pre;overflow-x:auto}
+.dl-step-tail,.dl-step-diff{max-height:240px;overflow:auto}
+.dl-step-tail .dl-step-cmd{color:var(--ink-soft)}
+.dl-step-open .dl-step-path{font-family:var(--font-mono);font-size:12px;line-height:16px;color:var(--muted)}
+.dl-step-diff{border:1px solid var(--line);border-radius:var(--radius-control)}
 .dl-who-line{display:flex;align-items:center;gap:8px;font-size:13px;line-height:20px;font-weight:500}
 .dl-who-line .dl-meta{font-weight:400}
 
