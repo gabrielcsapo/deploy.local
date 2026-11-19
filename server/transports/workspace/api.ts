@@ -86,7 +86,9 @@ import {
   recentEvents,
   eventsBefore,
   activityEvents,
+  stepEvents,
 } from '../../workspace/store.ts';
+import { stepDetail } from '../../features/agents/step-details.ts';
 import { projectActivity } from '../../workspace/activity.ts';
 import { waitForEvents } from '../../workspace/event-feed.ts';
 import { taskQuestions, tasksWaitingForAnswer, answerQuestion } from '../../workspace/questions.ts';
@@ -848,6 +850,32 @@ export async function workspaceApi(
     };
     return dispatch(
       [
+        route({
+          method: 'GET',
+          // What one step did, loaded when it is opened.
+          path: '/runs/:run/steps/:item',
+          handler: async ({ params }) => {
+            try {
+              get('run', owner, params.run);
+              const item = stepEvents(owner, params.run, params.item).reduce(
+                (merged: Record<string, any>, row: any) => {
+                  const next = row.payload?.item ?? {};
+                  return {
+                    ...merged,
+                    ...next,
+                    name: next.name ?? next.tool ?? merged.name,
+                    arguments: next.arguments ?? merged.arguments,
+                  };
+                },
+                {},
+              );
+              if (!item.id) return send({ error: 'Step not found' }, 404);
+              return send({ detail: stepDetail(item) });
+            } catch (error: any) {
+              return respondError(error);
+            }
+          },
+        }),
         route({
           method: 'GET',
           path: '/computers/:computer/terminal',

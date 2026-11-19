@@ -836,6 +836,202 @@
   white-space: pre;
   overflow-x: auto;
 }
+.dl-step-tail,
+.dl-step-diff {
+  max-height: 240px;
+  overflow: auto;
+}
+.dl-step-tail .dl-step-cmd {
+  color: var(--ds-secondary);
+}
+.dl-step-open .dl-step-path {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-meta);
+  line-height: 16px;
+  color: var(--ds-muted);
+}
+.dl-step-diff {
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+}
+.dl-status.waiting svg,
+.dl-ask-icon {
+  color: var(--ds-warning);
+  flex: none;
+}
+.dl-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ds-warning) 45%, var(--ds-line));
+  background: var(--ds-surface);
+}
+.dl-ask-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ds-type-meta);
+  line-height: 16px;
+  color: var(--ds-secondary);
+}
+.dl-ask-head span:first-of-type {
+  font-weight: 500;
+  color: var(--ds-warning);
+}
+.dl-ask-q {
+  margin: 0;
+  font-size: var(--ds-type-reply);
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+.dl-ask-pin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 768px;
+  margin: 0 0 8px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ds-warning) 45%, var(--ds-line));
+  background: var(--ds-surface);
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  color: var(--ds-ink);
+  text-decoration: none;
+}
+.dl-ask-pin .dl-t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dl-ask-pin .dl-end {
+  flex: none;
+  color: var(--ds-secondary);
+}
+.dl-media-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dl-media-thumb {
+  position: relative;
+  width: 112px;
+  height: 80px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--ds-line);
+  background: var(--ds-canvas);
+  cursor: zoom-in;
+}
+.dl-media-thumb img,
+.dl-media-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dl-media-thumb:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+.dl-media-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ds-ink) 70%, transparent);
+  color: var(--ds-canvas);
+}
+.dl-media-time {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: var(--ds-type-caption);
+  line-height: 16px;
+  background: color-mix(in srgb, var(--ds-ink) 70%, transparent);
+  color: var(--ds-canvas);
+}
+.dl-viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  grid-template-rows: 56px minmax(0, 1fr) 56px;
+  align-items: center;
+  justify-items: center;
+  background: color-mix(in srgb, #000 90%, transparent);
+}
+.dl-viewer .dl-icon-btn {
+  color: #fff;
+}
+.dl-viewer-close {
+  grid-column: 3;
+  grid-row: 1;
+}
+.dl-viewer-prev {
+  grid-column: 1;
+  grid-row: 2;
+}
+.dl-viewer-next {
+  grid-column: 3;
+  grid-row: 2;
+}
+.dl-viewer-fig {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+.dl-viewer-img {
+  position: relative;
+  display: block;
+  width: min(100%, 960px);
+  aspect-ratio: 16/10;
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: var(--ds-shadow-xl);
+}
+.dl-viewer-img img,
+.dl-viewer-img video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.dl-viewer-bar {
+  grid-column: 1/4;
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+  color: #fff;
+}
+.dl-viewer-caption {
+  color: color-mix(in srgb, #fff 75%, transparent);
+}
 .dl-who-line {
   display: flex;
   align-items: center;
