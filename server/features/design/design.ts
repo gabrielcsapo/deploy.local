@@ -10,6 +10,8 @@ import {
 import { mergeBoard, type BoardChoice } from '../../design/board-merge.ts';
 import { hasTools } from '../../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
+import { checkDesign, measureOverflow, type CheckDrawing } from './board-check.ts';
+import { applyCanvasEdit, blankBoard } from '../../design/canvas-edit.ts';
 import { reviewEvidence } from '../../design/review-evidence.ts';
 import {
   groupReviewChanges,
@@ -19,7 +21,7 @@ import {
 import { gitString, tryGitText } from '../../kernel/git.ts';
 import { mkdtemp, readFile as readDiskFile, rm, utimes, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { deployDataPath } from '../../kernel/files/data-directory.ts';
 import { homeOf, readReleaseConfig } from '../../v2/self-update-host.ts';
@@ -38,7 +40,7 @@ import {
   type Library,
 } from '../../design/board-html.ts';
 import { currentTaskBranch } from '../../workspace/follow-up.ts';
-import { requireRepository } from '../../workspace/repositories.ts';
+import { findRepository, requireRepository } from '../../workspace/repositories.ts';
 import { keyedSlots, withRepositoryWrites } from '../../kernel/jobs/repository-lock.ts';
 import {
   gitEnvironment,
@@ -77,7 +79,6 @@ import {
   changeSummary,
   layerLabel,
   markChanges,
-  markColors,
   mergeCanvas,
   noteChanges,
   sectionAt,
@@ -791,27 +792,6 @@ async function editBranch(repo: string, body: any, name: string) {
   if (body?.expect && body.expect !== head && ownsBranch(String(body.ref)))
     fail('This design branch changed since you loaded it; reload and edit again', 409);
   return { branch, head: head! };
-}
-
-/** A new, empty board styled by the design system, from the frame tool. */
-function blankBoard(title: string, w: number, h: number) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="design-board" content="width=${w},height=${h}">
-<title>${title}</title>
-<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
-<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
-<style>
-body{margin:0;min-height:100vh;background:var(--paper);font-family:"Hanken Grotesk",system-ui,sans-serif}
-</style>
-</head>
-<body>
-</body>
-</html>
-`;
 }
 
 /** The branch a project's design is approved onto: the repository's default branch. */
@@ -3165,6 +3145,11 @@ async function drawingKey(
     .filter(([path]) => path.startsWith('design/ds/') && path.endsWith('.css'))
     .map(([path, sha]) => `${path}=${sha}`)
     .sort();
+  // A board may show pictures of the running app, which change without the board changing.
+  const captures = [...tree]
+    .filter(([path]) => path.startsWith(`${designFolder()}/boards/captures/`))
+    .map(([path, sha]) => `${path}=${sha}`)
+    .sort();
   // Instances draw from the library, so a board is drawn again when it changes.
   const library = tree.get(libraryPath);
   return `drawing:${createHash('sha256')
@@ -3177,6 +3162,7 @@ async function drawingKey(
         height ?? placed.h,
         scale,
         ...(library ? [library] : []),
+        ...(captures.length ? [captures] : []),
         ...(scheme === 'dark' ? ['dark'] : []),
       ]),
     )
@@ -3246,6 +3232,95 @@ async function fontResponse(route: import('playwright').Route) {
   }
 }
 
+/**
+ * A board as it is drawn: its instances by the commit's library, with the design system and its
+ * pictures inlined so the page needs nothing from this server.
+ */
+async function boardPage(repo: string, commit: string, html: string) {
+  let page = await boardAsShown(repo, commit, html);
+  for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
+    const css = await designSystemFile(repo, commit, match[1]);
+    page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
+  }
+  return inlineCaptures(repo, commit, page);
+}
+
+/** The Chromium this computer draws boards with. */
+async function drawingChromium() {
+  const { chromium } = await import('playwright');
+  const executablePath = boardBrowser(chromium.executablePath());
+  if (!executablePath)
+    fail('Rendering boards needs Chromium on the coordinator: run pnpm audit:visual:install', 503);
+  return executablePath!;
+}
+
+/**
+ * `deploy design check`'s drawings: a board at a commit as review draws it (light, or dark as the
+ * design system and the page's own colour scheme both see it), measured at 700 for what leaves
+ * the page; and Before beside After as one picture.
+ */
+export function checkDrawing(repo: string): CheckDrawing {
+  return {
+    shoot: async ({ commit, file, width, height, scheme, measure }) => {
+      const html = await readFile(repo, commit, `${designFolder()}/boards/${file}`);
+      if (!html) return null;
+      const page = await boardPage(repo, commit, html.toString());
+      return withBoardChromium(await drawingChromium(), async (browser) => {
+        const context = await browser.newContext({
+          viewport: { width, height },
+          colorScheme: scheme,
+          javaScriptEnabled: false,
+        });
+        try {
+          await context.route('**/*', (route) =>
+            /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(route.request().url())
+              ? fontResponse(route)
+              : route.abort(),
+          );
+          const tab = await context.newPage();
+          await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
+          if (scheme === 'dark')
+            await tab.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+          await tab.evaluate(() => document.fonts.ready);
+          // Run in the page itself, on its own document.
+          const measured = measure
+            ? await tab.evaluate(measureOverflow as () => ReturnType<typeof measureOverflow>)
+            : null;
+          return { png: await tab.screenshot(), measured };
+        } finally {
+          await context.close();
+        }
+      });
+    },
+    pair: async ({ before, after, width, height, scheme }) =>
+      withBoardChromium(await drawingChromium(), async (browser) => {
+        const context = await browser.newContext({
+          viewport: { width: width * 2 + 48, height: height + 64 },
+          javaScriptEnabled: false,
+        });
+        try {
+          const tab = await context.newPage();
+          const image = (png: Buffer | null) =>
+            png
+              ? `<img src="data:image/png;base64,${png.toString('base64')}">`
+              : '<p>New board · no Before</p>';
+          await tab.setContent(
+            `<style>body{margin:0;display:flex;gap:16px;padding:16px;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}</style>` +
+              `<figure><figcaption>Before · main · ${width} · ${scheme}</figcaption>${image(before)}</figure>` +
+              `<figure><figcaption>After · this branch · ${width} · ${scheme}</figcaption>${image(after)}</figure>`,
+            { waitUntil: 'load', timeout: 15000 },
+          );
+          return await tab.screenshot({ fullPage: true });
+        } finally {
+          await context.close();
+        }
+      }),
+  };
+}
+
+/** A terminal's working copy of design/, pushed for one check and removed after it. */
+export const checkRefPattern = /^refs\/design-check\/[A-Za-z0-9._-]{1,80}$/;
+
 async function drawBoard(
   repo: string,
   commit: string,
@@ -3260,16 +3335,8 @@ async function drawBoard(
   if (!placed) fail(`${board} is not on the canvas at this commit`, 404);
   const html = await readFile(repo, commit, `${designFolder()}/boards/${board}`);
   if (!html) fail(`${designFolder()}/boards/${board} is missing at this commit`, 404);
-  // Inline the design system so the page needs nothing from this server.
-  let page = await boardAsShown(repo, commit, html.toString());
-  for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
-    const css = await designSystemFile(repo, commit, match[1]);
-    page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
-  }
-  const { chromium } = await import('playwright');
-  const executablePath = boardBrowser(chromium.executablePath());
-  if (!executablePath)
-    fail('Rendering boards needs Chromium on the coordinator: run pnpm audit:visual:install', 503);
+  const page = await boardPage(repo, commit, html.toString());
+  const executablePath = await drawingChromium();
   return withBoardChromium(executablePath, async (browser) => {
     const context = await browser.newContext({
       viewport: { width, height: height ?? placed.h },
@@ -3325,6 +3392,28 @@ async function drawBoard(
       await context.close();
     }
   });
+}
+
+/** Pictures that sit beside the boards, in boards/captures, as the commit has them. */
+const captureLink = /((?:src|srcset)=")(captures\/[A-Za-z0-9_.-]+\.png)(")/g;
+export const captureLimit = 16 * 1024 * 1024;
+
+/**
+ * A board drawn from its text has no address to load pictures from, so each picture in
+ * boards/captures it shows goes in as data.
+ */
+export async function inlineCaptures(repo: string, commit: string, page: string) {
+  const paths = [...new Set([...page.matchAll(captureLink)].map((match) => match[2]))];
+  if (!paths.length) return page;
+  const data = new Map<string, string>();
+  for (const path of paths) {
+    if (path.split('/').includes('..')) continue;
+    const bytes = await readFile(repo, commit, `${designFolder()}/boards/${path}`, captureLimit);
+    if (bytes) data.set(path, `data:image/png;base64,${bytes.toString('base64')}`);
+  }
+  return page.replace(captureLink, (whole, before, path, after) =>
+    data.has(path) ? `${before}${data.get(path)}${after}` : whole,
+  );
 }
 
 /** Progressive review payload; the screenshot and rectangles come from the same render. */
@@ -3527,7 +3616,9 @@ function branchReviewRow(owner: string, projectId: string, branch: string) {
 export async function readBranchFeedback(owner: string, project: any, branch: string) {
   if (!validRef(branch)) fail('Name a branch');
   const row = branchReviewRow(owner, project.id, branch);
-  if (!row) return { branch, owner, review: null };
+  // The project's own name, for a terminal that named it by ID or by its origin.
+  const named = { branch, owner, project: String(project.name ?? project.id) };
+  if (!row) return { ...named, review: null };
   return inDesignFolder(row.context.folder, async () => {
     const { context, item } = row;
     const repo = project.repositoryPath as string;
@@ -3556,8 +3647,7 @@ export async function readBranchFeedback(owner: string, project: any, branch: st
     }
     const landing = reviewLanding(owner, row.id);
     return {
-      branch,
-      owner,
+      ...named,
       review: {
         id: row.id,
         title: item.title,
@@ -3883,8 +3973,8 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     /^\/api\/projects\/([^/]+)(?:\/artifacts\/([^/]+))?\/design(\/.*)?$/,
   );
   if (!route) return false;
-  const projectId = decodeURIComponent(route[1]);
-  const project = requireRepository(owner, projectId);
+  // A terminal names the project the way its origin does: by ID, or by repository name.
+  const project = findRepository(owner, decodeURIComponent(route[1]));
   const artifact = route[2] ? decodeURIComponent(route[2]) : null;
   if (artifact !== null && !artifactNamePattern.test(artifact)) fail('Not found', 404);
   return inDesignFolder(artifact ? `artifacts/${artifact}` : appDesignFolder, () =>
@@ -3946,9 +4036,16 @@ async function projectDesignApi(
           const type = fileTypes[path.split('.').pop()!];
           if (!type) fail('Not found', 404);
           // Boards are the design's own; the design system is the project's, in design/ds.
+          // Pictures of the running app, in boards/captures, may be larger than a board.
           let bytes = path.startsWith('ds/')
             ? await designSystemFile(repo, commit, path, true)
-            : await readFile(repo, commit, `${dir}/${path}`, 2 * 1024 * 1024, true);
+            : await readFile(
+                repo,
+                commit,
+                `${dir}/${path}`,
+                path.startsWith('boards/captures/') ? captureLimit : 2 * 1024 * 1024,
+                true,
+              );
           if (!bytes) fail('Not found', 404);
           // A board shows its instances as its commit's library draws them.
           if (path.startsWith('boards/') && path.endsWith('.html')) {
@@ -4391,115 +4488,7 @@ async function projectDesignApi(
             );
             const canvas = await readCanvas(repo, head);
             if (!canvas) fail('This design has no canvas.json', 404);
-            const notes = (canvas!.notes ??= {}) as Record<string, any>;
-            const at = (value: unknown) => {
-              const n = Number(value);
-              if (!Number.isFinite(n) || Math.abs(n) > 1e7) fail('A position is out of bounds');
-              return Math.round(n);
-            };
-            const writes: { path: string; content: string }[] = [];
-            let made: string;
-            if (op === 'note') {
-              const text = String(body.text ?? '').slice(0, 4000);
-              if (body.id) {
-                if (!notes[body.id]) fail(`No note named ${body.id}`, 404);
-                notes[body.id] = {
-                  ...notes[body.id],
-                  text,
-                  ...(body.x !== undefined ? { x: at(body.x), y: at(body.y) } : {}),
-                };
-                made = body.id;
-              } else {
-                made = `note-${randomUUID().slice(0, 8)}`;
-                notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
-              }
-            } else if (op === 'mark') {
-              // A pen mark on the canvas: drawn from its points, then changed a property at a time.
-              const number = (value: unknown, low: number, high: number, name: string) => {
-                const n = Number(value);
-                if (!Number.isFinite(n) || n < low || n > high)
-                  fail(`${name} must be ${low} to ${high}`);
-                return Math.round(n * 10) / 10;
-              };
-              if (body.id) {
-                const mark = notes[body.id];
-                if (mark?.kind !== 'mark') fail(`No mark named ${body.id}`, 404);
-                if (body.x !== undefined) mark.x = at(body.x);
-                if (body.y !== undefined) mark.y = at(body.y);
-                if (body.w !== undefined) mark.w = number(body.w, 1, 20000, 'W');
-                if (body.h !== undefined) mark.h = number(body.h, 1, 20000, 'H');
-                if (body.rotate !== undefined)
-                  mark.rotate = number(body.rotate, -360, 360, 'Rotation');
-                if (body.width !== undefined)
-                  mark.width = number(body.width, 0.5, 40, 'Stroke width');
-                if (body.opacity !== undefined)
-                  mark.opacity = number(body.opacity, 0, 1, 'Opacity');
-                if (body.stroke !== undefined) {
-                  if (!markColors.includes(String(body.stroke))) fail('Pick a stroke colour token');
-                  mark.stroke = String(body.stroke);
-                }
-                if (body.arrow !== undefined) mark.arrow = Boolean(body.arrow);
-                if (body.hidden !== undefined) mark.hidden = Boolean(body.hidden);
-                made = body.id;
-              } else {
-                const points = body.points;
-                if (!Array.isArray(points) || points.length < 2 || points.length > 2000)
-                  fail('A mark needs 2 to 2000 points');
-                const xy = (points as unknown[]).map((point) => {
-                  if (!Array.isArray(point)) fail('A point is [x, y]');
-                  return [at((point as number[])[0]), at((point as number[])[1])];
-                });
-                const left = Math.min(...xy.map(([x]) => x));
-                const top = Math.min(...xy.map(([, y]) => y));
-                const pw = Math.max(1, Math.max(...xy.map(([x]) => x)) - left);
-                const ph = Math.max(1, Math.max(...xy.map(([, y]) => y)) - top);
-                const path = xy
-                  .map(([x, y], i) => `${i ? 'L' : 'M'}${x - left} ${y - top}`)
-                  .join(' ');
-                made = `mark-${randomUUID().slice(0, 8)}`;
-                notes[made] = {
-                  kind: 'mark',
-                  x: left,
-                  y: top,
-                  w: pw,
-                  h: ph,
-                  pw,
-                  ph,
-                  path,
-                  stroke: markColors.includes(String(body.stroke)) ? String(body.stroke) : 'danger',
-                  width:
-                    body.width !== undefined ? number(body.width, 0.5, 40, 'Stroke width') : 2.5,
-                };
-              }
-            } else if (op === 'start') {
-              // Where Play starts on a page; null goes back to the page's first board.
-              const page = String(body.page ?? '');
-              if (!/^section-[a-z0-9-]{1,60}$/.test(page)) fail('Name a page');
-              const starts = ((canvas as any).starts ??= {}) as Record<string, string>;
-              if (body.board === null) delete starts[page];
-              else {
-                if (!canvas!.boards[String(body.board)]) fail(`No board named ${body.board}`, 404);
-                starts[page] = String(body.board);
-              }
-              made = page;
-            } else if (op === 'remove-note') {
-              if (!notes[body.id] || String(body.id).startsWith('section-'))
-                fail('No such note', 404);
-              delete notes[body.id];
-              made = body.id;
-            } else if (op === 'board') {
-              const phone = body.kind === 'phone';
-              const [w, h] = phone ? [390, 844] : [1440, 900];
-              let n = 1;
-              while (canvas!.boards[`Board${n}.html`]) n++;
-              made = `Board${n}.html`;
-              canvas!.boards[made] = { x: at(body.x), y: at(body.y), w, h, title: `Board ${n}` };
-              if (Array.isArray((canvas as any).order)) (canvas as any).order.push(made);
-              writes.push({
-                path: `${dir}/boards/${made}`,
-                content: blankBoard(`Board ${n}`, w, h),
-              });
-            } else fail('Unknown canvas edit');
+            const { writes, made } = applyCanvasEdit(canvas!, body, dir);
             writes.push({
               path: `${dir}/canvas.json`,
               content: `${JSON.stringify(canvas, null, 2)}\n`,
@@ -4619,6 +4608,48 @@ async function projectDesignApi(
           });
           setImmediate(() => void warmReview(owner, project, repo, item.id));
           return sendJson(res, { item }, 201);
+        },
+      }),
+      makeRoute({
+        method: 'POST',
+        path: '/check',
+        handler: async () => {
+          const body = await readJson(req);
+          const ref = String(body?.ref ?? '');
+          if (!checkRefPattern.test(ref))
+            fail('Name the pushed working copy, like refs/design-check/…');
+          try {
+            const commit = await gitRead(repo, [
+              'rev-parse',
+              '--verify',
+              '--quiet',
+              `${ref}^{commit}`,
+            ]);
+            if (!commit) fail('Push the working copy first', 404);
+            const main = await mainBranch(repo);
+            const base = await gitRead(repo, [
+              'rev-parse',
+              '--verify',
+              '--quiet',
+              `${main}^{commit}`,
+            ]);
+            if (!base) fail(`This project has no ${main} yet`, 409);
+            const result = await checkDesign(
+              {
+                commit: commit!,
+                base: base!,
+                baseRef: main,
+                drop: Boolean(body?.drop),
+                folder: dir,
+              },
+              { read: (args) => reviewGit(repo, args) },
+              checkDrawing(repo),
+            );
+            return sendJson(res, result);
+          } finally {
+            // The working copy was only for this check.
+            await gitString(repo, ['update-ref', '-d', ref]).catch(() => {});
+          }
         },
       }),
       makeRoute({

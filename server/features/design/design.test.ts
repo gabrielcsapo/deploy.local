@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { Readable } from 'node:stream';
+import { execFileSync } from 'node:child_process';
 if (process.env.DEPLOY_TEST_NO_BROWSER === '1') {
   const { chromium } = await import('playwright');
   mock.method(chromium, 'launch', () => {
@@ -18,7 +19,7 @@ const store = await import('../../store.ts');
 const { db, save, get: getRecord } = await import('../../workspace/store.ts');
 const { gitText } = await import('../../workspace/repository-git.ts');
 const { v2Api } = await import('../../v2/api.ts');
-const { askPrompt, componentPrompt } = await import('./design.ts');
+const { askPrompt, componentPrompt, inlineCaptures } = await import('./design.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'alice') }));
 });
@@ -112,6 +113,29 @@ test('the canvas reads from main, a design branch, or nothing at all', async () 
   assert.equal((await call('', { owner: 'mallory' })).status, 404);
 });
 
+test('a terminal names the project by its repository name, as its SSH origin does', async () => {
+  save('project', 'alice', {
+    id: '0d9f3c5e-catan',
+    name: 'Catan',
+    repositoryPath: repo,
+    repositoryStatus: 'ready',
+  });
+  const read = (project: string, owner = 'alice') =>
+    fetch(`${origin}/api/projects/${project}/design/feedback?branch=design/board`, {
+      headers: { 'x-test-owner': owner },
+    });
+  for (const project of ['0d9f3c5e-catan', 'catan', 'Catan']) {
+    const response = await read(project);
+    assert.equal(response.status, 200, project);
+    const feedback = await response.json();
+    assert.equal(feedback.review, null);
+    // The terminal says the project by its own name, however it was named.
+    assert.equal(feedback.project, 'Catan');
+  }
+  assert.equal((await read('nothing-here')).status, 404);
+  assert.equal((await read('catan', 'mallory')).status, 404);
+});
+
 test('board files are served per commit, sandboxed, and only from design/', async () => {
   const board = await call(`/files/${main}/boards/Welcome.html`);
   assert.equal(board.status, 200);
@@ -130,6 +154,45 @@ test('board files are served per commit, sandboxed, and only from design/', asyn
     `/files/main/boards/Welcome.html`,
   ])
     assert.equal((await call(path)).status, 404, path);
+});
+
+test('pictures of the running app in boards/captures are served and drawn into their board', async () => {
+  // A commit beside main with a capture and a board that shows it, made without touching main.
+  const env = { ...process.env, GIT_INDEX_FILE: join(root, 'captures.index') };
+  const run = (args: string[], input?: Buffer | string) =>
+    execFileSync('git', args, { cwd: repo, env, input }).toString().trim();
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  run(['read-tree', main]);
+  run([
+    'update-index',
+    '--add',
+    '--cacheinfo',
+    `100644,${run(['hash-object', '-w', '--stdin'], png)},design/boards/captures/Harbor-1440.png`,
+  ]);
+  const board =
+    '<img data-layer="capture" src="captures/Harbor-1440.png"><img src="captures/Gone-1440.png">';
+  run([
+    'update-index',
+    '--add',
+    '--cacheinfo',
+    `100644,${run(['hash-object', '-w', '--stdin'], board)},design/boards/Harbor.html`,
+  ]);
+  const commit = run(['commit-tree', run(['write-tree']), '-p', main, '-m', 'Capture']);
+  const served = await call(`/files/${commit}/boards/captures/Harbor-1440.png`);
+  assert.equal(served.status, 200);
+  assert.equal(served.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await served.arrayBuffer()), png);
+  assert.match(served.headers.get('content-security-policy')!, /img-src 'self' data:/);
+  // Drawn from its text, the board carries the picture as data; a missing one is left alone.
+  const drawn = await inlineCaptures(repo, commit, board);
+  assert.equal(
+    drawn,
+    `<img data-layer="capture" src="data:image/png;base64,${png.toString('base64')}"><img src="captures/Gone-1440.png">`,
+  );
+  assert.equal(await inlineCaptures(repo, main, board), board);
 });
 
 test('design branches get unique names and become readable refs', async () => {
@@ -256,6 +319,85 @@ test('boards render to PNG at a commit when Chromium is installed', async (t) =>
     assert.equal(scaled.readUInt32BE(20), 900 * scale);
   }
   assert.equal((await call('/render?board=Missing.html')).status, 404);
+});
+
+/** A commit beside main with these files changed, as a terminal pushes its working copy. */
+function besideMain(files: Record<string, string | Buffer>) {
+  const env = { ...process.env, GIT_INDEX_FILE: join(root, `beside-${Math.random()}.index`) };
+  const run = (args: string[], input?: Buffer | string) =>
+    execFileSync('git', args, { cwd: repo, env, input }).toString().trim();
+  const head = run(['rev-parse', 'main']);
+  run(['read-tree', head]);
+  for (const [path, text] of Object.entries(files))
+    run([
+      'update-index',
+      '--add',
+      '--cacheinfo',
+      `100644,${run(['hash-object', '-w', '--stdin'], text)},${path}`,
+    ]);
+  return {
+    head,
+    commit: run(['commit-tree', run(['write-tree']), '-p', head, '-m', 'Working copy']),
+  };
+}
+
+test('deploy design check: deploy.local draws a pushed working copy beside main, then removes it', async (t) => {
+  assert.equal(
+    (await call('/check', { method: 'POST', body: JSON.stringify({ ref: 'refs/heads/main' }) }))
+      .status,
+    400,
+  );
+  assert.equal(
+    (
+      await call('/check', {
+        method: 'POST',
+        body: JSON.stringify({ ref: 'refs/design-check/never-pushed' }),
+      })
+    ).status,
+    404,
+  );
+  if (process.env.DEPLOY_TEST_NO_BROWSER === '1')
+    return t.skip('Browser execution disabled for this test run');
+  const { chromium } = await import('playwright');
+  if (!existsSync(chromium.executablePath())) return t.skip('Chromium is not installed');
+  const { head, commit } = besideMain({
+    'design/canvas.json': JSON.stringify({
+      title: 'Test',
+      boards: {
+        'Welcome.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Welcome' },
+        'Trade.html': { x: 1600, y: 0, w: 1440, h: 900, title: 'Trade' },
+      },
+      order: ['Welcome.html', 'Trade.html'],
+      notes: {},
+    }),
+    'design/boards/Trade.html':
+      '<!doctype html><html><body style="margin:0"><main><p style="display:inline-block;white-space:nowrap;margin-left:600px">Offer 2 brick for wool</p></main></body></html>',
+  });
+  const ref = 'refs/design-check/trade-1';
+  await git(['update-ref', ref, commit]);
+  const response = await call('/check', { method: 'POST', body: JSON.stringify({ ref }) });
+  assert.equal(response.status, 200, await response.clone().text());
+  const result = await response.json();
+  assert.deepEqual(result.base, { ref: 'main', commit: head });
+  assert.equal(result.drawn, 1);
+  assert.deepEqual(result.widths, [1440, 700]);
+  assert.deepEqual(
+    result.boards.map((board: any) => [board.title, board.words, board.problems]),
+    [['Trade', 'New board', ['cut off at 700 px']]],
+  );
+  assert.equal(result.problems[0].label, 'Trade is cut off at 700 px');
+  assert.equal(result.problems[0].detail, '"Offer 2 brick for wool" leaves the page');
+  assert.equal(result.named, 2);
+  assert.match(result.layers['Trade.html'], /<p data-layer="[a-z0-9-]+" style/);
+  assert.deepEqual(
+    result.pictures.map((picture: any) => picture.name),
+    ['Trade-1440-light.png', 'Trade-1440-dark.png', 'Trade-700-light.png', 'Trade-700-dark.png'],
+  );
+  const pair = Buffer.from(result.pictures[2].png, 'base64');
+  assert.equal(pair.subarray(1, 4).toString(), 'PNG');
+  assert.equal(pair.readUInt32BE(16), 700 * 2 + 48);
+  // The working copy was only for the check.
+  assert.equal(await git(['for-each-ref', 'refs/design-check']), '');
 });
 
 test('a task’s design reads from the branch it commits to, or its base before it commits', async () => {

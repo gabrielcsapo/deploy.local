@@ -70,6 +70,8 @@ import {
   type LayerEdit,
 } from './Panels';
 import { DesignArtifact } from './artifact-context';
+import { designLocal } from './local';
+import { measureSaved, type SavedBoard } from './local-measure';
 import { Play } from './Play';
 import { PickSheet } from './Pickers';
 import './style.css';
@@ -157,6 +159,8 @@ function DesignCanvasPage({
 }) {
   const seed = useDataSeed();
   const [params] = useSearchParams();
+  // Served by `deploy design dev` on a folder: what only deploy.local has stays off the page.
+  const [local] = useState(designLocal);
   const inbox = useInbox();
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
   // Read after hydration: the server has no browser storage.
@@ -177,7 +181,28 @@ function DesignCanvasPage({
   // A review names its design's API, which settles which design this is.
   const artifact = review.data?.api ? apiArtifact(review.data.api) : chosenArtifact;
   const api = projectId ? designApi(projectId, artifact) : '';
-  const [ref, setRef] = useState(reviewId ? reviewBranch(reviewId) : (params.get('ref') ?? 'HEAD'));
+  const [ref, setRef] = useState(
+    local ? local.branch : reviewId ? reviewBranch(reviewId) : (params.get('ref') ?? 'HEAD'),
+  );
+  // The folder changes as you save; each save is a new version of the design to read.
+  const [saved, setSaved] = useState(0);
+  useEffect(() => {
+    if (!local) return;
+    const events = new EventSource('/api/design-local/events');
+    let first = true;
+    events.onmessage = (event) => {
+      if (!first) setSaved((n) => n + 1);
+      first = false;
+      // The terminal reports what each saved board leaves off the page at 700, measured here.
+      try {
+        const { measure } = JSON.parse(event.data) as { measure?: SavedBoard[] };
+        if (measure?.length) void measureSaved(measure);
+      } catch {
+        /* Not a save. */
+      }
+    };
+    return () => events.close();
+  }, [local]);
   const reviewData = review.data;
   const reviewBoards = useMemo(() => (reviewData ? reviewFrames(reviewData) : []), [reviewData]);
   const reviewByFile = useMemo(
@@ -188,7 +213,7 @@ function DesignCanvasPage({
   // The design loads from the id in the address, alongside the project list rather than after it.
   const designPath =
     projectId && (!reviewId || reviewData)
-      ? `${api}?ref=${encodeURIComponent(readRef)}`
+      ? `${api}?ref=${encodeURIComponent(readRef)}${local ? `&v=${saved}` : ''}`
       : undefined;
   const design = useData<Design>(designPath);
   const beforeDesign = useData<Design>(
@@ -304,7 +329,10 @@ function DesignCanvasPage({
   const [tab, setTab] = useState<'edit' | 'prototype' | 'comments'>('edit');
   const [commentFocus, setCommentFocus] = useState(0);
   const { comments, refresh: refreshComments } = useComments(projectId, artifact);
-  const [asking, setAsking] = useState(false);
+  const [askingOpen, setAskingOpen] = useState(false);
+  // Agents are on deploy.local: on a folder, nothing asks one.
+  const asking = askingOpen && !local;
+  const setAsking = setAskingOpen;
   // Agents working on this design right now: a light poll of the coordinator's presence.
   const [agents, setAgents] = useState<AgentPresence[]>(
     () =>
@@ -1014,7 +1042,7 @@ function DesignCanvasPage({
           removeLayer(selection.board, selection.layer);
         if ((event.key === 'Delete' || event.key === 'Backspace') && mark) removeMark(mark);
       }
-      if ((event.key === 'c' || event.key === 'C') && !event.metaKey && !event.ctrlKey)
+      if ((event.key === 'c' || event.key === 'C') && !event.metaKey && !event.ctrlKey && !local)
         setTool('comment');
       if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && selection) {
         event.preventDefault();
@@ -1057,11 +1085,23 @@ function DesignCanvasPage({
     { id: 'pen', tool: 'pen', icon: 'pen', label: 'Pen  P', menu: true, ready: editable },
     { id: 'text', tool: 'text', icon: 'text', label: 'Text  T', ready: editable },
     { id: 'sticky', tool: 'sticky', icon: 'sticky', label: 'Sticky note  S', ready: editable },
-    { id: 'comment', tool: 'comment', icon: 'comment', label: 'Comment  C', ready: true },
-    { id: 'ask', icon: 'spark', label: 'Ask an agent  ⌘K', ready: true },
+    // Comments and agents are on deploy.local, not on a folder.
+    ...(local
+      ? []
+      : [
+          {
+            id: 'comment',
+            tool: 'comment' as Tool,
+            icon: 'comment' as IconName,
+            label: 'Comment  C',
+            ready: true,
+          },
+          { id: 'ask', icon: 'spark' as IconName, label: 'Ask an agent  ⌘K', ready: true },
+        ]),
   ];
 
   const propose =
+    !local &&
     !reviewId &&
     ownsBranch(ref, artifact) &&
     // A new design can be proposed as it is: making it is the change.
@@ -1219,18 +1259,20 @@ function DesignCanvasPage({
               <Icon name="down" size={10} />
             </button>
           </span>
-          <button
-            type="button"
-            className="dl-icon-btn"
-            aria-label="Comments"
-            onClick={() => {
-              setTab('comments');
-              if (!selection && section?.boards[0])
-                select({ board: section.boards[0], layer: null });
-            }}
-          >
-            <Icon name="comment" size={18} />
-          </button>
+          {!local && (
+            <button
+              type="button"
+              className="dl-icon-btn"
+              aria-label="Comments"
+              onClick={() => {
+                setTab('comments');
+                if (!selection && section?.boards[0])
+                  select({ board: section.boards[0], layer: null });
+              }}
+            >
+              <Icon name="comment" size={18} />
+            </button>
+          )}
           {propose && (
             <Action
               variant="primary"
@@ -1243,7 +1285,11 @@ function DesignCanvasPage({
           )}
         </div>
         <div className="dz-narrow-bar">
-          <a className="dl-icon-btn" aria-label="Back to Artifacts" href="/dashboard/artifacts">
+          <a
+            className="dl-icon-btn"
+            aria-label={local ? 'Open deploy.local' : 'Back to Artifacts'}
+            href={local ? local.deployUrl : '/dashboard/artifacts'}
+          >
             <Icon name="back" />
           </a>
           <span className="dz-narrow-menu">
@@ -1255,7 +1301,7 @@ function DesignCanvasPage({
               aria-expanded={narrowMenu}
               onClick={() => setNarrowMenu(!narrowMenu)}
             >
-              <span className="dz-narrow-title">Artifacts</span>
+              <span className="dz-narrow-title">{local ? local.project : 'Artifacts'}</span>
               <Icon name="down" size={12} />
               {waiting.length > 0 && <span className="dz-badge">{waiting.length}</span>}
             </button>
@@ -1342,6 +1388,17 @@ function DesignCanvasPage({
           }
         />
         <div className="dz-stage">
+          {local && (
+            <div className="dl-design-waiting-banner dz-local-bar" role="status">
+              <span>
+                This folder on this {local.machine}, as you save it. Comments, review and agents are
+                on deploy.local.
+              </span>
+              <a href={local.deployUrl} target="_blank" rel="noreferrer">
+                Open deploy.local
+              </a>
+            </div>
+          )}
           {reviewId && (
             <CanvasReviewBar
               review={review}
@@ -1542,12 +1599,16 @@ function DesignCanvasPage({
               className="dz-blank"
               title="Nothing on this canvas yet"
               actions={
-                <Action variant="primary" onClick={() => setAsking(true)}>
-                  Ask an agent
-                </Action>
+                local ? undefined : (
+                  <Action variant="primary" onClick={() => setAsking(true)}>
+                    Ask an agent
+                  </Action>
+                )
               }
             >
-              Draw the first frame with the tools, or ask an agent to start {designName}.
+              {local
+                ? 'Draw the first frame with the tools.'
+                : `Draw the first frame with the tools, or ask an agent to start ${designName}.`}
             </Empty>
           )}
           {overlay && ask && (
@@ -1713,19 +1774,21 @@ function DesignCanvasPage({
                 ['sticky', 'sticky', 'Sticky note'],
                 ['comment', 'comment', 'Comment'],
               ] as const
-            ).map(([id, icon, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={`dz-tool${tool === id ? ' on' : ''}`}
-                aria-label={label}
-                aria-pressed={tool === id}
-                disabled={id !== 'move' && id !== 'comment' && !editable}
-                onClick={() => setTool(id)}
-              >
-                <Icon name={icon} size={18} />
-              </button>
-            ))}
+            )
+              .filter(([id]) => !local || id !== 'comment')
+              .map(([id, icon, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`dz-tool${tool === id ? ' on' : ''}`}
+                  aria-label={label}
+                  aria-pressed={tool === id}
+                  disabled={id !== 'move' && id !== 'comment' && !editable}
+                  onClick={() => setTool(id)}
+                >
+                  <Icon name={icon} size={18} />
+                </button>
+              ))}
             <button
               type="button"
               className={`dz-tool${layersOpen ? ' on' : ''}`}

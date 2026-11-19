@@ -41,6 +41,7 @@ import {
   designApi,
 } from './model';
 import { useDesignArtifact } from './artifact-context';
+import { designLocal } from './local';
 
 type LayerNode = { id: string; label: string; kind: IconName; children: LayerNode[] };
 
@@ -320,7 +321,18 @@ export function DesignMenu({
   }, [open, onClose]);
   const [switching, setSwitching] = useState(false);
   const [keys, setKeys] = useState(false);
+  // On a folder (deploy design dev), what waits on you and the branches are on deploy.local.
+  const local = designLocal();
   if (!open) return null;
+  if (local)
+    return (
+      <div ref={menu} className="dl-menu dz-menu" role="menu">
+        <a className="dl-menu-item" role="menuitem" href={local.deployUrl}>
+          <Icon name="back" size={14} />
+          Open deploy.local
+        </a>
+      </div>
+    );
   return (
     <div ref={menu} className="dl-menu dz-menu" role="menu">
       <a className="dl-menu-item" role="menuitem" href="/dashboard">
@@ -516,16 +528,23 @@ export function LeftPanel({
             <Icon name="sidebar" size={15} />
           </button>
         </div>
-        <BranchPicker
-          branches={design?.branches ?? []}
-          current={current}
-          owner={owner}
-          reviewing={reviewing}
-          changed={changed.size}
-          branchRemoved={branchRemoved}
-          onRef={onRef}
-          onNewBranch={onNewBranch}
-        />
+        {designLocal() ? (
+          <span className="dz-branch dz-local-branch">
+            <Icon name="branch" size={11} />
+            <span className="dz-t">This folder · {current}</span>
+          </span>
+        ) : (
+          <BranchPicker
+            branches={design?.branches ?? []}
+            current={current}
+            owner={owner}
+            reviewing={reviewing}
+            changed={changed.size}
+            branchRemoved={branchRemoved}
+            onRef={onRef}
+            onNewBranch={onNewBranch}
+          />
+        )}
       </div>
       <div className="dz-sheet-head">
         <button
@@ -2165,6 +2184,7 @@ export function RightPanel({
   /** Opens Play on this page; absent while there is nothing to play. */
   onPlay?: () => void;
 }) {
+  const local = designLocal();
   const artifact = useDesignArtifact();
   const [zoomMenu, setZoomMenu] = useState(false);
   const [moreMenu, setMoreMenu] = useState(false);
@@ -2295,20 +2315,22 @@ export function RightPanel({
     <aside className="dz-right" aria-label="Edit">
       <span className="dz-grab" aria-hidden="true" />
       <div className="dz-right-top">
-        <span className="dz-avatars">
-          <span className="dl-avatar" title={owner}>
-            {owner.slice(0, 1).toUpperCase()}
-          </span>
-          {agents.slice(0, 3).map((present) => (
-            <span
-              key={present.taskId}
-              className="dl-avatar dz-agent-avatar"
-              title={`${present.title} is working here`}
-            >
-              <Icon name="spark" size={11} />
+        {!local && (
+          <span className="dz-avatars">
+            <span className="dl-avatar" title={owner}>
+              {owner.slice(0, 1).toUpperCase()}
             </span>
-          ))}
-        </span>
+            {agents.slice(0, 3).map((present) => (
+              <span
+                key={present.taskId}
+                className="dl-avatar dz-agent-avatar"
+                title={`${present.title} is working here`}
+              >
+                <Icon name="spark" size={11} />
+              </span>
+            ))}
+          </span>
+        )}
         <span className="dl-grow" />
         <button
           type="button"
@@ -2328,7 +2350,7 @@ export function RightPanel({
         >
           <Icon name="down" size={10} />
         </button>
-        {!reviewing && (
+        {!reviewing && !local && (
           <Action
             variant="primary"
             disabled={!propose || propose.state === 'in-review'}
@@ -2373,16 +2395,18 @@ export function RightPanel({
               Prototype
             </button>
           )}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'comments'}
-            className={tab === 'comments' ? 'on' : ''}
-            onClick={() => setTab('comments')}
-          >
-            Comments
-            {commentCount > 0 && <span className="dz-count">{commentCount}</span>}
-          </button>
+          {!local && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'comments'}
+              className={tab === 'comments' ? 'on' : ''}
+              onClick={() => setTab('comments')}
+            >
+              Comments
+              {commentCount > 0 && <span className="dz-count">{commentCount}</span>}
+            </button>
+          )}
         </div>
         <span className="dl-grow" />
         <div className="dz-zoom">
@@ -2475,24 +2499,28 @@ export function RightPanel({
                   Vector
                   <Icon name="down" size={11} />
                 </span>
-                <button
-                  type="button"
-                  className="dl-icon-btn"
-                  aria-label="Ask an agent about a board or a layer"
-                  title="Ask an agent about a board or a layer"
-                  disabled
-                >
-                  <Icon name="spark" size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="dl-icon-btn"
-                  aria-label="Comment on a board or a layer"
-                  title="Comment on a board or a layer"
-                  disabled
-                >
-                  <Icon name="comment" size={14} />
-                </button>
+                {!local && (
+                  <>
+                    <button
+                      type="button"
+                      className="dl-icon-btn"
+                      aria-label="Ask an agent about a board or a layer"
+                      title="Ask an agent about a board or a layer"
+                      disabled
+                    >
+                      <Icon name="spark" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dl-icon-btn"
+                      aria-label="Comment on a board or a layer"
+                      title="Comment on a board or a layer"
+                      disabled
+                    >
+                      <Icon name="comment" size={14} />
+                    </button>
+                  </>
+                )}
                 <span className="dz-more-wrap">
                   <button
                     type="button"
@@ -2537,24 +2565,28 @@ export function RightPanel({
                   {kindName[kind!]}
                   <Icon name="down" size={11} />
                 </span>
-                <button
-                  type="button"
-                  className="dl-icon-btn"
-                  aria-label="Ask an agent  ⌘K"
-                  title="Ask an agent  ⌘K"
-                  onClick={onAsk}
-                >
-                  <Icon name="spark" size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="dl-icon-btn"
-                  aria-label="Comment  C"
-                  title="Comment  C"
-                  onClick={onComment}
-                >
-                  <Icon name="comment" size={14} />
-                </button>
+                {!local && (
+                  <>
+                    <button
+                      type="button"
+                      className="dl-icon-btn"
+                      aria-label="Ask an agent  ⌘K"
+                      title="Ask an agent  ⌘K"
+                      onClick={onAsk}
+                    >
+                      <Icon name="spark" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dl-icon-btn"
+                      aria-label="Comment  C"
+                      title="Comment  C"
+                      onClick={onComment}
+                    >
+                      <Icon name="comment" size={14} />
+                    </button>
+                  </>
+                )}
                 <span className="dz-more-wrap">
                   <button
                     type="button"
@@ -2655,7 +2687,8 @@ export function RightPanel({
               </span>
             </Prop>
             <Prop title="Export" actions={later}>
-              {project && design && (
+              {/* deploy.local draws the PNGs; on a folder nothing here draws. */}
+              {project && design && !local && (
                 <div className="dz-links">
                   {(board.w <= 500 ? [board.w] : [1440, 700]).map((width) => (
                     <a

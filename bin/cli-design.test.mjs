@@ -1,16 +1,36 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { designSlug, projectFromRemote, runDesign, titleFromBranch } from './cli-design.mjs';
+import {
+  DESIGN_HELP,
+  DESIGN_README,
+  designSlug,
+  projectFromRemote,
+  runDesign,
+  titleFromBranch,
+} from './cli-design.mjs';
 
-const git = (args, cwd) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd();
+const git = (args, cwd, env) =>
+  execFileSync('git', args, {
+    cwd,
+    env: env ? { ...process.env, ...env } : process.env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trimEnd();
 
 /** An origin with main, and a clone of it named deploy.local, both in a fresh folder. */
-function repository() {
+function repository({ design = true } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'cli-design-')));
   const origin = join(root, 'origin.git');
   git(['init', '--bare', '--initial-branch=main', origin], root);
@@ -18,8 +38,17 @@ function repository() {
   git(['init', '--initial-branch=main', seed], root);
   git(['config', 'user.name', 'Test'], seed);
   git(['config', 'user.email', 'test@example.invalid'], seed);
-  mkdirSync(join(seed, 'design/boards'), { recursive: true });
-  writeFileSync(join(seed, 'design/boards/Sidebar.html'), '<p data-layer="name">Name</p>');
+  if (design) {
+    mkdirSync(join(seed, 'design/boards'), { recursive: true });
+    writeFileSync(join(seed, 'design/boards/Sidebar.html'), '<p data-layer="name">Name</p>');
+    writeFileSync(
+      join(seed, 'design/canvas.json'),
+      JSON.stringify({
+        title: 'Site',
+        boards: { 'Sidebar.html': { x: 0, y: 0, w: 1440, h: 900 } },
+      }),
+    );
+  } else writeFileSync(join(seed, 'README.md'), '# catan\n');
   git(['add', '.'], seed);
   git(['commit', '-qm', 'Design'], seed);
   git(['remote', 'add', 'origin', origin], seed);
@@ -49,6 +78,12 @@ function coordinator(feedback = []) {
   return { api, calls };
 }
 
+/** A coordinator that also checks designs: each check is answered from the request's body. */
+const checking =
+  (api, answer) =>
+  async (path, options = {}) =>
+    path.endsWith('/check') ? answer(JSON.parse(options.body)) : api(path, options);
+
 const NOW = Date.parse('2026-11-17T12:04:00Z');
 function terminal(cwd, api, extra = {}) {
   let text = '';
@@ -68,7 +103,6 @@ function terminal(cwd, api, extra = {}) {
       prompt: async () => '',
       now: () => NOW,
       sleep: async () => {},
-      runCheck: async () => null,
       ...extra,
     },
     text: () => text,
@@ -76,36 +110,33 @@ function terminal(cwd, api, extra = {}) {
 }
 
 const checked = (problems = []) => ({
-  code: problems.length ? 1 : 0,
-  stdout: `${JSON.stringify({
-    named: 4,
-    drawn: 3,
-    widths: [1440, 700],
-    schemes: ['light', 'dark'],
-    seconds: 12,
-    boards: [
-      {
-        file: 'Sidebar.html',
-        title: 'Sidebar',
-        words: 'Tasks grouped under their project',
-        problems: [],
-      },
-      {
-        file: 'Projects.html',
-        title: 'Projects',
-        words: 'New Show menu',
-        problems: problems.length ? ['cut off at 700 px'] : [],
-      },
-      {
-        file: 'Project.html',
-        title: 'Project',
-        words: 'Breadcrumb back to Projects',
-        problems: [],
-      },
-    ],
-    problems,
-    pairs: 'output/design/pairs',
-  })}\n`,
+  named: 4,
+  drawn: 3,
+  widths: [1440, 700],
+  schemes: ['light', 'dark'],
+  seconds: 12,
+  boards: [
+    {
+      file: 'Sidebar.html',
+      title: 'Sidebar',
+      words: 'Tasks grouped under their project',
+      problems: [],
+    },
+    {
+      file: 'Projects.html',
+      title: 'Projects',
+      words: 'New Show menu',
+      problems: problems.length ? ['cut off at 700 px'] : [],
+    },
+    {
+      file: 'Project.html',
+      title: 'Project',
+      words: 'Breadcrumb back to Projects',
+      problems: [],
+    },
+  ],
+  problems,
+  pairs: 'output/design/pairs',
 });
 const cutOff = [
   {
@@ -121,6 +152,54 @@ test('names: the branch slug, the title back from a branch, the project from its
   assert.equal(titleFromBranch('design/sidebar-by-project'), 'Sidebar by project');
   assert.equal(projectFromRemote('https://deploy.local/api/git/p1/deploy.local.git'), 'p1');
   assert.equal(projectFromRemote('git@github.com:me/x.git'), null);
+  // The short addresses name the repository, which the coordinator takes in place of the ID.
+  assert.equal(projectFromRemote('ssh://git@deploy.local:2222/catan.git'), 'catan');
+  assert.equal(projectFromRemote('ssh://git@deploy.local:2222/catan'), 'catan');
+  assert.equal(projectFromRemote('git@deploy.local:catan.git'), 'catan');
+  assert.equal(projectFromRemote('https://deploy.local/catan.git'), 'catan');
+  assert.equal(projectFromRemote('https://deploy.local/dashboard'), null);
+  assert.equal(projectFromRemote('ssh://git@github.com/me/x.git'), null);
+  assert.equal(projectFromRemote('ssh://git@ser.lan:2222/catan.git'), null);
+  assert.equal(
+    projectFromRemote('ssh://git@ser.lan:2222/catan.git', 'https://ser.lan:8443'),
+    'catan',
+  );
+});
+
+test('start asks about the project first and leaves nothing behind when it is refused', async () => {
+  const repo = repository();
+  try {
+    const folder = join(repo.root, 'deploy.local-sidebar-by-project');
+    const left = () => [
+      existsSync(folder),
+      git(['branch', '--list', 'design/*'], repo.clone),
+      git(['worktree', 'list', '--porcelain'], repo.clone).split('\n\n').length,
+    ];
+    // No such project: said before a branch or a folder is made.
+    const missing = terminal(repo.clone, async () => {
+      throw Object.assign(new Error('Not found'), { status: 404 });
+    });
+    await assert.rejects(
+      () => runDesign('start', ['Sidebar by project'], { project: 'catan' }, missing.deps),
+      (error) =>
+        error.message === 'deploy.local has no project "catan".' &&
+        error.exitCode === 1 &&
+        missing.text() === '',
+    );
+    assert.deepEqual(left(), [false, '', 1]);
+    // Refused after the branch was made: the branch and its folder go again.
+    const refused = terminal(repo.clone, async (path) => {
+      if (path.endsWith('/working')) throw Object.assign(new Error('Try again'), { status: 503 });
+      return { review: null };
+    });
+    await assert.rejects(
+      () => runDesign('start', ['Sidebar by project'], { project: 'site' }, refused.deps),
+      /Try again/,
+    );
+    assert.deepEqual(left(), [false, '', 1]);
+  } finally {
+    repo.cleanup();
+  }
 });
 
 test('start makes the branch from main in a folder of its own and says who has it', async () => {
@@ -134,6 +213,7 @@ test('start makes the branch from main in a folder of its own and says who has i
     assert.equal(
       run.text(),
       [
+        '✓ Project                          site',
         `✓ Fetched main                     ${commit} · just now`,
         '✓ Branch                           design/sidebar-by-project',
         '✓ Folder                           ../deploy.local-sidebar-by-project',
@@ -141,15 +221,20 @@ test('start makes the branch from main in a folder of its own and says who has i
         'Sidebar by project is yours on MacBook Pro.',
         'It shows on the Design page as being worked on.',
         '',
-        'Edit the boards in design/boards, then:',
+        'Edit the boards in design/boards. To see them as you save:',
         '  cd ../deploy.local-sidebar-by-project',
-        '  deploy design check',
+        '  deploy design dev',
         '',
       ].join('\n'),
     );
     const folder = join(repo.root, 'deploy.local-sidebar-by-project');
     assert.equal(git(['branch', '--show-current'], folder), 'design/sidebar-by-project');
     assert.deepEqual(server.calls, [
+      {
+        path: '/api/projects/site/design/feedback?branch=design%2Fsidebar-by-project',
+        method: 'GET',
+        body: undefined,
+      },
       {
         path: '/api/projects/site/design/working',
         method: 'POST',
@@ -176,11 +261,99 @@ test('start makes the branch from main in a folder of its own and says who has i
   }
 });
 
+test('start in a project with no design writes its first one, and says when main here is ahead', async () => {
+  const repo = repository({ design: false });
+  try {
+    // Two commits on main here that origin does not have.
+    for (const text of ['one', 'two']) {
+      writeFileSync(join(repo.clone, 'notes.txt'), text);
+      git(['add', '.'], repo.clone);
+      git(['commit', '-qm', text], repo.clone);
+    }
+    const server = coordinator([
+      { branch: 'design/harbor-trade', owner: 'Gabriel', project: 'catan', review: null },
+    ]);
+    const run = terminal(repo.clone, server.api);
+    const result = await runDesign('start', ['Harbor trade'], { project: 'p1' }, run.deps);
+    assert.equal(result.exitCode, 0);
+    const commit = git(['rev-parse', '--short=7', 'origin/main'], repo.clone);
+    assert.equal(
+      run.text(),
+      [
+        '✓ Project                          catan',
+        `✓ Fetched main                     ${commit} · just now`,
+        '! main here is 2 commits ahead     origin does not have them yet',
+        '✓ Branch                           design/harbor-trade',
+        '✓ Folder                           ../deploy.local-harbor-trade',
+        '✓ First design                     canvas.json · boards/Board.html · README.md',
+        '',
+        'Harbor trade is yours on MacBook Pro.',
+        'It shows on the Design page as being worked on.',
+        '',
+        'To draw from your newer main:',
+        '  git push origin main',
+        '  git -C ../deploy.local-harbor-trade merge origin/main',
+        '',
+        'This project had no design. How one is written:',
+        '  design/README.md',
+        '',
+        'Edit the boards in design/boards. To see them as you save:',
+        '  cd ../deploy.local-harbor-trade',
+        '  deploy design dev',
+        '',
+      ].join('\n'),
+    );
+    const folder = join(repo.root, 'deploy.local-harbor-trade');
+    // The branch starts from origin's main, not the newer main here.
+    assert.equal(git(['rev-parse', 'HEAD'], folder), git(['rev-parse', 'origin/main'], folder));
+    const canvas = JSON.parse(readFileSync(join(folder, 'design/canvas.json'), 'utf8'));
+    assert.deepEqual(canvas, {
+      title: 'catan',
+      boards: { 'Board.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Board' } },
+      order: ['Board.html'],
+      notes: {},
+    });
+    assert.equal(readFileSync(join(folder, 'design/README.md'), 'utf8'), DESIGN_README);
+    const board = readFileSync(join(folder, 'design/boards/Board.html'), 'utf8');
+    assert.match(board, /<meta name="design-board" content="width=1440,height=900">/);
+    assert.match(board, /data-layer="title"/);
+    assert.doesNotMatch(board, /<script|<img/);
+    assert.deepEqual(result.json.firstDesign, ['canvas.json', 'boards/Board.html', 'README.md']);
+    assert.equal(result.json.main.ahead, 2);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('the README start writes says how a canvas and a board are written, as the board shows', () => {
+  assert.equal(
+    DESIGN_README.split('\n').slice(0, 9).join('\n'),
+    [
+      '# Design',
+      '',
+      "This folder is the app's design: one board per screen, reviewed",
+      "on deploy.local's Design page before anything is built.",
+      '',
+      '## canvas.json',
+      '{ "title", "boards": { "<Name>.html": { "x", "y", "w", "h", "title" } },',
+      '  "order": ["<Name>.html"], "notes": { "<id>": { "x", "y", "text" } } }',
+      'Web boards are 1440 wide and are checked at 700 too. Phone boards',
+    ].join('\n'),
+  );
+  assert.match(DESIGN_HELP, /^deploy design — change what people see, and get it approved first\n/);
+  assert.match(DESIGN_HELP, /\n {2}dev {22}Open the Design page on this folder, as you save\n/);
+  assert.doesNotMatch(DESIGN_HELP, /capture/);
+  assert.doesNotMatch(DESIGN_HELP, /guide/);
+});
+
 test('check prints each step, what changed per board and the problems, and exits 1 on one', async () => {
   const repo = repository();
   try {
-    const run = terminal(repo.clone, coordinator().api, { runCheck: async () => checked(cutOff) });
-    const result = await runDesign('check', [], {}, run.deps);
+    const run = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+    );
+    const result = await runDesign('check', [], { project: 'site' }, run.deps);
     assert.equal(result.exitCode, 1);
     assert.equal(
       run.text(),
@@ -201,12 +374,12 @@ test('check prints each step, what changed per board and the problems, and exits
         '',
       ].join('\n'),
     );
-    const clean = terminal(repo.clone, coordinator().api, { runCheck: async () => checked() });
-    assert.equal((await runDesign('check', [], {}, clean.deps)).exitCode, 0);
+    const clean = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked()),
+    );
+    assert.equal((await runDesign('check', [], { project: 'site' }, clean.deps)).exitCode, 0);
     assert.match(clean.text(), /No problems\. Ask for review with:\n {2}deploy design propose\n$/);
-    const none = terminal(repo.clone, coordinator().api);
-    assert.equal((await runDesign('check', [], {}, none.deps)).exitCode, 0);
-    assert.match(none.text(), /^This project has no design check \(scripts\/design-check\.mjs\)/);
   } finally {
     repo.cleanup();
   }
@@ -215,44 +388,42 @@ test('check prints each step, what changed per board and the problems, and exits
 test('check lists a shared part as one row, and --drop-instances leaves its boards to the landing', async () => {
   const repo = repository();
   const part = (dropped, carried) => ({
-    code: carried ? 1 : 0,
-    stdout: `${JSON.stringify({
-      named: 0,
-      drawn: 1,
-      widths: [1440, 700],
-      schemes: ['light', 'dark'],
-      seconds: 3,
-      ...(dropped === undefined ? {} : { dropped }),
-      boards: [
-        {
-          file: 'part:sidebar',
-          part: 'sidebar',
-          title: 'Sidebar',
-          status: 'part',
-          words: '242 screens',
-          problems: carried ? ['carried on 234 screens'] : [],
-        },
-        { file: 'Welcome.html', title: 'Welcome', words: 'Title · Greeting', problems: [] },
-      ],
-      problems: carried
-        ? [
-            {
-              file: 'part:sidebar',
-              label: 'Sidebar is carried on 234 screens',
-              detail: 'landing draws them; run deploy design check --drop-instances',
-              short: 'carried on 234 screens',
-            },
-          ]
-        : [],
-      pairs: 'output/design/pairs',
-    })}\n`,
+    named: 0,
+    drawn: 1,
+    widths: [1440, 700],
+    schemes: ['light', 'dark'],
+    seconds: 3,
+    ...(dropped === undefined ? {} : { dropped }),
+    boards: [
+      {
+        file: 'part:sidebar',
+        part: 'sidebar',
+        title: 'Sidebar',
+        status: 'part',
+        words: '242 screens',
+        problems: carried ? ['carried on 234 screens'] : [],
+      },
+      { file: 'Welcome.html', title: 'Welcome', words: 'Title · Greeting', problems: [] },
+    ],
+    problems: carried
+      ? [
+          {
+            file: 'part:sidebar',
+            label: 'Sidebar is carried on 234 screens',
+            detail: 'landing draws them; run deploy design check --drop-instances',
+            short: 'carried on 234 screens',
+          },
+        ]
+      : [],
+    pairs: 'output/design/pairs',
   });
   try {
     const asked = [];
-    const carried = terminal(repo.clone, coordinator().api, {
-      runCheck: async (_root, args) => (asked.push(args), part(undefined, true)),
-    });
-    assert.equal((await runDesign('check', [], {}, carried.deps)).exitCode, 1);
+    const carried = terminal(
+      repo.clone,
+      checking(coordinator().api, (body) => (asked.push(body.drop), part(undefined, true))),
+    );
+    assert.equal((await runDesign('check', [], { project: 'site' }, carried.deps)).exitCode, 1);
     assert.equal(
       carried.text(),
       [
@@ -271,10 +442,16 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
         '',
       ].join('\n'),
     );
-    const dropping = terminal(repo.clone, coordinator().api, {
-      runCheck: async (_root, args) => (asked.push(args), part(234, false)),
-    });
-    const result = await runDesign('check', [], { 'drop-instances': true }, dropping.deps);
+    const dropping = terminal(
+      repo.clone,
+      checking(coordinator().api, (body) => (asked.push(body.drop), part(234, false))),
+    );
+    const result = await runDesign(
+      'check',
+      [],
+      { project: 'site', 'drop-instances': true },
+      dropping.deps,
+    );
     assert.equal(result.exitCode, 0);
     assert.equal(result.json.dropped, 234);
     assert.equal(
@@ -295,10 +472,7 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
         '',
       ].join('\n'),
     );
-    assert.deepEqual(asked, [
-      ['--base', 'origin/main'],
-      ['--base', 'origin/main', '--drop-instances'],
-    ]);
+    assert.deepEqual(asked, [false, true]);
   } finally {
     repo.cleanup();
   }
@@ -319,7 +493,10 @@ test('propose refuses a problem, then checks, pushes and asks, ending with the n
     const flags = { project: 'site', 'look-at': 'Sidebar, Projects' };
 
     const refused = coordinator();
-    const bad = terminal(folder, refused.api, { runCheck: async () => checked(cutOff) });
+    const bad = terminal(
+      folder,
+      checking(refused.api, () => checked(cutOff)),
+    );
     assert.equal((await runDesign('propose', [], flags, bad.deps)).exitCode, 1);
     assert.equal(refused.calls.length, 0, 'nothing is proposed with a problem in it');
     assert.equal(git(['ls-remote', '--heads', 'origin', 'design/sidebar-by-project'], folder), '');
@@ -331,7 +508,10 @@ test('propose refuses a problem, then checks, pushes and asks, ending with the n
         review: { boards: 3, state: 'waiting' },
       },
     ]);
-    const run = terminal(folder, server.api, { runCheck: async () => checked() });
+    const run = terminal(
+      folder,
+      checking(server.api, () => checked()),
+    );
     const result = await runDesign('propose', [], flags, run.deps);
     assert.equal(result.exitCode, 0);
     assert.equal(
@@ -369,7 +549,16 @@ test('propose refuses a problem, then checks, pushes and asks, ending with the n
     // Work that is not committed would not reach the review.
     writeFileSync(join(folder, 'design/boards/Sidebar.html'), '<p data-layer="name">Edit</p>');
     await assert.rejects(
-      () => runDesign('propose', [], flags, terminal(folder, coordinator().api).deps),
+      () =>
+        runDesign(
+          'propose',
+          [],
+          flags,
+          terminal(
+            folder,
+            checking(coordinator().api, () => checked()),
+          ).deps,
+        ),
       /not committed/,
     );
     // Not on a design branch: a usage error.
@@ -580,29 +769,207 @@ test('resolve answers a note by its number, through the coordinator, and says wh
 test('--json prints nothing but the result; colour only for a terminal that wants it', async () => {
   const repo = repository();
   try {
-    const json = terminal(repo.clone, coordinator().api, {
-      runCheck: async () => checked(cutOff),
-      color: true,
-    });
-    const result = await runDesign('check', [], { json: true }, json.deps);
+    const json = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+      {
+        color: true,
+      },
+    );
+    const result = await runDesign('check', [], { project: 'site', json: true }, json.deps);
     assert.equal(json.text(), '');
     assert.equal(result.exitCode, 1);
     assert.equal(result.json.problems[0].label, 'Projects is cut off at 700 px');
-    const coloured = terminal(repo.clone, coordinator().api, {
-      runCheck: async () => checked(cutOff),
-      color: true,
-    });
-    await runDesign('check', [], {}, coloured.deps);
+    const coloured = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+      {
+        color: true,
+      },
+    );
+    await runDesign('check', [], { project: 'site' }, coloured.deps);
     const escape = String.fromCharCode(27);
     assert.ok(coloured.text().includes(`${escape}[31m✗${escape}[0m Projects`));
-    const plain = terminal(repo.clone, coordinator().api, {
-      runCheck: async () => checked(cutOff),
-    });
-    await runDesign('check', [], {}, plain.deps);
+    const plain = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+    );
+    await runDesign('check', [], { project: 'site' }, plain.deps);
     assert.ok(!plain.text().includes(escape));
     await assert.rejects(
       () => runDesign('nope', [], {}, plain.deps),
       (error) => error.exitCode === 2 && /Unknown design command/.test(error.message),
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('deploy design --help, -h and deploy help design print the design help; --json wraps it', () => {
+  const deploy = (args) =>
+    execFileSync(process.execPath, [join(import.meta.dirname, 'deploy.js'), ...args], {
+      cwd: tmpdir(),
+      encoding: 'utf8',
+      env: { ...process.env, HOME: tmpdir() },
+    });
+  for (const args of [
+    ['design', '--help'],
+    ['design', '-h'],
+    ['help', 'design'],
+  ])
+    assert.equal(deploy(args), `${DESIGN_HELP}\n`);
+  assert.deepEqual(JSON.parse(deploy(['help', 'design', '--json'])), { help: DESIGN_HELP });
+  assert.match(deploy(['--help']), /^deploy — ship and run apps/);
+});
+
+test('check sends this folder as it is, then writes back layer IDs, restored boards and the pairs', async () => {
+  const repo = repository();
+  try {
+    await runDesign(
+      'start',
+      ['Harbor trade'],
+      { project: 'site' },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    const folder = join(repo.root, 'deploy.local-harbor-trade');
+    const head = git(['rev-parse', 'HEAD'], folder);
+    const main = git(['rev-parse', 'origin/main'], folder);
+    // A new board nobody has added to Git, and a change to one that is.
+    writeFileSync(join(folder, 'design/boards/Trade.html'), '<main><p>Offer 2 brick</p></main>\n');
+    writeFileSync(join(folder, 'design/boards/Sidebar.html'), '<p data-layer="name">Carried</p>');
+    const sent = [];
+    const answer = (body) => {
+      const read = (path) => git(['show', `${body.ref}:${path}`], repo.origin);
+      sent.push({
+        ref: body.ref,
+        drop: body.drop,
+        trade: read('design/boards/Trade.html'),
+        sidebar: read('design/boards/Sidebar.html'),
+        parent: git(['rev-parse', `${body.ref}^`], repo.origin),
+      });
+      return {
+        ...checked(),
+        layers: {
+          'Trade.html': '<main data-layer="main"><p data-layer="offer">Offer 2 brick</p></main>',
+        },
+        restore: [{ commit: main, files: ['Sidebar.html'] }],
+        pictures: [
+          { name: 'Trade-1440-light.png', png: Buffer.from('pair').toString('base64') },
+          { name: '../escape.png', png: Buffer.from('no').toString('base64') },
+        ],
+      };
+    };
+    const run = terminal(folder, checking(coordinator().api, answer));
+    const result = await runDesign(
+      'check',
+      [],
+      { project: 'site', 'drop-instances': true },
+      run.deps,
+    );
+    assert.equal(result.exitCode, 0);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].ref, /^refs\/design-check\/harbor-trade-[0-9a-f]{12}$/);
+    assert.equal(sent[0].drop, true);
+    assert.equal(sent[0].trade, '<main><p>Offer 2 brick</p></main>');
+    assert.equal(sent[0].sidebar, '<p data-layer="name">Carried</p>');
+    assert.equal(sent[0].parent, head);
+    // The folder's branch and index are as they were; only the files changed.
+    assert.equal(git(['rev-parse', 'HEAD'], folder), head);
+    assert.equal(git(['diff', '--cached', '--name-only'], folder), '');
+    assert.equal(
+      readFileSync(join(folder, 'design/boards/Trade.html'), 'utf8'),
+      '<main data-layer="main"><p data-layer="offer">Offer 2 brick</p></main>\n',
+    );
+    assert.equal(
+      readFileSync(join(folder, 'design/boards/Sidebar.html'), 'utf8'),
+      '<p data-layer="name">Name</p>',
+    );
+    assert.equal(
+      readFileSync(join(folder, 'output/design/pairs/Trade-1440-light.png'), 'utf8'),
+      'pair',
+    );
+    assert.equal(existsSync(join(folder, 'output/escape.png')), false);
+    assert.equal(existsSync(join(folder, 'output/design/escape.png')), false);
+    assert.equal('pictures' in result.json || 'layers' in result.json, false);
+
+    // deploy.local removes the ref after a check; one it could not finish, the terminal removes.
+    git(['update-ref', '-d', sent[0].ref], repo.origin);
+    const failing = terminal(
+      folder,
+      checking(coordinator().api, () => {
+        throw Object.assign(new Error('503: Rendering boards needs Chromium'), { status: 503 });
+      }),
+    );
+    await assert.rejects(
+      () => runDesign('check', [], { project: 'site' }, failing.deps),
+      /Rendering boards/,
+    );
+    assert.equal(git(['for-each-ref', 'refs/design-check'], repo.origin), '');
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('dev serves the Design page on this folder, prints a line per save, and stops on Ctrl-C', async () => {
+  const repo = repository();
+  try {
+    await runDesign(
+      'start',
+      ['Harbor trade'],
+      { project: 'site' },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    const folder = join(repo.root, 'deploy.local-harbor-trade');
+    let served;
+    const run = terminal(folder, coordinator().api, {
+      now: () => new Date(2026, 10, 17, 12, 4, 10).getTime(),
+      serveDesign: async (options) => {
+        served = options;
+        let stop;
+        const stopped = new Promise((resolve) => (stop = resolve));
+        setImmediate(() => {
+          options.onSave({ file: 'Harbor.html', problems: [] });
+          options.onSave({
+            file: 'Trade.html',
+            problems: [
+              {
+                file: 'Trade.html',
+                short: 'links to Market.html',
+                detail: 'no board has that name',
+              },
+            ],
+          });
+          stop();
+        });
+        return { url: 'http://localhost:5199', stopped };
+      },
+    });
+    const result = await runDesign('dev', [], {}, run.deps);
+    assert.equal(result.exitCode, 0);
+    assert.equal(
+      run.text(),
+      [
+        '✓ Design page for this folder      http://localhost:5199',
+        '  The same page as on deploy.local, on your files. It follows each save.',
+        '  Comments, review and agents are on deploy.local.',
+        '',
+        '  12:04:10  Harbor   saved',
+        '✗ 12:04:10  Trade    links to Market.html · no board has that name',
+        '',
+        'Stopped. Ask for review with:',
+        '  deploy design propose',
+        '',
+      ].join('\n'),
+    );
+    assert.equal(served.root, folder);
+    assert.equal(served.project, 'deploy.local');
+    assert.equal(served.branch, 'design/harbor-trade');
+    assert.equal(served.main, 'origin/main');
+    // A folder with no design has nothing to show.
+    rmSync(join(folder, 'design/canvas.json'));
+    await assert.rejects(
+      () => runDesign('dev', [], {}, run.deps),
+      (error) => error.message === 'This folder has no design yet.' && error.exitCode === 1,
     );
   } finally {
     repo.cleanup();

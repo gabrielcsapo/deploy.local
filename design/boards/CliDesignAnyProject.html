@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=960">
+<title>CLI — start a design in a project that has none</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</head>
+<body>
+<style data-layer="t-win-border">
+.t-win{border-radius:12px;overflow:hidden;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,.1),0 24px 48px -16px rgba(20,18,26,.35);display:flex;flex-direction:column;min-width:0}
+.t-bar{height:34px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;font-family:var(--font-sans);font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.t-bar .t-lights{position:absolute;left:12px;top:11px;display:flex;gap:7px}
+.t-bar .t-lights span{width:11px;height:11px;border-radius:6px;background:#ff5f57}
+.t-bar .t-lights span:nth-child(2){background:#febc2e}
+.t-bar .t-lights span:nth-child(3){background:#28c840}
+.t-body{margin:0;padding:14px 18px 18px;font-family:var(--font-mono);font-size:13px;line-height:20px;white-space:pre;overflow:hidden;color:var(--ink);flex:1}
+.t-dim{color:var(--muted)}.t-ok{color:var(--success)}.t-fail{color:var(--danger)}.t-warn{color:var(--warning)}.t-run{color:var(--active)}.t-acc{color:var(--accent)}.t-b{font-weight:700}
+.t-row{display:grid;gap:24px;align-items:start}
+.t-cap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.t-body{overflow-x:auto}
+.t-sheet{box-sizing:border-box;padding:56px 64px;display:flex;flex-direction:column;gap:40px}
+.t-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.t-col{display:flex;flex-direction:column;gap:24px;min-width:0}
+@media (max-width:900px){.t-sheet{padding:32px 24px;gap:28px}.t-two{grid-template-columns:minmax(0,1fr)}.t-sheet h1{font-size:30px!important;line-height:34px!important}}
+</style>
+<div data-layer="sheet" class="dl-sheet t-sheet" style="min-height:960px"><div data-layer="t" class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span data-layer="cli-design" class="dl-meta">CLI · design</span>
+<h1 data-layer="start-a-design" class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">Start a design in any project.</h1>
+<span data-layer="deploy-design-was" class="dl-soft" style="font-size:15px;line-height:24px;max-width:820px">deploy design was written for deploy.local's own repository: an HTTPS origin, a design already drawn, a main that origin has. Now the project is read from an SSH origin or given by name, and checked before anything is made. start says when main here is ahead of origin. A project with no design gets its first canvas, a board and a README that says how they are written, so there is no command to learn the format from.</span></div><div data-layer="t-row" class="t-row t-two"><div data-layer="div"><div data-layer="t-cap" class="t-cap"><span data-layer="deploy-design-start" class="dl-strong" style="font-size:15px;line-height:24px">deploy design start</span><span data-layer="in-a-project" class="dl-soft">In a project with no design yet, from an SSH origin, with main ahead of origin</span></div><div data-layer="t-win" class="t-win" data-theme="dark"><div data-layer="t-bar" class="t-bar"><span data-layer="t-lights" class="t-lights"><span data-layer="span"></span><span data-layer="span-2"></span><span data-layer="span-3"></span></span>zsh</div><pre data-layer="t-body" class="t-body"><span data-layer="catan" class="t-dim">~/catan $</span> deploy design start "Harbor trade"
+<span data-layer="t-ok" class="t-ok">✓</span> Project                          <span data-layer="catan-2" class="t-dim">catan</span>
+<span data-layer="t-ok-2" class="t-ok">✓</span> Fetched main                     <span data-layer="9c41d07-4-h" class="t-dim">9c41d07 · 4 h old</span>
+<span data-layer="t-warn" class="t-warn">!</span> main here is 6 commits ahead     <span data-layer="origin-does-not" class="t-dim">origin does not have them yet</span>
+<span data-layer="t-ok-3" class="t-ok">✓</span> Branch                           <span data-layer="design-harbor-trade" class="t-dim">design/harbor-trade</span>
+<span data-layer="t-ok-4" class="t-ok">✓</span> Folder                           <span data-layer="catan-harbor-trade" class="t-dim">../catan-harbor-trade</span>
+<span data-layer="t-ok-5" class="t-ok">✓</span> First design                     <span data-layer="canvas-json-boards" class="t-dim">canvas.json · boards/Board.html · README.md</span>
+
+<span data-layer="harbor-trade" class="t-b">Harbor trade</span> is yours on MacBook Pro.
+It shows on the Design page as being worked on.
+
+To draw from your newer main:
+<span data-layer="git-push-origin" class="t-dim">  git push origin main</span>
+<span data-layer="git-c-catan" class="t-dim">  git -C ../catan-harbor-trade merge origin/main</span>
+
+This project had no design. How one is written:
+<span data-layer="design-readme-md" class="t-dim">  design/README.md</span>
+
+Edit the boards in <span data-layer="design-boards" class="t-b">design/boards</span>. To see them as you save:
+<span data-layer="cd-catan-harbor" class="t-dim">  cd ../catan-harbor-trade</span>
+<span data-layer="deploy-design-dev" class="t-dim">  deploy design dev</span>
+
+<span data-layer="catan-3" class="t-dim">~/catan $</span> deploy design start "Harbor trade" --project catam
+<span data-layer="t-fail" class="t-fail">✗</span> deploy.local has no project "catam".
+<span data-layer="next-deploy-design" class="t-dim">  Next: deploy design start "&lt;title&gt;" --project &lt;name&gt;</span></pre></div></div><div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="design-readme-md-2" class="dl-strong" style="font-size:15px;line-height:24px">design/README.md</span><span data-layer="start-writes-it" class="dl-soft">start writes it with the first canvas and board, and leaves the three files for you to commit</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="catan-harbor-trade-2" class="t-dim">~/catan-harbor-trade $</span> cat design/README.md
+<span data-layer="design" class="t-b"># Design</span>
+
+This folder is the app's design: one board per screen, reviewed
+on deploy.local's Design page before anything is built.
+
+<span data-layer="canvas-json" class="t-b">## canvas.json</span>
+{ "title", "boards": { "&lt;Name&gt;.html": { "x", "y", "w", "h", "title" } },
+  "order": ["&lt;Name&gt;.html"], "notes": { "&lt;id&gt;": { "x", "y", "text" } } }
+Web boards are 1440 wide and are checked at 700 too. Phone boards
+are 390. Place boards apart on the canvas.
+
+<span data-layer="boards-name-html" class="t-b">## boards/&lt;Name&gt;.html</span>
+One standalone page per board, sized by
+&lt;meta name="design-board" content="width=1440,height=900"&gt;
+No scripts and no remote images. Pictures, such as a screenshot of
+the running app, sit beside the boards in boards/captures.
+Every element someone might point at carries a data-layer ID,
+unique in its board. deploy design check adds them. Keep them.
+
+<span data-layer="style" class="t-b">## Style</span>
+The board's own &lt;style&gt;, or design/ds if this project has one.
+
+<span data-layer="changing-the-design" class="t-b">## Changing the design</span>
+deploy design start "&lt;title&gt;", then deploy design dev to see
+the boards on the Design page as you save. deploy design propose
+asks for review, and deploy design feedback --wait hears back.</pre></div></div></div></div>
+</body>
+</html>

@@ -1,12 +1,121 @@
 // deploy design start | check | propose | feedback | resolve: a design change from a terminal.
 // The caller supplies the transport, Git and the terminal (see `deps` below), so the contract
 // tests drive every command without a server, a repository or a terminal.
-import { basename, dirname, relative, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import * as contracts from './cli-contracts.mjs';
 import { cliError } from './cli-v2.mjs';
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const LABEL = 33;
+
+/** `deploy design --help`, `deploy design -h` and `deploy help design`. */
+export const DESIGN_HELP = `deploy design — change what people see, and get it approved first
+
+Usage  deploy design <command> [flags]
+
+  start "<title>"          Start a design change on a branch from main
+  propose                  Check it, push it and ask for review
+  feedback                 Read the answer and the notes
+  resolve <n> "<reply>"    Answer a note when it is done
+
+While you draw
+  dev                      Open the Design page on this folder, as you save
+  check                    Draw what you changed beside main, once
+
+Flags
+  --project <name>         The project, when origin is elsewhere
+  --wait                   feedback: stay until there is an answer
+  --title, --summary, --look-at
+                           propose: answer its questions up front
+  --drop-instances         check: put carried boards back as on main
+  --json                   Print the result as JSON
+
+How a canvas and a board are written:  design/README.md`;
+
+/** The README start writes into a project that had no design: how a canvas and a board are written. */
+export const DESIGN_README = `# Design
+
+This folder is the app's design: one board per screen, reviewed
+on deploy.local's Design page before anything is built.
+
+## canvas.json
+{ "title", "boards": { "<Name>.html": { "x", "y", "w", "h", "title" } },
+  "order": ["<Name>.html"], "notes": { "<id>": { "x", "y", "text" } } }
+Web boards are 1440 wide and are checked at 700 too. Phone boards
+are 390. Place boards apart on the canvas.
+
+## boards/<Name>.html
+One standalone page per board, sized by
+<meta name="design-board" content="width=1440,height=900">
+No scripts and no remote images. Pictures, such as a screenshot of
+the running app, sit beside the boards in boards/captures.
+Every element someone might point at carries a data-layer ID,
+unique in its board. deploy design check adds them. Keep them.
+
+## Style
+The board's own <style>, or design/ds if this project has one.
+
+## Changing the design
+deploy design start "<title>", then deploy design dev to see
+the boards on the Design page as you save. deploy design propose
+asks for review, and deploy design feedback --wait hears back.
+`;
+
+/** A project's first board: a standalone page, styled by its own <style>. */
+export function firstBoard(title = 'Board', width = 1440, height = 900) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=${width},height=${height}">
+<title>${title}</title>
+<style>
+body{margin:0;min-height:100vh;background:#fff;color:#18181b;font-family:system-ui,sans-serif}
+main{box-sizing:border-box;padding:64px}
+h1{margin:0;font-size:32px;line-height:40px}
+</style>
+</head>
+<body>
+<main data-layer="page"><h1 data-layer="title">${title}</h1></main>
+</body>
+</html>
+`;
+}
+
+/** "Harbor" from Harbor.html, as boards and review name a board. */
+const screenName = (file) => String(file).replace(/\.html$/, '');
+
+/**
+ * Writes a first canvas, board and README into a folder whose design/ has no canvas yet, keeping
+ * whatever is there. Returns the paths written, relative to design/.
+ */
+export function writeFirstDesign(folder, title) {
+  const design = join(folder, 'design');
+  mkdirSync(join(design, 'boards'), { recursive: true });
+  const written = [];
+  const put = (path, text) => {
+    if (existsSync(join(design, path))) return;
+    writeFileSync(join(design, path), text);
+    written.push(path);
+  };
+  put(
+    'canvas.json',
+    `${JSON.stringify(
+      {
+        title,
+        boards: { 'Board.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Board' } },
+        order: ['Board.html'],
+        notes: {},
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  put('boards/Board.html', firstBoard());
+  put('README.md', DESIGN_README);
+  return written;
+}
 
 /** The same name the server gives a design branch: lowercase words joined by hyphens. */
 export function designSlug(title) {
@@ -26,10 +135,34 @@ export function titleFromBranch(branch) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** The project a clone belongs to, from its deploy.local origin: …/api/git/<project>/… */
-export function projectFromRemote(url) {
-  const match = /\/api\/git\/([^/?#]+)/.exec(String(url ?? ''));
-  return match ? decodeURIComponent(match[1].replace(/\.git$/, '')) : null;
+/**
+ * The project a clone belongs to, from its deploy.local origin. The HTTPS address carries the
+ * project's ID (…/api/git/<project>/…); the short ones carry its repository name
+ * (ssh://git@deploy.local:2222/<name>.git, git@deploy.local:<name>.git,
+ * https://deploy.local/<name>.git), which the coordinator accepts in place of the ID.
+ */
+export function projectFromRemote(url, serverUrl = 'https://deploy.local') {
+  const text = String(url ?? '').trim();
+  const byId = /\/api\/git\/([^/?#]+)/.exec(text);
+  if (byId) return decodeURIComponent(byId[1].replace(/\.git$/, ''));
+  let host;
+  let path;
+  const short = text.includes('://') ? null : /^(?:[^@/\s]+@)?([^:/\s]+):(.+)$/.exec(text);
+  if (short) [, host, path] = short;
+  else
+    try {
+      const parsed = new URL(text);
+      // A web address names a repository only as <name>.git; SSH may leave the ending off.
+      if (parsed.protocol !== 'ssh:' && !/\.git$/i.test(parsed.pathname)) return null;
+      host = parsed.hostname;
+      path = decodeURIComponent(parsed.pathname);
+    } catch {
+      return null;
+    }
+  if (!['deploy.local', hostOf(serverUrl).replace(/:\d+$/, '')].includes(host.toLowerCase()))
+    return null;
+  const name = path.replace(/^(?:~\/|\/)/, '').replace(/\.git$/i, '');
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) ? name : null;
 }
 
 /** "4 min" from milliseconds; "just now" under a minute. */
@@ -67,8 +200,8 @@ function stepLine(paint, mark, label, detail = '') {
 /**
  * Runs one design command. Returns `{ exitCode, json }`; throws cliError for usage and failures.
  * deps: api, git(args, cwd) → stdout (throws on failure), cwd, computer, write(text), color,
- * interactive, prompt(question), now(), sleep(ms), exists(path), runCheck(root, args) →
- * { code, stdout } or null when the project has no design check, serverUrl, home, spinner.
+ * interactive, prompt(question), now(), sleep(ms), exists(path), serverUrl, home, spinner,
+ * serveDesign({ root, project, branch, main, deployUrl, onSave }) → { url, stopped }.
  */
 export async function runDesign(sub, args, options, deps) {
   const paint = painter(deps.color && !options.json);
@@ -76,7 +209,7 @@ export async function runDesign(sub, args, options, deps) {
     if (!options.json) deps.write(`${line}\n`);
   };
   const step = (mark, label, detail) => out(stepLine(paint, mark, label, detail));
-  const git = (gitArgs, cwd = deps.cwd) => deps.git(gitArgs, cwd);
+  const git = (gitArgs, cwd = deps.cwd, env) => deps.git(gitArgs, cwd, env);
   const tryGit = (gitArgs, cwd) => {
     try {
       return git(gitArgs, cwd);
@@ -91,7 +224,9 @@ export async function runDesign(sub, args, options, deps) {
     return top;
   };
   const project = (top) => {
-    const id = options.project || projectFromRemote(tryGit(['remote', 'get-url', 'origin'], top));
+    const id =
+      options.project ||
+      projectFromRemote(tryGit(['remote', 'get-url', 'origin'], top), deps.serverUrl);
     if (!id)
       throw cliError(
         'This folder is not a deploy.local project: its origin is not on deploy.local.',
@@ -117,25 +252,72 @@ export async function runDesign(sub, args, options, deps) {
     return branch;
   };
 
-  /** Runs the project's own check and returns its result, or null when it has none. */
+  /**
+   * deploy.local draws and checks the design as this folder has it: the working copy of design/,
+   * committed beside HEAD without touching the branch or the index, goes to a private ref that
+   * the check removes. New layer IDs come back into the boards here, carried boards are put
+   * back (with drop), and Before and After are written into output/design/pairs.
+   */
   const check = async (top, { quiet = false, drop = false } = {}) => {
+    const id = project(top);
+    if (!existsSync(join(top, 'design')))
+      throw cliError('This project has no design yet.', 'deploy design start "<title>"', 1);
     tryGit(['fetch', '--quiet', 'origin', mainName(top)], top);
-    const ran = await deps.runCheck(top, [
-      '--base',
-      `origin/${mainName(top)}`,
-      // Boards carried only for a shared part's instances go back to main's.
-      ...(drop ? ['--drop-instances'] : []),
-    ]);
-    if (!ran) return null;
+    const index = resolve(top, git(['rev-parse', '--git-path', 'deploy-design-check.index'], top));
+    const env = {
+      GIT_INDEX_FILE: index,
+      GIT_AUTHOR_NAME: 'deploy design check',
+      GIT_AUTHOR_EMAIL: 'design-check@deploy.local',
+      GIT_COMMITTER_NAME: 'deploy design check',
+      GIT_COMMITTER_EMAIL: 'design-check@deploy.local',
+    };
+    let commit;
+    try {
+      git(['read-tree', 'HEAD'], top, env);
+      git(['add', '-A', '--', 'design/'], top, env);
+      const tree = git(['write-tree'], top, env);
+      commit = git(['commit-tree', tree, '-p', 'HEAD', '-m', 'deploy design check'], top, env);
+    } finally {
+      rmSync(index, { force: true });
+    }
+    const branch = tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], top) ?? 'head';
+    const ref = `refs/design-check/${designSlug(branch.replace(/^(design|artifact)\//, '')) || 'head'}-${commit.slice(0, 12)}`;
+    if (tryGit(['push', '--quiet', 'origin', `${commit}:${ref}`], top) === null)
+      throw cliError("Could not send this folder's design to origin.", 'git push origin', 1);
     let result;
     try {
-      result = JSON.parse(String(ran.stdout).trim().split('\n').at(-1));
-    } catch {
-      throw cliError('The design check did not report a result.', 'node scripts/design-check.mjs');
+      result = await contracts.checkDesign(api(deps), designApi(id), { ref, drop });
+    } catch (error) {
+      tryGit(['push', '--quiet', 'origin', '--delete', ref], top);
+      throw error;
     }
-    if (result.error) throw cliError(result.error, 'git fetch origin', 2);
-    if (!quiet) printCheck(result);
-    return result;
+    // New elements' layer IDs go into the boards here, unless a board changed since it was sent.
+    for (const [file, html] of Object.entries(result.layers ?? {})) {
+      const path = join(top, 'design', 'boards', file);
+      const sent = tryGit(['show', `${commit}:design/boards/${file}`], top);
+      if (sent !== null && existsSync(path) && readFileSync(path, 'utf8').trimEnd() === sent)
+        writeFileSync(path, html.endsWith('\n') ? html : `${html}\n`);
+    }
+    // Boards carried only for a shared part's instances go back to main's.
+    for (const { commit: from, files } of result.restore ?? [])
+      for (let at = 0; at < files.length; at += 100)
+        git(
+          [
+            'checkout',
+            from,
+            '--',
+            ...files.slice(at, at + 100).map((file) => `design/boards/${file}`),
+          ],
+          top,
+        );
+    const pairs = join(top, 'output', 'design', 'pairs');
+    mkdirSync(pairs, { recursive: true });
+    for (const picture of result.pictures ?? [])
+      if (/^[A-Za-z0-9_-]+-\d+-(light|dark)\.png$/.test(picture.name))
+        writeFileSync(join(pairs, picture.name), Buffer.from(picture.png, 'base64'));
+    const { pictures: _pictures, layers: _layers, restore: _restore, ...shown } = result;
+    if (!quiet) printCheck(shown);
+    return shown;
   };
   const printProblems = (result) => {
     for (const problem of result.problems) step('✗', problem.label, problem.detail);
@@ -203,6 +385,20 @@ export async function runDesign(sub, args, options, deps) {
         throw cliError('Use letters or numbers in the title.', 'deploy design start "…"', 2);
       const top = root();
       const id = project(top);
+      // Ask the coordinator about the project before anything is made here.
+      let known;
+      try {
+        known = await contracts.designFeedback(api(deps), designApi(id), `design/${slug}`);
+      } catch (error) {
+        if (error?.status !== 404) throw error;
+        throw cliError(
+          `${hostOf(deps.serverUrl)} has no project "${id}".`,
+          'deploy design start "<title>" --project <name>',
+          1,
+        );
+      }
+      const projectName = known?.project ?? id;
+      step('✓', 'Project', projectName);
       const main = mainName(top);
       if (tryGit(['fetch', '--quiet', 'origin', main], top) === null)
         throw cliError(`Could not fetch ${main} from origin.`, 'git fetch origin');
@@ -224,30 +420,66 @@ export async function runDesign(sub, args, options, deps) {
         `Fetched ${main}`,
         `${commit.slice(0, 7)} · ${age === 'just now' ? age : `${age} old`}`,
       );
+      // Commits on main here that origin lacks are not in the new branch until they are pushed.
+      const ahead = Number(
+        tryGit(['rev-list', '--count', `origin/${main}..refs/heads/${main}`], top) ?? 0,
+      );
+      if (ahead > 0)
+        step(
+          '!',
+          `${main} here is ${plural(ahead, 'commit')} ahead`,
+          'origin does not have them yet',
+        );
       git(
         ['worktree', 'add', '--quiet', '--no-track', '-b', branch, folder, `origin/${main}`],
         top,
       );
       step('✓', 'Branch', branch);
       step('✓', 'Folder', shown);
-      const working = await contracts.designWorking(api(deps), designApi(id), {
-        branch,
-        computer: deps.computer,
-      });
+      // A project with no design gets its first canvas, a board and a README saying how they are written.
+      const first =
+        tryGit(['cat-file', '-e', `origin/${main}:design/canvas.json`], top) === null
+          ? writeFirstDesign(folder, projectName)
+          : [];
+      if (first.length) step('✓', 'First design', first.join(' · '));
+      let working;
+      try {
+        working = await contracts.designWorking(api(deps), designApi(id), {
+          branch,
+          computer: deps.computer,
+        });
+      } catch (error) {
+        // Nothing has been drawn yet, so a start the coordinator refused leaves nothing behind.
+        tryGit(['worktree', 'remove', '--force', folder], top);
+        tryGit(['branch', '-D', branch], top);
+        throw error;
+      }
       out();
       out(`${paint.bold(title)} is yours on ${deps.computer}.`);
       out('It shows on the Design page as being worked on.');
+      if (ahead > 0) {
+        out();
+        out(`To draw from your newer ${main}:`);
+        out(paint.dim(`  git push origin ${main}`));
+        out(paint.dim(`  git -C ${shown} merge origin/${main}`));
+      }
+      if (first.length) {
+        out();
+        out('This project had no design. How one is written:');
+        out(paint.dim('  design/README.md'));
+      }
       out();
-      out(`Edit the boards in ${paint.bold('design/boards')}, then:`);
-      out(`  cd ${shown}`);
-      out('  deploy design check');
+      out(`Edit the boards in ${paint.bold('design/boards')}. To see them as you save:`);
+      out(paint.dim(`  cd ${shown}`));
+      out(paint.dim('  deploy design dev'));
       return {
         exitCode: 0,
         json: {
           project: id,
           branch,
           folder,
-          main: { name: main, commit },
+          main: { name: main, commit, ahead },
+          firstDesign: first,
           working: working.working,
         },
       };
@@ -256,13 +488,6 @@ export async function runDesign(sub, args, options, deps) {
     case 'check': {
       const top = root();
       const result = await check(top, { drop: Boolean(options['drop-instances']) });
-      if (!result) {
-        out('This project has no design check (scripts/design-check.mjs), so nothing was drawn.');
-        out();
-        out('Ask for review with:');
-        out('  deploy design propose');
-        return { exitCode: 0, json: { checked: false } };
-      }
       return { exitCode: result.problems.length ? 1 : 0, json: { checked: true, ...result } };
     }
 
@@ -286,7 +511,7 @@ export async function runDesign(sub, args, options, deps) {
       const lookAtText = await asked(
         'Look at',
         'look-at',
-        (result?.boards ?? []).map((board) => board.title).join(', '),
+        result.boards.map((board) => board.title).join(', '),
       );
       const lookAt = lookAtText
         .split(',')
@@ -302,7 +527,7 @@ export async function runDesign(sub, args, options, deps) {
       out(`${paint.dim('Summary  ')} ${summary}`);
       out(`${paint.dim('Look at  ')} ${lookAt.join(', ')}`);
       out();
-      if (result && result.problems.length) {
+      if (result.problems.length) {
         step(
           '✗',
           `Checked ${plural(result.boards.length, 'board')}`,
@@ -312,8 +537,7 @@ export async function runDesign(sub, args, options, deps) {
         fixLine(result);
         return { exitCode: 1, json: { proposed: false, check: result } };
       }
-      if (result) step('✓', `Checked ${plural(result.boards.length, 'board')}`, 'no problems');
-      else out('This project has no design check (scripts/design-check.mjs); not checked.');
+      step('✓', `Checked ${plural(result.boards.length, 'board')}`, 'no problems');
       if (tryGit(['status', '--porcelain', '--', '.'], top))
         throw cliError(
           'This folder has changes that are not committed.',
@@ -330,7 +554,7 @@ export async function runDesign(sub, args, options, deps) {
         lookAt,
       });
       const feedback = await contracts.designFeedback(api(deps), designApi(id), branch);
-      const boards = feedback.review?.boards ?? result?.boards.length ?? 0;
+      const boards = feedback.review?.boards ?? result.boards.length;
       step('!', `Waiting on ${feedback.owner}`, `${item.title} · ${plural(boards, 'board')}`);
       out(`  ${paint.dim(`${hostOf(deps.serverUrl)}/dashboard/inbox · Waiting on you`)}`);
       out();
@@ -465,10 +689,50 @@ export async function runDesign(sub, args, options, deps) {
       return { exitCode: 0, json: { comment } };
     }
 
+    case 'dev': {
+      const top = root();
+      if (!existsSync(join(top, 'design', 'canvas.json')))
+        throw cliError('This folder has no design yet.', 'deploy design start "<title>"', 1);
+      const branch = tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], top) ?? 'HEAD';
+      // The project by the name of its main checkout, which a design folder sits beside.
+      const mainFolder = (tryGit(['worktree', 'list', '--porcelain'], top) ?? '')
+        .split('\n')[0]
+        .replace(/^worktree /, '');
+      const clock = (at) => new Date(at).toTimeString().slice(0, 8);
+      const page = await deps.serveDesign({
+        root: top,
+        project: basename(mainFolder || top),
+        branch,
+        main: `origin/${mainName(top)}`,
+        deployUrl: deps.serverUrl,
+        onSave: ({ file, problems }) => {
+          const name = screenName(file);
+          const named = name.length >= 7 ? `${name}  ` : name.padEnd(9);
+          if (!problems.length) {
+            out(paint.dim(`  ${clock(deps.now())}  ${named}saved`));
+            return;
+          }
+          for (const problem of problems)
+            out(
+              `${paint.bad('✗')} ${clock(deps.now())}  ${named}${problem.short} · ${problem.detail}`,
+            );
+        },
+      });
+      step('✓', 'Design page for this folder', page.url);
+      out(paint.dim('  The same page as on deploy.local, on your files. It follows each save.'));
+      out(paint.dim('  Comments, review and agents are on deploy.local.'));
+      out();
+      await page.stopped;
+      out();
+      out('Stopped. Ask for review with:');
+      out(paint.dim('  deploy design propose'));
+      return { exitCode: 0, json: { url: page.url, stopped: true } };
+    }
+
     default:
       throw cliError(
         sub ? `Unknown design command "${sub}".` : 'Choose a design command.',
-        'deploy design start | check | propose | feedback | resolve',
+        'deploy design --help',
         2,
       );
   }

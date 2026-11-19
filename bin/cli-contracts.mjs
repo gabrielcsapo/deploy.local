@@ -87,7 +87,7 @@ export function pollLogin(post, deviceCode) {
   return post('/api/auth/cli/poll', body);
 }
 
-/** @typedef {{ branch: string, owner: string, review: null | Record<string, any> }} DesignFeedback */
+/** @typedef {{ branch: string, owner: string, project?: string, review: null | Record<string, any> }} DesignFeedback */
 /** @param {API} api @param {string} design @param {{branch: string, computer: string}} body */
 export function designWorking(api, design, body) {
   return api(`${design}/working`, { method: 'POST', body: JSON.stringify(body) });
@@ -98,6 +98,12 @@ export function designWorking(api, design, body) {
  * @returns {Promise<{item: InboxItem}>} */
 export function proposeDesign(api, design, body) {
   return api(`${design}/propose`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** deploy.local draws and checks a working copy pushed to a private ref, then removes the ref.
+ * @param {API} api @param {string} design @param {{ref: string, drop: boolean}} body */
+export function checkDesign(api, design, body) {
+  return api(`${design}/check`, { method: 'POST', body: JSON.stringify(body) });
 }
 
 /** @param {API} api @param {string} design @param {string} branch @returns {Promise<DesignFeedback>} */

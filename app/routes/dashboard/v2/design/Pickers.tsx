@@ -5,6 +5,7 @@ import type { Project } from '../../../../../shared/v2/contracts';
 import { useData } from '../projects/data';
 import type { Design } from './model';
 import type { ArtifactSummary } from '../../../../../shared/v2/artifacts';
+import { designLocal } from './local';
 
 /** A popover that closes on a click elsewhere or Escape. */
 function Popover({
@@ -235,14 +236,19 @@ export function DesignPicker({
             }}
           />
         ))}
-        <hr />
-        <a className="dz-picker-item" role="menuitem" href="/dashboard/artifacts">
-          <span className="dz-picker-check" />
-          <Icon name="layers" size={13} />
-          <span className="dz-picker-text">
-            <b>New artifact</b>
-          </span>
-        </a>
+        {/* Artifacts are made on deploy.local, not on a folder (deploy design dev). */}
+        {!designLocal() && (
+          <>
+            <hr />
+            <a className="dz-picker-item" role="menuitem" href="/dashboard/artifacts">
+              <span className="dz-picker-check" />
+              <Icon name="layers" size={13} />
+              <span className="dz-picker-text">
+                <b>New artifact</b>
+              </span>
+            </a>
+          </>
+        )}
       </Popover>
     </span>
   );

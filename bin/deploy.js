@@ -43,6 +43,8 @@ import {
 import { readNodeStatus } from '../server/features/computers/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
+import { serveDesignFolder } from './design-dev.mjs';
+import { designLocalAssets, designSystemFiles } from './design-local-assets.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
 import { createRelayController } from './relay-client.mjs';
 import { runRelayProcess } from './relay-process.mjs';
@@ -77,7 +79,7 @@ import {
   releaseSteps,
   printRelease,
 } from './cli-v2.mjs';
-import { runDesign } from './cli-design.mjs';
+import { DESIGN_HELP, runDesign } from './cli-design.mjs';
 
 import { parseArgs, format } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
@@ -3628,11 +3630,13 @@ if (values.json) {
 
 if (values.help || positionals[0] === 'help') {
   const help =
-    positionals[0] === 'worker'
-      ? 'Usage: deploy worker run\nRuns the enrolled task worker using local agent credentials.'
-      : positionals.includes('advanced')
-        ? ADVANCED_HELP
-        : HELP;
+    positionals[0] === 'design' || (positionals[0] === 'help' && positionals[1] === 'design')
+      ? DESIGN_HELP
+      : positionals[0] === 'worker'
+        ? 'Usage: deploy worker run\nRuns the enrolled task worker using local agent credentials.'
+        : positionals.includes('advanced')
+          ? ADVANCED_HELP
+          : HELP;
   console.log(values.json ? JSON.stringify({ help }) : help);
   process.exit(0);
 }
@@ -3693,9 +3697,10 @@ function designDeps() {
     cwd: process.cwd(),
     home: homedir(),
     computer,
-    git: (args, cwd) =>
+    git: (args, cwd, env) =>
       execFileSync('git', args, {
         cwd,
+        env: env ? { ...process.env, ...env } : process.env,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
         maxBuffer: 1 << 28,
@@ -3708,17 +3713,21 @@ function designDeps() {
     prompt,
     now: Date.now,
     sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
-    runCheck: (root, args) => {
-      const script = resolve(root, 'scripts/design-check.mjs');
-      if (!existsSync(script)) return null;
-      const ran = spawnSync(process.execPath, [script, ...args], {
-        cwd: root,
-        encoding: 'utf8',
-        maxBuffer: 1 << 26,
-        stdio: ['ignore', 'pipe', 'inherit'],
+    serveDesign: (options) => {
+      const assets = designLocalAssets();
+      if (!assets)
+        throw cliError(
+          'This deploy was built without the Design page.',
+          'pnpm build:design-local',
+          1,
+        );
+      const system = designSystemFiles();
+      return serveDesignFolder({
+        ...options,
+        machine: platform() === 'darwin' ? 'Mac' : 'computer',
+        assets,
+        designSystem: (path) => system[path] ?? null,
       });
-      if (ran.error) throw ran.error;
-      return { code: ran.status, stdout: ran.stdout };
     },
   };
 }

@@ -3648,6 +3648,27 @@
       "h": 900,
       "title": "Models the task’s computer can’t run say so, and where they run",
       "expand": "fill"
+    },
+    "CliDesignAnyProject.html": {
+      "x": 9730,
+      "y": 37084,
+      "w": 1440,
+      "h": 960,
+      "title": "CLI — start a design in a project that has none"
+    },
+    "DesignLocal.html": {
+      "x": 12770,
+      "y": 37084,
+      "w": 1440,
+      "h": 900,
+      "title": "Design from the terminal: the same page on a folder on this computer"
+    },
+    "CliDesignDev.html": {
+      "x": 11250,
+      "y": 37084,
+      "w": 1440,
+      "h": 1080,
+      "title": "CLI — design help, and the Design page on your own folder"
     }
   },
   "order": [
@@ -4115,6 +4136,9 @@
     "ArtifactDocumentNewPhone.html",
     "CliDesign.html",
     "CliDesignReview.html",
+    "CliDesignAnyProject.html",
+    "CliDesignDev.html",
+    "DesignLocal.html",
     "DesignReviewCanvasNotLanded.html",
     "DesignReviewCanvasNoOne.html",
     "DesignReviewCanvasTerminal.html",
@@ -5764,6 +5788,12 @@
       "x": 26250,
       "y": 7060,
       "text": "A task’s computer. In a task the composer shows the computer chip. While nothing is running, it opens Continue on: the online computers that take tasks. Picking another one stops nothing (nothing is running) and continues the task there from its last checkpoint, with the conversation so far; the next message runs there. While a run is going the chip stays but its menu says Stop the run to move this task. The project is fixed for a task, so there is no project chip. In the model menu, a model the task’s computer can’t run is greyed out with Not on SER, and a note names the computers that run it. This replaces a silent refusal: SER runs Codex only."
+    },
+    "cli-design-any-project": {
+      "x": 9250,
+      "y": 37084,
+      "w": 420,
+      "text": "The design commands in any project\nFrom building Brick Island's design in catan. A change needs three commands: start, propose, feedback. CliDesignAnyProject.html: start reads an SSH origin or a project name, checks the project first, warns when main here is ahead of origin, and gives a project with no design its first canvas, a board and design/README.md, which holds the format (no guide command). CliDesignDev.html: design has its own help; dev serves the Design page from the terminal on the folder as it is, with nothing uploaded (DesignLocal.html: the same canvas, panels and tools, writing to the folder's files; no comments, review, agents or Propose, which stay on deploy.local); check is one drawing by deploy.local, for a script or an agent, and propose checks the same way, so scripts/design-check.mjs goes away, here too, and nothing needs a browser on the computer. As built: the help prints plain like deploy --help; start leaves the first canvas, board and README for you to commit; dev reports cut off at 700 px only while its page is open, measured in that browser, and check and propose stay the authority; on a folder Export offers no PNG, the empty canvas offers no agent, and off a Mac the bar says this computer. CliDesign.html shows start as it now prints: the Project line, ending on deploy design dev. There is no capture command: a screenshot of the running app is a picture in design/boards/captures, which review and dev both show."
     }
   },
   "starts": {}
