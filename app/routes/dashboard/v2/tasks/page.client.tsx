@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-flight-router/client';
-import { Action, Banner, Composer, Head, Icon, IconButton, Skeleton, Tabs } from '@/components/ui';
+import { useLocation, useRouter } from 'react-flight-router/client';
+import { Action, Banner, Composer, Head, Icon, IconButton, Skeleton } from '@/components/ui';
 import { Conversation, ReleaseProgress } from '../conversation/Conversation';
 import { authenticatedFetch, useInbox } from '../data/hooks';
 import { useDataSeed, readSeeded } from '../data/seeds';
@@ -29,6 +29,8 @@ import {
   taskUpdatedAt,
   waitingForComputer,
 } from './presentation';
+import { BrowserPane, PaneDescription, PaneFiles, PaneHead, useTaskBrowser } from './panes.client';
+import { descriptionSummary, taskPaneFromPath, type TaskPane } from './panes';
 import './style.css';
 import { DesignCard, DesignReview, useTaskDesign } from '../design/Review';
 
@@ -71,13 +73,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const { view, error, refresh, updateRelease } = useTask(id);
   const inbox = useInbox();
   const base = `/dashboard/tasks/${encodeURIComponent(id)}`;
-  const tab = pathname.endsWith('/changes')
-    ? 'changes'
-    : pathname.endsWith('/checks')
-      ? 'checks'
-      : pathname.endsWith('/design')
-        ? 'design'
-        : 'chat';
+  const { navigate } = useRouter();
+  // The chat stays in view; changes, checks and the browser open in a pane beside it.
+  const { pane: routePane, main } = taskPaneFromPath(pathname);
   // A task that changed its project's design gets a Design tab and a decision in its chat.
   const design = useTaskDesign(view?.project?.id, id);
   const [diff, setDiff] = useState<TaskDiff | null>(
@@ -92,7 +90,16 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const [sent, setSent] = useState(0);
   const [shipOpen, setShipOpen] = useState(false);
   const [shipped, setShipped] = useState<string>();
-  const [panel, setPanel] = useState<boolean | null>(null);
+  // Task details is open by default on wide windows; choosing it opens it on narrow ones too.
+  const [details, setDetails] = useState<boolean | null>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 1180px)');
+    const update = () => setNarrow(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const [hint, setHint] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const pull = view?.pulls.at(-1);
@@ -101,7 +108,11 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   const pullRevision = pull?.revision;
   const taskRevision = view?.task.revision;
   const loaded = !!view;
-  const panelOpen = panel ?? true;
+  const pane: TaskPane | null =
+    main !== 'chat' ? null : (routePane ?? (details !== false ? 'details' : null));
+  const chosen = !!routePane || details === true;
+  const browser = useTaskBrowser(id, pane === 'browser');
+  const hasBrowser = !!browser.session;
   useEffect(() => {
     setShipOpen(window.location.hash === '#ship');
     setHint(localStorage.getItem('deploy-v2-first-task-seen') !== 'yes');
@@ -202,19 +213,64 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
   );
   const updatedAt = pull || view.checkpoint ? taskUpdatedAt(view, currentChecks) : undefined;
   const mergeable = pull?.status === 'open' && diff?.mergeable === true && !detailError;
-  const tabs = [
-    { label: 'Chat', href: base },
-    { label: 'Changes', href: `${base}/changes`, count: diff ? files.length : undefined },
+  // Below 1180 px task details is closed until someone opens it, whatever the default.
+  const shown = (item: TaskPane) =>
+    pane === item && main === 'chat' && (item !== 'details' || details === true || !narrow);
+  const togglePane = (next: TaskPane) => {
+    if (shown(next)) {
+      if (next === 'details') setDetails(false);
+      else navigate(base);
+    } else if (next === 'details') {
+      setDetails(true);
+      if (routePane || main !== 'chat') navigate(base);
+    } else navigate(`${base}/${next}`);
+  };
+  const closePane = () => (pane === 'details' ? setDetails(false) : navigate(base));
+  const added = files.reduce((sum, file) => sum + file.added, 0);
+  const removed = files.reduce((sum, file) => sum + file.removed, 0);
+  const checkCount = currentChecks.length + (view.designCheck ? 1 : 0);
+  const paneButtons: {
+    pane: TaskPane;
+    icon: 'list' | 'diff' | 'check' | 'globe';
+    label: string;
+  }[] = [
+    { pane: 'details', icon: 'list', label: 'Task details' },
     {
-      label: 'Checks',
-      href: `${base}/checks`,
-      count: currentChecks.length + (view.designCheck ? 1 : 0) || undefined,
+      pane: 'changes',
+      icon: 'diff',
+      label: diff ? `Changes, ${files.length} ${files.length === 1 ? 'file' : 'files'}` : 'Changes',
     },
-    ...(design.count ? [{ label: 'Design', href: `${base}/design`, count: design.count }] : []),
+    { pane: 'checks', icon: 'check', label: checkCount ? `Checks, ${checkCount}` : 'Checks' },
+    ...(hasBrowser || routePane === 'browser'
+      ? [
+          {
+            pane: 'browser' as const,
+            icon: 'globe' as const,
+            label: browser.inUse ? 'Browser, in use' : 'Browser',
+          },
+        ]
+      : []),
   ];
 
+  const detailBanner = detailError && (
+    <Banner
+      title={detailError}
+      action={
+        <Action
+          onClick={() => {
+            refresh();
+            setDetailVersion((value) => value + 1);
+          }}
+        >
+          Retry
+        </Action>
+      }
+    />
+  );
   return (
-    <div className={`dl-task-layout ${panelOpen ? 'with-panel' : ''}`}>
+    <div
+      className={`dl-task-layout ${pane ? `with-pane pane-${pane}` : ''} ${chosen ? 'pane-chosen' : ''}`}
+    >
       <div className="dl-task-main">
         <header className="dl-task-head">
           <div className="dl-task-wrap">
@@ -227,13 +283,39 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
               />
               <h1>{view.task.title}</h1>
               <span className="dl-end">
-                <IconButton
-                  className="dl-task-panel-toggle"
-                  icon="panel"
-                  label="Task details"
-                  aria-pressed={panelOpen}
-                  onClick={() => setPanel(!panelOpen)}
-                />
+                <span className="dl-task-tools" role="toolbar" aria-label="Task panes">
+                  {paneButtons.map((item) => {
+                    const on = shown(item.pane) || (item.pane === 'changes' && main === 'full');
+                    return (
+                      <button
+                        type="button"
+                        key={item.pane}
+                        className={`dl-icon-btn ${on ? 'on' : ''}`}
+                        aria-label={item.label}
+                        aria-pressed={on}
+                        title={item.label}
+                        onClick={() => togglePane(item.pane)}
+                      >
+                        <Icon name={item.icon} />
+                        {item.pane === 'browser' && browser.inUse && (
+                          <span className="dl-dot" aria-hidden="true" />
+                        )}
+                      </button>
+                    );
+                  })}
+                  {!!design.count && (
+                    <button
+                      type="button"
+                      className={`dl-icon-btn ${main === 'design' ? 'on' : ''}`}
+                      aria-label={`Design, ${design.count}`}
+                      aria-pressed={main === 'design'}
+                      title="Design"
+                      onClick={() => navigate(main === 'design' ? base : `${base}/design`)}
+                    >
+                      <Icon name="layers" />
+                    </button>
+                  )}
+                </span>
                 <div
                   className="dl-task-more"
                   onBlur={(event) => {
@@ -395,7 +477,6 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                 </>
               )}
             </div>
-            <Tabs label="Task" items={tabs} value={tab === 'chat' ? base : `${base}/${tab}`} />
           </div>
         </header>
         <div className="dl-scroll">
@@ -408,9 +489,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
               />
             </div>
           )}
-          {tab === 'design' && view.project ? (
+          {main === 'design' && view.project ? (
             <DesignReview projectId={view.project.id} taskId={id} design={design} />
-          ) : tab === 'chat' ? (
+          ) : main === 'chat' ? (
             <div className="dl-task-wrap dl-task-chat">
               {waitingNeeds && (
                 <div className="dl-task-notice">
@@ -468,57 +549,28 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                 ) && <ReleaseProgress release={release} />}
             </div>
           ) : (
-            <div
-              className={`dl-task-wrap ${tab === 'changes' ? 'dl-task-changes' : 'dl-task-checks'}`}
-            >
-              {detailError && (
-                <Banner
-                  title={detailError}
-                  action={
-                    <Action
-                      onClick={() => {
-                        refresh();
-                        setDetailVersion((value) => value + 1);
-                      }}
-                    >
-                      Retry
-                    </Action>
-                  }
+            <div className="dl-task-wrap dl-task-changes">
+              {detailBanner}
+              {pull && view.project && (
+                <PullDescription
+                  pull={pull}
+                  projectId={view.project.id}
+                  drafter={`Written by the agent${pull.createdAt ? ` · ${formatTime(pull.createdAt)}` : ''}`}
+                  onSaved={refresh}
                 />
               )}
-              {tab === 'changes' ? (
-                <>
-                  {pull && view.project && (
-                    <PullDescription
-                      pull={pull}
-                      projectId={view.project.id}
-                      drafter={`Written by the agent${pull.createdAt ? ` · ${formatTime(pull.createdAt)}` : ''}`}
-                      onSaved={refresh}
-                    />
-                  )}
-                  {diff ? (
-                    <TaskFiles files={files} />
-                  ) : (
-                    !detailError && <Skeleton rows={4} label="Loading changes" />
-                  )}
-                  {diff && !files.length && (
-                    <p className="dl-meta">{diff.status || 'No changed files on this version.'}</p>
-                  )}
-                </>
-              ) : !diff && pull ? (
-                !detailError && <Skeleton rows={3} label="Loading checks" />
+              {diff ? (
+                <TaskFiles files={files} />
               ) : (
-                <TaskChecks
-                  view={view}
-                  checks={currentChecks}
-                  checkpoint={checkpoint}
-                  earlier={earlier}
-                />
+                !detailError && <Skeleton rows={4} label="Loading changes" />
+              )}
+              {diff && !files.length && (
+                <p className="dl-meta">{diff.status || 'No changed files on this version.'}</p>
               )}
             </div>
           )}
         </div>
-        {tab === 'chat' && (
+        {main === 'chat' && (
           <div className="dl-dock dl-task-wrap">
             <Composer
               key={sent}
@@ -551,7 +603,84 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
           </div>
         )}
       </div>
-      <TaskPanel view={view} base={base} onClose={() => setPanel(false)} />
+      {pane === 'details' && <TaskPanel view={view} base={base} onClose={closePane} />}
+      {pane === 'changes' && (
+        <aside className="dl-task-pane" aria-label="Changes">
+          <PaneHead
+            title="Changes"
+            meta={
+              diff && (
+                <>
+                  {files.length} {files.length === 1 ? 'file' : 'files'} ·{' '}
+                  <span className="dl-add">+{added}</span>{' '}
+                  <span className="dl-del">−{removed}</span>
+                </>
+              )
+            }
+            onClose={closePane}
+          >
+            <Action variant="quiet" onClick={() => navigate(`${base}/changes/full`)}>
+              Open full view
+            </Action>
+          </PaneHead>
+          <div className="dl-pane-scroll">
+            {detailBanner}
+            {pull && view.project && (
+              <PaneDescription summary={descriptionSummary(pull.body)}>
+                <PullDescription
+                  pull={pull}
+                  projectId={view.project.id}
+                  drafter={`Written by the agent${pull.createdAt ? ` · ${formatTime(pull.createdAt)}` : ''}`}
+                  onSaved={refresh}
+                />
+              </PaneDescription>
+            )}
+            {diff ? (
+              <PaneFiles key={diff.headCommit || ''} files={files} />
+            ) : (
+              !detailError && <Skeleton rows={4} label="Loading changes" />
+            )}
+            {diff && !files.length && (
+              <p className="dl-meta">{diff.status || 'No changed files on this version.'}</p>
+            )}
+            {diff && !!files.length && (
+              <p className="dl-meta">
+                Changes since {pull?.targetBranch || 'main'}
+                {(pull?.sourceBranch || view.task.branch) &&
+                  `, on ${pull?.sourceBranch || view.task.branch}`}
+                . Updated as the agent edits.
+              </p>
+            )}
+          </div>
+        </aside>
+      )}
+      {pane === 'checks' && (
+        <aside className="dl-task-pane" aria-label="Checks">
+          <PaneHead title="Checks" onClose={closePane} />
+          <div className="dl-pane-scroll dl-task-checks">
+            {detailBanner}
+            {!diff && pull ? (
+              !detailError && <Skeleton rows={3} label="Loading checks" />
+            ) : (
+              <TaskChecks
+                view={view}
+                checks={currentChecks}
+                checkpoint={checkpoint}
+                earlier={earlier}
+              />
+            )}
+          </div>
+        </aside>
+      )}
+      {pane === 'browser' && (
+        <BrowserPane
+          taskId={id}
+          computer={view.computer}
+          agent={view.agent?.name}
+          browser={browser}
+          onClose={closePane}
+        />
+      )}
       <ShipDialog
         open={shipOpen}
         onClose={() => setShipOpen(false)}

@@ -18,6 +18,16 @@ export const tasksRoutes: RouteConfig[] = [
     component: () => import('./page.js'),
   },
   {
+    id: 'v2-tasks-id-changes-full',
+    path: 'tasks/:id/changes/full',
+    component: () => import('./page.js'),
+  },
+  {
+    id: 'v2-tasks-id-browser',
+    path: 'tasks/:id/browser',
+    component: () => import('./page.js'),
+  },
+  {
     id: 'v2-tasks-id-design',
     path: 'tasks/:id/design',
     component: () => import('./page.js'),

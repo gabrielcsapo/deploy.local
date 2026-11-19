@@ -276,6 +276,10 @@ export class InteractiveRunner {
         const page = runtime.page!;
         if (action.type === 'navigate')
           await page.goto(action.url, { waitUntil: 'domcontentloaded', timeout: 4000 });
+        else if (action.type === 'back')
+          await page.goBack({ waitUntil: 'domcontentloaded', timeout: 4000 });
+        else if (action.type === 'forward')
+          await page.goForward({ waitUntil: 'domcontentloaded', timeout: 4000 });
         else if (action.type === 'click')
           if (action.selector)
             await page.locator(action.selector).click({ timeout: 1500, noWaitAfter: true });

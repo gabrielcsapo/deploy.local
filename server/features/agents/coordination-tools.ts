@@ -97,7 +97,17 @@ export const coordinationTools = [
         properties: {
           type: {
             type: 'string',
-            enum: ['inspect', 'navigate', 'click', 'fill', 'text', 'press', 'scroll'],
+            enum: [
+              'inspect',
+              'navigate',
+              'back',
+              'forward',
+              'click',
+              'fill',
+              'text',
+              'press',
+              'scroll',
+            ],
           },
           url: string,
           selector: string,

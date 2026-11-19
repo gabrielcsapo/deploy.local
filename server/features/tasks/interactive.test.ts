@@ -649,3 +649,12 @@ test('desktop capture becomes a computer-use attachment; locked snapshots remain
   assert.equal(snapshot.image, undefined);
   f.act('stop', { sessionId: session.id });
 });
+
+test('a person at the task browser can go back and forward', () => {
+  for (const type of ['back', 'forward']) {
+    const f = fixture();
+    const entry = f.send({ action: { type } });
+    assert.equal(entry.status, 'queued');
+    assert.equal(entry.args.type, type);
+  }
+});

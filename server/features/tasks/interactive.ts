@@ -150,7 +150,19 @@ export function interactiveSnapshot(owner: string, taskId: string, sessionId: st
 function validAction(kind: string, action: any) {
   if (!action || typeof action !== 'object' || Array.isArray(action))
     throw new Error('Action required');
-  if (!['inspect', 'navigate', 'click', 'fill', 'text', 'press', 'scroll'].includes(action.type))
+  if (
+    ![
+      'inspect',
+      'navigate',
+      'back',
+      'forward',
+      'click',
+      'fill',
+      'text',
+      'press',
+      'scroll',
+    ].includes(action.type)
+  )
     throw new Error('Unsupported control action');
   if (JSON.stringify(action).length > 12000) throw new Error('Control action too large');
   if (action.type === 'navigate') {
@@ -185,7 +197,7 @@ function validAction(kind: string, action: any) {
     throw new Error('Text must be at most 8000 characters');
   if (action.type === 'press' && (typeof action.key !== 'string' || action.key.length > 80))
     throw new Error('Key required');
-  if (kind === 'computer' && ['navigate', 'fill'].includes(action.type))
+  if (kind === 'computer' && ['navigate', 'back', 'forward', 'fill'].includes(action.type))
     throw new Error('Desktop supports inspect, click, press and scroll');
   if ((kind === 'computer' && action.type === 'click') || action.type === 'scroll') {
     if (![action.x, action.y].every((value) => Number.isFinite(value) && Math.abs(value) <= 10000))
