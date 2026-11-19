@@ -321,6 +321,85 @@ test('boards render to PNG at a commit when Chromium is installed', async (t) =>
   assert.equal((await call('/render?board=Missing.html')).status, 404);
 });
 
+/** A commit beside main with these files changed, as a terminal pushes its working copy. */
+function besideMain(files: Record<string, string | Buffer>) {
+  const env = { ...process.env, GIT_INDEX_FILE: join(root, `beside-${Math.random()}.index`) };
+  const run = (args: string[], input?: Buffer | string) =>
+    execFileSync('git', args, { cwd: repo, env, input }).toString().trim();
+  const head = run(['rev-parse', 'main']);
+  run(['read-tree', head]);
+  for (const [path, text] of Object.entries(files))
+    run([
+      'update-index',
+      '--add',
+      '--cacheinfo',
+      `100644,${run(['hash-object', '-w', '--stdin'], text)},${path}`,
+    ]);
+  return {
+    head,
+    commit: run(['commit-tree', run(['write-tree']), '-p', head, '-m', 'Working copy']),
+  };
+}
+
+test('deploy design check: deploy.local draws a pushed working copy beside main, then removes it', async (t) => {
+  assert.equal(
+    (await call('/check', { method: 'POST', body: JSON.stringify({ ref: 'refs/heads/main' }) }))
+      .status,
+    400,
+  );
+  assert.equal(
+    (
+      await call('/check', {
+        method: 'POST',
+        body: JSON.stringify({ ref: 'refs/design-check/never-pushed' }),
+      })
+    ).status,
+    404,
+  );
+  if (process.env.DEPLOY_TEST_NO_BROWSER === '1')
+    return t.skip('Browser execution disabled for this test run');
+  const { chromium } = await import('playwright');
+  if (!existsSync(chromium.executablePath())) return t.skip('Chromium is not installed');
+  const { head, commit } = besideMain({
+    'design/canvas.json': JSON.stringify({
+      title: 'Test',
+      boards: {
+        'Welcome.html': { x: 0, y: 0, w: 1440, h: 900, title: 'Welcome' },
+        'Trade.html': { x: 1600, y: 0, w: 1440, h: 900, title: 'Trade' },
+      },
+      order: ['Welcome.html', 'Trade.html'],
+      notes: {},
+    }),
+    'design/boards/Trade.html':
+      '<!doctype html><html><body style="margin:0"><main><p style="display:inline-block;white-space:nowrap;margin-left:600px">Offer 2 brick for wool</p></main></body></html>',
+  });
+  const ref = 'refs/design-check/trade-1';
+  await git(['update-ref', ref, commit]);
+  const response = await call('/check', { method: 'POST', body: JSON.stringify({ ref }) });
+  assert.equal(response.status, 200, await response.clone().text());
+  const result = await response.json();
+  assert.deepEqual(result.base, { ref: 'main', commit: head });
+  assert.equal(result.drawn, 1);
+  assert.deepEqual(result.widths, [1440, 700]);
+  assert.deepEqual(
+    result.boards.map((board: any) => [board.title, board.words, board.problems]),
+    [['Trade', 'New board', ['cut off at 700 px']]],
+  );
+  assert.equal(result.problems[0].label, 'Trade is cut off at 700 px');
+  assert.equal(result.problems[0].detail, '"Offer 2 brick for wool" leaves the page');
+  assert.equal(result.named, 2);
+  assert.match(result.layers['Trade.html'], /<p data-layer="[a-z0-9-]+" style/);
+  assert.deepEqual(
+    result.pictures.map((picture: any) => picture.name),
+    ['Trade-1440-light.png', 'Trade-1440-dark.png', 'Trade-700-light.png', 'Trade-700-dark.png'],
+  );
+  const pair = Buffer.from(result.pictures[2].png, 'base64');
+  assert.equal(pair.subarray(1, 4).toString(), 'PNG');
+  assert.equal(pair.readUInt32BE(16), 700 * 2 + 48);
+  // The working copy was only for the check.
+  assert.equal(await git(['for-each-ref', 'refs/design-check']), '');
+});
+
 test('a task’s design reads from the branch it commits to, or its base before it commits', async () => {
   save('task', 'alice', { id: 'ab12cd34-0000', projectId: 'site', baseRevision: main });
   assert.equal((await (await call('?task=ab12cd34-0000')).json()).commit, main);

@@ -1,7 +1,7 @@
 // deploy design start | check | propose | feedback | resolve: a design change from a terminal.
 // The caller supplies the transport, Git and the terminal (see `deps` below), so the contract
 // tests drive every command without a server, a repository or a terminal.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import * as contracts from './cli-contracts.mjs';
 import { cliError } from './cli-v2.mjs';
@@ -240,8 +240,7 @@ function stepLine(paint, mark, label, detail = '') {
 /**
  * Runs one design command. Returns `{ exitCode, json }`; throws cliError for usage and failures.
  * deps: api, git(args, cwd) → stdout (throws on failure), cwd, computer, write(text), color,
- * interactive, prompt(question), now(), sleep(ms), exists(path), runCheck(root, args) →
- * { code, stdout } or null when the project has no design check, serverUrl, home, spinner,
+ * interactive, prompt(question), now(), sleep(ms), exists(path), serverUrl, home, spinner,
  * capture(url, widths, height) → one PNG per width, or null when there is no Chromium here.
  */
 export async function runDesign(sub, args, options, deps) {
@@ -250,7 +249,7 @@ export async function runDesign(sub, args, options, deps) {
     if (!options.json) deps.write(`${line}\n`);
   };
   const step = (mark, label, detail) => out(stepLine(paint, mark, label, detail));
-  const git = (gitArgs, cwd = deps.cwd) => deps.git(gitArgs, cwd);
+  const git = (gitArgs, cwd = deps.cwd, env) => deps.git(gitArgs, cwd, env);
   const tryGit = (gitArgs, cwd) => {
     try {
       return git(gitArgs, cwd);
@@ -293,25 +292,72 @@ export async function runDesign(sub, args, options, deps) {
     return branch;
   };
 
-  /** Runs the project's own check and returns its result, or null when it has none. */
+  /**
+   * deploy.local draws and checks the design as this folder has it: the working copy of design/,
+   * committed beside HEAD without touching the branch or the index, goes to a private ref that
+   * the check removes. New layer IDs come back into the boards here, carried boards are put
+   * back (with drop), and Before and After are written into output/design/pairs.
+   */
   const check = async (top, { quiet = false, drop = false } = {}) => {
+    const id = project(top);
+    if (!existsSync(join(top, 'design')))
+      throw cliError('This project has no design yet.', 'deploy design start "<title>"', 1);
     tryGit(['fetch', '--quiet', 'origin', mainName(top)], top);
-    const ran = await deps.runCheck(top, [
-      '--base',
-      `origin/${mainName(top)}`,
-      // Boards carried only for a shared part's instances go back to main's.
-      ...(drop ? ['--drop-instances'] : []),
-    ]);
-    if (!ran) return null;
+    const index = resolve(top, git(['rev-parse', '--git-path', 'deploy-design-check.index'], top));
+    const env = {
+      GIT_INDEX_FILE: index,
+      GIT_AUTHOR_NAME: 'deploy design check',
+      GIT_AUTHOR_EMAIL: 'design-check@deploy.local',
+      GIT_COMMITTER_NAME: 'deploy design check',
+      GIT_COMMITTER_EMAIL: 'design-check@deploy.local',
+    };
+    let commit;
+    try {
+      git(['read-tree', 'HEAD'], top, env);
+      git(['add', '-A', '--', 'design/'], top, env);
+      const tree = git(['write-tree'], top, env);
+      commit = git(['commit-tree', tree, '-p', 'HEAD', '-m', 'deploy design check'], top, env);
+    } finally {
+      rmSync(index, { force: true });
+    }
+    const branch = tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], top) ?? 'head';
+    const ref = `refs/design-check/${designSlug(branch.replace(/^(design|artifact)\//, '')) || 'head'}-${commit.slice(0, 12)}`;
+    if (tryGit(['push', '--quiet', 'origin', `${commit}:${ref}`], top) === null)
+      throw cliError("Could not send this folder's design to origin.", 'git push origin', 1);
     let result;
     try {
-      result = JSON.parse(String(ran.stdout).trim().split('\n').at(-1));
-    } catch {
-      throw cliError('The design check did not report a result.', 'node scripts/design-check.mjs');
+      result = await contracts.checkDesign(api(deps), designApi(id), { ref, drop });
+    } catch (error) {
+      tryGit(['push', '--quiet', 'origin', '--delete', ref], top);
+      throw error;
     }
-    if (result.error) throw cliError(result.error, 'git fetch origin', 2);
-    if (!quiet) printCheck(result);
-    return result;
+    // New elements' layer IDs go into the boards here, unless a board changed since it was sent.
+    for (const [file, html] of Object.entries(result.layers ?? {})) {
+      const path = join(top, 'design', 'boards', file);
+      const sent = tryGit(['show', `${commit}:design/boards/${file}`], top);
+      if (sent !== null && existsSync(path) && readFileSync(path, 'utf8').trimEnd() === sent)
+        writeFileSync(path, html.endsWith('\n') ? html : `${html}\n`);
+    }
+    // Boards carried only for a shared part's instances go back to main's.
+    for (const { commit: from, files } of result.restore ?? [])
+      for (let at = 0; at < files.length; at += 100)
+        git(
+          [
+            'checkout',
+            from,
+            '--',
+            ...files.slice(at, at + 100).map((file) => `design/boards/${file}`),
+          ],
+          top,
+        );
+    const pairs = join(top, 'output', 'design', 'pairs');
+    mkdirSync(pairs, { recursive: true });
+    for (const picture of result.pictures ?? [])
+      if (/^[A-Za-z0-9_-]+-\d+-(light|dark)\.png$/.test(picture.name))
+        writeFileSync(join(pairs, picture.name), Buffer.from(picture.png, 'base64'));
+    const { pictures: _pictures, layers: _layers, restore: _restore, ...shown } = result;
+    if (!quiet) printCheck(shown);
+    return shown;
   };
   const printProblems = (result) => {
     for (const problem of result.problems) step('✗', problem.label, problem.detail);
@@ -482,13 +528,6 @@ export async function runDesign(sub, args, options, deps) {
     case 'check': {
       const top = root();
       const result = await check(top, { drop: Boolean(options['drop-instances']) });
-      if (!result) {
-        out('This project has no design check (scripts/design-check.mjs), so nothing was drawn.');
-        out();
-        out('Ask for review with:');
-        out('  deploy design propose');
-        return { exitCode: 0, json: { checked: false } };
-      }
       return { exitCode: result.problems.length ? 1 : 0, json: { checked: true, ...result } };
     }
 
@@ -512,7 +551,7 @@ export async function runDesign(sub, args, options, deps) {
       const lookAtText = await asked(
         'Look at',
         'look-at',
-        (result?.boards ?? []).map((board) => board.title).join(', '),
+        result.boards.map((board) => board.title).join(', '),
       );
       const lookAt = lookAtText
         .split(',')
@@ -528,7 +567,7 @@ export async function runDesign(sub, args, options, deps) {
       out(`${paint.dim('Summary  ')} ${summary}`);
       out(`${paint.dim('Look at  ')} ${lookAt.join(', ')}`);
       out();
-      if (result && result.problems.length) {
+      if (result.problems.length) {
         step(
           '✗',
           `Checked ${plural(result.boards.length, 'board')}`,
@@ -538,8 +577,7 @@ export async function runDesign(sub, args, options, deps) {
         fixLine(result);
         return { exitCode: 1, json: { proposed: false, check: result } };
       }
-      if (result) step('✓', `Checked ${plural(result.boards.length, 'board')}`, 'no problems');
-      else out('This project has no design check (scripts/design-check.mjs); not checked.');
+      step('✓', `Checked ${plural(result.boards.length, 'board')}`, 'no problems');
       if (tryGit(['status', '--porcelain', '--', '.'], top))
         throw cliError(
           'This folder has changes that are not committed.',
@@ -556,7 +594,7 @@ export async function runDesign(sub, args, options, deps) {
         lookAt,
       });
       const feedback = await contracts.designFeedback(api(deps), designApi(id), branch);
-      const boards = feedback.review?.boards ?? result?.boards.length ?? 0;
+      const boards = feedback.review?.boards ?? result.boards.length;
       step('!', `Waiting on ${feedback.owner}`, `${item.title} · ${plural(boards, 'board')}`);
       out(`  ${paint.dim(`${hostOf(deps.serverUrl)}/dashboard/inbox · Waiting on you`)}`);
       out();

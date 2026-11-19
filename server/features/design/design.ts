@@ -10,6 +10,7 @@ import {
 import { mergeBoard, type BoardChoice } from '../../design/board-merge.ts';
 import { hasTools } from '../../workspace/tool-probes.ts';
 import { approvedTaskDesign, reportDesignBuild } from './design-check.ts';
+import { checkDesign, measureOverflow, type CheckDrawing } from './board-check.ts';
 import { reviewEvidence } from '../../design/review-evidence.ts';
 import {
   groupReviewChanges,
@@ -3252,6 +3253,92 @@ async function fontResponse(route: import('playwright').Route) {
   }
 }
 
+/**
+ * A board as it is drawn: its instances by the commit's library, with the design system and its
+ * pictures inlined so the page needs nothing from this server.
+ */
+async function boardPage(repo: string, commit: string, html: string) {
+  let page = await boardAsShown(repo, commit, html);
+  for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
+    const css = await designSystemFile(repo, commit, match[1]);
+    page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
+  }
+  return inlineCaptures(repo, commit, page);
+}
+
+/** The Chromium this computer draws boards with. */
+async function drawingChromium() {
+  const { chromium } = await import('playwright');
+  const executablePath = boardBrowser(chromium.executablePath());
+  if (!executablePath)
+    fail('Rendering boards needs Chromium on the coordinator: run pnpm audit:visual:install', 503);
+  return executablePath!;
+}
+
+/**
+ * `deploy design check`'s drawings: a board at a commit as review draws it (light, or dark as the
+ * design system and the page's own colour scheme both see it), measured at 700 for what leaves
+ * the page; and Before beside After as one picture.
+ */
+export function checkDrawing(repo: string): CheckDrawing {
+  return {
+    shoot: async ({ commit, file, width, height, scheme, measure }) => {
+      const html = await readFile(repo, commit, `${designFolder()}/boards/${file}`);
+      if (!html) return null;
+      const page = await boardPage(repo, commit, html.toString());
+      return withBoardChromium(await drawingChromium(), async (browser) => {
+        const context = await browser.newContext({
+          viewport: { width, height },
+          colorScheme: scheme,
+          javaScriptEnabled: false,
+        });
+        try {
+          await context.route('**/*', (route) =>
+            /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(route.request().url())
+              ? fontResponse(route)
+              : route.abort(),
+          );
+          const tab = await context.newPage();
+          await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
+          if (scheme === 'dark')
+            await tab.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+          await tab.evaluate(() => document.fonts.ready);
+          const measured = measure ? await tab.evaluate(measureOverflow) : null;
+          return { png: await tab.screenshot(), measured };
+        } finally {
+          await context.close();
+        }
+      });
+    },
+    pair: async ({ before, after, width, height, scheme }) =>
+      withBoardChromium(await drawingChromium(), async (browser) => {
+        const context = await browser.newContext({
+          viewport: { width: width * 2 + 48, height: height + 64 },
+          javaScriptEnabled: false,
+        });
+        try {
+          const tab = await context.newPage();
+          const image = (png: Buffer | null) =>
+            png
+              ? `<img src="data:image/png;base64,${png.toString('base64')}">`
+              : '<p>New board · no Before</p>';
+          await tab.setContent(
+            `<style>body{margin:0;display:flex;gap:16px;padding:16px;font:13px system-ui;background:${scheme === 'dark' ? '#18181b' : '#f4f4f5'};color:${scheme === 'dark' ? '#fafafa' : '#18181b'}}figure{margin:0}figcaption{margin-bottom:8px}img{display:block;border:1px solid #888}p{width:${width}px}</style>` +
+              `<figure><figcaption>Before · main · ${width} · ${scheme}</figcaption>${image(before)}</figure>` +
+              `<figure><figcaption>After · this branch · ${width} · ${scheme}</figcaption>${image(after)}</figure>`,
+            { waitUntil: 'load', timeout: 15000 },
+          );
+          return await tab.screenshot({ fullPage: true });
+        } finally {
+          await context.close();
+        }
+      }),
+  };
+}
+
+/** A terminal's working copy of design/, pushed for one check and removed after it. */
+export const checkRefPattern = /^refs\/design-check\/[A-Za-z0-9._-]{1,80}$/;
+
 async function drawBoard(
   repo: string,
   commit: string,
@@ -3266,17 +3353,8 @@ async function drawBoard(
   if (!placed) fail(`${board} is not on the canvas at this commit`, 404);
   const html = await readFile(repo, commit, `${designFolder()}/boards/${board}`);
   if (!html) fail(`${designFolder()}/boards/${board} is missing at this commit`, 404);
-  // Inline the design system so the page needs nothing from this server.
-  let page = await boardAsShown(repo, commit, html.toString());
-  for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
-    const css = await designSystemFile(repo, commit, match[1]);
-    page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
-  }
-  page = await inlineCaptures(repo, commit, page);
-  const { chromium } = await import('playwright');
-  const executablePath = boardBrowser(chromium.executablePath());
-  if (!executablePath)
-    fail('Rendering boards needs Chromium on the coordinator: run pnpm audit:visual:install', 503);
+  const page = await boardPage(repo, commit, html.toString());
+  const executablePath = await drawingChromium();
   return withBoardChromium(executablePath, async (browser) => {
     const context = await browser.newContext({
       viewport: { width, height: height ?? placed.h },
@@ -4656,6 +4734,48 @@ async function projectDesignApi(
           });
           setImmediate(() => void warmReview(owner, project, repo, item.id));
           return sendJson(res, { item }, 201);
+        },
+      }),
+      makeRoute({
+        method: 'POST',
+        path: '/check',
+        handler: async () => {
+          const body = await readJson(req);
+          const ref = String(body?.ref ?? '');
+          if (!checkRefPattern.test(ref))
+            fail('Name the pushed working copy, like refs/design-check/…');
+          try {
+            const commit = await gitRead(repo, [
+              'rev-parse',
+              '--verify',
+              '--quiet',
+              `${ref}^{commit}`,
+            ]);
+            if (!commit) fail('Push the working copy first', 404);
+            const main = await mainBranch(repo);
+            const base = await gitRead(repo, [
+              'rev-parse',
+              '--verify',
+              '--quiet',
+              `${main}^{commit}`,
+            ]);
+            if (!base) fail(`This project has no ${main} yet`, 409);
+            const result = await checkDesign(
+              {
+                commit: commit!,
+                base: base!,
+                baseRef: main,
+                drop: Boolean(body?.drop),
+                folder: dir,
+              },
+              { read: (args) => reviewGit(repo, args) },
+              checkDrawing(repo),
+            );
+            return sendJson(res, result);
+          } finally {
+            // The working copy was only for this check.
+            await gitString(repo, ['update-ref', '-d', ref]).catch(() => {});
+          }
         },
       }),
       makeRoute({

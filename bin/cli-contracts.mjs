@@ -100,6 +100,12 @@ export function proposeDesign(api, design, body) {
   return api(`${design}/propose`, { method: 'POST', body: JSON.stringify(body) });
 }
 
+/** deploy.local draws and checks a working copy pushed to a private ref, then removes the ref.
+ * @param {API} api @param {string} design @param {{ref: string, drop: boolean}} body */
+export function checkDesign(api, design, body) {
+  return api(`${design}/check`, { method: 'POST', body: JSON.stringify(body) });
+}
+
 /** @param {API} api @param {string} design @param {string} branch @returns {Promise<DesignFeedback>} */
 export function designFeedback(api, design, branch) {
   return api(`${design}/feedback?branch=${encodeURIComponent(branch)}`);

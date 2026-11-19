@@ -3696,9 +3696,10 @@ function designDeps() {
     cwd: process.cwd(),
     home: homedir(),
     computer,
-    git: (args, cwd) =>
+    git: (args, cwd, env) =>
       execFileSync('git', args, {
         cwd,
+        env: env ? { ...process.env, ...env } : process.env,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
         maxBuffer: 1 << 28,
@@ -3712,18 +3713,6 @@ function designDeps() {
     now: Date.now,
     sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
     capture: (url, widths, height) => captureRunningApp(url, widths, height),
-    runCheck: (root, args) => {
-      const script = resolve(root, 'scripts/design-check.mjs');
-      if (!existsSync(script)) return null;
-      const ran = spawnSync(process.execPath, [script, ...args], {
-        cwd: root,
-        encoding: 'utf8',
-        maxBuffer: 1 << 26,
-        stdio: ['ignore', 'pipe', 'inherit'],
-      });
-      if (ran.error) throw ran.error;
-      return { code: ran.status, stdout: ran.stdout };
-    },
   };
 }
 function requireApp() {

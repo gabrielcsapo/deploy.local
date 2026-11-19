@@ -21,8 +21,13 @@ import {
   titleFromBranch,
 } from './cli-design.mjs';
 
-const git = (args, cwd) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd();
+const git = (args, cwd, env) =>
+  execFileSync('git', args, {
+    cwd,
+    env: env ? { ...process.env, ...env } : process.env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trimEnd();
 
 /** An origin with main, and a clone of it named deploy.local, both in a fresh folder. */
 function repository({ design = true } = {}) {
@@ -73,6 +78,12 @@ function coordinator(feedback = []) {
   return { api, calls };
 }
 
+/** A coordinator that also checks designs: each check is answered from the request's body. */
+const checking =
+  (api, answer) =>
+  async (path, options = {}) =>
+    path.endsWith('/check') ? answer(JSON.parse(options.body)) : api(path, options);
+
 const NOW = Date.parse('2026-11-17T12:04:00Z');
 function terminal(cwd, api, extra = {}) {
   let text = '';
@@ -92,7 +103,6 @@ function terminal(cwd, api, extra = {}) {
       prompt: async () => '',
       now: () => NOW,
       sleep: async () => {},
-      runCheck: async () => null,
       ...extra,
     },
     text: () => text,
@@ -100,36 +110,33 @@ function terminal(cwd, api, extra = {}) {
 }
 
 const checked = (problems = []) => ({
-  code: problems.length ? 1 : 0,
-  stdout: `${JSON.stringify({
-    named: 4,
-    drawn: 3,
-    widths: [1440, 700],
-    schemes: ['light', 'dark'],
-    seconds: 12,
-    boards: [
-      {
-        file: 'Sidebar.html',
-        title: 'Sidebar',
-        words: 'Tasks grouped under their project',
-        problems: [],
-      },
-      {
-        file: 'Projects.html',
-        title: 'Projects',
-        words: 'New Show menu',
-        problems: problems.length ? ['cut off at 700 px'] : [],
-      },
-      {
-        file: 'Project.html',
-        title: 'Project',
-        words: 'Breadcrumb back to Projects',
-        problems: [],
-      },
-    ],
-    problems,
-    pairs: 'output/design/pairs',
-  })}\n`,
+  named: 4,
+  drawn: 3,
+  widths: [1440, 700],
+  schemes: ['light', 'dark'],
+  seconds: 12,
+  boards: [
+    {
+      file: 'Sidebar.html',
+      title: 'Sidebar',
+      words: 'Tasks grouped under their project',
+      problems: [],
+    },
+    {
+      file: 'Projects.html',
+      title: 'Projects',
+      words: 'New Show menu',
+      problems: problems.length ? ['cut off at 700 px'] : [],
+    },
+    {
+      file: 'Project.html',
+      title: 'Project',
+      words: 'Breadcrumb back to Projects',
+      problems: [],
+    },
+  ],
+  problems,
+  pairs: 'output/design/pairs',
 });
 const cutOff = [
   {
@@ -342,8 +349,11 @@ test('the README start writes says how a canvas and a board are written, as the 
 test('check prints each step, what changed per board and the problems, and exits 1 on one', async () => {
   const repo = repository();
   try {
-    const run = terminal(repo.clone, coordinator().api, { runCheck: async () => checked(cutOff) });
-    const result = await runDesign('check', [], {}, run.deps);
+    const run = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+    );
+    const result = await runDesign('check', [], { project: 'site' }, run.deps);
     assert.equal(result.exitCode, 1);
     assert.equal(
       run.text(),
@@ -364,12 +374,12 @@ test('check prints each step, what changed per board and the problems, and exits
         '',
       ].join('\n'),
     );
-    const clean = terminal(repo.clone, coordinator().api, { runCheck: async () => checked() });
-    assert.equal((await runDesign('check', [], {}, clean.deps)).exitCode, 0);
+    const clean = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked()),
+    );
+    assert.equal((await runDesign('check', [], { project: 'site' }, clean.deps)).exitCode, 0);
     assert.match(clean.text(), /No problems\. Ask for review with:\n {2}deploy design propose\n$/);
-    const none = terminal(repo.clone, coordinator().api);
-    assert.equal((await runDesign('check', [], {}, none.deps)).exitCode, 0);
-    assert.match(none.text(), /^This project has no design check \(scripts\/design-check\.mjs\)/);
   } finally {
     repo.cleanup();
   }
@@ -378,44 +388,42 @@ test('check prints each step, what changed per board and the problems, and exits
 test('check lists a shared part as one row, and --drop-instances leaves its boards to the landing', async () => {
   const repo = repository();
   const part = (dropped, carried) => ({
-    code: carried ? 1 : 0,
-    stdout: `${JSON.stringify({
-      named: 0,
-      drawn: 1,
-      widths: [1440, 700],
-      schemes: ['light', 'dark'],
-      seconds: 3,
-      ...(dropped === undefined ? {} : { dropped }),
-      boards: [
-        {
-          file: 'part:sidebar',
-          part: 'sidebar',
-          title: 'Sidebar',
-          status: 'part',
-          words: '242 screens',
-          problems: carried ? ['carried on 234 screens'] : [],
-        },
-        { file: 'Welcome.html', title: 'Welcome', words: 'Title · Greeting', problems: [] },
-      ],
-      problems: carried
-        ? [
-            {
-              file: 'part:sidebar',
-              label: 'Sidebar is carried on 234 screens',
-              detail: 'landing draws them; run deploy design check --drop-instances',
-              short: 'carried on 234 screens',
-            },
-          ]
-        : [],
-      pairs: 'output/design/pairs',
-    })}\n`,
+    named: 0,
+    drawn: 1,
+    widths: [1440, 700],
+    schemes: ['light', 'dark'],
+    seconds: 3,
+    ...(dropped === undefined ? {} : { dropped }),
+    boards: [
+      {
+        file: 'part:sidebar',
+        part: 'sidebar',
+        title: 'Sidebar',
+        status: 'part',
+        words: '242 screens',
+        problems: carried ? ['carried on 234 screens'] : [],
+      },
+      { file: 'Welcome.html', title: 'Welcome', words: 'Title · Greeting', problems: [] },
+    ],
+    problems: carried
+      ? [
+          {
+            file: 'part:sidebar',
+            label: 'Sidebar is carried on 234 screens',
+            detail: 'landing draws them; run deploy design check --drop-instances',
+            short: 'carried on 234 screens',
+          },
+        ]
+      : [],
+    pairs: 'output/design/pairs',
   });
   try {
     const asked = [];
-    const carried = terminal(repo.clone, coordinator().api, {
-      runCheck: async (_root, args) => (asked.push(args), part(undefined, true)),
-    });
-    assert.equal((await runDesign('check', [], {}, carried.deps)).exitCode, 1);
+    const carried = terminal(
+      repo.clone,
+      checking(coordinator().api, (body) => (asked.push(body.drop), part(undefined, true))),
+    );
+    assert.equal((await runDesign('check', [], { project: 'site' }, carried.deps)).exitCode, 1);
     assert.equal(
       carried.text(),
       [
@@ -434,10 +442,16 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
         '',
       ].join('\n'),
     );
-    const dropping = terminal(repo.clone, coordinator().api, {
-      runCheck: async (_root, args) => (asked.push(args), part(234, false)),
-    });
-    const result = await runDesign('check', [], { 'drop-instances': true }, dropping.deps);
+    const dropping = terminal(
+      repo.clone,
+      checking(coordinator().api, (body) => (asked.push(body.drop), part(234, false))),
+    );
+    const result = await runDesign(
+      'check',
+      [],
+      { project: 'site', 'drop-instances': true },
+      dropping.deps,
+    );
     assert.equal(result.exitCode, 0);
     assert.equal(result.json.dropped, 234);
     assert.equal(
@@ -458,10 +472,7 @@ test('check lists a shared part as one row, and --drop-instances leaves its boar
         '',
       ].join('\n'),
     );
-    assert.deepEqual(asked, [
-      ['--base', 'origin/main'],
-      ['--base', 'origin/main', '--drop-instances'],
-    ]);
+    assert.deepEqual(asked, [false, true]);
   } finally {
     repo.cleanup();
   }
@@ -482,7 +493,10 @@ test('propose refuses a problem, then checks, pushes and asks, ending with the n
     const flags = { project: 'site', 'look-at': 'Sidebar, Projects' };
 
     const refused = coordinator();
-    const bad = terminal(folder, refused.api, { runCheck: async () => checked(cutOff) });
+    const bad = terminal(
+      folder,
+      checking(refused.api, () => checked(cutOff)),
+    );
     assert.equal((await runDesign('propose', [], flags, bad.deps)).exitCode, 1);
     assert.equal(refused.calls.length, 0, 'nothing is proposed with a problem in it');
     assert.equal(git(['ls-remote', '--heads', 'origin', 'design/sidebar-by-project'], folder), '');
@@ -494,7 +508,10 @@ test('propose refuses a problem, then checks, pushes and asks, ending with the n
         review: { boards: 3, state: 'waiting' },
       },
     ]);
-    const run = terminal(folder, server.api, { runCheck: async () => checked() });
+    const run = terminal(
+      folder,
+      checking(server.api, () => checked()),
+    );
     const result = await runDesign('propose', [], flags, run.deps);
     assert.equal(result.exitCode, 0);
     assert.equal(
@@ -532,7 +549,16 @@ test('propose refuses a problem, then checks, pushes and asks, ending with the n
     // Work that is not committed would not reach the review.
     writeFileSync(join(folder, 'design/boards/Sidebar.html'), '<p data-layer="name">Edit</p>');
     await assert.rejects(
-      () => runDesign('propose', [], flags, terminal(folder, coordinator().api).deps),
+      () =>
+        runDesign(
+          'propose',
+          [],
+          flags,
+          terminal(
+            folder,
+            checking(coordinator().api, () => checked()),
+          ).deps,
+        ),
       /not committed/,
     );
     // Not on a design branch: a usage error.
@@ -743,25 +769,32 @@ test('resolve answers a note by its number, through the coordinator, and says wh
 test('--json prints nothing but the result; colour only for a terminal that wants it', async () => {
   const repo = repository();
   try {
-    const json = terminal(repo.clone, coordinator().api, {
-      runCheck: async () => checked(cutOff),
-      color: true,
-    });
-    const result = await runDesign('check', [], { json: true }, json.deps);
+    const json = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+      {
+        color: true,
+      },
+    );
+    const result = await runDesign('check', [], { project: 'site', json: true }, json.deps);
     assert.equal(json.text(), '');
     assert.equal(result.exitCode, 1);
     assert.equal(result.json.problems[0].label, 'Projects is cut off at 700 px');
-    const coloured = terminal(repo.clone, coordinator().api, {
-      runCheck: async () => checked(cutOff),
-      color: true,
-    });
-    await runDesign('check', [], {}, coloured.deps);
+    const coloured = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+      {
+        color: true,
+      },
+    );
+    await runDesign('check', [], { project: 'site' }, coloured.deps);
     const escape = String.fromCharCode(27);
     assert.ok(coloured.text().includes(`${escape}[31m✗${escape}[0m Projects`));
-    const plain = terminal(repo.clone, coordinator().api, {
-      runCheck: async () => checked(cutOff),
-    });
-    await runDesign('check', [], {}, plain.deps);
+    const plain = terminal(
+      repo.clone,
+      checking(coordinator().api, () => checked(cutOff)),
+    );
+    await runDesign('check', [], { project: 'site' }, plain.deps);
     assert.ok(!plain.text().includes(escape));
     await assert.rejects(
       () => runDesign('nope', [], {}, plain.deps),
@@ -792,13 +825,13 @@ test('deploy design --help, -h and deploy help design print the design help; --j
 test('capture puts the running app on a new board, and later only refreshes its pictures', async () => {
   const repo = repository();
   try {
-    const asked = [];
+    const requests = [];
     let clock = NOW;
     const png = (width) => Buffer.from(`png ${width}`);
     const run = terminal(repo.clone, coordinator().api, {
       now: () => clock,
       capture: async (url, widths, height) => {
-        asked.push({ url, widths, height });
+        requests.push({ url, widths, height });
         clock += 3000;
         return widths.map(png);
       },
@@ -816,7 +849,9 @@ test('capture puts the running app on a new board, and later only refreshes its 
         '',
       ].join('\n'),
     );
-    assert.deepEqual(asked, [{ url: 'http://localhost:5173', widths: [1440, 700], height: 900 }]);
+    assert.deepEqual(requests, [
+      { url: 'http://localhost:5173', widths: [1440, 700], height: 900 },
+    ]);
     const design = join(repo.clone, 'design');
     assert.equal(readFileSync(join(design, 'boards/captures/Harbor-700.png'), 'utf8'), 'png 700');
     const board = readFileSync(join(design, 'boards/Harbor.html'), 'utf8');
@@ -883,6 +918,94 @@ test('capture without Chromium says so and changes nothing', async () => {
       () => runDesign('capture', ['localhost:5173'], {}, run.deps),
       (error) => error.exitCode === 2,
     );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('check sends this folder as it is, then writes back layer IDs, restored boards and the pairs', async () => {
+  const repo = repository();
+  try {
+    await runDesign(
+      'start',
+      ['Harbor trade'],
+      { project: 'site' },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    const folder = join(repo.root, 'deploy.local-harbor-trade');
+    const head = git(['rev-parse', 'HEAD'], folder);
+    const main = git(['rev-parse', 'origin/main'], folder);
+    // A new board nobody has added to Git, and a change to one that is.
+    writeFileSync(join(folder, 'design/boards/Trade.html'), '<main><p>Offer 2 brick</p></main>\n');
+    writeFileSync(join(folder, 'design/boards/Sidebar.html'), '<p data-layer="name">Carried</p>');
+    const sent = [];
+    const answer = (body) => {
+      const read = (path) => git(['show', `${body.ref}:${path}`], repo.origin);
+      sent.push({
+        ref: body.ref,
+        drop: body.drop,
+        trade: read('design/boards/Trade.html'),
+        sidebar: read('design/boards/Sidebar.html'),
+        parent: git(['rev-parse', `${body.ref}^`], repo.origin),
+      });
+      return {
+        ...checked(),
+        layers: {
+          'Trade.html': '<main data-layer="main"><p data-layer="offer">Offer 2 brick</p></main>',
+        },
+        restore: [{ commit: main, files: ['Sidebar.html'] }],
+        pictures: [
+          { name: 'Trade-1440-light.png', png: Buffer.from('pair').toString('base64') },
+          { name: '../escape.png', png: Buffer.from('no').toString('base64') },
+        ],
+      };
+    };
+    const run = terminal(folder, checking(coordinator().api, answer));
+    const result = await runDesign(
+      'check',
+      [],
+      { project: 'site', 'drop-instances': true },
+      run.deps,
+    );
+    assert.equal(result.exitCode, 0);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].ref, /^refs\/design-check\/harbor-trade-[0-9a-f]{12}$/);
+    assert.equal(sent[0].drop, true);
+    assert.equal(sent[0].trade, '<main><p>Offer 2 brick</p></main>');
+    assert.equal(sent[0].sidebar, '<p data-layer="name">Carried</p>');
+    assert.equal(sent[0].parent, head);
+    // The folder's branch and index are as they were; only the files changed.
+    assert.equal(git(['rev-parse', 'HEAD'], folder), head);
+    assert.equal(git(['diff', '--cached', '--name-only'], folder), '');
+    assert.equal(
+      readFileSync(join(folder, 'design/boards/Trade.html'), 'utf8'),
+      '<main data-layer="main"><p data-layer="offer">Offer 2 brick</p></main>\n',
+    );
+    assert.equal(
+      readFileSync(join(folder, 'design/boards/Sidebar.html'), 'utf8'),
+      '<p data-layer="name">Name</p>',
+    );
+    assert.equal(
+      readFileSync(join(folder, 'output/design/pairs/Trade-1440-light.png'), 'utf8'),
+      'pair',
+    );
+    assert.equal(existsSync(join(folder, 'output/escape.png')), false);
+    assert.equal(existsSync(join(folder, 'output/design/escape.png')), false);
+    assert.equal('pictures' in result.json || 'layers' in result.json, false);
+
+    // deploy.local removes the ref after a check; one it could not finish, the terminal removes.
+    git(['update-ref', '-d', sent[0].ref], repo.origin);
+    const failing = terminal(
+      folder,
+      checking(coordinator().api, () => {
+        throw Object.assign(new Error('503: Rendering boards needs Chromium'), { status: 503 });
+      }),
+    );
+    await assert.rejects(
+      () => runDesign('check', [], { project: 'site' }, failing.deps),
+      /Rendering boards/,
+    );
+    assert.equal(git(['for-each-ref', 'refs/design-check'], repo.origin), '');
   } finally {
     repo.cleanup();
   }
