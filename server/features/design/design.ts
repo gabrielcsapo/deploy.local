@@ -3400,7 +3400,7 @@ export const captureLimit = 16 * 1024 * 1024;
 
 /**
  * A board drawn from its text has no address to load pictures from, so each picture in
- * boards/captures it shows (`deploy design capture` puts the running app there) goes in as data.
+ * boards/captures it shows goes in as data.
  */
 export async function inlineCaptures(repo: string, commit: string, page: string) {
   const paths = [...new Set([...page.matchAll(captureLink)].map((match) => match[2]))];

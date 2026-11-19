@@ -22,7 +22,6 @@ Usage  deploy design <command> [flags]
 While you draw
   dev                      Open the Design page on this folder, as you save
   check                    Draw what you changed beside main, once
-  capture <url> <Board>    Put the running app on a board
 
 Flags
   --project <name>         The project, when origin is elsewhere
@@ -49,8 +48,8 @@ are 390. Place boards apart on the canvas.
 ## boards/<Name>.html
 One standalone page per board, sized by
 <meta name="design-board" content="width=1440,height=900">
-No scripts and no remote images. Pictures sit beside the boards,
-in boards/captures: deploy design capture puts the running app there.
+No scripts and no remote images. Pictures, such as a screenshot of
+the running app, sit beside the boards in boards/captures.
 Every element someone might point at carries a data-layer ID,
 unique in its board. deploy design check adds them. Keep them.
 
@@ -86,48 +85,6 @@ h1{margin:0;font-size:32px;line-height:40px}
 
 /** "Harbor" from Harbor.html, as boards and review name a board. */
 const screenName = (file) => String(file).replace(/\.html$/, '');
-
-/** The widths a board is drawn and checked at: web boards at 1440 and 700, phone boards at their own. */
-export const boardWidths = (width = 1440) => (width <= 500 ? [width] : [1440, 700]);
-
-/** A board whose picture is the running app, captured at its widths into boards/captures. */
-export function captureBoard(name, width, height) {
-  const picture = (at) => `captures/${name}-${at}.png`;
-  const image =
-    width <= 500
-      ? `<img data-layer="capture" src="${picture(width)}" alt="${name} as the app runs">`
-      : `<picture data-layer="capture"><source media="(max-width: 1000px)" srcset="${picture(700)}"><img data-layer="capture-image" src="${picture(1440)}" alt="${name} as the app runs"></picture>`;
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="design-board" content="width=${width},height=${height}">
-<title>${name}</title>
-<style>
-body{margin:0;background:#fff}
-img{display:block;width:100%;height:auto}
-</style>
-</head>
-<body>
-${image}
-</body>
-</html>
-`;
-}
-
-/** A canvas with a new board placed to the right of every other board. */
-export function placeBoard(canvas, file, board) {
-  const boards = canvas.boards ?? {};
-  const right = Object.values(boards).reduce(
-    (edge, placed) => Math.max(edge, Number(placed.x ?? 0) + Number(placed.w ?? 0) + 160),
-    0,
-  );
-  return {
-    ...canvas,
-    boards: { ...boards, [file]: { x: right, y: 0, ...board } },
-    order: [...(canvas.order ?? Object.keys(boards)).filter((entry) => entry !== file), file],
-  };
-}
 
 /**
  * Writes a first canvas, board and README into a folder whose design/ has no canvas yet, keeping
@@ -244,8 +201,7 @@ function stepLine(paint, mark, label, detail = '') {
  * Runs one design command. Returns `{ exitCode, json }`; throws cliError for usage and failures.
  * deps: api, git(args, cwd) → stdout (throws on failure), cwd, computer, write(text), color,
  * interactive, prompt(question), now(), sleep(ms), exists(path), serverUrl, home, spinner,
- * serveDesign({ root, project, branch, main, deployUrl, onSave }) → { url, stopped },
- * capture(url, widths, height) → one PNG per width, or null when there is no Chromium here.
+ * serveDesign({ root, project, branch, main, deployUrl, onSave }) → { url, stopped }.
  */
 export async function runDesign(sub, args, options, deps) {
   const paint = painter(deps.color && !options.json);
@@ -771,68 +727,6 @@ export async function runDesign(sub, args, options, deps) {
       out('Stopped. Ask for review with:');
       out(paint.dim('  deploy design propose'));
       return { exitCode: 0, json: { url: page.url, stopped: true } };
-    }
-
-    case 'capture': {
-      const [address, boardArg] = args;
-      const name = String(boardArg ?? '').replace(/\.html$/, '');
-      if (!address || !/^[A-Za-z0-9_-]+$/.test(name))
-        throw cliError(
-          'Name the running app and the board.',
-          'deploy design capture localhost:5173 Harbor',
-          2,
-        );
-      const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(address) ? address : `http://${address}`;
-      const top = root();
-      const design = join(top, 'design');
-      const canvasPath = join(design, 'canvas.json');
-      let canvas;
-      try {
-        canvas = existsSync(canvasPath) ? JSON.parse(readFileSync(canvasPath, 'utf8')) : null;
-      } catch {
-        throw cliError('design/canvas.json is not valid JSON.', 'fix design/canvas.json', 1);
-      }
-      if (!canvas)
-        throw cliError('This project has no design yet.', 'deploy design start "<title>"', 1);
-      const file = `${name}.html`;
-      const boardPath = join(design, 'boards', file);
-      const placed = canvas.boards?.[file];
-      const isNew = !existsSync(boardPath);
-      const width = Number(placed?.w ?? 1440);
-      const height = Number(placed?.h ?? 900);
-      const widths = boardWidths(width);
-      const started = deps.now();
-      const pictures = await deps.capture(url, widths, height);
-      if (!pictures)
-        throw cliError(
-          'Chromium is not installed here, so the app was not captured.',
-          'deploy browser install',
-          1,
-        );
-      const seconds = Math.max(1, Math.round((deps.now() - started) / 1000));
-      step('✓', 'Captured the running app', `${widths.join(' · ')}   ${seconds} s`);
-      const captures = join(design, 'boards', 'captures');
-      mkdirSync(captures, { recursive: true });
-      const saved = widths.map((at, index) => {
-        writeFileSync(join(captures, `${name}-${at}.png`), pictures[index]);
-        return `design/boards/captures/${name}-${at}.png`;
-      });
-      step('✓', `Saved ${plural(saved.length, 'picture')}`, saved[0]);
-      if (isNew) {
-        writeFileSync(boardPath, captureBoard(name, width, height));
-        if (!placed)
-          writeFileSync(
-            canvasPath,
-            `${JSON.stringify(placeBoard(canvas, file, { w: width, h: height, title: name }), null, 2)}\n`,
-          );
-        step('✓', 'New board', `design/boards/${file}`);
-      }
-      out();
-      out(`${paint.bold(name)} shows the app as it runs. Draw the change over it.`);
-      return {
-        exitCode: 0,
-        json: { board: `design/boards/${file}`, new: isNew, url, widths, pictures: saved, seconds },
-      };
     }
 
     default:

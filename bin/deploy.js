@@ -43,7 +43,6 @@ import {
 import { readNodeStatus } from '../server/features/computers/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
-import { captureRunningApp } from './design-capture.mjs';
 import { serveDesignFolder } from './design-dev.mjs';
 import { designLocalAssets, designSystemFiles } from './design-local-assets.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
@@ -3714,7 +3713,6 @@ function designDeps() {
     prompt,
     now: Date.now,
     sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
-    capture: (url, widths, height) => captureRunningApp(url, widths, height),
     serveDesign: (options) => {
       const assets = designLocalAssets();
       if (!assets)
