@@ -38,6 +38,17 @@ test('compact Mac header reserves traffic lights, except in fullscreen', () => {
     assert.equal(values(menu, 820, css)['-webkit-app-region'], 'no-drag');
   }
 });
+test('compact Mac task header keeps its menu button clear of the traffic lights', () => {
+  const taskCss = [...css, 'app/routes/dashboard/v2/tasks/style.css'];
+  for (const fullscreen of [false, true]) {
+    const desktop = node(`deploy-desktop-mac${fullscreen ? ' deploy-desktop-fullscreen' : ''}`);
+    const main = node('dl-main', node('dl-app dl-rail-shell', desktop));
+    const head = node('dl-task-head', node('dl-task-main', node('dl-task-layout', main)), 'header');
+    const wrap = node('dl-task-wrap', head);
+    assert.equal(values(wrap, 820, taskCss)['padding-left'], fullscreen ? undefined : '100px');
+    assert.equal(values(wrap, 1440, taskCss)['padding-left'], undefined);
+  }
+});
 async function shell() {
   const target = new EventTarget();
   const media = new EventTarget();
