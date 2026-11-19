@@ -3165,6 +3165,11 @@ async function drawingKey(
     .filter(([path]) => path.startsWith('design/ds/') && path.endsWith('.css'))
     .map(([path, sha]) => `${path}=${sha}`)
     .sort();
+  // A board may show pictures of the running app, which change without the board changing.
+  const captures = [...tree]
+    .filter(([path]) => path.startsWith(`${designFolder()}/boards/captures/`))
+    .map(([path, sha]) => `${path}=${sha}`)
+    .sort();
   // Instances draw from the library, so a board is drawn again when it changes.
   const library = tree.get(libraryPath);
   return `drawing:${createHash('sha256')
@@ -3177,6 +3182,7 @@ async function drawingKey(
         height ?? placed.h,
         scale,
         ...(library ? [library] : []),
+        ...(captures.length ? [captures] : []),
         ...(scheme === 'dark' ? ['dark'] : []),
       ]),
     )
@@ -3266,6 +3272,7 @@ async function drawBoard(
     const css = await designSystemFile(repo, commit, match[1]);
     page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
   }
+  page = await inlineCaptures(repo, commit, page);
   const { chromium } = await import('playwright');
   const executablePath = boardBrowser(chromium.executablePath());
   if (!executablePath)
@@ -3325,6 +3332,28 @@ async function drawBoard(
       await context.close();
     }
   });
+}
+
+/** Pictures that sit beside the boards, in boards/captures, as the commit has them. */
+const captureLink = /((?:src|srcset)=")(captures\/[A-Za-z0-9_.-]+\.png)(")/g;
+export const captureLimit = 16 * 1024 * 1024;
+
+/**
+ * A board drawn from its text has no address to load pictures from, so each picture in
+ * boards/captures it shows (`deploy design capture` puts the running app there) goes in as data.
+ */
+export async function inlineCaptures(repo: string, commit: string, page: string) {
+  const paths = [...new Set([...page.matchAll(captureLink)].map((match) => match[2]))];
+  if (!paths.length) return page;
+  const data = new Map<string, string>();
+  for (const path of paths) {
+    if (path.split('/').includes('..')) continue;
+    const bytes = await readFile(repo, commit, `${designFolder()}/boards/${path}`, captureLimit);
+    if (bytes) data.set(path, `data:image/png;base64,${bytes.toString('base64')}`);
+  }
+  return page.replace(captureLink, (whole, before, path, after) =>
+    data.has(path) ? `${before}${data.get(path)}${after}` : whole,
+  );
 }
 
 /** Progressive review payload; the screenshot and rectangles come from the same render. */
@@ -3947,9 +3976,16 @@ async function projectDesignApi(
           const type = fileTypes[path.split('.').pop()!];
           if (!type) fail('Not found', 404);
           // Boards are the design's own; the design system is the project's, in design/ds.
+          // Pictures of the running app, in boards/captures, may be larger than a board.
           let bytes = path.startsWith('ds/')
             ? await designSystemFile(repo, commit, path, true)
-            : await readFile(repo, commit, `${dir}/${path}`, 2 * 1024 * 1024, true);
+            : await readFile(
+                repo,
+                commit,
+                `${dir}/${path}`,
+                path.startsWith('boards/captures/') ? captureLimit : 2 * 1024 * 1024,
+                true,
+              );
           if (!bytes) fail('Not found', 404);
           // A board shows its instances as its commit's library draws them.
           if (path.startsWith('boards/') && path.endsWith('.html')) {

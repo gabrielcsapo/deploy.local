@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { Readable } from 'node:stream';
+import { execFileSync } from 'node:child_process';
 if (process.env.DEPLOY_TEST_NO_BROWSER === '1') {
   const { chromium } = await import('playwright');
   mock.method(chromium, 'launch', () => {
@@ -18,7 +19,7 @@ const store = await import('../../store.ts');
 const { db, save, get: getRecord } = await import('../../workspace/store.ts');
 const { gitText } = await import('../../workspace/repository-git.ts');
 const { v2Api } = await import('../../v2/api.ts');
-const { askPrompt, componentPrompt } = await import('./design.ts');
+const { askPrompt, componentPrompt, inlineCaptures } = await import('./design.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'alice') }));
 });
@@ -153,6 +154,45 @@ test('board files are served per commit, sandboxed, and only from design/', asyn
     `/files/main/boards/Welcome.html`,
   ])
     assert.equal((await call(path)).status, 404, path);
+});
+
+test('pictures of the running app in boards/captures are served and drawn into their board', async () => {
+  // A commit beside main with a capture and a board that shows it, made without touching main.
+  const env = { ...process.env, GIT_INDEX_FILE: join(root, 'captures.index') };
+  const run = (args: string[], input?: Buffer | string) =>
+    execFileSync('git', args, { cwd: repo, env, input }).toString().trim();
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  run(['read-tree', main]);
+  run([
+    'update-index',
+    '--add',
+    '--cacheinfo',
+    `100644,${run(['hash-object', '-w', '--stdin'], png)},design/boards/captures/Harbor-1440.png`,
+  ]);
+  const board =
+    '<img data-layer="capture" src="captures/Harbor-1440.png"><img src="captures/Gone-1440.png">';
+  run([
+    'update-index',
+    '--add',
+    '--cacheinfo',
+    `100644,${run(['hash-object', '-w', '--stdin'], board)},design/boards/Harbor.html`,
+  ]);
+  const commit = run(['commit-tree', run(['write-tree']), '-p', main, '-m', 'Capture']);
+  const served = await call(`/files/${commit}/boards/captures/Harbor-1440.png`);
+  assert.equal(served.status, 200);
+  assert.equal(served.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await served.arrayBuffer()), png);
+  assert.match(served.headers.get('content-security-policy')!, /img-src 'self' data:/);
+  // Drawn from its text, the board carries the picture as data; a missing one is left alone.
+  const drawn = await inlineCaptures(repo, commit, board);
+  assert.equal(
+    drawn,
+    `<img data-layer="capture" src="data:image/png;base64,${png.toString('base64')}"><img src="captures/Gone-1440.png">`,
+  );
+  assert.equal(await inlineCaptures(repo, main, board), board);
 });
 
 test('design branches get unique names and become readable refs', async () => {

@@ -43,6 +43,7 @@ import {
 import { readNodeStatus } from '../server/features/computers/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
+import { captureRunningApp } from './design-capture.mjs';
 import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
 import { createRelayController } from './relay-client.mjs';
 import { runRelayProcess } from './relay-process.mjs';
@@ -3710,6 +3711,7 @@ function designDeps() {
     prompt,
     now: Date.now,
     sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
+    capture: (url, widths, height) => captureRunningApp(url, widths, height),
     runCheck: (root, args) => {
       const script = resolve(root, 'scripts/design-check.mjs');
       if (!existsSync(script)) return null;

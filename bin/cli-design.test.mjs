@@ -788,3 +788,102 @@ test('deploy design --help, -h and deploy help design print the design help; --j
   assert.deepEqual(JSON.parse(deploy(['help', 'design', '--json'])), { help: DESIGN_HELP });
   assert.match(deploy(['--help']), /^deploy — ship and run apps/);
 });
+
+test('capture puts the running app on a new board, and later only refreshes its pictures', async () => {
+  const repo = repository();
+  try {
+    const asked = [];
+    let clock = NOW;
+    const png = (width) => Buffer.from(`png ${width}`);
+    const run = terminal(repo.clone, coordinator().api, {
+      now: () => clock,
+      capture: async (url, widths, height) => {
+        asked.push({ url, widths, height });
+        clock += 3000;
+        return widths.map(png);
+      },
+    });
+    const result = await runDesign('capture', ['localhost:5173', 'Harbor'], {}, run.deps);
+    assert.equal(result.exitCode, 0);
+    assert.equal(
+      run.text(),
+      [
+        '✓ Captured the running app         1440 · 700   3 s',
+        '✓ Saved 2 pictures                 design/boards/captures/Harbor-1440.png',
+        '✓ New board                        design/boards/Harbor.html',
+        '',
+        'Harbor shows the app as it runs. Draw the change over it.',
+        '',
+      ].join('\n'),
+    );
+    assert.deepEqual(asked, [{ url: 'http://localhost:5173', widths: [1440, 700], height: 900 }]);
+    const design = join(repo.clone, 'design');
+    assert.equal(readFileSync(join(design, 'boards/captures/Harbor-700.png'), 'utf8'), 'png 700');
+    const board = readFileSync(join(design, 'boards/Harbor.html'), 'utf8');
+    assert.match(board, /src="captures\/Harbor-1440\.png"/);
+    assert.match(board, /srcset="captures\/Harbor-700\.png"/);
+    assert.doesNotMatch(board, /<script/);
+    const canvas = JSON.parse(readFileSync(join(design, 'canvas.json'), 'utf8'));
+    assert.deepEqual(canvas.boards['Harbor.html'], {
+      x: 1600,
+      y: 0,
+      w: 1440,
+      h: 900,
+      title: 'Harbor',
+    });
+    assert.deepEqual(canvas.order, ['Sidebar.html', 'Harbor.html']);
+
+    // Again: the board is kept as drawn, only its pictures change.
+    writeFileSync(join(design, 'boards/Harbor.html'), '<p data-layer="drawn">Drawn over</p>');
+    const again = terminal(repo.clone, coordinator().api, {
+      capture: async (_url, widths) => widths.map(() => Buffer.from('newer')),
+    });
+    await runDesign('capture', ['http://127.0.0.1:5173/trade', 'Harbor.html'], {}, again.deps);
+    assert.doesNotMatch(again.text(), /New board/);
+    assert.equal(
+      readFileSync(join(design, 'boards/Harbor.html'), 'utf8'),
+      '<p data-layer="drawn">Drawn over</p>',
+    );
+    assert.equal(readFileSync(join(design, 'boards/captures/Harbor-1440.png'), 'utf8'), 'newer');
+
+    // A phone board is captured at its own width.
+    const phone = JSON.parse(readFileSync(join(design, 'canvas.json'), 'utf8'));
+    phone.boards['Dock.html'] = { x: 0, y: 1200, w: 390, h: 844, title: 'Dock' };
+    writeFileSync(join(design, 'canvas.json'), JSON.stringify(phone));
+    const widths = [];
+    await runDesign(
+      'capture',
+      ['localhost:5173', 'Dock'],
+      {},
+      terminal(repo.clone, coordinator().api, {
+        capture: async (_url, at, height) => (widths.push([at, height]), at.map(png)),
+      }).deps,
+    );
+    assert.deepEqual(widths, [[[390], 844]]);
+    assert.match(readFileSync(join(design, 'boards/Dock.html'), 'utf8'), /captures\/Dock-390\.png/);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test('capture without Chromium says so and changes nothing', async () => {
+  const repo = repository();
+  try {
+    const run = terminal(repo.clone, coordinator().api, { capture: async () => null });
+    await assert.rejects(
+      () => runDesign('capture', ['localhost:5173', 'Harbor'], {}, run.deps),
+      (error) =>
+        error.message === 'Chromium is not installed here, so the app was not captured.' &&
+        error.next === 'deploy browser install' &&
+        error.exitCode === 1,
+    );
+    assert.equal(run.text(), '');
+    assert.equal(existsSync(join(repo.clone, 'design/boards/Harbor.html')), false);
+    await assert.rejects(
+      () => runDesign('capture', ['localhost:5173'], {}, run.deps),
+      (error) => error.exitCode === 2,
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
