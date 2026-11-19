@@ -329,10 +329,9 @@ function DesignCanvasPage({
   const [tab, setTab] = useState<'edit' | 'prototype' | 'comments'>('edit');
   const [commentFocus, setCommentFocus] = useState(0);
   const { comments, refresh: refreshComments } = useComments(projectId, artifact);
-  const [askingOpen, setAskingOpen] = useState(false);
+  const [askingOpen, setAsking] = useState(false);
   // Agents are on deploy.local: on a folder, nothing asks one.
   const asking = askingOpen && !local;
-  const setAsking = setAskingOpen;
   // Agents working on this design right now: a light poll of the coordinator's presence.
   const [agents, setAgents] = useState<AgentPresence[]>(
     () =>
