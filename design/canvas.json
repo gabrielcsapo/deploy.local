@@ -3733,6 +3733,14 @@
       "h": 900,
       "title": "The task's checks open beside the chat: the latest checkpoint as it runs, then earlier ones",
       "expand": "fill"
+    },
+    "TaskStepRunning.html": {
+      "x": 28290,
+      "y": 8704,
+      "w": 1440,
+      "h": 900,
+      "title": "A running step can be followed: its time counts up, and a deploy shows its build log as it goes",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3800,6 +3808,7 @@
     "TaskFailed.html",
     "TaskDeploy.html",
     "TaskStepDetails.html",
+    "TaskStepRunning.html",
     "TaskBrowser.html",
     "TaskBrowserYours.html",
     "TaskChangesPane.html",
@@ -5887,6 +5896,13 @@
       "x": 27850,
       "y": 12460,
       "text": "Task panes: the task header's Chat/Changes/Checks tabs become icon buttons (details, changes, checks, browser, more), each opening a pane beside the chat, as in the Claude app; one pane at a time. Changes shows the description as one row, then each file's diff (the first open), with Open full view for the wide diff. Checks shows the latest checkpoint as it runs, then earlier ones. Browser: the headless Chromium a worker runs for deploy_control; its button shows a dot while the agent uses it. The pane shows the latest picture (updated after each step), the address and the dark at-the-controls bar; Take over lets you go to an address, back and forward, click and type, and the agent waits until you give it back. Below 1180 px a pane fills the window and Close returns to the chat."
+    },
+    "step-running": {
+      "fill": "yellow",
+      "w": 440,
+      "x": 29810,
+      "y": 8704,
+      "text": "A running step. Working for counts up every second while the log is live, not just when a step finishes. The running step shows its own time, counting up. A deploy that is running opens by itself to the last lines of its build log, which update as it goes, with View logs beside it. A command that is running opens to the command it ran; Claude and Codex report a command’s output only when it finishes, so the output appears then."
     }
   },
   "starts": {}
