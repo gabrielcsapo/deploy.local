@@ -64,7 +64,9 @@ export class PushCommands {
       }
       if (this.buffer.length < length) break;
       const command = this.buffer.subarray(4, length).toString().split('\0')[0].trimEnd();
-      const match = command.match(/^([a-f0-9]{40,64}) ([a-f0-9]{40,64}) (refs\/heads\/[^\s]+)$/);
+      const match = command.match(
+        /^([a-f0-9]{40,64}) ([a-f0-9]{40,64}) (refs\/(?:heads|tags)\/[^\s]+)$/,
+      );
       if (match && this.updates.length < 1000)
         this.updates.push({ previousCommit: match[1], commit: match[2], ref: match[3] });
       this.buffer = this.buffer.subarray(length);
@@ -83,10 +85,12 @@ export class PushResult {
   feed(chunk: Buffer) {
     this.report = (this.report + chunk.toString()).slice(-131072);
   }
+  /** The branch and tag updates receive-pack reported as done. */
+  accepted() {
+    return this.commands.updates.filter((update) => this.report.includes(`ok ${update.ref}\n`));
+  }
   queue(owner: string, projectId: string) {
-    for (const update of this.commands.updates) {
-      if (this.report.includes(`ok ${update.ref}\n`))
-        queuePushTrigger(owner, projectId, update.ref, update.commit, update.previousCommit);
-    }
+    for (const update of this.accepted())
+      queuePushTrigger(owner, projectId, update.ref, update.commit, update.previousCommit);
   }
 }

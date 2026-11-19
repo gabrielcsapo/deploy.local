@@ -76,7 +76,7 @@ const LISTS_VERSION = 2;
 const POINTER = 'version https://git-lfs.github.com/spec/v1';
 
 /** One git process whose output is read line by line, so a large answer is never buffered. */
-function gitLines(
+export function gitLines(
   cwd: string,
   args: string[],
   onLine: (line: string) => void,
@@ -122,7 +122,11 @@ function gitLines(
 type ObjectLine = { type: string; disk: number; size: number; oid: string; path: string };
 /** Every object the revisions reach, with its size on disk: `rev-list --objects` into
  * `cat-file --batch-check`, which passes each object's path through as `%(rest)`. */
-function reachableObjects(cwd: string, revisions: string[], onObject: (line: ObjectLine) => void) {
+export function reachableObjects(
+  cwd: string,
+  revisions: string[],
+  onObject: (line: ObjectLine) => void,
+) {
   const list = spawn(
     'git',
     ['-c', 'core.hooksPath=/dev/null', '-C', cwd, 'rev-list', '--objects', ...revisions],
@@ -154,7 +158,11 @@ function reachableObjects(cwd: string, revisions: string[], onObject: (line: Obj
 }
 
 /** The contents of small blobs, read with one `cat-file --batch`. */
-function readBlobs(cwd: string, oids: string[], onBlob: (oid: string, text: string) => void) {
+export function readBlobs(
+  cwd: string,
+  oids: string[],
+  onBlob: (oid: string, text: string) => void,
+) {
   return new Promise<void>((resolve, reject) => {
     if (!oids.length) return resolve();
     const child = spawn(
@@ -220,7 +228,7 @@ async function folderBytes(folder: string): Promise<number> {
 }
 
 /** LFS objects as deploy.local stores them: lfs/objects/aa/bb/<oid>. */
-async function lfsObjects(repository: string) {
+export async function lfsObjects(repository: string) {
   const objects: { oid: string; bytes: number; modifiedAt: string }[] = [];
   const base = join(repository, 'lfs', 'objects');
   for (const first of await readdir(base).catch(() => [] as string[]))
@@ -501,6 +509,14 @@ function measure(owner: string, project: any) {
   }).finally(() => running.delete(key));
   running.set(key, work);
   return work;
+}
+/** Measure again now, whatever the record says: pruning changes the size without moving a ref. */
+export function remeasureRepositoryStorage(owner: string, projectId: string) {
+  const project = hostedRepository(owner, projectId);
+  if (!project) return Promise.resolve();
+  // One already running may have read the repository before it changed: measure after it.
+  const earlier = running.get(`${owner}:${projectId}`) ?? Promise.resolve();
+  return earlier.then(() => measure(owner, project));
 }
 /** Start a measurement when there is none, it is old, the refs moved, or the last one failed. */
 async function refreshIfStale(owner: string, project: any, record: any, listsMissing = false) {

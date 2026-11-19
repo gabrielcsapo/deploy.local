@@ -1,4 +1,5 @@
 import { repositoryChanged } from '../../git-changes.ts';
+import { pruneIfRewritten } from './repository-prune.ts';
 import { createGunzip } from 'node:zlib';
 import { PushResult } from '../../workspace/pipeline-triggers.ts';
 import { spawn } from 'node:child_process';
@@ -123,7 +124,10 @@ export function serveRepositoryGit(
     if (completed) return;
     if (code !== 0 || !started) return fail('Git transfer failed');
     completed = true;
-    push?.queue(owner, project.id);
+    if (push) {
+      push.queue(owner, project.id);
+      void pruneIfRewritten(owner, project, push.accepted());
+    }
     res.end();
   });
 }

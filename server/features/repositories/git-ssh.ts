@@ -1,4 +1,5 @@
 import { repositoryChanged } from '../../git-changes.ts';
+import { pruneIfRewritten } from './repository-prune.ts';
 import { spawn } from 'node:child_process';
 import { createServer, type Socket } from 'node:net';
 import ssh2, { type AuthenticationType, type Connection, type ServerChannel } from 'ssh2';
@@ -260,7 +261,10 @@ export function createGitSshTransport(privateKey: Buffer) {
           clearTimeout(timeout);
           socket.removeListener('close', kill);
           completed = true;
-          if (code === 0) push?.queue(owner, project.id);
+          if (code === 0 && push) {
+            push.queue(owner, project.id);
+            void pruneIfRewritten(owner, project, push.accepted());
+          }
           if (!channel.destroyed) {
             channel.exit(code ?? 1);
             channel.end();
