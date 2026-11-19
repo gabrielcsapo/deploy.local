@@ -121,6 +121,54 @@ test('names: the branch slug, the title back from a branch, the project from its
   assert.equal(titleFromBranch('design/sidebar-by-project'), 'Sidebar by project');
   assert.equal(projectFromRemote('https://deploy.local/api/git/p1/deploy.local.git'), 'p1');
   assert.equal(projectFromRemote('git@github.com:me/x.git'), null);
+  // The short addresses name the repository, which the coordinator takes in place of the ID.
+  assert.equal(projectFromRemote('ssh://git@deploy.local:2222/catan.git'), 'catan');
+  assert.equal(projectFromRemote('ssh://git@deploy.local:2222/catan'), 'catan');
+  assert.equal(projectFromRemote('git@deploy.local:catan.git'), 'catan');
+  assert.equal(projectFromRemote('https://deploy.local/catan.git'), 'catan');
+  assert.equal(projectFromRemote('https://deploy.local/dashboard'), null);
+  assert.equal(projectFromRemote('ssh://git@github.com/me/x.git'), null);
+  assert.equal(projectFromRemote('ssh://git@ser.lan:2222/catan.git'), null);
+  assert.equal(
+    projectFromRemote('ssh://git@ser.lan:2222/catan.git', 'https://ser.lan:8443'),
+    'catan',
+  );
+});
+
+test('start asks about the project first and leaves nothing behind when it is refused', async () => {
+  const repo = repository();
+  try {
+    const folder = join(repo.root, 'deploy.local-sidebar-by-project');
+    const left = () => [
+      existsSync(folder),
+      git(['branch', '--list', 'design/*'], repo.clone),
+      git(['worktree', 'list', '--porcelain'], repo.clone).split('\n\n').length,
+    ];
+    // No such project: said before a branch or a folder is made.
+    const missing = terminal(repo.clone, async () => {
+      throw Object.assign(new Error('Not found'), { status: 404 });
+    });
+    await assert.rejects(
+      () => runDesign('start', ['Sidebar by project'], { project: 'catan' }, missing.deps),
+      (error) =>
+        error.message === 'deploy.local has no project "catan".' &&
+        error.exitCode === 1 &&
+        missing.text() === '',
+    );
+    assert.deepEqual(left(), [false, '', 1]);
+    // Refused after the branch was made: the branch and its folder go again.
+    const refused = terminal(repo.clone, async (path) => {
+      if (path.endsWith('/working')) throw Object.assign(new Error('Try again'), { status: 503 });
+      return { review: null };
+    });
+    await assert.rejects(
+      () => runDesign('start', ['Sidebar by project'], { project: 'site' }, refused.deps),
+      /Try again/,
+    );
+    assert.deepEqual(left(), [false, '', 1]);
+  } finally {
+    repo.cleanup();
+  }
 });
 
 test('start makes the branch from main in a folder of its own and says who has it', async () => {
@@ -150,6 +198,11 @@ test('start makes the branch from main in a folder of its own and says who has i
     const folder = join(repo.root, 'deploy.local-sidebar-by-project');
     assert.equal(git(['branch', '--show-current'], folder), 'design/sidebar-by-project');
     assert.deepEqual(server.calls, [
+      {
+        path: '/api/projects/site/design/feedback?branch=design%2Fsidebar-by-project',
+        method: 'GET',
+        body: undefined,
+      },
       {
         path: '/api/projects/site/design/working',
         method: 'POST',

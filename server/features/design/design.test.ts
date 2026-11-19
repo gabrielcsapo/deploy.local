@@ -112,6 +112,26 @@ test('the canvas reads from main, a design branch, or nothing at all', async () 
   assert.equal((await call('', { owner: 'mallory' })).status, 404);
 });
 
+test('a terminal names the project by its repository name, as its SSH origin does', async () => {
+  save('project', 'alice', {
+    id: '0d9f3c5e-catan',
+    name: 'Catan',
+    repositoryPath: repo,
+    repositoryStatus: 'ready',
+  });
+  const read = (project: string, owner = 'alice') =>
+    fetch(`${origin}/api/projects/${project}/design/feedback?branch=design/board`, {
+      headers: { 'x-test-owner': owner },
+    });
+  for (const project of ['0d9f3c5e-catan', 'catan', 'Catan']) {
+    const response = await read(project);
+    assert.equal(response.status, 200, project);
+    assert.equal((await response.json()).review, null);
+  }
+  assert.equal((await read('nothing-here')).status, 404);
+  assert.equal((await read('catan', 'mallory')).status, 404);
+});
+
 test('board files are served per commit, sandboxed, and only from design/', async () => {
   const board = await call(`/files/${main}/boards/Welcome.html`);
   assert.equal(board.status, 200);

@@ -26,10 +26,34 @@ export function titleFromBranch(branch) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** The project a clone belongs to, from its deploy.local origin: …/api/git/<project>/… */
-export function projectFromRemote(url) {
-  const match = /\/api\/git\/([^/?#]+)/.exec(String(url ?? ''));
-  return match ? decodeURIComponent(match[1].replace(/\.git$/, '')) : null;
+/**
+ * The project a clone belongs to, from its deploy.local origin. The HTTPS address carries the
+ * project's ID (…/api/git/<project>/…); the short ones carry its repository name
+ * (ssh://git@deploy.local:2222/<name>.git, git@deploy.local:<name>.git,
+ * https://deploy.local/<name>.git), which the coordinator accepts in place of the ID.
+ */
+export function projectFromRemote(url, serverUrl = 'https://deploy.local') {
+  const text = String(url ?? '').trim();
+  const byId = /\/api\/git\/([^/?#]+)/.exec(text);
+  if (byId) return decodeURIComponent(byId[1].replace(/\.git$/, ''));
+  let host;
+  let path;
+  const short = text.includes('://') ? null : /^(?:[^@/\s]+@)?([^:/\s]+):(.+)$/.exec(text);
+  if (short) [, host, path] = short;
+  else
+    try {
+      const parsed = new URL(text);
+      // A web address names a repository only as <name>.git; SSH may leave the ending off.
+      if (parsed.protocol !== 'ssh:' && !/\.git$/i.test(parsed.pathname)) return null;
+      host = parsed.hostname;
+      path = decodeURIComponent(parsed.pathname);
+    } catch {
+      return null;
+    }
+  if (!['deploy.local', hostOf(serverUrl).replace(/:\d+$/, '')].includes(host.toLowerCase()))
+    return null;
+  const name = path.replace(/^(?:~\/|\/)/, '').replace(/\.git$/i, '');
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) ? name : null;
 }
 
 /** "4 min" from milliseconds; "just now" under a minute. */
@@ -91,7 +115,9 @@ export async function runDesign(sub, args, options, deps) {
     return top;
   };
   const project = (top) => {
-    const id = options.project || projectFromRemote(tryGit(['remote', 'get-url', 'origin'], top));
+    const id =
+      options.project ||
+      projectFromRemote(tryGit(['remote', 'get-url', 'origin'], top), deps.serverUrl);
     if (!id)
       throw cliError(
         'This folder is not a deploy.local project: its origin is not on deploy.local.',
@@ -203,6 +229,17 @@ export async function runDesign(sub, args, options, deps) {
         throw cliError('Use letters or numbers in the title.', 'deploy design start "…"', 2);
       const top = root();
       const id = project(top);
+      // Ask the coordinator about the project before anything is made here.
+      try {
+        await contracts.designFeedback(api(deps), designApi(id), `design/${slug}`);
+      } catch (error) {
+        if (error?.status !== 404) throw error;
+        throw cliError(
+          `${hostOf(deps.serverUrl)} has no project "${id}".`,
+          'deploy design start "<title>" --project <name>',
+          1,
+        );
+      }
       const main = mainName(top);
       if (tryGit(['fetch', '--quiet', 'origin', main], top) === null)
         throw cliError(`Could not fetch ${main} from origin.`, 'git fetch origin');
@@ -230,10 +267,18 @@ export async function runDesign(sub, args, options, deps) {
       );
       step('✓', 'Branch', branch);
       step('✓', 'Folder', shown);
-      const working = await contracts.designWorking(api(deps), designApi(id), {
-        branch,
-        computer: deps.computer,
-      });
+      let working;
+      try {
+        working = await contracts.designWorking(api(deps), designApi(id), {
+          branch,
+          computer: deps.computer,
+        });
+      } catch (error) {
+        // Nothing has been drawn yet, so a start the coordinator refused leaves nothing behind.
+        tryGit(['worktree', 'remove', '--force', folder], top);
+        tryGit(['branch', '-D', branch], top);
+        throw error;
+      }
       out();
       out(`${paint.bold(title)} is yours on ${deps.computer}.`);
       out('It shows on the Design page as being worked on.');

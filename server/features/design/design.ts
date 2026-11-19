@@ -38,7 +38,7 @@ import {
   type Library,
 } from '../../design/board-html.ts';
 import { currentTaskBranch } from '../../workspace/follow-up.ts';
-import { requireRepository } from '../../workspace/repositories.ts';
+import { findRepository, requireRepository } from '../../workspace/repositories.ts';
 import { keyedSlots, withRepositoryWrites } from '../../kernel/jobs/repository-lock.ts';
 import {
   gitEnvironment,
@@ -3883,8 +3883,8 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     /^\/api\/projects\/([^/]+)(?:\/artifacts\/([^/]+))?\/design(\/.*)?$/,
   );
   if (!route) return false;
-  const projectId = decodeURIComponent(route[1]);
-  const project = requireRepository(owner, projectId);
+  // A terminal names the project the way its origin does: by ID, or by repository name.
+  const project = findRepository(owner, decodeURIComponent(route[1]));
   const artifact = route[2] ? decodeURIComponent(route[2]) : null;
   if (artifact !== null && !artifactNamePattern.test(artifact)) fail('Not found', 404);
   return inDesignFolder(artifact ? `artifacts/${artifact}` : appDesignFolder, () =>
