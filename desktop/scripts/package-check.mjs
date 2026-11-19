@@ -60,6 +60,8 @@ for (const archive of packages) {
     await readFile(join(root, '../app/design-tokens.css'), 'utf8'),
   );
   await readFile(join(dirname(archive), 'worker/worker.mjs'));
+  for (const name of ['claude-agent', 'compatible-agent', 'mcp'])
+    await readFile(join(dirname(archive), `worker/workspace-${name}.js`));
   assert.ok(!asar.listPackage(archive).some((path) => path.includes('fixture-runtime')));
 }
 console.log('Unpacked application, bundled worker, copied tokens and preload surface verified.');

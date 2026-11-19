@@ -26,6 +26,22 @@ await build({
     js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
   },
 });
+// The worker starts agents and the deploy tool server as adjacent scripts
+// (server/workspace/worker-entry.ts), so they ship beside worker.mjs.
+for (const name of ['claude-agent', 'compatible-agent', 'mcp']) {
+  await build({
+    absWorkingDir: directory,
+    entryPoints: [`../server/workspace/${name}.ts`],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    outfile: `build/worker/workspace-${name}.js`,
+    banner: {
+      js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+    },
+  });
+}
+await writeFile('build/worker/package.json', JSON.stringify({ type: 'module' }) + '\n');
 await build({
   absWorkingDir: directory,
   entryPoints: ['src/app-worker.mjs'],

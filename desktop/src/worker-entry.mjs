@@ -15,6 +15,9 @@ const caPath = join(process.env.DEPLOY_WORKER_ROOT, 'coordinator-ca.pem');
 if (ca || pin) {
   // An older setup fetches the issuer only over the already fingerprint-verified connection.
   writeFileSync(caPath, ca || (await client.request('/ca.crt', { raw: true })), { mode: 0o600 });
+  // Agents and the deploy tool server run as their own processes and reach the
+  // coordinator directly, so they trust the same verified issuer.
+  process.env.NODE_EXTRA_CA_CERTS = caPath;
   for (const name of ['spawn', 'spawnSync']) {
     const original = childProcess[name];
     childProcess[name] = (command, args, options) =>
