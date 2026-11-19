@@ -1,5 +1,5 @@
 'use client';
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { type ComponentState, Icon, stateProps } from './shared';
 import { Steps, type WorkStep } from './Steps';
 export function WorkLog({
@@ -10,7 +10,7 @@ export function WorkLog({
   disabled,
   loading,
 }: ComponentState & {
-  summary: string;
+  summary: ReactNode;
   steps?: WorkStep[];
   live?: boolean;
   defaultOpen?: boolean;

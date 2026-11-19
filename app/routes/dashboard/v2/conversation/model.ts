@@ -31,7 +31,7 @@ export function safeResourceUrl(value: string) {
     : undefined;
 }
 
-function took(from: string, to: string) {
+export function took(from: string, to: string) {
   const seconds = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 1000));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.round(seconds / 60);
