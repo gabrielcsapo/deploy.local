@@ -37,6 +37,7 @@ import { getBackupDir, deleteVolumes } from '../../volumes.ts';
 import { parseStoredApplicationSpec } from '../../application-spec.ts';
 import { deployDataPath } from '../../kernel/files/data-directory.ts';
 
+import { queueCodeIndex } from '../code-index/service.ts';
 import { assertNoApplicationMutations, beginApplicationMutation } from './releases-fence.ts';
 import { assertProjectWritable } from './project-policy.ts';
 import { resolveProject } from '../../v2/projects.ts';
@@ -457,6 +458,7 @@ export async function removeProject(
         owner,
         project.id,
       );
+      queueCodeIndex(owner, project.id);
       db.prepare("DELETE FROM records WHERE kind='v2-project-current' AND owner=? AND id=?").run(
         owner,
         project.id,

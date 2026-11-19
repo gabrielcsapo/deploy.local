@@ -1,3 +1,5 @@
+import { callCodeIndex } from '../code-index/service.ts';
+import { codeIndexTools } from '../code-index/tool-schema.ts';
 import { readRunCredential, verifyRunCredential } from '../../kernel/auth/run.ts';
 export { readRunCredential, verifyRunCredential } from '../../kernel/auth/run.ts';
 import { computerView } from '../../workspace/computer-view.ts';
@@ -287,6 +289,7 @@ function jobsWithStatus(owner: string, status: string): any[] {
 }
 export function coordinationTool(scope: AgentScope, name: string, args: any) {
   const { owner, taskId, runId } = scope;
+  if (codeIndexTools.some((tool) => tool.name === name)) return callCodeIndex(owner, name, args);
   if (name === 'deploy_list_computers') return { computers: computers(owner) };
   if (name === 'deploy_get_job') return describeJob(owner, scoped(scope, 'job', args.jobId));
   if (name === 'deploy_list_jobs')

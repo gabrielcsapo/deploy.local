@@ -83,6 +83,13 @@ await build({
   outfile: resolve(root, 'dist/workspace-vacuum-worker.js'),
 });
 
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/features/code-index/worker.ts')],
+  outfile: resolve(root, 'dist/code-index-worker.js'),
+  external: [...common.external, 'typescript/unstable/*'],
+});
+
 for (const [entry, name] of [
   ['pipeline-worker', 'workspace-pipeline-worker'],
   ['recovery', 'workspace-recovery'],

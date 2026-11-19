@@ -4,6 +4,7 @@ import { streamWorkspaceAttachment } from './agent-media.ts';
 import { continueControl } from '../../workspace/control-continuation.ts';
 import { continueQuestion } from '../../workspace/question-continuation.ts';
 import { projectTools } from '../../workspace/project-tool-schema.ts';
+import { codeIndexTools } from '../code-index/tool-schema.ts';
 import { designToolSchema } from './design-tool-schema.ts';
 import { captureSnapshot } from '../../workspace/checkpoint.ts';
 import { continueRepositoryCreation } from '../../workspace/repository-creation-worker.ts';
@@ -21,6 +22,7 @@ const tool = (
 });
 export const coordinationTools = [
   ...projectTools,
+  ...codeIndexTools,
   tool(
     'deploy_require_tools',
     'State the executable tools this task needs (for example xcodebuild, docker, swift). Needs accumulate. Pause edits while calling: a checkpoint is captured automatically. If this computer has not answered yes to every need, the run stops and the task resumes from that checkpoint on a qualifying computer, or waits for one. Optional why is one short line.',

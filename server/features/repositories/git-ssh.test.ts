@@ -246,19 +246,33 @@ test('both transports queue only successful branch updates', async () => {
     const body = `${'0'.repeat(40)} ${commit} ${ref}\n`;
     return (Buffer.byteLength(body) + 4).toString(16).padStart(4, '0') + body;
   };
+  const owner = 'push-report';
+  save('project', owner, { id: 'project', defaultBranch: 'accepted' });
   const input = Buffer.from(
     command(commits[0], 'refs/heads/accepted') +
       command(commits[1], 'refs/heads/rejected') +
+      command(commits[1], 'refs/heads/feature') +
       '0000',
   );
   for (let i = 0; i < input.length; i += 7) push.commands.feed(input.subarray(i, i + 7));
   push.feed(Buffer.from('unpack ok\nok refs/heads/acc'));
-  push.feed(Buffer.from('epted\nng refs/heads/rejected denied\n'));
-  push.queue('push-report', 'project');
+  push.feed(Buffer.from('epted\nng refs/heads/rejected denied\nok refs/heads/feature\n'));
+  push.queue(owner, 'project');
   assert.deepEqual(
-    list('pipeline-trigger-request', 'push-report').map(({ ref, commit }) => ({ ref, commit })),
-    [{ ref: 'refs/heads/accepted', commit: commits[0] }],
+    list('pipeline-trigger-request', owner).map(({ ref, commit }) => ({ ref, commit })),
+    [
+      { ref: 'refs/heads/accepted', commit: commits[0] },
+      { ref: 'refs/heads/feature', commit: commits[1] },
+    ],
   );
+  const jobs = list('code-index-request', owner);
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].id, 'project');
+  const feature = new PushResult();
+  feature.commands.feed(Buffer.from(command(commits[1], 'refs/heads/feature') + '0000'));
+  feature.feed(Buffer.from('unpack ok\nok refs/heads/feature\n'));
+  feature.queue(owner, 'project');
+  assert.deepEqual(list('code-index-request', owner), jobs);
 });
 
 // Exercise the real SSH protocol without a TCP listener (also works in network sandboxes).

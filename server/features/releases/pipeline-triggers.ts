@@ -1,3 +1,4 @@
+import { queueCodeIndex } from '../code-index/service.ts';
 import { queueCopies } from '../../packages/copies.ts';
 import { createHash } from 'node:crypto';
 import { get, save, now } from '../../workspace/store.ts';
@@ -23,7 +24,10 @@ export function queuePushTrigger(
       return 'main';
     }
   })();
-  if (ref === `refs/heads/${branch}`) queueCopies(owner, projectId);
+  if (ref === `refs/heads/${branch}`) {
+    queueCopies(owner, projectId);
+    queueCodeIndex(owner, projectId);
+  }
   save('pipeline-trigger-request', owner, {
     id: createHash('sha256')
       .update(JSON.stringify([projectId, ref, commit]))

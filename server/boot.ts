@@ -54,6 +54,7 @@ import { deployDataDirectory } from './kernel/files/data-directory.ts';
 import { loadOrCreateSecretKey } from './secrets.ts';
 import { startAgentExecExpiry, stopAgentExecExpiry } from './agent-exec.ts';
 import { startRemovedProjectCleanup, stopRemovedProjectCleanup } from './v2/project-removal.ts';
+import { startCodeIndex } from './features/code-index/service.ts';
 import { startPush, stopPush } from './v2/push.ts';
 
 /** Serves the pages and assets of the web app: every request the API does not claim. */
@@ -150,6 +151,7 @@ async function start(options: BootOptions) {
       );
     npmRegistry.copy.startChecks();
     queueAllCopies();
+    startCodeIndex();
     const packageWarmer = new CopyWarmer(npmRegistry.copy);
     startMaintenance({
       warm: () => packageWarmer.tick(),

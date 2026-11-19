@@ -62,7 +62,9 @@ test('context uses roles and reported capabilities, preserves offline state and 
   assert.match(situation, /Coordinator: https:\/\/deploy.local; the local CA is trusted/);
   assert.doesNotMatch(text, /never-include-this|username|secret@|private\?token/);
   assert.ok(situation.split('\n').length < 40);
-  for (const tool of coordinationTools) assert.ok(operatingManual.includes(`${tool.name}:`));
+  for (const tool of coordinationTools)
+    if (!tool.name.startsWith('deploy_code_')) assert.ok(operatingManual.includes(`${tool.name}:`));
+  assert.match(operatingManual, /deploy_code_find.*before grepping/);
   // Agents are told how to run verification so its result records exactly.
   assert.match(operatingManual, /run them without piping when you can/);
   assert.match(operatingManual, /set -o pipefail/);
