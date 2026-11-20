@@ -78,7 +78,7 @@ describe('design canvas model', () => {
     assert.equal(hex(css(250, 250, 251)), 'fafafb');
     assert.equal(hex(`${'#'}FFF`), 'ffffff');
     assert.equal(hex(css(0, 0, 0, 0)), null);
-    assert.equal(colorToken(css(250, 250, 251), tokens), 'paper');
+    assert.equal(colorToken(css(247, 247, 248), tokens), 'paper');
     assert.equal(colorToken(css(1, 2, 3), tokens), null);
     assert.equal(textStyle(22, 28, 600, tokens), 'title');
     assert.equal(textStyle(23, 28, 600, tokens), null);
