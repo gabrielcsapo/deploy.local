@@ -45,10 +45,9 @@ export function InboxDecision({ itemId, inTask }: { itemId: string; inTask?: boo
   return <Decision item={item} inTask={inTask} />;
 }
 
-function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
-  const { formatTime } = useProjectFormatting();
+/** Answering an item: one answer at a time, a confirmation first when the action asks for one. */
+export function useDecision(item: InboxItem) {
   const { answer } = useInbox();
-  const agentName = useAgentName();
   const [note, setNote] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -68,6 +67,57 @@ function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
       setPending(false);
     }
   }
+  const choose = (action: InboxItem['actions'][number]) =>
+    action.confirm ? setConfirmation(action) : void submit(action.id);
+  return { note, setNote, pending, error, conflict, confirmation, setConfirmation, submit, choose };
+}
+
+/** What follows an answer, and the confirmation an action asks for. */
+export function DecisionFeedback({
+  item,
+  decision,
+}: {
+  item: InboxItem;
+  decision: ReturnType<typeof useDecision>;
+}) {
+  const { pending, conflict, error, confirmation, setConfirmation, submit } = decision;
+  return (
+    <>
+      {pending && (
+        <p className="dl-meta" role="status">
+          Saving your answer…
+        </p>
+      )}
+      {conflict && (
+        <p className="dl-meta" role="status">
+          Already answered elsewhere. The saved answer is shown above.
+        </p>
+      )}
+      {error && <Banner kind="danger" title={error} />}
+      <Dialog
+        open={!!confirmation && item.state === 'waiting'}
+        onClose={() => setConfirmation(null)}
+        title={item.title}
+        actions={
+          <>
+            <Action onClick={() => setConfirmation(null)}>Cancel</Action>
+            <Action variant="primary" onClick={() => confirmation && void submit(confirmation.id)}>
+              {confirmation?.label}
+            </Action>
+          </>
+        }
+      >
+        <p>{confirmation?.confirm}</p>
+      </Dialog>
+    </>
+  );
+}
+
+function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
+  const { formatTime } = useProjectFormatting();
+  const agentName = useAgentName();
+  const decision = useDecision(item);
+  const { note, setNote, pending, submit, choose } = decision;
   const closed = item.state !== 'waiting';
   const name = item.fromName || agentName(item.from);
   if (item.id.startsWith('design:') && (!closed || item.answer?.actionId === 'approve'))
@@ -109,11 +159,7 @@ function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
           </div>
         </article>
       ) : item.kind === 'question' && inTask ? (
-        <TaskQuestion
-          item={item}
-          pending={pending}
-          choose={(action) => (action.confirm ? setConfirmation(action) : void submit(action.id))}
-        />
+        <TaskQuestion item={item} pending={pending} choose={choose} />
       ) : item.kind === 'question' ? (
         <QuestionDecision
           item={item}
@@ -121,7 +167,7 @@ function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
           note={note}
           setNote={setNote}
           pending={pending}
-          choose={(action) => (action.confirm ? setConfirmation(action) : void submit(action.id))}
+          choose={choose}
         />
       ) : (
         <Approval
@@ -155,9 +201,7 @@ function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
                   key={action.id}
                   variant={action.primary ? 'primary' : 'secondary'}
                   disabled={pending || (action.id === 'answer' && !note.trim())}
-                  onClick={() =>
-                    action.confirm ? setConfirmation(action) : void submit(action.id)
-                  }
+                  onClick={() => choose(action)}
                 >
                   {action.label}
                 </Action>
@@ -166,32 +210,7 @@ function Decision({ item, inTask }: { item: InboxItem; inTask?: boolean }) {
           }
         />
       )}
-      {pending && (
-        <p className="dl-meta" role="status">
-          Saving your answer…
-        </p>
-      )}
-      {conflict && (
-        <p className="dl-meta" role="status">
-          Already answered elsewhere. The saved answer is shown above.
-        </p>
-      )}
-      {error && <Banner kind="danger" title={error} />}
-      <Dialog
-        open={!!confirmation && !closed}
-        onClose={() => setConfirmation(null)}
-        title={item.title}
-        actions={
-          <>
-            <Action onClick={() => setConfirmation(null)}>Cancel</Action>
-            <Action variant="primary" onClick={() => confirmation && void submit(confirmation.id)}>
-              {confirmation?.label}
-            </Action>
-          </>
-        }
-      >
-        <p>{confirmation?.confirm}</p>
-      </Dialog>
+      <DecisionFeedback item={item} decision={decision} />
     </div>
   );
 }

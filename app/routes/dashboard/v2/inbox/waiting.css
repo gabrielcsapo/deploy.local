@@ -1,0 +1,43 @@
+/* Waiting on you: what the design system's .dl-asks leaves to the app. */
+.v2-asks-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v2-asks-ruled {
+  border-top: 1px solid var(--ds-line);
+}
+.v2-asks-open {
+  margin-left: auto;
+}
+.v2-asks-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dl-asks-list.v2-asks-answered {
+  width: auto;
+  flex: 1;
+  max-width: 768px;
+  margin: 0 auto;
+}
+/* Beside the list the item needs no way back; on its own page it does. */
+@media (min-width: 1181px) {
+  .v2-asks-crumb {
+    display: none;
+  }
+}
+/* Narrower, an opened item is its own page (InboxDetail): the list steps aside. */
+@media (max-width: 1180px) {
+  .dl-asks.v2-open .dl-asks-list {
+    display: none;
+  }
+  .dl-asks.v2-open .dl-asks-detail {
+    display: flex;
+    flex: 1;
+    border-left: 0;
+  }
+  .dl-asks.v2-open .dl-asks-pane {
+    padding-top: 8px;
+  }
+}

@@ -32,6 +32,7 @@ export function Composer({
   project = null,
   computer = null,
   start = false,
+  hero = false,
   projects: startProjects,
   task,
   model = 'Auto',
@@ -49,6 +50,8 @@ export function Composer({
   computer?: string | null;
   /** Starts tasks: the project and computer chips open menus (New task, an empty project). */
   start?: boolean;
+  /** The first thing on a new-task page with nothing yet: raised above the starting points. */
+  hero?: boolean;
   /** The projects a start composer begins with. */
   projects?: string[];
   /** In a task: the computer it runs on (a worker ID) and whether a run is going. */
@@ -386,7 +389,7 @@ export function Composer({
   return (
     <>
       <form
-        className="dl-composer"
+        className={`dl-composer${hero ? ' hero' : ''}`}
         aria-busy={busy || undefined}
         data-disabled={disabled || undefined}
         onSubmit={(event) => {

@@ -1,6 +1,6 @@
 'use client';
 import { useDataSeed } from './v2/data/seeds';
-import { inboxItemHref } from './v2/design/review-model';
+import { waitingHref } from './v2/inbox/waiting';
 import { useProjectFormatting } from './v2/projects/formatting.ts';
 import {
   Suspense,
@@ -221,7 +221,7 @@ export function V2Sidebar({
         >
           Waiting on you
         </a>
-        <span>{inbox.loading || inbox.error ? '—' : waiting.length}</span>
+        <span className="dl-c">{inbox.loading || inbox.error ? '—' : waiting.length}</span>
       </div>
       {inbox.error && (
         <p className="dl-sidebar-notice" role="status">
@@ -231,7 +231,7 @@ export function V2Sidebar({
       {waiting.map((item) => (
         <Nav
           key={item.id}
-          href={inboxItemHref(item)}
+          href={waitingHref(item)}
           lead={<Icon name="attention" className="dl-attn" size={14} />}
           end={formatTime(item.createdAt, 'list')}
         >

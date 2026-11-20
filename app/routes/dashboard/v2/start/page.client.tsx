@@ -57,38 +57,58 @@ function Welcome() {
       />
       <PasskeyOffer />
       <div className="dl-scroll dl-home-scroll">
-        <div className="dl-col dl-home-col">
+        <div className="dl-col dl-home-col v2-welcome-col">
           <div className="dl-greeting">
             <span className="dl-mark dl-home-mark">d</span>
-            <h1 className="dl-title">Welcome to deploy.local</h1>
+            <h1 className="dl-display">Welcome to deploy.local</h1>
             <span className="dl-soft">
               {coordinator[0].toUpperCase() + coordinator.slice(1)} is running and ready. Start with
               a project or an app, then add agents to keep working on it in the background.
             </span>
           </div>
           <div className="dl-home-composer">
-            <Composer start />
+            <Composer start hero />
           </div>
-          <Group aria-label="Quick actions">
-            <Item
-              title="Add a project"
-              description="A repository and the apps it runs. A task writes the deploy file for you."
-              href="/dashboard/start/project"
-              end="New project"
-            />
-            <Item
-              title="Or install an app"
-              description="Immich, Vaultwarden, Miniflux and more, on your own computer"
-              href="/dashboard/start/apps"
-              end="Discover apps"
-            />
-            <Item
-              title="Add another computer"
-              description="Optional. Install the app on a laptop or desktop and it can take tasks"
-              href="/dashboard/computers/add"
-              end="Add a computer"
-            />
-          </Group>
+          <section className="dl-starts" aria-label="Where to start">
+            <div className="dl-starts-grid">
+              <div className="dl-start first">
+                <span className="dl-tile brand">
+                  <Icon name="folder" />
+                </span>
+                <span className="dl-t">
+                  <b>Add a project</b>
+                  <span>
+                    A repository and the apps it runs. A task writes the deploy file for you.
+                  </span>
+                </span>
+                <a href="/dashboard/start/project" className="dl-btn primary">
+                  New project
+                </a>
+              </div>
+              <div className="dl-start">
+                <span className="dl-tile">
+                  <Icon name="apps" />
+                </span>
+                <span className="dl-t">
+                  <b>Install an app</b>
+                  <span>Immich, Vaultwarden, Miniflux and more, on your own computer.</span>
+                </span>
+                <a href="/dashboard/start/apps" className="dl-btn secondary">
+                  Discover apps
+                </a>
+              </div>
+            </div>
+            <div className="dl-start-quiet">
+              <Icon name="computer" />
+              <span className="dl-t">
+                <b>Add another computer</b>
+                <span>Optional. Install the app on a laptop or desktop and it can take tasks.</span>
+              </span>
+              <a href="/dashboard/computers/add" className="dl-btn quiet">
+                Add a computer
+              </a>
+            </div>
+          </section>
         </div>
       </div>
     </>

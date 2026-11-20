@@ -27,6 +27,18 @@
 .dl-home-composer {
   margin-top: 4px;
 }
+/* Welcome (nothing yet): a larger mark and the display title, the starting points as cards. */
+.dl-home-col.v2-welcome-col {
+  gap: 28px;
+}
+.v2-welcome-col .dl-greeting {
+  gap: 10px;
+}
+.v2-welcome-col .dl-home-mark {
+  width: 44px;
+  height: 44px;
+  font-size: var(--ds-type-lead);
+}
 .dl-drawer {
   margin: 0;
   padding: 0;
@@ -144,9 +156,6 @@ button.dl-nav.side-more {
 }
 .dl-stalled {
   color: var(--ds-warning);
-}
-.dl-inbox-section {
-  gap: 12px;
 }
 .dl-inbox-note {
   flex-basis: 100%;

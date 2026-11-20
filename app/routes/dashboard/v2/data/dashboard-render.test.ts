@@ -142,3 +142,78 @@ test('safe dashboard pages render their seeded content before effects, with stab
     else process.env.TZ = previous;
   }
 });
+
+test('Waiting on you groups decisions by what you must do, one compact row and one action each', () => {
+  const minutes = (count: number) => new Date(at - count * 60000).toISOString();
+  const base = { text: '', from: 'warden', actions: [], state: 'waiting' as const };
+  const items = [
+    {
+      ...base,
+      id: 'rollback:forma:r1',
+      kind: 'rollback',
+      title: 'Roll back forma?',
+      text: 'The release to imac did not finish.',
+      fromName: 'Warden',
+      projectId: 'forma',
+      projectName: 'forma',
+      createdAt: minutes(17),
+      actions: [
+        { id: 'rollback', label: 'Roll back', primary: true },
+        { id: 'keep', label: 'Keep release' },
+      ],
+    },
+    {
+      ...base,
+      id: 'design:forma:upload-history:abc',
+      kind: 'other',
+      title: 'Show upload history in Media sources',
+      text: 'Changed 2 boards on design/upload-history.',
+      fromName: 'Gabriel',
+      projectId: 'forma',
+      projectName: 'forma',
+      createdAt: minutes(60),
+      actions: [{ id: 'approve', label: 'Approve design', primary: true }],
+    },
+    {
+      ...base,
+      id: 'question:q',
+      kind: 'question',
+      title: 'Choose where to publish release notes',
+      fromName: 'Release notes writer',
+      taskId: 'task',
+      createdAt: minutes(40),
+    },
+  ];
+  const html = render(Inbox, '/dashboard/inbox', {
+    ...seed,
+    data: { ...seed.data, '/api/inbox?state=waiting': { items, cursor: 1 } },
+  });
+  const labels = [...html.matchAll(/class="dl-group-label">([^<]+)<span class="dl-n">(\d+)/g)];
+  assert.deepEqual(
+    labels.map((match) => `${match[1]} ${match[2]}`),
+    ['Decide now 1', 'Review designs 1', 'Answer 1'],
+  );
+  // The risky decision is a raised card with both choices inline.
+  assert.match(
+    html,
+    /class="dl-asks-risk"[\s\S]*Roll back forma\?[\s\S]*forma · Warden asked · 17 min ago[\s\S]*Roll back<\/button>[\s\S]*Keep release<\/button>/,
+  );
+  // Every other item is one row: kind mark, the change in words, one line of context, one action.
+  assert.match(
+    html,
+    /dl-tile k-design[\s\S]*Show upload history in Media sources<\/b><span>forma · Gabriel · 1 hour ago<\/span>[\s\S]*>Review<\/a>/,
+  );
+  assert.match(
+    html,
+    /dl-tile k-question[\s\S]*Release notes writer · in a task · 40 min ago[\s\S]*>Answer<\/a>/,
+  );
+  assert.doesNotMatch(html, /Also changed/);
+  // Answered stays one link away, beside the title.
+  assert.match(
+    html,
+    /<h1 class="dl-display">Waiting on you<\/h1><a href="\/dashboard\/inbox\?tab=answered">Answered<\/a>/,
+  );
+  // At wide widths the first row opens beside the list.
+  assert.match(html, /class="dl-asks-row on"[^>]*>[\s\S]*Show upload history/);
+  assert.match(html, /class="dl-asks-detail"/);
+});
