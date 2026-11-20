@@ -8,19 +8,19 @@ enum WorkspaceStyle {
               blue: Double(value & 255) / 255)
     }
     // BEGIN GENERATED TOKENS
-    static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x18171b : 0xfafafb) }
-    static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x141317 : 0xf6f6f8) }
+    static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x18171b : 0xf7f7f8) }
+    static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x111013 : 0xf0f0f3) }
     static func rail(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x100e16 : 0xebe4f2) }
-    static func surface(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x211f25 : 0xffffff) }
+    static func surface(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x24222a : 0xffffff) }
     static func raised(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x25202f : 0xf8f4fc) }
     static func field(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x211c2b : 0xf0eaf6) }
     static func hover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x292333 : 0xede5f5) }
-    static func selected(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2f2c34 : 0xebeaee) }
+    static func selected(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2d2a33 : 0xe5e4e9) }
     static func text(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf3f2f5 : 0x1c1b1f) }
     static func secondary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc5c1cc : 0x55525b) }
     static func tertiary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x9a95a3 : 0x67636f) }
-    static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2e2c33 : 0xe8e7eb) }
-    static func edge(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x403d46 : 0xd6d4db) }
+    static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x302d35 : 0xe6e5ea) }
+    static func edge(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x433f4a : 0xd4d2d9) }
     static func accent(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc9adf1 : 0x6a3fc4) }
     static func accentSoft(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2d2539 : 0xefe9fa) }
     static func success(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x1f6b43) }
@@ -44,6 +44,16 @@ enum WorkspaceStyle {
     static func mask(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffffff : 0xffffff) }
     static func highlight(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffffff : 0xffffff) }
     static func accentHover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xd7c3f4 : 0x63388c) }
+    static func kindDesign(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc9adf1 : 0x6a3fc4) }
+    static func kindDesignTint(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x30273f : 0xefe9fa) }
+    static func kindRisk(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xb42318) }
+    static func kindRiskTint(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x3d2327 : 0xfdecea) }
+    static func kindProposal(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x8a5208) }
+    static func kindProposalTint(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x3a2e1b : 0xfbf0dc) }
+    static func kindLearning(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x1f6b43) }
+    static func kindLearningTint(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x1d3428 : 0xe3f3e9) }
+    static func kindQuestion(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x9cc0ff : 0x2f5bb7) }
+    static func kindQuestionTint(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x1f2b42 : 0xe6eefc) }
     static func secondaryText(_ scheme: ColorScheme) -> Color { secondary(scheme) }
     static func userMessage(_ scheme: ColorScheme) -> Color { selected(scheme) }
     enum Space {
@@ -58,7 +68,7 @@ enum WorkspaceStyle {
         static let `step12`: CGFloat = 48
     }
     enum Typography {
-        static let `display`: CGFloat = 26
+        static let `display`: CGFloat = 28
         static let `title`: CGFloat = 22
         static let `section`: CGFloat = 15
         static let `body`: CGFloat = 15

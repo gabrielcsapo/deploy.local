@@ -29,7 +29,17 @@
     "warning",
     "danger",
     "accentHover",
-    "secondary"
+    "secondary",
+    "kindDesign",
+    "kindDesignTint",
+    "kindRisk",
+    "kindRiskTint",
+    "kindProposal",
+    "kindProposalTint",
+    "kindLearning",
+    "kindLearningTint",
+    "kindQuestion",
+    "kindQuestionTint"
   ],
   "modes": ["light", "dark"],
   "aliases": {}

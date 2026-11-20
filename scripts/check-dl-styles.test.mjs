@@ -62,7 +62,7 @@ test('a source change reaches the app only through the generator', (t) => {
 test('a design-system token that no longer matches its app token fails', (t) => {
   const directory = copy(t);
   const file = join(directory, 'design/ds/deploy-local/tokens.css');
-  writeFileSync(file, readFileSync(file, 'utf8').replace('--paper: #fafafb;', '--paper: #fafafa;'));
+  writeFileSync(file, readFileSync(file, 'utf8').replace('--paper: #f7f7f8;', '--paper: #fafafa;'));
   const result = run('check-dl-styles.mjs', directory);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /--paper → --ds-canvas differ in light/);

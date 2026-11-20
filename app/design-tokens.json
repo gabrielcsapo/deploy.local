@@ -3,19 +3,19 @@
   "fontMono": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
   "color": {
     "light": {
-      "canvas": "#fafafb",
-      "sidebar": "#f6f6f8",
+      "canvas": "#f7f7f8",
+      "sidebar": "#f0f0f3",
       "rail": "#EBE4F2",
       "surface": "#ffffff",
       "raised": "#F8F4FC",
       "field": "#F0EAF6",
       "hover": "#EDE5F5",
-      "selected": "#ebeaee",
+      "selected": "#e5e4e9",
       "text": "#1c1b1f",
       "secondary": "#55525b",
       "tertiary": "#67636f",
-      "line": "#e8e7eb",
-      "edge": "#d6d4db",
+      "line": "#e6e5ea",
+      "edge": "#d4d2d9",
       "accent": "#6a3fc4",
       "accentSoft": "#efe9fa",
       "success": "#1f6b43",
@@ -38,22 +38,32 @@
       "shadow": "#000000",
       "mask": "#FFFFFF",
       "highlight": "#FFFFFF",
-      "accentHover": "#63388C"
+      "accentHover": "#63388C",
+      "kindDesign": "#6a3fc4",
+      "kindDesignTint": "#efe9fa",
+      "kindRisk": "#b42318",
+      "kindRiskTint": "#fdecea",
+      "kindProposal": "#8a5208",
+      "kindProposalTint": "#fbf0dc",
+      "kindLearning": "#1f6b43",
+      "kindLearningTint": "#e3f3e9",
+      "kindQuestion": "#2f5bb7",
+      "kindQuestionTint": "#e6eefc"
     },
     "dark": {
       "canvas": "#18171b",
-      "sidebar": "#141317",
+      "sidebar": "#111013",
       "rail": "#100E16",
-      "surface": "#211f25",
+      "surface": "#24222a",
       "raised": "#25202F",
       "field": "#211C2B",
       "hover": "#292333",
-      "selected": "#2f2c34",
+      "selected": "#2d2a33",
       "text": "#f3f2f5",
       "secondary": "#c5c1cc",
       "tertiary": "#9a95a3",
-      "line": "#2e2c33",
-      "edge": "#403d46",
+      "line": "#302d35",
+      "edge": "#433f4a",
       "accent": "#c9adf1",
       "accentSoft": "#2d2539",
       "success": "#a0deb8",
@@ -76,7 +86,17 @@
       "shadow": "#000000",
       "mask": "#FFFFFF",
       "highlight": "#FFFFFF",
-      "accentHover": "#D7C3F4"
+      "accentHover": "#D7C3F4",
+      "kindDesign": "#c9adf1",
+      "kindDesignTint": "#30273f",
+      "kindRisk": "#ffb3ba",
+      "kindRiskTint": "#3d2327",
+      "kindProposal": "#f2cd91",
+      "kindProposalTint": "#3a2e1b",
+      "kindLearning": "#a0deb8",
+      "kindLearningTint": "#1d3428",
+      "kindQuestion": "#9cc0ff",
+      "kindQuestionTint": "#1f2b42"
     }
   },
   "space": {
@@ -91,7 +111,7 @@
     "12": 48
   },
   "type": {
-    "display": 26,
+    "display": 28,
     "title": 22,
     "section": 15,
     "body": 15,
@@ -308,11 +328,13 @@
   },
   "shadow": {
     "light": {
+      "raised": "0 1px 2px rgba(20,18,26,0.04), 0 2px 6px -2px rgba(20,18,26,0.06)",
       "sm": "0 1px 2px rgba(20,18,26,0.06)",
       "lg": "0 12px 32px -12px rgba(20,18,26,0.18)",
       "xl": "0 24px 48px -16px rgba(20,18,26,0.24)"
     },
     "dark": {
+      "raised": "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.5)",
       "sm": "0 1px 2px rgba(0,0,0,0.4)",
       "lg": "0 12px 32px -12px rgba(0,0,0,0.6)",
       "xl": "0 24px 48px -16px rgba(0,0,0,0.7)"
