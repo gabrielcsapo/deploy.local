@@ -25,11 +25,11 @@ export function guestHttpTarget(req: IncomingMessage, apps: SharedApps) {
     host === 'deploy.local' || host === 'localhost' || isIP(host.replace(/^\[|\]$/g, ''));
   if (coordinator && read && (path === '/' || isHomeAsset(path))) return 'home';
 
-  // The existing HTTP API also serves native/CLI clients. The guest page only reads apps-home.
+  // Native fetch clients also send Sec-Fetch-Mode: cors. Browsers supply the site or Origin.
   if (
     path.startsWith('/api/') &&
     path !== '/api/apps-home' &&
-    (req.headers.origin || req.headers['sec-fetch-mode'])
+    (req.headers.origin || req.headers['sec-fetch-site'])
   )
     return 'https';
   return 'existing';
