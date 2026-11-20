@@ -337,8 +337,8 @@
       "x": 23210,
       "y": 6364,
       "w": 1440,
-      "h": 1200,
-      "title": "Waiting on you: every decision and how you answered",
+      "h": 1360,
+      "title": "Waiting on you: grouped by what you must do, the open item beside the list",
       "expand": "fill"
     },
     "AnsweredPhone.html": {
@@ -2780,7 +2780,7 @@
       "y": 55600,
       "w": 1440,
       "h": 900,
-      "title": "Design review on the canvas: changed frames marked, a checkbox on each",
+      "title": "Review, a mode of the editor: What changed in the right panel, Comment the active tool",
       "expand": "fill"
     },
     "DesignReviewCanvasApproved.html": {
@@ -3741,6 +3741,28 @@
       "h": 900,
       "title": "A running step can be followed: its time counts up, and a deploy shows its build log as it goes",
       "expand": "fill"
+    },
+    "InboxDetail.html": {
+      "x": 23210,
+      "y": 5160,
+      "w": 720,
+      "h": 1100,
+      "title": "An item from Waiting on you as its own page, in a narrow window"
+    },
+    "DesignReviewCanvasNarrow.html": {
+      "x": 11764,
+      "y": 55600,
+      "w": 900,
+      "h": 900,
+      "title": "Review in a 900 px pane: the left panel folds, the right panel stays on Review"
+    },
+    "DesignReviewCanvasLoading.html": {
+      "x": 12744,
+      "y": 55600,
+      "w": 1440,
+      "h": 900,
+      "title": "Opening a review in the editor: boards appear blurred in place and sharpen",
+      "expand": "fill"
     }
   },
   "order": [
@@ -3802,6 +3824,7 @@
     "MarkupSentPhone.html",
     "AskPhone.html",
     "Inbox.html",
+    "InboxDetail.html",
     "AnsweredPhone.html",
     "TaskStalled.html",
     "TaskNeedsComputer.html",
@@ -4180,6 +4203,8 @@
     "AppLogsErrorPhone.html",
     "AppSettingsPhone.html",
     "DesignReviewCanvas.html",
+    "DesignReviewCanvasNarrow.html",
+    "DesignReviewCanvasLoading.html",
     "DesignReviewCanvasApprove.html",
     "DesignReviewCanvasAsk.html",
     "DesignReviewCanvasSent.html",
@@ -5633,7 +5658,7 @@
       "w": 440,
       "x": 11244,
       "y": 55600,
-      "text": "For approval: a review happens on the canvas\n\nReviewing a design opens the Design canvas on the proposal’s branch, not a separate review surface. Same frames, same panels, same tools.\n\n• Changed and new frames stay at full strength, tagged Changed or New, with the changed areas marked on them. Everything else is dimmed. Before and After switches what the frames show.\n• Each changed frame has a checkbox beside its name. Ticking it approves that frame. The bar counts them: 1 of 3 approved.\n• The arrows in the tool bar, and ← →, move to the previous and next changed frame and zoom to it. Space ticks the frame you are on.\n• Because it is the canvas, a reviewer can do more than write: comment on a layer, draw, or edit the frame. Those land on the branch as suggestions for the proposer.\n• Links on a frame work as they do everywhere on the canvas, and the frame they open is right there beside it. There is nothing to go back from.\n• Changes on this branch, in the right panel, is the list of what changed. The review’s own list, viewer and dock go away, and so does their code.\n• Approve design is available at any time; unticked frames are named before it goes through. Ask for changes sends the comments, drawings and edits.\n\nThis replaced the one-surface DesignReview boards on web, which are retired. The states it has are drawn beside it: Approve, Ask for changes, Sent, approved with Undo, and Changed on main too. iPhone keeps its pager."
+      "text": "For approval: review is a mode of the editor\n\nReviewing a design opens the Design editor on the proposal’s branch, with the editor’s exact anatomy (DesignCanvas): left panel, canvas with boards in place, the floating tool bar, right panel with its top row and tabs. Only these change:\n\n• Left panel: ‹ Waiting on you at its top when you came from there (or wherever you came from). The branch line reads design/server-diagnostics · in review. Pages and Layers keep their changed (violet) and new (green) dots; choosing one moves the canvas there, as when editing.\n• Review strip: the editor’s waiting strip above the canvas becomes title · from Gabriel · 3 of 13 seen, with Before / After / Wipe at the right. There is no separate review header.\n• Tool bar: unchanged in place and style, with ‹ 3 of 13 › at its left (← → do the same). Comment is the active tool: click for a pin, drag for an area. Move, frame, shape, pen, text and sticky stay; edits land on the branch as suggestions.\n• Right panel: tabs Review · Edit · Comments, Review selected. Review holds What changed (screens in canvas order, Changed or New, a seen tick, pin counts, 3 of 13 seen) and Notes. Choosing a row, a layer or a board keeps Review selected; Edit and Comments open only when clicked. The top row’s Propose becomes Ask for changes and Approve design (primary).\n• Approve design is available at any time; unseen screens are named before it goes through.\n\nThe states drawn beside it (Approve, Ask for changes, Sent, Approved, Changed on main too) keep their meaning; they follow this anatomy when next redrawn. iPhone keeps its pager."
     },
     "build-on-ask": {
       "fill": "purple",
@@ -5903,6 +5928,27 @@
       "x": 29810,
       "y": 8704,
       "text": "A running step. Working for counts up every second while the log is live, not just when a step finishes. The running step shows its own time, counting up. A deploy that is running opens by itself to the last lines of its build log, which update as it goes, with View logs beside it. A command that is running opens to the command it ran; Claude and Codex report a command’s output only when it finishes, so the output appears then."
+    },
+    "waiting-grouped": {
+      "fill": "purple",
+      "w": 440,
+      "x": 23970,
+      "y": 5160,
+      "text": "Waiting on you, grouped by what you must do. Groups appear with their first item, in this order: Decide now (a risky or blocking decision on a running app, such as a rollback: a raised card with both choices inline), Review designs, Proposals, Answer (questions agents asked in a task). Each group label carries a quiet count. Every other item is one row: kind tile, a title that says the change in words, one line of context (project · who asked · age · screens), and one action. The proposal-slot limit is a footnote under Proposals, shown only while a slot is in use.\n\nFrom 1180 px the list is 460 px and the open item shows beside it (InboxDetail's content): for a design, Before and After crops of the main changed screens, the rest summed up as 11 more screens, then Approve design and Ask for changes. Narrower, the list is the page and an item opens as its own page with Waiting on you as the way back. The sidebar's Waiting on you rows open the same item."
+    },
+    "review-narrow": {
+      "fill": "purple",
+      "w": 440,
+      "x": 11764,
+      "y": 56560,
+      "text": "DesignReviewCanvasNarrow: review in a pane about 900 px wide. Below 1180 px the left panel folds behind the show button at the start of the review strip; the right panel stays a side panel on its Review tab, and the canvas takes what is left. Below 820 the panel is 280 px, the avatars and Play leave its top row, and the tool bar drops its carets, the agent tool and code view so it fits. No bottom sheet, and nothing opens on its own."
+    },
+    "review-loading": {
+      "fill": "purple",
+      "w": 440,
+      "x": 12744,
+      "y": 56560,
+      "text": "DesignReviewCanvasLoading: opening a review shows the editor at once, with every changed board in place as a blurred low-resolution still (the thumbnails drawn when the branch is checked) that sharpens as its render arrives; nothing moves. The review strip says Loading 3 of 13 screens with a thin bar, and drops it when done. What changed is complete from the start, and you can step, compare, comment or decide while the rest load."
     }
   },
   "starts": {}
