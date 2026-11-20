@@ -25,10 +25,13 @@ export function KindTile({ kind, large }: { kind: WaitingKind; large?: boolean }
 /** One compact row: kind mark, the change in words, one line of context and one action. */
 export function WaitingRow({
   item,
+  title = item.title,
   context,
   on,
 }: {
   item: InboxItem;
+  /** The row's words when they differ from the item's own: a design's proposal title. */
+  title?: string;
   context: string;
   on: boolean;
 }) {
@@ -37,7 +40,7 @@ export function WaitingRow({
     <div className={`dl-asks-row${on ? ' on' : ''}`} id={`decision-${item.id}`}>
       <KindTile kind={waitingKind(item)} />
       <a className="dl-t" href={href} aria-current={on ? 'true' : undefined}>
-        <b>{item.title}</b>
+        <b>{title}</b>
         <span>{context}</span>
       </a>
       {item.state === 'waiting' ? (

@@ -571,6 +571,43 @@ test('propose refuses a problem, then checks, pushes and asks, ending with the n
   }
 });
 
+// Live: a proposal read "Start screens scenario carousel on phones full w", the branch name cut
+// to 48 letters. Propose sends the title given to start, else the first commit's subject.
+test('propose titles a proposal with the words given to start, never the cut branch name', async () => {
+  const repo = repository();
+  try {
+    const title = 'Start screens: scenario carousel on phones, full width';
+    await runDesign(
+      'start',
+      [title],
+      { project: 'site' },
+      terminal(repo.clone, coordinator().api).deps,
+    );
+    const branch = 'design/start-screens-scenario-carousel-on-phones-full-w';
+    const folder = join(repo.root, 'deploy.local-start-screens-scenario-carousel-on-phones-full-w');
+    writeFileSync(join(folder, 'design/boards/Sidebar.html'), '<p data-layer="name">Start</p>');
+    git(['commit', '-qam', 'Draw the start screens as a carousel'], folder);
+    const flags = { project: 'site', summary: 'Phones get a carousel.', 'look-at': 'Sidebar' };
+    const propose = async () => {
+      const server = coordinator([
+        { branch, owner: 'Gabriel', review: { boards: 1, state: 'waiting' } },
+      ]);
+      const run = terminal(
+        folder,
+        checking(server.api, () => checked()),
+      );
+      assert.equal((await runDesign('propose', [], flags, run.deps)).exitCode, 0);
+      return server.calls[0].body.title;
+    };
+    assert.equal(await propose(), title);
+    // A branch made without start has no description: its first commit names it.
+    git(['config', '--unset', `branch.${branch}.description`], folder);
+    assert.equal(await propose(), 'Draw the start screens as a carousel');
+  } finally {
+    repo.cleanup();
+  }
+});
+
 const asked = {
   branch: 'design/sidebar-by-project',
   owner: 'Gabriel',

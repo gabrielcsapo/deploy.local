@@ -6,11 +6,13 @@ import {
   namedList,
   openItem,
   rowAction,
+  shotOutlines,
   shotRegion,
   waitingAge,
   waitingGroups,
   waitingHref,
   waitingKind,
+  waitingTitle,
 } from './waiting.ts';
 
 const now = new Date(2026, 10, 20, 15, 0);
@@ -142,25 +144,70 @@ test('the open item is the one asked for, else the first row, never a Decide now
 });
 
 test('a shot shows the change near the screen’s own size, in the frame’s proportions', () => {
-  const preview = { width: 1440, height: 900, crop: { x: 0, y: 0, w: 720, h: 520 } };
-  const small = shotRegion(
-    { ...preview, areas: [{ before: null, after: { x: 600, y: 300, w: 100, h: 40 } }] as never },
-    'after',
-  );
-  // A small change still shows about 400 px of screen around it, centred on it.
-  assert.deepEqual(small, { x: 450, y: 195, w: 400, h: 250 });
+  const preview = { width: 1440, height: 900, areas: [] };
+  // A small change still shows the frame's width of screen around it, centred on it.
+  assert.deepEqual(shotRegion({ ...preview, crop: { x: 552, y: 252, w: 196, h: 136 } }), {
+    x: 450,
+    y: 195,
+    w: 400,
+    h: 250,
+  });
+  // A wider frame shows more of the screen rather than enlarging it.
+  assert.equal(shotRegion({ ...preview, crop: { x: 552, y: 252, w: 196, h: 136 } }, 640).w, 640);
   // A wide change keeps all of itself; the crop never leaves the screen.
-  const wide = shotRegion(
-    { ...preview, areas: [{ before: { x: 0, y: 800, w: 1400, h: 100 }, after: null }] as never },
-    'before',
-  );
+  const wide = shotRegion({ ...preview, crop: { x: 0, y: 752, w: 1440, h: 148 } });
   assert.equal(wide.w, 1440);
   assert.equal(wide.y + wide.h <= 900, true);
-  // Without a change area, the preview's own crop is used.
-  assert.deepEqual(shotRegion({ ...preview, areas: [] }, 'after'), {
-    x: 0,
-    y: 0,
-    w: 832,
-    h: 520,
+  // A phone screen narrower than the frame is not enlarged: the region is centred around it.
+  const phone = shotRegion({
+    width: 390,
+    height: 844,
+    areas: [],
+    crop: { x: 0, y: 0, w: 390, h: 200 },
   });
+  assert.equal(phone.w, 400);
+  assert.equal(phone.x, -5);
+});
+
+// Live on SER: Before showed the whole Computers screen while After zoomed into one changed
+// element. Both sides show one rectangle, and each outlines the change.
+test('Before and After get the same crop rectangle and both outline the change', () => {
+  const preview = {
+    width: 1440,
+    height: 900,
+    // A new element: nothing on main where it is, so Before has no rectangle of its own.
+    areas: [{ before: null, after: { x: 600, y: 300, w: 100, h: 40 } }] as never,
+    crop: { x: 552, y: 252, w: 196, h: 136 },
+  };
+  const region = shotRegion(preview);
+  assert.deepEqual(region, { x: 450, y: 195, w: 400, h: 250 });
+  assert.deepEqual(shotOutlines(preview, 'before'), [{ x: 600, y: 300, w: 100, h: 40 }]);
+  assert.deepEqual(shotOutlines(preview, 'after'), [{ x: 600, y: 300, w: 100, h: 40 }]);
+});
+
+// The two live cases: a title saved from the cut branch name, and a task's prompt as who asked.
+test('a design row reads its proposal title and a name for who asked', () => {
+  const design = item(
+    'design:catan:design~start-screens-scenario-carousel-on-phones-full-w:1',
+    'other',
+    60,
+    {
+      title: 'Start screens scenario carousel on phones full w',
+      taskId: 'task-1',
+    },
+  );
+  assert.equal(
+    waitingTitle(design, { title: 'Start screens: a scenario carousel, full width on phones' }),
+    'Start screens: a scenario carousel, full width on phones',
+  );
+  assert.equal(waitingTitle(design, null), design.title);
+  const review = {
+    project: 'drop',
+    proposer: { id: null, name: 'A task', avatar: null },
+    counts: { screens: 14, changed: 14, new: 0, removed: 0 },
+  };
+  assert.equal(
+    contextLine(design, { who: 'Build Drop, a simple file share service…', review, now }),
+    'drop · A task · 1 hour ago · 14 screens',
+  );
 });

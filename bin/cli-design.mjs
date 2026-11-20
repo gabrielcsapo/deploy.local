@@ -434,6 +434,8 @@ export async function runDesign(sub, args, options, deps) {
         ['worktree', 'add', '--quiet', '--no-track', '-b', branch, folder, `origin/${main}`],
         top,
       );
+      // The branch's name is cut to 48 letters; its description keeps the title for propose.
+      tryGit(['config', `branch.${branch}.description`, title], top);
       step('✓', 'Branch', branch);
       step('✓', 'Folder', shown);
       // A project with no design gets its first canvas, a board and a README saying how they are written.
@@ -502,7 +504,20 @@ export async function runDesign(sub, args, options, deps) {
         return answer || fallback;
       };
       const result = await check(top, { quiet: true });
-      const title = await asked('Title', 'title', titleFromBranch(branch));
+      // The title given to start, else the first commit's subject, else the branch name in full.
+      const firstSubject = (
+        tryGit(['log', '--reverse', '--format=%s', `origin/${mainName(top)}..HEAD`], top) ?? ''
+      )
+        .split('\n')
+        .map((line) => line.trim())
+        .find(Boolean);
+      const title = await asked(
+        'Title',
+        'title',
+        tryGit(['config', '--get', `branch.${branch}.description`], top)?.trim() ||
+          firstSubject ||
+          titleFromBranch(branch),
+      );
       const summary = await asked(
         'Summary',
         'summary',

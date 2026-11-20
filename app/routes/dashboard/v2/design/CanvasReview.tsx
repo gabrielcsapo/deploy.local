@@ -231,7 +231,12 @@ export function useReviewDecision(
   const approved = data?.item.answer?.actionId === 'approve' && data?.landing?.state !== 'conflict';
   const pending = data?.landing?.state === 'pending';
   const proposer = data?.proposer.name;
-  const askToUpdate = proposer === 'You' ? 'Ask to update' : `Ask ${proposer} to update`;
+  const askToUpdate =
+    proposer === 'You'
+      ? 'Ask to update'
+      : proposer === 'A task'
+        ? 'Ask the task to update'
+        : `Ask ${proposer} to update`;
   // Who has the owner's notes, decided when they were sent. A task's notes read as before.
   const kept = !approved && data?.feedback?.delivery !== 'task' ? data?.feedback : null;
   // A document is approved as a document, and has no screens to build.
@@ -479,7 +484,7 @@ export function ReviewDecisions({
       {!approved && (
         <span className="dl-meta">
           {data.item.answer?.actionId === 'changes'
-            ? `Sent to ${data.proposer.name}`
+            ? `Sent to ${data.proposer.name === 'A task' ? 'the task' : data.proposer.name}`
             : 'Asked to update'}
         </span>
       )}

@@ -104,6 +104,15 @@ export function contextLine(
     .join(' · ');
 }
 
+/**
+ * What a row and the open item are called: a design's proposal title from its review summary,
+ * which reads better than a title saved from the branch's cut name; else the item's own.
+ */
+export const waitingTitle = (
+  item: Pick<InboxItem, 'title'>,
+  review?: Pick<DesignReviewSummary, 'title'> | null,
+) => review?.title || item.title;
+
 /** "Compute, Git, Logs, Processes, Settings and 6 more": the first five names, then a count. */
 export function namedList(names: string[], shown = 5) {
   if (names.length <= shown + 1) {
@@ -133,29 +142,56 @@ export function openItem(groups: WaitingGroup[], selected: string | null) {
 
 /** The shot's frame: 16 by 10, as the design system draws `.dl-asks-shot`. */
 const SHOT_ASPECT = 16 / 10;
-/** The narrowest crop, in screen pixels: a frame about this wide shows the screen near its size. */
-const SHOT_MIN_WIDTH = 400;
+/** The frame's width before it is measured: about a pair's column at 1440. */
+export const SHOT_FRAME_WIDTH = 400;
 /**
- * The part of a screen a Before or After shot shows: the largest change with its context, at the
- * screen's own size where it fits, widened to the frame's proportions and kept on the screen.
+ * The part of a screen both the Before and the After shot show: one rectangle in the screen's
+ * own pixels, so the two can be compared. It is the review's crop (the largest change with about
+ * 48 px of context and whole elements, the rectangle Show changes uses), widened to the frame's
+ * proportions and to at least the frame's width, so native pixels are never enlarged, and kept
+ * on the screen.
  */
 export function shotRegion(
   preview: Pick<DesignReviewPreview, 'width' | 'height' | 'areas' | 'crop'>,
-  side: 'before' | 'after',
+  frameWidth = SHOT_FRAME_WIDTH,
 ): DesignRect {
-  const rects = preview.areas.map((area) => area[side]).filter((rect) => rect !== null);
-  const crop = rects.length ? reviewCrop(preview.width, preview.height, rects) : preview.crop;
-  let w = Math.min(preview.width, Math.max(SHOT_MIN_WIDTH, crop.w, crop.h * SHOT_ASPECT));
-  let h = w / SHOT_ASPECT;
-  if (h > preview.height) {
-    h = preview.height;
-    w = h * SHOT_ASPECT;
-  }
-  const clamp = (value: number, max: number) => Math.min(Math.max(0, max), Math.max(0, value));
+  const crop =
+    preview.crop ??
+    reviewCrop(
+      preview.width,
+      preview.height,
+      preview.areas.flatMap((area) => {
+        const rect = area.after ?? area.before;
+        return rect ? [rect] : [];
+      }),
+    );
+  // Never narrower than the frame (a narrower region would be enlarged to fill it); the whole
+  // screen at most, unless the change or the frame needs more, as on a phone.
+  let w = Math.max(frameWidth, crop.w, crop.h * SHOT_ASPECT);
+  if (w > preview.width && frameWidth <= preview.width && crop.h * SHOT_ASPECT <= preview.width)
+    w = preview.width;
+  const h = w / SHOT_ASPECT;
+  // On the screen where it fits; centred on it where the region is larger than the screen.
+  const place = (start: number, size: number, region: number, screen: number) =>
+    region >= screen
+      ? (screen - region) / 2
+      : Math.min(screen - region, Math.max(0, start + size / 2 - region / 2));
   return {
-    x: clamp(crop.x + crop.w / 2 - w / 2, preview.width - w),
-    y: clamp(crop.y + crop.h / 2 - h / 2, preview.height - h),
+    x: place(crop.x, crop.w, w, preview.width),
+    y: place(crop.y, crop.h, h, preview.height),
     w,
     h,
   };
+}
+
+/** What each side outlines: where the change is on that side, else where it is on the other. */
+export function shotOutlines(
+  preview: Pick<DesignReviewPreview, 'areas'>,
+  side: 'before' | 'after',
+): DesignRect[] {
+  const other = side === 'before' ? 'after' : 'before';
+  return preview.areas.flatMap((area) => {
+    const rect = area[side] ?? area[other];
+    return rect ? [rect] : [];
+  });
 }

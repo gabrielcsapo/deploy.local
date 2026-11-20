@@ -22,7 +22,7 @@ import { inboxItemHref } from '../design/review-model';
 import { DesignDetail } from './DesignDetail';
 import { answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
 import { RiskCard, WaitingRow } from './WaitingRows';
-import { contextLine, openItem, waitingGroups } from './waiting';
+import { contextLine, openItem, waitingGroups, waitingTitle } from './waiting';
 import './waiting.css';
 
 function Header() {
@@ -136,6 +136,7 @@ export default function Inbox() {
                     <WaitingRow
                       key={item.id}
                       item={item}
+                      title={waitingTitle(item, summaries.get(item.id))}
                       context={context(item)}
                       on={item.id === open?.id}
                     />

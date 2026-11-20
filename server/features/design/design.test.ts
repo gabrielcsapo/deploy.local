@@ -1883,6 +1883,87 @@ test('deploy_design propose accepts summary/title and attributes the saved agent
   assert.equal(review.item.from, 'review-agent');
 });
 
+// Live on SER: one proposal was titled by its cut branch name, another named a task's whole
+// prompt as who asked.
+test('a proposal titled only by its cut branch name takes its first commit subject', async () => {
+  const f = await reviewFixture('review-slug-title');
+  const branch = 'design/start-screens-scenario-carousel-on-phones-full-w';
+  await f.run(['checkout', '-qb', branch, 'main']);
+  writeFileSync(join(f.path, 'design/boards/Alpha.html'), '<h1 data-layer="title">Carousel</h1>');
+  await f.commit('Start screens: a scenario carousel, full width on phones');
+  await f.run(['checkout', '-q', 'main']);
+  const response = await f.call('/propose', {
+    ref: branch,
+    title: 'Start screens scenario carousel on phones full w',
+    summary: 'Phones get the carousel at full width.',
+  });
+  assert.equal(response.status, 201);
+  const { item } = await response.json();
+  assert.equal(item.title, 'Start screens: a scenario carousel, full width on phones');
+  // Proposals saved with the cut name read with the subject too.
+  const store = await import('../../workspace/store.ts');
+  const row = store.get('v2-inbox-native', 'alice', item.id);
+  save('v2-inbox-native', 'alice', {
+    ...row,
+    item: { ...row.item, title: 'Start screens scenario carousel on phones full w' },
+  });
+  const listed = await (await fetch(`${origin}/api/design/reviews?project=${f.project.id}`)).json();
+  assert.equal(
+    listed.proposals[0].title,
+    'Start screens: a scenario carousel, full width on phones',
+  );
+  assert.equal(
+    (await f.read(item)).title,
+    'Start screens: a scenario carousel, full width on phones',
+  );
+  // A real title is kept as given.
+  const { proposalTitle, branchTitle } = await import('./design.ts');
+  assert.equal(
+    await proposalTitle(f.path, { title: 'Drop: a baseline', branch: 'design/drop-baseline' }),
+    'Drop: a baseline',
+  );
+  // With nothing better, the branch name in full, as words.
+  assert.equal(
+    await proposalTitle(f.path, { title: null, branch }),
+    'Start screens scenario carousel on phones full w',
+  );
+  assert.equal(branchTitle('design/sidebar-by-project'), 'Sidebar by project');
+});
+
+test('a proposal from a task without an agent is from "A task", linked, never its prompt', async () => {
+  const f = await reviewFixture('review-task-proposer');
+  const taskId = 'd0d0cafe-0000';
+  await f.run(['branch', 'task/d0d0cafe', 'HEAD']);
+  await f.run(['checkout', '-q', 'main']);
+  const prompt =
+    'Build Drop, a simple file share service, as a new project named "drop". Upload a file, get a link, and the link expires after a day.';
+  save('task', 'alice', {
+    id: taskId,
+    projectId: f.project.id,
+    title: prompt,
+    baseRevision: f.base,
+  });
+  const { designTool } = await import('./design.ts');
+  const result = (await designTool(
+    { owner: 'alice', taskId },
+    { action: 'propose', title: 'Drop: a baseline', summary: 'The pages shipped today.' },
+  )) as { item: { id: string } };
+  const review = await f.read(result.item);
+  assert.deepEqual(review.proposer, { id: null, name: 'A task', avatar: null });
+  // The task is linked from the item.
+  assert.equal(review.item.taskId, taskId);
+  // A proposal saved with the prompt as its name reads as "A task" too.
+  const store = await import('../../workspace/store.ts');
+  const row = store.get('v2-inbox-native', 'alice', result.item.id);
+  save('v2-inbox-native', 'alice', {
+    ...row,
+    context: { ...row.context, proposer: { id: null, name: prompt, avatar: null } },
+  });
+  const listed = await (await fetch(`${origin}/api/design/reviews?project=${f.project.id}`)).json();
+  assert.equal(listed.proposals[0].proposer.name, 'A task');
+  assert.equal((await f.read(result.item)).proposer.name, 'A task');
+});
+
 test('round two sends only still-open requests and keeps addressed requests with their replies', async () => {
   const f = await reviewFixture('review-addressed');
   const item = await f.propose();

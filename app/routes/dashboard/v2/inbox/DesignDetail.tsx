@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Action, Banner, Dialog, Icon, Skeleton } from '@/components/ui';
 import type {
+  DesignRect,
   DesignReview,
   DesignReviewScreen,
   DesignReviewSummary,
@@ -13,7 +14,16 @@ import { designApi } from '../design/model';
 import { documentReviewHref, reviewHref } from '../design/review-model';
 import { previewKey, useReviewPreviews, type Preview } from '../design/ReviewPreviews';
 import { KindTile } from './WaitingRows';
-import { namedList, notesLabel, screensLabel, shotRegion, waitingAge } from './waiting';
+import {
+  namedList,
+  notesLabel,
+  screensLabel,
+  SHOT_FRAME_WIDTH,
+  shotOutlines,
+  shotRegion,
+  waitingAge,
+  waitingTitle,
+} from './waiting';
 
 const noScreens: DesignReviewScreen[] = [];
 /** How many changed screens the detail shows as Before and After; the rest are summed up. */
@@ -65,16 +75,25 @@ export function DesignDetail({
     ? documentReviewHref(projectId, item.document, item.id)
     : reviewHref(item.id);
   const count = summary?.counts.screens ?? review.data?.counts.screens;
+  const title = waitingTitle(item, summary ?? review.data);
+  const proposer = summary?.proposer.name ?? review.data?.proposer.name ?? who;
   const meta = [
     summary?.project ?? review.data?.project ?? project,
-    summary?.proposer.name ?? review.data?.proposer.name ?? who,
+    // Who asked is a name; a proposal from a task links that task.
+    item.taskId ? (
+      <a key="who" href={`/dashboard/tasks/${encodeURIComponent(item.taskId)}`}>
+        {proposer}
+      </a>
+    ) : (
+      proposer
+    ),
     waitingAge(item.createdAt, new Date(now)),
     count !== undefined
       ? `${screensLabel(count)}${notes.length ? ` and ${notesLabel(notes.length)}` : ''}`
       : null,
   ]
     .filter(Boolean)
-    .join(' · ');
+    .flatMap((part, index) => (index ? [' · ', part] : [part]));
   const stale = summary?.stale ?? review.data?.stale ?? false;
   const unseen = screens.filter((screen) => !screen.seen);
 
@@ -118,7 +137,7 @@ export function DesignDetail({
           <div className="dl-asks-title">
             <KindTile kind="design" large />
             <span className="dl-t">
-              <h2 className="dl-title">{item.title}</h2>
+              <h2 className="dl-title">{title}</h2>
               <span className="dl-meta">{meta}</span>
             </span>
           </div>
@@ -158,18 +177,10 @@ export function DesignDetail({
                     {screen.title}
                     <span>{statusWord[screen.status]}</span>
                   </p>
-                  <div className="dl-asks-pair">
-                    {(['before', 'after'] as const).map((side) => (
-                      <figure key={side}>
-                        <Shot
-                          preview={images.previews[previewKey(screen.file, screen.widths[0])]}
-                          screen={screen}
-                          side={side}
-                        />
-                        <figcaption>{side === 'before' ? 'Before · main' : 'After'}</figcaption>
-                      </figure>
-                    ))}
-                  </div>
+                  <ShotPair
+                    preview={images.previews[previewKey(screen.file, screen.widths[0])]}
+                    screen={screen}
+                  />
                 </div>
               ))}
               {images.error && (
@@ -296,13 +307,48 @@ export function DesignDetail({
   );
 }
 
-/** One side of a changed screen, cropped to the change the way the chat card crops it. */
+/**
+ * A changed screen's Before and After: one rectangle of the screen's own pixels for both, at the
+ * same scale and never enlarged (the frame's measured width is the narrowest it gets), with the
+ * change outlined on each, as the review's Show changes outlines both revisions.
+ */
+export function ShotPair({ preview, screen }: { preview?: Preview; screen: DesignReviewScreen }) {
+  const pair = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState(SHOT_FRAME_WIDTH);
+  useEffect(() => {
+    const first = pair.current?.firstElementChild;
+    if (!first) return;
+    const measure = () => {
+      const width = Math.round(first.clientWidth);
+      if (width > 0) setFrame(width);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(first);
+    return () => observer.disconnect();
+  }, []);
+  const region = preview ? shotRegion(preview, frame) : null;
+  return (
+    <div className="dl-asks-pair" ref={pair}>
+      {(['before', 'after'] as const).map((side) => (
+        <figure key={side}>
+          <Shot preview={preview} region={region} screen={screen} side={side} />
+          <figcaption>{side === 'before' ? 'Before · main' : 'After'}</figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+/** One side of a changed screen, showing the pair's one rectangle. */
 function Shot({
   preview,
+  region,
   screen,
   side,
 }: {
   preview?: Preview;
+  region: DesignRect | null;
   screen: DesignReviewScreen;
   side: 'before' | 'after';
 }) {
@@ -311,13 +357,12 @@ function Shot({
       <div className="dl-asks-shot empty">{side === 'before' ? 'Not on main' : 'Removed'}</div>
     );
   const src = side === 'before' ? preview?.beforeSrc : preview?.afterSrc;
-  if (!preview || !src)
+  if (!preview || !src || !region)
     return (
       <div className="dl-asks-shot">
         <Skeleton block label={`Loading ${screen.title}`} />
       </div>
     );
-  const region = shotRegion(preview, side);
   return (
     <div className="dl-asks-shot">
       <svg
@@ -325,26 +370,21 @@ function Shot({
         role="img"
         aria-label={`${screen.title}, ${side}`}
         viewBox={`${region.x} ${region.y} ${region.w} ${region.h}`}
-        preserveAspectRatio="xMidYMid slice"
+        preserveAspectRatio="xMidYMid meet"
       >
         <image href={src} width={preview.width} height={preview.height} />
-        {/* After outlines what changed, as the review's Show changes does. */}
-        {side === 'after' &&
-          preview.areas.map(
-            (area, index) =>
-              area.after && (
-                <rect
-                  key={index}
-                  className="v2-asks-change"
-                  x={area.after.x - 4}
-                  y={area.after.y - 4}
-                  width={area.after.w + 8}
-                  height={area.after.h + 8}
-                  rx={6}
-                  vectorEffect="non-scaling-stroke"
-                />
-              ),
-          )}
+        {shotOutlines(preview, side).map((rect, index) => (
+          <rect
+            key={index}
+            className="v2-asks-change"
+            x={rect.x - 4}
+            y={rect.y - 4}
+            width={rect.w + 8}
+            height={rect.h + 8}
+            rx={6}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
       </svg>
     </div>
   );

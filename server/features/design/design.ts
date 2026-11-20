@@ -926,11 +926,81 @@ function proposalProposer(owner: string, taskId: string | null): DesignReviewSum
     : null;
   const agentId = task?.agentId ?? run?.agentId;
   const agent = agentId ? list('agent', owner).find((entry) => entry.id === agentId) : null;
+  // Who asked is a name: the agent, or "A task" (the review links it), never the task's prompt.
   return {
     id: agent?.id ?? null,
-    name: agent?.name ?? (task ? task.title : 'You'),
+    name: agent?.name ?? (taskId ? 'A task' : 'You'),
     avatar: agent?.avatar ?? null,
   };
+}
+
+/**
+ * Who proposed a review. Proposals saved before proposers were names kept a task's whole prompt
+ * as the name; those are worked out again.
+ */
+function reviewProposer(owner: string, context: any): DesignReviewSummary['proposer'] {
+  const taskId: string | null =
+    (context.proposerTaskId !== undefined ? context.proposerTaskId : context.taskId) ?? null;
+  const stored = context.proposer as DesignReviewSummary['proposer'] | undefined;
+  if (stored && (stored.id || stored.name === 'You' || stored.name === 'A task')) return stored;
+  return proposalProposer(owner, taskId);
+}
+
+/** "Start screens scenario carousel on phones full w" from design/start-screens-…-full-w. */
+export function branchTitle(branch: string) {
+  const words = branch
+    .replace(/^(design|artifact)\//, '')
+    .replace(/--.*$/, '')
+    .replaceAll('-', ' ')
+    .trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+const sameWords = (a: string, b: string) =>
+  a
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim() ===
+  b
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+/** The first commit's subject on a proposal, read once per commit. */
+const firstSubjects = new Map<string, Promise<string | null>>();
+function firstSubject(repo: string, base: string, commit: string) {
+  const key = `${repo}:${base}:${commit}`;
+  let subject = firstSubjects.get(key);
+  if (!subject) {
+    subject = gitRead(repo, ['log', '--reverse', '--format=%s', `${base}..${commit}`]).then(
+      (text) =>
+        (text ?? '')
+          .split('\n')
+          .map((line) => line.trim())
+          .find(Boolean) ?? null,
+    );
+    firstSubjects.set(key, subject);
+    if (firstSubjects.size > 128) firstSubjects.delete(firstSubjects.keys().next().value!);
+  }
+  return subject.catch(() => null);
+}
+
+/**
+ * A proposal's title in words. A title that only repeats the branch's name (cut to 48 letters
+ * when the branch was made) gives way to the proposal's first commit subject; with nothing
+ * better, it is the branch name in full, as words.
+ */
+export async function proposalTitle(
+  repo: string,
+  proposal: { title: string | null; branch: string; base?: string; commit?: string },
+) {
+  const slug = branchTitle(proposal.branch);
+  const title = proposal.title?.trim();
+  if (title && !sameWords(title, slug)) return title;
+  const subject =
+    proposal.base && proposal.commit
+      ? await firstSubject(repo, proposal.base, proposal.commit)
+      : null;
+  return subject && subject.length <= 200 && !sameWords(subject, slug) ? subject : slug;
 }
 
 function reviewRow(owner: string, projectId: string, itemId: unknown) {
@@ -1314,6 +1384,7 @@ async function readReviewSummary(
       fromTree.has(path),
     ]),
     current.resolutions,
+    await proposalTitle(repo, { ...context, title: row.item.title }),
   );
 }
 
@@ -1325,19 +1396,20 @@ function summaryOf(
   conflicts: string[],
   screens: [before: boolean, after: boolean][],
   resolutions: DesignReviewResolution[] = [],
+  title: string = row.item.title,
 ): DesignReviewSummary {
   const { context, item } = row;
   const counts = { screens: screens.length, changed: 0, new: 0, removed: 0 };
   for (const [before, after] of screens) counts[!before ? 'new' : !after ? 'removed' : 'changed']++;
   return {
     id: item.id,
-    title: item.title,
+    title,
     summary: context.summary ?? null,
     projectId: project.id,
     project: project.name ?? project.id,
     branch: context.branch,
     createdAt: item.createdAt,
-    proposer: context.proposer ?? proposalProposer(owner, context.taskId),
+    proposer: reviewProposer(owner, context),
     counts,
     stale: conflicts.length > 0,
     conflicts,
@@ -1825,7 +1897,15 @@ async function readDesignReview(
     ? await gitRead(repo, ['show', '-s', '--format=%cI', status.main])
     : null;
   return {
-    ...summaryOf(owner, project, row, status.conflicts, revision.counts, status.resolutions),
+    ...summaryOf(
+      owner,
+      project,
+      row,
+      status.conflicts,
+      revision.counts,
+      status.resolutions,
+      await proposalTitle(repo, { ...context, title: row.item.title }),
+    ),
     api: designApiPath(project.id, dir),
     item,
     task: context.taskId
@@ -2015,7 +2095,7 @@ export async function proposeDesign(
         ])
       : [null, null];
     const item = recordProposal(owner, project, proposal, canvas, before, after, {
-      title,
+      title: await proposalTitle(project.repositoryPath, { ...proposal, title }),
       summary,
       changeWords,
       lookAt,
