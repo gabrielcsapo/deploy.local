@@ -917,7 +917,12 @@ function validateChangeWords(value: unknown): Record<string, Record<string, stri
   return result;
 }
 
-function proposalProposer(owner: string, taskId: string | null): DesignReviewSummary['proposer'] {
+function proposalProposer(
+  owner: string,
+  taskId: string | null,
+  /** A build names its task by its title; a proposal never shows a task's prompt as who asked. */
+  { taskTitle = false } = {},
+): DesignReviewSummary['proposer'] {
   const task = taskId ? list('task', owner).find((entry) => entry.id === taskId) : null;
   const run = taskId
     ? list('run', owner)
@@ -929,7 +934,7 @@ function proposalProposer(owner: string, taskId: string | null): DesignReviewSum
   // Who asked is a name: the agent, or "A task" (the review links it), never the task's prompt.
   return {
     id: agent?.id ?? null,
-    name: agent?.name ?? (taskId ? 'A task' : 'You'),
+    name: agent?.name ?? (taskTitle && task ? task.title : taskId ? 'A task' : 'You'),
     avatar: agent?.avatar ?? null,
   };
 }
@@ -985,8 +990,8 @@ function firstSubject(repo: string, base: string, commit: string) {
 }
 
 /**
- * A proposal's title in words. A title that only repeats the branch's name (cut to 48 letters
- * when the branch was made) gives way to the proposal's first commit subject; with nothing
+ * A proposal's title in words. A title that only repeats the branch's name cut to 48 letters
+ * when the branch was made gives way to the proposal's first commit subject; with nothing
  * better, it is the branch name in full, as words.
  */
 export async function proposalTitle(
@@ -995,7 +1000,9 @@ export async function proposalTitle(
 ) {
   const slug = branchTitle(proposal.branch);
   const title = proposal.title?.trim();
-  if (title && !sameWords(title, slug)) return title;
+  // Only a name start cut short (48 letters) is worth replacing; a short branch name is whole.
+  const cut = proposal.branch.replace(/^(design|artifact)\//, '').replace(/--.*$/, '').length >= 48;
+  if (title && !(cut && sameWords(title, slug))) return title;
   const subject =
     proposal.base && proposal.commit
       ? await firstSubject(repo, proposal.base, proposal.commit)
@@ -2589,7 +2596,10 @@ function reviewLanding(owner: string, itemId: string) {
   if (!landing?.build?.taskId) return landing;
   return {
     ...landing,
-    build: { ...landing.build, name: proposalProposer(owner, landing.build.taskId).name },
+    build: {
+      ...landing.build,
+      name: proposalProposer(owner, landing.build.taskId, { taskTitle: true }).name,
+    },
   };
 }
 
