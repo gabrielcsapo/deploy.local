@@ -3288,20 +3288,24 @@ button.dz-link-row:hover,
   white-space: nowrap;
 }
 .dz-review-strip .dz-review-heading > strong {
-  flex: 0 1 auto;
+  flex: 0 100 auto;
   min-width: 4em;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
 }
-/* Who and how far give way before the title does. */
+/* The title gives way first, down to a few letters; how far goes when the canvas is narrow. */
 .dz-review-strip .dz-review-heading > span {
-  flex: 0 100 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--ds-secondary);
   font-size: var(--ds-type-ui);
+}
+/* Who proposed it stays whole; its count is what a narrow canvas drops. */
+.dz-review-strip .dz-review-heading > .dz-review-who {
+  flex: none;
 }
 .dz-review-strip .dz-review-heading > span strong {
   font-weight: 600;
@@ -3380,7 +3384,7 @@ button.dz-link-row:hover,
     display: none;
   }
 }
-@container dz-review-stage (max-width: 500px) {
+@container dz-review-stage (max-width: 540px) {
   .dz-review-progress {
     display: none;
   }

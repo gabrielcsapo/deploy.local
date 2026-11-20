@@ -372,7 +372,7 @@ export function ReviewHeading({
         </span>
       )}
       {data && !approved && !notLanded && !kept && (
-        <span>
+        <span className="dz-review-who">
           {' '}
           · from {data.proposer.name}
           <span className="dz-review-progress">
