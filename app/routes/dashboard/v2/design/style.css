@@ -3351,22 +3351,40 @@ button.dz-link-row:hover,
   top: auto;
   bottom: var(--ds-space-4);
 }
-/* Two decisions fit beside Play; a third, or longer words, wrap inside the row's end. */
+/* The decisions stay on the top row's one line: longer words shorten (ellipsis), they never wrap,
+   and Play and the hide button keep their place. */
 .dz-decisions {
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   align-items: center;
   gap: var(--ds-space-1);
 }
-.dz-decisions .dl-meta {
+.dz-decisions > :is(.dl-btn, .dl-meta) {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.dz-decisions > .dl-btn {
+  display: inline-block;
+  line-height: 26px;
+}
 .dz.reviewing .dz-right-top {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--ds-space-1);
+}
+.dz.reviewing .dz-right-top > :not(.dz-decisions, .dl-grow) {
+  flex: none;
+}
+.dz-review-strip .dz-strip-resolved {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--ds-type-meta);
 }
 .dz.reviewing .dz-right-top .dl-btn {
   padding: 0 9px;
@@ -3387,6 +3405,13 @@ button.dz-link-row:hover,
 @container dz-review-stage (max-width: 540px) {
   .dz-review-progress {
     display: none;
+  }
+  /* With a resolved count too, the strip tightens so who proposed it stays whole. */
+  .dz-review-strip:has(.dz-strip-resolved) {
+    gap: var(--ds-space-2);
+  }
+  .dz-review-strip:has(.dz-strip-resolved) .dl-seg button {
+    padding-inline: 9px;
   }
 }
 /* Narrower still, the tool bar keeps stepping, Move and Comment. */

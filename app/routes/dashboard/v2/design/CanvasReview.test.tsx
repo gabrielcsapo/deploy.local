@@ -9,6 +9,7 @@ import { DesignCanvas, ReviewLoadingCanvas } from './Canvas';
 import {
   CanvasReviewBar,
   PinBox,
+  ReviewDecisions,
   ReviewStrip,
   ReviewViewItems,
   useReviewDecision,
@@ -970,6 +971,63 @@ test('choosing or stepping to a screen keeps Review selected; Edit and Comments 
   assert.match(html, /role="tab" aria-selected="true" class="on">Review</);
   assert.match(html, /class="dz-review-row on" aria-current="true"><span class="dz-seen on"/);
   assert.doesNotMatch(html, />Layout<|>Widths<|>Changes on this branch</);
+});
+
+// Live on SER at 800 px: "2 of 13 resolved" pushed Approve design and the hide button onto a
+// second line. The board (DesignReviewCanvasNarrow) has one row; the count goes to the strip.
+test('the review panel top row is one row: the resolved count is in the strip, not the row', () => {
+  const resolution = (file: string, choice: 'main' | null) => ({
+    file,
+    kind: 'same-part' as const,
+    mainChanged: 'now',
+    proposalChanged: 'now',
+    detail: '',
+    choice,
+  });
+  const conflicted = {
+    ...data,
+    resolutions: [
+      resolution('Computer.html', 'main'),
+      resolution('Compute.html', 'main'),
+      ...Array.from({ length: 11 }, (_, i) => resolution(`Screen${i}.html`, null)),
+    ],
+  } as unknown as DesignReview;
+  function Panel() {
+    const decision = useReviewDecision(controller(conflicted), '', async () => '');
+    return (
+      <RightPanel
+        {...reviewPanelProps('review', null)}
+        review={conflicted}
+        decisions={<ReviewDecisions decision={decision} resolutions={false} />}
+      />
+    );
+  }
+  const html = renderToStaticMarkup(
+    <InboxProvider>
+      <Panel />
+    </InboxProvider>,
+  );
+  const top = html.slice(
+    html.indexOf('class="dz-right-top"'),
+    html.indexOf('class="dz-right-tabs"'),
+  );
+  assert.match(
+    words(top.replace(/<button[^>]*aria-label="([^"]+)"[^>]*>/g, '$1|')),
+    /^[^|]*Play\|Ask for changesApprove designHide right panel\|/,
+  );
+  assert.doesNotMatch(top, /resolved/);
+  // The strip carries the count, and it still opens the choice of what to keep.
+  const inStrip = strip(conflicted, { wipe: false, width: null, dark: false });
+  assert.match(inStrip, /class="dl-btn secondary dz-strip-resolved">2 of 13 resolved<\/button>/);
+  assert.equal((inStrip.match(/resolved<\/button>/g) ?? []).length, 1);
+  // A document's single bar keeps it beside its decisions.
+  assert.match(bar(conflicted), />2 of 13 resolved<\/button>/);
+  // Nothing in the row may wrap; long words shorten instead.
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.dz-decisions \{[^}]*flex-wrap: nowrap;/);
+  assert.match(css, /\.dz\.reviewing \.dz-right-top \{\s*flex-wrap: nowrap;/);
+  assert.match(css, /\.dz-decisions > :is\(\.dl-btn, \.dl-meta\) \{[^}]*text-overflow: ellipsis;/);
+  assert.doesNotMatch(css, /\.dz-right-top \{[^}]*flex-wrap: wrap/);
 });
 
 test('below 820 px a review keeps the right panel at the side, 280 px wide: no bottom sheet', () => {

@@ -77,9 +77,11 @@ export function createFixture() {
   cpSync(join(repo, 'design/ds'), join(designRoot, 'ds'), { recursive: true });
   const reference = readFileSync(join(repo, 'design/boards/DesignReviewCanvas.html'), 'utf8');
   const snippet = (layer: string) => {
-    const value = layerSnippet(reference, layer);
-    if (!value) throw new Error(`Reference board is missing ${layer}`);
-    return value;
+    // The reference board has been redrawn since; a missing layer becomes a plain placeholder.
+    return (
+      layerSnippet(reference, layer) ??
+      `<div data-layer="${layer}" class="ph"><div class="s"></div><div class="c"><i style="width:60%"></i><i style="width:80%"></i><i style="width:45%"></i></div></div>`
+    );
   };
   const definitions: [string, string, number, number, number, number][] = [
     ['Welcome.html', 'Welcome', 0, 0, 1440, 900],

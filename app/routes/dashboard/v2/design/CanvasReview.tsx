@@ -412,7 +412,17 @@ export function ReviewHeading({
 }
 
 /** Ask for changes and Approve design while it waits; afterwards, what can still be done. */
-export function ReviewDecisions({ decision }: { decision: ReviewDecision }) {
+export function ReviewDecisions({
+  decision,
+  resolutions: withResolutions = true,
+}: {
+  decision: ReviewDecision;
+  /**
+   * Whether the decisions start with how many changes on main are resolved. The canvas shows that
+   * in its review strip (ReviewResolutions), so the right panel's top row stays one row.
+   */
+  resolutions?: boolean;
+}) {
   const { data, busy, api, load } = decision.review;
   const { notLanded, kept, waiting, resolutions, resolved, approved, pending, build, next } =
     decision;
@@ -449,7 +459,7 @@ export function ReviewDecisions({ decision }: { decision: ReviewDecision }) {
   if (waiting)
     return (
       <>
-        {resolutions.length > 0 && (
+        {withResolutions && resolutions.length > 0 && (
           <Action onClick={() => setDialog('conflicts')}>{resolved.label}</Action>
         )}
         <Action variant="secondary" disabled={busy} onClick={() => setDialog('send')}>
@@ -501,6 +511,17 @@ export function ReviewDecisions({ decision }: { decision: ReviewDecision }) {
         </a>
       )}
     </>
+  );
+}
+
+/** While a review waits on screens main changed too: how many are resolved, opening the choice. */
+export function ReviewResolutions({ decision }: { decision: ReviewDecision }) {
+  const { waiting, resolutions, resolved, setDialog } = decision;
+  if (!decision.review.data || !waiting || resolutions.length === 0) return null;
+  return (
+    <Action className="dz-strip-resolved" onClick={() => setDialog('conflicts')}>
+      {resolved.label}
+    </Action>
   );
 }
 
@@ -851,8 +872,9 @@ export function ReviewStrip({
         )}
         <span className="dl-grow" />
         <ReviewVersion review={decision.review} noBefore={noBefore} wipe />
+        <ReviewResolutions decision={decision} />
         <span className="dz-strip-decide">
-          <ReviewDecisions decision={decision} />
+          <ReviewDecisions decision={decision} resolutions={false} />
         </span>
         {onShowRight && (
           <button

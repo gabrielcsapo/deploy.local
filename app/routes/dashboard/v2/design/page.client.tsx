@@ -1926,7 +1926,9 @@ function DesignCanvasPage({
           propose={propose}
           review={reviewData}
           reviewing={Boolean(reviewId)}
-          decisions={reviewId ? <ReviewDecisions decision={decision} /> : undefined}
+          decisions={
+            reviewId ? <ReviewDecisions decision={decision} resolutions={false} /> : undefined
+          }
           reviewPanel={
             reviewId ? (
               reviewData ? (
