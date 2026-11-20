@@ -1,3 +1,4 @@
+import { guestHttpTarget, redirectToHttps, attachPlainHttpUpgrades } from './guest-http.ts';
 import { createTelemetryCollector } from '../telemetry-runtime.ts';
 import { withServerTelemetry } from '../telemetry-http.ts';
 import { isCopyHost } from './copies.ts';
@@ -33,6 +34,7 @@ import { purgeDeploymentCache } from './response-cache.ts';
 import { logRequest, flushRequestLogs } from '../request-log.ts';
 import {
   isAppHost,
+  tunnelAppUpgrade,
   tunnelUpgrade,
   forwardControlUpgrade,
   isControlSocketPath,
@@ -149,12 +151,18 @@ async function main() {
     },
   );
 
-  // HTTP server: CA cert + CLI endpoints, API over HTTP (CLI compatibility),
-  // browser redirect to HTTPS.
+  // The guest directory and shared app hosts also accept plain HTTP.
   let actualHttpsPort = HTTPS_PORT;
   const collector = await createTelemetryCollector();
   const httpServer = createServer(
     withServerTelemetry(collector.handler, (req, res) => {
+      const target = guestHttpTarget(req, runtime.routes);
+      if (target === 'https') return redirectToHttps(req, res, actualHttpsPort);
+      if (target === 'app') {
+        hotPath(req, res);
+        return;
+      }
+      if (target === 'home') return forwardToControl(req, res);
       if (req.url === '/ca.crt') {
         serveCaCert(res);
         return;
@@ -171,10 +179,7 @@ async function main() {
         forwardToControl(req, res);
         return;
       }
-      const host = req.headers.host?.split(':')[0] || 'deploy.local';
-      const portSuffix = actualHttpsPort !== 443 ? `:${actualHttpsPort}` : '';
-      res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
-      res.end();
+      redirectToHttps(req, res, actualHttpsPort);
     }),
   );
 
@@ -190,21 +195,7 @@ async function main() {
     const deps = { getRoute: runtime.hotPathDeps.getRoute };
     if (isAppHost(hostname, deps)) {
       const route = deps.getRoute(appNameFromHost(hostname)!);
-      const backend = route?.selectBackend?.(req) ?? null;
-      const port = backend?.port ?? route?.port;
-      if (port) {
-        tunnelUpgrade(
-          req,
-          socket,
-          head,
-          port,
-          backend?.host || route?.backendHost || '127.0.0.1',
-          backend?.release,
-        );
-      } else {
-        backend?.release();
-        socket.destroy();
-      }
+      tunnelAppUpgrade(req, socket, head, route);
       return;
     }
     if (!forwardControlUpgrade(req, socket, head, CONTROL_PORT)) {
@@ -215,7 +206,9 @@ async function main() {
   }
   httpsServer.on('session', tuneHttp2Session);
   httpsServer.on('upgrade', handleUpgrade);
-  httpServer.on('upgrade', handleUpgrade);
+  attachPlainHttpUpgrades(httpServer, runtime.routes, (req, socket, head) => {
+    if (!forwardControlUpgrade(req, socket, head, CONTROL_PORT)) socket.destroy();
+  });
 
   function shutdown(signal: string) {
     console.log(`\n[edge] ${signal} received, shutting down...`);
