@@ -1,12 +1,28 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import type { ComponentProps } from 'react';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { DesignReview, DesignReviewScreen } from '../../../../../shared/v2/contracts';
 import { InboxProvider } from '../data/hooks';
-import { DesignCanvas } from './Canvas';
-import { CanvasReviewBar, PinBox, type CanvasReview } from './CanvasReview';
+import { DesignCanvas, ReviewLoadingCanvas } from './Canvas';
+import {
+  CanvasReviewBar,
+  PinBox,
+  ReviewStrip,
+  ReviewViewItems,
+  useReviewDecision,
+  type CanvasReview,
+} from './CanvasReview';
 import type { Canvas } from './model';
-import { RightPanel, ReviewNotes } from './Panels';
+import { LeftPanel, RightPanel, ReviewNotes, ReviewPanel } from './Panels';
+import {
+  openingTab,
+  openingTool,
+  stepFrame,
+  tabAfterChoosing,
+  type PanelTab,
+} from './canvas-review-model';
 
 const screen = (file: string, fields: Partial<DesignReviewScreen> = {}) =>
   ({
@@ -138,11 +154,13 @@ const bar = (value?: DesignReview) =>
       <CanvasReviewBar review={controller(value)} suggestions="" beforeDecision={async () => ''} />
     </InboxProvider>,
   );
+/** What the markup says, tags left out. */
+const words = (html: string) => html.replace(/<[^>]+>/g, '');
 
 test('bar uses board copy and saved seen count without gating approval or replacing tools', () => {
   const html = bar(data);
   assert.match(html, /Keep the gutter at every width/);
-  assert.match(html, /from Designer · 1 of 2 approved/);
+  assert.match(words(html), /from Designer · 1 of 2 seen/);
   assert.match(html, /Before/);
   assert.match(html, /After/);
   assert.match(html, />Ask for changes<\/button>/);
@@ -157,7 +175,7 @@ test('loading and notes-only reviews keep the canvas bar and decisions reachable
     boards: [],
     notes: [{ id: 'gutter', title: 'Gutter' }] as DesignReview['notes'],
   });
-  assert.match(html, /0 of 0 approved/);
+  assert.match(words(html), /0 of 0 seen/);
   assert.match(html, />Approve design<\/button>/);
 });
 
@@ -289,7 +307,7 @@ test('a document’s review is approved as a document, counts blocks and builds 
       />
     </InboxProvider>,
   );
-  assert.match(waiting, /from Designer · new document/);
+  assert.match(words(waiting), /from Designer · new document/);
   assert.match(waiting, />Approve document<\/button>/);
   assert.doesNotMatch(waiting, /Approve design|of 0 approved/);
   assert.match(waiting, /disabled="" class=""[^>]*>Before/);
@@ -404,10 +422,10 @@ test('a shared part is the first row of the change list, one unit in the bar, an
       },
     ],
   } as DesignReview;
-  assert.match(bar(grouped), /from Designer · 2 of 4 approved/);
+  assert.match(words(bar(grouped)), /from Designer · 2 of 4 seen/);
   assert.match(
-    bar({ ...grouped, parts: [{ ...grouped.parts![0], seen: false }] }),
-    /from Designer · 1 of 4 approved/,
+    words(bar({ ...grouped, parts: [{ ...grouped.parts![0], seen: false }] })),
+    /from Designer · 1 of 4 seen/,
   );
   const panel = renderToStaticMarkup(
     <RightPanel
@@ -556,10 +574,10 @@ const roundTwo = {
 test('a second round counts changed screens, tags what was seen, and lists last round’s notes', () => {
   assert.match(
     bar(roundTwo),
-    /from Designer · round 2 · <span class="dz-review-count">1 of 2 changed screens approved<\/span>/,
+    /from Designer<span class="dz-review-progress"> · round 2 · <span class="dz-review-count">1 of 2 changed screens seen<\/span><\/span>/,
   );
   // Round one keeps its wording.
-  assert.match(bar({ ...roundTwo, round: 1 }), /from Designer · 2 of 3 approved/);
+  assert.match(words(bar({ ...roundTwo, round: 1 })), /from Designer · 2 of 3 seen/);
   const html = renderToStaticMarkup(
     <DesignCanvas
       {...props}
@@ -583,53 +601,105 @@ test('a second round counts changed screens, tags what was seen, and lists last 
   assert.match(html, /<span class="dz-tag">Seen in round 1<\/span>/);
   assert.match(html, /aria-label="Approve Welcome" disabled="" checked=""/);
   assert.match(html, /<span class="dz-tag review">Changed<\/span>/);
-  const text = panel(roundTwo)
+  // Since your last review leads the Review tab, above What changed.
+  const reviewTab = (value: DesignReview) =>
+    renderToStaticMarkup(<ReviewPanel review={value} onScreen={() => {}} onNote={() => {}} />);
+  const text = reviewTab(roundTwo)
     .replace(/<[^>]+>/g, '|')
     .replace(/\|+/g, '|');
   assert.match(
     text,
-    /\|Since your last review\|2 screens changed\. 1 of your 2 notes addressed\.\|1\|Keep the gutter at 16 here too\.\|Welcome, narrow\|Addressed\|Gutter is 16 at every width now\.\|2\|The app card should say who made it\.\|Install an app\|Still open\|Kept the size; the maker does not fit at 700\.\|Changes on this branch\|/,
+    /\|Since your last review\|2 screens changed\. 1 of your 2 notes addressed\.\|1\|Keep the gutter at 16 here too\.\|Welcome, narrow\|Addressed\|Gutter is 16 at every width now\.\|2\|The app card should say who made it\.\|Install an app\|Still open\|Kept the size; the maker does not fit at 700\.\|What changed\|1 of 2 changed screens seen\|/,
   );
-  assert.match(panel(roundTwo), /class="dz-since-addressed">Addressed/);
-  // Last round's notes are not listed twice.
-  assert.equal(text.match(/Keep the gutter at 16 here too/g)?.length, 1);
-  assert.doesNotMatch(panel({ ...roundTwo, round: 1 }), /Since your last review/);
+  assert.match(reviewTab(roundTwo), /class="dz-since-addressed">Addressed/);
+  // Edit keeps the branch's changes, without last round's notes again.
+  const edit = panel(roundTwo)
+    .replace(/<[^>]+>/g, '|')
+    .replace(/\|+/g, '|');
+  assert.match(edit, /\|Changes on this branch\|/);
+  assert.doesNotMatch(edit, /Since your last review|Keep the gutter at 16 here too/);
+  assert.doesNotMatch(reviewTab({ ...roundTwo, round: 1 }), /Since your last review/);
 });
 
-const compareBar = (value: DesignReview, compare: CanvasReview['compare'], noBefore = false) =>
+function Strip({
+  value,
+  compare,
+  noBefore = false,
+  loading = null,
+}: {
+  value?: DesignReview;
+  compare: CanvasReview['compare'];
+  noBefore?: boolean;
+  loading?: { done: number; total: number } | null;
+}) {
+  const decision = useReviewDecision({ ...controller(value), compare }, '', async () => '');
+  return <ReviewStrip decision={decision} noBefore={noBefore} loading={loading} />;
+}
+const strip = (
+  value: DesignReview | undefined,
+  compare: CanvasReview['compare'],
+  options: { noBefore?: boolean; loading?: { done: number; total: number } } = {},
+) =>
   renderToStaticMarkup(
     <InboxProvider>
-      <CanvasReviewBar
-        review={{ ...controller(value), compare }}
-        suggestions=""
-        beforeDecision={async () => ''}
-        compare
-        noBefore={noBefore}
-      />
+      <Strip value={value} compare={compare} {...options} />
     </InboxProvider>,
   );
 
-test('a canvas review offers Wipe, a width and Dark; a document’s does not', () => {
+test('the review strip offers Before, After and Wipe; width and Dark are in the zoom menu', () => {
   const off = { wipe: false, width: null, dark: false };
-  const html = compareBar(data, off);
+  const html = strip(data, off);
   assert.match(
     html,
     /aria-pressed="false">Before<\/button><button[^>]*aria-pressed="true">After<\/button><button[^>]*aria-pressed="false">Wipe<\/button>/,
   );
-  assert.match(html, /<span class="dz-review-cmp">/);
-  // Each board at its own width until one is chosen: the button says Width.
-  assert.match(html, /aria-label="Width" aria-haspopup="menu" aria-expanded="false"[^>]*>Width </);
-  assert.match(html, /aria-pressed="false"[^>]*>Dark<\/button>/);
+  // One strip: title · from who · how far, and no width or Dark beside Before and After.
+  assert.match(words(html), /Keep the gutter at every width · from Designer · 1 of 2 seen/);
+  assert.doesNotMatch(html, /dz-review-cmp|>Dark</);
   // With nothing on main, Wipe is disabled like Before.
   assert.match(
-    compareBar(data, off, true),
+    strip(data, off, { noBefore: true }),
     /disabled="" class="" aria-pressed="false">Wipe<\/button>/,
   );
-  const on = compareBar(data, { wipe: true, width: 700, dark: true });
-  assert.match(on, /class="on" aria-pressed="true">Wipe<\/button>/);
-  assert.match(on, /aria-label="Width"[^>]*>700 /);
-  assert.match(on, /aria-pressed="true"[^>]*>Dark<\/button>/);
+  assert.match(
+    strip(data, { ...off, wipe: true }),
+    /class="on" aria-pressed="true">Wipe<\/button>/,
+  );
+  // A document's bar has Before and After only.
   assert.doesNotMatch(bar(data), /Wipe|dz-review-cmp/);
+  const menu = (compare: CanvasReview['compare']) =>
+    renderToStaticMarkup(<ReviewViewItems review={{ ...controller(data), compare }} />);
+  assert.match(menu(off), /aria-checked="true">Each board’s own/);
+  assert.match(menu(off), /role="menuitemcheckbox" aria-checked="false">Dark<\/button>/);
+  const on = menu({ wipe: true, width: 700, dark: true });
+  assert.match(on, /aria-checked="true">700/);
+  assert.match(on, /role="menuitemcheckbox" aria-checked="true">Dark/);
+});
+
+test('while screens load the strip says how many of them, in place of how many are seen', () => {
+  const off = { wipe: false, width: null, dark: false };
+  const loading = strip(data, off, { loading: { done: 3, total: 13 } });
+  assert.match(loading, /class="dl-design-waiting-banner dz-review-strip loading"/);
+  assert.match(loading, /role="status">Loading 3 of 13 screens<span class="dl-bar"/);
+  assert.match(loading, /style="width:23%"/);
+  const done = strip(data, off, { loading: { done: 13, total: 13 } });
+  assert.doesNotMatch(done, /Loading|dz-review-strip loading/);
+  // Before the review itself arrives: the frame, its decisions in place, no block skeleton.
+  const first = strip(undefined, off);
+  assert.match(first, /Loading the review/);
+  assert.doesNotMatch(first, /dl-skeleton/);
+  // Changed screens show at their own size, blurred, until the canvas puts them in place.
+  const stills = renderToStaticMarkup(<ReviewLoadingCanvas boards={[changed, offscreen]} />);
+  assert.match(stills, /aria-busy="true"/);
+  assert.doesNotMatch(stills, /dl-skeleton|<iframe/);
+});
+
+test('changed screens are blurred stills in place until their renders arrive', () => {
+  const html = renderToStaticMarkup(<DesignCanvas {...props} review={frameReview} />);
+  // The changed board on screen loads with its still over it; unchanged boards have none.
+  assert.match(html, /class="dz-board still"[^>]*><div class="dz-board-name"/);
+  assert.equal((html.match(/class="dz-board-still"/g) ?? []).length, 1);
+  assert.equal((html.match(/<iframe/g) ?? []).length, 2);
 });
 
 test('a chosen width draws changed web frames at it; wipe shows both sides with a slider', () => {
@@ -819,4 +889,148 @@ test('Comments in a review lists this round’s pins for the proposer, Not sent 
     pins: [reviewPin({ round: 1 })],
   } as unknown as DesignReview;
   assert.match(notes(yours), /^\|Notes\|0\|Sent when you ask for changes\.\|Resolved · 0\|$/);
+});
+
+// Review is a mode of the editor: the same right panel, on its Review tab.
+const reviewPanelProps = (tab: PanelTab, selection: { board: string; layer: null } | null) =>
+  ({
+    onHide: () => {},
+    project: undefined,
+    design: undefined,
+    canvas,
+    section: null,
+    selection,
+    frames: { current: frames },
+    tokens: { colors: [], textStyles: [] },
+    revision: 0,
+    view: props.view,
+    onZoom: () => {},
+    changes: [],
+    select: () => {},
+    owner: 'owner',
+    tab,
+    setTab: () => {},
+    commentCount: 0,
+    comments: null,
+    agent: null,
+    onAsk: () => {},
+    propose: null,
+    agents: [],
+    onComment: () => {},
+    htmlHref: null,
+    connections: false,
+    onConnections: () => {},
+    onConnection: () => {},
+    prototype: { links: [], sidebar: false, setSidebar: () => {}, start: null },
+    reviewing: true,
+    review: data,
+    reviewSide: 'after' as const,
+    decisions: <button type="button">Approve design</button>,
+    reviewPanel: (
+      <ReviewPanel review={data} active={selection?.board} onScreen={() => {}} onNote={() => {}} />
+    ),
+  }) satisfies ComponentProps<typeof RightPanel>;
+
+test('a review opens on its Review tab, before Edit and Comments, with Comment in hand', () => {
+  assert.equal(openingTab(true), 'review');
+  assert.equal(openingTab(false), 'edit');
+  assert.equal(openingTool(true, false), 'comment');
+  assert.equal(openingTool(true, true), 'move');
+  assert.equal(openingTool(false, false), 'move');
+  const html = renderToStaticMarkup(<RightPanel {...reviewPanelProps(openingTab(true), null)} />);
+  assert.match(
+    html,
+    /role="tablist"><button type="button" role="tab" aria-selected="true" class="on">Review<\/button><button[^>]*aria-selected="false"[^>]*>Edit<\/button><button[^>]*aria-selected="false"[^>]*>Comments<\/button>/,
+  );
+  // Prototype is the editor's; the decisions take Propose's place.
+  assert.doesNotMatch(html, />Prototype<|>Propose</);
+  assert.match(html, /<span class="dz-decisions"><button type="button">Approve design<\/button>/);
+  assert.match(html, /aria-label="Review"/);
+  const text = words(html);
+  assert.match(text, /What changed1 of 2 seen/);
+  assert.match(text, /Edit and Comments are a click away/);
+});
+
+test('choosing or stepping to a screen keeps Review selected; Edit and Comments never open on their own', () => {
+  const step = stepFrame([changed, offscreen], changed.file, 1)!;
+  assert.equal(step, offscreen.file);
+  // Stepping, a row and the canvas all choose a board the same way.
+  for (const commenting of [false, true])
+    for (const pinning of [false, true])
+      assert.equal(tabAfterChoosing('review', { reviewing: true, commenting, pinning }), 'review');
+  // The editor keeps its own way: the Comment tool opens Comments.
+  assert.equal(
+    tabAfterChoosing('edit', { reviewing: false, commenting: true, pinning: false }),
+    'comments',
+  );
+  // With a board chosen, the panel still shows What changed, the board marked, not its layout.
+  const html = renderToStaticMarkup(
+    <RightPanel {...reviewPanelProps('review', { board: step, layer: null })} />,
+  );
+  assert.match(html, /role="tab" aria-selected="true" class="on">Review</);
+  assert.match(html, /class="dz-review-row on" aria-current="true"><span class="dz-seen on"/);
+  assert.doesNotMatch(html, />Layout<|>Widths<|>Changes on this branch</);
+});
+
+test('below 820 px a review keeps the right panel at the side, 280 px wide: no bottom sheet', () => {
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  const below820 = css.slice(css.indexOf('@media (max-width: 820px) and (min-width: 501px)'));
+  const block = below820.slice(0, below820.indexOf('\n}\n'));
+  assert.match(block, /\.dz\.reviewing \{\s*--dz-right: 280px;/);
+  assert.match(block, /\.dz\.reviewing \.dz-right \{\s*position: relative;[^}]*transform: none;/);
+  assert.match(
+    block,
+    /\.dz\.reviewing \.dz-narrow-bar,\s*\.dz\.reviewing \.dz-sheet-scrim \{\s*display: none;/,
+  );
+  assert.match(block, /\.dz\.reviewing \.dz-right-top \{\s*display: flex;/);
+  // The editor's sheet stays the editor's: it opens on a selection only outside a review.
+  assert.match(css, /\.dz\.has-selection \.dz-right \{\s*transform: none;/);
+  // Below 1180 px the left panel folds and comes back over the canvas from the strip.
+  const fold = css.slice(css.indexOf('@media (max-width: 1179px)'));
+  assert.match(fold, /\.dz\.reviewing \.dz-left \{\s*display: none;/);
+  assert.match(
+    fold,
+    /\.dz\.reviewing:not\(\.left-open\) \.dz-strip-show-left \{\s*display: inline-flex;/,
+  );
+  assert.match(css, /\.dz\.reviewing \{\s*--dz-right: 320px;/);
+});
+
+test('the left panel names the way back and says the branch is in review', () => {
+  const html = renderToStaticMarkup(
+    <LeftPanel
+      project={undefined}
+      onDesign={() => {}}
+      design={undefined}
+      current="design/server-diagnostics"
+      sections={[
+        { id: 's', title: '4 · Computers', x: 0, y: 0, boards: [changed.file, 'New.html'] },
+      ]}
+      section={{ id: 's', title: '4 · Computers', x: 0, y: 0, boards: [changed.file, 'New.html'] }}
+      onSection={() => {}}
+      selection={null}
+      select={() => {}}
+      base="/files/proposed"
+      changed={new Set([changed.file, 'New.html'])}
+      added={new Set(['New.html'])}
+      pageDots
+      inReview={new Set()}
+      agentAt={new Map()}
+      owner="owner"
+      reviewing={new Set()}
+      onRef={() => {}}
+      onNewBranch={() => {}}
+      onHide={() => {}}
+      assets={null}
+      back={{ label: 'Waiting on you', href: '/dashboard/inbox?item=x' }}
+      branchStatus="in review"
+    />,
+  );
+  assert.match(
+    html,
+    /<a class="dz-left-back" href="\/dashboard\/inbox\?item=x">.*Waiting on you<\/a>/,
+  );
+  assert.match(words(html), /design\/server-diagnostics · in review/);
+  assert.match(html, /class="dz-dot new" aria-label="New on this branch"/);
+  assert.match(html, /class="dz-dot" aria-label="Changed on this branch"/);
+  assert.match(html, /aria-label="Changes on this page"/);
 });

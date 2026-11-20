@@ -262,14 +262,14 @@ const second = {
 test('a later round counts only what changed since the last review; round one is unchanged', () => {
   assert.deepEqual(reviewProgress(second), {
     round: 'round 2',
-    count: '1 of 2 changed screens approved',
+    count: '1 of 2 changed screens seen',
   });
   assert.deepEqual(reviewProgress({ ...second, round: 1 }), {
     round: null,
-    count: '2 of 3 approved',
+    count: '2 of 3 seen',
   });
   const one = { ...second, boards: second.boards.slice(0, 2) };
-  assert.equal(reviewProgress(one).count, '1 of 1 changed screen approved');
+  assert.equal(reviewProgress(one).count, '1 of 1 changed screen seen');
   // A shared part as it was last round is not counted; one changed again is, once.
   const part = {
     component: 'sidebar',
@@ -280,12 +280,12 @@ test('a later round counts only what changed since the last review; round one is
   };
   assert.equal(
     reviewProgress({ ...second, parts: [{ ...part, changedSinceReview: false }] }).count,
-    '1 of 2 changed screens approved',
+    '1 of 2 changed screens seen',
   );
   assert.equal(
     reviewProgress({ ...second, parts: [{ ...part, seen: false, changedSinceReview: true }] })
       .count,
-    '1 of 3 changed screens approved',
+    '1 of 3 changed screens seen',
   );
 });
 

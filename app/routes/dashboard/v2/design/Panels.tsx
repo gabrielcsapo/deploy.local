@@ -2,9 +2,15 @@
 import type { DesignReview } from '../../../../../shared/v2/contracts';
 import { inboxItemHref } from './review-model';
 import {
+  frameTag,
+  frameTicked,
+  reviewFrames,
   reviewNotes,
+  reviewProgress,
+  roundPins,
   screenCount,
   sinceLastReview,
+  type PanelTab,
   type ReviewNoteRow,
   type ReviewSide,
 } from './canvas-review-model';
@@ -191,6 +197,7 @@ function BoardLayers({
   selection,
   select,
   changed,
+  added = false,
   inReview,
   agentAt,
   linkTo,
@@ -202,6 +209,8 @@ function BoardLayers({
   selection: Selection;
   select: (selection: Selection) => void;
   changed: boolean;
+  /** New on the branch: its dot is green rather than the changed violet. */
+  added?: boolean;
   inReview: boolean;
   /** Layers an agent is working on in this board; null means the board itself. */
   agentAt: Set<string | null>;
@@ -264,7 +273,12 @@ function BoardLayers({
         <>
           {inReview && <span className="dz-review">In review</span>}
           {agentAt.size > 0 && <AgentMark />}
-          {changed && <span className="dz-dot" aria-label="Changed on this branch" />}
+          {changed && (
+            <span
+              className={`dz-dot${added ? ' new' : ''}`}
+              aria-label={added ? 'New on this branch' : 'Changed on this branch'}
+            />
+          )}
           {width !== undefined && <span className="dz-board-w">{width}</span>}
         </>
       }
@@ -455,7 +469,19 @@ export function LeftPanel({
   mark = null,
   onLoose,
   links,
+  back,
+  branchStatus,
+  added,
+  pageDots = false,
 }: {
+  /** In a review: the way back, named after where you came from. */
+  back?: { label: string; href: string };
+  /** In a review: what the branch line says after the branch, in place of its changes. */
+  branchStatus?: string;
+  /** Boards new on the branch, dotted green beside the changed ones. */
+  added?: Set<string>;
+  /** Pages holding changed boards carry a dot, so a review can be walked page by page. */
+  pageDots?: boolean;
   project: Project | undefined;
   /** Open another design: a project's App design (artifact null) or one under Artifacts. */
   onDesign: (projectId: string, artifact: string | null) => void;
@@ -510,6 +536,12 @@ export function LeftPanel({
   return (
     <aside className="dz-left" aria-label="Design navigation">
       <div className="dz-left-top">
+        {back && (
+          <a className="dz-left-back" href={back.href}>
+            <Icon name="back" size={14} />
+            {back.label}
+          </a>
+        )}
         <div className="dz-left-head">
           <DesignPicker
             project={project}
@@ -540,6 +572,7 @@ export function LeftPanel({
             owner={owner}
             reviewing={reviewing}
             changed={changed.size}
+            status={branchStatus}
             branchRemoved={branchRemoved}
             onRef={onRef}
             onNewBranch={onNewBranch}
@@ -640,7 +673,17 @@ export function LeftPanel({
                 depth={0}
                 icon="frame"
                 label={item.title}
-                meta={<span className="dz-meta">{item.boards.length}</span>}
+                meta={
+                  <>
+                    {pageDots && item.boards.some((file) => changed.has(file)) && (
+                      <span
+                        className={`dz-dot${item.boards.every((file) => !changed.has(file) || added?.has(file)) ? ' new' : ''}`}
+                        aria-label="Changes on this page"
+                      />
+                    )}
+                    <span className="dz-meta">{item.boards.length}</span>
+                  </>
+                }
                 on={item.id === section?.id}
                 onClick={() => onSection(item.id)}
               />
@@ -669,6 +712,7 @@ export function LeftPanel({
                   selection={selection}
                   select={select}
                   changed={changed.has(file)}
+                  added={added?.has(file)}
                   inReview={inReview.has(file)}
                   agentAt={agentAt.get(file) ?? new Set()}
                   linkTo={
@@ -2097,6 +2141,143 @@ function PrototypePanel({
   );
 }
 
+export type DesignTab = PanelTab;
+
+/**
+ * The Review tab: what changed, screen by screen in canvas order with its seen tick and pins, and
+ * the notes that changed. Choosing a row moves the canvas there and keeps Review open.
+ */
+export function ReviewPanel({
+  review,
+  active,
+  onScreen,
+  onNote,
+}: {
+  review: DesignReview;
+  /** The screen the canvas is on: stepping and choosing a board move it. */
+  active?: string;
+  onScreen: (file: string) => void;
+  onNote: (id: string) => void;
+}) {
+  const parts = review.parts ?? [];
+  const screens = reviewFrames(review).filter((board) => !board.instanceOnly);
+  const lastRound = sinceLastReview(review);
+  const pins = roundPins(review).filter((pin) => !pin.resolved);
+  const pinCount = (file: string) => pins.filter((pin) => pin.board === file).length;
+  const tick = (seen: boolean) => (
+    <span className={`dz-seen${seen ? ' on' : ''}`} aria-label={seen ? 'Seen' : 'Not seen yet'} />
+  );
+  const count = (file: string) =>
+    pinCount(file) > 0 && (
+      <span className="dz-pins" aria-label={`${pinCount(file)} pins`}>
+        <Icon name="comment" size={12} />
+        {pinCount(file)}
+      </span>
+    );
+  return (
+    <div className="dz-review-panel">
+      {lastRound && (
+        <Prop title="Since your last review">
+          <span className="dz-since-summary">{lastRound.summary}</span>
+          {lastRound.notes.length > 0 && (
+            <div className="dz-list">
+              {lastRound.notes.map((note) => (
+                <button
+                  key={note.id}
+                  type="button"
+                  className="dz-list-item dz-since"
+                  onClick={() => onScreen(note.board)}
+                >
+                  <span className="dz-since-number">{note.number}</span>
+                  <span className="dz-since-text">{note.text}</span>
+                  <span className="dz-since-line">
+                    <span>{note.screen}</span>
+                    <span className={note.addressed ? 'dz-since-addressed' : 'dz-since-open'}>
+                      {note.addressed ? 'Addressed' : 'Still open'}
+                    </span>
+                  </span>
+                  {note.reply && <span className="dz-since-reply">{note.reply}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </Prop>
+      )}
+      <section className="dz-review-section" aria-label="What changed">
+        <div className="dz-review-h">
+          <span>What changed</span>
+          <span className="dz-meta">{reviewProgress(review).count}</span>
+        </div>
+        <div className="dz-review-list">
+          {parts.map((part) => (
+            <button
+              key={`part:${part.component}`}
+              type="button"
+              className={`dz-review-row${part.seen ? '' : ' unseen'}${active === part.lookAt.file ? ' on' : ''}`}
+              title={`One change to a shared part. Look at it on ${part.lookAt.title}; ticking it there ticks it for all.`}
+              onClick={() => onScreen(part.lookAt.file)}
+            >
+              {tick(part.seen)}
+              <span className="dz-t">
+                {part.name} · {screenCount(part.screens)}
+              </span>
+              {count(part.lookAt.file)}
+              <span className="dz-review-tag">Changed</span>
+            </button>
+          ))}
+          {screens.map((board) => {
+            const seen = frameTicked(review, board);
+            const tag = frameTag(review, board);
+            return (
+              <button
+                key={board.file}
+                type="button"
+                className={`dz-review-row${seen ? '' : ' unseen'}${active === board.file ? ' on' : ''}`}
+                aria-current={active === board.file ? 'true' : undefined}
+                onClick={() => onScreen(board.file)}
+              >
+                {tick(seen)}
+                <span className="dz-t">{board.title}</span>
+                {count(board.file)}
+                <span
+                  className={`dz-review-tag${board.added ? ' new' : !tag.changed ? ' quiet' : ''}`}
+                >
+                  {tag.text}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+      {review.notes.length > 0 && (
+        <section className="dz-review-section" aria-label="Notes">
+          <div className="dz-review-h">
+            <span>Notes</span>
+            <span className="dz-meta">{review.notes.length}</span>
+          </div>
+          <div className="dz-review-list">
+            {review.notes.map((note) => (
+              <button
+                key={note.id}
+                type="button"
+                className="dz-review-row unseen"
+                onClick={() => onNote(note.id)}
+              >
+                {tick(false)}
+                <span className="dz-t">{note.title}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      <p className="dz-review-foot">
+        Edit and Comments are a click away. Choosing a screen here or on the canvas keeps you in
+        Review.
+      </p>
+    </div>
+  );
+}
+
 export function RightPanel({
   project,
   design,
@@ -2134,10 +2315,19 @@ export function RightPanel({
   review,
   reviewSide,
   reviewing,
+  reviewPanel,
+  decisions,
+  zoomExtras,
   onHide,
 }: {
   /** Closes this panel; the canvas then shows one button to bring it back. */
   onHide: () => void;
+  /** In a review: the Review tab's contents, the tab before Edit and Comments. */
+  reviewPanel?: ReactNode;
+  /** In a review: Ask for changes and Approve design, where Propose is while editing. */
+  decisions?: ReactNode;
+  /** In a review: more ways to look, after the zoom levels. */
+  zoomExtras?: ReactNode;
   review?: DesignReview;
   reviewing?: boolean;
   reviewSide?: ReviewSide;
@@ -2154,8 +2344,8 @@ export function RightPanel({
   changes: { status: string; path: string; layers?: LayerChange[] }[];
   select: (selection: Selection) => void;
   owner: string;
-  tab: 'edit' | 'prototype' | 'comments';
-  setTab: (tab: 'edit' | 'prototype' | 'comments') => void;
+  tab: DesignTab;
+  setTab: (tab: DesignTab) => void;
   commentCount: number;
   comments: ReactNode;
   /** While an agent's branch is open, its panel replaces Edit. */
@@ -2208,37 +2398,10 @@ export function RightPanel({
   // A screen there only to show a shared part is the part's row, not a change of its own.
   const ownBoards = review?.boards.filter((entry) => !entry.instanceOnly) ?? [];
   const parts = review?.parts ?? [];
-  const sinceReview = review ? sinceLastReview(review) : null;
-  const lastNotes = new Set(sinceReview?.notes.map((note) => note.id));
+  // Last round's notes are in Review's Since your last review, not listed again here.
+  const lastNotes = new Set(review ? sinceLastReview(review)?.notes.map((note) => note.id) : []);
   const reviewChanges = review && tab === 'edit' && (
     <>
-      {sinceReview && (
-        <Prop title="Since your last review">
-          <span className="dz-since-summary">{sinceReview.summary}</span>
-          {sinceReview.notes.length > 0 && (
-            <div className="dz-list">
-              {sinceReview.notes.map((note) => (
-                <button
-                  key={note.id}
-                  type="button"
-                  className="dz-list-item dz-since"
-                  onClick={() => select({ board: note.board, layer: null })}
-                >
-                  <span className="dz-since-number">{note.number}</span>
-                  <span className="dz-since-text">{note.text}</span>
-                  <span className="dz-since-line">
-                    <span>{note.screen}</span>
-                    <span className={note.addressed ? 'dz-since-addressed' : 'dz-since-open'}>
-                      {note.addressed ? 'Addressed' : 'Still open'}
-                    </span>
-                  </span>
-                  {note.reply && <span className="dz-since-reply">{note.reply}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </Prop>
-      )}
       <Prop
         title="Changes on this branch"
         actions={
@@ -2312,7 +2475,7 @@ export function RightPanel({
     </>
   );
   return (
-    <aside className="dz-right" aria-label="Edit">
+    <aside className="dz-right" aria-label={reviewPanel ? 'Review' : 'Edit'}>
       <span className="dz-grab" aria-hidden="true" />
       <div className="dz-right-top">
         {!local && (
@@ -2342,14 +2505,17 @@ export function RightPanel({
         >
           <Icon name="play" size={14} />
         </button>
-        <button
-          type="button"
-          className="dz-tool-more"
-          aria-label="Play options (coming soon)"
-          disabled
-        >
-          <Icon name="down" size={10} />
-        </button>
+        {!reviewing && (
+          <button
+            type="button"
+            className="dz-tool-more"
+            aria-label="Play options (coming soon)"
+            disabled
+          >
+            <Icon name="down" size={10} />
+          </button>
+        )}
+        {decisions && <span className="dz-decisions">{decisions}</span>}
         {!reviewing && !local && (
           <Action
             variant="primary"
@@ -2375,6 +2541,17 @@ export function RightPanel({
       </div>
       <div className="dz-right-tabs">
         <div className="dz-tabs" role="tablist">
+          {reviewPanel && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'review'}
+              className={tab === 'review' ? 'on' : ''}
+              onClick={() => setTab('review')}
+            >
+              Review
+            </button>
+          )}
           <button
             type="button"
             role="tab"
@@ -2384,7 +2561,8 @@ export function RightPanel({
           >
             {agent ? 'Agent' : 'Edit'}
           </button>
-          {prototype && (
+          {/* A review has Review, Edit and Comments; Prototype is the editor's. */}
+          {prototype && !reviewPanel && (
             <button
               type="button"
               role="tab"
@@ -2446,13 +2624,16 @@ export function RightPanel({
                 <span className="dl-grow" />
                 <kbd>⇧C</kbd>
               </button>
+              {zoomExtras}
             </div>
           )}
         </div>
       </div>
       <div className="dz-right-body">
         {(selection || mark || component) && reviewChanges}
-        {tab === 'comments' ? (
+        {tab === 'review' && reviewPanel ? (
+          reviewPanel
+        ) : tab === 'comments' ? (
           <>
             {comments}
             {connections && selection && canvas && prototype && (

@@ -25,6 +25,7 @@ import {
 import {
   boardName,
   changeLabel,
+  fit,
   isMark,
   type Canvas as CanvasData,
   type DesignLink,
@@ -152,7 +153,13 @@ export function DesignCanvas({
   connections,
   review,
   onFollow,
+  onReviewLoading,
 }: {
+  /**
+   * In a review, as changed screens load: renders arrived, of the screens on screen or arrived.
+   * Until its render arrives, each changed screen shows a blurred still at its own size.
+   */
+  onReviewLoading?: (loading: { done: number; total: number }) => void;
   review?: {
     api: string;
     item: string;
@@ -328,6 +335,35 @@ export function DesignCanvas({
 
   const panning = tool === 'hand' || space;
   const files = section?.boards ?? Object.keys(canvas.boards);
+  // The frames whose documents have loaded, by what each shows: a changed screen is a blurred
+  // still until then, and again while another side or width of it loads.
+  const [ready, setReady] = useState<Set<string>>(() => new Set());
+  const markReady = useCallback(
+    (key: string) =>
+      setReady((current) => (current.has(key) ? current : new Set(current).add(key))),
+    [],
+  );
+  /** What a board shows in a review: which side, from where, at what width, under which key. */
+  const look = (file: string, board: CanvasData['boards'][string]) => {
+    const changed = review?.boards.get(file);
+    // Wipe needs both sides: a new or removed frame shows its one side as After or Before do.
+    const wipe = Boolean(changed && review?.compare?.wipe && !changed.added && !changed.removed);
+    const side: ReviewSide | undefined =
+      changed && review?.compare?.wipe ? (changed.removed ? 'before' : 'after') : review?.side;
+    const reviewRevision = changed && side ? frameSource(changed, side) : undefined;
+    const sourceBase =
+      changed && review && side === 'before'
+        ? `${review.api}/files/${reviewRevision}`
+        : (boardSrc?.get(file)?.base ?? base);
+    const absent = changed && reviewRevision === null;
+    // A width chosen for the review draws changed web frames at it; canvas.json is untouched.
+    const w = changed && review?.compare ? comparedWidth(review.compare, board.w) : board.w;
+    const reload = boardSrc?.get(file)?.reload ?? 0;
+    const frameKey = wipe
+      ? `${file}|${base}:wipe:${w}:${reload}`
+      : `${file}|${base}:${side === 'before' && changed ? reviewRevision : 'after'}:${w}:${reload}`;
+    return { changed, wipe, side, reviewRevision, sourceBase, absent, w, frameKey };
+  };
   // Boards load only while they are on screen and large enough to read.
   const visible = (file: string) => {
     const board = canvas.boards[file];
@@ -341,6 +377,26 @@ export function DesignCanvas({
       top + board.h * view.z > -200
     );
   };
+  // Renders arrived, of every changed screen. Those on screen load first; once they have, the
+  // rest load too, so stepping to one finds it drawn.
+  let loadingDone = 0;
+  let loadingTotal = 0;
+  let pendingOnScreen = 0;
+  if (review)
+    for (const [file, board] of Object.entries(canvas.boards)) {
+      const { changed, absent, frameKey } = look(file, board);
+      if (!changed || absent) continue;
+      loadingTotal++;
+      if (ready.has(frameKey)) loadingDone++;
+      else if (visible(file)) pendingOnScreen++;
+    }
+  const [preload, setPreload] = useState(false);
+  useEffect(() => {
+    if (review && loadingTotal && !pendingOnScreen) setPreload(true);
+  }, [review, loadingTotal, pendingOnScreen]);
+  useEffect(() => {
+    onReviewLoading?.({ done: loadingDone, total: loadingTotal });
+  }, [onReviewLoading, loadingDone, loadingTotal]);
 
   const pick = useCallback(
     (file: string, event: React.MouseEvent): Selection => {
@@ -719,28 +775,12 @@ export function DesignCanvas({
         {Object.entries(canvas.boards).map(([file, board]) => {
           const on = selection?.board === file;
           const agent = agentBoards?.has(file);
-          const changed = review?.boards.get(file);
-          // Wipe needs both sides: a new or removed frame shows its one side as After or Before do.
-          const wipe = Boolean(
-            changed && review?.compare?.wipe && !changed.added && !changed.removed,
-          );
-          const side: ReviewSide | undefined =
-            changed && review?.compare?.wipe
-              ? changed.removed
-                ? 'before'
-                : 'after'
-              : review?.side;
-          const reviewRevision = changed && side ? frameSource(changed, side) : undefined;
-          const sourceBase =
-            changed && review && side === 'before'
-              ? `${review.api}/files/${reviewRevision}`
-              : (boardSrc?.get(file)?.base ?? base);
-          const absent = changed && reviewRevision === null;
+          const { changed, wipe, side, sourceBase, absent, w, frameKey } = look(file, board);
           const ticked = changed && review ? frameTicked(review, changed) : false;
           const tag = changed && review ? frameTag(review, changed) : null;
-          // A width chosen for the review draws changed web frames at it; canvas.json is untouched.
-          const w = changed && review?.compare ? comparedWidth(review.compare, board.w) : board.w;
           const dark = review?.compare?.dark;
+          // A changed screen is a blurred still at its own size until its render arrives.
+          const still = Boolean(changed && review && !absent && !ready.has(frameKey));
           // Pins show on the side they were made on; Wipe shows none.
           const pinSide = changed && review?.pins && !absent && !wipe ? side : undefined;
           const doc = pinSide ? frames.current.get(file)?.contentDocument : null;
@@ -764,7 +804,7 @@ export function DesignCanvas({
           return (
             <div
               key={file}
-              className={`dz-board${review && !changed ? ' dz-review-dim' : ''}${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}${typing?.board === file ? ' typing' : ''}`}
+              className={`dz-board${review && !changed ? ' dz-review-dim' : ''}${still ? ' still' : ''}${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}${typing?.board === file ? ' typing' : ''}`}
               style={{ left: board.x, top: board.y, width: w, height: board.h }}
             >
               <div
@@ -810,11 +850,11 @@ export function DesignCanvas({
               </div>
               {absent ? (
                 <div className="dz-board-placeholder">
-                  {changed.added ? 'New frame · no Before' : 'Removed frame · no After'}
+                  {changed?.added ? 'New frame · no Before' : 'Removed frame · no After'}
                 </div>
               ) : visible(file) && wipe && changed && review ? (
                 <WipeFrame
-                  key={`${base}:wipe:${w}:${boardSrc?.get(file)?.reload ?? 0}`}
+                  key={frameKey}
                   review={review}
                   board={{ ...changed, w }}
                   title={board.title ?? boardName(file)}
@@ -823,12 +863,16 @@ export function DesignCanvas({
                   zoom={view.z}
                   frames={frames}
                   dark={dark}
-                  onLoad={onFrameLoad}
+                  onLoad={() => {
+                    markReady(frameKey);
+                    onFrameLoad();
+                  }}
                 />
-              ) : visible(file) ? (
+              ) : visible(file) || (preload && changed && review) ? (
                 <BoardFrame
                   // The width remounts the frame, so its changed areas are measured once it loads.
-                  key={`${base}:${side === 'before' && changed ? reviewRevision : 'after'}:${w}:${boardSrc?.get(file)?.reload ?? 0}`}
+                  key={frameKey}
+                  eager={!visible(file)}
                   file={file}
                   title={board.title ?? boardName(file)}
                   src={`${sourceBase}/boards/${encodeURIComponent(file)}`}
@@ -836,11 +880,15 @@ export function DesignCanvas({
                   height={board.h}
                   frames={frames}
                   dark={dark}
-                  onLoad={onFrameLoad}
+                  onLoad={() => {
+                    if (changed) markReady(frameKey);
+                    onFrameLoad();
+                  }}
                 />
-              ) : (
+              ) : still ? null : (
                 <div className="dz-board-placeholder">{board.title ?? boardName(file)}</div>
               )}
+              {still && <BoardStill />}
               {visible(file) && changed && review && !absent && !wipe && (
                 <ReviewAreas
                   api={review.api}
@@ -1686,7 +1734,10 @@ function BoardFrame({
   dark,
   onLoad,
   onFrame,
+  eager = false,
 }: {
+  /** Load now, off screen: a changed screen in a review, ready for when it is stepped to. */
+  eager?: boolean;
   file: string;
   title: string;
   src: string;
@@ -1709,7 +1760,7 @@ function BoardFrame({
       src={opened}
       width={width}
       height={height}
-      loading="lazy"
+      loading={eager ? 'eager' : 'lazy'}
       ref={(element) => {
         frame.current = element;
         onFrame?.(element);
@@ -1722,6 +1773,77 @@ function BoardFrame({
         onLoad();
       }}
     />
+  );
+}
+
+/** A changed screen before its render arrives: the shape of a page, blurred, at the board's size. */
+function BoardStill() {
+  return (
+    <div className="dz-board-still" aria-hidden="true">
+      <i className="dz-still-side" />
+      <span className="dz-still-body">
+        <i />
+        <i />
+        <i />
+        <i />
+        <i />
+      </span>
+    </div>
+  );
+}
+
+/**
+ * A review whose canvas has not arrived yet: its changed screens at their own sizes as blurred
+ * stills, the first framed where the canvas will open on it.
+ */
+export function ReviewLoadingCanvas({ boards }: { boards: DesignReviewScreen[] }) {
+  const host = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setSize({ w: entry.contentRect.width, h: entry.contentRect.height }),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  // In one row, 120 apart: each board starts where the ones before it end.
+  const placed = boards.map((board, index) => ({
+    board,
+    left: boards.slice(0, index).reduce((sum, before) => sum + before.w + 120, 0),
+  }));
+  const first = placed[0]?.board;
+  const box = first ? { x: 0, y: 0, w: first.w, h: first.h } : null;
+  const framed = box && size ? fit(box, size.w, size.h) : null;
+  // As the canvas does: a box too big to read opens at a readable zoom on its corner.
+  const view = framed && (framed.z >= 0.2 ? framed : { z: 0.25, x: 48, y: 72 });
+  return (
+    <div ref={host} className="dz-canvas" aria-busy="true" aria-label="Loading the design">
+      {view && (
+        <div
+          className="dz-world dz-review-world"
+          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
+        >
+          {placed.map(({ board, left }) => (
+            <div
+              key={board.file}
+              className="dz-board still"
+              style={{ left, top: 0, width: board.w, height: board.h }}
+            >
+              <div
+                className="dz-board-name"
+                style={{ transform: `scale(${1 / view.z})`, maxWidth: board.w * view.z }}
+              >
+                <span className="dz-t">{board.title}</span>
+                <span className="dz-tag review">{board.added ? 'New' : 'Changed'}</span>
+              </div>
+              <BoardStill />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

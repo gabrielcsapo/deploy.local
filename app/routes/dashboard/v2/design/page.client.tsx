@@ -22,6 +22,7 @@ import {
 } from './Agent';
 import {
   DesignCanvas,
+  ReviewLoadingCanvas,
   layerElement,
   type Drawn,
   rectOf,
@@ -65,8 +66,10 @@ import {
   DesignMenu,
   LeftPanel,
   ReviewNotes,
+  ReviewPanel,
   RightPanel,
   useChanges,
+  type DesignTab,
   type LayerEdit,
 } from './Panels';
 import { DesignArtifact } from './artifact-context';
@@ -77,7 +80,17 @@ import { PickSheet } from './Pickers';
 import './style.css';
 import { ToReview } from './ToReview';
 import { documentReviewHref, reviewHref } from './review-model';
-import { CanvasReviewBar, PinBox, useCanvasReview, useReviewPins } from './CanvasReview';
+import {
+  PinBox,
+  ReviewDecisions,
+  ReviewDialogs,
+  ReviewStrip,
+  ReviewViewItems,
+  useCanvasReview,
+  useReviewDecision,
+  useReviewPins,
+} from './CanvasReview';
+import { reviewOrigin, type ReviewOrigin } from './review-origin';
 import {
   reviewProject,
   reviewBranch,
@@ -85,11 +98,15 @@ import {
   reviewCanvas,
   reviewKey,
   reviewFeedback,
+  openingTab,
+  openingTool,
   pinWhere,
   stepFrame,
+  tabAfterChoosing,
 } from './canvas-review-model';
 
 const noTokens: Tokens = { colors: [], textStyles: [] };
+const noBoards = new Set<string>();
 
 /** Keep the page's place in the URL without a navigation, so a link opens the same board. */
 function remember(values: Record<string, string | null>) {
@@ -326,7 +343,9 @@ function DesignCanvasPage({
       return !current;
     });
   }, [owner]);
-  const [tab, setTab] = useState<'edit' | 'prototype' | 'comments'>('edit');
+  // Review is a mode of the editor: its own tab, selected while reviewing. Edit and Comments open
+  // only when chosen.
+  const [tab, setTab] = useState<DesignTab>(openingTab(Boolean(reviewId)));
   const [commentFocus, setCommentFocus] = useState(0);
   const { comments, refresh: refreshComments } = useComments(projectId, artifact);
   const [askingOpen, setAsking] = useState(false);
@@ -443,7 +462,8 @@ function DesignCanvasPage({
     params.get('board') ? { board: params.get('board')!, layer: params.get('layer') } : null,
   );
   const [view, setView] = useState<View>({ x: 0, y: 0, z: 0.25 });
-  const [tool, setTool] = useState<Tool>('move');
+  // In a review, Comment is the tool in hand: a click leaves a pin, a drag marks an area.
+  const [tool, setTool] = useState<Tool>(openingTool(Boolean(reviewId), Boolean(local)));
   // In a waiting review, on After, the Comment tool makes pins the proposer is sent.
   const pins = useReviewPins(review);
   const pinsActive = Boolean(
@@ -461,6 +481,16 @@ function DesignCanvasPage({
   const [layersOpen, setLayersOpen] = useState(false);
   // Each panel closes on its own, for more canvas, and stays that way on this device.
   const [hidden, setHidden] = useState({ left: false, right: false });
+  // A review in a narrow window folds the left panel; its show button lays it over the canvas.
+  const [leftOpen, setLeftOpen] = useState(false);
+  // A review's way back is named after where it was opened from.
+  const [origin, setOrigin] = useState<ReviewOrigin | null>(null);
+  useEffect(() => {
+    if (reviewId)
+      setOrigin(reviewOrigin(window.location.pathname + window.location.search, document.referrer));
+  }, [reviewId]);
+  // Changed screens whose renders have arrived, of those being drawn, while a review opens.
+  const [frameLoading, setFrameLoading] = useState<{ done: number; total: number } | null>(null);
   // Read after hydration: the server has no browser storage.
   useEffect(
     () => setHidden({ left: designPanelHidden('left'), right: designPanelHidden('right') }),
@@ -533,13 +563,19 @@ function DesignCanvasPage({
   const pickWithTool = useCallback(
     (next: Selection) => {
       select(next);
-      // A pin is made on a changed screen; a click elsewhere only selects.
-      if (tool === 'comment' && next && !pinsActive) {
-        setTab('comments');
+      // A pin is made on a changed screen; a click elsewhere only selects. In a review nothing
+      // opens on its own: Review stays the tab.
+      const after = tabAfterChoosing(tab, {
+        reviewing: Boolean(reviewId),
+        commenting: tool === 'comment' && Boolean(next),
+        pinning: pinsActive,
+      });
+      if (after !== tab) {
+        setTab(after);
         setCommentFocus((n) => n + 1);
       }
     },
-    [select, tool, pinsActive],
+    [select, tool, pinsActive, reviewId, tab],
   );
   const openTask = (id: string) => {
     setTaskId(id);
@@ -898,6 +934,11 @@ function DesignCanvasPage({
     },
     [sections, select, fitTo],
   );
+  // A note that changed: the canvas moves to it, as it does to a review of notes only.
+  const showReviewNote = (id: string) => {
+    const note = canvas?.notes?.[id];
+    if (note) setView({ z: 1, x: 48 - note.x, y: 72 - note.y });
+  };
   const stepReview = (delta: number) => {
     const next = stepFrame(reviewBoards, activeReviewFile, delta);
     if (next) focusReviewFrame(next);
@@ -1171,10 +1212,48 @@ function DesignCanvasPage({
     agentAt.set(agent.board, here);
   }
   const empty = projects.data && !projects.data.projects.length;
+  const decision = useReviewDecision(
+    review,
+    reviewData ? reviewFeedback(reviewData, comments, ref, design.data?.commit) : '',
+    async (action) => {
+      await queue.current;
+      if (!reviewData) return '';
+      if (action !== 'changes') return '';
+      const latest = await request<{ comments: Comment[] }>(`${projectApi}/comments`);
+      return reviewFeedback(
+        reviewData,
+        latest.comments,
+        head.current?.ref ?? ref,
+        head.current?.commit ?? design.data?.commit,
+      );
+    },
+  );
+  // Below 1180 px a review folds the left panel; the button at the start of the strip shows it.
+  const showLeft = () => {
+    if (hidden.left) showPanel('left', true);
+    setLeftOpen(true);
+  };
+  const hideLeft = () => {
+    if (reviewId && leftOpen && window.matchMedia('(max-width: 1179px)').matches)
+      return setLeftOpen(false);
+    setLeftOpen(false);
+    showPanel('left', false);
+  };
+  const reviewAdded = useMemo(
+    () => new Set(reviewBoards.filter((board) => board.added).map((board) => board.file)),
+    [reviewBoards],
+  );
+  // Before the canvas arrives, the review already knows every changed screen: they are drawn at
+  // their own size, blurred, until the canvas puts them in place.
+  const loadingScreens = reviewId && reviewData && !(canvas && base);
+  // A new screen has no Before and a removed one no After: those show no still.
+  const shownScreens = reviewBoards.filter((board) =>
+    review.side === 'before' ? !board.added : !board.removed,
+  );
   return (
     <DesignArtifact.Provider value={artifact}>
       <div
-        className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${hidden.left ? ' left-hidden' : ''}${hidden.right ? ' right-hidden' : ''}${layersOpen ? ' layers-open' : ''}`}
+        className={`dz${selection || inAssets ? ' has-selection' : ''}${asking ? ' asking' : ''}${hidden.left ? ' left-hidden' : ''}${hidden.right ? ' right-hidden' : ''}${layersOpen ? ' layers-open' : ''}${reviewId ? ' reviewing' : ''}${leftOpen ? ' left-open' : ''}`}
         ref={stage}
       >
         <Dialog
@@ -1365,10 +1444,15 @@ function DesignCanvasPage({
           reviewing={reviewingBranches}
           onRef={chooseRef}
           onNewBranch={newBranch}
-          inReview={inReviewBoards}
+          // The review on screen marks its boards with dots, not as in review.
+          inReview={reviewId ? noBoards : inReviewBoards}
           agentAt={agentAt}
-          onHide={() => showPanel('left', false)}
+          onHide={hideLeft}
           onCloseSheet={() => setLayersOpen(false)}
+          back={(reviewId && origin) || undefined}
+          branchStatus={reviewId && reviewData?.item.state === 'waiting' ? 'in review' : undefined}
+          added={reviewId ? reviewAdded : undefined}
+          pageDots={Boolean(reviewId)}
           loose={loose}
           mark={mark}
           onLoose={showLoose}
@@ -1399,24 +1483,10 @@ function DesignCanvasPage({
             </div>
           )}
           {reviewId && (
-            <CanvasReviewBar
-              review={review}
-              compare
-              suggestions={
-                reviewData ? reviewFeedback(reviewData, comments, ref, design.data?.commit) : ''
-              }
-              beforeDecision={async (action) => {
-                await queue.current;
-                if (!reviewData) return '';
-                if (action !== 'changes') return '';
-                const latest = await request<{ comments: Comment[] }>(`${projectApi}/comments`);
-                return reviewFeedback(
-                  reviewData,
-                  latest.comments,
-                  head.current?.ref ?? ref,
-                  head.current?.commit ?? design.data?.commit,
-                );
-              }}
+            <ReviewStrip
+              decision={decision}
+              loading={loadingScreens ? { done: 0, total: shownScreens.length } : frameLoading}
+              onShowLeft={showLeft}
             />
           )}
           {!reviewId &&
@@ -1450,9 +1520,9 @@ function DesignCanvasPage({
                 </a>
               </div>
             )}
-          {(hidden.left || hidden.right) && (
+          {((hidden.left && !reviewId) || hidden.right) && (
             <div className="dz-panel-shows">
-              {hidden.left && (
+              {hidden.left && !reviewId && (
                 <button
                   type="button"
                   className="dz-panel-show left"
@@ -1522,14 +1592,9 @@ function DesignCanvasPage({
                               making: pinsActive && tool === 'comment',
                               waiting: reviewData.item.state === 'waiting',
                               open: pins.open,
-                              onMake: (draft) => {
-                                pins.start(draft);
-                                setTab('comments');
-                              },
-                              onOpen: (pin) => {
-                                pins.edit(pin);
-                                setTab('comments');
-                              },
+                              // The pin's box opens beside it; Review stays the tab.
+                              onMake: pins.start,
+                              onOpen: pins.edit,
                               box: pins.open && (
                                 <PinBox
                                   pins={pins}
@@ -1555,6 +1620,7 @@ function DesignCanvasPage({
                   : undefined
               }
               onFollow={reviewId ? focusReviewFrame : undefined}
+              onReviewLoading={reviewId ? setFrameLoading : undefined}
               agents={agents}
               boardSrc={boardSrc}
               onEditText={
@@ -1590,6 +1656,8 @@ function DesignCanvasPage({
                   : null
               }
             />
+          ) : reviewId ? (
+            <ReviewLoadingCanvas boards={shownScreens} />
           ) : (
             <Skeleton block label="Loading the design" />
           )}
@@ -1851,6 +1919,22 @@ function DesignCanvasPage({
           propose={propose}
           review={reviewData}
           reviewing={Boolean(reviewId)}
+          decisions={reviewId ? <ReviewDecisions decision={decision} /> : undefined}
+          reviewPanel={
+            reviewId ? (
+              reviewData ? (
+                <ReviewPanel
+                  review={reviewData}
+                  active={reviewBoards[activeReviewIndex]?.file}
+                  onScreen={focusReviewFrame}
+                  onNote={showReviewNote}
+                />
+              ) : (
+                <Skeleton rows={8} label="Loading what changed" />
+              )
+            ) : undefined
+          }
+          zoomExtras={reviewId ? <ReviewViewItems review={review} /> : undefined}
           reviewSide={review.side}
           agents={agents}
           onComment={() => {
@@ -1932,7 +2016,11 @@ function DesignCanvasPage({
             ) : null
           }
         />
-        <div className={`dz-sheet-scrim${selection ? ' on' : ''}`} onClick={() => select(null)} />
+        <div
+          className={`dz-sheet-scrim${selection ? ' on' : ''}`}
+          onClick={() => (reviewId ? setLeftOpen(false) : select(null))}
+        />
+        {reviewId && <ReviewDialogs decision={decision} />}
         <PickSheet
           open={pickSheet}
           onClose={() => setPickSheet(false)}

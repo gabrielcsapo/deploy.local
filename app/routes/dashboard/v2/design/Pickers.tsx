@@ -261,6 +261,7 @@ export function BranchPicker({
   owner,
   reviewing,
   changed,
+  status,
   branchRemoved = false,
   onRef,
   onNewBranch,
@@ -271,6 +272,8 @@ export function BranchPicker({
   reviewing: Set<string>;
   /** Boards changed on the branch on screen. */
   changed: number;
+  /** Said after the branch in place of its changes, such as "in review". */
+  status?: string;
   /** A landed review whose branch was removed: its design is on main. */
   branchRemoved?: boolean;
   onRef: (ref: string) => void;
@@ -291,12 +294,14 @@ export function BranchPicker({
           {branchRemoved ? 'main' : current === 'HEAD' ? 'main' : current}
           {branchRemoved
             ? ' · branch removed'
-            : changed > 0
-              ? ` · ${changed} changed`
-              : current !== 'HEAD' &&
-                  branches.find((branch) => branch.name === current)?.edits === 0
-                ? ' · no edits yet'
-                : ''}
+            : status
+              ? ` · ${status}`
+              : changed > 0
+                ? ` · ${changed} changed`
+                : current !== 'HEAD' &&
+                    branches.find((branch) => branch.name === current)?.edits === 0
+                  ? ' · no edits yet'
+                  : ''}
         </span>
         <Icon name="down" size={10} />
       </button>

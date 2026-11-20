@@ -148,12 +148,12 @@ export function reviewProgress(
   if ((review.round ?? 1) <= 1)
     return {
       round: null,
-      count: `${units.filter((unit) => unit.seen).length} of ${units.length} approved`,
+      count: `${units.filter((unit) => unit.seen).length} of ${units.length} seen`,
     };
   const changed = units.filter((unit) => unit.changedSinceReview);
   return {
     round: `round ${review.round}`,
-    count: `${changed.filter((unit) => unit.seen).length} of ${changed.length} changed screen${changed.length === 1 ? '' : 's'} approved`,
+    count: `${changed.filter((unit) => unit.seen).length} of ${changed.length} changed screen${changed.length === 1 ? '' : 's'} seen`,
   };
 }
 
@@ -419,4 +419,26 @@ export function frameTicked(review: Pick<DesignReview, 'parts'>, board: DesignRe
   return (
     board.seen && (review.parts ?? []).every((part) => part.lookAt.file !== board.file || part.seen)
   );
+}
+
+/** The right panel's tabs. Review is there only while reviewing, before Edit and Comments. */
+export type PanelTab = 'review' | 'edit' | 'prototype' | 'comments';
+
+/** Review is a mode of the editor: a review opens on its Review tab, the editor on Edit. */
+export const openingTab = (reviewing: boolean): PanelTab => (reviewing ? 'review' : 'edit');
+
+/** In a review on deploy.local, Comment is the tool in hand: a click leaves a pin. */
+export const openingTool = (reviewing: boolean, local: boolean) =>
+  reviewing && !local ? ('comment' as const) : ('move' as const);
+
+/**
+ * The tab after a board is chosen, on the canvas, in a list or by stepping. In a review nothing
+ * opens on its own; in the editor the Comment tool opens Comments, unless it is making a pin.
+ */
+export function tabAfterChoosing(
+  tab: PanelTab,
+  { reviewing, commenting, pinning }: { reviewing: boolean; commenting: boolean; pinning: boolean },
+): PanelTab {
+  if (reviewing) return tab;
+  return commenting && !pinning ? 'comments' : tab;
 }

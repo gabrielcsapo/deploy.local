@@ -19,7 +19,6 @@ import {
   reviewUnits,
   reviewWidthOptions,
   seenFrame,
-  widthLabel,
   type PinDraft,
   type ReviewCompare,
   type ReviewSide,
@@ -199,45 +198,18 @@ export function ReviewAreas({
   );
 }
 
-/** Existing decisions and exceptional states, reached from the canvas bar. */
-export function CanvasReviewBar({
-  review,
-  suggestions,
-  beforeDecision,
-  progress,
-  noBefore = false,
-  compare = false,
-}: {
-  review: CanvasReview;
-  suggestions: string;
-  beforeDecision: (action: 'approve' | 'changes' | 'update') => Promise<string>;
-  /** What the heading counts instead of approved frames: a document's changed blocks. */
-  progress?: ReactNode;
-  /** Nothing on main to compare with: Before cannot be chosen. */
-  noBefore?: boolean;
-  /** A canvas of frames: Wipe, a width and Dark to look at them with. */
-  compare?: boolean;
-}) {
-  const { data, busy, setBusy, setError, load, api, item } = review;
+/**
+ * A review's decisions and exceptional states: what the heading says, the buttons that decide,
+ * and the dialogs they open. The canvas shows them in its review strip and right panel; a
+ * document shows them in one bar (CanvasReviewBar).
+ */
+export function useReviewDecision(
+  review: CanvasReview,
+  suggestions: string,
+  beforeDecision: (action: 'approve' | 'changes' | 'update') => Promise<string>,
+) {
+  const { data, setBusy, setError, load, api, item } = review;
   const inbox = useInbox();
-  const agentName = useAgentName();
-  const bar = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const element = bar.current;
-    const stage = element?.parentElement;
-    if (!element || !stage) return;
-    const observer = new ResizeObserver(([entry]) =>
-      stage.style.setProperty(
-        '--dz-review-bar-height',
-        `${entry.borderBoxSize[0]?.blockSize ?? element.offsetHeight}px`,
-      ),
-    );
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      stage.style.removeProperty('--dz-review-bar-height');
-    };
-  }, []);
   const [dialog, setDialog] = useState<'approve' | 'send' | 'conflicts' | 'build' | null>(null);
   const [feedback, setFeedback] = useState('');
   const [conflictFile, setConflictFile] = useState<string | null>(null);
@@ -249,22 +221,6 @@ export function CanvasReviewBar({
   // A shared part counts once, however many screens show it.
   const units = data ? reviewUnits(data) : [];
   const count = data ? reviewProgress(data) : null;
-  const [widthMenu, setWidthMenu] = useState(false);
-  const widthBox = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!widthMenu) return;
-    const away = (event: MouseEvent) => {
-      if (!widthBox.current?.contains(event.target as Node)) setWidthMenu(false);
-    };
-    const escape = (event: KeyboardEvent) => event.key === 'Escape' && setWidthMenu(false);
-    window.addEventListener('mousedown', away);
-    window.addEventListener('keydown', escape);
-    return () => {
-      window.removeEventListener('mousedown', away);
-      window.removeEventListener('keydown', escape);
-    };
-  }, [widthMenu]);
-  const view = review.compare;
   const unticked = units.filter((unit) => !unit.seen);
   const open = data?.pins.filter((pin) => !pin.resolved) ?? [];
   const resolutions = data?.resolutions ?? [];
@@ -313,22 +269,10 @@ export function CanvasReviewBar({
       setBusy(false);
     }
   };
-  const undo = async () => {
+  const act = (path: 'undo' | 'task') => async () => {
     setBusy(true);
     try {
-      await request(`${api}/review/undo`, { method: 'POST', body: JSON.stringify({ item }) });
-      inbox.retry();
-      await load();
-    } catch (failure) {
-      setError((failure as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const startTask = async () => {
-    setBusy(true);
-    try {
-      await request(`${api}/review/task`, { method: 'POST', body: JSON.stringify({ item }) });
+      await request(`${api}/review/${path}`, { method: 'POST', body: JSON.stringify({ item }) });
       inbox.retry();
       await load();
     } catch (failure) {
@@ -357,196 +301,218 @@ export function CanvasReviewBar({
       setBusy(false);
     }
   };
+  return {
+    review,
+    suggestions,
+    dialog,
+    setDialog,
+    feedback,
+    setFeedback,
+    conflictFile,
+    setConflictFile,
+    units,
+    count,
+    unticked,
+    open,
+    resolutions,
+    resolved,
+    waiting,
+    notLanded,
+    approved,
+    pending,
+    askToUpdate,
+    kept,
+    document,
+    approve,
+    record,
+    building,
+    build,
+    next,
+    decide,
+    undo: act('undo'),
+    startTask: act('task'),
+    choice,
+  };
+}
+export type ReviewDecision = ReturnType<typeof useReviewDecision>;
+
+/** The title, who proposed it and how far the review is, or where an answered review stands. */
+export function ReviewHeading({
+  decision,
+  progress,
+}: {
+  decision: ReviewDecision;
+  /** What the heading counts instead of seen frames: a document's changed blocks. */
+  progress?: ReactNode;
+}) {
+  const { data } = decision.review;
+  const { notLanded, kept, approved, count, pending, record, document, building } = decision;
+  return (
+    <span className="dz-review-heading">
+      {data ? (
+        <strong>{data.title}</strong>
+      ) : (
+        <span className="dz-review-loading" role="status">
+          Loading the review
+        </span>
+      )}
+      {data && notLanded && (
+        <span>
+          {' '}
+          · <strong>Did not reach main</strong> · main changed first
+        </span>
+      )}
+      {data && kept && (
+        <span>
+          {' '}
+          · from {data.proposer.name} · {kept.notes} note{kept.notes === 1 ? '' : 's'}{' '}
+          {kept.delivery === 'terminal'
+            ? `sent to a terminal on ${kept.computer}`
+            : 'kept · nobody is working on it'}
+        </span>
+      )}
+      {data && !approved && !notLanded && !kept && (
+        <span>
+          {' '}
+          · from {data.proposer.name}
+          <span className="dz-review-progress">
+            {' '}
+            ·{' '}
+            {progress ??
+              (count?.round ? (
+                <>
+                  {count.round} · <span className="dz-review-count">{count.count}</span>
+                </>
+              ) : (
+                count?.count
+              ))}
+          </span>
+        </span>
+      )}
+      {data && approved && (
+        <span>
+          {' '}
+          · <Icon name="check" size={14} className="text-success align-middle" />{' '}
+          {pending
+            ? `Approved · on main in ${record?.seconds} s`
+            : `Approved · on main${data.landing?.commit ? ` as ${data.landing.commit.slice(0, 7)}` : ''}${document ? '' : ' · '}`}
+          {!pending &&
+            !document &&
+            (building?.taskId ? (
+              <a href={`/dashboard/tasks/${encodeURIComponent(building.taskId)}`}>
+                {building.text}
+              </a>
+            ) : (
+              building?.text
+            ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Ask for changes and Approve design while it waits; afterwards, what can still be done. */
+export function ReviewDecisions({ decision }: { decision: ReviewDecision }) {
+  const { data, busy, api, load } = decision.review;
+  const { notLanded, kept, waiting, resolutions, resolved, approved, pending, build, next } =
+    decision;
+  const { document, setDialog } = decision;
+  // While the review loads, its decisions hold their place.
+  if (!data)
+    return (
+      <>
+        <Action variant="secondary" disabled>
+          Ask for changes
+        </Action>
+        <Action variant="primary" disabled>
+          {decision.approve}
+        </Action>
+      </>
+    );
+  if (notLanded)
+    return (
+      <>
+        <Action variant="secondary" disabled={busy} onClick={() => void decision.decide('update')}>
+          {decision.askToUpdate}
+        </Action>
+        <Action variant="primary" disabled={busy} onClick={() => setDialog('conflicts')}>
+          Choose what to keep
+        </Action>
+      </>
+    );
+  if (kept)
+    return kept.delivery === 'nobody' ? (
+      <Action variant="primary" disabled={busy} onClick={() => void decision.startTask()}>
+        Start a task
+      </Action>
+    ) : null;
+  if (waiting)
+    return (
+      <>
+        {resolutions.length > 0 && (
+          <Action onClick={() => setDialog('conflicts')}>{resolved.label}</Action>
+        )}
+        <Action variant="secondary" disabled={busy} onClick={() => setDialog('send')}>
+          Ask for changes
+        </Action>
+        <Action
+          variant="primary"
+          disabled={busy}
+          onClick={() => setDialog(!resolved.canContinue ? 'conflicts' : 'approve')}
+        >
+          {decision.approve}
+        </Action>
+      </>
+    );
   return (
     <>
-      <div ref={bar} className="dl-design-waiting-banner dz-review-bar">
-        <span className="dz-review-heading">
-          {data ? <strong>{data.title}</strong> : <Skeleton rows={1} label="Loading the review" />}
-          {data && notLanded && (
-            <span>
-              {' '}
-              · <strong>Did not reach main</strong> · main changed first
-            </span>
-          )}
-          {data && kept && (
-            <span>
-              {' '}
-              · from {data.proposer.name} · {kept.notes} note{kept.notes === 1 ? '' : 's'}{' '}
-              {kept.delivery === 'terminal'
-                ? `sent to a terminal on ${kept.computer}`
-                : 'kept · nobody is working on it'}
-            </span>
-          )}
-          {data && !approved && !notLanded && !kept && (
-            <span>
-              {' '}
-              · from {data.proposer.name} ·{' '}
-              {progress ??
-                (count?.round ? (
-                  <>
-                    {count.round} · <span className="dz-review-count">{count.count}</span>
-                  </>
-                ) : (
-                  count?.count
-                ))}
-            </span>
-          )}
-          {data && approved && (
-            <span>
-              {' '}
-              · <Icon name="check" size={14} className="text-success align-middle" />{' '}
-              {pending
-                ? `Approved · on main in ${record?.seconds} s`
-                : `Approved · on main${data.landing?.commit ? ` as ${data.landing.commit.slice(0, 7)}` : ''}${document ? '' : ' · '}`}
-              {!pending &&
-                !document &&
-                (building?.taskId ? (
-                  <a href={`/dashboard/tasks/${encodeURIComponent(building.taskId)}`}>
-                    {building.text}
-                  </a>
-                ) : (
-                  building?.text
-                ))}
-            </span>
-          )}
+      {!approved && (
+        <span className="dl-meta">
+          {data.item.answer?.actionId === 'changes'
+            ? `Sent to ${data.proposer.name}`
+            : 'Asked to update'}
         </span>
-        <Seg
-          label="Review version"
-          value={compare && view.wipe ? 'wipe' : review.side}
-          options={[
-            { value: 'before', label: 'Before', disabled: noBefore },
-            { value: 'after', label: 'After' },
-            ...(compare ? [{ value: 'wipe', label: 'Wipe', disabled: noBefore }] : []),
-          ]}
-          onChange={(value) => {
-            // Wipe shows both sides; edits and notes follow After, as they do outside it.
-            review.setCompare((current) => ({ ...current, wipe: value === 'wipe' }));
-            review.setSide(value === 'before' ? 'before' : 'after');
-          }}
-        />
-        {compare && (
-          <span className="dz-review-cmp">
-            <span className="dz-zoom" ref={widthBox}>
-              <Action
-                variant="quiet"
-                aria-label="Width"
-                aria-haspopup="menu"
-                aria-expanded={widthMenu}
-                onClick={() => setWidthMenu(!widthMenu)}
-              >
-                {widthLabel(view)} <Icon name="down" size={12} />
-              </Action>
-              {widthMenu && (
-                <div
-                  className="dl-menu dz-zoom-menu dz-review-width-menu"
-                  role="menu"
-                  aria-label="Width"
-                  onClick={() => setWidthMenu(false)}
-                >
-                  {reviewWidthOptions.map(({ width, label }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className="dl-menu-item"
-                      role="menuitemradio"
-                      aria-checked={view.width === width}
-                      onClick={() => review.setCompare((current) => ({ ...current, width }))}
-                    >
-                      {label}
-                      {view.width === width && (
-                        <span className="dl-end">
-                          <Icon name="tick" size={14} />
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </span>
-            <Action
-              variant="quiet"
-              aria-pressed={view.dark}
-              onClick={() => review.setCompare((current) => ({ ...current, dark: !current.dark }))}
-            >
-              Dark
-            </Action>
-          </span>
-        )}
-        {!data ? (
-          <Skeleton label="Loading review decisions" />
-        ) : notLanded ? (
-          <>
-            <Action variant="secondary" disabled={busy} onClick={() => void decide('update')}>
-              {askToUpdate}
-            </Action>
-            <Action variant="primary" disabled={busy} onClick={() => setDialog('conflicts')}>
-              Choose what to keep
-            </Action>
-          </>
-        ) : kept ? (
-          kept.delivery === 'nobody' && (
-            <Action variant="primary" disabled={busy} onClick={() => void startTask()}>
-              Start a task
-            </Action>
-          )
-        ) : waiting ? (
-          <>
-            {resolutions.length > 0 && (
-              <Action onClick={() => setDialog('conflicts')}>{resolved.label}</Action>
-            )}
-            <Action variant="secondary" disabled={busy} onClick={() => setDialog('send')}>
-              Ask for changes
-            </Action>
-            <Action
-              variant="primary"
-              disabled={busy}
-              onClick={() => setDialog(!resolved.canContinue ? 'conflicts' : 'approve')}
-            >
-              {approve}
-            </Action>
-          </>
-        ) : (
-          <>
-            {!approved && (
-              <span className="dl-meta">
-                {data.item.answer?.actionId === 'changes'
-                  ? `Sent to ${data.proposer.name}`
-                  : 'Asked to update'}
-              </span>
-            )}
-            {approved && !document && (
-              <BuildDesign key={data.id} review={data} api={api} refresh={() => void load()} />
-            )}
-            {pending && (
-              <Action disabled={busy} onClick={() => void undo()}>
-                Undo
-              </Action>
-            )}
-            {build && !document && (
-              <Action onClick={() => setDialog('build')}>Built design differs</Action>
-            )}
-            {!approved && data.item.taskId && (
-              <a
-                className="dl-btn quiet"
-                href={`/dashboard/tasks/${encodeURIComponent(data.item.taskId)}`}
-              >
-                Open the task
-              </a>
-            )}
-            {!pending && !approved && (
-              <a
-                className="dl-btn quiet"
-                href={next ? inboxItemHref(next) : '/dashboard/design?view=review'}
-              >
-                {next ? 'Next review' : 'Done'}
-              </a>
-            )}
-          </>
-        )}
-      </div>
-      {review.error && (
+      )}
+      {approved && !document && (
+        <BuildDesign key={data.id} review={data} api={api} refresh={() => void load()} />
+      )}
+      {pending && (
+        <Action disabled={busy} onClick={() => void decision.undo()}>
+          Undo
+        </Action>
+      )}
+      {build && !document && (
+        <Action onClick={() => setDialog('build')}>Built design differs</Action>
+      )}
+      {!approved && data.item.taskId && (
+        <a
+          className="dl-btn quiet"
+          href={`/dashboard/tasks/${encodeURIComponent(data.item.taskId)}`}
+        >
+          Open the task
+        </a>
+      )}
+      {!pending && !approved && (
+        <a
+          className="dl-btn quiet"
+          href={next ? inboxItemHref(next) : '/dashboard/design?view=review'}
+        >
+          {next ? 'Next review' : 'Done'}
+        </a>
+      )}
+    </>
+  );
+}
+
+/** A failed read or decision, and the 30 seconds an approval can still be undone in. */
+export function ReviewNotices({ decision }: { decision: ReviewDecision }) {
+  const { error, load } = decision.review;
+  const { record, pending, building } = decision;
+  return (
+    <>
+      {error && (
         <div className="dz-error" role="alert">
-          {review.error} <Action onClick={() => void load()}>Retry</Action>
+          {error} <Action onClick={() => void load()}>Retry</Action>
         </div>
       )}
       {record && pending && (
@@ -554,6 +520,19 @@ export function CanvasReviewBar({
           <b>You approved this</b> {record.text} {building?.text}
         </div>
       )}
+    </>
+  );
+}
+
+/** Approve, Ask for changes, Changed on main too and Built design differs. */
+export function ReviewDialogs({ decision }: { decision: ReviewDecision }) {
+  const { data, busy, setBusy, setError, api, item } = decision.review;
+  const inbox = useInbox();
+  const agentName = useAgentName();
+  const { dialog, setDialog, feedback, setFeedback, conflictFile, setConflictFile } = decision;
+  const { unticked, open, suggestions, approve, resolutions, resolved, waiting, build } = decision;
+  return (
+    <>
       <Dialog
         open={dialog === 'approve'}
         title={approve}
@@ -561,7 +540,11 @@ export function CanvasReviewBar({
         actions={
           <>
             <Action onClick={() => setDialog(null)}>Cancel</Action>
-            <Action variant="primary" disabled={busy} onClick={() => void decide('approve')}>
+            <Action
+              variant="primary"
+              disabled={busy}
+              onClick={() => void decision.decide('approve')}
+            >
               {unticked.length || open.length || suggestions ? 'Approve anyway' : approve}
             </Action>
           </>
@@ -599,7 +582,7 @@ export function CanvasReviewBar({
             <Action
               variant="primary"
               disabled={busy || (!feedback.trim() && !suggestions && !open.length)}
-              onClick={() => void decide('changes')}
+              onClick={() => void decision.decide('changes')}
             >
               Send
             </Action>
@@ -630,8 +613,8 @@ export function CanvasReviewBar({
         onClose={() => setDialog(null)}
         actions={
           <>
-            <Action disabled={busy} onClick={() => void decide('update')}>
-              {askToUpdate}
+            <Action disabled={busy} onClick={() => void decision.decide('update')}>
+              {decision.askToUpdate}
             </Action>
             <Action
               variant="primary"
@@ -681,7 +664,9 @@ export function CanvasReviewBar({
                     variant="secondary"
                     disabled={busy || !waiting}
                     aria-pressed={entry.choice === 'main'}
-                    onClick={() => void choice(entry.file, entry.choice === 'main' ? null : 'main')}
+                    onClick={() =>
+                      void decision.choice(entry.file, entry.choice === 'main' ? null : 'main')
+                    }
                   >
                     Keep main’s
                   </Action>
@@ -690,7 +675,10 @@ export function CanvasReviewBar({
                     disabled={busy || !waiting}
                     aria-pressed={entry.choice === 'proposal'}
                     onClick={() =>
-                      void choice(entry.file, entry.choice === 'proposal' ? null : 'proposal')
+                      void decision.choice(
+                        entry.file,
+                        entry.choice === 'proposal' ? null : 'proposal',
+                      )
                     }
                   >
                     Keep this proposal’s
@@ -727,6 +715,187 @@ export function CanvasReviewBar({
           />
         )}
       </Dialog>
+    </>
+  );
+}
+
+/** Before and After, and Wipe on a canvas: what the review shows. */
+function ReviewVersion({
+  review,
+  noBefore,
+  wipe,
+}: {
+  review: CanvasReview;
+  noBefore: boolean;
+  wipe: boolean;
+}) {
+  return (
+    <Seg
+      label="Review version"
+      value={wipe && review.compare.wipe ? 'wipe' : review.side}
+      options={[
+        { value: 'before', label: 'Before', disabled: noBefore },
+        { value: 'after', label: 'After' },
+        ...(wipe ? [{ value: 'wipe', label: 'Wipe', disabled: noBefore }] : []),
+      ]}
+      onChange={(value) => {
+        // Wipe shows both sides; edits and notes follow After, as they do outside it.
+        review.setCompare((current) => ({ ...current, wipe: value === 'wipe' }));
+        review.setSide(value === 'before' ? 'before' : 'after');
+      }}
+    />
+  );
+}
+
+/** Keeps --dz-review-bar-height on the stage, for what sits below a bar of changing height. */
+function useBarHeight() {
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = bar.current;
+    const stage = element?.parentElement;
+    if (!element || !stage) return;
+    const observer = new ResizeObserver(([entry]) =>
+      stage.style.setProperty(
+        '--dz-review-bar-height',
+        `${entry.borderBoxSize[0]?.blockSize ?? element.offsetHeight}px`,
+      ),
+    );
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      stage.style.removeProperty('--dz-review-bar-height');
+    };
+  }, []);
+  return bar;
+}
+
+/** A document's review: one bar with the heading, Before and After, and the decisions. */
+export function CanvasReviewBar({
+  review,
+  suggestions,
+  beforeDecision,
+  progress,
+  noBefore = false,
+}: {
+  review: CanvasReview;
+  suggestions: string;
+  beforeDecision: (action: 'approve' | 'changes' | 'update') => Promise<string>;
+  /** What the heading counts instead of seen frames: a document's changed blocks. */
+  progress?: ReactNode;
+  /** Nothing on main to compare with: Before cannot be chosen. */
+  noBefore?: boolean;
+}) {
+  const decision = useReviewDecision(review, suggestions, beforeDecision);
+  const bar = useBarHeight();
+  return (
+    <>
+      <div ref={bar} className="dl-design-waiting-banner dz-review-bar">
+        <ReviewHeading decision={decision} progress={progress} />
+        <ReviewVersion review={review} noBefore={noBefore} wipe={false} />
+        <ReviewDecisions decision={decision} />
+      </div>
+      <ReviewNotices decision={decision} />
+      <ReviewDialogs decision={decision} />
+    </>
+  );
+}
+
+/**
+ * Review is a mode of the editor: the strip above the canvas says what is being reviewed, by whom
+ * and how far along, with Before / After / Wipe at its end. The decisions are in the right panel;
+ * on a phone, where that panel does not show, they come here too.
+ */
+export function ReviewStrip({
+  decision,
+  loading,
+  onShowLeft,
+  noBefore = false,
+}: {
+  decision: ReviewDecision;
+  /** Screens whose renders have arrived, of those being drawn; shown until all have. */
+  loading?: { done: number; total: number } | null;
+  /** The left panel is folded: its show button starts the strip. */
+  onShowLeft?: () => void;
+  noBefore?: boolean;
+}) {
+  const bar = useBarHeight();
+  const loadingShown = loading && loading.total > 0 && loading.done < loading.total;
+  return (
+    <>
+      <div
+        ref={bar}
+        className={`dl-design-waiting-banner dz-review-strip${loadingShown ? ' loading' : ''}`}
+      >
+        {onShowLeft && (
+          <button
+            type="button"
+            className="dl-icon-btn dz-strip-show-left"
+            aria-label="Show left panel"
+            title="Show left panel"
+            onClick={onShowLeft}
+          >
+            <Icon name="sidebar" size={15} />
+          </button>
+        )}
+        <ReviewHeading decision={decision} />
+        {loadingShown && (
+          <span className="dz-strip-loading" role="status">
+            Loading {loading.done} of {loading.total} screens
+            <span className="dl-bar" aria-hidden="true">
+              <span style={{ width: `${Math.round((loading.done / loading.total) * 100)}%` }} />
+            </span>
+          </span>
+        )}
+        <span className="dl-grow" />
+        <ReviewVersion review={decision.review} noBefore={noBefore} wipe />
+        <span className="dz-strip-decide">
+          <ReviewDecisions decision={decision} />
+        </span>
+      </div>
+      <ReviewNotices decision={decision} />
+    </>
+  );
+}
+
+/** Width and Dark, for looking only: in the zoom menu of a canvas review. */
+export function ReviewViewItems({ review }: { review: CanvasReview }) {
+  const view = review.compare;
+  return (
+    <>
+      <div className="dz-menu-label" role="presentation">
+        Width
+      </div>
+      {reviewWidthOptions.map(({ width, label }) => (
+        <button
+          key={label}
+          type="button"
+          className="dl-menu-item"
+          role="menuitemradio"
+          aria-checked={view.width === width}
+          onClick={() => review.setCompare((current) => ({ ...current, width }))}
+        >
+          {label}
+          {view.width === width && (
+            <span className="dl-end">
+              <Icon name="tick" size={14} />
+            </span>
+          )}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="dl-menu-item"
+        role="menuitemcheckbox"
+        aria-checked={view.dark}
+        onClick={() => review.setCompare((current) => ({ ...current, dark: !current.dark }))}
+      >
+        Dark
+        {view.dark && (
+          <span className="dl-end">
+            <Icon name="tick" size={14} />
+          </span>
+        )}
+      </button>
     </>
   );
 }

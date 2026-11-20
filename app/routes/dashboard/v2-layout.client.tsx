@@ -33,6 +33,7 @@ import { openSearch } from './v2/search/model.ts';
 import { changeDesktopUpdateNavigation, useDesktopUpdate } from './v2/data/desktop-update';
 import { DesktopUpdateRow } from './v2/DesktopUpdate';
 import { SidebarTasks } from './v2/SidebarTasks';
+import { rememberPlace } from './v2/design/review-origin';
 
 function useSidebarData() {
   return {
@@ -314,7 +315,7 @@ function PageLoading() {
 function V2Shell() {
   const seed = useDataSeed();
   const data = useSidebarData();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [navigation, setNavigation] = useState({ collapsed: false, updateOpen: false });
   const { collapsed, updateOpen } = navigation;
   const showRail = collapsed && !updateOpen;
@@ -364,6 +365,8 @@ function V2Shell() {
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+  // Each place shown, so a review can name the one it was opened from as its way back.
+  useEffect(() => rememberPlace(pathname + search), [pathname, search]);
   useEffect(() => {
     const dialog = drawer.current;
     if (!dialog) return;
