@@ -11,10 +11,9 @@ import { useInbox } from '../data/hooks';
 import { request, useData } from '../projects/data';
 import { designApi } from '../design/model';
 import { documentReviewHref, reviewHref } from '../design/review-model';
-import { cardRegion } from '../design/Review';
 import { previewKey, useReviewPreviews, type Preview } from '../design/ReviewPreviews';
 import { KindTile } from './WaitingRows';
-import { namedList, notesLabel, screensLabel, waitingAge } from './waiting';
+import { namedList, notesLabel, screensLabel, shotRegion, waitingAge } from './waiting';
 
 const noScreens: DesignReviewScreen[] = [];
 /** How many changed screens the detail shows as Before and After; the rest are summed up. */
@@ -127,16 +126,17 @@ export function DesignDetail({
             <p className="dl-asks-summary">{summary?.summary ?? review.data?.summary}</p>
           )}
           {stale && item.state === 'waiting' && (
-            <Banner
-              title="Some of these screens changed on main since"
-              action={
+            <div className="dl-banner" role="status">
+              <span className="dl-t">
+                <span>Some of these screens changed on main since</span>
+                <span>Ask to update first, or review them as they are.</span>
+              </span>
+              <span className="dl-end">
                 <Action disabled={busy} onClick={() => void decide('update')}>
                   Ask to update
                 </Action>
-              }
-            >
-              Ask to update first, or review them as they are.
-            </Banner>
+              </span>
+            </div>
           )}
           {error && <Banner kind="danger" title={error} />}
           {review.error && (
@@ -317,7 +317,7 @@ function Shot({
         <Skeleton block label={`Loading ${screen.title}`} />
       </div>
     );
-  const region = cardRegion(preview, side);
+  const region = shotRegion(preview, side);
   return (
     <div className="dl-asks-shot">
       <svg
@@ -328,6 +328,23 @@ function Shot({
         preserveAspectRatio="xMidYMid slice"
       >
         <image href={src} width={preview.width} height={preview.height} />
+        {/* After outlines what changed, as the review's Show changes does. */}
+        {side === 'after' &&
+          preview.areas.map(
+            (area, index) =>
+              area.after && (
+                <rect
+                  key={index}
+                  className="v2-asks-change"
+                  x={area.after.x - 4}
+                  y={area.after.y - 4}
+                  width={area.after.w + 8}
+                  height={area.after.h + 8}
+                  rx={6}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ),
+          )}
       </svg>
     </div>
   );

@@ -6,6 +6,7 @@ import {
   namedList,
   openItem,
   rowAction,
+  shotRegion,
   waitingAge,
   waitingGroups,
   waitingHref,
@@ -138,4 +139,28 @@ test('the open item is the one asked for, else the first row, never a Decide now
   assert.equal(openItem(groups, 'missing')?.id, 'design:a:b:c');
   assert.equal(openItem(waitingGroups([item('rollback:x', 'rollback', 1)]), null), null);
   assert.equal(waitingHref({ id: 'design:a:b:c' }), '/dashboard/inbox?item=design%3Aa%3Ab%3Ac');
+});
+
+test('a shot shows the change near the screen’s own size, in the frame’s proportions', () => {
+  const preview = { width: 1440, height: 900, crop: { x: 0, y: 0, w: 720, h: 520 } };
+  const small = shotRegion(
+    { ...preview, areas: [{ before: null, after: { x: 600, y: 300, w: 100, h: 40 } }] as never },
+    'after',
+  );
+  // A small change still shows about 400 px of screen around it, centred on it.
+  assert.deepEqual(small, { x: 450, y: 195, w: 400, h: 250 });
+  // A wide change keeps all of itself; the crop never leaves the screen.
+  const wide = shotRegion(
+    { ...preview, areas: [{ before: { x: 0, y: 800, w: 1400, h: 100 }, after: null }] as never },
+    'before',
+  );
+  assert.equal(wide.w, 1440);
+  assert.equal(wide.y + wide.h <= 900, true);
+  // Without a change area, the preview's own crop is used.
+  assert.deepEqual(shotRegion({ ...preview, areas: [] }, 'after'), {
+    x: 0,
+    y: 0,
+    w: 832,
+    h: 520,
+  });
 });

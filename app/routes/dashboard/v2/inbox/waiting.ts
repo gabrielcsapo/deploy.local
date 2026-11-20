@@ -1,7 +1,13 @@
 // Waiting on you, grouped by what you must do (design/boards/Inbox.html, canvas note
 // "waiting-grouped"): Decide now, Review designs, Proposals, Answer. Each group appears with its
 // first item; every item but a Decide now card is one row with one action.
-import type { DesignReviewSummary, InboxItem } from '../../../../../shared/v2/contracts.ts';
+import type {
+  DesignRect,
+  DesignReviewPreview,
+  DesignReviewSummary,
+  InboxItem,
+} from '../../../../../shared/v2/contracts.ts';
+import { reviewCrop } from '../../../../../shared/v2/design-review.ts';
 
 export type WaitingKind = 'risk' | 'design' | 'proposal' | 'learning' | 'question';
 export type WaitingGroupId = 'decide' | 'designs' | 'proposals' | 'answer';
@@ -123,4 +129,33 @@ export function openItem(groups: WaitingGroup[], selected: string | null) {
     groups.find((group) => group.id !== 'decide')?.items[0] ??
     null
   );
+}
+
+/** The shot's frame: 16 by 10, as the design system draws `.dl-asks-shot`. */
+const SHOT_ASPECT = 16 / 10;
+/** The narrowest crop, in screen pixels: a frame about this wide shows the screen near its size. */
+const SHOT_MIN_WIDTH = 400;
+/**
+ * The part of a screen a Before or After shot shows: the largest change with its context, at the
+ * screen's own size where it fits, widened to the frame's proportions and kept on the screen.
+ */
+export function shotRegion(
+  preview: Pick<DesignReviewPreview, 'width' | 'height' | 'areas' | 'crop'>,
+  side: 'before' | 'after',
+): DesignRect {
+  const rects = preview.areas.map((area) => area[side]).filter((rect) => rect !== null);
+  const crop = rects.length ? reviewCrop(preview.width, preview.height, rects) : preview.crop;
+  let w = Math.min(preview.width, Math.max(SHOT_MIN_WIDTH, crop.w, crop.h * SHOT_ASPECT));
+  let h = w / SHOT_ASPECT;
+  if (h > preview.height) {
+    h = preview.height;
+    w = h * SHOT_ASPECT;
+  }
+  const clamp = (value: number, max: number) => Math.min(Math.max(0, max), Math.max(0, value));
+  return {
+    x: clamp(crop.x + crop.w / 2 - w / 2, preview.width - w),
+    y: clamp(crop.y + crop.h / 2 - h / 2, preview.height - h),
+    w,
+    h,
+  };
 }
