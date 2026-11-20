@@ -3,14 +3,21 @@ import { readFileSync } from 'node:fs';
 import type { ComponentProps } from 'react';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { DesignReview, DesignReviewScreen } from '../../../../../shared/v2/contracts';
+import type {
+  DesignReview,
+  DesignReviewScreen,
+  DesignReviewSummary,
+} from '../../../../../shared/v2/contracts';
 import { InboxProvider } from '../data/hooks';
 import { DesignCanvas, ReviewLoadingCanvas } from './Canvas';
 import {
   CanvasReviewBar,
   PinBox,
   ReviewDecisions,
+  ReviewStepper,
   ReviewStrip,
+  knownReview,
+  useCanvasReview,
   ReviewViewItems,
   useReviewDecision,
   type CanvasReview,
@@ -148,6 +155,7 @@ const controller = (value?: DesignReview) =>
     load: async () => {},
     approveFrame: async () => {},
     setPins: () => {},
+    known: null,
   }) as CanvasReview;
 const bar = (value?: DesignReview) =>
   renderToStaticMarkup(
@@ -693,6 +701,84 @@ test('while screens load the strip says how many of them, in place of how many a
   const stills = renderToStaticMarkup(<ReviewLoadingCanvas boards={[changed, offscreen]} />);
   assert.match(stills, /aria-busy="true"/);
   assert.doesNotMatch(stills, /dl-skeleton|<iframe/);
+});
+
+// Live on SER: "Loading the review", "0 of 0" and an empty canvas for about a second, though
+// Waiting on you had already read the review. The board (DesignReviewCanvasLoading) shows the
+// strip, What changed and the stills at once.
+test('a review Waiting on you already read opens complete, before the canvas arrives', () => {
+  const cached = {
+    ...data,
+    counts: { screens: 2, changed: 2, new: 0, removed: 0 },
+  } as unknown as DesignReview;
+  function FirstPaint() {
+    // As the page does on its first render: the review from the cache, no canvas yet.
+    const review = useCanvasReview('p', frameReview.item, cached);
+    const decision = useReviewDecision(review, '', async () => '');
+    const boards = review.data ? review.data.boards : [];
+    return (
+      <>
+        <ReviewStrip decision={decision} loading={{ done: 0, total: boards.length }} />
+        <ReviewStepper index={0} total={review.data ? boards.length : null} onStep={() => {}} />
+        {review.data && <ReviewPanel review={review.data} onScreen={() => {}} onNote={() => {}} />}
+        <ReviewLoadingCanvas boards={boards} />
+      </>
+    );
+  }
+  const html = renderToStaticMarkup(
+    <InboxProvider>
+      <FirstPaint />
+    </InboxProvider>,
+  );
+  const text = words(html);
+  assert.match(text, /Keep the gutter at every width · from Designer/);
+  assert.match(html, /role="status">Loading 0 of 2 screens/);
+  assert.match(text, /What changed1 of 2 seen/);
+  assert.match(html, /class="dz-review-step">1 of 2</);
+  assert.doesNotMatch(html, /Loading the review|dl-skeleton|0 of 0/);
+  assert.match(html, /aria-busy="true"/);
+});
+
+test('with only Waiting on you’s line for it, the strip names the review and never says 0 of 0', () => {
+  const summaries = [
+    {
+      proposals: [
+        {
+          id: frameReview.item,
+          title: 'Diagnostics: debug deploy.local from inside it',
+          proposer: { id: null, name: 'Gabriel', avatar: null },
+          counts: { screens: 13, changed: 13, new: 0, removed: 0 },
+        } as DesignReviewSummary,
+      ],
+    },
+  ];
+  const known = knownReview(frameReview.item, { summaries });
+  assert.deepEqual(known, {
+    title: 'Diagnostics: debug deploy.local from inside it',
+    proposer: 'Gabriel',
+    screens: 13,
+  });
+  assert.deepEqual(knownReview(frameReview.item, { inboxTitle: 'Diagnostics' }), {
+    title: 'Diagnostics',
+    proposer: null,
+    screens: null,
+  });
+  assert.equal(knownReview(frameReview.item, {}), null);
+  function Strip() {
+    const decision = useReviewDecision({ ...controller(undefined), known }, '', async () => '');
+    return <ReviewStrip decision={decision} loading={{ done: 0, total: known!.screens! }} />;
+  }
+  const html = renderToStaticMarkup(
+    <InboxProvider>
+      <Strip />
+      <ReviewStepper index={0} total={null} onStep={() => {}} />
+    </InboxProvider>,
+  );
+  assert.match(words(html), /Diagnostics: debug deploy.local from inside it · from Gabriel/);
+  assert.match(html, /role="status">Loading 0 of 13 screens/);
+  // The stepper holds its place without a number until the count is known.
+  assert.doesNotMatch(html, /dz-review-step|0 of 0|Loading the review/);
+  assert.match(html, /aria-label="Previous changed frame" disabled=""/);
 });
 
 test('changed screens are blurred stills in place until their renders arrive', () => {

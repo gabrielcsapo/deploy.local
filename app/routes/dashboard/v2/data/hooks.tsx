@@ -134,6 +134,15 @@ export const remembered = <T,>(path: string, seed?: DataSeed): T | undefined => 
     return seed.data[path] as T;
   return cached?.data as T | undefined;
 };
+/** Every remembered answer whose path starts with this, newest first: seeded ones too. */
+export function rememberedStartingWith<T>(prefix: string, seed?: DataSeed): T[] {
+  const found: { at: number; data: T }[] = [];
+  for (const [path, entry] of browserResources() ?? [])
+    if (path.startsWith(prefix)) found.push({ at: entry.at, data: entry.data as T });
+  for (const [path, data] of Object.entries(seed?.data ?? {}))
+    if (path.startsWith(prefix)) found.push({ at: seed!.at, data: data as T });
+  return found.sort((a, b) => b.at - a.at).map((entry) => entry.data);
+}
 export const remember = (path: string, data: unknown) =>
   browserResources()?.set(resourceKey(path), { data, at: Date.now() });
 

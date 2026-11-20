@@ -83,6 +83,7 @@ import { documentReviewHref, reviewHref } from './review-model';
 import {
   PinBox,
   ReviewDecisions,
+  ReviewStepper,
   ReviewDialogs,
   ReviewStrip,
   ReviewViewItems,
@@ -988,27 +989,11 @@ function DesignCanvasPage({
   ]);
   const reviewNavigation = (
     <>
-      <button
-        className="dz-tool"
-        type="button"
-        aria-label="Previous changed frame"
-        disabled={!reviewBoards.length || activeReviewIndex === 0}
-        onClick={() => stepReview(-1)}
-      >
-        ‹
-      </button>
-      <span className="dz-review-step">
-        {reviewBoards.length ? activeReviewIndex + 1 : 0} of {reviewBoards.length}
-      </span>
-      <button
-        className="dz-tool"
-        type="button"
-        aria-label="Next changed frame"
-        disabled={!reviewBoards.length || activeReviewIndex === reviewBoards.length - 1}
-        onClick={() => stepReview(1)}
-      >
-        ›
-      </button>
+      <ReviewStepper
+        index={activeReviewIndex}
+        total={reviewData ? reviewBoards.length : null}
+        onStep={stepReview}
+      />
       <i className="dz-sep" />
     </>
   );
@@ -1490,7 +1475,13 @@ function DesignCanvasPage({
           {reviewId && (
             <ReviewStrip
               decision={decision}
-              loading={loadingScreens ? { done: 0, total: shownScreens.length } : frameLoading}
+              loading={
+                loadingScreens
+                  ? { done: 0, total: shownScreens.length }
+                  : !reviewData && decision.known?.screens
+                    ? { done: 0, total: decision.known.screens }
+                    : frameLoading
+              }
               onShowLeft={showLeft}
               onShowRight={hidden.right ? () => showPanel('right', true) : undefined}
             />

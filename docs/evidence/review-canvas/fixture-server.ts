@@ -21,6 +21,7 @@ export const states = [
   'conflict',
   'notes-only',
   'loading',
+  'loading-known',
   'not-landed',
   'no-one',
   'terminal',
@@ -535,9 +536,14 @@ export function createFixture() {
       save();
       return json({ ok: true });
     }
+    // loading-known: the review as Waiting on you already read it, which the page starts from.
+    if (path === '/__fixture/known')
+      return state === 'loading-known'
+        ? json({ path: `${api}/review?item=${encodeURIComponent(id)}&evidence=text`, review })
+        : new Response(null, { status: 204 });
     if (path === `${api}/review`) {
       if (url.searchParams.get('item') !== id) return json({ error: 'Unknown proposal' }, 404);
-      if (state === 'loading') {
+      if (state === 'loading' || state === 'loading-known') {
         await wait(request.signal);
         return new Response(null, { status: 204 });
       }
@@ -559,6 +565,11 @@ export function createFixture() {
       return json(preview);
     }
     if (path === api) {
+      // Held, so the blurred stills stay on screen to be looked at.
+      if (state === 'loading-known') {
+        await wait(request.signal);
+        return new Response(null, { status: 204 });
+      }
       const old = url.searchParams.get('ref') === before;
       const shown = structuredClone(canvas);
       if (old && state === 'notes-only') shown.notes!.gutter.text = title;
@@ -681,6 +692,9 @@ import Design from '/app/routes/dashboard/v2/design/page.client.tsx';
 import {setContent} from '/docs/evidence/board-parity/fixture-router.tsx';
 import '/app/design-tokens.css';
 localStorage.setItem('deploy-sh-auth', JSON.stringify({username:'Gabriel',token:'fixture-only'}));
+import {remember} from '/app/routes/dashboard/v2/data/hooks.tsx';
+const known = await fetch('/__fixture/known').then((response) => response.status === 200 ? response.json() : null);
+if (known) remember(known.path, known.review);
 setContent(<Design/>); createRoot(document.getElementById('root')!).render(<V2Layout/>);`,
   );
   const vite = await createVite({
@@ -790,7 +804,7 @@ async function check() {
         new URL(reset!.headers.get('location')!, 'http://fixture').pathname,
         '/dashboard/design',
       );
-      if (state === 'loading') {
+      if (state === 'loading' || state === 'loading-known') {
         const controller = new AbortController();
         let settled = false;
         const response = call(`${api}/review?item=${encodeURIComponent(id)}`, {

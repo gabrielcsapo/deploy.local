@@ -3402,8 +3402,16 @@ button.dz-link-row:hover,
     display: none;
   }
 }
+/* A canvas about 600 px wide keeps the loading words and drops their bar, so who stays whole. */
+@container dz-review-stage (max-width: 640px) {
+  .dz-strip-loading .dl-bar {
+    display: none;
+  }
+}
 @container dz-review-stage (max-width: 540px) {
-  .dz-review-progress {
+  /* Loading takes the count's place, and goes with it: the blurred stills say it is loading. */
+  .dz-review-progress,
+  .dz-strip-loading {
     display: none;
   }
   /* With a resolved count too, the strip tightens so who proposed it stays whole. */

@@ -12,6 +12,7 @@ const states = [
   'conflict',
   'notes-only',
   'loading',
+  'loading-known',
   'not-landed',
   'no-one',
   'terminal',

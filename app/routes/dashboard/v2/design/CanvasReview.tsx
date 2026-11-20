@@ -6,8 +6,16 @@ import type {
   DesignReviewPin,
   DesignReviewPreview,
   DesignReviewScreen,
+  DesignReviewSummary,
 } from '../../../../../shared/v2/contracts';
-import { useAgentName, useInbox } from '../data/hooks';
+import {
+  remember,
+  remembered,
+  rememberedStartingWith,
+  useAgentName,
+  useInbox,
+} from '../data/hooks';
+import { useDataSeed } from '../data/seeds';
 import { authenticatedFetch, request, useData } from '../projects/data';
 import { approvalRecord, buildLine, inboxItemHref, resolutionProgress } from './review-model';
 import { approveLabel } from '../../../../../shared/v2/artifacts';
@@ -26,9 +34,72 @@ import {
 import { BuildDesign } from './BuildDesign';
 import { DesignBuildDecision } from '../inbox/DesignBuildDecision';
 
-export function useCanvasReview(project: string, item: string | null) {
+/** The path a review is read from; Waiting on you reads the same one. */
+export const reviewPath = (api: string, item: string) =>
+  `${api}/review?item=${encodeURIComponent(item)}&evidence=text`;
+
+/**
+ * What is known about a review before its own answer arrives: the last answer for it (Waiting on
+ * you reads the same path), else its line in a reviews list read before.
+ */
+export type KnownReview = {
+  title: string;
+  proposer: string | null;
+  /** How many screens it changes, when known. */
+  screens: number | null;
+};
+export function knownReview(
+  item: string | null,
+  {
+    review,
+    summaries = [],
+    inboxTitle,
+  }: {
+    review?: DesignReview;
+    summaries?: { proposals?: DesignReviewSummary[] }[];
+    inboxTitle?: string | null;
+  },
+): KnownReview | null {
+  if (!item) return null;
+  if (review)
+    return {
+      title: review.title,
+      proposer: review.proposer.name,
+      screens: review.counts.screens,
+    };
+  const summary = summaries
+    .flatMap((list) => list.proposals ?? [])
+    .find((entry) => entry.id === item);
+  if (summary)
+    return {
+      title: summary.title,
+      proposer: summary.proposer.name,
+      screens: summary.counts.screens,
+    };
+  return inboxTitle ? { title: inboxTitle, proposer: null, screens: null } : null;
+}
+
+export function useCanvasReview(
+  project: string,
+  item: string | null,
+  /** A review already read, shown at once while it is read again. */
+  initial?: DesignReview,
+) {
   const api = `/api/projects/${encodeURIComponent(project)}/design`;
-  const [data, setData] = useState<DesignReview>();
+  const seed = useDataSeed();
+  const [data, setData] = useState<DesignReview | undefined>(
+    () => initial ?? (item ? remembered<DesignReview>(reviewPath(api, item), seed) : undefined),
+  );
+  // Its title, who proposed it and how many screens, from what Waiting on you already read.
+  const [known] = useState(() =>
+    knownReview(item, {
+      review: initial ?? (item ? remembered<DesignReview>(reviewPath(api, item), seed) : undefined),
+      summaries: rememberedStartingWith<{ proposals?: DesignReviewSummary[] }>(
+        '/api/design/reviews',
+        seed,
+      ),
+    }),
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [side, setSide] = useState<ReviewSide>('after');
@@ -47,12 +118,10 @@ export function useCanvasReview(project: string, item: string | null) {
     try {
       // evidence=text: the canvas never shows the review's `changes`, so the server need not draw
       // every screen in Chromium before answering. Each screen's areas come from its preview.
-      const value = await request<DesignReview>(
-        `${api}/review?item=${encodeURIComponent(item)}&evidence=text`,
-        {
-          signal: next.signal,
-        },
-      );
+      const value = await request<DesignReview>(reviewPath(api, item), {
+        signal: next.signal,
+      });
+      remember(reviewPath(api, item), value);
       if (version.current === read) {
         setData(value);
         setError('');
@@ -114,6 +183,7 @@ export function useCanvasReview(project: string, item: string | null) {
     api: data?.api ?? api,
     item,
     data,
+    known,
     error,
     setError,
     busy,
@@ -248,6 +318,10 @@ export function useReviewDecision(
   const next = inbox.items.find(
     (entry) => entry.id !== item && entry.id.startsWith('design:') && entry.state === 'waiting',
   );
+  // Before the review's own answer: what Waiting on you already knows about it.
+  const known =
+    review.known ??
+    knownReview(item, { inboxTitle: inbox.items.find((entry) => entry.id === item)?.title });
   const decide = async (actionId: 'approve' | 'changes' | 'update') => {
     setBusy(true);
     try {
@@ -333,6 +407,7 @@ export function useReviewDecision(
     building,
     build,
     next,
+    known,
     decide,
     undo: act('undo'),
     startTask: act('task'),
@@ -352,10 +427,17 @@ export function ReviewHeading({
 }) {
   const { data } = decision.review;
   const { notLanded, kept, approved, count, pending, record, document, building } = decision;
+  const { known } = decision;
   return (
     <span className="dz-review-heading">
       {data ? (
         <strong>{data.title}</strong>
+      ) : known ? (
+        // Known from Waiting on you: the strip reads as it will, without a count yet.
+        <>
+          <strong>{known.title}</strong>
+          {known.proposer && <span className="dz-review-who"> · from {known.proposer}</span>}
+        </>
       ) : (
         <span className="dz-review-loading" role="status">
           Loading the review
@@ -527,6 +609,49 @@ export function ReviewResolutions({ decision }: { decision: ReviewDecision }) {
     <Action className="dz-strip-resolved" onClick={() => setDialog('conflicts')}>
       {resolved.label}
     </Action>
+  );
+}
+
+/**
+ * ‹ 3 of 13 › at the tool bar's start. Until the review says how many screens changed there is
+ * nothing to count: the arrows hold their place and no number shows, never "0 of 0".
+ */
+export function ReviewStepper({
+  index,
+  total,
+  onStep,
+}: {
+  index: number;
+  /** How many changed screens; null until the review has arrived. */
+  total: number | null;
+  onStep: (by: -1 | 1) => void;
+}) {
+  return (
+    <>
+      <button
+        className="dz-tool"
+        type="button"
+        aria-label="Previous changed frame"
+        disabled={!total || index === 0}
+        onClick={() => onStep(-1)}
+      >
+        ‹
+      </button>
+      {total !== null && (
+        <span className="dz-review-step">
+          {total ? index + 1 : 0} of {total}
+        </span>
+      )}
+      <button
+        className="dz-tool"
+        type="button"
+        aria-label="Next changed frame"
+        disabled={!total || index === total - 1}
+        onClick={() => onStep(1)}
+      >
+        ›
+      </button>
+    </>
   );
 }
 
