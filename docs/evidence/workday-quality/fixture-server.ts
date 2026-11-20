@@ -91,6 +91,12 @@ function seed(now = Date.now()) {
   ];
   designs[1].item.id = diagnostics;
   designs[1].summary.id = diagnostics;
+  // The two live cases: a title saved from the branch's cut name (the summary has the real one),
+  // and a proposal from a task without an agent.
+  designs[3].item.title = 'Start screens scenario carousel on phones full w';
+  designs[3].summary.branch = 'design/start-screens-scenario-carousel-on-phones-full-w';
+  Object.assign(designs[5].item, { taskId: 'task-drop' });
+  designs[5].summary.proposer = { id: null, name: 'A task', avatar: null };
   const items = [
     {
       ...base,
@@ -185,7 +191,7 @@ const screenTitles = [
   'Diagnostics empty',
 ];
 const shots: Record<string, { before: string; after: string; area: number[] }> = {
-  Computer: { before: 'Computer', after: 'Computer', area: [400, 280, 436, 280] },
+  Computer: { before: 'Computer', after: 'Computer', area: [400, 280, 436, 120] },
   Diagnostics: { before: 'DiagnosticsEmpty', after: 'Diagnostics', area: [400, 60, 900, 260] },
 };
 function review(summary: ReturnType<typeof seed>['summaries'][number], item: unknown) {
@@ -287,12 +293,14 @@ export function createFixture() {
       const shot = shots[board === 'Computer' ? 'Computer' : 'Diagnostics'];
       const size = pngSize(join(repo, 'output/design', `${shot.after}-1440.png`));
       const [x, y, w, h] = shot.area;
+      // Diagnostics is new on Computer: main has nothing where it is, as on SER.
+      const before = board === 'Computer' ? null : { x, y, w, h };
       return json({
         ...size,
         before: `/fixture-shots/${shot.before}`,
         after: `/fixture-shots/${shot.after}`,
-        areas: [{ before: { x, y, w, h }, after: { x, y, w, h } }],
-        crop: { x, y, w, h },
+        areas: [{ before, after: { x, y, w, h } }],
+        crop: { x: x - 48, y: y - 48, w: w + 96, h: h + 96 },
       });
     }
     if (path === '/api/state')
