@@ -104,6 +104,29 @@ export function tunnelUpgrade(
   });
 }
 
+export function tunnelAppUpgrade(
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  route: UpgradeRoute | null,
+) {
+  const backend = route?.selectBackend?.(req) ?? null;
+  const port = backend?.port ?? route?.port;
+  if (port) {
+    tunnelUpgrade(
+      req,
+      socket,
+      head,
+      port,
+      backend?.host || route?.backendHost || '127.0.0.1',
+      backend?.release,
+    );
+  } else {
+    backend?.release();
+    socket.destroy();
+  }
+}
+
 /**
  * Attach the app upgrade proxy to a server. Coordinates with the dashboard
  * /ws handler (ws.ts), which scopes itself to non-app hosts:
@@ -126,21 +149,7 @@ export function attachAppUpgradeProxy(
 
     if (isAppHost(hostname, deps)) {
       const route = deps.getRoute(appNameFromHost(hostname)!);
-      const backend = route?.selectBackend?.(req) ?? null;
-      const port = backend?.port ?? route?.port;
-      if (port) {
-        tunnelUpgrade(
-          req,
-          socket,
-          head,
-          port,
-          backend?.host || route?.backendHost || '127.0.0.1',
-          backend?.release,
-        );
-      } else {
-        backend?.release();
-        socket.destroy();
-      }
+      tunnelAppUpgrade(req, socket, head, route);
       return;
     }
 

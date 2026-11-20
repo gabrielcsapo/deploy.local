@@ -231,7 +231,8 @@ export function proxyToApp(
     !requestCacheControl.includes('no-store') &&
     String(req.headers.pragma || '').toLowerCase() !== 'no-cache' &&
     pathMatchesCacheConfig(targetPath, deployment.cache);
-  const cacheKey = `${deployment.name}:${deployment.port}:${targetPath}${search}`;
+  const protocol = (req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http';
+  const cacheKey = `${deployment.name}:${deployment.port}:${protocol}:${targetPath}${search}`;
   if (cacheEligibleRequest) {
     const cached = getCachedResponse(cacheKey);
     if (cached) {

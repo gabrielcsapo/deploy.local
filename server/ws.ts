@@ -45,7 +45,7 @@ let wss: WebSocketServer | null = null;
  * are tunneled to the container by the upgrade proxy (edge/upgrade-proxy.ts);
  * grabbing them here would 401-destroy them against dashboard auth.
  */
-function handleDashboardUpgrade(
+export function handleDashboardUpgrade(
   req: IncomingMessage,
   socket: import('node:stream').Duplex,
   head: Buffer,

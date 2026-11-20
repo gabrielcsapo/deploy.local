@@ -272,10 +272,16 @@ const homeStates = {
   failing: ['failed', 'Failing'],
 } as const;
 function HomeAppCard({ app }: { app: HomeApp }) {
-  const host = new URL(app.address).host;
+  const address = new URL(app.address);
+  // AppsHome loads these cards on the client. Guests stay on the listener they opened.
+  if (window.location.protocol === 'http:') {
+    address.protocol = 'http:';
+    address.port = window.location.port;
+  }
+  const host = address.host;
   const state = app.state && app.state !== 'running' ? homeStates[app.state] : undefined;
   return (
-    <a className="v2-apps-card" href={app.address}>
+    <a className="v2-apps-card" href={address.href}>
       <span className="v2-apps-card-head">
         <span className={`dl-glyph v2-app-color-${appColor(app.name)}`} aria-hidden="true">
           {(app.source || app.name)[0].toUpperCase()}
@@ -302,9 +308,11 @@ function AppsHome() {
   const [data, setData] = useState<{ apps: HomeApp[]; server?: string; computers?: string[] }>();
   const [error, setError] = useState('');
   useEffect(() => {
-    void api('/api/auth/account')
-      .then(() => window.location.replace('/dashboard'))
-      .catch(() => {});
+    if (window.location.protocol === 'https:') {
+      void api('/api/auth/account')
+        .then(() => window.location.replace('/dashboard'))
+        .catch(() => {});
+    }
     void api('/api/apps-home')
       .then(setData)
       .catch((error) => setError(error.message));

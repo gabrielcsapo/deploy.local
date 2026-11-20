@@ -72,6 +72,18 @@ export class RouteTable {
     return this.cache.get(name) ?? null;
   }
 
+  /** Consult the same flag as Apps at home, including edits made since the last IPC hint. */
+  isShared(name: string): boolean {
+    try {
+      return !!this.sqlite
+        .prepare('SELECT 1 FROM deployments WHERE name = ? AND discoverable = 1')
+        .get(name);
+    } catch {
+      // An older or unavailable database cannot grant guest access.
+      return false;
+    }
+  }
+
   /** Full resync from the DB — boot, and after every IPC (re)connect. */
   reloadAll() {
     const rows = this.sqlite

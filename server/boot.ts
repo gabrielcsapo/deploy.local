@@ -1,3 +1,4 @@
+import { guestHttpTarget, redirectToHttps, attachPlainHttpUpgrades } from './edge/guest-http.ts';
 import './main/task-workspace-imports.ts';
 import { wireTaskRunStarter } from './main/task-run-starter.ts';
 import { wireQuestionAnswerResumer } from './main/question-answer-resumer.ts';
@@ -24,8 +25,9 @@ import { handleWebRedirect } from './web-redirects.ts';
 import { createSecureServer as createHttp2Server } from 'node:http2';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { wireServerWorkspacePorts } from './main/server-workspace-ports.ts';
+import { createHotPathHandler } from './edge/proxy.ts';
 import { apiMiddleware, setHotPathRouteSource } from './api.ts';
-import { setupWebSocket, attachWebSocketUpgrade } from './ws.ts';
+import { setupWebSocket, handleDashboardUpgrade } from './ws.ts';
 import { syncContainerStates, startAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
 import { startManagedWorkers, stopManagedWorkers } from './workspace/managed-worker.ts';
@@ -279,10 +281,20 @@ async function start(options: BootOptions) {
 
   let actualHttpsPort = HTTPS_PORT;
 
-  // HTTP server on port 80: serve CA cert, handle API requests, redirect browsers to HTTPS
+  const guestApp = createHotPathHandler(edgeRuntime.hotPathDeps);
   const collector = await createTelemetryCollector();
   const httpServer = createServer(
     withServerTelemetry(collector.handler, (req, res) => {
+      const target = guestHttpTarget(req, edgeRuntime.routes);
+      if (target === 'https') return redirectToHttps(req, res, actualHttpsPort);
+      if (target === 'app') {
+        guestApp(req, res);
+        return;
+      }
+      if (target === 'home') {
+        void serveClient(req, res);
+        return;
+      }
       if (req.url === '/ca.crt') {
         serveCaCert(res);
         return;
@@ -296,15 +308,11 @@ async function start(options: BootOptions) {
         });
         return;
       }
-      const host = req.headers.host?.split(':')[0] || 'deploy.local';
-      const portSuffix = actualHttpsPort !== 443 ? `:${actualHttpsPort}` : '';
-      res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
-      res.end();
+      redirectToHttps(req, res, actualHttpsPort);
     }),
   );
 
-  attachWebSocketUpgrade(httpServer);
-  attachAppUpgradeProxy(httpServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
+  attachPlainHttpUpgrades(httpServer, edgeRuntime.routes, handleDashboardUpgrade);
 
   const gitSshServer = await startGitSshServer({ port: options.gitSshPort });
 
